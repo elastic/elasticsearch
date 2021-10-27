@@ -172,7 +172,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         try {
             AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
                 try (var c = ds.getConnection()) {
-                    assertThat("Failed to connect to " + ds + " - ", c.isConnected(), is(true));
+                    assertThat("Failed to connect to " + ds, c.isConnected(), is(true));
                 } catch (LDAPException e) {
                     throw new AssertionError("Failed to connect to " + ds, e);
                 }

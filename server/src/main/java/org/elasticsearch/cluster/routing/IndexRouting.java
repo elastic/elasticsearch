@@ -15,12 +15,10 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.Transports;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.support.filtering.FilterPath;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -203,14 +201,14 @@ public abstract class IndexRouting {
     }
 
     private static class ExtractFromSource extends IndexRouting {
-        private final FilterPath[] include;
+        private final XContentParserConfiguration parserConfig;
 
         ExtractFromSource(IndexMetadata metadata) {
             super(metadata);
             if (metadata.isRoutingPartitionedIndex()) {
                 throw new IllegalArgumentException("routing_partition_size is incompatible with routing_path");
             }
-            this.include = FilterPath.compile(Set.copyOf(metadata.getRoutingPaths()));
+            this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(Set.copyOf(metadata.getRoutingPaths()), null);
         }
 
         @Override
@@ -221,16 +219,7 @@ public abstract class IndexRouting {
             assert Transports.assertNotTransportThread("parsing the _source can get slow");
 
             try {
-                try (
-                    XContentParser parser = sourceType.xContent()
-                        .createParser(
-                            NamedXContentRegistry.EMPTY,
-                            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                            source.streamInput(),
-                            include,
-                            null
-                        )
-                ) {
+                try (XContentParser parser = sourceType.xContent().createParser(parserConfig, source.streamInput())) {
                     parser.nextToken(); // Move to first token
                     if (parser.currentToken() == null) {
                         throw new IllegalArgumentException("Error extracting routing: source didn't contain any routing fields");

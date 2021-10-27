@@ -31,11 +31,22 @@ public class TimeSeries implements Writeable, ToXContentFragment {
         this.total = 0;
     }
 
+    public TimeSeries(long total) {
+        this.fiveMinutes = 0;
+        this.fifteenMinutes = 0;
+        this.twentyFourHours = 0;
+        this.total = total;
+    }
+
     public TimeSeries(long fiveMinutes, long fifteenMinutes, long twentyFourHours, long total) {
         this.fiveMinutes = fiveMinutes;
         this.fifteenMinutes = fifteenMinutes;
         this.twentyFourHours = twentyFourHours;
         this.total = total;
+    }
+
+    TimeSeries withTotal(long total) {
+        return new TimeSeries(fiveMinutes, fifteenMinutes, twentyFourHours, total);
     }
 
     public TimeSeries(StreamInput in) throws IOException {
@@ -51,6 +62,7 @@ public class TimeSeries implements Writeable, ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        // total is omitted from toXContent as it's written at a higher level by ScriptContextStats
         builder.field(ScriptContextStats.Fields.FIVE_MINUTES, fiveMinutes);
         builder.field(ScriptContextStats.Fields.FIFTEEN_MINUTES, fifteenMinutes);
         builder.field(ScriptContextStats.Fields.TWENTY_FOUR_HOURS, twentyFourHours);
@@ -67,8 +79,8 @@ public class TimeSeries implements Writeable, ToXContentFragment {
         }
     }
 
-    public boolean isEmpty() {
-        return twentyFourHours == 0;
+    public boolean areTimingsEmpty() {
+        return fiveMinutes == 0 && fifteenMinutes == 0 && twentyFourHours == 0;
     }
 
     @Override

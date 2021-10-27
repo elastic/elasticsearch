@@ -719,13 +719,9 @@ public class NodeStatsTests extends ESTestCase {
             List<ScriptContextStats> stats = new ArrayList<>(numContents);
             HashSet<String> contexts = new HashSet<>();
             for (int i = 0; i < numContents; i++) {
-                long compile = randomLongBetween(0, 1024);
-                long eviction = randomLongBetween(0, 1024);
                 String context = randomValueOtherThanMany(contexts::contains, () -> randomAlphaOfLength(12));
                 contexts.add(context);
-                stats.add(
-                    new ScriptContextStats(context, compile, eviction, randomLongBetween(0, 1024), randomTimeSeries(), randomTimeSeries())
-                );
+                stats.add(new ScriptContextStats(context, randomLongBetween(0, 1024), randomTimeSeries(), randomTimeSeries()));
             }
             scriptStats = new ScriptStats(stats);
         }
@@ -875,7 +871,8 @@ public class NodeStatsTests extends ESTestCase {
 
     private static TimeSeries randomTimeSeries() {
         if (randomBoolean()) {
-            long day = randomLongBetween(0, 1024);
+            long total = randomLongBetween(0, 1024);
+            long day = total >= 1 ? randomLongBetween(0, total) : 0;
             long fifteen = day >= 1 ? randomLongBetween(0, day) : 0;
             long five = fifteen >= 1 ? randomLongBetween(0, fifteen) : 0;
             return new TimeSeries(five, fifteen, day, day);

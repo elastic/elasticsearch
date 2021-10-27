@@ -28,8 +28,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class ScriptStatsTests extends ESTestCase {
     public void testXContent() throws IOException {
         List<ScriptContextStats> contextStats = List.of(
-            new ScriptContextStats("contextB", 100, 201, 302, new TimeSeries(1000, 1001, 1002, 100), new TimeSeries(2000, 2001, 2002, 201)),
-            new ScriptContextStats("contextA", 1000, 2010, 3020, null, new TimeSeries(0, 0, 0, 0))
+            new ScriptContextStats("contextB", 302, new TimeSeries(1000, 1001, 1002, 100), new TimeSeries(2000, 2001, 2002, 201)),
+            new ScriptContextStats("contextA", 3020, new TimeSeries(1000), new TimeSeries(2010))
         );
         ScriptStats stats = new ScriptStats(contextStats);
         final XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
@@ -72,8 +72,7 @@ public class ScriptStatsTests extends ESTestCase {
     }
 
     public void testSerializeEmptyTimeSeries() throws IOException {
-        TimeSeries empty = new TimeSeries();
-        ScriptContextStats stats = new ScriptContextStats("c", 1111, 2222, 3333, null, empty);
+        ScriptContextStats stats = new ScriptContextStats("c", 3333, new TimeSeries(1111), new TimeSeries(2222));
 
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -89,13 +88,13 @@ public class ScriptStatsTests extends ESTestCase {
     }
 
     public void testSerializeTimeSeries() throws IOException {
-        Function<TimeSeries, ScriptContextStats> mkContextStats = (ts) -> new ScriptContextStats("c", 1111, 2222, 3333, null, ts);
+        Function<TimeSeries, ScriptContextStats> mkContextStats = (ts) -> new ScriptContextStats("c", 3333, new TimeSeries(1111), ts);
 
         TimeSeries series = new TimeSeries(0, 0, 5, 2222);
         String format = "{\n"
             + "  \"context\" : \"c\",\n"
             + "  \"compilations\" : 1111,\n"
-            + "  \"cache_evictions\" : 2222,\n"
+            + "  \"cache_evictions\" : %d,\n"
             + "  \"cache_evictions_history\" : {\n"
             + "    \"5m\" : %d,\n"
             + "    \"15m\" : %d,\n"
@@ -107,25 +106,27 @@ public class ScriptStatsTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         mkContextStats.apply(series).toXContent(builder, ToXContent.EMPTY_PARAMS);
 
-        assertThat(Strings.toString(builder), equalTo(String.format(Locale.ROOT, format, 0, 0, 5)));
+        assertThat(Strings.toString(builder), equalTo(String.format(Locale.ROOT, format, 2222, 0, 0, 5)));
 
-        series = new TimeSeries(0, 7, 1234, 1234);
+        series = new TimeSeries(0, 7, 1234, 5678);
         builder = XContentFactory.jsonBuilder().prettyPrint();
         mkContextStats.apply(series).toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertThat(Strings.toString(builder), equalTo(String.format(Locale.ROOT, format, 0, 7, 1234)));
+        assertThat(Strings.toString(builder), equalTo(String.format(Locale.ROOT, format, 5678, 0, 7, 1234)));
 
-        series = new TimeSeries(123, 456, 789, 1234);
+        series = new TimeSeries(123, 456, 789, 91011);
         builder = XContentFactory.jsonBuilder().prettyPrint();
         mkContextStats.apply(series).toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertThat(Strings.toString(builder), equalTo(String.format(Locale.ROOT, format, 123, 456, 789)));
+        assertThat(Strings.toString(builder), equalTo(String.format(Locale.ROOT, format, 91011, 123, 456, 789)));
     }
 
     public void testTimeSeriesIsEmpty() {
-        assertTrue((new TimeSeries(0, 0, 0, 0)).isEmpty());
-        long day = randomLongBetween(1, 1024);
+        assertTrue((new TimeSeries(0, 0, 0, 0)).areTimingsEmpty());
+        assertTrue((new TimeSeries(0, 0, 0, 123)).areTimingsEmpty());
+        long total = randomLongBetween(1, 1024);
+        long day = randomLongBetween(1, total);
         long fifteen = day >= 1 ? randomLongBetween(0, day) : 0;
         long five = fifteen >= 1 ? randomLongBetween(0, fifteen) : 0;
-        assertFalse((new TimeSeries(five, fifteen, day, 0)).isEmpty());
+        assertFalse((new TimeSeries(five, fifteen, day, 0)).areTimingsEmpty());
     }
 
     public void testTimeSeriesSerialization() throws IOException {
@@ -165,18 +166,11 @@ public class ScriptStatsTests extends ESTestCase {
                 long day = randomLongBetween(0, histStats[j]);
                 long fifteen = day >= 1 ? randomLongBetween(0, day) : 0;
                 long five = fifteen >= 1 ? randomLongBetween(0, fifteen) : 0;
-                timeSeries.add(new TimeSeries(five, fifteen, day, 0));
+                timeSeries.add(new TimeSeries(five, fifteen, day, histStats[j]));
             } else {
                 timeSeries.add(new TimeSeries());
             }
         }
-        return new ScriptContextStats(
-            randomAlphaOfLength(15),
-            histStats[0],
-            histStats[1],
-            randomLongBetween(0, 1024),
-            timeSeries.get(0),
-            timeSeries.get(1)
-        );
+        return new ScriptContextStats(randomAlphaOfLength(15), randomLongBetween(0, 1024), timeSeries.get(0), timeSeries.get(1));
     }
 }

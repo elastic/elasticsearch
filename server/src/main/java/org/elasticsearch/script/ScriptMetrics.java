@@ -46,13 +46,6 @@ public class ScriptMetrics {
         long t = now();
         TimeSeries compilationsTimeSeries = compilations.timeSeries(t);
         TimeSeries cacheEvictionsTimeSeries = cacheEvictions.timeSeries(t);
-        return new ScriptContextStats(
-            context,
-            compilationsTimeSeries.total,
-            cacheEvictionsTimeSeries.total,
-            compilationLimitTriggered.count(),
-            compilationsTimeSeries,
-            cacheEvictionsTimeSeries
-        );
+        return new ScriptContextStats(context, compilationLimitTriggered.count(), compilationsTimeSeries, cacheEvictionsTimeSeries);
     }
 }

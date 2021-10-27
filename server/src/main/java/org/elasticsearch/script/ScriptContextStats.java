@@ -28,15 +28,13 @@ public class ScriptContextStats implements Writeable, ToXContentFragment, Compar
 
     public ScriptContextStats(
         String context,
-        long compilations,
-        long cacheEvictions,
         long compilationLimitTriggered,
         TimeSeries compilationsHistory,
         TimeSeries cacheEvictionsHistory
     ) {
         this.context = Objects.requireNonNull(context);
-        this.compilations = compilations;
-        this.cacheEvictions = cacheEvictions;
+        this.compilations = compilationsHistory.total;
+        this.cacheEvictions = cacheEvictionsHistory.total;
         this.compilationLimitTriggered = compilationLimitTriggered;
         this.compilationsHistory = compilationsHistory;
         this.cacheEvictionsHistory = cacheEvictionsHistory;
@@ -47,9 +45,12 @@ public class ScriptContextStats implements Writeable, ToXContentFragment, Compar
         compilations = in.readVLong();
         cacheEvictions = in.readVLong();
         compilationLimitTriggered = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
             compilationsHistory = new TimeSeries(in);
             cacheEvictionsHistory = new TimeSeries(in);
+        } else if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            compilationsHistory = new TimeSeries(in).withTotal(compilations);
+            cacheEvictionsHistory = new TimeSeries(in).withTotal(cacheEvictions);
         } else {
             compilationsHistory = null;
             cacheEvictionsHistory = null;
@@ -99,7 +100,7 @@ public class ScriptContextStats implements Writeable, ToXContentFragment, Compar
         builder.field(Fields.COMPILATIONS, getCompilations());
 
         TimeSeries series = getCompilationsHistory();
-        if (series != null && series.isEmpty() == false) {
+        if (series != null && series.areTimingsEmpty() == false) {
             builder.startObject(Fields.COMPILATIONS_HISTORY);
             series.toXContent(builder, params);
             builder.endObject();
@@ -107,7 +108,7 @@ public class ScriptContextStats implements Writeable, ToXContentFragment, Compar
 
         builder.field(Fields.CACHE_EVICTIONS, getCacheEvictions());
         series = getCacheEvictionsHistory();
-        if (series != null && series.isEmpty() == false) {
+        if (series != null && series.areTimingsEmpty() == false) {
             builder.startObject(Fields.CACHE_EVICTIONS_HISTORY);
             series.toXContent(builder, params);
             builder.endObject();

@@ -68,11 +68,13 @@ public final class IndicesPermission {
             this.restrictedNamesAutomaton = restrictedNamesAutomaton;
         }
 
-        public Builder addGroup(IndexPrivilege privilege,
-                      FieldPermissions fieldPermissions,
-                      @Nullable Set<BytesReference> query,
-                      boolean allowRestrictedIndices,
-                      String... indices) {
+        public Builder addGroup(
+            IndexPrivilege privilege,
+            FieldPermissions fieldPermissions,
+            @Nullable Set<BytesReference> query,
+            boolean allowRestrictedIndices,
+            String... indices
+        ) {
             groups.add(new Group(privilege, fieldPermissions, query, allowRestrictedIndices, restrictedNamesAutomaton, indices));
             return this;
         }
@@ -86,8 +88,8 @@ public final class IndicesPermission {
         this.restrictedNamesAutomaton = restrictedNamesAutomaton;
         this.characterRunAutomaton = new CharacterRunAutomaton(restrictedNamesAutomaton);
         this.groups = groups;
-        this.hasFieldOrDocumentLevelSecurity = Arrays.stream(groups)
-            .anyMatch(g -> g.hasQuery() || g.fieldPermissions.hasFieldLevelSecurity());
+        this.hasFieldOrDocumentLevelSecurity = Arrays.stream(groups).noneMatch(Group::isTotal)
+            && Arrays.stream(groups).anyMatch(g -> g.hasQuery() || g.fieldPermissions.hasFieldLevelSecurity());
     }
 
     /**
@@ -158,11 +160,10 @@ public final class IndicesPermission {
         }
         final StringMatcher nameMatcher = indexMatcher(ordinaryIndices, restrictedIndices);
         final StringMatcher bwcSpecialCaseMatcher = indexMatcher(grantMappingUpdatesOnIndices, grantMappingUpdatesOnRestrictedIndices);
-        return indexAbstraction ->
-            nameMatcher.test(indexAbstraction.getName()) ||
-                (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM &&
-                    (indexAbstraction.getParentDataStream() == null) &&
-                    bwcSpecialCaseMatcher.test(indexAbstraction.getName()));
+        return indexAbstraction -> nameMatcher.test(indexAbstraction.getName())
+            || (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM
+                && (indexAbstraction.getParentDataStream() == null)
+                && bwcSpecialCaseMatcher.test(indexAbstraction.getName()));
     }
 
     /**
@@ -191,8 +192,11 @@ public final class IndicesPermission {
      * @param checkForPrivileges check permission grants for the set of index privileges
      * @return an instance of {@link ResourcePrivilegesMap}
      */
-    public ResourcePrivilegesMap checkResourcePrivileges(Set<String> checkForIndexPatterns, boolean allowRestrictedIndices,
-                                                         Set<String> checkForPrivileges) {
+    public ResourcePrivilegesMap checkResourcePrivileges(
+        Set<String> checkForIndexPatterns,
+        boolean allowRestrictedIndices,
+        Set<String> checkForPrivileges
+    ) {
         final ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder = ResourcePrivilegesMap.builder();
         final Map<IndicesPermission.Group, Automaton> predicateCache = new HashMap<>();
         for (String forIndexPattern : checkForIndexPatterns) {
@@ -206,8 +210,9 @@ public final class IndicesPermission {
                     final Automaton groupIndexAutomaton = predicateCache.computeIfAbsent(group, Group::getIndexMatcherAutomaton);
                     if (Operations.subsetOf(checkIndexAutomaton, groupIndexAutomaton)) {
                         if (allowedIndexPrivilegesAutomaton != null) {
-                            allowedIndexPrivilegesAutomaton = Automatons
-                                    .unionAndMinimize(Arrays.asList(allowedIndexPrivilegesAutomaton, group.privilege().getAutomaton()));
+                            allowedIndexPrivilegesAutomaton = Automatons.unionAndMinimize(
+                                Arrays.asList(allowedIndexPrivilegesAutomaton, group.privilege().getAutomaton())
+                            );
                         } else {
                             allowedIndexPrivilegesAutomaton = group.privilege().getAutomaton();
                         }
@@ -216,7 +221,7 @@ public final class IndicesPermission {
                 for (String privilege : checkForPrivileges) {
                     IndexPrivilege indexPrivilege = IndexPrivilege.get(Collections.singleton(privilege));
                     if (allowedIndexPrivilegesAutomaton != null
-                            && Operations.subsetOf(indexPrivilege.getAutomaton(), allowedIndexPrivilegesAutomaton)) {
+                        && Operations.subsetOf(indexPrivilege.getAutomaton(), allowedIndexPrivilegesAutomaton)) {
                         resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.TRUE);
                     } else {
                         resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.FALSE);
@@ -266,11 +271,8 @@ public final class IndicesPermission {
 
         private IndexResource(String name, @Nullable IndexAbstraction abstraction) {
             assert name != null : "Resource name cannot be null";
-            assert abstraction == null || abstraction.getName().equals(name) : "Index abstraction has unexpected name ["
-                + abstraction.getName()
-                + "] vs ["
-                + name
-                + "]";
+            assert abstraction == null || abstraction.getName().equals(name)
+                : "Index abstraction has unexpected name [" + abstraction.getName() + "] vs [" + name + "]";
             this.name = name;
             this.indexAbstraction = abstraction;
         }
@@ -345,12 +347,16 @@ public final class IndicesPermission {
     /**
      * Authorizes the provided action against the provided indices, given the current cluster metadata
      */
-    public Map<String, IndicesAccessControl.IndexAccessControl> authorize(
+    public IndicesAccessControl authorize(
         String action,
         Set<String> requestedIndicesOrAliases,
         Map<String, IndexAbstraction> lookup,
         FieldPermissionsCache fieldPermissionsCache
     ) {
+        // Short circuit if the indicesPermission allows all access to every index
+        if (Arrays.stream(groups).anyMatch(Group::isTotal)) {
+            return IndicesAccessControl.allowAll();
+        }
 
         final List<IndexResource> resources = new ArrayList<>(requestedIndicesOrAliases.size());
         int totalResourceCount = 0;
@@ -437,13 +443,21 @@ public final class IndicesPermission {
                         if (false == actionCheck) {
                             for (String privilegeName : group.privilege.name()) {
                                 if (PRIVILEGE_NAME_SET_BWC_ALLOW_MAPPING_UPDATE.contains(privilegeName)) {
-                                    bwcDeprecationLogActions.add(() ->
-                                        deprecationLogger.critical(DeprecationCategory.SECURITY,
-                                            "[" + resource.name + "] mapping update for ingest privilege [" +
-                                                privilegeName + "]", "the index privilege [" + privilegeName + "] allowed the update " +
-                                                "mapping action [" + action + "] on index [" + resource.name + "], this privilege " +
-                                                "will not permit mapping updates in the next major release - users who require access " +
-                                                "to update mappings must be granted explicit privileges")
+                                    bwcDeprecationLogActions.add(
+                                        () -> deprecationLogger.critical(
+                                            DeprecationCategory.SECURITY,
+                                            "[" + resource.name + "] mapping update for ingest privilege [" + privilegeName + "]",
+                                            "the index privilege ["
+                                                + privilegeName
+                                                + "] allowed the update "
+                                                + "mapping action ["
+                                                + action
+                                                + "] on index ["
+                                                + resource.name
+                                                + "], this privilege "
+                                                + "will not permit mapping updates in the next major release - users who require access "
+                                                + "to update mappings must be granted explicit privileges"
+                                        )
                                     );
                                 }
                             }
@@ -469,6 +483,7 @@ public final class IndicesPermission {
             }
         }
 
+        boolean overallGranted = true;
         Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = new HashMap<>(grantedBuilder.size());
         for (Map.Entry<String, Boolean> entry : grantedBuilder.entrySet()) {
             String index = entry.getKey();
@@ -483,15 +498,25 @@ public final class IndicesPermission {
             final FieldPermissions fieldPermissions;
             final Set<FieldPermissions> indexFieldPermissions = fieldPermissionsByIndex.get(index);
             if (indexFieldPermissions != null && indexFieldPermissions.isEmpty() == false) {
-                fieldPermissions = indexFieldPermissions.size() == 1 ? indexFieldPermissions.iterator().next() :
-                        fieldPermissionsCache.getFieldPermissions(indexFieldPermissions);
+                fieldPermissions = indexFieldPermissions.size() == 1
+                    ? indexFieldPermissions.iterator().next()
+                    : fieldPermissionsCache.getFieldPermissions(indexFieldPermissions);
             } else {
                 fieldPermissions = FieldPermissions.DEFAULT;
             }
-            indexPermissions.put(index, new IndicesAccessControl.IndexAccessControl(entry.getValue(), fieldPermissions,
-                    (roleQueries != null) ? DocumentPermissions.filteredBy(roleQueries) : DocumentPermissions.allowAll()));
+            if (entry.getValue() == false) {
+                overallGranted = false;
+            }
+            indexPermissions.put(
+                index,
+                new IndicesAccessControl.IndexAccessControl(
+                    entry.getValue(),
+                    fieldPermissions,
+                    (roleQueries != null) ? DocumentPermissions.filteredBy(roleQueries) : DocumentPermissions.allowAll()
+                )
+            );
         }
-        return unmodifiableMap(indexPermissions);
+        return new IndicesAccessControl(overallGranted, unmodifiableMap(indexPermissions));
     }
 
     private boolean isConcreteRestrictedIndex(String indexPattern) {
@@ -515,7 +540,7 @@ public final class IndicesPermission {
         private final IndexPrivilege privilege;
         private final Predicate<String> actionMatcher;
         private final String[] indices;
-        private final Predicate<String> indexNameMatcher;
+        private final StringMatcher indexNameMatcher;
         private final Supplier<Automaton> indexNameAutomaton;
         private final FieldPermissions fieldPermissions;
         private final Set<BytesReference> query;
@@ -524,8 +549,14 @@ public final class IndicesPermission {
         // to be covered by the "indices"
         private final boolean allowRestrictedIndices;
 
-        public Group(IndexPrivilege privilege, FieldPermissions fieldPermissions, @Nullable Set<BytesReference> query,
-                     boolean allowRestrictedIndices, Automaton restrictedNamesAutomaton, String... indices) {
+        public Group(
+            IndexPrivilege privilege,
+            FieldPermissions fieldPermissions,
+            @Nullable Set<BytesReference> query,
+            boolean allowRestrictedIndices,
+            Automaton restrictedNamesAutomaton,
+            String... indices
+        ) {
             assert indices.length != 0;
             this.privilege = privilege;
             this.actionMatcher = privilege.predicate();
@@ -537,10 +568,11 @@ public final class IndicesPermission {
                 this.indexNameAutomaton = () -> indexNameAutomatonMemo.computeIfAbsent(indices, k -> Automatons.patterns(indices));
             } else {
                 final CharacterRunAutomaton restrictedNamesRunAutomaton = new CharacterRunAutomaton(restrictedNamesAutomaton);
-                this.indexNameMatcher = StringMatcher.of(indices)
-                        .and(name -> restrictedNamesRunAutomaton.run(name) == false);
-                this.indexNameAutomaton = () -> indexNameAutomatonMemo.computeIfAbsent(indices,
-                        k -> Automatons.minusAndMinimize(Automatons.patterns(indices), restrictedNamesAutomaton));
+                this.indexNameMatcher = StringMatcher.of(indices).and(name -> restrictedNamesRunAutomaton.run(name) == false);
+                this.indexNameAutomaton = () -> indexNameAutomatonMemo.computeIfAbsent(
+                    indices,
+                    k -> Automatons.minusAndMinimize(Automatons.patterns(indices), restrictedNamesAutomaton)
+                );
             }
             this.fieldPermissions = Objects.requireNonNull(fieldPermissions);
             this.query = query;
@@ -582,6 +614,14 @@ public final class IndicesPermission {
 
         public Automaton getIndexMatcherAutomaton() {
             return indexNameAutomaton.get();
+        }
+
+        boolean isTotal() {
+            return allowRestrictedIndices
+                && indexNameMatcher.isTotal()
+                && privilege == IndexPrivilege.ALL
+                && query == null
+                && false == fieldPermissions.hasFieldLevelSecurity();
         }
     }
 

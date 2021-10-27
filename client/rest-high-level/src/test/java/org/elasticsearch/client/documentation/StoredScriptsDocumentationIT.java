@@ -21,11 +21,11 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.StoredScriptSource;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.StoredScriptSource;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -55,16 +55,18 @@ import static org.hamcrest.Matchers.equalTo;
  * than 84, the line will be cut and a horizontal scroll bar will be displayed.
  * (the code indentation of the tag is not included in the width)
  */
+@SuppressWarnings("removal")
 public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase {
 
     @SuppressWarnings("unused")
     public void testGetStoredScript() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
-        final StoredScriptSource scriptSource =
-            new StoredScriptSource("painless",
-                "Math.log(_score * 2) + params.my_modifier",
-                Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()));
+        final StoredScriptSource scriptSource = new StoredScriptSource(
+            "painless",
+            "Math.log(_score * 2) + params.my_modifier",
+            Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType())
+        );
 
         putStoredScript("calculate-score", scriptSource);
 
@@ -124,10 +126,11 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
     public void testDeleteStoredScript() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
-        final StoredScriptSource scriptSource =
-            new StoredScriptSource("painless",
-                "Math.log(_score * 2) + params.my_modifier",
-                Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()));
+        final StoredScriptSource scriptSource = new StoredScriptSource(
+            "painless",
+            "Math.log(_score * 2) + params.my_modifier",
+            Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType())
+        );
 
         putStoredScript("calculate-score", scriptSource);
 
@@ -232,7 +235,6 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
             request.content(BytesReference.bytes(builder), XContentType.JSON); // <1>
             // end::put-stored-script-content-painless
 
-
             // tag::put-stored-script-execute
             AcknowledgedResponse putStoredScriptResponse = client.putScript(request, RequestOptions.DEFAULT);
             // end::put-stored-script-execute
@@ -297,8 +299,7 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
     }
 
     private void putStoredScript(String id, StoredScriptSource scriptSource) throws IOException {
-        PutStoredScriptRequest request =
-            new PutStoredScriptRequest(id, "score", new BytesArray("{}"), XContentType.JSON, scriptSource);
+        PutStoredScriptRequest request = new PutStoredScriptRequest(id, "score", new BytesArray("{}"), XContentType.JSON, scriptSource);
         assertAcked(execute(request, highLevelClient()::putScript, highLevelClient()::putScriptAsync));
     }
 }

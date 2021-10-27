@@ -27,7 +27,6 @@ public class BlockClusterStateProcessing extends SingleNodeDisruption {
         this.disruptedNode = disruptedNode;
     }
 
-
     @Override
     public void startDisrupting() {
         final String disruptionNodeCopy = disruptedNode;
@@ -42,34 +41,28 @@ public class BlockClusterStateProcessing extends SingleNodeDisruption {
         boolean success = disruptionLatch.compareAndSet(null, new CountDownLatch(1));
         assert success : "startDisrupting called without waiting on stopDisrupting to complete";
         final CountDownLatch started = new CountDownLatch(1);
-        clusterService.getClusterApplierService().runOnApplierThread(
-            "service_disruption_block",
-            Priority.IMMEDIATE,
-            currentState -> {
-                started.countDown();
-                CountDownLatch latch = disruptionLatch.get();
-                if (latch != null) {
-                    try {
-                        latch.await();
-                    } catch (InterruptedException e) {
-                        Throwables.rethrow(e);
-                    }
+        clusterService.getClusterApplierService().runOnApplierThread("service_disruption_block", Priority.IMMEDIATE, currentState -> {
+            started.countDown();
+            CountDownLatch latch = disruptionLatch.get();
+            if (latch != null) {
+                try {
+                    latch.await();
+                } catch (InterruptedException e) {
+                    Throwables.rethrow(e);
                 }
-            },
-            new ActionListener<>() {
-                @Override
-                public void onResponse(Void unused) {
-                }
+            }
+        }, new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {}
 
-                @Override
-                public void onFailure(Exception e) {
-                    logger.error("unexpected error during disruption", e);
-                }
-            });
+            @Override
+            public void onFailure(Exception e) {
+                logger.error("unexpected error during disruption", e);
+            }
+        });
         try {
             started.await();
-        } catch (InterruptedException e) {
-        }
+        } catch (InterruptedException e) {}
     }
 
     @Override

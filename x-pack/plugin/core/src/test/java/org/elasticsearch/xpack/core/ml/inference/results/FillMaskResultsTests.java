@@ -32,7 +32,7 @@ public class FillMaskResultsTests extends AbstractWireSerializingTestCase<FillMa
     protected FillMaskResults createTestInstance() {
         int numResults = randomIntBetween(0, 3);
         List<TopClassEntry> resultList = new ArrayList<>();
-        for (int i=0; i<numResults; i++) {
+        for (int i = 0; i < numResults; i++) {
             resultList.add(TopClassEntryTests.createRandomTopClassEntry());
         }
         return new FillMaskResults(
@@ -53,12 +53,12 @@ public class FillMaskResultsTests extends AbstractWireSerializingTestCase<FillMa
         assertThat(asMap.get(DEFAULT_RESULTS_FIELD), equalTo(testInstance.predictedValue()));
         assertThat(asMap.get(PREDICTION_PROBABILITY), equalTo(testInstance.getPredictionProbability()));
         assertThat(asMap.get(DEFAULT_RESULTS_FIELD + "_sequence"), equalTo(testInstance.getPredictedSequence()));
-        List<Map<String, Object>> resultList = (List<Map<String, Object>>)asMap.get(DEFAULT_TOP_CLASSES_RESULTS_FIELD);
+        List<Map<String, Object>> resultList = (List<Map<String, Object>>) asMap.get(DEFAULT_TOP_CLASSES_RESULTS_FIELD);
         if (testInstance.getTopClasses().size() == 0) {
             assertThat(resultList, is(nullValue()));
         } else {
             assertThat(resultList, hasSize(testInstance.getTopClasses().size()));
-            for (int i = 0; i<testInstance.getTopClasses().size(); i++) {
+            for (int i = 0; i < testInstance.getTopClasses().size(); i++) {
                 TopClassEntry result = testInstance.getTopClasses().get(i);
                 Map<String, Object> map = resultList.get(i);
                 assertThat(map.get("class_score"), equalTo(result.getScore()));

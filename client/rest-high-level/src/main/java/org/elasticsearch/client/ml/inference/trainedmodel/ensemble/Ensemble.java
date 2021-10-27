@@ -11,8 +11,8 @@ import org.elasticsearch.client.ml.inference.NamedXContentObjectHelper;
 import org.elasticsearch.client.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.client.ml.inference.trainedmodel.TrainedModel;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -28,25 +28,25 @@ public class Ensemble implements TrainedModel {
     public static final String NAME = "ensemble";
     public static final ParseField FEATURE_NAMES = new ParseField("feature_names");
     public static final ParseField TRAINED_MODELS = new ParseField("trained_models");
-    public static final ParseField AGGREGATE_OUTPUT  = new ParseField("aggregate_output");
+    public static final ParseField AGGREGATE_OUTPUT = new ParseField("aggregate_output");
     public static final ParseField CLASSIFICATION_LABELS = new ParseField("classification_labels");
     public static final ParseField CLASSIFICATION_WEIGHTS = new ParseField("classification_weights");
 
-    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(
-        NAME,
-        true,
-        Ensemble.Builder::new);
+    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME, true, Ensemble.Builder::new);
 
     static {
         PARSER.declareStringArray(Ensemble.Builder::setFeatureNames, FEATURE_NAMES);
-        PARSER.declareNamedObjects(Ensemble.Builder::setTrainedModels,
-            (p, c, n) ->
-                    p.namedObject(TrainedModel.class, n, null),
+        PARSER.declareNamedObjects(
+            Ensemble.Builder::setTrainedModels,
+            (p, c, n) -> p.namedObject(TrainedModel.class, n, null),
             (ensembleBuilder) -> { /* Noop does not matter client side */ },
-            TRAINED_MODELS);
-        PARSER.declareNamedObject(Ensemble.Builder::setOutputAggregator,
+            TRAINED_MODELS
+        );
+        PARSER.declareNamedObject(
+            Ensemble.Builder::setOutputAggregator,
             (p, c, n) -> p.namedObject(OutputAggregator.class, n, null),
-            AGGREGATE_OUTPUT);
+            AGGREGATE_OUTPUT
+        );
         PARSER.declareString(Ensemble.Builder::setTargetType, TargetType.TARGET_TYPE);
         PARSER.declareStringArray(Ensemble.Builder::setClassificationLabels, CLASSIFICATION_LABELS);
         PARSER.declareDoubleArray(Ensemble.Builder::setClassificationWeights, CLASSIFICATION_WEIGHTS);
@@ -63,12 +63,14 @@ public class Ensemble implements TrainedModel {
     private final List<String> classificationLabels;
     private final double[] classificationWeights;
 
-    Ensemble(List<String> featureNames,
-             List<TrainedModel> models,
-             @Nullable OutputAggregator outputAggregator,
-             TargetType targetType,
-             @Nullable List<String> classificationLabels,
-             @Nullable double[] classificationWeights) {
+    Ensemble(
+        List<String> featureNames,
+        List<TrainedModel> models,
+        @Nullable OutputAggregator outputAggregator,
+        TargetType targetType,
+        @Nullable List<String> classificationLabels,
+        @Nullable double[] classificationWeights
+    ) {
         this.featureNames = featureNames;
         this.models = models;
         this.outputAggregator = outputAggregator;
@@ -97,11 +99,13 @@ public class Ensemble implements TrainedModel {
             NamedXContentObjectHelper.writeNamedObjects(builder, params, true, TRAINED_MODELS.getPreferredName(), models);
         }
         if (outputAggregator != null) {
-            NamedXContentObjectHelper.writeNamedObjects(builder,
+            NamedXContentObjectHelper.writeNamedObjects(
+                builder,
                 params,
                 false,
                 AGGREGATE_OUTPUT.getPreferredName(),
-                Collections.singletonList(outputAggregator));
+                Collections.singletonList(outputAggregator)
+            );
         }
         if (targetType != null) {
             builder.field(TargetType.TARGET_TYPE.getPreferredName(), targetType);
@@ -131,12 +135,14 @@ public class Ensemble implements TrainedModel {
 
     @Override
     public int hashCode() {
-        return Objects.hash(featureNames,
+        return Objects.hash(
+            featureNames,
             models,
             outputAggregator,
             classificationLabels,
             targetType,
-            Arrays.hashCode(classificationWeights));
+            Arrays.hashCode(classificationWeights)
+        );
     }
 
     public static Builder builder() {
@@ -180,7 +186,6 @@ public class Ensemble implements TrainedModel {
             this.classificationWeights = classificationWeights.stream().mapToDouble(Double::doubleValue).toArray();
             return this;
         }
-
 
         private void setTargetType(String targetType) {
             this.targetType = TargetType.fromString(targetType);

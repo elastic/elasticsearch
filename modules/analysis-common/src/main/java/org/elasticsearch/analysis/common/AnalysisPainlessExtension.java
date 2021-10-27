@@ -19,8 +19,10 @@ import java.util.Map;
 
 public class AnalysisPainlessExtension implements PainlessExtension {
 
-    private static final Whitelist WHITELIST =
-        WhitelistLoader.loadFromResourceFiles(AnalysisPainlessExtension.class, "painless_whitelist.txt");
+    private static final Whitelist WHITELIST = WhitelistLoader.loadFromResourceFiles(
+        AnalysisPainlessExtension.class,
+        "painless_whitelist.txt"
+    );
 
     @Override
     public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {

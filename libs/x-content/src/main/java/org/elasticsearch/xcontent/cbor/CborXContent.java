@@ -13,6 +13,7 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.dataformat.cbor.CBORFactory;
 
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContent;
@@ -22,7 +23,6 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.filtering.FilterPath;
-import org.elasticsearch.core.RestApiVersion;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -52,8 +52,7 @@ public class CborXContent implements XContent {
         cborXContent = new CborXContent();
     }
 
-    private CborXContent() {
-    }
+    private CborXContent() {}
 
     @Override
     public XContentType type() {
@@ -71,14 +70,14 @@ public class CborXContent implements XContent {
     }
 
     @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, String content) throws IOException {
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, String content)
+        throws IOException {
         return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(content));
     }
 
     @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, InputStream is) throws IOException {
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, InputStream is)
+        throws IOException {
         return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(is));
     }
 
@@ -101,35 +100,67 @@ public class CborXContent implements XContent {
     }
 
     @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, byte[] data) throws IOException {
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, byte[] data)
+        throws IOException {
         return createParser(xContentRegistry, deprecationHandler, data, 0, data.length);
     }
 
     @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, byte[] data, int offset, int length) throws IOException {
+    public XContentParser createParser(
+        NamedXContentRegistry xContentRegistry,
+        DeprecationHandler deprecationHandler,
+        byte[] data,
+        int offset,
+        int length
+    ) throws IOException {
         return createParserForCompatibility(xContentRegistry, deprecationHandler, data, offset, length, RestApiVersion.current());
     }
 
     @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
-                                       DeprecationHandler deprecationHandler, Reader reader) throws IOException {
+    public XContentParser createParser(
+        NamedXContentRegistry xContentRegistry,
+        DeprecationHandler deprecationHandler,
+        byte[] data,
+        int offset,
+        int length,
+        FilterPath[] includes,
+        FilterPath[] excludes
+    ) throws IOException {
+        return new CborXContentParser(
+            xContentRegistry,
+            deprecationHandler,
+            cborFactory.createParser(new ByteArrayInputStream(data, offset, length)),
+            RestApiVersion.current(),
+            includes,
+            excludes
+        );
+    }
+
+    @Override
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, Reader reader)
+        throws IOException {
         return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(reader));
     }
 
     @Override
-    public XContentParser createParserForCompatibility(NamedXContentRegistry xContentRegistry,
-                                                       DeprecationHandler deprecationHandler, InputStream is,
-                                                       RestApiVersion restApiVersion)
-        throws IOException {
+    public XContentParser createParserForCompatibility(
+        NamedXContentRegistry xContentRegistry,
+        DeprecationHandler deprecationHandler,
+        InputStream is,
+        RestApiVersion restApiVersion
+    ) throws IOException {
         return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(is), restApiVersion);
     }
 
     @Override
-    public XContentParser createParserForCompatibility(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler,
-                                                       byte[] data, int offset, int length, RestApiVersion restApiVersion)
-        throws IOException {
+    public XContentParser createParserForCompatibility(
+        NamedXContentRegistry xContentRegistry,
+        DeprecationHandler deprecationHandler,
+        byte[] data,
+        int offset,
+        int length,
+        RestApiVersion restApiVersion
+    ) throws IOException {
         return new CborXContentParser(
             xContentRegistry,
             deprecationHandler,

@@ -24,18 +24,18 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
@@ -59,7 +59,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.mock.orig.Mockito.when;
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.slm.history.SnapshotLifecycleTemplateRegistry.INDEX_TEMPLATE_VERSION;
 import static org.elasticsearch.xpack.core.slm.history.SnapshotLifecycleTemplateRegistry.SLM_POLICY_NAME;
@@ -70,6 +69,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
     private SnapshotLifecycleTemplateRegistry registry;
@@ -84,11 +84,17 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         client = new VerifyingClient(threadPool);
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedXWriteables());
-        entries.addAll(Arrays.asList(
-            new NamedXContentRegistry.Entry(LifecycleType.class, new ParseField(TimeseriesLifecycleType.TYPE),
-                (p) -> TimeseriesLifecycleType.INSTANCE),
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RolloverAction.NAME), RolloverAction::parse),
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse)));
+        entries.addAll(
+            Arrays.asList(
+                new NamedXContentRegistry.Entry(
+                    LifecycleType.class,
+                    new ParseField(TimeseriesLifecycleType.TYPE),
+                    (p) -> TimeseriesLifecycleType.INSTANCE
+                ),
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RolloverAction.NAME), RolloverAction::parse),
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse)
+            )
+        );
         xContentRegistry = new NamedXContentRegistry(entries);
         registry = new SnapshotLifecycleTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, xContentRegistry);
     }
@@ -102,8 +108,13 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
 
     public void testDisabledDoesNotAddTemplates() {
         Settings settings = Settings.builder().put(SLM_HISTORY_INDEX_ENABLED_SETTING.getKey(), false).build();
-        SnapshotLifecycleTemplateRegistry disabledRegistry = new SnapshotLifecycleTemplateRegistry(settings, clusterService, threadPool,
-            client, xContentRegistry);
+        SnapshotLifecycleTemplateRegistry disabledRegistry = new SnapshotLifecycleTemplateRegistry(
+            settings,
+            clusterService,
+            threadPool,
+            client,
+            xContentRegistry
+        );
         assertThat(disabledRegistry.getComposableTemplateConfigs(), hasSize(0));
         assertThat(disabledRegistry.getPolicyConfigs(), hasSize(0));
     }
@@ -166,7 +177,8 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
-        List<LifecyclePolicy> policies = registry.getPolicyConfigs().stream()
+        List<LifecyclePolicy> policies = registry.getPolicyConfigs()
+            .stream()
             .map(policyConfig -> policyConfig.load(xContentRegistry))
             .collect(Collectors.toList());
         assertThat(policies, hasSize(1));
@@ -195,7 +207,8 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
         String policyStr = "{\"phases\":{\"delete\":{\"min_age\":\"1m\",\"actions\":{\"delete\":{}}}}}";
-        List<LifecyclePolicy> policies = registry.getPolicyConfigs().stream()
+        List<LifecyclePolicy> policies = registry.getPolicyConfigs()
+            .stream()
             .map(policyConfig -> policyConfig.load(xContentRegistry))
             .collect(Collectors.toList());
         assertThat(policies, hasSize(1));
@@ -213,8 +226,10 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
             return null;
         });
 
-        try (XContentParser parser = XContentType.JSON.xContent()
-                .createParser(xContentRegistry, LoggingDeprecationHandler.THROW_UNSUPPORTED_OPERATION, policyStr)) {
+        try (
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(xContentRegistry, LoggingDeprecationHandler.THROW_UNSUPPORTED_OPERATION, policyStr)
+        ) {
             LifecyclePolicy different = LifecyclePolicy.parse(parser, policy.getName());
             policyMap.put(policy.getName(), different);
             ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), policyMap, nodes);
@@ -226,8 +241,10 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
-        ClusterChangedEvent event = createClusterChangedEvent(Collections.singletonMap(SLM_TEMPLATE_NAME, INDEX_TEMPLATE_VERSION - 1),
-            nodes);
+        ClusterChangedEvent event = createClusterChangedEvent(
+            Collections.singletonMap(SLM_TEMPLATE_NAME, INDEX_TEMPLATE_VERSION - 1),
+            nodes
+        );
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> verifyTemplateInstalled(calledTimes, action, request, listener));
         registry.clusterChanged(event);
@@ -245,13 +262,14 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getComposableTemplateConfigs().size())));
     }
 
-
     public void testSameOrHigherVersionTemplateNotUpgraded() throws Exception {
         DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         ClusterChangedEvent sameVersionEvent = createClusterChangedEvent(
-            Collections.singletonMap(SLM_TEMPLATE_NAME, INDEX_TEMPLATE_VERSION), nodes);
+            Collections.singletonMap(SLM_TEMPLATE_NAME, INDEX_TEMPLATE_VERSION),
+            nodes
+        );
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> {
             if (action instanceof PutComposableIndexTemplateAction) {
@@ -268,7 +286,9 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         registry.clusterChanged(sameVersionEvent);
 
         ClusterChangedEvent higherVersionEvent = createClusterChangedEvent(
-                Collections.singletonMap(SLM_TEMPLATE_NAME, INDEX_TEMPLATE_VERSION + randomIntBetween(1, 1000)), nodes);
+            Collections.singletonMap(SLM_TEMPLATE_NAME, INDEX_TEMPLATE_VERSION + randomIntBetween(1, 1000)),
+            nodes
+        );
         registry.clusterChanged(higherVersionEvent);
     }
 
@@ -276,7 +296,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         DiscoveryNode localNode = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").add(localNode).build();
 
-        client.setVerifier((a,r,l) -> {
+        client.setVerifier((a, r, l) -> {
             fail("if the master is missing nothing should happen");
             return null;
         });
@@ -287,19 +307,19 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
 
     public void testValidate() {
         assertFalse(registry.validate(createClusterState(Settings.EMPTY, Collections.emptyMap(), Collections.emptyMap(), null)));
-        assertFalse(registry.validate(createClusterState(Settings.EMPTY,
-            Collections.singletonMap(SLM_TEMPLATE_NAME, null),
-            Collections.emptyMap(),
-            null)));
+        assertFalse(
+            registry.validate(
+                createClusterState(Settings.EMPTY, Collections.singletonMap(SLM_TEMPLATE_NAME, null), Collections.emptyMap(), null)
+            )
+        );
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
         policyMap.put(SLM_POLICY_NAME, new LifecyclePolicy(SLM_POLICY_NAME, new HashMap<>()));
         assertFalse(registry.validate(createClusterState(Settings.EMPTY, Collections.emptyMap(), policyMap, null)));
 
-        assertTrue(registry.validate(createClusterState(Settings.EMPTY,
-            Collections.singletonMap(SLM_TEMPLATE_NAME, null),
-            policyMap,
-            null)));
+        assertTrue(
+            registry.validate(createClusterState(Settings.EMPTY, Collections.singletonMap(SLM_TEMPLATE_NAME, null), policyMap, null))
+        );
     }
 
     // -------------
@@ -320,9 +340,11 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
 
         @Override
         @SuppressWarnings("unchecked")
-        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(ActionType<Response> action,
-                                                                                                  Request request,
-                                                                                                  ActionListener<Response> listener) {
+        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+            ActionType<Response> action,
+            Request request,
+            ActionListener<Response> listener
+        ) {
             try {
                 listener.onResponse((Response) verifier.apply(action, request, listener));
             } catch (Exception e) {
@@ -337,7 +359,11 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
     }
 
     private ActionResponse verifyTemplateInstalled(
-        AtomicInteger calledTimes, ActionType<?> action, ActionRequest request, ActionListener<?> listener) {
+        AtomicInteger calledTimes,
+        ActionType<?> action,
+        ActionRequest request,
+        ActionListener<?> listener
+    ) {
         if (action instanceof PutComposableIndexTemplateAction) {
             calledTimes.incrementAndGet();
             assertThat(action, instanceOf(PutComposableIndexTemplateAction.class));
@@ -361,20 +387,29 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         return createClusterChangedEvent(existingTemplates, Collections.emptyMap(), nodes);
     }
 
-    private ClusterChangedEvent createClusterChangedEvent(Map<String, Integer> existingTemplates,
-                                                          Map<String, LifecyclePolicy> existingPolicies,
-                                                          DiscoveryNodes nodes) {
+    private ClusterChangedEvent createClusterChangedEvent(
+        Map<String, Integer> existingTemplates,
+        Map<String, LifecyclePolicy> existingPolicies,
+        DiscoveryNodes nodes
+    ) {
         ClusterState cs = createClusterState(Settings.EMPTY, existingTemplates, existingPolicies, nodes);
-        ClusterChangedEvent realEvent = new ClusterChangedEvent("created-from-test", cs,
-            ClusterState.builder(new ClusterName("test")).build());
+        ClusterChangedEvent realEvent = new ClusterChangedEvent(
+            "created-from-test",
+            cs,
+            ClusterState.builder(new ClusterName("test")).build()
+        );
         ClusterChangedEvent event = spy(realEvent);
         when(event.localNodeMaster()).thenReturn(nodes.isLocalNodeElectedMaster());
 
         return event;
     }
 
-    private ClusterState createClusterState(Settings nodeSettings, Map<String, Integer> existingTemplates,
-                                            Map<String, LifecyclePolicy> existingPolicies, DiscoveryNodes nodes) {
+    private ClusterState createClusterState(
+        Settings nodeSettings,
+        Map<String, Integer> existingTemplates,
+        Map<String, LifecyclePolicy> existingPolicies,
+        DiscoveryNodes nodes
+    ) {
         Map<String, ComposableIndexTemplate> indexTemplates = new HashMap<>();
         for (Map.Entry<String, Integer> template : existingTemplates.entrySet()) {
             final ComposableIndexTemplate mockTemplate = mock(ComposableIndexTemplate.class);
@@ -384,16 +419,19 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
             indexTemplates.put(template.getKey(), mockTemplate);
         }
 
-        Map<String, LifecyclePolicyMetadata> existingILMMeta = existingPolicies.entrySet().stream()
+        Map<String, LifecyclePolicyMetadata> existingILMMeta = existingPolicies.entrySet()
+            .stream()
             .collect(Collectors.toMap(Map.Entry::getKey, e -> new LifecyclePolicyMetadata(e.getValue(), Collections.emptyMap(), 1, 1)));
         IndexLifecycleMetadata ilmMeta = new IndexLifecycleMetadata(existingILMMeta, OperationMode.RUNNING);
 
         return ClusterState.builder(new ClusterName("test"))
-            .metadata(Metadata.builder()
-                .indexTemplates(indexTemplates)
-                .transientSettings(nodeSettings)
-                .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
-                .build())
+            .metadata(
+                Metadata.builder()
+                    .indexTemplates(indexTemplates)
+                    .transientSettings(nodeSettings)
+                    .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
+                    .build()
+            )
             .blocks(new ClusterBlocks.Builder().build())
             .nodes(nodes)
             .build();

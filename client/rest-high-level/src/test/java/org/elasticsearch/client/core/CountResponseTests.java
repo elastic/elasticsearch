@@ -11,13 +11,13 @@ package org.elasticsearch.client.core;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -29,15 +29,9 @@ public class CountResponseTests extends ESTestCase {
     // ElasticSearchException. Best effort: try to check that the original message appears somewhere in the rendered xContent
     // For more see ShardSearchFailureTests.
     public void testFromXContent() throws IOException {
-        xContentTester(
-            this::createParser,
-            this::createTestInstance,
-            this::toXContent,
-            CountResponse::fromXContent)
-            .supportsUnknownFields(false)
-            .assertEqualsConsumer(this::assertEqualInstances)
-            .assertToXContentEquivalence(false)
-            .test();
+        xContentTester(this::createParser, this::createTestInstance, this::toXContent, CountResponse::fromXContent).supportsUnknownFields(
+            false
+        ).assertEqualsConsumer(this::assertEqualInstances).assertToXContentEquivalence(false).test();
     }
 
     private CountResponse createTestInstance() {
@@ -51,8 +45,12 @@ public class CountResponseTests extends ESTestCase {
         for (int i = 0; i < failures.length; i++) {
             failures[i] = createShardFailureTestItem();
         }
-        CountResponse.ShardStats shardStats = new CountResponse.ShardStats(successfulShards, totalShards, skippedShards,
-            randomBoolean() ? ShardSearchFailure.EMPTY_ARRAY : failures);
+        CountResponse.ShardStats shardStats = new CountResponse.ShardStats(
+            successfulShards,
+            totalShards,
+            skippedShards,
+            randomBoolean() ? ShardSearchFailure.EMPTY_ARRAY : failures
+        );
         return new CountResponse(count, terminatedEarly, shardStats);
     }
 
@@ -67,8 +65,15 @@ public class CountResponseTests extends ESTestCase {
     }
 
     private void toXContent(CountResponse.ShardStats stats, XContentBuilder builder, ToXContent.Params params) throws IOException {
-        RestActions.buildBroadcastShardsHeader(builder, params, stats.getTotalShards(), stats.getSuccessfulShards(), stats
-            .getSkippedShards(), stats.getShardFailures().length, stats.getShardFailures());
+        RestActions.buildBroadcastShardsHeader(
+            builder,
+            params,
+            stats.getTotalShards(),
+            stats.getSuccessfulShards(),
+            stats.getSkippedShards(),
+            stats.getShardFailures().length,
+            stats.getShardFailures()
+        );
     }
 
     @SuppressWarnings("Duplicates")
@@ -79,8 +84,11 @@ public class CountResponseTests extends ESTestCase {
         if (randomBoolean()) {
             String nodeId = randomAlphaOfLengthBetween(5, 10);
             String indexName = randomAlphaOfLengthBetween(5, 10);
-            searchShardTarget = new SearchShardTarget(nodeId,
-                new ShardId(new Index(indexName, IndexMetadata.INDEX_UUID_NA_VALUE), randomInt()), null);
+            searchShardTarget = new SearchShardTarget(
+                nodeId,
+                new ShardId(new Index(indexName, IndexMetadata.INDEX_UUID_NA_VALUE), randomInt()),
+                null
+            );
         }
         return new ShardSearchFailure(ex, searchShardTarget);
     }
@@ -105,11 +113,15 @@ public class CountResponseTests extends ESTestCase {
             assertEquals(originalFailure.shard(), parsedFailure.shard());
             assertEquals(originalFailure.shardId(), parsedFailure.shardId());
             String originalMsg = originalFailure.getCause().getMessage();
-            assertEquals(parsedFailure.getCause().getMessage(), "Elasticsearch exception [type=parsing_exception, reason=" +
-                originalMsg + "]");
+            assertEquals(
+                parsedFailure.getCause().getMessage(),
+                "Elasticsearch exception [type=parsing_exception, reason=" + originalMsg + "]"
+            );
             String nestedMsg = originalFailure.getCause().getCause().getMessage();
-            assertEquals(parsedFailure.getCause().getCause().getMessage(),
-                "Elasticsearch exception [type=illegal_argument_exception, reason=" + nestedMsg + "]");
+            assertEquals(
+                parsedFailure.getCause().getCause().getMessage(),
+                "Elasticsearch exception [type=illegal_argument_exception, reason=" + nestedMsg + "]"
+            );
         }
     }
 }

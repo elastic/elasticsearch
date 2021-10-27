@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security.authc.support;
 
 import com.unboundid.ldap.sdk.DN;
+
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression.FieldValue;
@@ -19,9 +20,12 @@ import static org.hamcrest.Matchers.equalTo;
 public class DistinguishedNamePredicateTests extends ESTestCase {
 
     public void testMatching() throws Exception {
-        String randomDn = "CN=" + randomAlphaOfLengthBetween(3, 12)
-                + ",OU=" + randomAlphaOfLength(4)
-                + ", O=" + randomAlphaOfLengthBetween(2, 6);
+        String randomDn = "CN="
+            + randomAlphaOfLengthBetween(3, 12)
+            + ",OU="
+            + randomAlphaOfLength(4)
+            + ", O="
+            + randomAlphaOfLengthBetween(2, 6);
 
         // Randomly enter the DN in mixed case, lower case or upper case;
         final String inputDn;

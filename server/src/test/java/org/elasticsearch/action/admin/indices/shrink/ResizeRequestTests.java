@@ -21,11 +21,11 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.function.Consumer;
@@ -82,8 +82,8 @@ public class ResizeRequestTests extends AbstractWireSerializingTestCase<ResizeRe
             target.settings(settings);
             request.setTargetIndex(target);
             String actualRequestBody = Strings.toString(request);
-            String expectedRequestBody = "{\"settings\":{\"index\":{\"number_of_shards\":\"10\"}}," +
-                    "\"aliases\":{\"test_alias\":{\"filter\":{\"term\":{\"year\":2016}},\"routing\":\"1\",\"is_write_index\":true}}}";
+            String expectedRequestBody = "{\"settings\":{\"index\":{\"number_of_shards\":\"10\"}},"
+                + "\"aliases\":{\"test_alias\":{\"filter\":{\"term\":{\"year\":2016}},\"routing\":\"1\",\"is_write_index\":true}}}";
             assertEquals(expectedRequestBody, actualRequestBody);
         }
     }
@@ -136,7 +136,9 @@ public class ResizeRequestTests extends AbstractWireSerializingTestCase<ResizeRe
     }
 
     @Override
-    protected Writeable.Reader<ResizeRequest> instanceReader() { return ResizeRequest::new; }
+    protected Writeable.Reader<ResizeRequest> instanceReader() {
+        return ResizeRequest::new;
+    }
 
     @Override
     protected ResizeRequest createTestInstance() {

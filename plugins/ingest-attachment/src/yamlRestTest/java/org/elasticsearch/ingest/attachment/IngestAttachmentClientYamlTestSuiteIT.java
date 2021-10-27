@@ -25,4 +25,3 @@ public class IngestAttachmentClientYamlTestSuiteIT extends ESClientYamlSuiteTest
         return ESClientYamlSuiteTestCase.createParameters();
     }
 }
-

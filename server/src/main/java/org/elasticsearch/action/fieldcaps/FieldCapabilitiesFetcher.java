@@ -14,6 +14,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -42,21 +43,32 @@ class FieldCapabilitiesFetcher {
         this.indicesService = indicesService;
     }
 
-    public FieldCapabilitiesIndexResponse fetch(final FieldCapabilitiesIndexRequest request) throws IOException {
-        final ShardId shardId = request.shardId();
+    FieldCapabilitiesIndexResponse fetch(
+        ShardId shardId,
+        String[] fieldPatterns,
+        QueryBuilder indexFilter,
+        long nowInMillis,
+        Map<String, Object> runtimeFields
+    ) throws IOException {
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        final IndexShard indexShard = indexService.getShard(request.shardId().getId());
+        final IndexShard indexShard = indexService.getShard(shardId.getId());
         try (Engine.Searcher searcher = indexShard.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE)) {
 
-            final SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(shardId.id(), 0,
-                searcher, request::nowInMillis, null, request.runtimeFields());
+            final SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(
+                shardId.id(),
+                0,
+                searcher,
+                () -> nowInMillis,
+                null,
+                runtimeFields
+            );
 
-            if (canMatchShard(request, searchExecutionContext) == false) {
-                return new FieldCapabilitiesIndexResponse(request.index(), Collections.emptyMap(), false);
+            if (canMatchShard(shardId, indexFilter, nowInMillis, searchExecutionContext) == false) {
+                return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), Collections.emptyMap(), false);
             }
 
             Set<String> fieldNames = new HashSet<>();
-            for (String pattern : request.fields()) {
+            for (String pattern : fieldPatterns) {
                 fieldNames.addAll(searchExecutionContext.getMatchingFieldNames(pattern));
             }
 
@@ -66,8 +78,16 @@ class FieldCapabilitiesFetcher {
                 MappedFieldType ft = searchExecutionContext.getFieldType(field);
                 boolean isMetadataField = searchExecutionContext.isMetadataField(field);
                 if (isMetadataField || fieldPredicate.test(ft.name())) {
-                    IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(field, ft.familyTypeName(), isMetadataField,
-                        ft.isSearchable(), ft.isAggregatable(), ft.isDimension(), ft.getMetricType(), ft.meta());
+                    IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
+                        field,
+                        ft.familyTypeName(),
+                        isMetadataField,
+                        ft.isSearchable(),
+                        ft.isAggregatable(),
+                        ft.isDimension(),
+                        ft.getMetricType(),
+                        ft.meta()
+                    );
                     responseMap.put(field, fieldCap);
                 } else {
                     continue;
@@ -75,7 +95,7 @@ class FieldCapabilitiesFetcher {
 
                 // Check the ancestor of the field to find nested and object fields.
                 // Runtime fields are excluded since they can override any path.
-                //TODO find a way to do this that does not require an instanceof check
+                // TODO find a way to do this that does not require an instanceof check
                 if (ft instanceof RuntimeField == false) {
                     int dotIndex = ft.name().lastIndexOf('.');
                     while (dotIndex > -1) {
@@ -91,8 +111,16 @@ class FieldCapabilitiesFetcher {
                             // Composite runtime fields do not have a mapped type for the root - check for null
                             if (mapper != null) {
                                 String type = mapper.isNested() ? "nested" : "object";
-                                IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(parentField, type,
-                                    false, false, false, false, null, Collections.emptyMap());
+                                IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
+                                    parentField,
+                                    type,
+                                    false,
+                                    false,
+                                    false,
+                                    false,
+                                    null,
+                                    Collections.emptyMap()
+                                );
                                 responseMap.put(parentField, fieldCap);
                             }
                         }
@@ -100,17 +128,22 @@ class FieldCapabilitiesFetcher {
                     }
                 }
             }
-            return new FieldCapabilitiesIndexResponse(request.index(), responseMap, true);
+            return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), responseMap, true);
         }
     }
 
-    private boolean canMatchShard(FieldCapabilitiesIndexRequest req, SearchExecutionContext searchExecutionContext) throws IOException {
-        if (req.indexFilter() == null || req.indexFilter() instanceof MatchAllQueryBuilder) {
+    private boolean canMatchShard(
+        ShardId shardId,
+        QueryBuilder indexFilter,
+        long nowInMillis,
+        SearchExecutionContext searchExecutionContext
+    ) throws IOException {
+        if (indexFilter == null || indexFilter instanceof MatchAllQueryBuilder) {
             return true;
         }
-        assert req.nowInMillis() != 0L;
-        ShardSearchRequest searchRequest = new ShardSearchRequest(req.shardId(), req.nowInMillis(), AliasFilter.EMPTY);
-        searchRequest.source(new SearchSourceBuilder().query(req.indexFilter()));
+        assert nowInMillis != 0L;
+        ShardSearchRequest searchRequest = new ShardSearchRequest(shardId, nowInMillis, AliasFilter.EMPTY);
+        searchRequest.source(new SearchSourceBuilder().query(indexFilter));
         return SearchService.queryStillMatchesAfterRewrite(searchRequest, searchExecutionContext);
     }
 

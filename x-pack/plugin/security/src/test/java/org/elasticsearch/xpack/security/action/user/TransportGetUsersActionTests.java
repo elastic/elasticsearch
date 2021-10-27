@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.AdditionalMatchers.aryEq;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -90,12 +90,23 @@ public class TransportGetUsersActionTests extends ESTestCase {
         SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
         when(securityIndex.isAvailable()).thenReturn(true);
         AnonymousUser anonymousUser = new AnonymousUser(settings);
-        ReservedRealm reservedRealm =
-            new ReservedRealm(mock(Environment.class), settings, usersStore, anonymousUser, threadPool);
-        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
-        TransportGetUsersAction action = new TransportGetUsersAction(Settings.EMPTY, mock(ActionFilters.class),
-                usersStore, transportService, reservedRealm);
+        ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore, anonymousUser, threadPool);
+        TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null,
+            null,
+            Collections.emptySet()
+        );
+        TransportGetUsersAction action = new TransportGetUsersAction(
+            Settings.EMPTY,
+            mock(ActionFilters.class),
+            usersStore,
+            transportService,
+            reservedRealm
+        );
 
         GetUsersRequest request = new GetUsersRequest();
         request.usernames(anonymousUser.principal());
@@ -127,14 +138,32 @@ public class TransportGetUsersActionTests extends ESTestCase {
 
     public void testInternalUser() {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
-        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
-        TransportGetUsersAction action = new TransportGetUsersAction(Settings.EMPTY, mock(ActionFilters.class),
-                usersStore, transportService, mock(ReservedRealm.class));
+        TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null,
+            null,
+            Collections.emptySet()
+        );
+        TransportGetUsersAction action = new TransportGetUsersAction(
+            Settings.EMPTY,
+            mock(ActionFilters.class),
+            usersStore,
+            transportService,
+            mock(ReservedRealm.class)
+        );
 
         GetUsersRequest request = new GetUsersRequest();
-        request.usernames(randomFrom(SystemUser.INSTANCE.principal(), XPackUser.INSTANCE.principal(),
-            XPackSecurityUser.INSTANCE.principal(), AsyncSearchUser.INSTANCE.principal()));
+        request.usernames(
+            randomFrom(
+                SystemUser.INSTANCE.principal(),
+                XPackUser.INSTANCE.principal(),
+                XPackSecurityUser.INSTANCE.principal(),
+                AsyncSearchUser.INSTANCE.principal()
+            )
+        );
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<GetUsersResponse> responseRef = new AtomicReference<>();
@@ -162,18 +191,35 @@ public class TransportGetUsersActionTests extends ESTestCase {
         when(securityIndex.isAvailable()).thenReturn(true);
 
         ReservedRealmTests.mockGetAllReservedUserInfo(usersStore, Collections.emptyMap());
-        ReservedRealm reservedRealm =
-            new ReservedRealm(mock(Environment.class), settings, usersStore, new AnonymousUser(settings), threadPool);
+        ReservedRealm reservedRealm = new ReservedRealm(
+            mock(Environment.class),
+            settings,
+            usersStore,
+            new AnonymousUser(settings),
+            threadPool
+        );
         PlainActionFuture<Collection<User>> userFuture = new PlainActionFuture<>();
         reservedRealm.users(userFuture);
         final Collection<User> allReservedUsers = userFuture.actionGet();
         final int size = randomIntBetween(1, allReservedUsers.size());
         final List<User> reservedUsers = randomSubsetOf(size, allReservedUsers);
         final List<String> names = reservedUsers.stream().map(User::principal).collect(Collectors.toList());
-        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
-                TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
-        TransportGetUsersAction action = new TransportGetUsersAction(Settings.EMPTY, mock(ActionFilters.class),
-                usersStore, transportService, reservedRealm);
+        TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null,
+            null,
+            Collections.emptySet()
+        );
+        TransportGetUsersAction action = new TransportGetUsersAction(
+            Settings.EMPTY,
+            mock(ActionFilters.class),
+            usersStore,
+            transportService,
+            reservedRealm
+        );
 
         logger.error("names {}", names);
         GetUsersRequest request = new GetUsersRequest();
@@ -189,7 +235,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn("Request failed",  e);
+                logger.warn("Request failed", e);
                 throwableRef.set(e);
             }
         });
@@ -202,18 +248,39 @@ public class TransportGetUsersActionTests extends ESTestCase {
     }
 
     public void testGetAllUsers() {
-        final List<User> storeUsers = randomFrom(Collections.<User>emptyList(), Collections.singletonList(new User("joe")),
-                Arrays.asList(new User("jane"), new User("fred")), randomUsers());
+        final List<User> storeUsers = randomFrom(
+            Collections.<User>emptyList(),
+            Collections.singletonList(new User("joe")),
+            Arrays.asList(new User("jane"), new User("fred")),
+            randomUsers()
+        );
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
         when(securityIndex.isAvailable()).thenReturn(true);
         ReservedRealmTests.mockGetAllReservedUserInfo(usersStore, Collections.emptyMap());
-        ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore, new AnonymousUser(settings),
-                threadPool);
-        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
-                TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
-        TransportGetUsersAction action = new TransportGetUsersAction(Settings.EMPTY, mock(ActionFilters.class),
-                usersStore, transportService, reservedRealm);
+        ReservedRealm reservedRealm = new ReservedRealm(
+            mock(Environment.class),
+            settings,
+            usersStore,
+            new AnonymousUser(settings),
+            threadPool
+        );
+        TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null,
+            null,
+            Collections.emptySet()
+        );
+        TransportGetUsersAction action = new TransportGetUsersAction(
+            Settings.EMPTY,
+            mock(ActionFilters.class),
+            usersStore,
+            transportService,
+            reservedRealm
+        );
 
         GetUsersRequest request = new GetUsersRequest();
         doAnswer(invocation -> {
@@ -252,14 +319,29 @@ public class TransportGetUsersActionTests extends ESTestCase {
     }
 
     public void testGetStoreOnlyUsers() {
-        final List<User> storeUsers =
-                randomFrom(Collections.singletonList(new User("joe")), Arrays.asList(new User("jane"), new User("fred")), randomUsers());
+        final List<User> storeUsers = randomFrom(
+            Collections.singletonList(new User("joe")),
+            Arrays.asList(new User("jane"), new User("fred")),
+            randomUsers()
+        );
         final String[] storeUsernames = storeUsers.stream().map(User::principal).collect(Collectors.toList()).toArray(Strings.EMPTY_ARRAY);
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
-        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
-                TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
-        TransportGetUsersAction action = new TransportGetUsersAction(Settings.EMPTY, mock(ActionFilters.class),
-                usersStore, transportService, mock(ReservedRealm.class));
+        TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null,
+            null,
+            Collections.emptySet()
+        );
+        TransportGetUsersAction action = new TransportGetUsersAction(
+            Settings.EMPTY,
+            mock(ActionFilters.class),
+            usersStore,
+            transportService,
+            mock(ReservedRealm.class)
+        );
 
         GetUsersRequest request = new GetUsersRequest();
         request.usernames(storeUsernames);
@@ -295,20 +377,35 @@ public class TransportGetUsersActionTests extends ESTestCase {
         if (storeUsers.size() > 1) {
             verify(usersStore, times(1)).getUsers(aryEq(storeUsernames), anyActionListener());
         } else {
-            verify(usersStore, times(1)).getUsers(aryEq(new String[] {storeUsernames[0]}), anyActionListener());
+            verify(usersStore, times(1)).getUsers(aryEq(new String[] { storeUsernames[0] }), anyActionListener());
         }
     }
 
     public void testException() {
         final Exception e = randomFrom(new ElasticsearchSecurityException(""), new IllegalStateException(), new ValidationException());
-        final List<User> storeUsers =
-                randomFrom(Collections.singletonList(new User("joe")), Arrays.asList(new User("jane"), new User("fred")), randomUsers());
+        final List<User> storeUsers = randomFrom(
+            Collections.singletonList(new User("joe")),
+            Arrays.asList(new User("jane"), new User("fred")),
+            randomUsers()
+        );
         final String[] storeUsernames = storeUsers.stream().map(User::principal).collect(Collectors.toList()).toArray(Strings.EMPTY_ARRAY);
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
-        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
-                TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
-        TransportGetUsersAction action = new TransportGetUsersAction(Settings.EMPTY, mock(ActionFilters.class),
-                usersStore, transportService, mock(ReservedRealm.class));
+        TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null,
+            null,
+            Collections.emptySet()
+        );
+        TransportGetUsersAction action = new TransportGetUsersAction(
+            Settings.EMPTY,
+            mock(ActionFilters.class),
+            usersStore,
+            transportService,
+            mock(ReservedRealm.class)
+        );
 
         GetUsersRequest request = new GetUsersRequest();
         request.usernames(storeUsernames);

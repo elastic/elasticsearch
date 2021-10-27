@@ -29,14 +29,14 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
-import static org.elasticsearch.mock.orig.Mockito.times;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.Matchers.isA;
+import static org.mockito.ArgumentMatchers.isA;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 

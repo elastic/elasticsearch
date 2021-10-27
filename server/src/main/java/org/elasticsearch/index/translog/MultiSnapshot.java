@@ -9,6 +9,7 @@
 package org.elasticsearch.index.translog;
 
 import com.carrotsearch.hppc.LongObjectHashMap;
+
 import org.elasticsearch.index.seqno.CountedBitSet;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 

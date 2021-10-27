@@ -18,9 +18,7 @@
           github-hooks: true
           status-context: elasticsearch-ci/precommit
           cancel-builds-on-update: true
-          included-regions:
-            - ^docs/.*
-          black-list-labels:
+          white-list-labels:
             - '>test-mute'
     builders:
       - inject:

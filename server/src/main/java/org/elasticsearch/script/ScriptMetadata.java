@@ -103,8 +103,12 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable, ToXCont
         }
 
         ScriptMetadataDiff(StreamInput in) throws IOException {
-            pipelines = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(),
-                StoredScriptSource::new, StoredScriptSource::readDiffFrom);
+            pipelines = DiffableUtils.readJdkMapDiff(
+                in,
+                DiffableUtils.getStringKeySerializer(),
+                StoredScriptSource::new,
+                StoredScriptSource::readDiffFrom
+            );
         }
 
         @Override
@@ -186,8 +190,10 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable, ToXCont
                     break;
                 case START_OBJECT:
                     if (id == null) {
-                        throw new ParsingException(parser.getTokenLocation(),
-                            "unexpected token [" + token + "], expected [<id>, <code>, {]");
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "unexpected token [" + token + "], expected [<id>, <code>, {]"
+                        );
                     }
 
                     StoredScriptSource source = StoredScriptSource.fromXContent(parser, true);
@@ -279,7 +285,7 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable, ToXCont
 
     @Override
     public Diff<Metadata.Custom> diff(Metadata.Custom before) {
-        return new ScriptMetadataDiff((ScriptMetadata)before, this);
+        return new ScriptMetadataDiff((ScriptMetadata) before, this);
     }
 
     @Override
@@ -316,7 +322,7 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable, ToXCont
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        ScriptMetadata that = (ScriptMetadata)o;
+        ScriptMetadata that = (ScriptMetadata) o;
 
         return scripts.equals(that.scripts);
 
@@ -329,8 +335,6 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable, ToXCont
 
     @Override
     public String toString() {
-        return "ScriptMetadata{" +
-            "scripts=" + scripts +
-            '}';
+        return "ScriptMetadata{" + "scripts=" + scripts + '}';
     }
 }

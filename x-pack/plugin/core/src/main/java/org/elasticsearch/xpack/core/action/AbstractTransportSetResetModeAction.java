@@ -38,7 +38,8 @@ public abstract class AbstractTransportSetResetModeAction extends AcknowledgedTr
         ThreadPool threadPool,
         ClusterService clusterService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver) {
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
         super(
             actionName,
             transportService,
@@ -59,10 +60,12 @@ public abstract class AbstractTransportSetResetModeAction extends AcknowledgedTr
     protected abstract ClusterState setState(ClusterState oldState, SetResetModeActionRequest request);
 
     @Override
-    protected void masterOperation(Task task,
-                                   SetResetModeActionRequest request,
-                                   ClusterState state,
-                                   ActionListener<AcknowledgedResponse> listener) throws Exception {
+    protected void masterOperation(
+        Task task,
+        SetResetModeActionRequest request,
+        ClusterState state,
+        ActionListener<AcknowledgedResponse> listener
+    ) throws Exception {
 
         final boolean isResetModeEnabled = isResetMode(state);
         // Noop, nothing for us to do, simply return fast to the caller
@@ -81,32 +84,24 @@ public abstract class AbstractTransportSetResetModeAction extends AcknowledgedTr
             )
         );
 
-        ActionListener<AcknowledgedResponse> wrappedListener = ActionListener.wrap(
-            r -> {
-                logger.debug(() -> new ParameterizedMessage("Completed reset mode request for [{}]", featureName()));
-                listener.onResponse(r);
-            },
-            e -> {
-                logger.debug(
-                    () -> new ParameterizedMessage("Completed reset mode for [{}] request but with failure", featureName()),
-                    e
-                );
-                listener.onFailure(e);
+        ActionListener<AcknowledgedResponse> wrappedListener = ActionListener.wrap(r -> {
+            logger.debug(() -> new ParameterizedMessage("Completed reset mode request for [{}]", featureName()));
+            listener.onResponse(r);
+        }, e -> {
+            logger.debug(() -> new ParameterizedMessage("Completed reset mode for [{}] request but with failure", featureName()), e);
+            listener.onFailure(e);
+        });
+
+        ActionListener<AcknowledgedResponse> clusterStateUpdateListener = ActionListener.wrap(acknowledgedResponse -> {
+            if (acknowledgedResponse.isAcknowledged() == false) {
+                wrappedListener.onFailure(new ElasticsearchTimeoutException("Unknown error occurred while updating cluster state"));
+                return;
             }
-        );
+            wrappedListener.onResponse(acknowledgedResponse);
+        }, wrappedListener::onFailure);
 
-        ActionListener<AcknowledgedResponse> clusterStateUpdateListener = ActionListener.wrap(
-            acknowledgedResponse -> {
-                if (acknowledgedResponse.isAcknowledged() == false) {
-                    wrappedListener.onFailure(new ElasticsearchTimeoutException("Unknown error occurred while updating cluster state"));
-                    return;
-                }
-                wrappedListener.onResponse(acknowledgedResponse);
-            },
-            wrappedListener::onFailure
-        );
-
-        clusterService.submitStateUpdateTask(featureName() + "-set-reset-mode",
+        clusterService.submitStateUpdateTask(
+            featureName() + "-set-reset-mode",
             new AckedClusterStateUpdateTask(request, clusterStateUpdateListener) {
 
                 @Override
@@ -120,7 +115,8 @@ public abstract class AbstractTransportSetResetModeAction extends AcknowledgedTr
                     logger.trace(() -> new ParameterizedMessage("Executing cluster state update for [{}]", featureName()));
                     return setState(currentState, request);
                 }
-            });
+            }
+        );
     }
 
     @Override

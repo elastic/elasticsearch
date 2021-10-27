@@ -40,9 +40,9 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Matchers.same;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyZeroInteractions;
@@ -64,8 +64,14 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         tokenServiceMock = SecurityMocks.tokenService(true, threadPool);
         final ThreadContext threadContext = threadPool.getThreadContext();
 
-        action = new TransportGrantApiKeyAction(mock(TransportService.class), mock(ActionFilters.class), threadContext,
-            apiKeyGenerator, authenticationService, tokenServiceMock.tokenService);
+        action = new TransportGrantApiKeyAction(
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            threadContext,
+            apiKeyGenerator,
+            authenticationService,
+            tokenServiceMock.tokenService
+        );
     }
 
     @After
@@ -200,13 +206,16 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
     }
 
     private Authentication buildAuthentication(String username) {
-        return new Authentication(new User(username),
-            new Authentication.RealmRef("realm_name", "realm_type", "node_name"), null);
+        return new Authentication(new User(username), new Authentication.RealmRef("realm_name", "realm_type", "node_name"), null);
     }
 
     private CreateApiKeyResponse mockResponse(GrantApiKeyRequest request) {
-        return new CreateApiKeyResponse(request.getApiKeyRequest().getName(),
-            randomAlphaOfLength(12), new SecureString(randomAlphaOfLength(18).toCharArray()), null);
+        return new CreateApiKeyResponse(
+            request.getApiKeyRequest().getName(),
+            randomAlphaOfLength(12),
+            new SecureString(randomAlphaOfLength(18).toCharArray()),
+            null
+        );
     }
 
     private GrantApiKeyRequest mockRequest() {

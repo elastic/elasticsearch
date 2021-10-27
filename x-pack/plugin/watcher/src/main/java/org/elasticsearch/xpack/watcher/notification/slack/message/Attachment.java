@@ -38,9 +38,22 @@ public class Attachment implements MessageElement {
     final String[] markdownSupportedFields;
     final List<Action> actions;
 
-    public Attachment(String fallback, String color, String pretext, String authorName, String authorLink,
-                      String authorIcon, String title, String titleLink, String text, Field[] fields,
-                      String imageUrl, String thumbUrl, String[] markdownSupportedFields, List<Action> actions) {
+    public Attachment(
+        String fallback,
+        String color,
+        String pretext,
+        String authorName,
+        String authorLink,
+        String authorIcon,
+        String title,
+        String titleLink,
+        String text,
+        Field[] fields,
+        String imageUrl,
+        String thumbUrl,
+        String[] markdownSupportedFields,
+        List<Action> actions
+    ) {
 
         this.fallback = fallback;
         this.color = color;
@@ -64,19 +77,40 @@ public class Attachment implements MessageElement {
         if (o == null || getClass() != o.getClass()) return false;
 
         Attachment that = (Attachment) o;
-        return Objects.equals(fallback, that.fallback) && Objects.equals(color, that.color) &&
-                Objects.equals(pretext, that.pretext) && Objects.equals(authorName, that.authorName) &&
-                Objects.equals(authorLink, that.authorLink) && Objects.equals(authorIcon, that.authorIcon) &&
-                Objects.equals(title, that.title) && Objects.equals(titleLink, that.titleLink) &&
-                Objects.equals(text, that.text) && Objects.equals(imageUrl, that.imageUrl) &&
-                Objects.equals(thumbUrl, that.thumbUrl) &&  Objects.equals(actions, that.actions) &&
-                Arrays.equals(markdownSupportedFields, that.markdownSupportedFields) && Arrays.equals(fields, that.fields);
+        return Objects.equals(fallback, that.fallback)
+            && Objects.equals(color, that.color)
+            && Objects.equals(pretext, that.pretext)
+            && Objects.equals(authorName, that.authorName)
+            && Objects.equals(authorLink, that.authorLink)
+            && Objects.equals(authorIcon, that.authorIcon)
+            && Objects.equals(title, that.title)
+            && Objects.equals(titleLink, that.titleLink)
+            && Objects.equals(text, that.text)
+            && Objects.equals(imageUrl, that.imageUrl)
+            && Objects.equals(thumbUrl, that.thumbUrl)
+            && Objects.equals(actions, that.actions)
+            && Arrays.equals(markdownSupportedFields, that.markdownSupportedFields)
+            && Arrays.equals(fields, that.fields);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(fallback, color, pretext, authorName, authorLink, authorIcon, title, titleLink, text, fields, imageUrl,
-                            thumbUrl, markdownSupportedFields, actions);
+        return Objects.hash(
+            fallback,
+            color,
+            pretext,
+            authorName,
+            authorLink,
+            authorIcon,
+            title,
+            titleLink,
+            text,
+            fields,
+            imageUrl,
+            thumbUrl,
+            markdownSupportedFields,
+            actions
+        );
     }
 
     /**
@@ -162,10 +196,22 @@ public class Attachment implements MessageElement {
         final TextTemplate[] markdownSupportedFields;
         final List<Action.Template> actions;
 
-        Template(TextTemplate fallback, TextTemplate color, TextTemplate pretext, TextTemplate authorName,
-                 TextTemplate authorLink, TextTemplate authorIcon, TextTemplate title, TextTemplate titleLink,
-                 TextTemplate text, Field.Template[] fields, TextTemplate imageUrl, TextTemplate thumbUrl,
-                 TextTemplate[] markdownSupportedFields, List<Action.Template> actions) {
+        Template(
+            TextTemplate fallback,
+            TextTemplate color,
+            TextTemplate pretext,
+            TextTemplate authorName,
+            TextTemplate authorLink,
+            TextTemplate authorIcon,
+            TextTemplate title,
+            TextTemplate titleLink,
+            TextTemplate text,
+            Field.Template[] fields,
+            TextTemplate imageUrl,
+            TextTemplate thumbUrl,
+            TextTemplate[] markdownSupportedFields,
+            List<Action.Template> actions
+        ) {
 
             this.fallback = fallback;
             this.color = color;
@@ -216,8 +262,22 @@ public class Attachment implements MessageElement {
                 }
             }
 
-            return new Attachment(fallback, color, pretext, authorName, authorLink, authorIcon, title, titleLink, text, fields, imageUrl,
-                    thumbUrl, markdownFields, actions);
+            return new Attachment(
+                fallback,
+                color,
+                pretext,
+                authorName,
+                authorLink,
+                authorIcon,
+                title,
+                titleLink,
+                text,
+                fields,
+                imageUrl,
+                thumbUrl,
+                markdownFields,
+                actions
+            );
         }
 
         @Override
@@ -227,20 +287,40 @@ public class Attachment implements MessageElement {
 
             Template template = (Template) o;
 
-            return Objects.equals(fallback, template.fallback) && Objects.equals(color, template.color) &&
-                    Objects.equals(pretext, template.pretext) && Objects.equals(authorName, template.authorName) &&
-                    Objects.equals(authorLink, template.authorLink) && Objects.equals(authorIcon, template.authorIcon) &&
-                    Objects.equals(title, template.title) && Objects.equals(titleLink, template.titleLink) &&
-                    Objects.equals(text, template.text) && Objects.equals(imageUrl, template.imageUrl) &&
-                    Objects.equals(thumbUrl, template.thumbUrl) && Objects.equals(actions, template.actions) &&
-                    Arrays.equals(fields, template.fields) &&
-                    Arrays.equals(markdownSupportedFields, template.markdownSupportedFields);
+            return Objects.equals(fallback, template.fallback)
+                && Objects.equals(color, template.color)
+                && Objects.equals(pretext, template.pretext)
+                && Objects.equals(authorName, template.authorName)
+                && Objects.equals(authorLink, template.authorLink)
+                && Objects.equals(authorIcon, template.authorIcon)
+                && Objects.equals(title, template.title)
+                && Objects.equals(titleLink, template.titleLink)
+                && Objects.equals(text, template.text)
+                && Objects.equals(imageUrl, template.imageUrl)
+                && Objects.equals(thumbUrl, template.thumbUrl)
+                && Objects.equals(actions, template.actions)
+                && Arrays.equals(fields, template.fields)
+                && Arrays.equals(markdownSupportedFields, template.markdownSupportedFields);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(fallback, color, pretext, authorName, authorLink, authorIcon, title, titleLink, text, fields, imageUrl,
-                    thumbUrl, markdownSupportedFields, actions);
+            return Objects.hash(
+                fallback,
+                color,
+                pretext,
+                authorName,
+                authorLink,
+                authorIcon,
+                title,
+                titleLink,
+                text,
+                fields,
+                imageUrl,
+                thumbUrl,
+                markdownSupportedFields,
+                actions
+            );
         }
 
         @Override
@@ -330,64 +410,91 @@ public class Attachment implements MessageElement {
                     try {
                         fallback = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException("could not parse message attachment. failed to parse [{}] field", pe,
-                                XField.FALLBACK);
+                        throw new ElasticsearchParseException(
+                            "could not parse message attachment. failed to parse [{}] field",
+                            pe,
+                            XField.FALLBACK
+                        );
                     }
                 } else if (XField.COLOR.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         color = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException("could not parse message attachment. failed to parse [{}] field", pe,
-                                XField.COLOR);
+                        throw new ElasticsearchParseException(
+                            "could not parse message attachment. failed to parse [{}] field",
+                            pe,
+                            XField.COLOR
+                        );
                     }
                 } else if (XField.PRETEXT.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         pretext = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException("could not parse message attachment. failed to parse [{}] field", pe,
-                                XField.PRETEXT);
+                        throw new ElasticsearchParseException(
+                            "could not parse message attachment. failed to parse [{}] field",
+                            pe,
+                            XField.PRETEXT
+                        );
                     }
                 } else if (XField.AUTHOR_NAME.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         authorName = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException("could not parse message attachment. failed to parse [{}] field", pe,
-                                XField.AUTHOR_NAME);
+                        throw new ElasticsearchParseException(
+                            "could not parse message attachment. failed to parse [{}] field",
+                            pe,
+                            XField.AUTHOR_NAME
+                        );
                     }
                 } else if (XField.AUTHOR_LINK.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         authorLink = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException("could not parse message attachment. failed to parse [{}] field", pe,
-                                XField.AUTHOR_LINK);
+                        throw new ElasticsearchParseException(
+                            "could not parse message attachment. failed to parse [{}] field",
+                            pe,
+                            XField.AUTHOR_LINK
+                        );
                     }
                 } else if (XField.AUTHOR_ICON.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         authorIcon = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException("could not parse message attachment. failed to parse [{}] field", pe,
-                                XField.AUTHOR_ICON);
+                        throw new ElasticsearchParseException(
+                            "could not parse message attachment. failed to parse [{}] field",
+                            pe,
+                            XField.AUTHOR_ICON
+                        );
                     }
                 } else if (XField.TITLE.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         title = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException("could not parse message attachment. failed to parse [{}] field", pe,
-                                XField.TITLE);
+                        throw new ElasticsearchParseException(
+                            "could not parse message attachment. failed to parse [{}] field",
+                            pe,
+                            XField.TITLE
+                        );
                     }
                 } else if (XField.TITLE_LINK.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         titleLink = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException("could not parse message attachment. failed to parse [{}] field", pe,
-                                XField.TITLE_LINK);
+                        throw new ElasticsearchParseException(
+                            "could not parse message attachment. failed to parse [{}] field",
+                            pe,
+                            XField.TITLE_LINK
+                        );
                     }
                 } else if (XField.TEXT.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         text = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException("could not parse message attachment. failed to parse [{}] field", pe,
-                                XField.TEXT);
+                        throw new ElasticsearchParseException(
+                            "could not parse message attachment. failed to parse [{}] field",
+                            pe,
+                            XField.TEXT
+                        );
                     }
                 } else if (XField.FIELDS.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (token == XContentParser.Token.START_ARRAY) {
@@ -396,32 +503,44 @@ public class Attachment implements MessageElement {
                             try {
                                 list.add(Field.Template.parse(parser));
                             } catch (ElasticsearchParseException pe) {
-                                throw new ElasticsearchParseException("could not parse message attachment. failed to parse [{}] field",
-                                        pe, XField.FIELDS);
+                                throw new ElasticsearchParseException(
+                                    "could not parse message attachment. failed to parse [{}] field",
+                                    pe,
+                                    XField.FIELDS
+                                );
                             }
                         }
                         fields = list.toArray(new Field.Template[list.size()]);
                     } else {
                         try {
-                            fields = new Field.Template[]{Field.Template.parse(parser)};
+                            fields = new Field.Template[] { Field.Template.parse(parser) };
                         } catch (ElasticsearchParseException pe) {
-                            throw new ElasticsearchParseException("could not parse message attachment. failed to parse [{}] field", pe,
-                                    XField.FIELDS);
+                            throw new ElasticsearchParseException(
+                                "could not parse message attachment. failed to parse [{}] field",
+                                pe,
+                                XField.FIELDS
+                            );
                         }
                     }
                 } else if (XField.IMAGE_URL.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         imageUrl = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException("could not parse message attachment. failed to parse [{}] field", pe,
-                                XField.IMAGE_URL);
+                        throw new ElasticsearchParseException(
+                            "could not parse message attachment. failed to parse [{}] field",
+                            pe,
+                            XField.IMAGE_URL
+                        );
                     }
                 } else if (XField.THUMB_URL.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         thumbUrl = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException("could not parse message attachment. failed to parse [{}] field", pe,
-                                XField.THUMB_URL);
+                        throw new ElasticsearchParseException(
+                            "could not parse message attachment. failed to parse [{}] field",
+                            pe,
+                            XField.THUMB_URL
+                        );
                     }
                 } else if (XField.MARKDOWN_IN.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (token == XContentParser.Token.START_ARRAY) {
@@ -430,17 +549,23 @@ public class Attachment implements MessageElement {
                             try {
                                 list.add(new TextTemplate(parser.text()));
                             } catch (ElasticsearchParseException pe) {
-                                throw new ElasticsearchParseException("could not parse message attachment. failed to parse [{}] field",
-                                        pe, XField.MARKDOWN_IN);
+                                throw new ElasticsearchParseException(
+                                    "could not parse message attachment. failed to parse [{}] field",
+                                    pe,
+                                    XField.MARKDOWN_IN
+                                );
                             }
                         }
                         markdownFields = list.toArray(new TextTemplate[list.size()]);
                     } else {
                         try {
-                            markdownFields = new TextTemplate[]{new TextTemplate(parser.text())};
+                            markdownFields = new TextTemplate[] { new TextTemplate(parser.text()) };
                         } catch (ElasticsearchParseException pe) {
-                            throw new ElasticsearchParseException("could not parse message attachment. failed to parse [{}] field", pe,
-                                    XField.MARKDOWN_IN);
+                            throw new ElasticsearchParseException(
+                                "could not parse message attachment. failed to parse [{}] field",
+                                pe,
+                                XField.MARKDOWN_IN
+                            );
                         }
                     }
                 } else if (XField.ACTIONS.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -448,30 +573,54 @@ public class Attachment implements MessageElement {
                         actions.add(Action.ACTION_PARSER.parse(parser, null));
                     }
                 } else {
-                    throw new ElasticsearchParseException("could not parse message attachment field. unexpected field [{}]",
-                            currentFieldName);
+                    throw new ElasticsearchParseException(
+                        "could not parse message attachment field. unexpected field [{}]",
+                        currentFieldName
+                    );
                 }
             }
             if (authorName == null) {
                 if (authorLink != null) {
-                    throw new ElasticsearchParseException("could not parse message attachment field. found field [{}], but no [{}] is " +
-                            "defined", XField.AUTHOR_LINK, XField.AUTHOR_NAME);
+                    throw new ElasticsearchParseException(
+                        "could not parse message attachment field. found field [{}], but no [{}] is " + "defined",
+                        XField.AUTHOR_LINK,
+                        XField.AUTHOR_NAME
+                    );
                 }
                 if (authorIcon != null) {
-                    throw new ElasticsearchParseException("could not parse message attachment field. found field [{}], but no [{}] is " +
-                            "defined", XField.AUTHOR_ICON, XField.AUTHOR_NAME);
+                    throw new ElasticsearchParseException(
+                        "could not parse message attachment field. found field [{}], but no [{}] is " + "defined",
+                        XField.AUTHOR_ICON,
+                        XField.AUTHOR_NAME
+                    );
                 }
             }
             if (title == null) {
                 if (titleLink != null) {
-                    throw new ElasticsearchParseException("could not parse message attachment field. found field [{}], but no [{}] is " +
-                            "defined", XField.TITLE_LINK, XField.TITLE);
+                    throw new ElasticsearchParseException(
+                        "could not parse message attachment field. found field [{}], but no [{}] is " + "defined",
+                        XField.TITLE_LINK,
+                        XField.TITLE
+                    );
                 }
             }
-            return new Template(fallback, color, pretext, authorName, authorLink, authorIcon, title, titleLink, text, fields, imageUrl,
-                    thumbUrl, markdownFields, actions);
+            return new Template(
+                fallback,
+                color,
+                pretext,
+                authorName,
+                authorLink,
+                authorIcon,
+                title,
+                titleLink,
+                text,
+                fields,
+                imageUrl,
+                thumbUrl,
+                markdownFields,
+                actions
+            );
         }
-
 
         public static Builder builder() {
             return new Builder();
@@ -494,8 +643,7 @@ public class Attachment implements MessageElement {
             private List<TextTemplate> markdownFields = new ArrayList<>();
             private List<Action.Template> actions = new ArrayList<>();
 
-            private Builder() {
-            }
+            private Builder() {}
 
             public Builder setFallback(TextTemplate fallback) {
                 this.fallback = fallback;
@@ -617,10 +765,25 @@ public class Attachment implements MessageElement {
 
             public Template build() {
                 Field.Template[] fields = this.fields.isEmpty() ? null : this.fields.toArray(new Field.Template[this.fields.size()]);
-                TextTemplate[] markdownFields =
-                        this.markdownFields.isEmpty() ? null : this.markdownFields.toArray(new TextTemplate[this.markdownFields.size()]);
-                return new Template(fallback, color, pretext, authorName, authorLink, authorIcon, title, titleLink, text, fields, imageUrl,
-                        thumbUrl, markdownFields, actions);
+                TextTemplate[] markdownFields = this.markdownFields.isEmpty()
+                    ? null
+                    : this.markdownFields.toArray(new TextTemplate[this.markdownFields.size()]);
+                return new Template(
+                    fallback,
+                    color,
+                    pretext,
+                    authorName,
+                    authorLink,
+                    authorIcon,
+                    title,
+                    titleLink,
+                    text,
+                    fields,
+                    imageUrl,
+                    thumbUrl,
+                    markdownFields,
+                    actions
+                );
             }
         }
     }

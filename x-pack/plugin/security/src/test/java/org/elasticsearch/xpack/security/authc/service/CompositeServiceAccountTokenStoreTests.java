@@ -21,8 +21,8 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -55,24 +55,25 @@ public class CompositeServiceAccountTokenStoreTests extends ESTestCase {
         final TokenSource tokenSource = randomFrom(TokenSource.values());
 
         doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked") final ActionListener<StoreAuthenticationResult> listener =
-                (ActionListener<StoreAuthenticationResult>) invocationOnMock.getArguments()[1];
+            @SuppressWarnings("unchecked")
+            final ActionListener<StoreAuthenticationResult> listener = (ActionListener<StoreAuthenticationResult>) invocationOnMock
+                .getArguments()[1];
             listener.onResponse(new StoreAuthenticationResult(store1Success, tokenSource));
             return null;
         }).when(store1).authenticate(eq(token), any());
 
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            final ActionListener<StoreAuthenticationResult> listener =
-                (ActionListener<StoreAuthenticationResult>) invocationOnMock.getArguments()[1];
+            final ActionListener<StoreAuthenticationResult> listener = (ActionListener<StoreAuthenticationResult>) invocationOnMock
+                .getArguments()[1];
             listener.onResponse(new StoreAuthenticationResult(store2Success, tokenSource));
             return null;
         }).when(store2).authenticate(eq(token), any());
 
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            final ActionListener<StoreAuthenticationResult> listener =
-                (ActionListener<StoreAuthenticationResult>) invocationOnMock.getArguments()[1];
+            final ActionListener<StoreAuthenticationResult> listener = (ActionListener<StoreAuthenticationResult>) invocationOnMock
+                .getArguments()[1];
             listener.onResponse(new StoreAuthenticationResult(store3Success, tokenSource));
             return null;
         }).when(store3).authenticate(eq(token), any());

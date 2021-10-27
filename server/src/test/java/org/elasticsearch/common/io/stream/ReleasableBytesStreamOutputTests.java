@@ -19,17 +19,14 @@ import java.io.IOException;
 public class ReleasableBytesStreamOutputTests extends ESTestCase {
 
     public void testRelease() throws Exception {
-        MockBigArrays mockBigArrays =
-            new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
-        try (ReleasableBytesStreamOutput output =
-                 getRandomReleasableBytesStreamOutput(mockBigArrays)) {
+        MockBigArrays mockBigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+        try (ReleasableBytesStreamOutput output = getRandomReleasableBytesStreamOutput(mockBigArrays)) {
             output.writeBoolean(randomBoolean());
         }
         MockBigArrays.ensureAllArraysAreReleased();
     }
 
-    private ReleasableBytesStreamOutput getRandomReleasableBytesStreamOutput(
-                                                MockBigArrays mockBigArrays) throws IOException {
+    private ReleasableBytesStreamOutput getRandomReleasableBytesStreamOutput(MockBigArrays mockBigArrays) throws IOException {
         ReleasableBytesStreamOutput output = new ReleasableBytesStreamOutput(mockBigArrays);
         if (randomBoolean()) {
             for (int i = 0; i < scaledRandomIntBetween(1, 32); i++) {

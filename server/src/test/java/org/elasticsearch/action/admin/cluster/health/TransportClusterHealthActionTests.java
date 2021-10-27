@@ -33,49 +33,52 @@ import static org.hamcrest.core.IsEqual.equalTo;
 public class TransportClusterHealthActionTests extends ESTestCase {
 
     public void testWaitForInitializingShards() throws Exception {
-        final String[] indices = {"test"};
+        final String[] indices = { "test" };
         final ClusterHealthRequest request = new ClusterHealthRequest();
         request.waitForNoInitializingShards(true);
         ClusterState clusterState = randomClusterStateWithInitializingShards("test", 0);
-        ClusterHealthResponse response = new ClusterHealthResponse("", indices, clusterState);
+        ClusterHealthResponse response = new ClusterHealthResponse("", indices, clusterState, false);
         assertThat(TransportClusterHealthAction.prepareResponse(request, response, clusterState, null), equalTo(1));
 
         request.waitForNoInitializingShards(true);
         clusterState = randomClusterStateWithInitializingShards("test", between(1, 10));
-        response = new ClusterHealthResponse("", indices, clusterState);
+        response = new ClusterHealthResponse("", indices, clusterState, false);
         assertThat(TransportClusterHealthAction.prepareResponse(request, response, clusterState, null), equalTo(0));
 
         request.waitForNoInitializingShards(false);
         clusterState = randomClusterStateWithInitializingShards("test", randomInt(20));
-        response = new ClusterHealthResponse("", indices, clusterState);
+        response = new ClusterHealthResponse("", indices, clusterState, false);
         assertThat(TransportClusterHealthAction.prepareResponse(request, response, clusterState, null), equalTo(0));
     }
 
     public void testWaitForAllShards() {
-        final String[] indices = {"test"};
+        final String[] indices = { "test" };
         final ClusterHealthRequest request = new ClusterHealthRequest();
         request.waitForActiveShards(ActiveShardCount.ALL);
 
         ClusterState clusterState = randomClusterStateWithInitializingShards("test", 1);
-        ClusterHealthResponse response = new ClusterHealthResponse("", indices, clusterState);
+        ClusterHealthResponse response = new ClusterHealthResponse("", indices, clusterState, false);
         assertThat(TransportClusterHealthAction.prepareResponse(request, response, clusterState, null), equalTo(0));
 
         clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
-        response = new ClusterHealthResponse("", indices, clusterState);
+        response = new ClusterHealthResponse("", indices, clusterState, false);
         assertThat(TransportClusterHealthAction.prepareResponse(request, response, clusterState, null), equalTo(1));
     }
 
     ClusterState randomClusterStateWithInitializingShards(String index, final int initializingShards) {
-        final IndexMetadata indexMetadata = IndexMetadata
-            .builder(index)
+        final IndexMetadata indexMetadata = IndexMetadata.builder(index)
             .settings(settings(Version.CURRENT))
             .numberOfShards(between(1, 10))
             .numberOfReplicas(randomInt(20))
             .build();
 
         final List<ShardRoutingState> shardRoutingStates = new ArrayList<>();
-        IntStream.range(0, between(1, 30)).forEach(i -> shardRoutingStates.add(randomFrom(
-            ShardRoutingState.STARTED, ShardRoutingState.UNASSIGNED, ShardRoutingState.RELOCATING)));
+        IntStream.range(0, between(1, 30))
+            .forEach(
+                i -> shardRoutingStates.add(
+                    randomFrom(ShardRoutingState.STARTED, ShardRoutingState.UNASSIGNED, ShardRoutingState.RELOCATING)
+                )
+            );
         IntStream.range(0, initializingShards).forEach(i -> shardRoutingStates.add(ShardRoutingState.INITIALIZING));
         Randomness.shuffle(shardRoutingStates);
 
@@ -94,9 +97,7 @@ public class TransportClusterHealthActionTests extends ESTestCase {
             ShardRoutingState state = shardRoutingStates.remove(0);
             String node = "node";
             String relocatingNode = state == ShardRoutingState.RELOCATING ? "relocating" : null;
-            routingTable.addShard(
-                TestShardRouting.newShardRouting(shardId, node, relocatingNode, true, state)
-            );
+            routingTable.addShard(TestShardRouting.newShardRouting(shardId, node, relocatingNode, true, state));
         }
 
         // Replicas

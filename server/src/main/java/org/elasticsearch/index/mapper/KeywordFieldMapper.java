@@ -31,7 +31,6 @@ import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -44,6 +43,7 @@ import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -89,24 +89,41 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).fieldType.stored(), false);
 
-        private final Parameter<String> nullValue
-            = Parameter.stringParam("null_value", false, m -> toType(m).nullValue, null).acceptsNull();
+        private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).nullValue, null)
+            .acceptsNull();
 
-        private final Parameter<Boolean> eagerGlobalOrdinals
-            = Parameter.boolParam("eager_global_ordinals", true, m -> toType(m).eagerGlobalOrdinals, false);
-        private final Parameter<Integer> ignoreAbove
-            = Parameter.intParam("ignore_above", true, m -> toType(m).ignoreAbove, Integer.MAX_VALUE);
+        private final Parameter<Boolean> eagerGlobalOrdinals = Parameter.boolParam(
+            "eager_global_ordinals",
+            true,
+            m -> toType(m).eagerGlobalOrdinals,
+            false
+        );
+        private final Parameter<Integer> ignoreAbove = Parameter.intParam(
+            "ignore_above",
+            true,
+            m -> toType(m).ignoreAbove,
+            Integer.MAX_VALUE
+        );
 
-        private final Parameter<String> indexOptions
-            = Parameter.restrictedStringParam("index_options", false, m -> toType(m).indexOptions, "docs", "freqs");
+        private final Parameter<String> indexOptions = Parameter.restrictedStringParam(
+            "index_options",
+            false,
+            m -> toType(m).indexOptions,
+            "docs",
+            "freqs"
+        );
         private final Parameter<Boolean> hasNorms = TextParams.norms(false, m -> toType(m).fieldType.omitNorms() == false);
         private final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> toType(m).similarity);
 
-        private final Parameter<String> normalizer
-            = Parameter.stringParam("normalizer", false, m -> toType(m).normalizerName, null).acceptsNull();
+        private final Parameter<String> normalizer = Parameter.stringParam("normalizer", false, m -> toType(m).normalizerName, null)
+            .acceptsNull();
 
-        private final Parameter<Boolean> splitQueriesOnWhitespace
-            = Parameter.boolParam("split_queries_on_whitespace", true, m -> toType(m).splitQueriesOnWhitespace, false);
+        private final Parameter<Boolean> splitQueriesOnWhitespace = Parameter.boolParam(
+            "split_queries_on_whitespace",
+            true,
+            m -> toType(m).splitQueriesOnWhitespace,
+            false
+        );
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -173,17 +190,32 @@ public final class KeywordFieldMapper extends FieldMapper {
                 return null;
             }
             StringFieldScript.Factory scriptFactory = scriptCompiler.compile(script.get(), StringFieldScript.CONTEXT);
-            return scriptFactory == null ? null : (lookup, ctx, doc, consumer) -> scriptFactory
-                .newFactory(name, script.get().getParams(), lookup)
-                .newInstance(ctx)
-                .runForDoc(doc, consumer);
+            return scriptFactory == null
+                ? null
+                : (lookup, ctx, doc, consumer) -> scriptFactory.newFactory(name, script.get().getParams(), lookup)
+                    .newInstance(ctx)
+                    .runForDoc(doc, consumer);
         }
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return List.of(indexed, hasDocValues, stored, nullValue, eagerGlobalOrdinals, ignoreAbove,
-                indexOptions, hasNorms, similarity, normalizer, splitQueriesOnWhitespace,
-                script, onScriptError, meta, dimension);
+            return List.of(
+                indexed,
+                hasDocValues,
+                stored,
+                nullValue,
+                eagerGlobalOrdinals,
+                ignoreAbove,
+                indexOptions,
+                hasNorms,
+                similarity,
+                normalizer,
+                splitQueriesOnWhitespace,
+                script,
+                onScriptError,
+                meta,
+                dimension
+            );
         }
 
         private KeywordFieldType buildFieldType(MapperBuilderContext context, FieldType fieldType) {
@@ -201,8 +233,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 if (splitQueriesOnWhitespace.getValue()) {
                     searchAnalyzer = indexAnalyzers.getWhitespaceNormalizer(normalizerName);
                 }
-            }
-            else if (splitQueriesOnWhitespace.getValue()) {
+            } else if (splitQueriesOnWhitespace.getValue()) {
                 searchAnalyzer = Lucene.WHITESPACE_ANALYZER;
             }
             return new KeywordFieldType(context.buildFullName(name), fieldType, normalizer, searchAnalyzer, quoteAnalyzer, this);
@@ -214,13 +245,18 @@ public final class KeywordFieldMapper extends FieldMapper {
             fieldtype.setOmitNorms(this.hasNorms.getValue() == false);
             fieldtype.setIndexOptions(TextParams.toIndexOptions(this.indexed.getValue(), this.indexOptions.getValue()));
             fieldtype.setStored(this.stored.getValue());
-            return new KeywordFieldMapper(name, fieldtype, buildFieldType(context, fieldtype),
-                    multiFieldsBuilder.build(this, context), copyTo.build(), this);
+            return new KeywordFieldMapper(
+                name,
+                fieldtype,
+                buildFieldType(context, fieldtype),
+                multiFieldsBuilder.build(this, context),
+                copyTo.build(),
+                this
+            );
         }
     }
 
-    public static final TypeParser PARSER
-        = new TypeParser((n, c) -> new Builder(n, c.getIndexAnalyzers(), c.scriptCompiler()));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexAnalyzers(), c.scriptCompiler()));
 
     public static final class KeywordFieldType extends StringFieldType {
 
@@ -231,15 +267,22 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final FieldValues<String> scriptValues;
         private final boolean isDimension;
 
-        public KeywordFieldType(String name, FieldType fieldType,
-                                NamedAnalyzer normalizer, NamedAnalyzer searchAnalyzer, NamedAnalyzer quoteAnalyzer,
-                                Builder builder) {
-            super(name,
+        public KeywordFieldType(
+            String name,
+            FieldType fieldType,
+            NamedAnalyzer normalizer,
+            NamedAnalyzer searchAnalyzer,
+            NamedAnalyzer quoteAnalyzer,
+            Builder builder
+        ) {
+            super(
+                name,
                 fieldType.indexOptions() != IndexOptions.NONE,
                 fieldType.stored(),
                 builder.hasDocValues.getValue(),
                 new TextSearchInfo(fieldType, builder.similarity.getValue(), searchAnalyzer, quoteAnalyzer),
-                builder.meta.getValue());
+                builder.meta.getValue()
+            );
             this.eagerGlobalOrdinals = builder.eagerGlobalOrdinals.getValue();
             this.normalizer = normalizer;
             this.ignoreAbove = builder.ignoreAbove.getValue();
@@ -263,10 +306,14 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         public KeywordFieldType(String name, FieldType fieldType) {
-            super(name, fieldType.indexOptions() != IndexOptions.NONE,
-                false, false,
+            super(
+                name,
+                fieldType.indexOptions() != IndexOptions.NONE,
+                false,
+                false,
                 new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER),
-                Collections.emptyMap());
+                Collections.emptyMap()
+            );
             this.normalizer = Lucene.KEYWORD_ANALYZER;
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
@@ -295,15 +342,13 @@ public final class KeywordFieldMapper extends FieldMapper {
                 // Field does not exist on this shard.
                 return null;
             }
-            Automaton a = caseInsensitive
-                ? AutomatonQueries.caseInsensitivePrefix(string)
-                : Automata.makeString(string);
+            Automaton a = caseInsensitive ? AutomatonQueries.caseInsensitivePrefix(string) : Automata.makeString(string);
             a = Operations.concatenate(a, Automata.makeAnyString());
             a = MinimizationOperations.minimize(a, Integer.MAX_VALUE);
 
             CompiledAutomaton automaton = new CompiledAutomaton(a);
 
-            BytesRef searchBytes = searchAfter == null? null: new BytesRef(searchAfter);
+            BytesRef searchBytes = searchAfter == null ? null : new BytesRef(searchAfter);
 
             if (automaton.type == AUTOMATON_TYPE.ALL) {
                 TermsEnum result = terms.iterator();
@@ -436,6 +481,26 @@ public final class KeywordFieldMapper extends FieldMapper {
         public boolean isDimension() {
             return isDimension;
         }
+
+        @Override
+        public void validateMatchedRoutingPath() {
+            if (false == isDimension) {
+                throw new IllegalArgumentException(
+                    "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                        + "and without the [script] parameter. ["
+                        + name()
+                        + "] was not [time_series_dimension: true]."
+                );
+            }
+            if (scriptValues != null) {
+                throw new IllegalArgumentException(
+                    "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                        + "and without the [script] parameter. ["
+                        + name()
+                        + "] has a [script] parameter."
+                );
+            }
+        }
     }
 
     /** The maximum keyword length allowed for a dimension field */
@@ -458,10 +523,23 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     private final IndexAnalyzers indexAnalyzers;
 
-    private KeywordFieldMapper(String simpleName, FieldType fieldType, KeywordFieldType mappedFieldType,
-                               MultiFields multiFields, CopyTo copyTo, Builder builder) {
-        super(simpleName, mappedFieldType, mappedFieldType.normalizer, multiFields, copyTo,
-            builder.script.get() != null, builder.onScriptError.getValue());
+    private KeywordFieldMapper(
+        String simpleName,
+        FieldType fieldType,
+        KeywordFieldType mappedFieldType,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        Builder builder
+    ) {
+        super(
+            simpleName,
+            mappedFieldType,
+            mappedFieldType.normalizer,
+            multiFields,
+            copyTo,
+            builder.script.get() != null,
+            builder.onScriptError.getValue()
+        );
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
@@ -499,8 +577,12 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc,
-                                     DocumentParserContext documentParserContext) {
+    protected void indexScriptValues(
+        SearchLookup searchLookup,
+        LeafReaderContext readerContext,
+        int doc,
+        DocumentParserContext documentParserContext
+    ) {
         this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, value -> indexValue(documentParserContext, value));
     }
 
@@ -524,7 +606,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 "Dimension field [" + fieldType().name() + "] cannot be more than [" + DIMENSION_MAX_BYTES + "] bytes long."
             );
         }
-        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored())  {
+        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             Field field = new KeywordField(fieldType().name(), binaryValue, fieldType);
             if (dimension) {
                 // Check that a dimension field is single-valued and not an array
@@ -556,20 +638,29 @@ public final class KeywordFieldMapper extends FieldMapper {
             final CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
             ts.reset();
             if (ts.incrementToken() == false) {
-                throw new IllegalStateException("The normalization token stream is "
-                    + "expected to produce exactly 1 token, but got 0 for analyzer "
-                    + normalizer + " and input \"" + value + "\"");
+                throw new IllegalStateException(
+                    "The normalization token stream is "
+                        + "expected to produce exactly 1 token, but got 0 for analyzer "
+                        + normalizer
+                        + " and input \""
+                        + value
+                        + "\""
+                );
             }
             final String newValue = termAtt.toString();
             if (ts.incrementToken()) {
-                throw new IllegalStateException("The normalization token stream is "
-                    + "expected to produce exactly 1 token, but got 2+ for analyzer "
-                    + normalizer + " and input \"" + value + "\"");
+                throw new IllegalStateException(
+                    "The normalization token stream is "
+                        + "expected to produce exactly 1 token, but got 2+ for analyzer "
+                        + normalizer
+                        + " and input \""
+                        + value
+                        + "\""
+                );
             }
             ts.end();
             return newValue;
-        }
-        catch (IOException e) {
+        } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
@@ -583,5 +674,4 @@ public final class KeywordFieldMapper extends FieldMapper {
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), indexAnalyzers, scriptCompiler).dimension(dimension).init(this);
     }
-
 }

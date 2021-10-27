@@ -37,6 +37,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.monitoring.MonitoringDeprecatedSettings;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringMigrateAlertsAction;
@@ -76,11 +77,19 @@ import static org.elasticsearch.common.settings.Setting.boolSetting;
 
 public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin {
 
-    public static final Setting<Boolean> MIGRATION_DECOMMISSION_ALERTS = boolSetting("xpack.monitoring.migration.decommission_alerts",
-        false, Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<Boolean> MIGRATION_DECOMMISSION_ALERTS = boolSetting(
+        "xpack.monitoring.migration.decommission_alerts",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated
+    );
 
-    public static final LicensedFeature.Momentary MONITORING_CLUSTER_ALERTS_FEATURE =
-        LicensedFeature.momentary("monitoring", "cluster-alerts", License.OperationMode.STANDARD);
+    public static final LicensedFeature.Momentary MONITORING_CLUSTER_ALERTS_FEATURE = LicensedFeature.momentary(
+        "monitoring",
+        "cluster-alerts",
+        License.OperationMode.STANDARD
+    );
 
     protected final Settings settings;
 
@@ -91,33 +100,57 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
     }
 
     // overridable by tests
-    protected SSLService getSslService() { return XPackPlugin.getSharedSslService(); }
-    protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
-    protected LicenseService getLicenseService() { return XPackPlugin.getSharedLicenseService(); }
+    protected SSLService getSslService() {
+        return XPackPlugin.getSharedSslService();
+    }
+
+    protected XPackLicenseState getLicenseState() {
+        return XPackPlugin.getSharedLicenseState();
+    }
+
+    protected LicenseService getLicenseService() {
+        return XPackPlugin.getSharedLicenseService();
+    }
 
     @Override
-    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-                                               ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                               NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               IndexNameExpressionResolver expressionResolver,
-                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver expressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
+    ) {
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         final CleanerService cleanerService = new CleanerService(settings, clusterSettings, threadPool, getLicenseState());
         final SSLService dynamicSSLService = getSslService().createDynamicSSLService();
         final MonitoringMigrationCoordinator migrationCoordinator = new MonitoringMigrationCoordinator();
 
         Map<String, Exporter.Factory> exporterFactories = new HashMap<>();
-        exporterFactories.put(HttpExporter.TYPE, config -> new HttpExporter(config, dynamicSSLService, threadPool.getThreadContext(),
-            migrationCoordinator));
+        exporterFactories.put(
+            HttpExporter.TYPE,
+            config -> new HttpExporter(config, dynamicSSLService, threadPool.getThreadContext(), migrationCoordinator)
+        );
         exporterFactories.put(LocalExporter.TYPE, config -> new LocalExporter(config, client, migrationCoordinator, cleanerService));
-        exporters = new Exporters(settings, exporterFactories, clusterService, getLicenseState(), threadPool.getThreadContext(),
-            dynamicSSLService);
+        exporters = new Exporters(
+            settings,
+            exporterFactories,
+            clusterService,
+            getLicenseState(),
+            threadPool.getThreadContext(),
+            dynamicSSLService
+        );
 
         Set<Collector> collectors = new HashSet<>();
         collectors.add(new IndexStatsCollector(clusterService, getLicenseState(), client));
         collectors.add(
-            new ClusterStatsCollector(settings, clusterService, getLicenseState(), client, getLicenseService(), expressionResolver));
+            new ClusterStatsCollector(settings, clusterService, getLicenseState(), client, getLicenseService(), expressionResolver)
+        );
         collectors.add(new ShardsCollector(clusterService, getLicenseState()));
         collectors.add(new NodeStatsCollector(clusterService, getLicenseState(), client));
         collectors.add(new IndexRecoveryCollector(clusterService, getLicenseState(), client));
@@ -129,8 +162,13 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
 
         var usageServices = new MonitoringUsageServices(monitoringService, exporters);
 
-        MonitoringTemplateRegistry templateRegistry = new MonitoringTemplateRegistry(settings, clusterService, threadPool, client,
-            xContentRegistry);
+        MonitoringTemplateRegistry templateRegistry = new MonitoringTemplateRegistry(
+            settings,
+            clusterService,
+            threadPool,
+            client,
+            xContentRegistry
+        );
         templateRegistry.initialize();
 
         return Arrays.asList(monitoringService, exporters, migrationCoordinator, cleanerService, usageServices, templateRegistry);
@@ -144,13 +182,20 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
             new ActionHandler<>(MonitoringBulkAction.INSTANCE, TransportMonitoringBulkAction.class),
             new ActionHandler<>(MonitoringMigrateAlertsAction.INSTANCE, TransportMonitoringMigrateAlertsAction.class),
             usageAction,
-            infoAction);
+            infoAction
+        );
     }
 
     @Override
-    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-            IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
-            Supplier<DiscoveryNodes> nodesInCluster) {
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
         return List.of(new RestMonitoringBulkAction(), new RestMonitoringMigrateAlertsAction());
     }
 

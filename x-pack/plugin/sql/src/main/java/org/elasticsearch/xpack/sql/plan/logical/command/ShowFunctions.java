@@ -46,17 +46,19 @@ public class ShowFunctions extends Command {
 
     @Override
     public List<Attribute> output() {
-        return asList(new FieldAttribute(source(), "name", new KeywordEsField("name")),
-                new FieldAttribute(source(), "type", new KeywordEsField("type")));
+        return asList(
+            new FieldAttribute(source(), "name", new KeywordEsField("name")),
+            new FieldAttribute(source(), "type", new KeywordEsField("type"))
+        );
     }
 
     @Override
     public void execute(SqlSession session, ActionListener<Page> listener) {
         FunctionRegistry registry = session.functionRegistry();
         Collection<FunctionDefinition> functions = registry.listFunctions(pattern != null ? pattern.asJavaRegex() : null);
-        listener.onResponse(of(session, functions.stream()
-                .map(f -> asList(f.name(), SqlFunctionTypeRegistry.INSTANCE.type(f.clazz())))
-                .collect(toList())));
+        listener.onResponse(
+            of(session, functions.stream().map(f -> asList(f.name(), SqlFunctionTypeRegistry.INSTANCE.type(f.clazz()))).collect(toList()))
+        );
     }
 
     @Override

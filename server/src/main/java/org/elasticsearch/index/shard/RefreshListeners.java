@@ -13,11 +13,11 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
 
@@ -184,8 +184,13 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
         }
         long maxIssuedSequenceNumber = maxIssuedSeqNoSupplier.getAsLong();
         if (checkpoint > maxIssuedSequenceNumber) {
-            IllegalArgumentException e = new IllegalArgumentException("Cannot wait for unissued seqNo checkpoint [wait_for_checkpoint="
-                + checkpoint + ", max_issued_seqNo=" + maxIssuedSequenceNumber + "]");
+            IllegalArgumentException e = new IllegalArgumentException(
+                "Cannot wait for unissued seqNo checkpoint [wait_for_checkpoint="
+                    + checkpoint
+                    + ", max_issued_seqNo="
+                    + maxIssuedSequenceNumber
+                    + "]"
+            );
             listener.onFailure(e);
             return true;
         }
@@ -209,8 +214,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
 
     private void addCheckpointListener(long checkpoint, ActionListener<Void> listener, List<Tuple<Long, ActionListener<Void>>> listeners) {
         assert Thread.holdsLock(this);
-        ActionListener<Void> contextPreservingListener =
-            ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
+        ActionListener<Void> contextPreservingListener = ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
 
         if (listeners == null) {
             listeners = new ArrayList<>();
@@ -422,9 +426,11 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
         }
     }
 
-    private static boolean roomForListener(final int maxRefreshes,
-                                           final List<Tuple<Translog.Location, Consumer<Boolean>>> locationListeners,
-                                           final List<Tuple<Long, ActionListener<Void>>> checkpointListeners) {
+    private static boolean roomForListener(
+        final int maxRefreshes,
+        final List<Tuple<Translog.Location, Consumer<Boolean>>> locationListeners,
+        final List<Tuple<Long, ActionListener<Void>>> checkpointListeners
+    ) {
         final int locationListenerCount = locationListeners == null ? 0 : locationListeners.size();
         final int checkpointListenerCount = checkpointListeners == null ? 0 : checkpointListeners.size();
         return (locationListenerCount + checkpointListenerCount) < maxRefreshes;

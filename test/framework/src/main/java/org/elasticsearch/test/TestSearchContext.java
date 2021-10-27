@@ -53,8 +53,7 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 
 public class TestSearchContext extends SearchContext {
-    public static final SearchShardTarget SHARD_TARGET =
-        new SearchShardTarget("test", new ShardId("test", "test", 0), null);
+    public static final SearchShardTarget SHARD_TARGET = new SearchShardTarget("test", new ShardId("test", "test", 0), null);
 
     final IndexService indexService;
     final BitsetFilterCache fixedBitSetFilterCache;
@@ -98,8 +97,12 @@ public class TestSearchContext extends SearchContext {
         this(searchExecutionContext, indexShard, searcher, null);
     }
 
-    public TestSearchContext(SearchExecutionContext searchExecutionContext, IndexShard indexShard,
-                             ContextIndexSearcher searcher, ScrollContext scrollContext) {
+    public TestSearchContext(
+        SearchExecutionContext searchExecutionContext,
+        IndexShard indexShard,
+        ContextIndexSearcher searcher,
+        ScrollContext scrollContext
+    ) {
         this.indexService = null;
         this.fixedBitSetFilterCache = null;
         this.indexShard = indexShard;
@@ -115,8 +118,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void preProcess(boolean rewrite) {
-    }
+    public void preProcess() {}
 
     @Override
     public Query buildFilteredQuery(Query query) {
@@ -185,8 +187,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void highlight(SearchHighlightContext highlight) {
-    }
+    public void highlight(SearchHighlightContext highlight) {}
 
     @Override
     public SuggestionSearchContext suggest() {
@@ -194,8 +195,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void suggest(SuggestionSearchContext suggest) {
-    }
+    public void suggest(SuggestionSearchContext suggest) {}
 
     @Override
     public List<RescoreContext> rescore() {
@@ -273,8 +273,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void timeout(TimeValue timeout) {
-    }
+    public void timeout(TimeValue timeout) {}
 
     @Override
     public int terminateAfter() {
@@ -404,7 +403,6 @@ public class TestSearchContext extends SearchContext {
         this.size = size;
     }
 
-
     @Override
     public SearchContext size(int size) {
         return null;
@@ -431,8 +429,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void explain(boolean explain) {
-    }
+    public void explain(boolean explain) {}
 
     @Override
     public List<String> groupStats() {
@@ -440,8 +437,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void groupStats(List<String> groupStats) {
-    }
+    public void groupStats(List<String> groupStats) {}
 
     @Override
     public boolean version() {
@@ -449,8 +445,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void version(boolean version) {
-    }
+    public void version(boolean version) {}
 
     @Override
     public boolean seqNoAndPrimaryTerm() {
@@ -508,7 +503,9 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public Map<Class<?>, Collector> queryCollectors() {return queryCollectors;}
+    public Map<Class<?>, Collector> queryCollectors() {
+        return queryCollectors;
+    }
 
     @Override
     public SearchExecutionContext getSearchExecutionContext() {

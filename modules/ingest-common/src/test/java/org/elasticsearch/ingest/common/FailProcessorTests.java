@@ -21,8 +21,7 @@ public class FailProcessorTests extends ESTestCase {
     public void test() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String message = randomAlphaOfLength(10);
-        Processor processor = new FailProcessor(randomAlphaOfLength(10),
-                null, new TestTemplateService.MockTemplateScript.Factory(message));
+        Processor processor = new FailProcessor(randomAlphaOfLength(10), null, new TestTemplateService.MockTemplateScript.Factory(message));
         try {
             processor.execute(ingestDocument);
             fail("fail processor should throw an exception");

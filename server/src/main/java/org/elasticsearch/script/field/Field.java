@@ -6,13 +6,10 @@
  * Side Public License, v 1.
  */
 
-
 package org.elasticsearch.script.field;
 
-import java.util.List;
-
 /** A field in a document accessible via scripting. */
-public interface Field<T> {
+public interface Field {
 
     /** Returns the name of this field. */
     String getName();
@@ -22,13 +19,4 @@ public interface Field<T> {
 
     /** Returns the number of values this field has. */
     int size();
-
-    /** Get all values of a multivalued field.  If {@code isEmpty()} this returns an empty list. */
-    List<T> getValues();
-
-    /** Get the first value of a field, if {@code isEmpty()} return defaultValue instead */
-    T getValue(T defaultValue);
-
-    /** Get the value of a field as the specified index. */
-    T getValue(int index, T defaultValue);
 }

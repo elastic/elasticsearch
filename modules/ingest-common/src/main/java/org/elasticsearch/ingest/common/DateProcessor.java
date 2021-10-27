@@ -9,9 +9,9 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.LocaleUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -43,13 +43,28 @@ public final class DateProcessor extends AbstractProcessor {
     private final List<Function<Map<String, Object>, Function<String, ZonedDateTime>>> dateParsers;
     private final String outputFormat;
 
-    DateProcessor(String tag, String description, @Nullable TemplateScript.Factory timezone, @Nullable TemplateScript.Factory locale,
-                  String field, List<String> formats, String targetField) {
+    DateProcessor(
+        String tag,
+        String description,
+        @Nullable TemplateScript.Factory timezone,
+        @Nullable TemplateScript.Factory locale,
+        String field,
+        List<String> formats,
+        String targetField
+    ) {
         this(tag, description, timezone, locale, field, formats, targetField, DEFAULT_OUTPUT_FORMAT);
     }
 
-    DateProcessor(String tag, String description, @Nullable TemplateScript.Factory timezone, @Nullable TemplateScript.Factory locale,
-                  String field, List<String> formats, String targetField, String outputFormat) {
+    DateProcessor(
+        String tag,
+        String description,
+        @Nullable TemplateScript.Factory timezone,
+        @Nullable TemplateScript.Factory locale,
+        String field,
+        List<String> formats,
+        String targetField,
+        String outputFormat
+    ) {
         super(tag, description);
         this.timezone = timezone;
         this.locale = locale;
@@ -88,7 +103,7 @@ public final class DateProcessor extends AbstractProcessor {
             try {
                 dateTime = dateParser.apply(ingestDocument.getSourceAndMetadata()).apply(value);
             } catch (Exception e) {
-                //try the next parser and keep track of the exceptions
+                // try the next parser and keep track of the exceptions
                 lastException = ExceptionsHelper.useOrSuppress(lastException, e);
             }
         }
@@ -138,33 +153,48 @@ public final class DateProcessor extends AbstractProcessor {
             this.scriptService = scriptService;
         }
 
-        public DateProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                    String description, Map<String, Object> config) throws Exception {
+        public DateProcessor create(
+            Map<String, Processor.Factory> registry,
+            String processorTag,
+            String description,
+            Map<String, Object> config
+        ) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", DEFAULT_TARGET_FIELD);
             String timezoneString = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "timezone");
             TemplateScript.Factory compiledTimezoneTemplate = null;
             if (timezoneString != null) {
-                compiledTimezoneTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag,
-                    "timezone", timezoneString, scriptService);
+                compiledTimezoneTemplate = ConfigurationUtils.compileTemplate(
+                    TYPE,
+                    processorTag,
+                    "timezone",
+                    timezoneString,
+                    scriptService
+                );
             }
             String localeString = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "locale");
             TemplateScript.Factory compiledLocaleTemplate = null;
             if (localeString != null) {
-                compiledLocaleTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag,
-                    "locale", localeString, scriptService);
+                compiledLocaleTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag, "locale", localeString, scriptService);
             }
             List<String> formats = ConfigurationUtils.readList(TYPE, processorTag, config, "formats");
-            String outputFormat =
-                ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "output_format", DEFAULT_OUTPUT_FORMAT);
+            String outputFormat = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "output_format", DEFAULT_OUTPUT_FORMAT);
             try {
                 DateFormatter.forPattern(outputFormat);
             } catch (Exception e) {
                 throw new IllegalArgumentException("invalid output format [" + outputFormat + "]", e);
             }
 
-            return new DateProcessor(processorTag, description, compiledTimezoneTemplate, compiledLocaleTemplate, field, formats,
-                targetField, outputFormat);
+            return new DateProcessor(
+                processorTag,
+                description,
+                compiledTimezoneTemplate,
+                compiledLocaleTemplate,
+                field,
+                formats,
+                targetField,
+                outputFormat
+            );
         }
     }
 }

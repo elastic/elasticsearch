@@ -14,29 +14,39 @@ public class SingleNodeShutdownMetadataTests extends ESTestCase {
     public void testStatusComination() {
         SingleNodeShutdownMetadata.Status status;
 
-        status = SingleNodeShutdownMetadata.Status.combine(SingleNodeShutdownMetadata.Status.NOT_STARTED,
+        status = SingleNodeShutdownMetadata.Status.combine(
+            SingleNodeShutdownMetadata.Status.NOT_STARTED,
             SingleNodeShutdownMetadata.Status.IN_PROGRESS,
-            SingleNodeShutdownMetadata.Status.STALLED);
+            SingleNodeShutdownMetadata.Status.STALLED
+        );
         assertEquals(status, SingleNodeShutdownMetadata.Status.STALLED);
 
-        status = SingleNodeShutdownMetadata.Status.combine(SingleNodeShutdownMetadata.Status.NOT_STARTED,
+        status = SingleNodeShutdownMetadata.Status.combine(
+            SingleNodeShutdownMetadata.Status.NOT_STARTED,
             SingleNodeShutdownMetadata.Status.IN_PROGRESS,
-            SingleNodeShutdownMetadata.Status.NOT_STARTED);
+            SingleNodeShutdownMetadata.Status.NOT_STARTED
+        );
         assertEquals(status, SingleNodeShutdownMetadata.Status.IN_PROGRESS);
 
-        status = SingleNodeShutdownMetadata.Status.combine(SingleNodeShutdownMetadata.Status.NOT_STARTED,
+        status = SingleNodeShutdownMetadata.Status.combine(
             SingleNodeShutdownMetadata.Status.NOT_STARTED,
-            SingleNodeShutdownMetadata.Status.NOT_STARTED);
+            SingleNodeShutdownMetadata.Status.NOT_STARTED,
+            SingleNodeShutdownMetadata.Status.NOT_STARTED
+        );
         assertEquals(status, SingleNodeShutdownMetadata.Status.NOT_STARTED);
 
-        status = SingleNodeShutdownMetadata.Status.combine(SingleNodeShutdownMetadata.Status.IN_PROGRESS,
+        status = SingleNodeShutdownMetadata.Status.combine(
             SingleNodeShutdownMetadata.Status.IN_PROGRESS,
-            SingleNodeShutdownMetadata.Status.COMPLETE);
+            SingleNodeShutdownMetadata.Status.IN_PROGRESS,
+            SingleNodeShutdownMetadata.Status.COMPLETE
+        );
         assertEquals(status, SingleNodeShutdownMetadata.Status.IN_PROGRESS);
 
-        status = SingleNodeShutdownMetadata.Status.combine(SingleNodeShutdownMetadata.Status.COMPLETE,
+        status = SingleNodeShutdownMetadata.Status.combine(
             SingleNodeShutdownMetadata.Status.COMPLETE,
-            SingleNodeShutdownMetadata.Status.COMPLETE);
+            SingleNodeShutdownMetadata.Status.COMPLETE,
+            SingleNodeShutdownMetadata.Status.COMPLETE
+        );
         assertEquals(status, SingleNodeShutdownMetadata.Status.COMPLETE);
 
         status = SingleNodeShutdownMetadata.Status.combine();

@@ -81,10 +81,10 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTest("search.aggregation/20_terms/string profiler via global ordinals native implementation", "The profiler results aren't backwards compatible.")
   task.skipTest("search.aggregation/20_terms/string profiler via map", "The profiler results aren't backwards compatible.")
   task.skipTest("search.aggregation/20_terms/numeric profiler", "The profiler results aren't backwards compatible.")
+  task.skipTest("migration/10_get_feature_upgrade_status/Get feature upgrade status", "Awaits backport")
 
   task.replaceValueInMatch("_type", "_doc")
   task.addAllowedWarningRegex("\\[types removal\\].*")
-  task.addAllowedWarning("[transient settings removal] Updating cluster settings through transientSettings is deprecated. Use persistent settings instead.")
   task.replaceValueInMatch("nodes.\$node_id.roles.8", "ml", "node_info role test")
   task.replaceValueInMatch("nodes.\$node_id.roles.9", "remote_cluster_client", "node_info role test")
   task.removeMatch("nodes.\$node_id.roles.10", "node_info role test")

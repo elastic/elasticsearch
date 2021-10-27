@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
@@ -42,7 +43,6 @@ import java.util.Map;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-
 public class TransportInternalInferModelAction extends HandledTransportAction<Request, Response> {
 
     private final ModelLoadingService modelLoadingService;
@@ -52,13 +52,15 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
     private final TrainedModelProvider trainedModelProvider;
 
     @Inject
-    public TransportInternalInferModelAction(TransportService transportService,
-                                             ActionFilters actionFilters,
-                                             ModelLoadingService modelLoadingService,
-                                             Client client,
-                                             ClusterService clusterService,
-                                             XPackLicenseState licenseState,
-                                             TrainedModelProvider trainedModelProvider) {
+    public TransportInternalInferModelAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ModelLoadingService modelLoadingService,
+        Client client,
+        ClusterService clusterService,
+        XPackLicenseState licenseState,
+        TrainedModelProvider trainedModelProvider
+    ) {
         super(InternalInferModelAction.NAME, transportService, actionFilters, InternalInferModelAction.Request::new);
         this.modelLoadingService = modelLoadingService;
         this.client = client;
@@ -76,17 +78,18 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             responseBuilder.setLicensed(true);
             doInfer(request, responseBuilder, listener);
         } else {
-            trainedModelProvider.getTrainedModel(request.getModelId(), GetTrainedModelsAction.Includes.empty(), ActionListener.wrap(
-                trainedModelConfig -> {
+            trainedModelProvider.getTrainedModel(
+                request.getModelId(),
+                GetTrainedModelsAction.Includes.empty(),
+                ActionListener.wrap(trainedModelConfig -> {
                     responseBuilder.setLicensed(licenseState.isAllowedByLicense(trainedModelConfig.getLicenseLevel()));
                     if (licenseState.isAllowedByLicense(trainedModelConfig.getLicenseLevel()) || request.isPreviouslyLicensed()) {
                         doInfer(request, responseBuilder, listener);
                     } else {
                         listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
                     }
-                },
-                listener::onFailure
-            ));
+                }, listener::onFailure)
+            );
         }
     }
 
@@ -104,53 +107,61 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
     }
 
     private void getModelAndInfer(Request request, Response.Builder responseBuilder, ActionListener<Response> listener) {
-        ActionListener<LocalModel> getModelListener = ActionListener.wrap(
-            model -> {
-                TypedChainTaskExecutor<InferenceResults> typedChainTaskExecutor =
-                    new TypedChainTaskExecutor<>(client.threadPool().executor(ThreadPool.Names.SAME),
-                        // run through all tasks
-                        r -> true,
-                        // Always fail immediately and return an error
-                        ex -> true);
-                request.getObjectsToInfer().forEach(stringObjectMap ->
-                    typedChainTaskExecutor.add(chainedTask ->
-                        model.infer(stringObjectMap, request.getUpdate(), chainedTask)));
+        ActionListener<LocalModel> getModelListener = ActionListener.wrap(model -> {
+            TypedChainTaskExecutor<InferenceResults> typedChainTaskExecutor = new TypedChainTaskExecutor<>(
+                client.threadPool().executor(ThreadPool.Names.SAME),
+                // run through all tasks
+                r -> true,
+                // Always fail immediately and return an error
+                ex -> true
+            );
+            request.getObjectsToInfer()
+                .forEach(
+                    stringObjectMap -> typedChainTaskExecutor.add(
+                        chainedTask -> model.infer(stringObjectMap, request.getUpdate(), chainedTask)
+                    )
+                );
 
-                typedChainTaskExecutor.execute(ActionListener.wrap(
-                    inferenceResultsInterfaces -> {
-                        model.release();
-                        listener.onResponse(responseBuilder.setInferenceResults(inferenceResultsInterfaces)
-                            .setModelId(model.getModelId())
-                            .build());
-                    },
-                    e -> {
-                        model.release();
-                        listener.onFailure(e);
-                    }
-                ));
-            },
-            listener::onFailure
-        );
+            typedChainTaskExecutor.execute(ActionListener.wrap(inferenceResultsInterfaces -> {
+                model.release();
+                listener.onResponse(responseBuilder.setInferenceResults(inferenceResultsInterfaces).setModelId(model.getModelId()).build());
+            }, e -> {
+                model.release();
+                listener.onFailure(e);
+            }));
+        }, listener::onFailure);
 
         modelLoadingService.getModelForPipeline(request.getModelId(), getModelListener);
     }
 
     private void inferAgainstAllocatedModel(Request request, Response.Builder responseBuilder, ActionListener<Response> listener) {
-        TypedChainTaskExecutor<InferenceResults> typedChainTaskExecutor =
-            new TypedChainTaskExecutor<>(client.threadPool().executor(ThreadPool.Names.SAME),
-                // run through all tasks
-                r -> true,
-                // Always fail immediately and return an error
-                ex -> true);
-        request.getObjectsToInfer().forEach(stringObjectMap -> typedChainTaskExecutor.add(
-            chainedTask -> inferSingleDocAgainstAllocatedModel(request.getModelId(), request.getUpdate(), stringObjectMap, chainedTask)));
+        TypedChainTaskExecutor<InferenceResults> typedChainTaskExecutor = new TypedChainTaskExecutor<>(
+            client.threadPool().executor(ThreadPool.Names.SAME),
+            // run through all tasks
+            r -> true,
+            // Always fail immediately and return an error
+            ex -> true
+        );
+        request.getObjectsToInfer()
+            .forEach(
+                stringObjectMap -> typedChainTaskExecutor.add(
+                    chainedTask -> inferSingleDocAgainstAllocatedModel(
+                        request.getModelId(),
+                        request.getUpdate(),
+                        stringObjectMap,
+                        chainedTask
+                    )
+                )
+            );
 
-        typedChainTaskExecutor.execute(ActionListener.wrap(
-            inferenceResults -> listener.onResponse(responseBuilder.setInferenceResults(inferenceResults)
-                    .setModelId(request.getModelId())
-                    .build()),
-            listener::onFailure
-        ));
+        typedChainTaskExecutor.execute(
+            ActionListener.wrap(
+                inferenceResults -> listener.onResponse(
+                    responseBuilder.setInferenceResults(inferenceResults).setModelId(request.getModelId()).build()
+                ),
+                listener::onFailure
+            )
+        );
     }
 
     private void inferSingleDocAgainstAllocatedModel(
@@ -159,26 +170,29 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
         Map<String, Object> doc,
         ActionListener<InferenceResults> listener
     ) {
-        executeAsyncWithOrigin(client,
+        executeAsyncWithOrigin(
+            client,
             ML_ORIGIN,
             InferTrainedModelDeploymentAction.INSTANCE,
-            new InferTrainedModelDeploymentAction.Request(modelId, inferenceConfigUpdate, Collections.singletonList(doc), null),
-            ActionListener.wrap(
-                r -> listener.onResponse(r.getResults()),
-                e -> {
-                    Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
-                    if (unwrapped instanceof ElasticsearchStatusException) {
-                        ElasticsearchStatusException ex = (ElasticsearchStatusException) unwrapped;
-                        if (ex.status().equals(RestStatus.TOO_MANY_REQUESTS)) {
-                            listener.onFailure(ex);
-                        } else {
-                            listener.onResponse(new WarningInferenceResults(ex.getMessage()));
-                        }
+            new InferTrainedModelDeploymentAction.Request(
+                modelId,
+                inferenceConfigUpdate,
+                Collections.singletonList(doc),
+                TimeValue.MAX_VALUE
+            ),
+            ActionListener.wrap(r -> listener.onResponse(r.getResults()), e -> {
+                Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
+                if (unwrapped instanceof ElasticsearchStatusException) {
+                    ElasticsearchStatusException ex = (ElasticsearchStatusException) unwrapped;
+                    if (ex.status().equals(RestStatus.TOO_MANY_REQUESTS)) {
+                        listener.onFailure(ex);
                     } else {
-                        listener.onResponse(new WarningInferenceResults(e.getMessage()));
+                        listener.onResponse(new WarningInferenceResults(ex.getMessage()));
                     }
+                } else {
+                    listener.onResponse(new WarningInferenceResults(e.getMessage()));
                 }
-            )
+            })
         );
     }
 }

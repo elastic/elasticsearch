@@ -66,6 +66,11 @@ BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
     if (bwcVersion.onOrAfter('6.6.0')) {
       setting 'ccr.auto_follow.wait_for_metadata_timeout', '1s'
     }
+    if (bwcVersion.onOrAfter('7.11.0')) {
+      extraConfigFile 'operator_users.yml', file("${project.projectDir}/src/test/resources/operator_users.yml")
+      setting 'xpack.security.operator_privileges.enabled', "true"
+      user username: "non_operator", password: 'x-pack-test-password', role: "superuser"
+    }
 
     user username: "test_user", password: "x-pack-test-password"
 
@@ -131,7 +136,8 @@ BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
       'mixed_cluster/90_ml_data_frame_analytics_crud/Put an outlier_detection job on the mixed cluster',
       'mixed_cluster/110_enrich/Enrich stats query smoke test for mixed cluster',
       'mixed_cluster/120_api_key/Test API key authentication will work in a mixed cluster',
-      'mixed_cluster/120_api_key/Create API key with metadata in a mixed cluster'
+      'mixed_cluster/120_api_key/Create API key with metadata in a mixed cluster',
+      'mixed_cluster/130_operator_privileges/Test operator privileges will work in the mixed cluster'
     ].join(',')
   }
 

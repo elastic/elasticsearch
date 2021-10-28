@@ -20,7 +20,7 @@ public class IndexSegments implements Iterable<IndexShardSegments> {
 
     private final Map<Integer, IndexShardSegments> indexShards;
 
-    IndexSegments(String index, ShardSegments[] shards) {
+    IndexSegments(String index, List<ShardSegments> shards) {
         this.index = index;
 
         Map<Integer, List<ShardSegments>> tmpIndexShards = new HashMap<>();

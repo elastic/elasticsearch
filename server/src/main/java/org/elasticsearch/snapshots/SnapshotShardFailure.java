@@ -34,7 +34,12 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
     private final ShardId shardId;
 
     SnapshotShardFailure(StreamInput in) throws IOException {
-        this(in.readOptionalString(), new ShardId(in), in.readString(), RestStatus.readFrom(in));
+        nodeId = in.readOptionalString();
+        shardId = new ShardId(in);
+        super.shardId = shardId.getId();
+        index = shardId.getIndexName();
+        reason = in.readString();
+        status = RestStatus.readFrom(in);
     }
 
     /**

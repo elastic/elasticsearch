@@ -357,10 +357,10 @@ public class DefaultSearchContextTests extends ESTestCase {
             indexService.newSearchExecutionContext(
                 eq(shardId.id()),
                 eq(shardId.id()),
-                anyObject(),
-                anyObject(),
+                any(),
+                any(),
                 nullable(String.class),
-                anyObject()
+                any()
             )
         ).thenReturn(searchExecutionContext);
 

@@ -168,7 +168,7 @@ public class ServerTransportFilterTests extends ESTestCase {
             )
         );
         assertEquals("executing internal/shard actions is considered malicious and forbidden", e.getMessage());
-        verifyZeroInteractions(authcService);
+        verifyNoMoreInteractions(authcService);
     }
 
     public void testNodeProfileAllowsNodeActions() throws Exception {

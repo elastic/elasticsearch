@@ -177,6 +177,8 @@ public class IndexingIT extends AbstractRollingTestCase {
         }
     }
 
+    // await backport to v8.0
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79994")
     public void testDateNanosFormatUpgrade() throws IOException {
         final String indexName = "test_date_nanos";
         switch (CLUSTER_TYPE) {
@@ -201,7 +203,7 @@ public class IndexingIT extends AbstractRollingTestCase {
                 Request index = new Request("POST", "/" + indexName + "/_doc/");
                 XContentBuilder doc = XContentBuilder.builder(XContentType.JSON.xContent())
                     .startObject()
-                    .field("date", "2015-01-01T12:10:30.123Z")
+                    .field("date", "2015-01-01T12:10:30.123456789Z")
                     .field("date_nanos", "2015-01-01T12:10:30.123456789Z")
                     .endObject();
                 index.addParameter("refresh", "true");

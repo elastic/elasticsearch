@@ -1,4 +1,5 @@
 [[index-rollover]]
+[testenv="basic"]
 === Rollover
 
 When indexing time series data like logs or metrics, you can't write to a single index indefinitely. 
@@ -39,8 +40,6 @@ This is the active index that handles all write requests.
 On each rollover, the new index becomes the write index.
 
 [discrete]
-[role="xpack"]
-[testenv="basic"]
 [[ilm-automatic-rollover]]
 === Automatic rollover
 

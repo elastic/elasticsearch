@@ -36,7 +36,6 @@ import java.util.List;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.anyListOf;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -419,7 +418,7 @@ public class ScoresUpdaterTests extends ESTestCase {
 
     private void verifyNormalizerWasInvoked(int times) throws IOException {
         int bucketSpan = job.getAnalysisConfig() == null ? 0 : ((Long) job.getAnalysisConfig().getBucketSpan().seconds()).intValue();
-        verify(normalizer, times(times)).normalize(eq(bucketSpan), anyListOf(Normalizable.class), eq(QUANTILES_STATE));
+        verify(normalizer, times(times)).normalize(eq(bucketSpan), anyList(), eq(QUANTILES_STATE));
     }
 
     private void verifyNothingWasUpdated() {

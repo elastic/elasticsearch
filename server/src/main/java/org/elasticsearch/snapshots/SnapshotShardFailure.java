@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -26,7 +25,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Stores information about failures that occurred during shard snapshotting process
+ * Stores information about failures that occurred during shard snapshotting process for serialization as part of {@link SnapshotInfo}.
  */
 public class SnapshotShardFailure extends ShardOperationFailedException {
 
@@ -35,12 +34,7 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
     private final ShardId shardId;
 
     SnapshotShardFailure(StreamInput in) throws IOException {
-        nodeId = in.readOptionalString();
-        shardId = new ShardId(in);
-        super.shardId = shardId.getId();
-        index = shardId.getIndexName();
-        reason = in.readString();
-        status = RestStatus.readFrom(in);
+        this(in.readOptionalString(), new ShardId(in), in.readString(), RestStatus.readFrom(in));
     }
 
     /**
@@ -63,9 +57,12 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
      * @param status  rest status
      */
     private SnapshotShardFailure(@Nullable String nodeId, ShardId shardId, String reason, RestStatus status) {
-        super(shardId.getIndexName(), shardId.id(), reason, status, new IndexShardSnapshotFailedException(shardId, reason));
         this.nodeId = nodeId;
         this.shardId = shardId;
+        this.index = shardId.getIndexName();
+        this.reason = reason;
+        super.shardId = shardId.getId();
+        this.status = status;
     }
 
     /**
@@ -189,5 +186,11 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
     @Override
     public int hashCode() {
         return Objects.hash(shardId, reason, nodeId, status.getStatus());
+    }
+
+    @Override
+    public Throwable fillInStackTrace() {
+        // no need for stack-traces here as we are not serializing them anyway
+        return this;
     }
 }

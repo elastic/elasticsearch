@@ -40,13 +40,17 @@ public class CustomRoleMappingRealmIT extends ESRestTestCase {
     public void setupRoleMapping() throws Exception {
         expectedRole = randomAlphaOfLengthBetween(4, 16);
         Request request = new Request("PUT", "/_security/role_mapping/test");
-        request.setJsonEntity("{" +
-            "\"enabled\": true," +
-            "\"roles\":[\"" +
-            expectedRole +
-            "\"]," +
-            "\"rules\":{\"field\":{\"groups\":\"" + CustomRoleMappingRealm.USER_GROUP + "\"} }" +
-            "}");
+        request.setJsonEntity(
+            "{"
+                + "\"enabled\": true,"
+                + "\"roles\":[\""
+                + expectedRole
+                + "\"],"
+                + "\"rules\":{\"field\":{\"groups\":\""
+                + CustomRoleMappingRealm.USER_GROUP
+                + "\"} }"
+                + "}"
+        );
         adminClient().performRequest(request);
     }
 

@@ -28,8 +28,14 @@ public class NativePyTorchProcess extends AbstractNativeProcess {
 
     private final ProcessResultsParser<PyTorchResult> resultsParser;
 
-    protected NativePyTorchProcess(String jobId, NativeController nativeController, ProcessPipes processPipes, int numberOfFields,
-                                   List<Path> filesToDelete, Consumer<String> onProcessCrash) {
+    protected NativePyTorchProcess(
+        String jobId,
+        NativeController nativeController,
+        ProcessPipes processPipes,
+        int numberOfFields,
+        List<Path> filesToDelete,
+        Consumer<String> onProcessCrash
+    ) {
         super(jobId, nativeController, processPipes, numberOfFields, filesToDelete, onProcessCrash);
         this.resultsParser = new ProcessResultsParser<>(PyTorchResult.PARSER, NamedXContentRegistry.EMPTY);
     }

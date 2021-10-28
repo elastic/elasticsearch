@@ -27,12 +27,12 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
@@ -65,8 +65,13 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     protected final ConcurrentMap<String, AtomicBoolean> templateCreationsInProgress = new ConcurrentHashMap<>();
     protected final ConcurrentMap<String, AtomicBoolean> policyCreationsInProgress = new ConcurrentHashMap<>();
 
-    public IndexTemplateRegistry(Settings nodeSettings, ClusterService clusterService, ThreadPool threadPool, Client client,
-                                 NamedXContentRegistry xContentRegistry) {
+    public IndexTemplateRegistry(
+        Settings nodeSettings,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        Client client,
+        NamedXContentRegistry xContentRegistry
+    ) {
         this.settings = nodeSettings;
         this.client = client;
         this.threadPool = threadPool;
@@ -131,8 +136,15 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
      * @param e The exception that caused the failure.
      */
     protected void onPutTemplateFailure(IndexTemplateConfig config, Exception e) {
-        logger.error(new ParameterizedMessage("error adding index template [{}] from [{}] for [{}]",
-            config.getTemplateName(), config.getFileName(), getOrigin()), e);
+        logger.error(
+            new ParameterizedMessage(
+                "error adding index template [{}] from [{}] for [{}]",
+                config.getTemplateName(),
+                config.getFileName(),
+                getOrigin()
+            ),
+            e
+        );
     }
 
     /**
@@ -141,8 +153,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
      * @param e The exception that caused the failure.
      */
     protected void onPutPolicyFailure(LifecyclePolicy policy, Exception e) {
-        logger.error(new ParameterizedMessage("error adding lifecycle policy [{}] for [{}]",
-            policy.getName(), getOrigin()), e);
+        logger.error(new ParameterizedMessage("error adding lifecycle policy [{}] for [{}]", policy.getName(), getOrigin()), e);
     }
 
     @Override
@@ -205,17 +216,29 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                 } else if (Objects.isNull(currentTemplate.getVersion()) || newTemplate.getVersion() > currentTemplate.getVersion()) {
                     // IndexTemplateConfig now enforces templates contain a `version` property, so if the template doesn't have one we can
                     // safely assume it's an old version of the template.
-                    logger.info("upgrading legacy template [{}] for [{}] from version [{}] to version [{}]",
-                        templateName, getOrigin(), currentTemplate.getVersion(), newTemplate.getVersion());
+                    logger.info(
+                        "upgrading legacy template [{}] for [{}] from version [{}] to version [{}]",
+                        templateName,
+                        getOrigin(),
+                        currentTemplate.getVersion(),
+                        newTemplate.getVersion()
+                    );
                     putLegacyTemplate(newTemplate, creationCheck);
                 } else {
                     creationCheck.set(false);
-                    logger.trace("not adding legacy template [{}] for [{}], because it already exists at version [{}]",
-                        templateName, getOrigin(), currentTemplate.getVersion());
+                    logger.trace(
+                        "not adding legacy template [{}] for [{}], because it already exists at version [{}]",
+                        templateName,
+                        getOrigin(),
+                        currentTemplate.getVersion()
+                    );
                 }
             } else {
-                logger.trace("skipping the creation of legacy template [{}] for [{}], because its creation is in progress",
-                    templateName, getOrigin());
+                logger.trace(
+                    "skipping the creation of legacy template [{}] for [{}], because its creation is in progress",
+                    templateName,
+                    getOrigin()
+                );
             }
         }
     }
@@ -233,17 +256,29 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                 } else if (Objects.isNull(currentTemplate.version()) || newTemplate.getVersion() > currentTemplate.version()) {
                     // IndexTemplateConfig now enforces templates contain a `version` property, so if the template doesn't have one we can
                     // safely assume it's an old version of the template.
-                    logger.info("upgrading component template [{}] for [{}] from version [{}] to version [{}]",
-                        templateName, getOrigin(), currentTemplate.version(), newTemplate.getVersion());
+                    logger.info(
+                        "upgrading component template [{}] for [{}] from version [{}] to version [{}]",
+                        templateName,
+                        getOrigin(),
+                        currentTemplate.version(),
+                        newTemplate.getVersion()
+                    );
                     putComponentTemplate(newTemplate, creationCheck);
                 } else {
                     creationCheck.set(false);
-                    logger.trace("not adding component template [{}] for [{}], because it already exists at version [{}]",
-                        templateName, getOrigin(), currentTemplate.version());
+                    logger.trace(
+                        "not adding component template [{}] for [{}], because it already exists at version [{}]",
+                        templateName,
+                        getOrigin(),
+                        currentTemplate.version()
+                    );
                 }
             } else {
-                logger.trace("skipping the creation of component template [{}] for [{}], because its creation is in progress",
-                    templateName, getOrigin());
+                logger.trace(
+                    "skipping the creation of component template [{}] for [{}], because its creation is in progress",
+                    templateName,
+                    getOrigin()
+                );
             }
         }
     }
@@ -258,25 +293,40 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                 boolean componentTemplatesAvailable = componentTemplatesExist(state, newTemplate);
                 if (componentTemplatesAvailable == false) {
                     creationCheck.set(false);
-                    logger.trace("not adding composable template [{}] for [{}] because its required component templates do not exist",
-                        templateName, getOrigin());
+                    logger.trace(
+                        "not adding composable template [{}] for [{}] because its required component templates do not exist",
+                        templateName,
+                        getOrigin()
+                    );
                 } else if (Objects.isNull(currentTemplate)) {
                     logger.debug("adding composable template [{}] for [{}], because it doesn't exist", templateName, getOrigin());
                     putComposableTemplate(newTemplate, creationCheck);
                 } else if (Objects.isNull(currentTemplate.version()) || newTemplate.getVersion() > currentTemplate.version()) {
                     // IndexTemplateConfig now enforces templates contain a `version` property, so if the template doesn't have one we can
                     // safely assume it's an old version of the template.
-                    logger.info("upgrading composable template [{}] for [{}] from version [{}] to version [{}]",
-                        templateName, getOrigin(), currentTemplate.version(), newTemplate.getVersion());
+                    logger.info(
+                        "upgrading composable template [{}] for [{}] from version [{}] to version [{}]",
+                        templateName,
+                        getOrigin(),
+                        currentTemplate.version(),
+                        newTemplate.getVersion()
+                    );
                     putComposableTemplate(newTemplate, creationCheck);
                 } else {
                     creationCheck.set(false);
-                    logger.trace("not adding composable template [{}] for [{}], because it already exists at version [{}]",
-                        templateName, getOrigin(), currentTemplate.version());
+                    logger.trace(
+                        "not adding composable template [{}] for [{}], because it already exists at version [{}]",
+                        templateName,
+                        getOrigin(),
+                        currentTemplate.version()
+                    );
                 }
             } else {
-                logger.trace("skipping the creation of composable template [{}] for [{}], because its creation is in progress",
-                    templateName, getOrigin());
+                logger.trace(
+                    "skipping the creation of composable template [{}] for [{}], because its creation is in progress",
+                    templateName,
+                    getOrigin()
+                );
             }
         }
     }
@@ -287,8 +337,13 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     private static boolean componentTemplatesExist(ClusterState state, IndexTemplateConfig composableTemplate) {
         final ComposableIndexTemplate indexTemplate;
         try {
-            indexTemplate = ComposableIndexTemplate.parse(JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, composableTemplate.loadBytes()));
+            indexTemplate = ComposableIndexTemplate.parse(
+                JsonXContent.jsonXContent.createParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    composableTemplate.loadBytes()
+                )
+            );
         } catch (Exception e) {
             throw new ElasticsearchParseException("unable to parse composable template " + composableTemplate.getTemplateName(), e);
         }
@@ -303,14 +358,20 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
 
             PutIndexTemplateRequest request = new PutIndexTemplateRequest(templateName).source(config.loadBytes(), XContentType.JSON);
             request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
-            executeAsyncWithOrigin(client.threadPool().getThreadContext(), getOrigin(), request,
+            executeAsyncWithOrigin(
+                client.threadPool().getThreadContext(),
+                getOrigin(),
+                request,
                 new ActionListener<AcknowledgedResponse>() {
                     @Override
                     public void onResponse(AcknowledgedResponse response) {
                         creationCheck.set(false);
                         if (response.isAcknowledged() == false) {
-                            logger.error("error adding legacy template [{}] for [{}], request was not acknowledged",
-                                templateName, getOrigin());
+                            logger.error(
+                                "error adding legacy template [{}] for [{}], request was not acknowledged",
+                                templateName,
+                                getOrigin()
+                            );
                         }
                     }
 
@@ -319,7 +380,9 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                         creationCheck.set(false);
                         onPutTemplateFailure(config, e);
                     }
-                }, client.admin().indices()::putTemplate);
+                },
+                client.admin().indices()::putTemplate
+            );
         });
     }
 
@@ -330,20 +393,33 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
 
             PutComponentTemplateAction.Request request = new PutComponentTemplateAction.Request(templateName);
             try {
-                request.componentTemplate(ComponentTemplate.parse(JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION, config.loadBytes())));
+                request.componentTemplate(
+                    ComponentTemplate.parse(
+                        JsonXContent.jsonXContent.createParser(
+                            NamedXContentRegistry.EMPTY,
+                            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                            config.loadBytes()
+                        )
+                    )
+                );
             } catch (Exception e) {
                 throw new ElasticsearchParseException("unable to parse component template " + config.getTemplateName(), e);
             }
             request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
-            executeAsyncWithOrigin(client.threadPool().getThreadContext(), getOrigin(), request,
+            executeAsyncWithOrigin(
+                client.threadPool().getThreadContext(),
+                getOrigin(),
+                request,
                 new ActionListener<AcknowledgedResponse>() {
                     @Override
                     public void onResponse(AcknowledgedResponse response) {
                         creationCheck.set(false);
                         if (response.isAcknowledged() == false) {
-                            logger.error("error adding component template [{}] for [{}], request was not acknowledged",
-                                templateName, getOrigin());
+                            logger.error(
+                                "error adding component template [{}] for [{}], request was not acknowledged",
+                                templateName,
+                                getOrigin()
+                            );
                         }
                     }
 
@@ -352,7 +428,9 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                         creationCheck.set(false);
                         onPutTemplateFailure(config, e);
                     }
-                }, (req, listener) -> client.execute(PutComponentTemplateAction.INSTANCE, req, listener));
+                },
+                (req, listener) -> client.execute(PutComponentTemplateAction.INSTANCE, req, listener)
+            );
         });
     }
 
@@ -363,20 +441,33 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
 
             PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(templateName);
             try {
-                request.indexTemplate(ComposableIndexTemplate.parse(JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION, config.loadBytes())));
+                request.indexTemplate(
+                    ComposableIndexTemplate.parse(
+                        JsonXContent.jsonXContent.createParser(
+                            NamedXContentRegistry.EMPTY,
+                            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                            config.loadBytes()
+                        )
+                    )
+                );
             } catch (Exception e) {
                 throw new ElasticsearchParseException("unable to parse composable template " + config.getTemplateName(), e);
             }
             request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
-            executeAsyncWithOrigin(client.threadPool().getThreadContext(), getOrigin(), request,
+            executeAsyncWithOrigin(
+                client.threadPool().getThreadContext(),
+                getOrigin(),
+                request,
                 new ActionListener<AcknowledgedResponse>() {
                     @Override
                     public void onResponse(AcknowledgedResponse response) {
                         creationCheck.set(false);
                         if (response.isAcknowledged() == false) {
-                            logger.error("error adding composable template [{}] for [{}], request was not acknowledged",
-                                templateName, getOrigin());
+                            logger.error(
+                                "error adding composable template [{}] for [{}], request was not acknowledged",
+                                templateName,
+                                getOrigin()
+                            );
                         }
                     }
 
@@ -385,7 +476,9 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                         creationCheck.set(false);
                         onPutTemplateFailure(config, e);
                     }
-                }, (req, listener) -> client.execute(PutComposableIndexTemplateAction.INSTANCE, req, listener));
+                },
+                (req, listener) -> client.execute(PutComposableIndexTemplateAction.INSTANCE, req, listener)
+            );
         });
     }
 
@@ -397,18 +490,19 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
             .collect(Collectors.toList());
 
         for (LifecyclePolicy policy : policies) {
-            final AtomicBoolean creationCheck = policyCreationsInProgress.computeIfAbsent(policy.getName(),
-                key -> new AtomicBoolean(false));
+            final AtomicBoolean creationCheck = policyCreationsInProgress.computeIfAbsent(
+                policy.getName(),
+                key -> new AtomicBoolean(false)
+            );
             if (creationCheck.compareAndSet(false, true)) {
-                final boolean policyNeedsToBeCreated = maybeMeta
-                    .flatMap(ilmMeta -> Optional.ofNullable(ilmMeta.getPolicies().get(policy.getName())))
-                    .isPresent() == false;
+                final boolean policyNeedsToBeCreated = maybeMeta.flatMap(
+                    ilmMeta -> Optional.ofNullable(ilmMeta.getPolicies().get(policy.getName()))
+                ).isPresent() == false;
                 if (policyNeedsToBeCreated) {
                     logger.debug("adding lifecycle policy [{}] for [{}], because it doesn't exist", policy.getName(), getOrigin());
                     putPolicy(policy, creationCheck);
                 } else {
-                    logger.trace("not adding lifecycle policy [{}] for [{}], because it already exists",
-                        policy.getName(), getOrigin());
+                    logger.trace("not adding lifecycle policy [{}] for [{}], because it already exists", policy.getName(), getOrigin());
                     creationCheck.set(false);
                 }
             }
@@ -420,14 +514,20 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         executor.execute(() -> {
             PutLifecycleAction.Request request = new PutLifecycleAction.Request(policy);
             request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
-            executeAsyncWithOrigin(client.threadPool().getThreadContext(), getOrigin(), request,
+            executeAsyncWithOrigin(
+                client.threadPool().getThreadContext(),
+                getOrigin(),
+                request,
                 new ActionListener<AcknowledgedResponse>() {
                     @Override
                     public void onResponse(AcknowledgedResponse response) {
                         creationCheck.set(false);
                         if (response.isAcknowledged() == false) {
-                            logger.error("error adding lifecycle policy [{}] for [{}], request was not acknowledged",
-                                policy.getName(), getOrigin());
+                            logger.error(
+                                "error adding lifecycle policy [{}] for [{}], request was not acknowledged",
+                                policy.getName(),
+                                getOrigin()
+                            );
                         }
                     }
 
@@ -436,7 +536,9 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                         creationCheck.set(false);
                         onPutPolicyFailure(policy, e);
                     }
-                }, (req, listener) -> client.execute(PutLifecycleAction.INSTANCE, req, listener));
+                },
+                (req, listener) -> client.execute(PutLifecycleAction.INSTANCE, req, listener)
+            );
         });
     }
 

@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 
-
 public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDatafeedAction.Request, PutDatafeedAction.Response> {
 
     private final XPackLicenseState licenseState;
@@ -36,22 +35,41 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
     private final DatafeedManager datafeedManager;
 
     @Inject
-    public TransportPutDatafeedAction(Settings settings, TransportService transportService,
-                                      ClusterService clusterService, ThreadPool threadPool,
-                                      XPackLicenseState licenseState, ActionFilters actionFilters,
-                                      IndexNameExpressionResolver indexNameExpressionResolver,
-                                      DatafeedManager datafeedManager) {
-        super(PutDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters, PutDatafeedAction.Request::new,
-                indexNameExpressionResolver, PutDatafeedAction.Response::new, ThreadPool.Names.SAME);
+    public TransportPutDatafeedAction(
+        Settings settings,
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        XPackLicenseState licenseState,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        DatafeedManager datafeedManager
+    ) {
+        super(
+            PutDatafeedAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            PutDatafeedAction.Request::new,
+            indexNameExpressionResolver,
+            PutDatafeedAction.Response::new,
+            ThreadPool.Names.SAME
+        );
         this.licenseState = licenseState;
-        this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
-                new SecurityContext(settings, threadPool.getThreadContext()) : null;
+        this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
+            ? new SecurityContext(settings, threadPool.getThreadContext())
+            : null;
         this.datafeedManager = datafeedManager;
     }
 
     @Override
-    protected void masterOperation(Task task, PutDatafeedAction.Request request, ClusterState state,
-                                   ActionListener<PutDatafeedAction.Response> listener) {
+    protected void masterOperation(
+        Task task,
+        PutDatafeedAction.Request request,
+        ClusterState state,
+        ActionListener<PutDatafeedAction.Response> listener
+    ) {
         datafeedManager.putDatafeed(request, state, licenseState, securityContext, threadPool, listener);
     }
 

@@ -64,7 +64,7 @@ public class SetProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(null, null, null, config);
             fail("factory create should have failed");
-        } catch(ElasticsearchParseException e) {
+        } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[field] required property is missing"));
         }
     }
@@ -75,7 +75,7 @@ public class SetProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(null, null, null, config);
             fail("factory create should have failed");
-        } catch(ElasticsearchParseException e) {
+        } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[value] required property is missing"));
         }
     }
@@ -87,7 +87,7 @@ public class SetProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(null, null, null, config);
             fail("factory create should have failed");
-        } catch(ElasticsearchParseException e) {
+        } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[value] required property is missing"));
         }
     }
@@ -98,8 +98,10 @@ public class SetProcessorFactoryTests extends ESTestCase {
         config.put("field", "{{field1}}");
         config.put("value", "value1");
         String processorTag = randomAlphaOfLength(10);
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-            () -> factory.create(null, processorTag, null, config));
+        ElasticsearchException exception = expectThrows(
+            ElasticsearchException.class,
+            () -> factory.create(null, processorTag, null, config)
+        );
         assertThat(exception.getMessage(), equalTo("java.lang.RuntimeException: could not compile script"));
         assertThat(exception.getMetadata("es.processor_tag").get(0), equalTo(processorTag));
     }
@@ -121,8 +123,10 @@ public class SetProcessorFactoryTests extends ESTestCase {
         config.put("copy_from", "field2");
         config.put("value", "value1");
         String processorTag = randomAlphaOfLength(10);
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-            () -> factory.create(null, processorTag, null, config));
+        ElasticsearchException exception = expectThrows(
+            ElasticsearchException.class,
+            () -> factory.create(null, processorTag, null, config)
+        );
         assertThat(exception.getMessage(), equalTo("[copy_from] cannot set both `copy_from` and `value` in the same processor"));
     }
 
@@ -138,8 +142,10 @@ public class SetProcessorFactoryTests extends ESTestCase {
         assertThat(setProcessor.getTag(), equalTo(processorTag));
 
         // invalid media type
-        expectedMediaType = randomValueOtherThanMany(m -> Arrays.asList(ConfigurationUtils.VALID_MEDIA_TYPES).contains(m),
-            () -> randomAlphaOfLengthBetween(5, 9));
+        expectedMediaType = randomValueOtherThanMany(
+            m -> Arrays.asList(ConfigurationUtils.VALID_MEDIA_TYPES).contains(m),
+            () -> randomAlphaOfLengthBetween(5, 9)
+        );
         final Map<String, Object> config2 = new HashMap<>();
         config2.put("field", "field1");
         config2.put("value", "value1");

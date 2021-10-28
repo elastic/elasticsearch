@@ -14,7 +14,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.action.BasicFormatter;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.execution.search.ScrollCursor;
@@ -37,7 +36,7 @@ import static org.elasticsearch.xpack.sql.proto.SqlVersion.DATE_NANOS_SUPPORT_VE
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class CursorTests extends ESTestCase {
 
@@ -45,9 +44,9 @@ public class CursorTests extends ESTestCase {
         Client clientMock = mock(Client.class);
         Cursor cursor = Cursor.EMPTY;
         PlainActionFuture<Boolean> future = newFuture();
-        cursor.clear(SqlTestUtils.TEST_CFG, clientMock, future);
+        cursor.clear(clientMock, future);
         assertFalse(future.actionGet());
-        verifyZeroInteractions(clientMock);
+        verifyNoMoreInteractions(clientMock);
     }
 
     @SuppressWarnings("unchecked")
@@ -57,12 +56,12 @@ public class CursorTests extends ESTestCase {
         String cursorString = randomAlphaOfLength(10);
         Cursor cursor = new ScrollCursor(cursorString, Collections.emptyList(), new BitSet(0), randomInt());
 
-        cursor.clear(SqlTestUtils.TEST_CFG, clientMock, listenerMock);
+        cursor.clear(clientMock, listenerMock);
 
         ArgumentCaptor<ClearScrollRequest> request = ArgumentCaptor.forClass(ClearScrollRequest.class);
         verify(clientMock).clearScroll(request.capture(), any(ActionListener.class));
         assertEquals(Collections.singletonList(cursorString), request.getValue().getScrollIds());
-        verifyZeroInteractions(listenerMock);
+        verifyNoMoreInteractions(listenerMock);
     }
 
     private static SqlQueryResponse createRandomSqlResponse() {
@@ -80,27 +79,27 @@ public class CursorTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     static Cursor randomNonEmptyCursor() {
-        Supplier<Cursor> cursorSupplier = randomFrom(
-                () -> ScrollCursorTests.randomScrollCursor(),
-                () -> {
-                    SqlQueryResponse response = createRandomSqlResponse();
-                    if (response.columns() != null && response.rows() != null) {
-                        return new TextFormatterCursor(ScrollCursorTests.randomScrollCursor(),
-                            new BasicFormatter(response.columns(), response.rows(), BasicFormatter.FormatOption.CLI));
-                    } else {
-                        return ScrollCursorTests.randomScrollCursor();
-                    }
-                },
-                () -> {
-                    SqlQueryResponse response = createRandomSqlResponse();
-                    if (response.columns() != null && response.rows() != null) {
-                        return new TextFormatterCursor(ScrollCursorTests.randomScrollCursor(),
-                            new BasicFormatter(response.columns(), response.rows(), BasicFormatter.FormatOption.TEXT));
-                    } else {
-                        return ScrollCursorTests.randomScrollCursor();
-                    }
-                }
-        );
+        Supplier<Cursor> cursorSupplier = randomFrom(() -> ScrollCursorTests.randomScrollCursor(), () -> {
+            SqlQueryResponse response = createRandomSqlResponse();
+            if (response.columns() != null && response.rows() != null) {
+                return new TextFormatterCursor(
+                    ScrollCursorTests.randomScrollCursor(),
+                    new BasicFormatter(response.columns(), response.rows(), BasicFormatter.FormatOption.CLI)
+                );
+            } else {
+                return ScrollCursorTests.randomScrollCursor();
+            }
+        }, () -> {
+            SqlQueryResponse response = createRandomSqlResponse();
+            if (response.columns() != null && response.rows() != null) {
+                return new TextFormatterCursor(
+                    ScrollCursorTests.randomScrollCursor(),
+                    new BasicFormatter(response.columns(), response.rows(), BasicFormatter.FormatOption.TEXT)
+                );
+            } else {
+                return ScrollCursorTests.randomScrollCursor();
+            }
+        });
         return cursorSupplier.get();
     }
 
@@ -111,11 +110,15 @@ public class CursorTests extends ESTestCase {
         Version nextMinorVersion = Version.fromId(Version.CURRENT.id + 10000);
 
         String encodedWithWrongVersion = CursorsTestUtil.encodeToString(cursor, nextMinorVersion, randomZone());
-        SqlIllegalArgumentException exception = expectThrows(SqlIllegalArgumentException.class,
-                () -> decodeFromString(encodedWithWrongVersion));
+        SqlIllegalArgumentException exception = expectThrows(
+            SqlIllegalArgumentException.class,
+            () -> decodeFromString(encodedWithWrongVersion)
+        );
 
-        assertEquals(LoggerMessageFormat.format("Unsupported cursor version [{}], expected [{}]", nextMinorVersion, Version.CURRENT),
-                exception.getMessage());
+        assertEquals(
+            LoggerMessageFormat.format("Unsupported cursor version [{}], expected [{}]", nextMinorVersion, Version.CURRENT),
+            exception.getMessage()
+        );
     }
 
     public static Cursor decodeFromString(String base64) {

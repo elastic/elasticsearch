@@ -6,20 +6,20 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -48,8 +48,10 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
         public static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
         static {
             PARSER.declareString((request, datafeedId) -> request.datafeedId = datafeedId, DatafeedConfig.ID);
-            PARSER.declareString((request, val) ->
-                    request.setStopTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
+            PARSER.declareString(
+                (request, val) -> request.setStopTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())),
+                TIMEOUT
+            );
             PARSER.declareBoolean(Request::setForce, FORCE);
             PARSER.declareBoolean(Request::setAllowNoMatch, ALLOW_NO_MATCH);
         }
@@ -76,8 +78,7 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
         }
 
-        public Request() {
-        }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -133,7 +134,7 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
         public boolean match(Task task) {
             for (String id : resolvedStartedDatafeedIds) {
                 String expectedDescription = MlTasks.datafeedTaskId(id);
-                if (task instanceof StartDatafeedAction.DatafeedTaskMatcher && expectedDescription.equals(task.getDescription())){
+                if (task instanceof StartDatafeedAction.DatafeedTaskMatcher && expectedDescription.equals(task.getDescription())) {
                     return true;
                 }
             }
@@ -180,10 +181,10 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(datafeedId, other.datafeedId) &&
-                    Objects.equals(stopTimeout, other.stopTimeout) &&
-                    Objects.equals(force, other.force) &&
-                    Objects.equals(allowNoMatch, other.allowNoMatch);
+            return Objects.equals(datafeedId, other.datafeedId)
+                && Objects.equals(stopTimeout, other.stopTimeout)
+                && Objects.equals(force, other.force)
+                && Objects.equals(allowNoMatch, other.allowNoMatch);
         }
     }
 

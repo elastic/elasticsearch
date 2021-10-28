@@ -103,7 +103,7 @@ public final class ExpandedIdsMatcher {
      * matcher is removed from {@code requiredMatchers}.
      */
     public void filterMatchedIds(Collection<String> ids) {
-        for (String id: ids) {
+        for (String id : ids) {
             Iterator<IdMatcher> itr = requiredMatches.iterator();
             if (itr.hasNext() == false) {
                 break;
@@ -136,7 +136,6 @@ public final class ExpandedIdsMatcher {
     public boolean isOnlyExact() {
         return onlyExact;
     }
-
 
     /**
      * A simple matcher with one purpose to test whether an id

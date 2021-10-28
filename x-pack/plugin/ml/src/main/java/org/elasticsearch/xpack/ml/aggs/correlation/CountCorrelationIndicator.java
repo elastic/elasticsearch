@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.ml.aggs.correlation;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -32,11 +32,10 @@ public class CountCorrelationIndicator implements Writeable, ToXContentObject {
     private static final ParseField DOC_COUNT = new ParseField("doc_count");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<CountCorrelationIndicator, Void> PARSER =
-        new ConstructingObjectParser<>(
-            "correlative_value",
-            a -> new CountCorrelationIndicator((List<Double>) a[0], (List<Double>) a[2], (Long) a[1])
-        );
+    private static final ConstructingObjectParser<CountCorrelationIndicator, Void> PARSER = new ConstructingObjectParser<>(
+        "correlative_value",
+        a -> new CountCorrelationIndicator((List<Double>) a[0], (List<Double>) a[2], (Long) a[1])
+    );
     static {
         PARSER.declareDoubleArray(ConstructingObjectParser.constructorArg(), EXPECTATIONS);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), DOC_COUNT);
@@ -46,6 +45,7 @@ public class CountCorrelationIndicator implements Writeable, ToXContentObject {
     private final double[] expectations;
     private final double[] fractions;
     private final long docCount;
+
     private CountCorrelationIndicator(List<Double> values, List<Double> fractions, long docCount) {
         this(
             values.stream().mapToDouble(Double::doubleValue).toArray(),
@@ -108,8 +108,7 @@ public class CountCorrelationIndicator implements Writeable, ToXContentObject {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        CountCorrelationIndicator that =
-            (CountCorrelationIndicator) o;
+        CountCorrelationIndicator that = (CountCorrelationIndicator) o;
         return docCount == that.docCount && Arrays.equals(expectations, that.expectations) && Arrays.equals(fractions, that.fractions);
     }
 

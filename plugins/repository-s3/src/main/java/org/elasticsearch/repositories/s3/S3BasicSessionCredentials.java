@@ -34,9 +34,9 @@ final class S3BasicSessionCredentials extends S3BasicCredentials implements AWSS
             return false;
         }
         final S3BasicSessionCredentials that = (S3BasicSessionCredentials) o;
-        return sessionToken.equals(that.sessionToken) &&
-            getAWSAccessKeyId().equals(that.getAWSAccessKeyId()) &&
-            getAWSSecretKey().equals(that.getAWSSecretKey());
+        return sessionToken.equals(that.sessionToken)
+            && getAWSAccessKeyId().equals(that.getAWSAccessKeyId())
+            && getAWSSecretKey().equals(that.getAWSSecretKey());
     }
 
     @Override

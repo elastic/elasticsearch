@@ -43,6 +43,12 @@ public abstract class WatcherConditionScript {
         WatcherConditionScript newInstance(Map<String, Object> params, WatchExecutionContext watcherContext);
     }
 
-    public static ScriptContext<Factory> CONTEXT = new ScriptContext<>("watcher_condition", Factory.class,
-        200, TimeValue.timeValueMillis(0), false, true);
+    public static ScriptContext<Factory> CONTEXT = new ScriptContext<>(
+        "watcher_condition",
+        Factory.class,
+        200,
+        TimeValue.timeValueMillis(0),
+        false,
+        true
+    );
 }

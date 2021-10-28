@@ -39,8 +39,8 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     private static void checkCoerceString(boolean coerce, Class<? extends Number> clazz) {
         if (coerce == false) {
-            //Need to throw type IllegalArgumentException as current catch logic in
-            //NumberFieldMapper.parseCreateField relies on this for "malformed" value detection
+            // Need to throw type IllegalArgumentException as current catch logic in
+            // NumberFieldMapper.parseCreateField relies on this for "malformed" value detection
             throw new IllegalArgumentException(clazz.getSimpleName() + " value passed as String");
         }
     }
@@ -49,8 +49,11 @@ public abstract class AbstractXContentParser implements XContentParser {
     private final DeprecationHandler deprecationHandler;
     private final RestApiVersion restApiVersion;
 
-    public AbstractXContentParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler,
-                                  RestApiVersion restApiVersion) {
+    public AbstractXContentParser(
+        NamedXContentRegistry xContentRegistry,
+        DeprecationHandler deprecationHandler,
+        RestApiVersion restApiVersion
+    ) {
         this.xContentRegistry = xContentRegistry;
         this.deprecationHandler = deprecationHandler;
         this.restApiVersion = restApiVersion;
@@ -61,7 +64,7 @@ public abstract class AbstractXContentParser implements XContentParser {
     }
 
     // The 3rd party parsers we rely on are known to silently truncate fractions: see
-    //   http://fasterxml.github.io/jackson-core/javadoc/2.3.0/com/fasterxml/jackson/core/JsonParser.html#getShortValue()
+    // http://fasterxml.github.io/jackson-core/javadoc/2.3.0/com/fasterxml/jackson/core/JsonParser.html#getShortValue()
     // If this behaviour is flagged as undesirable and any truncation occurs
     // then this method is called to trigger the"malformed" handling logic
     void ensureNumberConversion(boolean coerce, long result, Class<? extends Number> clazz) throws IOException {
@@ -169,8 +172,8 @@ public abstract class AbstractXContentParser implements XContentParser {
         final BigInteger bigIntegerValue;
         try {
             final BigDecimal bigDecimalValue = new BigDecimal(stringValue);
-            if (bigDecimalValue.compareTo(BIGDECIMAL_GREATER_THAN_LONG_MAX_VALUE) >= 0 ||
-                bigDecimalValue.compareTo(BIGDECIMAL_LESS_THAN_LONG_MIN_VALUE) <= 0) {
+            if (bigDecimalValue.compareTo(BIGDECIMAL_GREATER_THAN_LONG_MAX_VALUE) >= 0
+                || bigDecimalValue.compareTo(BIGDECIMAL_LESS_THAN_LONG_MIN_VALUE) <= 0) {
                 throw new IllegalArgumentException("Value [" + stringValue + "] is out of range for a long");
             }
             bigIntegerValue = coerce ? bigDecimalValue.toBigInteger() : bigDecimalValue.toBigIntegerExact();
@@ -224,7 +227,6 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     protected abstract float doFloatValue() throws IOException;
 
-
     @Override
     public double doubleValue() throws IOException {
         return doubleValue(DEFAULT_NUMBER_COERCE_POLICY);
@@ -274,8 +276,8 @@ public abstract class AbstractXContentParser implements XContentParser {
     }
 
     @Override
-    public <T> Map<String, T> map(
-            Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser) throws IOException {
+    public <T> Map<String, T> map(Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser)
+        throws IOException {
         final Map<String, T> map = mapFactory.get();
         if (findNonEmptyMapStart(this) == false) {
             return map;
@@ -314,8 +316,11 @@ public abstract class AbstractXContentParser implements XContentParser {
     }
 
     // Read a map without bounds checks from a parser that is assumed to be at the map's first field's name token
-    private static Map<String, Object> readMapEntries(XContentParser parser, Supplier<Map<String, Object>> mapFactory,
-                                                      Map<String, Object> map) throws IOException {
+    private static Map<String, Object> readMapEntries(
+        XContentParser parser,
+        Supplier<Map<String, Object>> mapFactory,
+        Map<String, Object> map
+    ) throws IOException {
         assert parser.currentToken() == Token.FIELD_NAME : "Expected field name but saw [" + parser.currentToken() + "]";
         do {
             // Must point to field name
@@ -356,8 +361,10 @@ public abstract class AbstractXContentParser implements XContentParser {
             token = parser.nextToken();
         }
         if (token != XContentParser.Token.START_ARRAY) {
-            throw new XContentParseException(parser.getTokenLocation(), "Failed to parse list:  expecting "
-                    + XContentParser.Token.START_ARRAY + " but got " + token);
+            throw new XContentParseException(
+                parser.getTokenLocation(),
+                "Failed to parse list:  expecting " + XContentParser.Token.START_ARRAY + " but got " + token
+            );
         }
     }
 
@@ -382,22 +389,28 @@ public abstract class AbstractXContentParser implements XContentParser {
      * @param parser       parser to read from
      * @param mapFactory   map factory to use for reading objects
      */
-    private static Object readValueUnsafe(Token currentToken, XContentParser parser,
-                                          Supplier<Map<String, Object>> mapFactory) throws IOException {
-        assert currentToken == parser.currentToken() : "Supplied current token [" + currentToken +
-                "] is different from actual parser current token [" + parser.currentToken() + "]";
+    private static Object readValueUnsafe(Token currentToken, XContentParser parser, Supplier<Map<String, Object>> mapFactory)
+        throws IOException {
+        assert currentToken == parser.currentToken()
+            : "Supplied current token [" + currentToken + "] is different from actual parser current token [" + parser.currentToken() + "]";
         switch (currentToken) {
-            case VALUE_STRING: return parser.text();
-            case VALUE_NUMBER: return parser.numberValue();
-            case VALUE_BOOLEAN: return parser.booleanValue();
+            case VALUE_STRING:
+                return parser.text();
+            case VALUE_NUMBER:
+                return parser.numberValue();
+            case VALUE_BOOLEAN:
+                return parser.booleanValue();
             case START_OBJECT: {
                 final Map<String, Object> map = mapFactory.get();
                 return parser.nextToken() != Token.FIELD_NAME ? map : readMapEntries(parser, mapFactory, map);
             }
-            case START_ARRAY: return readListUnsafe(parser, mapFactory);
-            case VALUE_EMBEDDED_OBJECT: return parser.binaryValue();
+            case START_ARRAY:
+                return readListUnsafe(parser, mapFactory);
+            case VALUE_EMBEDDED_OBJECT:
+                return parser.binaryValue();
             case VALUE_NULL:
-            default: return null;
+            default:
+                return null;
         }
     }
 

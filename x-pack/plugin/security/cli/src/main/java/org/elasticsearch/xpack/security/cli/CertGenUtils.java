@@ -37,9 +37,6 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.core.SuppressForbidden;
 
-import javax.net.ssl.X509ExtendedKeyManager;
-import javax.net.ssl.X509ExtendedTrustManager;
-import javax.security.auth.x500.X500Principal;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.net.InetAddress;
@@ -60,6 +57,9 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 
+import javax.net.ssl.X509ExtendedKeyManager;
+import javax.net.ssl.X509ExtendedTrustManager;
+import javax.security.auth.x500.X500Principal;
 
 /**
  * Utility methods that deal with {@link Certificate}, {@link KeyStore}, {@link X509ExtendedTrustManager}, {@link X509ExtendedKeyManager}
@@ -72,8 +72,7 @@ public class CertGenUtils {
     private static final int SERIAL_BIT_LENGTH = 20 * 8;
     private static final BouncyCastleProvider BC_PROV = new BouncyCastleProvider();
 
-    private CertGenUtils() {
-    }
+    private CertGenUtils() {}
 
     /**
      * Generates a CA certificate
@@ -99,9 +98,14 @@ public class CertGenUtils {
      * @param days            no of days certificate will be valid from now
      * @return a signed {@link X509Certificate}
      */
-    public static X509Certificate generateSignedCertificate(X500Principal principal, GeneralNames subjectAltNames, KeyPair keyPair,
-                                                            X509Certificate caCert, PrivateKey caPrivKey, int days)
-        throws OperatorCreationException, CertificateException, CertIOException, NoSuchAlgorithmException {
+    public static X509Certificate generateSignedCertificate(
+        X500Principal principal,
+        GeneralNames subjectAltNames,
+        KeyPair keyPair,
+        X509Certificate caCert,
+        PrivateKey caPrivKey,
+        int days
+    ) throws OperatorCreationException, CertificateException, CertIOException, NoSuchAlgorithmException {
         return generateSignedCertificate(principal, subjectAltNames, keyPair, caCert, caPrivKey, false, days, null);
     }
 
@@ -123,10 +127,15 @@ public class CertGenUtils {
      *                           empty, then use default algorithm {@link CertGenUtils#getDefaultSignatureAlgorithm(PrivateKey)}
      * @return a signed {@link X509Certificate}
      */
-    public static X509Certificate generateSignedCertificate(X500Principal principal, GeneralNames subjectAltNames, KeyPair keyPair,
-                                                            X509Certificate caCert, PrivateKey caPrivKey,
-                                                            int days, String signatureAlgorithm)
-        throws OperatorCreationException, CertificateException, CertIOException, NoSuchAlgorithmException {
+    public static X509Certificate generateSignedCertificate(
+        X500Principal principal,
+        GeneralNames subjectAltNames,
+        KeyPair keyPair,
+        X509Certificate caCert,
+        PrivateKey caPrivKey,
+        int days,
+        String signatureAlgorithm
+    ) throws OperatorCreationException, CertificateException, CertIOException, NoSuchAlgorithmException {
         return generateSignedCertificate(principal, subjectAltNames, keyPair, caCert, caPrivKey, false, days, signatureAlgorithm);
     }
 
@@ -148,24 +157,46 @@ public class CertGenUtils {
      *                           empty, then use default algorithm {@link CertGenUtils#getDefaultSignatureAlgorithm(PrivateKey)}
      * @return a signed {@link X509Certificate}
      */
-    public static X509Certificate generateSignedCertificate(X500Principal principal, GeneralNames subjectAltNames, KeyPair keyPair,
-                                                             X509Certificate caCert, PrivateKey caPrivKey, boolean isCa,
-                                                             int days, String signatureAlgorithm)
-        throws NoSuchAlgorithmException, CertificateException, CertIOException, OperatorCreationException {
+    public static X509Certificate generateSignedCertificate(
+        X500Principal principal,
+        GeneralNames subjectAltNames,
+        KeyPair keyPair,
+        X509Certificate caCert,
+        PrivateKey caPrivKey,
+        boolean isCa,
+        int days,
+        String signatureAlgorithm
+    ) throws NoSuchAlgorithmException, CertificateException, CertIOException, OperatorCreationException {
         Objects.requireNonNull(keyPair, "Key-Pair must not be null");
         final ZonedDateTime notBefore = ZonedDateTime.now(ZoneOffset.UTC);
         if (days < 1) {
             throw new IllegalArgumentException("the certificate must be valid for at least one day");
         }
         final ZonedDateTime notAfter = notBefore.plusDays(days);
-        return generateSignedCertificate(principal, subjectAltNames, keyPair, caCert, caPrivKey, isCa, notBefore, notAfter,
-            signatureAlgorithm);
+        return generateSignedCertificate(
+            principal,
+            subjectAltNames,
+            keyPair,
+            caCert,
+            caPrivKey,
+            isCa,
+            notBefore,
+            notAfter,
+            signatureAlgorithm
+        );
     }
 
-    public static X509Certificate generateSignedCertificate(X500Principal principal, GeneralNames subjectAltNames, KeyPair keyPair,
-                                                             X509Certificate caCert, PrivateKey caPrivKey, boolean isCa,
-                                                             ZonedDateTime notBefore, ZonedDateTime notAfter, String signatureAlgorithm)
-        throws NoSuchAlgorithmException, CertIOException, OperatorCreationException, CertificateException {
+    public static X509Certificate generateSignedCertificate(
+        X500Principal principal,
+        GeneralNames subjectAltNames,
+        KeyPair keyPair,
+        X509Certificate caCert,
+        PrivateKey caPrivKey,
+        boolean isCa,
+        ZonedDateTime notBefore,
+        ZonedDateTime notAfter,
+        String signatureAlgorithm
+    ) throws NoSuchAlgorithmException, CertIOException, OperatorCreationException, CertificateException {
         final BigInteger serial = CertGenUtils.getSerial();
         JcaX509ExtensionUtils extUtils = new JcaX509ExtensionUtils();
 
@@ -183,10 +214,14 @@ public class CertGenUtils {
             authorityKeyIdentifier = extUtils.createAuthorityKeyIdentifier(keyPair.getPublic());
         }
 
-        JcaX509v3CertificateBuilder builder =
-            new JcaX509v3CertificateBuilder(issuer, serial,
-                new Time(Date.from(notBefore.toInstant()), Locale.ROOT), new Time(Date.from(notAfter.toInstant()), Locale.ROOT), subject,
-                keyPair.getPublic());
+        JcaX509v3CertificateBuilder builder = new JcaX509v3CertificateBuilder(
+            issuer,
+            serial,
+            new Time(Date.from(notBefore.toInstant()), Locale.ROOT),
+            new Time(Date.from(notAfter.toInstant()), Locale.ROOT),
+            subject,
+            keyPair.getPublic()
+        );
 
         builder.addExtension(Extension.subjectKeyIdentifier, false, extUtils.createSubjectKeyIdentifier(keyPair.getPublic()));
         builder.addExtension(Extension.authorityKeyIdentifier, false, authorityKeyIdentifier);
@@ -197,8 +232,8 @@ public class CertGenUtils {
 
         PrivateKey signingKey = caPrivKey != null ? caPrivKey : keyPair.getPrivate();
         ContentSigner signer = new JcaContentSignerBuilder(
-            (Strings.isNullOrEmpty(signatureAlgorithm)) ? getDefaultSignatureAlgorithm(signingKey) : signatureAlgorithm)
-            .setProvider(CertGenUtils.BC_PROV).build(signingKey);
+            (Strings.isNullOrEmpty(signatureAlgorithm)) ? getDefaultSignatureAlgorithm(signingKey) : signatureAlgorithm
+        ).setProvider(CertGenUtils.BC_PROV).build(signingKey);
         X509CertificateHolder certificateHolder = builder.build(signer);
         return new JcaX509CertificateConverter().getCertificate(certificateHolder);
     }
@@ -223,8 +258,11 @@ public class CertGenUtils {
                 signatureAlgorithm = "SHA256withECDSA";
                 break;
             default:
-                throw new IllegalArgumentException("Unsupported algorithm : " + key.getAlgorithm()
-                    + " for signature, allowed values for private key algorithm are [RSA, DSA, EC]");
+                throw new IllegalArgumentException(
+                    "Unsupported algorithm : "
+                        + key.getAlgorithm()
+                        + " for signature, allowed values for private key algorithm are [RSA, DSA, EC]"
+                );
         }
         return signatureAlgorithm;
     }
@@ -238,8 +276,8 @@ public class CertGenUtils {
      *                  {@code null}
      * @return a certificate signing request
      */
-    static PKCS10CertificationRequest generateCSR(KeyPair keyPair, X500Principal principal, GeneralNames sanList)
-        throws IOException, OperatorCreationException {
+    static PKCS10CertificationRequest generateCSR(KeyPair keyPair, X500Principal principal, GeneralNames sanList) throws IOException,
+        OperatorCreationException {
         Objects.requireNonNull(keyPair, "Key-Pair must not be null");
         Objects.requireNonNull(keyPair.getPublic(), "Public-Key must not be null");
         Objects.requireNonNull(principal, "Principal must not be null");
@@ -312,7 +350,7 @@ public class CertGenUtils {
      * recognised by other X.509/TLS implementations.
      */
     public static GeneralName createCommonName(String cn) {
-        final ASN1Encodable[] sequence = {new ASN1ObjectIdentifier(CN_OID), new DERTaggedObject(true, 0, new DERUTF8String(cn))};
+        final ASN1Encodable[] sequence = { new ASN1ObjectIdentifier(CN_OID), new DERTaggedObject(true, 0, new DERUTF8String(cn)) };
         return new GeneralName(GeneralName.otherName, new DERSequence(sequence));
     }
 

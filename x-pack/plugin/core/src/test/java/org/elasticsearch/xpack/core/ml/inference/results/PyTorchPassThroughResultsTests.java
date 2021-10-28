@@ -25,9 +25,9 @@ public class PyTorchPassThroughResultsTests extends InferenceResultsTestCase<PyT
     protected PyTorchPassThroughResults createTestInstance() {
         int rows = randomIntBetween(1, 10);
         int columns = randomIntBetween(1, 10);
-        double [][] arr = new double[rows][columns];
-        for (int i=0; i<rows; i++) {
-            for (int j=0; j<columns; j++) {
+        double[][] arr = new double[rows][columns];
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < columns; j++) {
                 arr[i][j] = randomDouble();
             }
         }

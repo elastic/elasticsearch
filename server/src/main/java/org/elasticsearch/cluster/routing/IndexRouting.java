@@ -8,17 +8,17 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.Transports;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.support.filtering.FilterPath;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,34 +37,24 @@ public abstract class IndexRouting {
     /**
      * Build the routing from {@link IndexMetadata}.
      */
-    public static IndexRouting fromIndexMetadata(IndexMetadata indexMetadata) {
-        if (false == indexMetadata.getRoutingPaths().isEmpty()) {
-            if (indexMetadata.isRoutingPartitionedIndex()) {
-                throw new IllegalArgumentException("routing_partition_size is incompatible with routing_path");
-            }
-            return new ExtractFromSource(
-                indexMetadata.getRoutingNumShards(),
-                indexMetadata.getRoutingFactor(),
-                indexMetadata.getIndex().getName(),
-                indexMetadata.getRoutingPaths()
-            );
+    public static IndexRouting fromIndexMetadata(IndexMetadata metadata) {
+        if (false == metadata.getRoutingPaths().isEmpty()) {
+            return new ExtractFromSource(metadata);
         }
-        if (indexMetadata.isRoutingPartitionedIndex()) {
-            return new Partitioned(
-                indexMetadata.getRoutingNumShards(),
-                indexMetadata.getRoutingFactor(),
-                indexMetadata.getRoutingPartitionSize()
-            );
+        if (metadata.isRoutingPartitionedIndex()) {
+            return new Partitioned(metadata);
         }
-        return new Unpartitioned(indexMetadata.getRoutingNumShards(), indexMetadata.getRoutingFactor());
+        return new Unpartitioned(metadata);
     }
 
+    protected final String indexName;
     private final int routingNumShards;
     private final int routingFactor;
 
-    private IndexRouting(int routingNumShards, int routingFactor) {
-        this.routingNumShards = routingNumShards;
-        this.routingFactor = routingFactor;
+    private IndexRouting(IndexMetadata metadata) {
+        this.indexName = metadata.getIndex().getName();
+        this.routingNumShards = metadata.getRoutingNumShards();
+        this.routingFactor = metadata.getRoutingFactor();
     }
 
     /**
@@ -121,30 +111,44 @@ public abstract class IndexRouting {
     }
 
     private abstract static class IdAndRoutingOnly extends IndexRouting {
-        IdAndRoutingOnly(int routingNumShards, int routingFactor) {
-            super(routingNumShards, routingFactor);
+        private final boolean routingRequired;
+
+        IdAndRoutingOnly(IndexMetadata metadata) {
+            super(metadata);
+            MappingMetadata mapping = metadata.mapping();
+            this.routingRequired = mapping == null ? false : mapping.routingRequired();
         }
 
         protected abstract int shardId(String id, @Nullable String routing);
 
         @Override
         public int indexShard(String id, @Nullable String routing, XContentType sourceType, BytesReference source) {
+            checkRoutingRequired(id, routing);
             return shardId(id, routing);
         }
 
         @Override
         public int updateShard(String id, @Nullable String routing) {
+            checkRoutingRequired(id, routing);
             return shardId(id, routing);
         }
 
         @Override
         public int deleteShard(String id, @Nullable String routing) {
+            checkRoutingRequired(id, routing);
             return shardId(id, routing);
         }
 
         @Override
         public int getShard(String id, @Nullable String routing) {
+            checkRoutingRequired(id, routing);
             return shardId(id, routing);
+        }
+
+        private void checkRoutingRequired(String id, @Nullable String routing) {
+            if (routingRequired && routing == null) {
+                throw new RoutingMissingException(indexName, id);
+            }
         }
     }
 
@@ -152,8 +156,8 @@ public abstract class IndexRouting {
      * Strategy for indices that are not partitioned.
      */
     private static class Unpartitioned extends IdAndRoutingOnly {
-        Unpartitioned(int routingNumShards, int routingFactor) {
-            super(routingNumShards, routingFactor);
+        Unpartitioned(IndexMetadata metadata) {
+            super(metadata);
         }
 
         @Override
@@ -173,9 +177,9 @@ public abstract class IndexRouting {
     private static class Partitioned extends IdAndRoutingOnly {
         private final int routingPartitionSize;
 
-        Partitioned(int routingNumShards, int routingFactor, int routingPartitionSize) {
-            super(routingNumShards, routingFactor);
-            this.routingPartitionSize = routingPartitionSize;
+        Partitioned(IndexMetadata metadata) {
+            super(metadata);
+            this.routingPartitionSize = metadata.getRoutingPartitionSize();
         }
 
         @Override
@@ -197,13 +201,14 @@ public abstract class IndexRouting {
     }
 
     private static class ExtractFromSource extends IndexRouting {
-        private final String indexName;
-        private final FilterPath[] include;
+        private final XContentParserConfiguration parserConfig;
 
-        ExtractFromSource(int routingNumShards, int routingFactor, String indexName, List<String> routingPaths) {
-            super(routingNumShards, routingFactor);
-            this.indexName = indexName;
-            this.include = FilterPath.compile(Set.copyOf(routingPaths));
+        ExtractFromSource(IndexMetadata metadata) {
+            super(metadata);
+            if (metadata.isRoutingPartitionedIndex()) {
+                throw new IllegalArgumentException("routing_partition_size is incompatible with routing_path");
+            }
+            this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(Set.copyOf(metadata.getRoutingPaths()), null);
         }
 
         @Override
@@ -214,16 +219,7 @@ public abstract class IndexRouting {
             assert Transports.assertNotTransportThread("parsing the _source can get slow");
 
             try {
-                try (
-                    XContentParser parser = sourceType.xContent()
-                        .createParser(
-                            NamedXContentRegistry.EMPTY,
-                            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                            source.streamInput(),
-                            include,
-                            null
-                        )
-                ) {
+                try (XContentParser parser = sourceType.xContent().createParser(parserConfig, source.streamInput())) {
                     parser.nextToken(); // Move to first token
                     if (parser.currentToken() == null) {
                         throw new IllegalArgumentException("Error extracting routing: source didn't contain any routing fields");

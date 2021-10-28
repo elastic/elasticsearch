@@ -8,11 +8,11 @@
 
 package org.elasticsearch.client.security.user.privileges;
 
-import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -89,14 +89,14 @@ public abstract class AbstractIndicesPrivileges {
         static final ParseField EXCEPT_FIELDS = new ParseField("except");
 
         private static final ConstructingObjectParser<IndicesPrivileges.FieldSecurity, Void> PARSER = new ConstructingObjectParser<>(
-            FIELD_PERMISSIONS.getPreferredName(), true, FieldSecurity::buildObjectFromParserArgs);
+            FIELD_PERMISSIONS.getPreferredName(),
+            true,
+            FieldSecurity::buildObjectFromParserArgs
+        );
 
         @SuppressWarnings("unchecked")
         private static FieldSecurity buildObjectFromParserArgs(Object[] args) {
-            return new FieldSecurity(
-                (List<String>) args[0],
-                (List<String>) args[1]
-            );
+            return new FieldSecurity((List<String>) args[0], (List<String>) args[1]);
         }
 
         static {
@@ -186,8 +186,7 @@ public abstract class AbstractIndicesPrivileges {
                 return false;
             }
             final FieldSecurity that = (FieldSecurity) o;
-            return Objects.equals(this.grantedFields, that.grantedFields) &&
-                Objects.equals(this.deniedFields, that.deniedFields);
+            return Objects.equals(this.grantedFields, that.grantedFields) && Objects.equals(this.deniedFields, that.deniedFields);
         }
 
         @Override

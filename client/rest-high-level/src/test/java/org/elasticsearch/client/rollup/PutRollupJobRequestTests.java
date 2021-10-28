@@ -9,12 +9,11 @@ package org.elasticsearch.client.rollup;
 
 import org.elasticsearch.client.rollup.job.config.RollupJobConfig;
 import org.elasticsearch.client.rollup.job.config.RollupJobConfigTests;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Before;
 
 import java.io.IOException;
-
 
 public class PutRollupJobRequestTests extends AbstractXContentTestCase<PutRollupJobRequest> {
 
@@ -42,7 +41,7 @@ public class PutRollupJobRequestTests extends AbstractXContentTestCase<PutRollup
     }
 
     public void testRequireConfiguration() {
-        final NullPointerException e = expectThrows(NullPointerException.class, ()-> new PutRollupJobRequest(null));
+        final NullPointerException e = expectThrows(NullPointerException.class, () -> new PutRollupJobRequest(null));
         assertEquals("rollup job configuration is required", e.getMessage());
     }
 }

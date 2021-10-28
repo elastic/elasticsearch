@@ -22,9 +22,7 @@ import java.util.Map;
 public class GeoPointFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper
-            = new GeoPointFieldMapper.Builder("field", ScriptCompiler.NONE, false)
-            .build(MapperBuilderContext.ROOT)
+        MappedFieldType mapper = new GeoPointFieldMapper.Builder("field", ScriptCompiler.NONE, false).build(MapperBuilderContext.ROOT)
             .fieldType();
 
         Map<String, Object> jsonPoint = Map.of("type", "Point", "coordinates", List.of(42.0, 27.1));
@@ -63,9 +61,7 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchVectorTile() throws IOException {
-        MappedFieldType mapper
-            = new GeoPointFieldMapper.Builder("field", ScriptCompiler.NONE, false)
-            .build(MapperBuilderContext.ROOT)
+        MappedFieldType mapper = new GeoPointFieldMapper.Builder("field", ScriptCompiler.NONE, false).build(MapperBuilderContext.ROOT)
             .fieldType();
         final int z = randomIntBetween(1, 10);
         int x = randomIntBetween(0, (1 << z) - 1);

@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -25,8 +25,10 @@ import static org.elasticsearch.xcontent.ObjectParser.ValueType.VALUE;
 
 public class DataFrameAnalyticsConfigUpdate implements Writeable, ToXContentObject {
 
-    public static final ConstructingObjectParser<Builder, Void> PARSER =
-        new ConstructingObjectParser<>("data_frame_analytics_config_update", args -> new Builder((String) args[0]));
+    public static final ConstructingObjectParser<Builder, Void> PARSER = new ConstructingObjectParser<>(
+        "data_frame_analytics_config_update",
+        args -> new Builder((String) args[0])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), DataFrameAnalyticsConfig.ID);
@@ -35,7 +37,8 @@ public class DataFrameAnalyticsConfigUpdate implements Writeable, ToXContentObje
             Builder::setModelMemoryLimit,
             (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), DataFrameAnalyticsConfig.MODEL_MEMORY_LIMIT.getPreferredName()),
             DataFrameAnalyticsConfig.MODEL_MEMORY_LIMIT,
-            VALUE);
+            VALUE
+        );
         PARSER.declareBoolean(Builder::setAllowLazyStart, DataFrameAnalyticsConfig.ALLOW_LAZY_START);
         PARSER.declareInt(Builder::setMaxNumThreads, DataFrameAnalyticsConfig.MAX_NUM_THREADS);
     }
@@ -46,19 +49,23 @@ public class DataFrameAnalyticsConfigUpdate implements Writeable, ToXContentObje
     private final Boolean allowLazyStart;
     private final Integer maxNumThreads;
 
-    private DataFrameAnalyticsConfigUpdate(String id,
-                                           @Nullable String description,
-                                           @Nullable ByteSizeValue modelMemoryLimit,
-                                           @Nullable Boolean allowLazyStart,
-                                           @Nullable Integer maxNumThreads) {
+    private DataFrameAnalyticsConfigUpdate(
+        String id,
+        @Nullable String description,
+        @Nullable ByteSizeValue modelMemoryLimit,
+        @Nullable Boolean allowLazyStart,
+        @Nullable Integer maxNumThreads
+    ) {
         this.id = id;
         this.description = description;
         this.modelMemoryLimit = modelMemoryLimit;
         this.allowLazyStart = allowLazyStart;
 
         if (maxNumThreads != null && maxNumThreads < 1) {
-            throw ExceptionsHelper.badRequestException("[{}] must be a positive integer",
-                DataFrameAnalyticsConfig.MAX_NUM_THREADS.getPreferredName());
+            throw ExceptionsHelper.badRequestException(
+                "[{}] must be a positive integer",
+                DataFrameAnalyticsConfig.MAX_NUM_THREADS.getPreferredName()
+            );
         }
         this.maxNumThreads = maxNumThreads;
     }

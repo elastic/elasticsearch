@@ -20,13 +20,11 @@ import java.util.List;
  */
 public class GeometryDocValueWriter {
 
-    private GeometryDocValueWriter() {
-    }
+    private GeometryDocValueWriter() {}
 
     /*** Serialize the triangle tree in a BytesRef */
-    public static BytesRef write(List<IndexableField> fields,
-                                 CoordinateEncoder coordinateEncoder,
-                                 CentroidCalculator centroidCalculator) throws IOException {
+    public static BytesRef write(List<IndexableField> fields, CoordinateEncoder coordinateEncoder, CentroidCalculator centroidCalculator)
+        throws IOException {
         final BytesStreamOutput out = new BytesStreamOutput();
         // normalization may be required due to floating point precision errors
         out.writeInt(coordinateEncoder.encodeX(coordinateEncoder.normalizeX(centroidCalculator.getX())));

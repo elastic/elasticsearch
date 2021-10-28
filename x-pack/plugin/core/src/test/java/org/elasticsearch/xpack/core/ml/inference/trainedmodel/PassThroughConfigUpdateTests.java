@@ -25,33 +25,31 @@ public class PassThroughConfigUpdateTests extends AbstractBWCSerializationTestCa
 
     public void testFromMap() {
         PassThroughConfigUpdate expected = new PassThroughConfigUpdate("ml-results");
-        Map<String, Object> config = new HashMap<>(){{
-            put(NlpConfig.RESULTS_FIELD.getPreferredName(), "ml-results");
-        }};
+        Map<String, Object> config = new HashMap<>() {
+            {
+                put(NlpConfig.RESULTS_FIELD.getPreferredName(), "ml-results");
+            }
+        };
         assertThat(PassThroughConfigUpdate.fromMap(config), equalTo(expected));
     }
 
     public void testFromMapWithUnknownField() {
-        ElasticsearchException ex = expectThrows(ElasticsearchException.class,
-            () -> PassThroughConfigUpdate.fromMap(Collections.singletonMap("some_key", 1)));
+        ElasticsearchException ex = expectThrows(
+            ElasticsearchException.class,
+            () -> PassThroughConfigUpdate.fromMap(Collections.singletonMap("some_key", 1))
+        );
         assertThat(ex.getMessage(), equalTo("Unrecognized fields [some_key]."));
     }
-
 
     public void testApply() {
         PassThroughConfig originalConfig = PassThroughConfigTests.createRandom();
 
         assertThat(originalConfig, sameInstance(new PassThroughConfigUpdate.Builder().build().apply(originalConfig)));
 
-        assertThat(new PassThroughConfig(
-                originalConfig.getVocabularyConfig(),
-                originalConfig.getTokenization(),
-                "ml-results"),
-            equalTo(new PassThroughConfigUpdate.Builder()
-                .setResultsField("ml-results")
-                .build()
-                .apply(originalConfig)
-            ));
+        assertThat(
+            new PassThroughConfig(originalConfig.getVocabularyConfig(), originalConfig.getTokenization(), "ml-results"),
+            equalTo(new PassThroughConfigUpdate.Builder().setResultsField("ml-results").build().apply(originalConfig))
+        );
     }
 
     @Override

@@ -111,7 +111,6 @@ public class Lifecycle {
         throw new IllegalStateException("Can't move to started with unknown state");
     }
 
-
     public synchronized boolean moveToStarted() throws IllegalStateException {
         State localState = this.state;
         if (localState == State.INITIALIZED || localState == State.STOPPED) {

@@ -214,7 +214,7 @@ final class Compiler {
         new PainlessSemanticHeaderPhase().visitClass(root, scriptScope);
         new PainlessSemanticAnalysisPhase().visitClass(root, scriptScope);
         new PainlessUserTreeToIRTreePhase().visitClass(root, scriptScope);
-        ClassNode classNode = (ClassNode)scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
+        ClassNode classNode = (ClassNode) scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
         new DefaultStringConcatenationOptimizationPhase().visitClass(classNode, null);
         new DefaultConstantFoldingOptimizationPhase().visitClass(classNode, null);
         new DefaultStaticConstantExtractionPhase().visitClass(classNode, scriptScope);
@@ -249,7 +249,7 @@ final class Compiler {
         new PainlessSemanticHeaderPhase().visitClass(root, scriptScope);
         new PainlessSemanticAnalysisPhase().visitClass(root, scriptScope);
         new PainlessUserTreeToIRTreePhase().visitClass(root, scriptScope);
-        ClassNode classNode = (ClassNode)scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
+        ClassNode classNode = (ClassNode) scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
         new DefaultStringConcatenationOptimizationPhase().visitClass(classNode, null);
         new DefaultConstantFoldingOptimizationPhase().visitClass(classNode, null);
         new DefaultStaticConstantExtractionPhase().visitClass(classNode, scriptScope);
@@ -262,10 +262,15 @@ final class Compiler {
     /**
      * Runs the two-pass compiler to generate a Painless script with option visitors for each major phase.
      */
-    byte[] compile(String name, String source, CompilerSettings settings, Printer debugStream,
-                   UserTreeVisitor<ScriptScope> semanticPhaseVisitor,
-                   UserTreeVisitor<ScriptScope> irPhaseVisitor,
-                   IRTreeVisitor<WriteScope> asmPhaseVisitor) {
+    byte[] compile(
+        String name,
+        String source,
+        CompilerSettings settings,
+        Printer debugStream,
+        UserTreeVisitor<ScriptScope> semanticPhaseVisitor,
+        UserTreeVisitor<ScriptScope> irPhaseVisitor,
+        IRTreeVisitor<WriteScope> asmPhaseVisitor
+    ) {
         String scriptName = Location.computeSourceName(name);
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
         SClass root = Walker.buildPainlessTree(scriptName, source, settings);
@@ -282,7 +287,7 @@ final class Compiler {
             irPhaseVisitor.visitClass(root, scriptScope);
         }
 
-        ClassNode classNode = (ClassNode)scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
+        ClassNode classNode = (ClassNode) scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
         new DefaultStringConcatenationOptimizationPhase().visitClass(classNode, null);
         new DefaultConstantFoldingOptimizationPhase().visitClass(classNode, null);
         new DefaultStaticConstantExtractionPhase().visitClass(classNode, scriptScope);

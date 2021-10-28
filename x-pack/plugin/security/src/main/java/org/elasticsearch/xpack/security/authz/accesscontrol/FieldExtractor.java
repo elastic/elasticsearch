@@ -60,9 +60,9 @@ class FieldExtractor {
         } else if (query instanceof SpanTermQuery) {
             // we just do SpanTerm, other spans are trickier, they could contain
             // the evil FieldMaskingSpanQuery: so SpanQuery.getField cannot be trusted.
-            fields.add(((SpanTermQuery)query).getField());
+            fields.add(((SpanTermQuery) query).getField());
         } else if (query instanceof TermQuery) {
-            fields.add(((TermQuery)query).getTerm().field());
+            fields.add(((TermQuery) query).getTerm().field());
         } else if (query instanceof SynonymQuery) {
             SynonymQuery q = (SynonymQuery) query;
             // all terms must have the same field
@@ -76,13 +76,13 @@ class FieldExtractor {
             // all terms must have the same field
             fields.add(q.getTermArrays()[0][0].field());
         } else if (query instanceof PointRangeQuery) {
-            fields.add(((PointRangeQuery)query).getField());
+            fields.add(((PointRangeQuery) query).getField());
         } else if (query instanceof PointInSetQuery) {
-            fields.add(((PointInSetQuery)query).getField());
+            fields.add(((PointInSetQuery) query).getField());
         } else if (query instanceof DocValuesFieldExistsQuery) {
-            fields.add(((DocValuesFieldExistsQuery)query).getField());
+            fields.add(((DocValuesFieldExistsQuery) query).getField());
         } else if (query instanceof DocValuesNumbersQuery) {
-            fields.add(((DocValuesNumbersQuery)query).getField());
+            fields.add(((DocValuesNumbersQuery) query).getField());
         } else if (query instanceof IndexOrDocValuesQuery) {
             // Both queries are supposed to be equivalent, so if any of them can be extracted, we are good
             try {

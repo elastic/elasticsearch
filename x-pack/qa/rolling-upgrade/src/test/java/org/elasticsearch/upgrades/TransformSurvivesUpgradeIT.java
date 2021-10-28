@@ -151,6 +151,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
             case UPGRADED:
                 client().performRequest(waitForYellow);
                 verifyContinuousTransformHandlesData(3);
+                verifyUpgrade();
                 cleanUpTransforms();
                 break;
             default:
@@ -253,6 +254,12 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
                 greaterThan(Long.valueOf(previousStateAndStats.getIndexerStats().getDocumentsProcessed()).intValue())
             );
         });
+    }
+
+    private void verifyUpgrade() throws IOException {
+        final Request upgradeTransformRequest = new Request("POST", TRANSFORM_ENDPOINT + "_upgrade");
+        Response response = client().performRequest(upgradeTransformRequest);
+        assertEquals(200, response.getStatusLine().getStatusCode());
     }
 
     private void awaitWrittenIndexerState(String id, Consumer<Map<?, ?>> responseAssertion) throws Exception {

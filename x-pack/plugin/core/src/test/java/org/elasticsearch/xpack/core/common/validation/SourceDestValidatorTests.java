@@ -30,8 +30,8 @@ import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.TestProcessor;
 import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.LicenseInfo;
@@ -100,6 +100,7 @@ public class SourceDestValidatorTests extends ESTestCase {
     private Client clientWithPlatinumLicense;
     private Client clientWithTrialLicense;
     private RemoteClusterLicenseChecker remoteClusterLicenseCheckerBasic;
+    private LicensedFeature platinumFeature;
 
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
     private final TransportService transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool);
@@ -201,10 +202,9 @@ public class SourceDestValidatorTests extends ESTestCase {
     public void setupComponents() {
         clientWithBasicLicense = new MockClientLicenseCheck(getTestName(), "basic", LicenseStatus.ACTIVE);
         clientWithExpiredBasicLicense = new MockClientLicenseCheck(getTestName(), "basic", LicenseStatus.EXPIRED);
-        remoteClusterLicenseCheckerBasic = new RemoteClusterLicenseChecker(
-            clientWithBasicLicense,
-            (operationMode -> operationMode != License.OperationMode.MISSING)
-        );
+        LicensedFeature.Momentary feature = LicensedFeature.momentary(null, "feature", License.OperationMode.BASIC);
+        platinumFeature = LicensedFeature.momentary(null, "platinum-feature", License.OperationMode.PLATINUM);
+        remoteClusterLicenseCheckerBasic = new RemoteClusterLicenseChecker(clientWithBasicLicense, feature);
         clientWithPlatinumLicense = new MockClientLicenseCheck(getTestName(), "platinum", LicenseStatus.ACTIVE);
         clientWithTrialLicense = new MockClientLicenseCheck(getTestName(), "trial", LicenseStatus.ACTIVE);
     }
@@ -680,10 +680,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 indexNameExpressionResolver,
                 remoteClusterService,
-                new RemoteClusterLicenseChecker(
-                    clientWithBasicLicense,
-                    operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM)
-                ),
+                new RemoteClusterLicenseChecker(clientWithBasicLicense, platinumFeature),
                 ingestService,
                 new String[] { REMOTE_BASIC + ":" + "SOURCE_1" },
                 "dest",
@@ -714,10 +711,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 indexNameExpressionResolver,
                 remoteClusterService,
-                new RemoteClusterLicenseChecker(
-                    clientWithPlatinumLicense,
-                    operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM)
-                ),
+                new RemoteClusterLicenseChecker(clientWithPlatinumLicense, platinumFeature),
                 ingestService,
                 new String[] { REMOTE_PLATINUM + ":" + "SOURCE_1" },
                 "dest",
@@ -739,10 +733,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 indexNameExpressionResolver,
                 remoteClusterService,
-                new RemoteClusterLicenseChecker(
-                    clientWithPlatinumLicense,
-                    operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM)
-                ),
+                new RemoteClusterLicenseChecker(clientWithPlatinumLicense, platinumFeature),
                 ingestService,
                 new String[] { REMOTE_PLATINUM + ":" + "SOURCE_1" },
                 "dest",
@@ -765,10 +756,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 indexNameExpressionResolver,
                 remoteClusterService,
-                new RemoteClusterLicenseChecker(
-                    clientWithTrialLicense,
-                    operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM)
-                ),
+                new RemoteClusterLicenseChecker(clientWithTrialLicense, platinumFeature),
                 ingestService,
                 new String[] { REMOTE_PLATINUM + ":" + "SOURCE_1" },
                 "dest",
@@ -793,10 +781,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 indexNameExpressionResolver,
                 remoteClusterService,
-                new RemoteClusterLicenseChecker(
-                    clientWithExpiredBasicLicense,
-                    operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM)
-                ),
+                new RemoteClusterLicenseChecker(clientWithExpiredBasicLicense, platinumFeature),
                 ingestService,
                 new String[] { REMOTE_BASIC + ":" + "SOURCE_1" },
                 "dest",
@@ -824,10 +809,7 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 indexNameExpressionResolver,
                 remoteClusterService,
-                new RemoteClusterLicenseChecker(
-                    clientWithExpiredBasicLicense,
-                    operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM)
-                ),
+                new RemoteClusterLicenseChecker(clientWithExpiredBasicLicense, platinumFeature),
                 ingestService,
                 new String[] { "non_existing_remote:" + "SOURCE_1" },
                 "dest",

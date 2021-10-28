@@ -11,8 +11,8 @@ package org.elasticsearch.monitor.jvm;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.mockito.ArgumentMatchers;
 import org.mockito.InOrder;
-import org.mockito.Matchers;
 
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
@@ -25,8 +25,8 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.stringContainsInOrder;
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -255,8 +255,8 @@ public class HotThreadsTests extends ESTestCase {
             allInfos.add(makeThreadInfoMocksHelper(mockedMXBean, threadId, cpuMultiplier));
         }
 
-        when(mockedMXBean.getThreadInfo(Matchers.any(), anyInt())).thenReturn(allInfos.toArray(new ThreadInfo[0]));
-        when(mockedMXBean.getThreadInfo(Matchers.any(long[].class))).thenReturn(allInfos.toArray(new ThreadInfo[0]));
+        when(mockedMXBean.getThreadInfo(ArgumentMatchers.any(), anyInt())).thenReturn(allInfos.toArray(new ThreadInfo[0]));
+        when(mockedMXBean.getThreadInfo(ArgumentMatchers.any(long[].class))).thenReturn(allInfos.toArray(new ThreadInfo[0]));
 
         return allInfos;
     }
@@ -293,7 +293,7 @@ public class HotThreadsTests extends ESTestCase {
             allInfos.get(2),
             allInfos.get(3)
         );
-        when(mockedMXBean.getThreadInfo(Matchers.any(), anyInt())).thenReturn(cpuOrderedInfos.toArray(new ThreadInfo[0]));
+        when(mockedMXBean.getThreadInfo(ArgumentMatchers.any(), anyInt())).thenReturn(cpuOrderedInfos.toArray(new ThreadInfo[0]));
 
         HotThreads hotThreads = new HotThreads().busiestThreads(4)
             .type(HotThreads.ReportType.CPU)
@@ -330,7 +330,7 @@ public class HotThreadsTests extends ESTestCase {
         // Test with the legacy sort order
         allInfos = makeThreadInfoMocksHelper(mockedMXBean, threadIds, 100_000);
         cpuOrderedInfos = org.elasticsearch.core.List.of(allInfos.get(3), allInfos.get(2), allInfos.get(1), allInfos.get(0));
-        when(mockedMXBean.getThreadInfo(Matchers.any(), anyInt())).thenReturn(cpuOrderedInfos.toArray(new ThreadInfo[0]));
+        when(mockedMXBean.getThreadInfo(ArgumentMatchers.any(), anyInt())).thenReturn(cpuOrderedInfos.toArray(new ThreadInfo[0]));
 
         hotThreads = new HotThreads().busiestThreads(4)
             .type(HotThreads.ReportType.CPU)
@@ -379,7 +379,7 @@ public class HotThreadsTests extends ESTestCase {
             allInfos.get(0),
             allInfos.get(2)
         );
-        when(mockedMXBean.getThreadInfo(Matchers.any(), anyInt())).thenReturn(waitOrderedInfos.toArray(new ThreadInfo[0]));
+        when(mockedMXBean.getThreadInfo(ArgumentMatchers.any(), anyInt())).thenReturn(waitOrderedInfos.toArray(new ThreadInfo[0]));
 
         String waitInnerResult = hotWaitingThreads.innerDetect(mockedMXBean, mockedSunThreadInfo, mockCurrentThreadId, (interval) -> null);
 
@@ -403,7 +403,7 @@ public class HotThreadsTests extends ESTestCase {
 
         allInfos = makeThreadInfoMocksHelper(mockedMXBean, threadIds);
         waitOrderedInfos = org.elasticsearch.core.List.of(allInfos.get(3), allInfos.get(1), allInfos.get(0), allInfos.get(2));
-        when(mockedMXBean.getThreadInfo(Matchers.any(), anyInt())).thenReturn(waitOrderedInfos.toArray(new ThreadInfo[0]));
+        when(mockedMXBean.getThreadInfo(ArgumentMatchers.any(), anyInt())).thenReturn(waitOrderedInfos.toArray(new ThreadInfo[0]));
 
         waitInnerResult = hotWaitingThreads.innerDetect(mockedMXBean, mockedSunThreadInfo, mockCurrentThreadId, (interval) -> null);
 
@@ -438,7 +438,7 @@ public class HotThreadsTests extends ESTestCase {
             allInfos.get(1),
             allInfos.get(3)
         );
-        when(mockedMXBean.getThreadInfo(Matchers.any(), anyInt())).thenReturn(blockOrderedInfos.toArray(new ThreadInfo[0]));
+        when(mockedMXBean.getThreadInfo(ArgumentMatchers.any(), anyInt())).thenReturn(blockOrderedInfos.toArray(new ThreadInfo[0]));
 
         String blockInnerResult = hotBlockedThreads.innerDetect(mockedMXBean, mockedSunThreadInfo, mockCurrentThreadId, (interval) -> null);
 
@@ -462,7 +462,7 @@ public class HotThreadsTests extends ESTestCase {
 
         allInfos = makeThreadInfoMocksHelper(mockedMXBean, threadIds);
         blockOrderedInfos = org.elasticsearch.core.List.of(allInfos.get(2), allInfos.get(0), allInfos.get(1), allInfos.get(3));
-        when(mockedMXBean.getThreadInfo(Matchers.any(), anyInt())).thenReturn(blockOrderedInfos.toArray(new ThreadInfo[0]));
+        when(mockedMXBean.getThreadInfo(ArgumentMatchers.any(), anyInt())).thenReturn(blockOrderedInfos.toArray(new ThreadInfo[0]));
 
         blockInnerResult = hotBlockedThreads.innerDetect(mockedMXBean, mockedSunThreadInfo, mockCurrentThreadId, (interval) -> null);
 
@@ -492,7 +492,7 @@ public class HotThreadsTests extends ESTestCase {
             allInfos.get(1),
             allInfos.get(0)
         );
-        when(mockedMXBean.getThreadInfo(Matchers.any(), anyInt())).thenReturn(cpuOrderedInfos.toArray(new ThreadInfo[0]));
+        when(mockedMXBean.getThreadInfo(ArgumentMatchers.any(), anyInt())).thenReturn(cpuOrderedInfos.toArray(new ThreadInfo[0]));
 
         for (long threadId : threadIds) {
             when(mockedSunThreadInfo.getThreadAllocatedBytes(threadId)).thenReturn(0L).thenReturn(threadId * 100);
@@ -520,7 +520,7 @@ public class HotThreadsTests extends ESTestCase {
 
         allInfos = makeThreadInfoMocksHelper(mockedMXBean, threadIds);
         cpuOrderedInfos = org.elasticsearch.core.List.of(allInfos.get(3), allInfos.get(2), allInfos.get(1), allInfos.get(0));
-        when(mockedMXBean.getThreadInfo(Matchers.any(), anyInt())).thenReturn(cpuOrderedInfos.toArray(new ThreadInfo[0]));
+        when(mockedMXBean.getThreadInfo(ArgumentMatchers.any(), anyInt())).thenReturn(cpuOrderedInfos.toArray(new ThreadInfo[0]));
 
         for (long threadId : threadIds) {
             when(mockedSunThreadInfo.getThreadAllocatedBytes(threadId)).thenReturn(0L).thenReturn(threadId * 100);
@@ -562,7 +562,7 @@ public class HotThreadsTests extends ESTestCase {
             allInfos.get(1),
             allInfos.get(0)
         );
-        when(mockedMXBean.getThreadInfo(Matchers.any(), anyInt())).thenReturn(cpuOrderedInfos.toArray(new ThreadInfo[0]));
+        when(mockedMXBean.getThreadInfo(ArgumentMatchers.any(), anyInt())).thenReturn(cpuOrderedInfos.toArray(new ThreadInfo[0]));
 
         HotThreads hotThreads = new HotThreads().busiestThreads(4)
             .type(HotThreads.ReportType.CPU)
@@ -592,7 +592,7 @@ public class HotThreadsTests extends ESTestCase {
         when(mockedMXBean.getAllThreadIds()).thenReturn(threadIds);
 
         List<ThreadInfo> allInfos = makeThreadInfoMocksHelper(mockedMXBean, threadIds);
-        when(mockedMXBean.getThreadInfo(Matchers.any(), anyInt())).thenReturn(allInfos.toArray(new ThreadInfo[0]));
+        when(mockedMXBean.getThreadInfo(ArgumentMatchers.any(), anyInt())).thenReturn(allInfos.toArray(new ThreadInfo[0]));
 
         HotThreads hotThreads = new HotThreads().busiestThreads(4)
             .type(HotThreads.ReportType.CPU)
@@ -690,8 +690,8 @@ public class HotThreadsTests extends ESTestCase {
         ThreadInfo removedInfo = allInfos.remove(0);
         long[] reducedThreadIds = new long[] { 2, 3, 4 };
         when(mockedMXBean.getAllThreadIds()).thenReturn(reducedThreadIds);
-        when(mockedMXBean.getThreadInfo(Matchers.any(), anyInt())).thenReturn(allInfos.toArray(new ThreadInfo[0]));
-        when(mockedMXBean.getThreadInfo(Matchers.any(long[].class))).thenReturn(allInfos.toArray(new ThreadInfo[0]));
+        when(mockedMXBean.getThreadInfo(ArgumentMatchers.any(), anyInt())).thenReturn(allInfos.toArray(new ThreadInfo[0]));
+        when(mockedMXBean.getThreadInfo(ArgumentMatchers.any(long[].class))).thenReturn(allInfos.toArray(new ThreadInfo[0]));
 
         // Fake sleep
 
@@ -711,8 +711,8 @@ public class HotThreadsTests extends ESTestCase {
         // Test capturing timings for thread that launched while we were sleeping
         allInfos.add(0, removedInfo); // We called getInfo on this once, so second time should be with cpu/wait > 0
         when(mockedMXBean.getAllThreadIds()).thenReturn(threadIds);
-        when(mockedMXBean.getThreadInfo(Matchers.any(), anyInt())).thenReturn(allInfos.toArray(new ThreadInfo[0]));
-        when(mockedMXBean.getThreadInfo(Matchers.any(long[].class))).thenReturn(allInfos.toArray(new ThreadInfo[0]));
+        when(mockedMXBean.getThreadInfo(ArgumentMatchers.any(), anyInt())).thenReturn(allInfos.toArray(new ThreadInfo[0]));
+        when(mockedMXBean.getThreadInfo(ArgumentMatchers.any(long[].class))).thenReturn(allInfos.toArray(new ThreadInfo[0]));
 
         // Fake sleep
 
@@ -764,7 +764,7 @@ public class HotThreadsTests extends ESTestCase {
             allInfos.get(threadIds.length - 2)
         );
 
-        when(mockedMXBean.getThreadInfo(Matchers.any(long[].class), anyInt())).thenReturn(topThreads.toArray(new ThreadInfo[0]));
+        when(mockedMXBean.getThreadInfo(ArgumentMatchers.any(long[].class), anyInt())).thenReturn(topThreads.toArray(new ThreadInfo[0]));
 
         ThreadInfo[][] infosWithStacks = hotThreads.captureThreadStacks(mockedMXBean, topThreadIds);
 
@@ -828,7 +828,7 @@ public class HotThreadsTests extends ESTestCase {
             allInfos.get(1),
             allInfos.get(0)
         );
-        when(mockedMXBean.getThreadInfo(Matchers.any(), anyInt())).thenReturn(cpuOrderedInfos.toArray(new ThreadInfo[0]));
+        when(mockedMXBean.getThreadInfo(ArgumentMatchers.any(), anyInt())).thenReturn(cpuOrderedInfos.toArray(new ThreadInfo[0]));
 
         HotThreads hotThreads = new HotThreads().busiestThreads(4)
             .type(HotThreads.ReportType.CPU)
@@ -867,7 +867,7 @@ public class HotThreadsTests extends ESTestCase {
             allInfos.get(1),
             allInfos.get(0)
         );
-        when(mockedMXBean.getThreadInfo(Matchers.any(), anyInt())).thenReturn(cpuOrderedInfos.toArray(new ThreadInfo[0]));
+        when(mockedMXBean.getThreadInfo(ArgumentMatchers.any(), anyInt())).thenReturn(cpuOrderedInfos.toArray(new ThreadInfo[0]));
 
         HotThreads hotThreads0 = new HotThreads().busiestThreads(4)
             .type(HotThreads.ReportType.MEM)

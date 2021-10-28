@@ -43,7 +43,7 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.mockito.Matchers;
+import org.mockito.ArgumentMatchers;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -117,7 +117,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         );
         final SetOnce<Supplier<SearchLookup>> searchLookupSetOnce = new SetOnce<>();
         MappedFieldType ft = mock(MappedFieldType.class);
-        when(ft.fielddataBuilder(Matchers.any(), Matchers.any())).thenAnswer(invocationOnMock -> {
+        when(ft.fielddataBuilder(ArgumentMatchers.any(), ArgumentMatchers.any())).thenAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             Supplier<SearchLookup> searchLookup = (Supplier<SearchLookup>) invocationOnMock.getArguments()[1];
             searchLookupSetOnce.set(searchLookup);

@@ -44,7 +44,6 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
-            in.readBoolean();
         }
 
         public String getId() {
@@ -55,7 +54,6 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
-            out.writeBoolean(false);
         }
 
         @Override

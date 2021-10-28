@@ -39,6 +39,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -335,10 +336,12 @@ public class LdapSessionFactoryTests extends LdapTestCase {
             Files.copy(realCa, ldapCaPath, StandardCopyOption.REPLACE_EXISTING);
             resourceWatcher.notifyNow(ResourceWatcherService.Frequency.HIGH);
 
-            final LdapSession session = session(sessionFactory, user, userPass);
-            assertThat(session.userDn(), is("cn=Horatio Hornblower,ou=people,o=sevenSeas"));
-
-            session.close();
+            // Occasionally the reload doesn't take immediate effect so the next connection fails.
+            assertBusy(() -> {
+                final LdapSession session = session(sessionFactory, user, userPass);
+                assertThat(session.userDn(), is("cn=Horatio Hornblower,ou=people,o=sevenSeas"));
+                session.close();
+            }, 3, TimeUnit.SECONDS);
         }
     }
 }

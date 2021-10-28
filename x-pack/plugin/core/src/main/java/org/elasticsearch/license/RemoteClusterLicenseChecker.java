@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.ClusterNameExpressionResolver;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
@@ -27,11 +28,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.license.XPackLicenseState.isAllowedByOperationMode;
+
 /**
- * Checks remote clusters for license compatibility with a specified license predicate.
+ * Checks remote clusters for license compatibility with a specified licensed feature.
  */
 public final class RemoteClusterLicenseChecker {
 
@@ -125,23 +127,19 @@ public final class RemoteClusterLicenseChecker {
 
     private static final ClusterNameExpressionResolver clusterNameExpressionResolver = new ClusterNameExpressionResolver();
     private final Client client;
-    private final Predicate<License.OperationMode> predicate;
+    private final LicensedFeature feature;
 
     /**
-     * Constructs a remote cluster license checker with the specified license predicate for checking license compatibility. The predicate
-     * does not need to check for the active license state as this is handled by the remote cluster license checker.
+     * Constructs a remote cluster license checker with the specified licensed feature for checking license compatibility. The feature
+     * does not need to check for the active license state as this is handled by the remote cluster license checker. If the feature
+     * is {@code null} a check is only performed on whether the license is active.
      *
      * @param client    the client
-     * @param predicate the license predicate
+     * @param feature   the licensed feature
      */
-    public RemoteClusterLicenseChecker(final Client client, final Predicate<License.OperationMode> predicate) {
+    public RemoteClusterLicenseChecker(final Client client, @Nullable final LicensedFeature feature) {
         this.client = client;
-        this.predicate = predicate;
-    }
-
-    public static boolean isAllowedByLicense(final XPackInfoResponse.LicenseInfo licenseInfo) {
-        final License.OperationMode mode = License.OperationMode.parse(licenseInfo.getMode());
-        return XPackLicenseState.isAllowedByOperationMode(mode, License.OperationMode.PLATINUM);
+        this.feature = feature;
     }
 
     /**
@@ -169,8 +167,8 @@ public final class RemoteClusterLicenseChecker {
                     listener.onFailure(new ResourceNotFoundException("license info is missing for cluster [" + clusterAlias.get() + "]"));
                     return;
                 }
-                if ((licenseInfo.getStatus() == LicenseStatus.ACTIVE) == false
-                    || predicate.test(License.OperationMode.parse(licenseInfo.getMode())) == false) {
+
+                if (isActive(feature, licenseInfo) == false || isAllowed(feature, licenseInfo) == false) {
                     listener.onResponse(LicenseCheck.failure(new RemoteClusterLicenseInfo(clusterAlias.get(), licenseInfo)));
                     return;
                 }
@@ -195,6 +193,15 @@ public final class RemoteClusterLicenseChecker {
         // check the license on the first cluster, and then we recursively check licenses on the remaining clusters
         clusterAlias.set(clusterAliasesIterator.next());
         remoteClusterLicense(clusterAlias.get(), infoListener);
+    }
+
+    private static boolean isActive(LicensedFeature feature, XPackInfoResponse.LicenseInfo licenseInfo) {
+        return feature != null && feature.isNeedsActive() == false || licenseInfo.getStatus() == LicenseStatus.ACTIVE;
+    }
+
+    private static boolean isAllowed(LicensedFeature feature, XPackInfoResponse.LicenseInfo licenseInfo) {
+        License.OperationMode mode = License.OperationMode.parse(licenseInfo.getMode());
+        return feature == null || isAllowedByOperationMode(mode, feature.getMinimumOperationMode());
     }
 
     private void remoteClusterLicense(final String clusterAlias, final ActionListener<XPackInfoResponse> listener) {
@@ -274,22 +281,19 @@ public final class RemoteClusterLicenseChecker {
      * @param remoteClusterLicenseInfo the remote cluster license info of the cluster that failed the license check
      * @return an error message representing license incompatibility
      */
-    public static String buildErrorMessage(
-        final String feature,
-        final RemoteClusterLicenseInfo remoteClusterLicenseInfo,
-        final Predicate<XPackInfoResponse.LicenseInfo> predicate
-    ) {
+    public static String buildErrorMessage(final LicensedFeature feature, final RemoteClusterLicenseInfo remoteClusterLicenseInfo) {
         final StringBuilder error = new StringBuilder();
-        if (remoteClusterLicenseInfo.licenseInfo().getStatus() != LicenseStatus.ACTIVE) {
+        if (isActive(feature, remoteClusterLicenseInfo.licenseInfo()) == false) {
             error.append(String.format(Locale.ROOT, "the license on cluster [%s] is not active", remoteClusterLicenseInfo.clusterAlias()));
         } else {
-            assert predicate.test(remoteClusterLicenseInfo.licenseInfo()) == false : "license must be incompatible to build error message";
+            assert isAllowed(feature, remoteClusterLicenseInfo.licenseInfo()) == false
+                : "license must be incompatible to build error message";
             final String message = String.format(
                 Locale.ROOT,
                 "the license mode [%s] on cluster [%s] does not enable [%s]",
                 License.OperationMode.parse(remoteClusterLicenseInfo.licenseInfo().getMode()),
                 remoteClusterLicenseInfo.clusterAlias(),
-                feature
+                feature.getName()
             );
             error.append(message);
         }

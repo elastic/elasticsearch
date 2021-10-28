@@ -11,17 +11,12 @@ package org.elasticsearch.xcontent.json;
 import com.fasterxml.jackson.core.JsonLocation;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
-import com.fasterxml.jackson.core.filter.FilteringParserDelegate;
 
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentLocation;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.AbstractXContentParser;
-import org.elasticsearch.xcontent.support.filtering.FilterPath;
-import org.elasticsearch.xcontent.support.filtering.FilterPathBasedFilter;
 
 import java.io.IOException;
 import java.nio.CharBuffer;
@@ -30,44 +25,9 @@ public class JsonXContentParser extends AbstractXContentParser {
 
     final JsonParser parser;
 
-    public JsonXContentParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, JsonParser parser) {
-        super(xContentRegistry, deprecationHandler, RestApiVersion.current());
-        this.parser = parser;
-    }
-
-    public JsonXContentParser(
-        NamedXContentRegistry xContentRegistry,
-        DeprecationHandler deprecationHandler,
-        JsonParser parser,
-        RestApiVersion restApiVersion
-    ) {
-        super(xContentRegistry, deprecationHandler, restApiVersion);
-        this.parser = parser;
-    }
-
-    public JsonXContentParser(
-        NamedXContentRegistry xContentRegistry,
-        DeprecationHandler deprecationHandler,
-        JsonParser parser,
-        RestApiVersion restApiVersion,
-        FilterPath[] include,
-        FilterPath[] exclude
-    ) {
-        super(xContentRegistry, deprecationHandler, restApiVersion);
-        JsonParser filtered = parser;
-        if (exclude != null) {
-            for (FilterPath e : exclude) {
-                if (e.hasDoubleWildcard()) {
-                    // Fixed in Jackson 2.13 - https://github.com/FasterXML/jackson-core/issues/700
-                    throw new UnsupportedOperationException("double wildcards are not supported in filtered excludes");
-                }
-            }
-            filtered = new FilteringParserDelegate(filtered, new FilterPathBasedFilter(exclude, false), true, true);
-        }
-        if (include != null) {
-            filtered = new FilteringParserDelegate(filtered, new FilterPathBasedFilter(include, true), true, true);
-        }
-        this.parser = filtered;
+    public JsonXContentParser(XContentParserConfiguration config, JsonParser parser) {
+        super(config.registry(), config.deprecationHandler(), config.restApiVersion());
+        this.parser = config.filter(parser);
     }
 
     @Override

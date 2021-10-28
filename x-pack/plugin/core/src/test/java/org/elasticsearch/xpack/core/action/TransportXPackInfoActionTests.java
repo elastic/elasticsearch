@@ -54,14 +54,18 @@ public class TransportXPackInfoActionTests extends ESTestCase {
             FeatureSet featureSet = new FeatureSet(randomAlphaOfLength(5), randomBoolean(), randomBoolean());
             featureSets.put(infoAction, featureSet);
             when(client.executeLocally(eq(infoAction), any(ActionRequest.class), any(ActionListener.class))).thenAnswer(answer -> {
-                var listener = (ActionListener<XPackInfoFeatureResponse>)answer.getArguments()[2];
+                var listener = (ActionListener<XPackInfoFeatureResponse>) answer.getArguments()[2];
                 listener.onResponse(new XPackInfoFeatureResponse(featureSet));
                 return null;
             });
         }
 
-        TransportXPackInfoAction action = new TransportXPackInfoAction(mock(TransportService.class), mock(ActionFilters.class),
-            licenseService, client) {
+        TransportXPackInfoAction action = new TransportXPackInfoAction(
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            licenseService,
+            client
+        ) {
             @Override
             protected List<XPackInfoFeatureAction> infoActions() {
                 return new ArrayList<>(featureSets.keySet());

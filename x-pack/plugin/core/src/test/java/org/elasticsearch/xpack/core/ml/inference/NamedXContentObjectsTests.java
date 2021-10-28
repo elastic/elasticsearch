@@ -6,26 +6,26 @@
  */
 package org.elasticsearch.xpack.core.ml.inference;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractXContentTestCase;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModel;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.EnsembleTests;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeTests;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.FrequencyEncodingTests;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.LenientlyParsedPreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncodingTests;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.StrictlyParsedPreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.TargetMeanEncodingTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModel;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModel;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.EnsembleTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeTests;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 import org.junit.Before;
 
@@ -52,17 +52,23 @@ public class NamedXContentObjectsTests extends AbstractXContentTestCase<NamedXCo
             ObjectParser<NamedObjectContainer, Void> parser = new ObjectParser<>(
                 "named_xcontent_object_container_test",
                 lenient,
-                NamedObjectContainer::new);
-            parser.declareNamedObjects(NamedObjectContainer::setPreProcessors,
-                (p, c, n) ->
-                lenient ? p.namedObject(LenientlyParsedPreProcessor.class, n, null) :
-                    p.namedObject(StrictlyParsedPreProcessor.class, n, null),
-                (noc) -> noc.setUseExplicitPreprocessorOrder(true), PRE_PROCESSORS);
-            parser.declareNamedObjects(NamedObjectContainer::setTrainedModel,
-                (p, c, n) ->
-                    lenient ? p.namedObject(LenientlyParsedTrainedModel.class, n, null) :
-                        p.namedObject(StrictlyParsedTrainedModel.class, n, null),
-                TRAINED_MODEL);
+                NamedObjectContainer::new
+            );
+            parser.declareNamedObjects(
+                NamedObjectContainer::setPreProcessors,
+                (p, c, n) -> lenient
+                    ? p.namedObject(LenientlyParsedPreProcessor.class, n, null)
+                    : p.namedObject(StrictlyParsedPreProcessor.class, n, null),
+                (noc) -> noc.setUseExplicitPreprocessorOrder(true),
+                PRE_PROCESSORS
+            );
+            parser.declareNamedObjects(
+                NamedObjectContainer::setTrainedModel,
+                (p, c, n) -> lenient
+                    ? p.namedObject(LenientlyParsedTrainedModel.class, n, null)
+                    : p.namedObject(StrictlyParsedTrainedModel.class, n, null),
+                TRAINED_MODEL
+            );
             return parser;
         }
 
@@ -99,11 +105,13 @@ public class NamedXContentObjectsTests extends AbstractXContentTestCase<NamedXCo
             return builder;
         }
 
-        XContentBuilder writeNamedObjects(XContentBuilder builder,
-                                          Params params,
-                                          boolean useExplicitOrder,
-                                          String namedObjectsName,
-                                          List<? extends NamedXContentObject> namedObjects) throws IOException {
+        XContentBuilder writeNamedObjects(
+            XContentBuilder builder,
+            Params params,
+            boolean useExplicitOrder,
+            String namedObjectsName,
+            List<? extends NamedXContentObject> namedObjects
+        ) throws IOException {
             if (useExplicitOrder) {
                 builder.startArray(namedObjectsName);
             } else {
@@ -152,9 +160,13 @@ public class NamedXContentObjectsTests extends AbstractXContentTestCase<NamedXCo
         int max = randomIntBetween(1, 10);
         List<PreProcessor> preProcessors = new ArrayList<>(max);
         for (int i = 0; i < max; i++) {
-            preProcessors.add(randomFrom(FrequencyEncodingTests.createRandom(),
-                OneHotEncodingTests.createRandom(),
-                TargetMeanEncodingTests.createRandom()));
+            preProcessors.add(
+                randomFrom(
+                    FrequencyEncodingTests.createRandom(),
+                    OneHotEncodingTests.createRandom(),
+                    TargetMeanEncodingTests.createRandom()
+                )
+            );
         }
         NamedObjectContainer container = new NamedObjectContainer();
         container.setPreProcessors(preProcessors);
@@ -176,12 +188,11 @@ public class NamedXContentObjectsTests extends AbstractXContentTestCase<NamedXCo
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         // We only want to add random fields to the root, or the root of the named objects
-        return field ->
-                (field.endsWith("frequency_encoding") ||
-                    field.endsWith("one_hot_encoding") ||
-                    field.endsWith("target_mean_encoding") ||
-                    field.startsWith("tree.tree_structure") ||
-                    field.isEmpty()) == false;
+        return field -> (field.endsWith("frequency_encoding")
+            || field.endsWith("one_hot_encoding")
+            || field.endsWith("target_mean_encoding")
+            || field.startsWith("tree.tree_structure")
+            || field.isEmpty()) == false;
     }
 
     @Override
@@ -192,4 +203,3 @@ public class NamedXContentObjectsTests extends AbstractXContentTestCase<NamedXCo
         return new NamedXContentRegistry(namedXContent);
     }
 }
-

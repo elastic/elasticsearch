@@ -14,9 +14,12 @@ import org.elasticsearch.test.ESTestCase;
 public class ClusterAllocationExplainRequestTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
-        ClusterAllocationExplainRequest request =
-                new ClusterAllocationExplainRequest(randomAlphaOfLength(4), randomIntBetween(0, Integer.MAX_VALUE), randomBoolean(),
-                                                       randomBoolean() ? randomAlphaOfLength(5) : null);
+        ClusterAllocationExplainRequest request = new ClusterAllocationExplainRequest(
+            randomAlphaOfLength(4),
+            randomIntBetween(0, Integer.MAX_VALUE),
+            randomBoolean(),
+            randomBoolean() ? randomAlphaOfLength(5) : null
+        );
         request.includeYesDecisions(randomBoolean());
         request.includeDiskInfo(randomBoolean());
         BytesStreamOutput output = new BytesStreamOutput();

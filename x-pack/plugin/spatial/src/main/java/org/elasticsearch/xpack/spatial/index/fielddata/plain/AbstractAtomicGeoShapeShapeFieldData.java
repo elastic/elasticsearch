@@ -50,8 +50,7 @@ public abstract class AbstractAtomicGeoShapeShapeFieldData implements LeafGeoSha
             }
 
             @Override
-            public void close() {
-            }
+            public void close() {}
 
             @Override
             public GeoShapeValues getGeoShapeValues() {

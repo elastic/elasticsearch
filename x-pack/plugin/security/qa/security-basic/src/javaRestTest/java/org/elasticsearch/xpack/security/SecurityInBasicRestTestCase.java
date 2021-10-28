@@ -22,26 +22,18 @@ public abstract class SecurityInBasicRestTestCase extends ESRestTestCase {
     @Override
     protected Settings restAdminSettings() {
         String token = basicAuthHeaderValue("admin_user", new SecureString("admin-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     @Override
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue("security_test_user", new SecureString("security-test-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     private RestHighLevelClient getHighLevelAdminClient() {
         if (highLevelAdminClient == null) {
-            highLevelAdminClient = new RestHighLevelClient(
-                adminClient(),
-                ignore -> {
-                },
-                List.of()) {
+            highLevelAdminClient = new RestHighLevelClient(adminClient(), ignore -> {}, List.of()) {
             };
         }
         return highLevelAdminClient;

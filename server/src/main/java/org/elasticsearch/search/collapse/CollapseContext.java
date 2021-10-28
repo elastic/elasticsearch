@@ -9,10 +9,10 @@ package org.elasticsearch.search.collapse;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Sort;
-import org.elasticsearch.lucene.grouping.SinglePassGroupingCollector;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.mapper.MappedFieldType.CollapseType;
+import org.elasticsearch.index.query.InnerHitBuilder;
+import org.elasticsearch.lucene.grouping.SinglePassGroupingCollector;
 
 import java.util.List;
 
@@ -24,9 +24,7 @@ public class CollapseContext {
     private final MappedFieldType fieldType;
     private final List<InnerHitBuilder> innerHits;
 
-    public CollapseContext(String fieldName,
-                           MappedFieldType fieldType,
-                           List<InnerHitBuilder> innerHits) {
+    public CollapseContext(String fieldName, MappedFieldType fieldType, List<InnerHitBuilder> innerHits) {
         this.fieldName = fieldName;
         this.fieldType = fieldType;
         this.innerHits = innerHits;

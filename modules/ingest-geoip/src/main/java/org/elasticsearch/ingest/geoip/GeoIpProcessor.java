@@ -55,8 +55,8 @@ import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.getTask
 public final class GeoIpProcessor extends AbstractProcessor {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(GeoIpProcessor.class);
-    static final String DEFAULT_DATABASES_DEPRECATION_MESSAGE = "the [fallback_to_default_databases] has been deprecated," +
-        " because Elasticsearch no longer includes the default Maxmind geoip databases. This setting will be removed in Elasticsearch 9.0";
+    static final String DEFAULT_DATABASES_DEPRECATION_MESSAGE = "the [fallback_to_default_databases] has been deprecated, because "
+        + "Elasticsearch no longer includes the default Maxmind geoip databases. This setting will be removed in Elasticsearch 9.0";
 
     public static final String TYPE = "geoip";
     private static final String CITY_DB_SUFFIX = "-City";
@@ -95,7 +95,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
         final Set<Property> properties,
         final boolean ignoreMissing,
         final boolean firstOnly,
-        final String databaseFile) {
+        final String databaseFile
+    ) {
         super(tag, description);
         this.field = field;
         this.isValid = isValid;
@@ -187,8 +188,10 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     geoData = Collections.emptyMap();
                 }
             } else {
-                throw new ElasticsearchParseException("Unsupported database type [" + lazyLoader.getDatabaseType()
-                    + "]", new IllegalStateException());
+                throw new ElasticsearchParseException(
+                    "Unsupported database type [" + lazyLoader.getDatabaseType() + "]",
+                    new IllegalStateException()
+                );
             }
             return geoData;
         } finally {
@@ -359,16 +362,23 @@ public final class GeoIpProcessor extends AbstractProcessor {
     }
 
     public static final class Factory implements Processor.Factory {
-        static final Set<Property> DEFAULT_CITY_PROPERTIES = Collections.unmodifiableSet(EnumSet.of(
-            Property.CONTINENT_NAME, Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE, Property.REGION_ISO_CODE,
-            Property.REGION_NAME, Property.CITY_NAME, Property.LOCATION
-        ));
-        static final Set<Property> DEFAULT_COUNTRY_PROPERTIES = Collections.unmodifiableSet(EnumSet.of(
-            Property.CONTINENT_NAME, Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE
-        ));
-        static final Set<Property> DEFAULT_ASN_PROPERTIES = Collections.unmodifiableSet(EnumSet.of(
-            Property.IP, Property.ASN, Property.ORGANIZATION_NAME, Property.NETWORK
-        ));
+        static final Set<Property> DEFAULT_CITY_PROPERTIES = Collections.unmodifiableSet(
+            EnumSet.of(
+                Property.CONTINENT_NAME,
+                Property.COUNTRY_NAME,
+                Property.COUNTRY_ISO_CODE,
+                Property.REGION_ISO_CODE,
+                Property.REGION_NAME,
+                Property.CITY_NAME,
+                Property.LOCATION
+            )
+        );
+        static final Set<Property> DEFAULT_COUNTRY_PROPERTIES = Collections.unmodifiableSet(
+            EnumSet.of(Property.CONTINENT_NAME, Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE)
+        );
+        static final Set<Property> DEFAULT_ASN_PROPERTIES = Collections.unmodifiableSet(
+            EnumSet.of(Property.IP, Property.ASN, Property.ORGANIZATION_NAME, Property.NETWORK)
+        );
 
         private final DatabaseNodeService databaseNodeService;
         private final ClusterService clusterService;
@@ -386,7 +396,9 @@ public final class GeoIpProcessor extends AbstractProcessor {
         public Processor create(
             final Map<String, Processor.Factory> registry,
             final String processorTag,
-            final String description, final Map<String, Object> config) throws IOException {
+            final String description,
+            final Map<String, Object> config
+        ) throws IOException {
             String ipField = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "geoip");
             String databaseFile = readStringProperty(TYPE, processorTag, config, "database_file", "GeoLite2-City.mmdb");
@@ -404,8 +416,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
             if (useDatabaseUnavailableProcessor(lazyLoader, databaseFile)) {
                 return new DatabaseUnavailableProcessor(processorTag, description, databaseFile);
             } else if (lazyLoader == null) {
-                throw newConfigurationException(TYPE, processorTag,
-                    "database_file", "database file [" + databaseFile + "] doesn't exist");
+                throw newConfigurationException(TYPE, processorTag, "database_file", "database file [" + databaseFile + "] doesn't exist");
             }
             final String databaseType;
             try {
@@ -433,8 +444,12 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
                     properties = DEFAULT_ASN_PROPERTIES;
                 } else {
-                    throw newConfigurationException(TYPE, processorTag, "database_file", "Unsupported database type ["
-                        + databaseType + "]");
+                    throw newConfigurationException(
+                        TYPE,
+                        processorTag,
+                        "database_file",
+                        "Unsupported database type [" + databaseType + "]"
+                    );
                 }
             }
             CheckedSupplier<DatabaseReaderLazyLoader, IOException> supplier = () -> {
@@ -449,8 +464,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 // For example overwriting a geoip lite city db with geoip city db is a valid change, but the db type is slightly different,
                 // by checking just the suffix this assertion doesn't fail.
                 String expectedSuffix = databaseType.substring(databaseType.lastIndexOf('-'));
-                assert loader.getDatabaseType().endsWith(expectedSuffix) : "database type [" + loader.getDatabaseType() +
-                    "] doesn't match with expected suffix [" + expectedSuffix + "]";
+                assert loader.getDatabaseType().endsWith(expectedSuffix)
+                    : "database type [" + loader.getDatabaseType() + "] doesn't match with expected suffix [" + expectedSuffix + "]";
                 return loader;
             };
             Supplier<Boolean> isValid = () -> {
@@ -470,14 +485,28 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
                 boolean valid = metadata.isValid(currentState.metadata().settings());
                 if (valid && metadata.isCloseToExpiration()) {
-                    HeaderWarning.addWarning(DeprecationLogger.CRITICAL, "database [{}] was not updated for over 25 days, geoip processor" +
-                        " will stop working if there is no update for 30 days", databaseFile);
+                    HeaderWarning.addWarning(
+                        DeprecationLogger.CRITICAL,
+                        "database [{}] was not updated for over 25 days, geoip processor"
+                            + " will stop working if there is no update for 30 days",
+                        databaseFile
+                    );
                 }
 
                 return valid;
             };
-            return new GeoIpProcessor(processorTag, description, ipField, supplier, isValid, targetField, properties, ignoreMissing,
-                firstOnly, databaseFile);
+            return new GeoIpProcessor(
+                processorTag,
+                description,
+                ipField,
+                supplier,
+                isValid,
+                targetField,
+                properties,
+                ignoreMissing,
+                firstOnly,
+                databaseFile
+            );
         }
 
         private static boolean useDatabaseUnavailableProcessor(DatabaseReaderLazyLoader loader, String databaseName) {
@@ -493,7 +522,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
     // Geoip2's AddressNotFoundException is checked and due to the fact that we need run their code
     // inside a PrivilegedAction code block, we are forced to catch any checked exception and rethrow
     // it with an unchecked exception.
-    //package private for testing
+    // package private for testing
     static final class AddressNotFoundRuntimeException extends RuntimeException {
 
         AddressNotFoundRuntimeException(Throwable cause) {
@@ -517,15 +546,27 @@ public final class GeoIpProcessor extends AbstractProcessor {
         NETWORK;
 
         static final EnumSet<Property> ALL_CITY_PROPERTIES = EnumSet.of(
-            Property.IP, Property.COUNTRY_ISO_CODE, Property.COUNTRY_NAME, Property.CONTINENT_NAME,
-            Property.REGION_ISO_CODE, Property.REGION_NAME, Property.CITY_NAME, Property.TIMEZONE,
+            Property.IP,
+            Property.COUNTRY_ISO_CODE,
+            Property.COUNTRY_NAME,
+            Property.CONTINENT_NAME,
+            Property.REGION_ISO_CODE,
+            Property.REGION_NAME,
+            Property.CITY_NAME,
+            Property.TIMEZONE,
             Property.LOCATION
         );
         static final EnumSet<Property> ALL_COUNTRY_PROPERTIES = EnumSet.of(
-            Property.IP, Property.CONTINENT_NAME, Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE
+            Property.IP,
+            Property.CONTINENT_NAME,
+            Property.COUNTRY_NAME,
+            Property.COUNTRY_ISO_CODE
         );
         static final EnumSet<Property> ALL_ASN_PROPERTIES = EnumSet.of(
-            Property.IP, Property.ASN, Property.ORGANIZATION_NAME, Property.NETWORK
+            Property.IP,
+            Property.ASN,
+            Property.ORGANIZATION_NAME,
+            Property.NETWORK
         );
 
         public static Property parseProperty(String databaseType, String value) {
@@ -545,8 +586,9 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 }
                 return property;
             } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("illegal property value [" + value + "]. valid values are " +
-                    Arrays.toString(validProperties.toArray()));
+                throw new IllegalArgumentException(
+                    "illegal property value [" + value + "]. valid values are " + Arrays.toString(validProperties.toArray())
+                );
             }
         }
     }

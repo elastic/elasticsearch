@@ -62,8 +62,7 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public void preProcess() {
-    }
+    public void preProcess() {}
 
     @Override
     public Query buildFilteredQuery(Query query) {

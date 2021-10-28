@@ -35,7 +35,8 @@ public class CommonGramsTokenFilterFactory extends AbstractTokenFilterFactory {
 
         if (this.words == null) {
             throw new IllegalArgumentException(
-                    "missing or empty [common_words] or [common_words_path] configuration for common_grams token filter");
+                "missing or empty [common_words] or [common_words_path] configuration for common_grams token filter"
+            );
         }
     }
 
@@ -54,4 +55,3 @@ public class CommonGramsTokenFilterFactory extends AbstractTokenFilterFactory {
         throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
     }
 }
-

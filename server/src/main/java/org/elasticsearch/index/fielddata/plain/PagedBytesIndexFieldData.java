@@ -61,8 +61,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
         @Override
         public IndexOrdinalsFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new PagedBytesIndexFieldData(name, valuesSourceType, cache, breakerService,
-                    minFrequency, maxFrequency, minSegmentSize);
+            return new PagedBytesIndexFieldData(name, valuesSourceType, cache, breakerService, minFrequency, maxFrequency, minSegmentSize);
         }
     }
 
@@ -82,15 +81,27 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
     }
 
     @Override
-    public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested,
-            boolean reverse) {
+    public SortField sortField(
+        @Nullable Object missingValue,
+        MultiValueMode sortMode,
+        XFieldComparatorSource.Nested nested,
+        boolean reverse
+    ) {
         XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
         return new SortField(getFieldName(), source, reverse);
     }
 
     @Override
-    public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
-            SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
+    public BucketedSort newBucketedSort(
+        BigArrays bigArrays,
+        Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested,
+        SortOrder sortOrder,
+        DocValueFormat format,
+        int bucketSize,
+        BucketedSort.ExtraData extra
+    ) {
         throw new IllegalArgumentException("only supported on numeric fields");
     }
 
@@ -99,8 +110,11 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         LeafReader reader = context.reader();
         LeafOrdinalsFieldData data = null;
 
-        PagedBytesEstimator estimator =
-            new PagedBytesEstimator(context, breakerService.getBreaker(CircuitBreaker.FIELDDATA), getFieldName());
+        PagedBytesEstimator estimator = new PagedBytesEstimator(
+            context,
+            breakerService.getBreaker(CircuitBreaker.FIELDDATA),
+            getFieldName()
+        );
         Terms terms = reader.terms(getFieldName());
         if (terms == null) {
             data = AbstractLeafOrdinalsFieldData.empty();
@@ -210,12 +224,8 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
                 docCount = reader.maxDoc();
             }
             if (docCount >= minSegmentSize) {
-                final int minFreq = minFrequency > 1.0
-                    ? (int) minFrequency
-                    : (int)(docCount * minFrequency);
-                final int maxFreq = maxFrequency > 1.0
-                    ? (int) maxFrequency
-                    : (int)(docCount * maxFrequency);
+                final int minFreq = minFrequency > 1.0 ? (int) minFrequency : (int) (docCount * minFrequency);
+                final int maxFreq = maxFrequency > 1.0 ? (int) maxFrequency : (int) (docCount * maxFrequency);
                 if (minFreq > 1 || maxFreq < docCount) {
                     iterator = new FrequencyFilter(iterator, minFreq, maxFreq);
                 }

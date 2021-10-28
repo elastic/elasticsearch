@@ -28,8 +28,6 @@ import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccount
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
-import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
-
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.time.ZoneOffset;
@@ -37,6 +35,8 @@ import java.time.ZonedDateTime;
 import java.util.Base64;
 import java.util.List;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 
 public class TransportKibanaEnrollmentAction extends HandledTransportAction<KibanaEnrollmentRequest, KibanaEnrollmentResponse> {
 
@@ -62,8 +62,11 @@ public class TransportKibanaEnrollmentAction extends HandledTransportAction<Kiba
 
         final SslKeyConfig keyConfig = sslService.getHttpTransportSSLConfiguration().getKeyConfig();
         if (keyConfig instanceof StoreKeyConfig == false) {
-            listener.onFailure(new ElasticsearchException(
-                "Unable to enroll kibana instance. Elasticsearch node HTTP layer SSL configuration is not configured with a keystore"));
+            listener.onFailure(
+                new ElasticsearchException(
+                    "Unable to enroll kibana instance. Elasticsearch node HTTP layer SSL configuration is not configured with a keystore"
+                )
+            );
             return;
         }
         List<X509Certificate> caCertificates;
@@ -74,37 +77,51 @@ public class TransportKibanaEnrollmentAction extends HandledTransportAction<Kiba
                 .filter(x509Certificate -> x509Certificate.getBasicConstraints() != -1)
                 .collect(Collectors.toList());
         } catch (Exception e) {
-            listener.onFailure(new ElasticsearchException("Unable to enroll kibana instance. Cannot retrieve CA certificate " +
-                "for the HTTP layer of the Elasticsearch node.", e));
+            listener.onFailure(
+                new ElasticsearchException(
+                    "Unable to enroll kibana instance. Cannot retrieve CA certificate " + "for the HTTP layer of the Elasticsearch node.",
+                    e
+                )
+            );
             return;
         }
         if (caCertificates.size() != 1) {
-            listener.onFailure(new ElasticsearchException(
-                "Unable to enroll kibana instance. Elasticsearch node HTTP layer SSL configuration Keystore " +
-                "[xpack.security.http.ssl.keystore] doesn't contain a single PrivateKey entry where the associated " +
-                "certificate is a CA certificate"));
+            listener.onFailure(
+                new ElasticsearchException(
+                    "Unable to enroll kibana instance. Elasticsearch node HTTP layer SSL configuration Keystore "
+                        + "[xpack.security.http.ssl.keystore] doesn't contain a single PrivateKey entry where the associated "
+                        + "certificate is a CA certificate"
+                )
+            );
         } else {
             String httpCa;
             try {
                 httpCa = Base64.getEncoder().encodeToString(caCertificates.get(0).getEncoded());
             } catch (CertificateEncodingException cee) {
-                listener.onFailure(new ElasticsearchException(
-                    "Unable to enroll kibana instance. Elasticsearch node HTTP layer SSL configuration uses a malformed CA certificate",
-                    cee));
+                listener.onFailure(
+                    new ElasticsearchException(
+                        "Unable to enroll kibana instance. Elasticsearch node HTTP layer SSL configuration uses a malformed CA certificate",
+                        cee
+                    )
+                );
                 return;
             }
-            final CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
-                new CreateServiceAccountTokenRequest("elastic", "kibana", getTokenName());
+            final CreateServiceAccountTokenRequest createServiceAccountTokenRequest = new CreateServiceAccountTokenRequest(
+                "elastic",
+                "kibana",
+                getTokenName()
+            );
             client.execute(CreateServiceAccountTokenAction.INSTANCE, createServiceAccountTokenRequest, ActionListener.wrap(response -> {
-                logger.debug("Successfully created token [{}] for the [elastic/kibana] service account during kibana enrollment",
-                    response.getName());
+                logger.debug(
+                    "Successfully created token [{}] for the [elastic/kibana] service account during kibana enrollment",
+                    response.getName()
+                );
                 listener.onResponse(new KibanaEnrollmentResponse(response.getName(), response.getValue(), httpCa));
-            }, e -> listener.onFailure(
-                new ElasticsearchException("Failed to create token for the [elastic/kibana] service account", e))));
+            }, e -> listener.onFailure(new ElasticsearchException("Failed to create token for the [elastic/kibana] service account", e))));
         }
     }
 
-    protected static String getTokenName(){
+    protected static String getTokenName() {
         final ZonedDateTime enrollTime = ZonedDateTime.now(ZoneOffset.UTC);
         final String prefix = "enroll-process-token-";
         return prefix + enrollTime.toInstant().toEpochMilli();

@@ -38,8 +38,11 @@ public class JsonLogsStream {
 
     private JsonLogsStream(BufferedReader reader, ObjectParser<JsonLogLine, Void> logLineParser) throws IOException {
         this.reader = reader;
-        this.parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-            reader);
+        this.parser = JsonXContent.jsonXContent.createParser(
+            NamedXContentRegistry.EMPTY,
+            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+            reader
+        );
         this.logLineParser = logLineParser;
     }
 
@@ -61,14 +64,12 @@ public class JsonLogsStream {
 
     private Stream<JsonLogLine> stream() {
         Spliterator<JsonLogLine> spliterator = Spliterators.spliteratorUnknownSize(new JsonIterator(), Spliterator.ORDERED);
-        return StreamSupport.stream(spliterator, false)
-            .onClose(this::close);
+        return StreamSupport.stream(spliterator, false).onClose(this::close);
     }
 
     private Stream<Map<String, String>> streamMap() {
         Spliterator<Map<String, String>> spliterator = Spliterators.spliteratorUnknownSize(new MapIterator(), Spliterator.ORDERED);
-        return StreamSupport.stream(spliterator, false)
-            .onClose(this::close);
+        return StreamSupport.stream(spliterator, false).onClose(this::close);
     }
 
     private void close() {

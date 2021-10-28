@@ -51,14 +51,18 @@ public class IntervalYearMonth extends Interval<Period> {
 
     @Override
     public IntervalYearMonth add(Interval<Period> interval) {
-        return new IntervalYearMonth(interval().plus(interval.interval()).normalized(),
-                Intervals.compatibleInterval(dataType(), interval.dataType()));
+        return new IntervalYearMonth(
+            interval().plus(interval.interval()).normalized(),
+            Intervals.compatibleInterval(dataType(), interval.dataType())
+        );
     }
 
     @Override
     public IntervalYearMonth sub(Interval<Period> interval) {
-        return new IntervalYearMonth(interval().minus(interval.interval()).normalized(),
-                Intervals.compatibleInterval(dataType(), interval.dataType()));
+        return new IntervalYearMonth(
+            interval().minus(interval.interval()).normalized(),
+            Intervals.compatibleInterval(dataType(), interval.dataType())
+        );
     }
 
     @Override

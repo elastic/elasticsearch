@@ -23,12 +23,13 @@ public interface Condition extends ToXContentObject {
 
     class Result implements ToXContentObject { // don't make this final - we can't mock final classes :(
 
-        public Map<String,Object> getResolvedValues() {
+        public Map<String, Object> getResolvedValues() {
             return resolveValues;
         }
 
         public enum Status {
-            SUCCESS, FAILURE
+            SUCCESS,
+            FAILURE
         }
 
         private final String type;

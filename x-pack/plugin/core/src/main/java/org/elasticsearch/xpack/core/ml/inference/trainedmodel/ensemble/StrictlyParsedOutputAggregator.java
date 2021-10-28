@@ -6,6 +6,4 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
 
-
-public interface StrictlyParsedOutputAggregator extends OutputAggregator {
-}
+public interface StrictlyParsedOutputAggregator extends OutputAggregator {}

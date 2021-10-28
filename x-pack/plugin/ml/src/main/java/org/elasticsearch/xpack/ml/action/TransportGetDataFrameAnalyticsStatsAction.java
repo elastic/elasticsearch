@@ -71,95 +71,120 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class TransportGetDataFrameAnalyticsStatsAction
-    extends TransportTasksAction<DataFrameAnalyticsTask, GetDataFrameAnalyticsStatsAction.Request,
-        GetDataFrameAnalyticsStatsAction.Response, QueryPage<Stats>> {
+public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAction<
+    DataFrameAnalyticsTask,
+    GetDataFrameAnalyticsStatsAction.Request,
+    GetDataFrameAnalyticsStatsAction.Response,
+    QueryPage<Stats>> {
 
     private static final Logger logger = LogManager.getLogger(TransportGetDataFrameAnalyticsStatsAction.class);
 
     private final Client client;
 
     @Inject
-    public TransportGetDataFrameAnalyticsStatsAction(TransportService transportService, ClusterService clusterService, Client client,
-                                                     ActionFilters actionFilters) {
-        super(GetDataFrameAnalyticsStatsAction.NAME, clusterService, transportService, actionFilters,
-            GetDataFrameAnalyticsStatsAction.Request::new, GetDataFrameAnalyticsStatsAction.Response::new,
-            in -> new QueryPage<>(in, GetDataFrameAnalyticsStatsAction.Response.Stats::new), ThreadPool.Names.MANAGEMENT);
+    public TransportGetDataFrameAnalyticsStatsAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        Client client,
+        ActionFilters actionFilters
+    ) {
+        super(
+            GetDataFrameAnalyticsStatsAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            GetDataFrameAnalyticsStatsAction.Request::new,
+            GetDataFrameAnalyticsStatsAction.Response::new,
+            in -> new QueryPage<>(in, GetDataFrameAnalyticsStatsAction.Response.Stats::new),
+            ThreadPool.Names.MANAGEMENT
+        );
         this.client = client;
     }
 
     @Override
-    protected GetDataFrameAnalyticsStatsAction.Response newResponse(GetDataFrameAnalyticsStatsAction.Request request,
-                                                                    List<QueryPage<Stats>> tasks,
-                                                                    List<TaskOperationFailure> taskFailures,
-                                                                    List<FailedNodeException> nodeFailures) {
+    protected GetDataFrameAnalyticsStatsAction.Response newResponse(
+        GetDataFrameAnalyticsStatsAction.Request request,
+        List<QueryPage<Stats>> tasks,
+        List<TaskOperationFailure> taskFailures,
+        List<FailedNodeException> nodeFailures
+    ) {
         List<Stats> stats = new ArrayList<>();
         for (QueryPage<Stats> task : tasks) {
             stats.addAll(task.results());
         }
         Collections.sort(stats, Comparator.comparing(Stats::getId));
-        return new GetDataFrameAnalyticsStatsAction.Response(taskFailures, nodeFailures, new QueryPage<>(stats, stats.size(),
-            GetDataFrameAnalyticsAction.Response.RESULTS_FIELD));
+        return new GetDataFrameAnalyticsStatsAction.Response(
+            taskFailures,
+            nodeFailures,
+            new QueryPage<>(stats, stats.size(), GetDataFrameAnalyticsAction.Response.RESULTS_FIELD)
+        );
     }
 
     @Override
-    protected void taskOperation(GetDataFrameAnalyticsStatsAction.Request request, DataFrameAnalyticsTask task,
-                                 ActionListener<QueryPage<Stats>> listener) {
+    protected void taskOperation(
+        GetDataFrameAnalyticsStatsAction.Request request,
+        DataFrameAnalyticsTask task,
+        ActionListener<QueryPage<Stats>> listener
+    ) {
         logger.debug("Get stats for running task [{}]", task.getParams().getId());
 
-        ActionListener<Void> updateProgressListener = ActionListener.wrap(
-            aVoid -> {
-                StatsHolder statsHolder = task.getStatsHolder();
-                if (statsHolder == null) {
-                    // The task has just been assigned and has not been initialized with its stats holder yet.
-                    // We return empty result here so that we treat it as a stopped task and return its stored stats.
-                    listener.onResponse(new QueryPage<>(Collections.emptyList(), 0, GetDataFrameAnalyticsAction.Response.RESULTS_FIELD));
-                    return;
-                }
-                Stats stats = buildStats(
-                    task.getParams().getId(),
-                    statsHolder.getProgressTracker().report(),
-                    statsHolder.getDataCountsTracker().report(),
-                    statsHolder.getMemoryUsage(),
-                    statsHolder.getAnalysisStats()
-                );
-                listener.onResponse(new QueryPage<>(Collections.singletonList(stats), 1,
-                    GetDataFrameAnalyticsAction.Response.RESULTS_FIELD));
-            }, listener::onFailure
-        );
+        ActionListener<Void> updateProgressListener = ActionListener.wrap(aVoid -> {
+            StatsHolder statsHolder = task.getStatsHolder();
+            if (statsHolder == null) {
+                // The task has just been assigned and has not been initialized with its stats holder yet.
+                // We return empty result here so that we treat it as a stopped task and return its stored stats.
+                listener.onResponse(new QueryPage<>(Collections.emptyList(), 0, GetDataFrameAnalyticsAction.Response.RESULTS_FIELD));
+                return;
+            }
+            Stats stats = buildStats(
+                task.getParams().getId(),
+                statsHolder.getProgressTracker().report(),
+                statsHolder.getDataCountsTracker().report(),
+                statsHolder.getMemoryUsage(),
+                statsHolder.getAnalysisStats()
+            );
+            listener.onResponse(new QueryPage<>(Collections.singletonList(stats), 1, GetDataFrameAnalyticsAction.Response.RESULTS_FIELD));
+        }, listener::onFailure);
 
         // We must update the progress of the reindexing task as it might be stale
         task.updateTaskProgress(updateProgressListener);
     }
 
     @Override
-    protected void doExecute(Task task, GetDataFrameAnalyticsStatsAction.Request request,
-                             ActionListener<GetDataFrameAnalyticsStatsAction.Response> listener) {
+    protected void doExecute(
+        Task task,
+        GetDataFrameAnalyticsStatsAction.Request request,
+        ActionListener<GetDataFrameAnalyticsStatsAction.Response> listener
+    ) {
         logger.debug("Get stats for data frame analytics [{}]", request.getId());
 
-        ActionListener<GetDataFrameAnalyticsAction.Response> getResponseListener = ActionListener.wrap(
-            getResponse -> {
-                List<String> expandedIds = getResponse.getResources().results().stream().map(DataFrameAnalyticsConfig::getId)
-                    .collect(Collectors.toList());
-                request.setExpandedIds(expandedIds);
-                ActionListener<GetDataFrameAnalyticsStatsAction.Response> runningTasksStatsListener = ActionListener.wrap(
-                    runningTasksStatsResponse -> gatherStatsForStoppedTasks(getResponse.getResources().results(), runningTasksStatsResponse,
-                        ActionListener.wrap(
-                            finalResponse -> {
+        ActionListener<GetDataFrameAnalyticsAction.Response> getResponseListener = ActionListener.wrap(getResponse -> {
+            List<String> expandedIds = getResponse.getResources()
+                .results()
+                .stream()
+                .map(DataFrameAnalyticsConfig::getId)
+                .collect(Collectors.toList());
+            request.setExpandedIds(expandedIds);
+            ActionListener<GetDataFrameAnalyticsStatsAction.Response> runningTasksStatsListener = ActionListener.wrap(
+                runningTasksStatsResponse -> gatherStatsForStoppedTasks(
+                    getResponse.getResources().results(),
+                    runningTasksStatsResponse,
+                    ActionListener.wrap(finalResponse -> {
 
-                                // While finalResponse has all the stats objects we need, we should report the count
-                                // from the get response
-                                QueryPage<Stats> finalStats = new QueryPage<>(finalResponse.getResponse().results(),
-                                    getResponse.getResources().count(), GetDataFrameAnalyticsAction.Response.RESULTS_FIELD);
-                                listener.onResponse(new GetDataFrameAnalyticsStatsAction.Response(finalStats));
-                            },
-                            listener::onFailure)),
-                    listener::onFailure
-                );
-                super.doExecute(task, request, runningTasksStatsListener);
-            },
-            listener::onFailure
-        );
+                        // While finalResponse has all the stats objects we need, we should report the count
+                        // from the get response
+                        QueryPage<Stats> finalStats = new QueryPage<>(
+                            finalResponse.getResponse().results(),
+                            getResponse.getResources().count(),
+                            GetDataFrameAnalyticsAction.Response.RESULTS_FIELD
+                        );
+                        listener.onResponse(new GetDataFrameAnalyticsStatsAction.Response(finalStats));
+                    }, listener::onFailure)
+                ),
+                listener::onFailure
+            );
+            super.doExecute(task, request, runningTasksStatsListener);
+        }, listener::onFailure);
 
         GetDataFrameAnalyticsAction.Request getRequest = new GetDataFrameAnalyticsAction.Request();
         getRequest.setResourceId(request.getId());
@@ -168,8 +193,11 @@ public class TransportGetDataFrameAnalyticsStatsAction
         executeAsyncWithOrigin(client, ML_ORIGIN, GetDataFrameAnalyticsAction.INSTANCE, getRequest, getResponseListener);
     }
 
-    void gatherStatsForStoppedTasks(List<DataFrameAnalyticsConfig> configs, GetDataFrameAnalyticsStatsAction.Response runningTasksResponse,
-                                    ActionListener<GetDataFrameAnalyticsStatsAction.Response> listener) {
+    void gatherStatsForStoppedTasks(
+        List<DataFrameAnalyticsConfig> configs,
+        GetDataFrameAnalyticsStatsAction.Response runningTasksResponse,
+        ActionListener<GetDataFrameAnalyticsStatsAction.Response> listener
+    ) {
         List<DataFrameAnalyticsConfig> stoppedConfigs = determineStoppedConfigs(configs, runningTasksResponse.getResponse().results());
         if (stoppedConfigs.isEmpty()) {
             listener.onResponse(runningTasksResponse);
@@ -182,29 +210,29 @@ public class TransportGetDataFrameAnalyticsStatsAction
         for (int i = 0; i < stoppedConfigs.size(); i++) {
             final int slot = i;
             DataFrameAnalyticsConfig config = stoppedConfigs.get(i);
-            searchStats(config, ActionListener.wrap(
-                stats -> {
-                    jobStats.set(slot, stats);
-                    if (counter.decrementAndGet() == 0) {
-                        if (searchException.get() != null) {
-                            listener.onFailure(searchException.get());
-                            return;
-                        }
-                        List<Stats> allTasksStats = new ArrayList<>(runningTasksResponse.getResponse().results());
-                        allTasksStats.addAll(jobStats.asList());
-                        Collections.sort(allTasksStats, Comparator.comparing(Stats::getId));
-                        listener.onResponse(new GetDataFrameAnalyticsStatsAction.Response(new QueryPage<>(
-                            allTasksStats, allTasksStats.size(), GetDataFrameAnalyticsAction.Response.RESULTS_FIELD)));
+            searchStats(config, ActionListener.wrap(stats -> {
+                jobStats.set(slot, stats);
+                if (counter.decrementAndGet() == 0) {
+                    if (searchException.get() != null) {
+                        listener.onFailure(searchException.get());
+                        return;
                     }
-                },
-                e -> {
-                    // take the first error
-                    searchException.compareAndSet(null, e);
-                    if (counter.decrementAndGet() == 0) {
-                        listener.onFailure(e);
-                    }
-                })
-            );
+                    List<Stats> allTasksStats = new ArrayList<>(runningTasksResponse.getResponse().results());
+                    allTasksStats.addAll(jobStats.asList());
+                    Collections.sort(allTasksStats, Comparator.comparing(Stats::getId));
+                    listener.onResponse(
+                        new GetDataFrameAnalyticsStatsAction.Response(
+                            new QueryPage<>(allTasksStats, allTasksStats.size(), GetDataFrameAnalyticsAction.Response.RESULTS_FIELD)
+                        )
+                    );
+                }
+            }, e -> {
+                // take the first error
+                searchException.compareAndSet(null, e);
+                if (counter.decrementAndGet() == 0) {
+                    listener.onFailure(e);
+                }
+            }));
         }
     }
 
@@ -217,7 +245,8 @@ public class TransportGetDataFrameAnalyticsStatsAction
         logger.debug("[{}] Gathering stats for stopped task", config.getId());
 
         RetrievedStatsHolder retrievedStatsHolder = new RetrievedStatsHolder(
-            ProgressTracker.fromZeroes(config.getAnalysis().getProgressPhases(), config.getAnalysis().supportsInference()).report());
+            ProgressTracker.fromZeroes(config.getAnalysis().getProgressPhases(), config.getAnalysis().supportsInference()).report()
+        );
 
         MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
         multiSearchRequest.add(buildStoredProgressSearch(config.getId()));
@@ -227,8 +256,12 @@ public class TransportGetDataFrameAnalyticsStatsAction
         multiSearchRequest.add(buildStatsDocSearch(config.getId(), ClassificationStats.TYPE_VALUE));
         multiSearchRequest.add(buildStatsDocSearch(config.getId(), RegressionStats.TYPE_VALUE));
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, MultiSearchAction.INSTANCE, multiSearchRequest, ActionListener.wrap(
-            multiSearchResponse -> {
+        executeAsyncWithOrigin(
+            client,
+            ML_ORIGIN,
+            MultiSearchAction.INSTANCE,
+            multiSearchRequest,
+            ActionListener.wrap(multiSearchResponse -> {
                 MultiSearchResponse.Item[] itemResponses = multiSearchResponse.getResponses();
                 for (int i = 0; i < itemResponses.length; ++i) {
                     MultiSearchResponse.Item itemResponse = itemResponses[i];
@@ -237,8 +270,13 @@ public class TransportGetDataFrameAnalyticsStatsAction
                         logger.error(
                             new ParameterizedMessage(
                                 "[{}] Item failure encountered during multi search for request [indices={}, source={}]: {}",
-                                config.getId(), itemRequest.indices(), itemRequest.source(), itemResponse.getFailureMessage()),
-                            itemResponse.getFailure());
+                                config.getId(),
+                                itemRequest.indices(),
+                                itemRequest.source(),
+                                itemResponse.getFailureMessage()
+                            ),
+                            itemResponse.getFailure()
+                        );
                         listener.onFailure(ExceptionsHelper.serverError(itemResponse.getFailureMessage(), itemResponse.getFailure()));
                         return;
                     } else {
@@ -252,15 +290,17 @@ public class TransportGetDataFrameAnalyticsStatsAction
                         }
                     }
                 }
-                listener.onResponse(buildStats(config.getId(),
-                    retrievedStatsHolder.progress.get(),
-                    retrievedStatsHolder.dataCounts,
-                    retrievedStatsHolder.memoryUsage,
-                    retrievedStatsHolder.analysisStats
-                ));
-            },
-            e -> listener.onFailure(ExceptionsHelper.serverError("Error searching for stats", e))
-        ));
+                listener.onResponse(
+                    buildStats(
+                        config.getId(),
+                        retrievedStatsHolder.progress.get(),
+                        retrievedStatsHolder.dataCounts,
+                        retrievedStatsHolder.memoryUsage,
+                        retrievedStatsHolder.analysisStats
+                    )
+                );
+            }, e -> listener.onFailure(ExceptionsHelper.serverError("Error searching for stats", e)))
+        );
     }
 
     private static SearchRequest buildStoredProgressSearch(String configId) {
@@ -279,9 +319,13 @@ public class TransportGetDataFrameAnalyticsStatsAction
             .filter(QueryBuilders.termQuery(Fields.JOB_ID.getPreferredName(), configId))
             .filter(QueryBuilders.termQuery(Fields.TYPE.getPreferredName(), statsType));
         searchRequest.source().query(query);
-        searchRequest.source().sort(SortBuilders.fieldSort(Fields.TIMESTAMP.getPreferredName()).order(SortOrder.DESC)
-            // We need this for the search not to fail when there are no mappings yet in the index
-            .unmappedType("long"));
+        searchRequest.source()
+            .sort(
+                SortBuilders.fieldSort(Fields.TIMESTAMP.getPreferredName())
+                    .order(SortOrder.DESC)
+                    // We need this for the search not to fail when there are no mappings yet in the index
+                    .unmappedType("long")
+            );
         return searchRequest;
     }
 
@@ -304,11 +348,13 @@ public class TransportGetDataFrameAnalyticsStatsAction
         }
     }
 
-    private GetDataFrameAnalyticsStatsAction.Response.Stats buildStats(String concreteAnalyticsId,
-                                                                       List<PhaseProgress> progress,
-                                                                       DataCounts dataCounts,
-                                                                       MemoryUsage memoryUsage,
-                                                                       AnalysisStats analysisStats) {
+    private GetDataFrameAnalyticsStatsAction.Response.Stats buildStats(
+        String concreteAnalyticsId,
+        List<PhaseProgress> progress,
+        DataCounts dataCounts,
+        MemoryUsage memoryUsage,
+        AnalysisStats analysisStats
+    ) {
         ClusterState clusterState = clusterService.state();
         PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         PersistentTasksCustomMetadata.PersistentTask<?> analyticsTask = MlTasks.getDataFrameAnalyticsTask(concreteAnalyticsId, tasks);

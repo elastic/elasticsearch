@@ -37,15 +37,20 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
         super(NAME, GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse::new);
     }
 
-    public static class TransportGetCcrRestoreFileChunkAction
-        extends HandledTransportAction<GetCcrRestoreFileChunkRequest, GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse> {
+    public static class TransportGetCcrRestoreFileChunkAction extends HandledTransportAction<
+        GetCcrRestoreFileChunkRequest,
+        GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse> {
 
         private final CcrRestoreSourceService restoreSourceService;
         private final BigArrays bigArrays;
 
         @Inject
-        public TransportGetCcrRestoreFileChunkAction(BigArrays bigArrays, TransportService transportService, ActionFilters actionFilters,
-                                                     CcrRestoreSourceService restoreSourceService) {
+        public TransportGetCcrRestoreFileChunkAction(
+            BigArrays bigArrays,
+            TransportService transportService,
+            ActionFilters actionFilters,
+            CcrRestoreSourceService restoreSourceService
+        ) {
             super(NAME, transportService, actionFilters, GetCcrRestoreFileChunkRequest::new, ThreadPool.Names.GENERIC);
             TransportActionProxy.registerProxyAction(transportService, NAME, false, GetCcrRestoreFileChunkResponse::new);
             this.restoreSourceService = restoreSourceService;
@@ -53,8 +58,11 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
         }
 
         @Override
-        protected void doExecute(Task task, GetCcrRestoreFileChunkRequest request,
-                                 ActionListener<GetCcrRestoreFileChunkResponse> listener) {
+        protected void doExecute(
+            Task task,
+            GetCcrRestoreFileChunkRequest request,
+            ActionListener<GetCcrRestoreFileChunkResponse> listener
+        ) {
             int bytesRequested = request.getSize();
             ByteArray array = bigArrays.newByteArray(bytesRequested, false);
             String fileName = request.getFileName();

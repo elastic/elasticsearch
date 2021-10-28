@@ -28,21 +28,38 @@ public class SpatialUsageTransportAction extends XPackUsageFeatureTransportActio
     private final Client client;
 
     @Inject
-    public SpatialUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                       Client client) {
-        super(XPackUsageFeatureAction.SPATIAL.name(), transportService, clusterService,
-            threadPool, actionFilters, indexNameExpressionResolver);
+    public SpatialUsageTransportAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Client client
+    ) {
+        super(
+            XPackUsageFeatureAction.SPATIAL.name(),
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            indexNameExpressionResolver
+        );
         this.client = client;
     }
 
     @Override
-    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
-                                   ActionListener<XPackUsageFeatureResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        XPackUsageRequest request,
+        ClusterState state,
+        ActionListener<XPackUsageFeatureResponse> listener
+    ) {
         SpatialStatsAction.Request statsRequest = new SpatialStatsAction.Request();
         statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-        client.execute(SpatialStatsAction.INSTANCE, statsRequest, ActionListener.wrap(r ->
-                listener.onResponse(new XPackUsageFeatureResponse(new SpatialFeatureSetUsage(r))),
-            listener::onFailure));
+        client.execute(
+            SpatialStatsAction.INSTANCE,
+            statsRequest,
+            ActionListener.wrap(r -> listener.onResponse(new XPackUsageFeatureResponse(new SpatialFeatureSetUsage(r))), listener::onFailure)
+        );
     }
 }

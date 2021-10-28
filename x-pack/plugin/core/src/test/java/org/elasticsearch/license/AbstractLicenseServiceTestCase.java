@@ -90,8 +90,13 @@ public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
     }
 
     protected DiscoveryNode getLocalNode() {
-        return new DiscoveryNode("b", buildNewFakeTransportAddress(), singletonMap(XPackPlugin.XPACK_INSTALLED_NODE_ATTR, "true"),
-            emptySet(), Version.CURRENT);
+        return new DiscoveryNode(
+            "b",
+            buildNewFakeTransportAddress(),
+            singletonMap(XPackPlugin.XPACK_INSTALLED_NODE_ATTR, "true"),
+            emptySet(),
+            Version.CURRENT
+        );
     }
 
     @After

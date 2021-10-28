@@ -97,7 +97,8 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
             TIMESTAMP_FIELD,
             TimeValue.timeValueMinutes(10),
             TimeValue.ZERO,
-            tuple(0L, 123000000L));
+            tuple(0L, 123000000L)
+        );
     }
 
     public void testSourceHasChanged_Changed() throws InterruptedException {
@@ -148,17 +149,23 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
         );
     }
 
-    private void testSourceHasChanged(long totalHits,
-                                      boolean expectedHasChangedValue,
-                                      TransformCheckpoint lastCheckpoint,
-                                      String dateHistogramField,
-                                      TimeValue dateHistogramInterval,
-                                      TimeValue delay,
-                                      Tuple<Long, Long> expectedRangeQueryBounds) throws InterruptedException {
+    private void testSourceHasChanged(
+        long totalHits,
+        boolean expectedHasChangedValue,
+        TransformCheckpoint lastCheckpoint,
+        String dateHistogramField,
+        TimeValue dateHistogramInterval,
+        TimeValue delay,
+        Tuple<Long, Long> expectedRangeQueryBounds
+    ) throws InterruptedException {
         doAnswer(withResponse(newSearchResponse(totalHits))).when(client).execute(eq(SearchAction.INSTANCE), any(), any());
         String transformId = getTestName();
-        TransformConfig transformConfig =
-            newTransformConfigWithDateHistogram(transformId, dateHistogramField, dateHistogramInterval, delay);
+        TransformConfig transformConfig = newTransformConfigWithDateHistogram(
+            transformId,
+            dateHistogramField,
+            dateHistogramInterval,
+            delay
+        );
         TimeBasedCheckpointProvider provider = newCheckpointProvider(transformConfig);
 
         SetOnce<Boolean> hasChangedHolder = new SetOnce<>();
@@ -190,7 +197,8 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
             TimeValue.timeValueMinutes(10),
             TimeValue.ZERO,
             new TransformCheckpoint(transformId, 100000000L, 7, emptyMap(), 120000000L),
-            new TransformCheckpoint(transformId, 123456789L, 8, emptyMap(), 123000000L));
+            new TransformCheckpoint(transformId, 123456789L, 8, emptyMap(), 123000000L)
+        );
     }
 
     public void testCreateNextCheckpoint_SmallDelay() throws InterruptedException {
@@ -201,7 +209,8 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
             TimeValue.timeValueMinutes(10),
             TimeValue.timeValueMinutes(5),
             new TransformCheckpoint(transformId, 100000000L, 7, emptyMap(), 120000000L),
-            new TransformCheckpoint(transformId, 123456789L, 8, emptyMap(), 123000000L));
+            new TransformCheckpoint(transformId, 123456789L, 8, emptyMap(), 123000000L)
+        );
     }
 
     public void testCreateNextCheckpoint_BigDelay() throws InterruptedException {
@@ -212,31 +221,38 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
             TimeValue.timeValueMinutes(10),
             TimeValue.timeValueMinutes(10),
             new TransformCheckpoint(transformId, 100000000L, 7, emptyMap(), 120000000L),
-            new TransformCheckpoint(transformId, 123456789L, 8, emptyMap(), 122400000L));
+            new TransformCheckpoint(transformId, 123456789L, 8, emptyMap(), 122400000L)
+        );
     }
 
-    private void testCreateNextCheckpoint(String transformId,
-                                          String dateHistogramField,
-                                          TimeValue dateHistogramInterval,
-                                          TimeValue delay,
-                                          TransformCheckpoint lastCheckpoint,
-                                          TransformCheckpoint expectedNextCheckpoint) throws InterruptedException {
-        GetIndexResponse getIndexResponse =
-            new GetIndexResponse(
-                new String[] { "some-index" },
-                ImmutableOpenMap.of(),
-                ImmutableOpenMap.of(),
-                ImmutableOpenMap.of(),
-                ImmutableOpenMap.of(),
-                ImmutableOpenMap.of());
+    private void testCreateNextCheckpoint(
+        String transformId,
+        String dateHistogramField,
+        TimeValue dateHistogramInterval,
+        TimeValue delay,
+        TransformCheckpoint lastCheckpoint,
+        TransformCheckpoint expectedNextCheckpoint
+    ) throws InterruptedException {
+        GetIndexResponse getIndexResponse = new GetIndexResponse(
+            new String[] { "some-index" },
+            ImmutableOpenMap.of(),
+            ImmutableOpenMap.of(),
+            ImmutableOpenMap.of(),
+            ImmutableOpenMap.of(),
+            ImmutableOpenMap.of()
+        );
         doAnswer(withResponse(getIndexResponse)).when(client).execute(eq(GetIndexAction.INSTANCE), any(), any());
         IndicesStatsResponse indicesStatsResponse = mock(IndicesStatsResponse.class);
         when(indicesStatsResponse.getShards()).thenReturn(new ShardStats[0]);
         when(indicesStatsResponse.getFailedShards()).thenReturn(0);
         doAnswer(withResponse(indicesStatsResponse)).when(client).execute(eq(IndicesStatsAction.INSTANCE), any(), any());
 
-        TransformConfig transformConfig =
-            newTransformConfigWithDateHistogram(transformId, dateHistogramField, dateHistogramInterval, delay);
+        TransformConfig transformConfig = newTransformConfigWithDateHistogram(
+            transformId,
+            dateHistogramField,
+            dateHistogramInterval,
+            delay
+        );
         TimeBasedCheckpointProvider provider = newCheckpointProvider(transformConfig);
 
         SetOnce<TransformCheckpoint> checkpointHolder = new SetOnce<>();
@@ -262,10 +278,12 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
         );
     }
 
-    private static TransformConfig newTransformConfigWithDateHistogram(String transformId,
-                                                                       String dateHistogramField,
-                                                                       TimeValue dateHistogramInterval,
-                                                                       TimeValue delay) {
+    private static TransformConfig newTransformConfigWithDateHistogram(
+        String transformId,
+        String dateHistogramField,
+        TimeValue dateHistogramInterval,
+        TimeValue delay
+    ) {
         DateHistogramGroupSource dateHistogramGroupSource = new DateHistogramGroupSource(
             dateHistogramField,
             null,
@@ -273,22 +291,19 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
             new DateHistogramGroupSource.FixedInterval(new DateHistogramInterval(dateHistogramInterval.getStringRep())),
             null
         );
-        Supplier<SingleGroupSource> singleGroupSourceSupplier =
-            new Supplier<>() {
-                int groupCount = 0;
-                @Override
-                public SingleGroupSource get() {
-                    return ++groupCount == 1
-                        ? dateHistogramGroupSource
-                        : GroupConfigTests.randomSingleGroupSource(Version.CURRENT);
-                }
-            };
-        PivotConfig pivotConfigWithDateHistogramSource =
-            new PivotConfig(
-                GroupConfigTests.randomGroupConfig(singleGroupSourceSupplier),
-                AggregationConfigTests.randomAggregationConfig(),
-                null // deprecated
-            );
+        Supplier<SingleGroupSource> singleGroupSourceSupplier = new Supplier<>() {
+            int groupCount = 0;
+
+            @Override
+            public SingleGroupSource get() {
+                return ++groupCount == 1 ? dateHistogramGroupSource : GroupConfigTests.randomSingleGroupSource(Version.CURRENT);
+            }
+        };
+        PivotConfig pivotConfigWithDateHistogramSource = new PivotConfig(
+            GroupConfigTests.randomGroupConfig(singleGroupSourceSupplier),
+            AggregationConfigTests.randomAggregationConfig(),
+            null // deprecated
+        );
         SettingsConfig.Builder settingsConfigBuilder = new SettingsConfig.Builder();
         if (randomBoolean()) {
             settingsConfigBuilder.setAlignCheckpoints(
@@ -296,15 +311,14 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
                     // Set align_checkpoints setting explicitly to "true".
                     ? true
                     // Set align_checkpoints setting explicitly to "null". This will be interpreted as "true".
-                    : null);
+                    : null
+            );
         } else {
             // Leave align_checkpoints setting unset. This will be interpreted as "true".
         }
-        return new TransformConfig.Builder(TransformConfigTests.randomTransformConfig(transformId))
-            .setSettings(settingsConfigBuilder.build())
-            .setPivotConfig(pivotConfigWithDateHistogramSource)
-            .setSyncConfig(new TimeSyncConfig(TIMESTAMP_FIELD, delay))
-            .build();
+        return new TransformConfig.Builder(TransformConfigTests.randomTransformConfig(transformId)).setSettings(
+            settingsConfigBuilder.build()
+        ).setPivotConfig(pivotConfigWithDateHistogramSource).setSyncConfig(new TimeSyncConfig(TIMESTAMP_FIELD, delay)).build();
     }
 
     private static SearchResponse newSearchResponse(long totalHits) {

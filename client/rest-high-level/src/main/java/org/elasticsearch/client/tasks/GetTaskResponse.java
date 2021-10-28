@@ -7,10 +7,10 @@
  */
 package org.elasticsearch.client.tasks;
 
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -33,8 +33,11 @@ public class GetTaskResponse {
         return taskInfo;
     }
 
-    private static final ConstructingObjectParser<GetTaskResponse, Void> PARSER = new ConstructingObjectParser<>("get_task",
-            true, a -> new GetTaskResponse((boolean) a[0],  (TaskInfo) a[1]));
+    private static final ConstructingObjectParser<GetTaskResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "get_task",
+        true,
+        a -> new GetTaskResponse((boolean) a[0], (TaskInfo) a[1])
+    );
     static {
         PARSER.declareBoolean(constructorArg(), COMPLETED);
         PARSER.declareObject(constructorArg(), (p, c) -> TaskInfo.fromXContent(p), TASK);

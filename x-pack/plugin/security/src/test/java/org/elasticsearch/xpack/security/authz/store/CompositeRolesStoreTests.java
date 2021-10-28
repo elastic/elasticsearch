@@ -648,7 +648,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             Sets.newHashSet(flsRole, addsL1Fields),
             cache,
             null,
-            RESTRICTED_INDICES_AUTOMATON,
+            TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON,
             future
         );
         Role role = future.actionGet();
@@ -756,7 +756,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             Sets.newHashSet(role1, role2),
             cache,
             privilegeStore,
-            RESTRICTED_INDICES_AUTOMATON,
+            TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON,
             future
         );
         Role role = future.actionGet();
@@ -1617,7 +1617,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testXPackUserCanAccessNonRestrictedIndices() {
-        CharacterRunAutomaton restrictedAutomaton = new CharacterRunAutomaton(RESTRICTED_INDICES_AUTOMATON);
+        CharacterRunAutomaton restrictedAutomaton = new CharacterRunAutomaton(TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON);
         for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
             Predicate<IndexAbstraction> predicate = getXPackUserRole().indices().allowedIndicesMatcher(action);
             IndexAbstraction index = mockIndexAbstraction(randomAlphaOfLengthBetween(3, 12));
@@ -1657,7 +1657,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testAsyncSearchUserCannotAccessNonRestrictedIndices() {
-        CharacterRunAutomaton restrictedAutomaton = new CharacterRunAutomaton(RESTRICTED_INDICES_AUTOMATON);
+        CharacterRunAutomaton restrictedAutomaton = new CharacterRunAutomaton(TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON);
         for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
             Predicate<IndexAbstraction> predicate = getAsyncSearchUserRole().indices().allowedIndicesMatcher(action);
             IndexAbstraction index = mockIndexAbstraction(randomAlphaOfLengthBetween(3, 12));

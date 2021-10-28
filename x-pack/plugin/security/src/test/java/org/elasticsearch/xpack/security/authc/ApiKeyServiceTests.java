@@ -300,10 +300,10 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         final AuthenticationResult<User> auth = tryAuthenticate(service, id, key);
         assertThat(auth.getStatus(), is(AuthenticationResult.Status.SUCCESS));
-        assertThat(auth.getUser(), notNullValue());
-        assertThat(auth.getUser().principal(), is("hulk"));
-        assertThat(auth.getUser().fullName(), is("Bruce Banner"));
-        assertThat(auth.getUser().email(), is("hulk@test.com"));
+        assertThat(auth.getValue(), notNullValue());
+        assertThat(auth.getValue().principal(), is("hulk"));
+        assertThat(auth.getValue().fullName(), is("Bruce Banner"));
+        assertThat(auth.getValue().email(), is("hulk@test.com"));
         assertThat(auth.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME), is("realm1"));
         assertThat(auth.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_TYPE), is("native"));
         assertThat(auth.getMetadata().get(AuthenticationField.API_KEY_ID_KEY), is(id));
@@ -497,11 +497,11 @@ public class ApiKeyServiceTests extends ESTestCase {
         AuthenticationResult<User> result = future.get();
         assertNotNull(result);
         assertTrue(result.isAuthenticated());
-        assertThat(result.getUser().principal(), is("test_user"));
-        assertThat(result.getUser().fullName(), is("test user"));
-        assertThat(result.getUser().email(), is("test@user.com"));
-        assertThat(result.getUser().roles(), is(emptyArray()));
-        assertThat(result.getUser().metadata(), is(Collections.emptyMap()));
+        assertThat(result.getValue().principal(), is("test_user"));
+        assertThat(result.getValue().fullName(), is("test user"));
+        assertThat(result.getValue().email(), is("test@user.com"));
+        assertThat(result.getValue().roles(), is(emptyArray()));
+        assertThat(result.getValue().metadata(), is(Collections.emptyMap()));
         assertThat(result.getMetadata().get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY), equalTo(apiKeyDoc.roleDescriptorsBytes));
         assertThat(result.getMetadata().get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
             equalTo(apiKeyDoc.limitedByRoleDescriptorsBytes));
@@ -519,11 +519,11 @@ public class ApiKeyServiceTests extends ESTestCase {
         result = future.get();
         assertNotNull(result);
         assertTrue(result.isAuthenticated());
-        assertThat(result.getUser().principal(), is("test_user"));
-        assertThat(result.getUser().fullName(), is("test user"));
-        assertThat(result.getUser().email(), is("test@user.com"));
-        assertThat(result.getUser().roles(), is(emptyArray()));
-        assertThat(result.getUser().metadata(), is(Collections.emptyMap()));
+        assertThat(result.getValue().principal(), is("test_user"));
+        assertThat(result.getValue().fullName(), is("test user"));
+        assertThat(result.getValue().email(), is("test@user.com"));
+        assertThat(result.getValue().roles(), is(emptyArray()));
+        assertThat(result.getValue().metadata(), is(Collections.emptyMap()));
         assertThat(result.getMetadata().get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY), equalTo(apiKeyDoc.roleDescriptorsBytes));
         assertThat(result.getMetadata().get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
             equalTo(apiKeyDoc.limitedByRoleDescriptorsBytes));
@@ -1511,14 +1511,14 @@ public class ApiKeyServiceTests extends ESTestCase {
                 assert authenticationResult.getStatus() == AuthenticationResult.Status.SUCCESS;
                 Map<String, Object> authenticationResultMetadata = new HashMap<>(authenticationResult.getMetadata());
                 authenticationResultMetadata.remove(AuthenticationField.API_KEY_CREATOR_REALM_NAME);
-                authenticationResult = AuthenticationResult.success(authenticationResult.getUser(), authenticationResultMetadata);
+                authenticationResult = AuthenticationResult.success(authenticationResult.getValue(), authenticationResultMetadata);
             }
             if (randomBoolean()) {
                 // simulate authentication with nameless API Key, see https://github.com/elastic/elasticsearch/issues/59484
                 assert authenticationResult.getStatus() == AuthenticationResult.Status.SUCCESS;
                 Map<String, Object> authenticationResultMetadata = new HashMap<>(authenticationResult.getMetadata());
                 authenticationResultMetadata.remove(AuthenticationField.API_KEY_NAME_KEY);
-                authenticationResult = AuthenticationResult.success(authenticationResult.getUser(), authenticationResultMetadata);
+                authenticationResult = AuthenticationResult.success(authenticationResult.getValue(), authenticationResultMetadata);
             }
 
             final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);

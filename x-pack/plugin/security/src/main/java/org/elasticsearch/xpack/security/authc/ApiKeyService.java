@@ -448,7 +448,7 @@ public class ApiKeyService {
         if (false == authResult.isAuthenticated()) {
             throw new IllegalArgumentException("API Key authn result must be successful");
         }
-        final User user = authResult.getUser();
+        final User user = authResult.getValue();
         final RealmRef authenticatedBy = new RealmRef(AuthenticationField.API_KEY_REALM_NAME, AuthenticationField.API_KEY_REALM_TYPE,
             nodeName);
         return new Authentication(user, authenticatedBy, null, Version.CURRENT, Authentication.AuthenticationType.API_KEY,

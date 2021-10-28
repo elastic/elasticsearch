@@ -116,7 +116,6 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
         this.lock = lock;
     }
 
-
     /**
      * Get the current state of the indexer.
      */
@@ -404,16 +403,14 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     /**
      * Called after onFinish or after onFailure and all the following steps - in particular state persistence - are completed.
      */
-    protected void afterFinishOrFailure() {
-    }
+    protected void afterFinishOrFailure() {}
 
     /**
      * Called when the indexer is stopped. This is only called when the indexer is stopped
      * via {@link #stop()} as opposed to {@link #onFinish(ActionListener)} which is called
      * when the indexer's work is done.
      */
-    protected void onStop() {
-    }
+    protected void onStop() {}
 
     /**
      * Called when a background job detects that the indexer is aborted causing the
@@ -446,30 +443,30 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             callOnAbort.set(false);
             callOnStop.set(false);
             switch (prev) {
-            case INDEXING:
-                // ready for another job
-                return IndexerState.STARTED;
+                case INDEXING:
+                    // ready for another job
+                    return IndexerState.STARTED;
 
-            case STOPPING:
-                callOnStop.set(true);
-                // must be started again
-                return IndexerState.STOPPED;
+                case STOPPING:
+                    callOnStop.set(true);
+                    // must be started again
+                    return IndexerState.STOPPED;
 
-            case ABORTING:
-                callOnAbort.set(true);
-                // abort and exit
-                return IndexerState.ABORTING; // This shouldn't matter, since onAbort() will kill the task first
+                case ABORTING:
+                    callOnAbort.set(true);
+                    // abort and exit
+                    return IndexerState.ABORTING; // This shouldn't matter, since onAbort() will kill the task first
 
-            case STOPPED:
-                // No-op. Shouldn't really be possible to get here (should have to go through
-                // STOPPING
-                // first which will be handled) but is harmless to no-op and we don't want to
-                // throw exception here
-                return IndexerState.STOPPED;
+                case STOPPED:
+                    // No-op. Shouldn't really be possible to get here (should have to go through
+                    // STOPPING
+                    // first which will be handled) but is harmless to no-op and we don't want to
+                    // throw exception here
+                    return IndexerState.STOPPED;
 
-            default:
-                // any other state is unanticipated at this point
-                throw new IllegalStateException("Indexer job encountered an illegal state [" + prev + "]");
+                default:
+                    // any other state is unanticipated at this point
+                    throw new IllegalStateException("Indexer job encountered an illegal state [" + prev + "]");
             }
         });
 
@@ -493,9 +490,12 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             if (searchResponse == null) {
                 logger.debug("No indexing necessary for job [{}], saving state and shutting down.", getJobId());
                 // execute finishing tasks
-                onFinish(ActionListener.wrap(
-                    r -> doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure),
-                    e -> doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure)));
+                onFinish(
+                    ActionListener.wrap(
+                        r -> doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure),
+                        e -> doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure)
+                    )
+                );
                 return;
             }
 
@@ -516,9 +516,12 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 position.set(iterationResult.getPosition());
                 stats.markEndProcessing();
                 // execute finishing tasks
-                onFinish(ActionListener.wrap(
+                onFinish(
+                    ActionListener.wrap(
                         r -> doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure),
-                        e -> doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure)));
+                        e -> doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure)
+                    )
+                );
                 return;
             }
 
@@ -595,18 +598,8 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             );
 
             if (executionDelay.duration() > 0) {
-                logger.debug(
-                    "throttling job [{}], wait for {} ({} {})",
-                    getJobId(),
-                    executionDelay,
-                    currentMaxDocsPerSecond,
-                    lastDocCount
-                );
-                scheduledNextSearch = new ScheduledRunnable(
-                    threadPool,
-                    executionDelay,
-                    () -> triggerNextSearch(executionDelay.getNanos())
-                );
+                logger.debug("throttling job [{}], wait for {} ({} {})", getJobId(), executionDelay, currentMaxDocsPerSecond, lastDocCount);
+                scheduledNextSearch = new ScheduledRunnable(threadPool, executionDelay, () -> triggerNextSearch(executionDelay.getNanos()));
 
                 // corner case: if meanwhile stop() has been called or state persistence has been requested: fast forward, run search now
                 if (getState().equals(IndexerState.STOPPING) || triggerSaveState()) {
@@ -638,27 +631,27 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
      */
     private boolean checkState(IndexerState currentState) {
         switch (currentState) {
-        case INDEXING:
-            // normal state;
-            return true;
+            case INDEXING:
+                // normal state;
+                return true;
 
-        case STOPPING:
-            logger.info("Indexer job encountered [" + IndexerState.STOPPING + "] state, halting indexer.");
-            doSaveState(finishAndSetState(), getPosition(), this::afterFinishOrFailure);
-            return false;
+            case STOPPING:
+                logger.info("Indexer job encountered [" + IndexerState.STOPPING + "] state, halting indexer.");
+                doSaveState(finishAndSetState(), getPosition(), this::afterFinishOrFailure);
+                return false;
 
-        case STOPPED:
-            return false;
+            case STOPPED:
+                return false;
 
-        case ABORTING:
-            logger.info("Requested shutdown of indexer for job [" + getJobId() + "]");
-            onAbort();
-            return false;
+            case ABORTING:
+                logger.info("Requested shutdown of indexer for job [" + getJobId() + "]");
+                onAbort();
+                return false;
 
-        default:
-            // Anything other than indexing, aborting or stopping is unanticipated
-            logger.warn("Encountered unexpected state [" + currentState + "] while indexing");
-            throw new IllegalStateException("Indexer job encountered an illegal state [" + currentState + "]");
+            default:
+                // Anything other than indexing, aborting or stopping is unanticipated
+                logger.warn("Encountered unexpected state [" + currentState + "] while indexing");
+                throw new IllegalStateException("Indexer job encountered an illegal state [" + currentState + "]");
         }
     }
 

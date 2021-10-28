@@ -68,6 +68,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -812,7 +813,6 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         assertDocumentsAreEqual(indexName, numDocs.get());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79455")
     public void testSeqNoBasedRecoveryIsUsedAfterPrimaryFailOver() throws Exception {
         List<String> dataNodes = internalCluster().startDataOnlyNodes(3);
         String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -1373,8 +1373,10 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         assertThat(indexRecoveries, notNullValue());
 
         List<RecoveryState> peerRecoveries = indexRecoveries.stream()
+            .filter(recoveryState -> recoveryState.getStage() == RecoveryState.Stage.DONE)
             .filter(recoveryState -> recoveryState.getRecoverySource().equals(RecoverySource.PeerRecoverySource.INSTANCE))
             .filter(recoveryState -> recoveryState.getShardId().getId() == shardId)
+            .sorted(Comparator.comparingLong(o -> o.getTimer().stopTime()))
             .collect(Collectors.toList());
 
         assertThat(peerRecoveries, is(not(empty())));

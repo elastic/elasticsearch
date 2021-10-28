@@ -32,7 +32,7 @@ prompted to switch to node roles when you:
 These actions automatically update your cluster configuration
 and {ilm-init} policies to use node roles. Additionally, upgrading to
 version 7.14 or higher automatically update {ilm-init} policies
-when there is any new plan change applied to your deployment.
+whenever any configuration change is applied to your deployment.
 
 
 If you use custom index templates, check them after the automatic migration

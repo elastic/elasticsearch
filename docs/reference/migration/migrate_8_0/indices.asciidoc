@@ -18,6 +18,22 @@ instead for that purpose.
 Requests made to the old `_upgrade` API will return an error.
 ====
 
+.The deprecated freeze index API has been removed.
+[%collapsible]
+====
+*Details* +
+The freeze index API (`POST /<index>/_freeze`) has been removed.
+https://www.elastic.co/blog/significantly-decrease-your-elasticsearch-heap-memory-usage[Improvements
+in heap memory usage] have eliminated the reason to freeze indices.
+You can still unfreeze existing frozen indices using the
+{ref}/unfreeze-index-api.html[unfreeze index API]. For some use cases, the
+frozen tier may be a suitable replacement for frozen indices. See
+{ref}/data-tiers.html[data tiers] for more information.
+
+*Impact* +
+Requests made to the old freeze index API will return an error.
+====
+
 .The force merge API's `max_num_segments` and `only_expunge_deletes` parameters cannot both be specified in the same request.
 [%collapsible]
 ====

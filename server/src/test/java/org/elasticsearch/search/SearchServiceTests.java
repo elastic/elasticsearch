@@ -764,7 +764,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         searchRequest.source(new SearchSourceBuilder().query(new MatchNoneQueryBuilder()));
         assertFalse(service.canMatch(new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 0, 1,
             new AliasFilter(null, Strings.EMPTY_ARRAY), 1f, -1, null)).canMatch());
-        assertEquals(0, numWrapInvocations.get());
+        assertEquals(6, numWrapInvocations.get());
 
         ShardSearchRequest request = new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 0, 1,
             new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null);
@@ -785,12 +785,13 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
         CountDownLatch latch = new CountDownLatch(1);
         SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
+        assertEquals(8, numWrapInvocations.get());
         service.executeQueryPhase(request, task, new ActionListener<SearchPhaseResult>() {
             @Override
             public void onResponse(SearchPhaseResult searchPhaseResult) {
                 try {
                     // make sure that the wrapper is called when the query is actually executed
-                    assertEquals(1, numWrapInvocations.get());
+                    assertEquals(9, numWrapInvocations.get());
                 } finally {
                     latch.countDown();
                 }

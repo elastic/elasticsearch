@@ -126,10 +126,7 @@ public class SearchGroupsResolverInMemoryTests extends LdapTestCase {
     public void testSearchWithConnectionPoolForOneResult() throws Exception {
         final LDAPURL ldapurl = new LDAPURL(ldapUrls()[0]);
 
-        try (LDAPConnectionPool pool =
-                     LdapUtils.privilegedConnect(() -> new LDAPConnectionPool(new SingleServerSet(ldapurl.getHost(), ldapurl.getPort()),
-                             new SimpleBindRequest("cn=Horatio Hornblower,ou=people,o=sevenSeas", "pass"), 0, 20))) {
-
+        try (LDAPConnectionPool pool = createConnectionPool(ldapurl)) {
             final Settings settings = Settings.builder()
                     .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.BIND_DN),
                             "cn=Horatio Hornblower,ou=people,o=sevenSeas")
@@ -149,13 +146,30 @@ public class SearchGroupsResolverInMemoryTests extends LdapTestCase {
         }
     }
 
+    private LDAPConnectionPool createConnectionPool(LDAPURL ldapurl) throws LDAPException {
+        return LdapUtils.privilegedConnect(() -> {
+            final LDAPConnectionPool pool = new LDAPConnectionPool(
+                new SingleServerSet(ldapurl.getHost(), ldapurl.getPort()),
+                new SimpleBindRequest("cn=Horatio Hornblower,ou=people,o=sevenSeas", "pass"),
+                0,
+                20
+            );
+            pool.setConnectionPoolName("pool-" + getTestName());
+            return pool;
+        });
+    }
+
     private void connect(LDAPConnectionOptions options) throws LDAPException {
         if (connection != null) {
             throw new IllegalStateException("Already connected (" + connection.getConnectionName() + ' '
                     + connection.getConnectedAddress() + ')');
         }
         final LDAPURL ldapurl = new LDAPURL(ldapUrls()[0]);
-        this.connection = LdapUtils.privilegedConnect(() -> new LDAPConnection(options, ldapurl.getHost(), ldapurl.getPort()));
+        this.connection = LdapUtils.privilegedConnect(() -> {
+            var c = new LDAPConnection(options, ldapurl.getHost(), ldapurl.getPort());
+            c.setConnectionName("test-connection-" + getTestName());
+            return c;
+        });
     }
 
     private List<String> resolveGroups(Settings settings, String userDn) {

@@ -14,11 +14,11 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -112,8 +112,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         SqlConfiguration cfg = new SqlConfiguration(request.zoneId(), request.catalog(), request.fetchSize(), request.requestTimeout(),
                 request.pageTimeout(), request.filter(), request.runtimeMappings(), request.mode(), request.clientId(), request.version(),
                 username, clusterName(clusterService), request.fieldMultiValueLeniency(), request.indexIncludeFrozen(),
-                new TaskId(clusterService.localNode().getId(), task.getId()), task,
-                request.waitForCompletionTimeout(), request.keepOnCompletion(), request.keepAlive());
+                new TaskId(clusterService.localNode().getId(), task.getId()), task);
 
         if (Strings.hasText(request.cursor()) == false) {
             executeRequestWithRetryAttempt(clusterService, listener::onFailure,

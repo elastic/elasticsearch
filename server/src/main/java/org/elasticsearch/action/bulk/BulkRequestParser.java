@@ -296,18 +296,18 @@ public final class BulkRequestParser {
                 }
                 try {
                     token = parser.nextToken();
-                    if (token != XContentParser.Token.END_OBJECT) {
-                        deprecationLogger.compatibleCritical(
-                            "bulk_request_strict_action_parsing",
-                            "A bulk action object contained multiple keys. Additional keys are currently ignored "
-                                + "but will be rejected in a future version."
-                        );
-                    }
                 } catch (JsonEOFException ignore) {
                     deprecationLogger.compatibleCritical(
                         "bulk_request_strict_action_parsing",
                         "A bulk action wasn't closed properly with a curly brace. Malformed objects are currently accepted but "
                             + "will be rejected in a future version."
+                    );
+                }
+                if (token != XContentParser.Token.END_OBJECT) {
+                    deprecationLogger.compatibleCritical(
+                        "bulk_request_strict_action_parsing",
+                        "A bulk action object contained multiple keys. Additional keys are currently ignored "
+                            + "but will be rejected in a future version."
                     );
                 }
                 if ("delete".equals(action)) {

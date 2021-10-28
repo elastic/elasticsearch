@@ -808,7 +808,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * @throws IOException
      */
     private void checkForUnexpectedlyRecreatedObjects() throws IOException {
-        if (hasIlm && false == preserveILMPoliciesUponCompletion()) {
+        if (hasXPack && false == preserveILMPoliciesUponCompletion()) {
             Set<String> unexpectedIlmPlicies = getAllUnexpectedIlmPolicies(preserveILMPolicyIds());
             assertTrue(
                 "Expected no ILM policies after deletions, but found " + unexpectedIlmPlicies.stream().collect(Collectors.joining(", ")),

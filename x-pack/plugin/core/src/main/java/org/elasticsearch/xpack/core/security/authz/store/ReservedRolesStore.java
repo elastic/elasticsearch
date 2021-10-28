@@ -301,7 +301,13 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             .indices(".ml-annotations*")
                             .privileges("view_index_metadata", "read", "write")
                             .build() },
-                    // TODO: remove Kibana privileges from ML backend roles in 8.0.0
+                    // This role also grants Kibana privileges related to ML.
+                    // This makes it completely clear to UI administrators that
+                    // if they grant the Elasticsearch backend role to a user then
+                    // they cannot expect Kibana privileges to stop that user from
+                    // accessing ML functionality - the user could switch to curl
+                    // or even Kibana dev console and call the ES endpoints directly
+                    // bypassing the Kibana privileges layer entirely.
                     new RoleDescriptor.ApplicationResourcePrivileges[] {
                         RoleDescriptor.ApplicationResourcePrivileges.builder()
                             .application("kibana-*")
@@ -328,7 +334,13 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             .indices(".ml-annotations*")
                             .privileges("view_index_metadata", "read", "write")
                             .build() },
-                    // TODO: remove Kibana privileges from ML backend roles in 8.0.0
+                    // This role also grants Kibana privileges related to ML.
+                    // This makes it completely clear to UI administrators that
+                    // if they grant the Elasticsearch backend role to a user then
+                    // they cannot expect Kibana privileges to stop that user from
+                    // accessing ML functionality - the user could switch to curl
+                    // or even Kibana dev console and call the ES endpoints directly
+                    // bypassing the Kibana privileges layer entirely.
                     new RoleDescriptor.ApplicationResourcePrivileges[] {
                         RoleDescriptor.ApplicationResourcePrivileges.builder()
                             .application("kibana-*")

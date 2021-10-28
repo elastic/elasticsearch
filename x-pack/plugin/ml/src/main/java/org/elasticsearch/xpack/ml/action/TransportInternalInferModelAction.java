@@ -42,6 +42,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.featureCheckForMode;
 
 public class TransportInternalInferModelAction extends HandledTransportAction<Request, Response> {
 
@@ -82,8 +83,9 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
                 request.getModelId(),
                 GetTrainedModelsAction.Includes.empty(),
                 ActionListener.wrap(trainedModelConfig -> {
-                    responseBuilder.setLicensed(licenseState.isAllowedByLicense(trainedModelConfig.getLicenseLevel()));
-                    if (licenseState.isAllowedByLicense(trainedModelConfig.getLicenseLevel()) || request.isPreviouslyLicensed()) {
+                    final boolean allowed = featureCheckForMode(trainedModelConfig.getLicenseLevel(), licenseState);
+                    responseBuilder.setLicensed(allowed);
+                    if (allowed || request.isPreviouslyLicensed()) {
                         doInfer(request, responseBuilder, listener);
                     } else {
                         listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));

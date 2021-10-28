@@ -362,8 +362,7 @@ final class DynamicFieldsBuilder {
                     dateTimeFormatter,
                     ScriptCompiler.NONE,
                     ignoreMalformed,
-                    context.indexSettings().getIndexVersionCreated(),
-                    context.indexSettings().getIndex().getName()
+                    context.indexSettings().getIndexVersionCreated()
                 ),
                 context
             );

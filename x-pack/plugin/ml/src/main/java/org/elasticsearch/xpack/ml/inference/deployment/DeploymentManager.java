@@ -238,7 +238,16 @@ public class DeploymentManager {
         }
 
         final long requestId = requestIdCounter.getAndIncrement();
-        InferenceAction inferenceAction = new InferenceAction(requestId, timeout, processContext, config, doc, threadPool, listener);
+        InferenceAction inferenceAction = new InferenceAction(
+            task.getModelId(),
+            requestId,
+            timeout,
+            processContext,
+            config,
+            doc,
+            threadPool,
+            listener
+        );
         try {
             processContext.executorService.execute(inferenceAction);
         } catch (Exception e) {
@@ -247,6 +256,7 @@ public class DeploymentManager {
     }
 
     static class InferenceAction extends AbstractRunnable {
+        private final String modelId;
         private final long requestId;
         private final TimeValue timeout;
         private final Scheduler.Cancellable timeoutHandler;
@@ -257,6 +267,7 @@ public class DeploymentManager {
         private final AtomicBoolean notified = new AtomicBoolean();
 
         InferenceAction(
+            String modelId,
             long requestId,
             TimeValue timeout,
             ProcessContext processContext,
@@ -265,6 +276,7 @@ public class DeploymentManager {
             ThreadPool threadPool,
             ActionListener<InferenceResults> listener
         ) {
+            this.modelId = modelId;
             this.requestId = requestId;
             this.timeout = timeout;
             this.processContext = processContext;
@@ -321,6 +333,9 @@ public class DeploymentManager {
                 assert config instanceof NlpConfig;
                 NlpTask.Request request = processor.getRequestBuilder((NlpConfig) config).buildRequest(text, requestIdStr);
                 logger.trace(() -> "Inference Request " + request.processInput.utf8ToString());
+                if (request.tokenization.anyTruncated()) {
+                    logger.debug("[{}] [{}] input truncated", modelId, requestId);
+                }
                 PyTorchResultProcessor.PendingResult pendingResult = processContext.getResultProcessor().registerRequest(requestIdStr);
                 processContext.process.get().writeInferenceRequest(request.processInput);
                 waitForResult(

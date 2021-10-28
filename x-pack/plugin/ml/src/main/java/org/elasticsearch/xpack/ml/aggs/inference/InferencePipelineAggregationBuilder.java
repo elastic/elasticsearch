@@ -51,6 +51,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.featureCheckForMode;
 import static org.elasticsearch.xpack.ml.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
 
 public class InferencePipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<InferencePipelineAggregationBuilder> {
@@ -267,7 +268,7 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
                 loadedModel.set(model);
 
                 boolean isLicensed = MachineLearningField.ML_API_FEATURE.check(licenseState)
-                    || licenseState.isAllowedByLicense(model.getLicenseLevel());
+                    || featureCheckForMode(model.getLicenseLevel(), licenseState);
                 if (isLicensed) {
                     delegate.onResponse(null);
                 } else {

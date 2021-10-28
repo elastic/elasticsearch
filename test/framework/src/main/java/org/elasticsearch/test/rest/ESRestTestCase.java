@@ -844,7 +844,7 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     private Set<String> getAllUnexpectedTemplates() throws IOException {
         Set<String> unexpectedTemplates = new HashSet<>();
-        if (preserveTemplatesUponCompletion() == false) {
+        if (preserveDataStreamsUponCompletion() == false && preserveTemplatesUponCompletion() == false) {
             if (hasXPack) {
                 // In case of bwc testing, if all nodes are before 7.7.0 then no need to attempt to delete component and composable
                 // index templates, because these were introduced in 7.7.0:

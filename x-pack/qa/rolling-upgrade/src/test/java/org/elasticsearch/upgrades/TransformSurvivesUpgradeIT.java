@@ -57,7 +57,6 @@ import static org.elasticsearch.xpack.test.rest.XPackRestTestConstants.TRANSFORM
 import static org.elasticsearch.xpack.test.rest.XPackRestTestConstants.TRANSFORM_NOTIFICATIONS_INDEX_PREFIX;
 import static org.elasticsearch.xpack.test.rest.XPackRestTestConstants.TRANSFORM_NOTIFICATIONS_INDEX_PREFIX_DEPRECATED;
 import static org.elasticsearch.xpack.test.rest.XPackRestTestConstants.TRANSFORM_TASK_NAME;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -148,7 +147,6 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
                     lastCheckpoint = 2;
                 }
                 verifyContinuousTransformHandlesData(lastCheckpoint);
-                verifyUpgradeFailsIfMixedCluster();
                 break;
             case UPGRADED:
                 client().performRequest(waitForYellow);
@@ -256,17 +254,6 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
                 greaterThan(Long.valueOf(previousStateAndStats.getIndexerStats().getDocumentsProcessed()).intValue())
             );
         });
-    }
-
-    private void verifyUpgradeFailsIfMixedCluster() {
-        // upgrade tests by design are also executed with the same version, this check must be skipped in this case, see gh#39102.
-        if (UPGRADE_FROM_VERSION.equals(Version.CURRENT)) {
-            return;
-        }
-        final Request upgradeTransformRequest = new Request("POST", TRANSFORM_ENDPOINT + "_upgrade");
-
-        Exception ex = expectThrows(Exception.class, () -> client().performRequest(upgradeTransformRequest));
-        assertThat(ex.getMessage(), containsString("All nodes must be the same version"));
     }
 
     private void verifyUpgrade() throws IOException {

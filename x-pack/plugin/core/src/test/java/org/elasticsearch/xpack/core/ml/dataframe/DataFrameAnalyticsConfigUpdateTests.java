@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.core.ml.dataframe;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -59,24 +59,25 @@ public class DataFrameAnalyticsConfigUpdateTests extends AbstractSerializingTest
 
     public void testMergeWithConfig_UpdatedDescription() {
         String id = randomValidId();
-        DataFrameAnalyticsConfig config =
-            DataFrameAnalyticsConfigTests.createRandomBuilder(id).setDescription("old description").build();
-        DataFrameAnalyticsConfigUpdate update =
-            new DataFrameAnalyticsConfigUpdate.Builder(id).setDescription("new description").build();
+        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfigTests.createRandomBuilder(id).setDescription("old description").build();
+        DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder(id).setDescription("new description").build();
         assertThat(
             update.mergeWithConfig(config).build(),
-            is(equalTo(new DataFrameAnalyticsConfig.Builder(config).setDescription("new description").build())));
+            is(equalTo(new DataFrameAnalyticsConfig.Builder(config).setDescription("new description").build()))
+        );
     }
 
     public void testMergeWithConfig_UpdatedModelMemoryLimit() {
         String id = randomValidId();
-        DataFrameAnalyticsConfig config =
-            DataFrameAnalyticsConfigTests.createRandomBuilder(id).setModelMemoryLimit(new ByteSizeValue(1024)).build();
-        DataFrameAnalyticsConfigUpdate update =
-            new DataFrameAnalyticsConfigUpdate.Builder(id).setModelMemoryLimit(new ByteSizeValue(2048)).build();
+        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfigTests.createRandomBuilder(id)
+            .setModelMemoryLimit(new ByteSizeValue(1024))
+            .build();
+        DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder(id).setModelMemoryLimit(new ByteSizeValue(2048))
+            .build();
         assertThat(
             update.mergeWithConfig(config).build(),
-            is(equalTo(new DataFrameAnalyticsConfig.Builder(config).setModelMemoryLimit(new ByteSizeValue(2048)).build())));
+            is(equalTo(new DataFrameAnalyticsConfig.Builder(config).setModelMemoryLimit(new ByteSizeValue(2048)).build()))
+        );
     }
 
     public void testMergeWithConfig_UpdatedAllowLazyStart() {
@@ -85,7 +86,8 @@ public class DataFrameAnalyticsConfigUpdateTests extends AbstractSerializingTest
         DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder(id).setAllowLazyStart(true).build();
         assertThat(
             update.mergeWithConfig(config).build(),
-            is(equalTo(new DataFrameAnalyticsConfig.Builder(config).setAllowLazyStart(true).build())));
+            is(equalTo(new DataFrameAnalyticsConfig.Builder(config).setAllowLazyStart(true).build()))
+        );
     }
 
     public void testMergeWithConfig_UpdatedMaxNumThreads() {
@@ -94,34 +96,35 @@ public class DataFrameAnalyticsConfigUpdateTests extends AbstractSerializingTest
         DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder(id).setMaxNumThreads(5).build();
         assertThat(
             update.mergeWithConfig(config).build(),
-            is(equalTo(new DataFrameAnalyticsConfig.Builder(config).setMaxNumThreads(5).build())));
+            is(equalTo(new DataFrameAnalyticsConfig.Builder(config).setMaxNumThreads(5).build()))
+        );
     }
 
     public void testMergeWithConfig_UpdatedAllUpdatableProperties() {
         String id = randomValidId();
-        DataFrameAnalyticsConfig config =
-            DataFrameAnalyticsConfigTests.createRandomBuilder(id)
-                .setDescription("old description")
-                .setModelMemoryLimit(new ByteSizeValue(1024))
-                .setAllowLazyStart(false)
-                .setMaxNumThreads(1)
-                .build();
-        DataFrameAnalyticsConfigUpdate update =
-            new DataFrameAnalyticsConfigUpdate.Builder(id)
-                .setDescription("new description")
-                .setModelMemoryLimit(new ByteSizeValue(2048))
-                .setAllowLazyStart(true)
-                .setMaxNumThreads(4)
-                .build();
+        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfigTests.createRandomBuilder(id)
+            .setDescription("old description")
+            .setModelMemoryLimit(new ByteSizeValue(1024))
+            .setAllowLazyStart(false)
+            .setMaxNumThreads(1)
+            .build();
+        DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder(id).setDescription("new description")
+            .setModelMemoryLimit(new ByteSizeValue(2048))
+            .setAllowLazyStart(true)
+            .setMaxNumThreads(4)
+            .build();
         assertThat(
             update.mergeWithConfig(config).build(),
-            is(equalTo(
-                new DataFrameAnalyticsConfig.Builder(config)
-                    .setDescription("new description")
-                    .setModelMemoryLimit(new ByteSizeValue(2048))
-                    .setAllowLazyStart(true)
-                    .setMaxNumThreads(4)
-                    .build())));
+            is(
+                equalTo(
+                    new DataFrameAnalyticsConfig.Builder(config).setDescription("new description")
+                        .setModelMemoryLimit(new ByteSizeValue(2048))
+                        .setAllowLazyStart(true)
+                        .setMaxNumThreads(4)
+                        .build()
+                )
+            )
+        );
     }
 
     public void testMergeWithConfig_NoopUpdate() {
@@ -156,52 +159,53 @@ public class DataFrameAnalyticsConfigUpdateTests extends AbstractSerializingTest
 
     public void testRequiresRestart_DescriptionUpdateDoesNotRequireRestart() {
         String id = randomValidId();
-        DataFrameAnalyticsConfig config =
-            DataFrameAnalyticsConfigTests.createRandomBuilder(id).setDescription("old description").build();
-        DataFrameAnalyticsConfigUpdate update =
-            new DataFrameAnalyticsConfigUpdate.Builder(id).setDescription("new description").build();
+        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfigTests.createRandomBuilder(id).setDescription("old description").build();
+        DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder(id).setDescription("new description").build();
 
         assertThat(update.requiresRestart(config), is(false));
     }
 
     public void testRequiresRestart_ModelMemoryLimitUpdateRequiresRestart() {
         String id = randomValidId();
-        DataFrameAnalyticsConfig config =
-            DataFrameAnalyticsConfigTests.createRandomBuilder(id).setModelMemoryLimit(new ByteSizeValue(1024)).build();
-        DataFrameAnalyticsConfigUpdate update =
-            new DataFrameAnalyticsConfigUpdate.Builder(id).setModelMemoryLimit(new ByteSizeValue(2048)).build();
+        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfigTests.createRandomBuilder(id)
+            .setModelMemoryLimit(new ByteSizeValue(1024))
+            .build();
+        DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder(id).setModelMemoryLimit(new ByteSizeValue(2048))
+            .build();
 
         assertThat(update.requiresRestart(config), is(true));
     }
 
     public void testRequiresRestart_MaxNumThreadsUpdateRequiresRestart() {
         String id = randomValidId();
-        DataFrameAnalyticsConfig config =
-            DataFrameAnalyticsConfigTests.createRandomBuilder(id).setMaxNumThreads(1).build();
+        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfigTests.createRandomBuilder(id).setMaxNumThreads(1).build();
         DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder(id).setMaxNumThreads(8).build();
 
         assertThat(update.requiresRestart(config), is(true));
     }
 
     public void testCtor_GivenMaxNumberThreadsIsZero() {
-        ElasticsearchException e = expectThrows(ElasticsearchException.class,
-            () -> new DataFrameAnalyticsConfigUpdate.Builder("test").setMaxNumThreads(0).build());
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> new DataFrameAnalyticsConfigUpdate.Builder("test").setMaxNumThreads(0).build()
+        );
 
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(e.getMessage(), equalTo("[max_num_threads] must be a positive integer"));
     }
 
     public void testCtor_GivenMaxNumberThreadsIsNegative() {
-        ElasticsearchException e = expectThrows(ElasticsearchException.class,
-            () -> new DataFrameAnalyticsConfigUpdate.Builder("test").setMaxNumThreads(randomIntBetween(Integer.MIN_VALUE, 0)).build());
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> new DataFrameAnalyticsConfigUpdate.Builder("test").setMaxNumThreads(randomIntBetween(Integer.MIN_VALUE, 0)).build()
+        );
 
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(e.getMessage(), equalTo("[max_num_threads] must be a positive integer"));
     }
 
     public void testGetUpdatedFields_GivenAll() {
-        DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder("test_job")
-            .setDescription("new description")
+        DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder("test_job").setDescription("new description")
             .setModelMemoryLimit(new ByteSizeValue(1024))
             .setAllowLazyStart(true)
             .setMaxNumThreads(8)
@@ -211,33 +215,28 @@ public class DataFrameAnalyticsConfigUpdateTests extends AbstractSerializingTest
     }
 
     public void testGetUpdatedFields_GivenAllowLazyStart() {
-        DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder("test_job")
-            .setAllowLazyStart(false)
-            .build();
+        DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder("test_job").setAllowLazyStart(false).build();
 
         assertThat(update.getUpdatedFields(), contains("allow_lazy_start"));
     }
 
     public void testGetUpdatedFields_GivenDescription() {
-        DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder("test_job")
-            .setDescription("new description")
+        DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder("test_job").setDescription("new description")
             .build();
 
         assertThat(update.getUpdatedFields(), contains("description"));
     }
 
     public void testGetUpdatedFields_GivenMaxNumThreads() {
-        DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder("test_job")
-            .setMaxNumThreads(3)
-            .build();
+        DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder("test_job").setMaxNumThreads(3).build();
 
         assertThat(update.getUpdatedFields(), contains("max_num_threads"));
     }
 
     public void testGetUpdatedFields_GivenModelMemoryLimit() {
-        DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder("test_job")
-            .setModelMemoryLimit(new ByteSizeValue(1024))
-            .build();
+        DataFrameAnalyticsConfigUpdate update = new DataFrameAnalyticsConfigUpdate.Builder("test_job").setModelMemoryLimit(
+            new ByteSizeValue(1024)
+        ).build();
 
         assertThat(update.getUpdatedFields(), contains("model_memory_limit"));
     }

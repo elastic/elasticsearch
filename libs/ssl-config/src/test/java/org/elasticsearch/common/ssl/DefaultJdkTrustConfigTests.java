@@ -11,12 +11,13 @@ package org.elasticsearch.common.ssl;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Assert;
 
-import javax.net.ssl.X509ExtendedTrustManager;
 import java.security.cert.X509Certificate;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.stream.Stream;
+
+import javax.net.ssl.X509ExtendedTrustManager;
 
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.emptyIterable;

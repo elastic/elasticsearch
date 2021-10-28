@@ -66,9 +66,16 @@ public abstract class SingleNodeDisruption implements ServiceDisruptionScheme {
     }
 
     protected void ensureNodeCount(InternalTestCluster cluster) {
-        assertFalse("cluster failed to form after disruption was healed", cluster.client().admin().cluster().prepareHealth()
+        assertFalse(
+            "cluster failed to form after disruption was healed",
+            cluster.client()
+                .admin()
+                .cluster()
+                .prepareHealth()
                 .setWaitForNodes(String.valueOf(cluster.size()))
                 .setWaitForNoRelocatingShards(true)
-                .get().isTimedOut());
+                .get()
+                .isTimedOut()
+        );
     }
 }

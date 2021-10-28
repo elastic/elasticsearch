@@ -28,13 +28,17 @@ public class RestPreviewDatafeedAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             Route.builder(GET, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_preview")
-                .replaces(GET, PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_preview", RestApiVersion.V_7).build(),
+                .replaces(GET, PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_preview", RestApiVersion.V_7)
+                .build(),
             Route.builder(GET, BASE_PATH + "datafeeds/_preview")
-                .replaces(GET, PRE_V7_BASE_PATH + "datafeeds/_preview", RestApiVersion.V_7).build(),
+                .replaces(GET, PRE_V7_BASE_PATH + "datafeeds/_preview", RestApiVersion.V_7)
+                .build(),
             Route.builder(POST, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_preview")
-                .replaces(POST, PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_preview", RestApiVersion.V_7).build(),
+                .replaces(POST, PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_preview", RestApiVersion.V_7)
+                .build(),
             Route.builder(POST, BASE_PATH + "datafeeds/_preview")
-                .replaces(POST, PRE_V7_BASE_PATH + "datafeeds/_preview", RestApiVersion.V_7).build()
+                .replaces(POST, PRE_V7_BASE_PATH + "datafeeds/_preview", RestApiVersion.V_7)
+                .build()
         );
     }
 
@@ -45,12 +49,12 @@ public class RestPreviewDatafeedAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        PreviewDatafeedAction.Request request = restRequest.hasContentOrSourceParam() ?
-            PreviewDatafeedAction.Request.fromXContent(
+        PreviewDatafeedAction.Request request = restRequest.hasContentOrSourceParam()
+            ? PreviewDatafeedAction.Request.fromXContent(
                 restRequest.contentOrSourceParamParser(),
                 restRequest.param(DatafeedConfig.ID.getPreferredName(), null)
-            ) :
-            new PreviewDatafeedAction.Request(restRequest.param(DatafeedConfig.ID.getPreferredName()));
+            )
+            : new PreviewDatafeedAction.Request(restRequest.param(DatafeedConfig.ID.getPreferredName()));
         return channel -> client.execute(PreviewDatafeedAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

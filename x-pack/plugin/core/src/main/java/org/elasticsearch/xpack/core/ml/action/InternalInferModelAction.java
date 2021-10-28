@@ -49,24 +49,25 @@ public class InternalInferModelAction extends ActionType<InternalInferModelActio
             this(modelId, Collections.emptyList(), RegressionConfigUpdate.EMPTY_PARAMS, previouslyLicensed);
         }
 
-        public Request(String modelId,
-                       List<Map<String, Object>> objectsToInfer,
-                       InferenceConfigUpdate inferenceConfig,
-                       boolean previouslyLicensed) {
+        public Request(
+            String modelId,
+            List<Map<String, Object>> objectsToInfer,
+            InferenceConfigUpdate inferenceConfig,
+            boolean previouslyLicensed
+        ) {
             this.modelId = ExceptionsHelper.requireNonNull(modelId, TrainedModelConfig.MODEL_ID);
             this.objectsToInfer = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(objectsToInfer, "objects_to_infer"));
             this.update = ExceptionsHelper.requireNonNull(inferenceConfig, "inference_config");
             this.previouslyLicensed = previouslyLicensed;
         }
 
-        public Request(String modelId,
-                       Map<String, Object> objectToInfer,
-                       InferenceConfigUpdate update,
-                       boolean previouslyLicensed) {
-            this(modelId,
+        public Request(String modelId, Map<String, Object> objectToInfer, InferenceConfigUpdate update, boolean previouslyLicensed) {
+            this(
+                modelId,
                 Collections.singletonList(ExceptionsHelper.requireNonNull(objectToInfer, "objects_to_infer")),
                 update,
-                previouslyLicensed);
+                previouslyLicensed
+            );
         }
 
         public Request(StreamInput in) throws IOException {
@@ -78,7 +79,7 @@ public class InternalInferModelAction extends ActionType<InternalInferModelActio
             } else {
                 InferenceConfig oldConfig = in.readNamedWriteable(InferenceConfig.class);
                 if (oldConfig instanceof RegressionConfig) {
-                    this.update = RegressionConfigUpdate.fromConfig((RegressionConfig)oldConfig);
+                    this.update = RegressionConfigUpdate.fromConfig((RegressionConfig) oldConfig);
                 } else if (oldConfig instanceof ClassificationConfig) {
                     this.update = ClassificationConfigUpdate.fromConfig((ClassificationConfig) oldConfig);
                 } else {

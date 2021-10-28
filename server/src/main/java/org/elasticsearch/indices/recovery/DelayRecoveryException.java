@@ -24,7 +24,7 @@ public class DelayRecoveryException extends ElasticsearchException {
         super(msg);
     }
 
-    public DelayRecoveryException(StreamInput in) throws IOException{
+    public DelayRecoveryException(StreamInput in) throws IOException {
         super(in);
     }
 

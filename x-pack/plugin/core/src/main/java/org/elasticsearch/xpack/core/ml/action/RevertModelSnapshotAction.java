@@ -11,16 +11,16 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -67,8 +67,7 @@ public class RevertModelSnapshotAction extends ActionType<RevertModelSnapshotAct
         private boolean deleteInterveningResults;
         private boolean force;
 
-        public Request() {
-        }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -153,9 +152,9 @@ public class RevertModelSnapshotAction extends ActionType<RevertModelSnapshotAct
             }
             Request other = (Request) obj;
             return Objects.equals(jobId, other.jobId)
-                    && Objects.equals(snapshotId, other.snapshotId)
-                    && Objects.equals(deleteInterveningResults, other.deleteInterveningResults)
-                    && force == other.force;
+                && Objects.equals(snapshotId, other.snapshotId)
+                && Objects.equals(deleteInterveningResults, other.deleteInterveningResults)
+                && force == other.force;
         }
     }
 
@@ -168,7 +167,6 @@ public class RevertModelSnapshotAction extends ActionType<RevertModelSnapshotAct
             super(in);
             model = new ModelSnapshot(in);
         }
-
 
         public Response(ModelSnapshot modelSnapshot) {
             model = modelSnapshot;

@@ -64,54 +64,53 @@ public class LatestIT extends TransformIntegTestCase {
     private static final String STARS = "stars";
     private static final String COMMENT = "comment";
 
-    private static final Map<String, Object> row(
-            String userId, String businessId, int count, int stars, String timestamp, String comment) {
-        return new HashMap<>() {{
-            if (userId != null) {
-                put(USER_ID, userId);
+    private static final Map<String, Object> row(String userId, String businessId, int count, int stars, String timestamp, String comment) {
+        return new HashMap<>() {
+            {
+                if (userId != null) {
+                    put(USER_ID, userId);
+                }
+                put(BUSINESS_ID, businessId);
+                put(COUNT, count);
+                put(STARS, stars);
+                put(TIMESTAMP, timestamp);
+                put(COMMENT, comment);
+                put("regular_object", singletonMap("foo", 42));
+                put("nested_object", singletonMap("bar", 43));
             }
-            put(BUSINESS_ID, businessId);
-            put(COUNT, count);
-            put(STARS, stars);
-            put(TIMESTAMP, timestamp);
-            put(COMMENT, comment);
-            put("regular_object", singletonMap("foo", 42));
-            put("nested_object", singletonMap("bar", 43));
-        }};
+        };
     }
 
-    private static final Object[] EXPECTED_DEST_INDEX_ROWS =
-        new Object[] {
-            row("user_0", "business_37", 87, 2, "2017-04-04T12:30:00Z", "Great stuff, deserves 2 stars"),
-            row("user_1", "business_38", 88, 3, "2017-04-05T12:30:00Z", "Great stuff, deserves 3 stars"),
-            row("user_2", "business_39", 89, 4, "2017-04-06T12:30:00Z", "Great stuff, deserves 4 stars"),
-            row("user_3", "business_40", 90, 0, "2017-04-07T12:30:00Z", "Great stuff, deserves 0 stars"),
-            row("user_4", "business_41", 91, 1, "2017-04-08T12:30:00Z", "Great stuff, deserves 1 stars"),
-            row("user_5", "business_42", 92, 2, "2017-04-09T12:30:00Z", "Great stuff, deserves 2 stars"),
-            row("user_6", "business_43", 93, 3, "2017-04-10T12:30:00Z", "Great stuff, deserves 3 stars"),
-            row("user_7", "business_44", 94, 4, "2017-04-11T12:30:00Z", "Great stuff, deserves 4 stars"),
-            row("user_8", "business_45", 95, 0, "2017-04-12T12:30:00Z", "Great stuff, deserves 0 stars"),
-            row("user_9", "business_46", 96, 1, "2017-04-13T12:30:00Z", "Great stuff, deserves 1 stars"),
-            row("user_10", "business_47", 97, 2, "2017-04-14T12:30:00Z", "Great stuff, deserves 2 stars"),
-            row("user_11", "business_48", 98, 3, "2017-04-15T12:30:00Z", "Great stuff, deserves 3 stars"),
-            row("user_12", "business_49", 99, 4, "2017-04-16T12:30:00Z", "Great stuff, deserves 4 stars"),
-            row("user_13", "business_21", 71, 1, "2017-03-16T12:30:00Z", "Great stuff, deserves 1 stars"),
-            row("user_14", "business_22", 72, 2, "2017-03-17T12:30:00Z", "Great stuff, deserves 2 stars"),
-            row("user_15", "business_23", 73, 3, "2017-03-18T12:30:00Z", "Great stuff, deserves 3 stars"),
-            row("user_16", "business_24", 74, 4, "2017-03-19T12:30:00Z", "Great stuff, deserves 4 stars"),
-            row("user_17", "business_25", 75, 0, "2017-03-20T12:30:00Z", "Great stuff, deserves 0 stars"),
-            row("user_18", "business_26", 76, 1, "2017-03-21T12:30:00Z", "Great stuff, deserves 1 stars"),
-            row("user_19", "business_27", 77, 2, "2017-03-22T12:30:00Z", "Great stuff, deserves 2 stars"),
-            row("user_20", "business_28", 78, 3, "2017-03-23T12:30:00Z", "Great stuff, deserves 3 stars"),
-            row("user_21", "business_29", 79, 4, "2017-03-24T12:30:00Z", "Great stuff, deserves 4 stars"),
-            row("user_22", "business_30", 80, 0, "2017-03-25T12:30:00Z", "Great stuff, deserves 0 stars"),
-            row("user_23", "business_31", 81, 1, "2017-03-26T12:30:00Z", "Great stuff, deserves 1 stars"),
-            row("user_24", "business_32", 82, 2, "2017-03-27T12:30:00Z", "Great stuff, deserves 2 stars"),
-            row("user_25", "business_33", 83, 3, "2017-03-28T12:30:00Z", "Great stuff, deserves 3 stars"),
-            row("user_26", "business_34", 84, 4, "2017-04-01T12:30:00Z", "Great stuff, deserves 4 stars"),
-            row("user_27", "business_35", 85, 0, "2017-04-02T12:30:00Z", "Great stuff, deserves 0 stars"),
-            row(null, "business_36", 86, 1, "2017-04-03T12:30:00Z", "Great stuff, deserves 1 stars")
-        };
+    private static final Object[] EXPECTED_DEST_INDEX_ROWS = new Object[] {
+        row("user_0", "business_37", 87, 2, "2017-04-04T12:30:00Z", "Great stuff, deserves 2 stars"),
+        row("user_1", "business_38", 88, 3, "2017-04-05T12:30:00Z", "Great stuff, deserves 3 stars"),
+        row("user_2", "business_39", 89, 4, "2017-04-06T12:30:00Z", "Great stuff, deserves 4 stars"),
+        row("user_3", "business_40", 90, 0, "2017-04-07T12:30:00Z", "Great stuff, deserves 0 stars"),
+        row("user_4", "business_41", 91, 1, "2017-04-08T12:30:00Z", "Great stuff, deserves 1 stars"),
+        row("user_5", "business_42", 92, 2, "2017-04-09T12:30:00Z", "Great stuff, deserves 2 stars"),
+        row("user_6", "business_43", 93, 3, "2017-04-10T12:30:00Z", "Great stuff, deserves 3 stars"),
+        row("user_7", "business_44", 94, 4, "2017-04-11T12:30:00Z", "Great stuff, deserves 4 stars"),
+        row("user_8", "business_45", 95, 0, "2017-04-12T12:30:00Z", "Great stuff, deserves 0 stars"),
+        row("user_9", "business_46", 96, 1, "2017-04-13T12:30:00Z", "Great stuff, deserves 1 stars"),
+        row("user_10", "business_47", 97, 2, "2017-04-14T12:30:00Z", "Great stuff, deserves 2 stars"),
+        row("user_11", "business_48", 98, 3, "2017-04-15T12:30:00Z", "Great stuff, deserves 3 stars"),
+        row("user_12", "business_49", 99, 4, "2017-04-16T12:30:00Z", "Great stuff, deserves 4 stars"),
+        row("user_13", "business_21", 71, 1, "2017-03-16T12:30:00Z", "Great stuff, deserves 1 stars"),
+        row("user_14", "business_22", 72, 2, "2017-03-17T12:30:00Z", "Great stuff, deserves 2 stars"),
+        row("user_15", "business_23", 73, 3, "2017-03-18T12:30:00Z", "Great stuff, deserves 3 stars"),
+        row("user_16", "business_24", 74, 4, "2017-03-19T12:30:00Z", "Great stuff, deserves 4 stars"),
+        row("user_17", "business_25", 75, 0, "2017-03-20T12:30:00Z", "Great stuff, deserves 0 stars"),
+        row("user_18", "business_26", 76, 1, "2017-03-21T12:30:00Z", "Great stuff, deserves 1 stars"),
+        row("user_19", "business_27", 77, 2, "2017-03-22T12:30:00Z", "Great stuff, deserves 2 stars"),
+        row("user_20", "business_28", 78, 3, "2017-03-23T12:30:00Z", "Great stuff, deserves 3 stars"),
+        row("user_21", "business_29", 79, 4, "2017-03-24T12:30:00Z", "Great stuff, deserves 4 stars"),
+        row("user_22", "business_30", 80, 0, "2017-03-25T12:30:00Z", "Great stuff, deserves 0 stars"),
+        row("user_23", "business_31", 81, 1, "2017-03-26T12:30:00Z", "Great stuff, deserves 1 stars"),
+        row("user_24", "business_32", 82, 2, "2017-03-27T12:30:00Z", "Great stuff, deserves 2 stars"),
+        row("user_25", "business_33", 83, 3, "2017-03-28T12:30:00Z", "Great stuff, deserves 3 stars"),
+        row("user_26", "business_34", 84, 4, "2017-04-01T12:30:00Z", "Great stuff, deserves 4 stars"),
+        row("user_27", "business_35", 85, 0, "2017-04-02T12:30:00Z", "Great stuff, deserves 0 stars"),
+        row(null, "business_36", 86, 1, "2017-04-03T12:30:00Z", "Great stuff, deserves 1 stars") };
 
     @After
     public void cleanTransforms() throws IOException {
@@ -122,14 +121,12 @@ public class LatestIT extends TransformIntegTestCase {
         createReviewsIndex(SOURCE_INDEX_NAME, 100, NUM_USERS, LatestIT::getUserIdForRow, LatestIT::getDateStringForRow);
 
         String destIndexName = "reviews-latest";
-        TransformConfig transformConfig =
-            createTransformConfigBuilder(TRANSFORM_NAME, destIndexName, QueryBuilders.matchAllQuery(), SOURCE_INDEX_NAME)
-                .setLatestConfig(
-                    LatestConfig.builder()
-                        .setUniqueKey(USER_ID)
-                        .setSort(TIMESTAMP)
-                        .build())
-                .build();
+        TransformConfig transformConfig = createTransformConfigBuilder(
+            TRANSFORM_NAME,
+            destIndexName,
+            QueryBuilders.matchAllQuery(),
+            SOURCE_INDEX_NAME
+        ).setLatestConfig(LatestConfig.builder().setUniqueKey(USER_ID).setSort(TIMESTAMP).build()).build();
         assertTrue(putTransform(transformConfig, RequestOptions.DEFAULT).isAcknowledged());
         assertTrue(startTransform(transformConfig.getId(), RequestOptions.DEFAULT).isAcknowledged());
         waitUntilCheckpoint(transformConfig.getId(), 1L);
@@ -138,30 +135,31 @@ public class LatestIT extends TransformIntegTestCase {
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
             restClient.indices().refresh(new RefreshRequest(destIndexName), RequestOptions.DEFAULT);
             // Verify destination index mappings
-            GetMappingsResponse destIndexMapping =
-                restClient.indices().getMapping(new GetMappingsRequest().indices(destIndexName), RequestOptions.DEFAULT);
+            GetMappingsResponse destIndexMapping = restClient.indices()
+                .getMapping(new GetMappingsRequest().indices(destIndexName), RequestOptions.DEFAULT);
             assertThat(destIndexMapping.mappings().get(destIndexName).sourceAsMap(), allOf(hasKey("_meta"), hasKey("properties")));
             // Verify destination index contents
-            SearchResponse searchResponse =
-                restClient.search(new SearchRequest(destIndexName).source(new SearchSourceBuilder().size(1000)), RequestOptions.DEFAULT);
+            SearchResponse searchResponse = restClient.search(
+                new SearchRequest(destIndexName).source(new SearchSourceBuilder().size(1000)),
+                RequestOptions.DEFAULT
+            );
             assertThat(searchResponse.getHits().getTotalHits().value, is(equalTo(Long.valueOf(NUM_USERS + 1))));
             assertThat(
                 Stream.of(searchResponse.getHits().getHits()).map(SearchHit::getSourceAsMap).collect(toList()),
-                containsInAnyOrder(EXPECTED_DEST_INDEX_ROWS));
+                containsInAnyOrder(EXPECTED_DEST_INDEX_ROWS)
+            );
         }
     }
 
     public void testLatestPreview() throws Exception {
         createReviewsIndex(SOURCE_INDEX_NAME, 100, NUM_USERS, LatestIT::getUserIdForRow, LatestIT::getDateStringForRow);
 
-        TransformConfig transformConfig =
-            createTransformConfigBuilder(TRANSFORM_NAME, "dummy", QueryBuilders.matchAllQuery(), SOURCE_INDEX_NAME)
-                .setLatestConfig(
-                    LatestConfig.builder()
-                        .setUniqueKey(USER_ID)
-                        .setSort(TIMESTAMP)
-                        .build())
-                .build();
+        TransformConfig transformConfig = createTransformConfigBuilder(
+            TRANSFORM_NAME,
+            "dummy",
+            QueryBuilders.matchAllQuery(),
+            SOURCE_INDEX_NAME
+        ).setLatestConfig(LatestConfig.builder().setUniqueKey(USER_ID).setSort(TIMESTAMP).build()).build();
 
         PreviewTransformResponse previewResponse = previewTransform(transformConfig, RequestOptions.DEFAULT);
         // Verify preview mappings

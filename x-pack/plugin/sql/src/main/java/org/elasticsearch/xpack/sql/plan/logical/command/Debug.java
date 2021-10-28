@@ -35,11 +35,13 @@ import static org.elasticsearch.action.ActionListener.wrap;
 public class Debug extends Command {
 
     public enum Type {
-        ANALYZED, OPTIMIZED;
+        ANALYZED,
+        OPTIMIZED;
     }
 
     public enum Format {
-        TEXT, GRAPHVIZ
+        TEXT,
+        GRAPHVIZ
     }
 
     private final LogicalPlan plan;
@@ -82,8 +84,11 @@ public class Debug extends Command {
                 session.debugAnalyzedPlan(plan, wrap(i -> handleInfo(i, listener), listener::onFailure));
                 break;
             case OPTIMIZED:
-                session.analyzedPlan(plan, true,
-                        wrap(analyzedPlan -> handleInfo(session.optimizer().debugOptimize(analyzedPlan), listener), listener::onFailure));
+                session.analyzedPlan(
+                    plan,
+                    true,
+                    wrap(analyzedPlan -> handleInfo(session.optimizer().debugOptimize(analyzedPlan), listener), listener::onFailure)
+                );
                 break;
             default:
                 break;

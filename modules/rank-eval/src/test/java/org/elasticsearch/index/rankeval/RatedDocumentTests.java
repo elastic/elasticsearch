@@ -10,13 +10,13 @@ package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -56,17 +56,22 @@ public class RatedDocumentTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         RatedDocument original = createRatedDocument();
-        RatedDocument deserialized = ESTestCase.copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()),
-                RatedDocument::new);
+        RatedDocument deserialized = ESTestCase.copyWriteable(
+            original,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            RatedDocument::new
+        );
         assertEquals(deserialized, original);
         assertEquals(deserialized.hashCode(), original.hashCode());
         assertNotSame(deserialized, original);
     }
 
     public void testEqualsAndHash() throws IOException {
-        checkEqualsAndHashCode(createRatedDocument(), original -> {
-            return new RatedDocument(original.getIndex(), original.getDocID(), original.getRating());
-        }, RatedDocumentTests::mutateTestItem);
+        checkEqualsAndHashCode(
+            createRatedDocument(),
+            original -> { return new RatedDocument(original.getIndex(), original.getDocID(), original.getRating()); },
+            RatedDocumentTests::mutateTestItem
+        );
     }
 
     private static RatedDocument mutateTestItem(RatedDocument original) {
@@ -75,17 +80,17 @@ public class RatedDocumentTests extends ESTestCase {
         String docId = original.getDocID();
 
         switch (randomIntBetween(0, 2)) {
-        case 0:
-            rating = randomValueOtherThan(rating, () -> randomInt());
-            break;
-        case 1:
-            index = randomValueOtherThan(index, () -> randomAlphaOfLength(10));
-            break;
-        case 2:
-            docId = randomValueOtherThan(docId, () -> randomAlphaOfLength(10));
-            break;
-        default:
-            throw new IllegalStateException("The test should only allow two parameters mutated");
+            case 0:
+                rating = randomValueOtherThan(rating, () -> randomInt());
+                break;
+            case 1:
+                index = randomValueOtherThan(index, () -> randomAlphaOfLength(10));
+                break;
+            case 2:
+                docId = randomValueOtherThan(docId, () -> randomAlphaOfLength(10));
+                break;
+            default:
+                throw new IllegalStateException("The test should only allow two parameters mutated");
         }
         return new RatedDocument(index, docId, rating);
     }

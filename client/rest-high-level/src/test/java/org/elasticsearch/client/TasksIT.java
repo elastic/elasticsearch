@@ -21,9 +21,9 @@ import org.elasticsearch.client.tasks.GetTaskResponse;
 import org.elasticsearch.client.tasks.TaskId;
 import org.elasticsearch.client.tasks.TaskSubmissionResponse;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -69,10 +69,11 @@ public class TasksIT extends ESRestHighLevelClientTestCase {
         Settings settings = Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0).build();
         createIndex(sourceIndex, settings);
         createIndex(destinationIndex, settings);
-        BulkRequest bulkRequest = new BulkRequest()
-                .add(new IndexRequest(sourceIndex).id("1").source(Collections.singletonMap("foo", "bar"), XContentType.JSON))
-                .add(new IndexRequest(sourceIndex).id("2").source(Collections.singletonMap("foo2", "bar2"), XContentType.JSON))
-                .setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        BulkRequest bulkRequest = new BulkRequest().add(
+            new IndexRequest(sourceIndex).id("1").source(Collections.singletonMap("foo", "bar"), XContentType.JSON)
+        )
+            .add(new IndexRequest(sourceIndex).id("2").source(Collections.singletonMap("foo2", "bar2"), XContentType.JSON))
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         assertEquals(RestStatus.OK, highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT).status());
 
         final ReindexRequest reindexRequest = new ReindexRequest().setSourceIndices(sourceIndex).setDestIndex(destinationIndex);
@@ -108,22 +109,18 @@ public class TasksIT extends ESRestHighLevelClientTestCase {
 
     public void testCancelTasks() throws IOException {
         ListTasksRequest listRequest = new ListTasksRequest();
-        ListTasksResponse listResponse = execute(
-            listRequest,
-            highLevelClient().tasks()::list,
-            highLevelClient().tasks()::listAsync
-        );
+        ListTasksResponse listResponse = execute(listRequest, highLevelClient().tasks()::list, highLevelClient().tasks()::listAsync);
         // in this case, probably no task will actually be cancelled.
         // this is ok, that case is covered in TasksIT.testTasksCancellation
         org.elasticsearch.tasks.TaskInfo firstTask = listResponse.getTasks().get(0);
         String node = listResponse.getPerNodeTasks().keySet().iterator().next();
 
-        CancelTasksRequest cancelTasksRequest =  new CancelTasksRequest.Builder().withTaskId(
-            new TaskId(node, firstTask.getId())
-        ).build();
-        CancelTasksResponse response = execute(cancelTasksRequest,
+        CancelTasksRequest cancelTasksRequest = new CancelTasksRequest.Builder().withTaskId(new TaskId(node, firstTask.getId())).build();
+        CancelTasksResponse response = execute(
+            cancelTasksRequest,
             highLevelClient().tasks()::cancel,
-            highLevelClient().tasks()::cancelAsync);
+            highLevelClient().tasks()::cancelAsync
+        );
         // Since the task may or may not have been cancelled, assert that we received a response only
         // The actual testing of task cancellation is covered by TasksIT.testTasksCancellation
         assertThat(response, notNullValue());

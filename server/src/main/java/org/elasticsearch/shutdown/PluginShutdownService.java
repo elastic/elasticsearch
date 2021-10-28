@@ -63,9 +63,12 @@ public class PluginShutdownService implements ClusterStateListener {
         Set<SingleNodeShutdownMetadata.Type> types = Arrays.stream(shutdownTypes).collect(Collectors.toSet());
         return NodesShutdownMetadata.getShutdowns(clusterState)
             .map(NodesShutdownMetadata::getAllNodeMetadataMap)
-            .map(m -> m.entrySet().stream()
-                .filter(e -> types.contains(e.getValue().getType()))
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
+            .map(
+                m -> m.entrySet()
+                    .stream()
+                    .filter(e -> types.contains(e.getValue().getType()))
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+            )
             .map(Map::keySet)
             .orElse(Collections.emptySet());
     }

@@ -10,8 +10,8 @@ package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -63,7 +63,7 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             assertThat(cap2.isDimension(), equalTo(false));
             assertNull(cap2.getMetricType());
             assertThat(cap2.indices().length, equalTo(3));
-            assertThat(cap2.indices(), equalTo(new String[]{"index1", "index2", "index3"}));
+            assertThat(cap2.indices(), equalTo(new String[] { "index1", "index2", "index3" }));
             assertNull(cap2.nonSearchableIndices());
             assertNull(cap2.nonAggregatableIndices());
             assertNull(cap2.nonDimensionIndices());
@@ -81,9 +81,9 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             assertThat(cap1.isDimension(), equalTo(false));
             assertNull(cap1.getMetricType());
             assertNull(cap1.indices());
-            assertThat(cap1.nonSearchableIndices(), equalTo(new String[]{"index1", "index3"}));
-            assertThat(cap1.nonAggregatableIndices(), equalTo(new String[]{"index2", "index3"}));
-            assertThat(cap1.nonDimensionIndices(), equalTo(new String[]{"index2", "index3"}));
+            assertThat(cap1.nonSearchableIndices(), equalTo(new String[] { "index1", "index3" }));
+            assertThat(cap1.nonAggregatableIndices(), equalTo(new String[] { "index2", "index3" }));
+            assertThat(cap1.nonDimensionIndices(), equalTo(new String[] { "index2", "index3" }));
             assertEquals(Collections.emptyMap(), cap1.meta());
 
             FieldCapabilities cap2 = builder.build(true);
@@ -92,10 +92,10 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             assertThat(cap2.isDimension(), equalTo(false));
             assertNull(cap2.getMetricType());
             assertThat(cap2.indices().length, equalTo(3));
-            assertThat(cap2.indices(), equalTo(new String[]{"index1", "index2", "index3"}));
-            assertThat(cap2.nonSearchableIndices(), equalTo(new String[]{"index1", "index3"}));
-            assertThat(cap2.nonAggregatableIndices(), equalTo(new String[]{"index2", "index3"}));
-            assertThat(cap2.nonDimensionIndices(), equalTo(new String[]{"index2", "index3"}));
+            assertThat(cap2.indices(), equalTo(new String[] { "index1", "index2", "index3" }));
+            assertThat(cap2.nonSearchableIndices(), equalTo(new String[] { "index1", "index3" }));
+            assertThat(cap2.nonAggregatableIndices(), equalTo(new String[] { "index2", "index3" }));
+            assertThat(cap2.nonDimensionIndices(), equalTo(new String[] { "index2", "index3" }));
             assertEquals(Collections.emptyMap(), cap2.meta());
         }
 
@@ -121,7 +121,7 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             assertThat(cap2.isDimension(), equalTo(true));
             assertThat(cap2.getMetricType(), equalTo(TimeSeriesParams.MetricType.counter));
             assertThat(cap2.indices().length, equalTo(3));
-            assertThat(cap2.indices(), equalTo(new String[]{"index1", "index2", "index3"}));
+            assertThat(cap2.indices(), equalTo(new String[] { "index1", "index2", "index3" }));
             assertNull(cap2.nonSearchableIndices());
             assertNull(cap2.nonAggregatableIndices());
             assertNull(cap2.nonDimensionIndices());
@@ -150,7 +150,7 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
             assertThat(cap2.isDimension(), equalTo(true));
             assertNull(cap2.getMetricType());
             assertThat(cap2.indices().length, equalTo(3));
-            assertThat(cap2.indices(), equalTo(new String[]{"index1", "index2", "index3"}));
+            assertThat(cap2.indices(), equalTo(new String[] { "index1", "index2", "index3" }));
             assertNull(cap2.nonSearchableIndices());
             assertNull(cap2.nonAggregatableIndices());
             assertNull(cap2.nonDimensionIndices());
@@ -199,15 +199,15 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
 
         Map<String, Set<String>> meta;
         switch (randomInt(2)) {
-        case 0:
-            meta = Collections.emptyMap();
-            break;
-        case 1:
-            meta = Map.of("foo", Set.of("bar"));
-            break;
-        default:
-            meta = Map.of("foo", Set.of("bar", "baz"));
-            break;
+            case 0:
+                meta = Collections.emptyMap();
+                break;
+            case 1:
+                meta = Map.of("foo", Set.of("bar"));
+                break;
+            default:
+                meta = Map.of("foo", Set.of("bar", "baz"));
+                break;
         }
 
         return new FieldCapabilities(
@@ -243,118 +243,119 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
         String[] metricConflictsIndices = instance.metricConflictsIndices();
         Map<String, Set<String>> meta = instance.meta();
         switch (between(0, 12)) {
-        case 0:
-            name += randomAlphaOfLengthBetween(1, 10);
-            break;
-        case 1:
-            type += randomAlphaOfLengthBetween(1, 10);
-            break;
-        case 2:
-            isSearchable = isSearchable == false;
-            break;
-        case 3:
-            isAggregatable = isAggregatable == false;
-            break;
-        case 4:
-            String[] newIndices;
-            int startIndicesPos = 0;
-            if (indices == null) {
-                newIndices = new String[between(1, 10)];
-            } else {
-                newIndices = Arrays.copyOf(indices, indices.length + between(1, 10));
-                startIndicesPos = indices.length;
-            }
-            for (int i = startIndicesPos; i < newIndices.length; i++) {
-                newIndices[i] = randomAlphaOfLengthBetween(5, 20);
-            }
-            indices = newIndices;
-            break;
-        case 5:
-            String[] newNonSearchableIndices;
-            int startNonSearchablePos = 0;
-            if (nonSearchableIndices == null) {
-                newNonSearchableIndices = new String[between(1, 10)];
-            } else {
-                newNonSearchableIndices = Arrays.copyOf(nonSearchableIndices, nonSearchableIndices.length + between(1, 10));
-                startNonSearchablePos = nonSearchableIndices.length;
-            }
-            for (int i = startNonSearchablePos; i < newNonSearchableIndices.length; i++) {
-                newNonSearchableIndices[i] = randomAlphaOfLengthBetween(5, 20);
-            }
-            nonSearchableIndices = newNonSearchableIndices;
-            break;
-        case 6:
-            String[] newNonAggregatableIndices;
-            int startNonAggregatablePos = 0;
-            if (nonAggregatableIndices == null) {
-                newNonAggregatableIndices = new String[between(1, 10)];
-            } else {
-                newNonAggregatableIndices = Arrays.copyOf(nonAggregatableIndices, nonAggregatableIndices.length + between(1, 10));
-                startNonAggregatablePos = nonAggregatableIndices.length;
-            }
-            for (int i = startNonAggregatablePos; i < newNonAggregatableIndices.length; i++) {
-                newNonAggregatableIndices[i] = randomAlphaOfLengthBetween(5, 20);
-            }
-            nonAggregatableIndices = newNonAggregatableIndices;
-            break;
-        case 7:
-            Map<String, Set<String>> newMeta;
-            if (meta.isEmpty()) {
-                newMeta = Map.of("foo", Set.of("bar"));
-            } else {
-                newMeta = Collections.emptyMap();
-            }
-            meta = newMeta;
-            break;
-        case 8:
-            isMetadataField = isMetadataField == false;
-            break;
-        case 9:
-            isDimension = isDimension == false;
-            break;
-        case 10:
-            if (metricType == null) {
-                metricType = randomFrom(TimeSeriesParams.MetricType.values());
-            } else {
-                if (randomBoolean()) {
-                    metricType = null;
+            case 0:
+                name += randomAlphaOfLengthBetween(1, 10);
+                break;
+            case 1:
+                type += randomAlphaOfLengthBetween(1, 10);
+                break;
+            case 2:
+                isSearchable = isSearchable == false;
+                break;
+            case 3:
+                isAggregatable = isAggregatable == false;
+                break;
+            case 4:
+                String[] newIndices;
+                int startIndicesPos = 0;
+                if (indices == null) {
+                    newIndices = new String[between(1, 10)];
                 } else {
-                    metricType = randomValueOtherThan(metricType, () -> randomFrom(TimeSeriesParams.MetricType.values()));
+                    newIndices = Arrays.copyOf(indices, indices.length + between(1, 10));
+                    startIndicesPos = indices.length;
                 }
-            }
-            break;
-        case 11:
-            String[] newTimeSeriesDimensionsConflictsIndices;
-            int startTimeSeriesDimensionsConflictsPos = 0;
-            if (nonDimensionIndices == null) {
-                newTimeSeriesDimensionsConflictsIndices = new String[between(1, 10)];
-            } else {
-                newTimeSeriesDimensionsConflictsIndices = Arrays.copyOf(nonDimensionIndices,
-                    nonDimensionIndices.length + between(1, 10));
-                startTimeSeriesDimensionsConflictsPos = nonDimensionIndices.length;
-            }
-            for (int i = startTimeSeriesDimensionsConflictsPos; i < newTimeSeriesDimensionsConflictsIndices.length; i++) {
-                newTimeSeriesDimensionsConflictsIndices[i] = randomAlphaOfLengthBetween(5, 20);
-            }
-            nonDimensionIndices = newTimeSeriesDimensionsConflictsIndices;
-            break;
-        case 12:
-            String[] newMetricConflictsIndices;
-            int startMetricConflictsPos = 0;
-            if (metricConflictsIndices == null) {
-                newMetricConflictsIndices = new String[between(1, 10)];
-            } else {
-                newMetricConflictsIndices = Arrays.copyOf(metricConflictsIndices,
-                    metricConflictsIndices.length + between(1, 10));
-                startMetricConflictsPos = metricConflictsIndices.length;
-            }
-            for (int i = startMetricConflictsPos; i < newMetricConflictsIndices.length; i++) {
-                newMetricConflictsIndices[i] = randomAlphaOfLengthBetween(5, 20);
-            }
-            metricConflictsIndices = newMetricConflictsIndices;
-            break;
-        default:
-            throw new AssertionError();
+                for (int i = startIndicesPos; i < newIndices.length; i++) {
+                    newIndices[i] = randomAlphaOfLengthBetween(5, 20);
+                }
+                indices = newIndices;
+                break;
+            case 5:
+                String[] newNonSearchableIndices;
+                int startNonSearchablePos = 0;
+                if (nonSearchableIndices == null) {
+                    newNonSearchableIndices = new String[between(1, 10)];
+                } else {
+                    newNonSearchableIndices = Arrays.copyOf(nonSearchableIndices, nonSearchableIndices.length + between(1, 10));
+                    startNonSearchablePos = nonSearchableIndices.length;
+                }
+                for (int i = startNonSearchablePos; i < newNonSearchableIndices.length; i++) {
+                    newNonSearchableIndices[i] = randomAlphaOfLengthBetween(5, 20);
+                }
+                nonSearchableIndices = newNonSearchableIndices;
+                break;
+            case 6:
+                String[] newNonAggregatableIndices;
+                int startNonAggregatablePos = 0;
+                if (nonAggregatableIndices == null) {
+                    newNonAggregatableIndices = new String[between(1, 10)];
+                } else {
+                    newNonAggregatableIndices = Arrays.copyOf(nonAggregatableIndices, nonAggregatableIndices.length + between(1, 10));
+                    startNonAggregatablePos = nonAggregatableIndices.length;
+                }
+                for (int i = startNonAggregatablePos; i < newNonAggregatableIndices.length; i++) {
+                    newNonAggregatableIndices[i] = randomAlphaOfLengthBetween(5, 20);
+                }
+                nonAggregatableIndices = newNonAggregatableIndices;
+                break;
+            case 7:
+                Map<String, Set<String>> newMeta;
+                if (meta.isEmpty()) {
+                    newMeta = Map.of("foo", Set.of("bar"));
+                } else {
+                    newMeta = Collections.emptyMap();
+                }
+                meta = newMeta;
+                break;
+            case 8:
+                isMetadataField = isMetadataField == false;
+                break;
+            case 9:
+                isDimension = isDimension == false;
+                break;
+            case 10:
+                if (metricType == null) {
+                    metricType = randomFrom(TimeSeriesParams.MetricType.values());
+                } else {
+                    if (randomBoolean()) {
+                        metricType = null;
+                    } else {
+                        metricType = randomValueOtherThan(metricType, () -> randomFrom(TimeSeriesParams.MetricType.values()));
+                    }
+                }
+                break;
+            case 11:
+                String[] newTimeSeriesDimensionsConflictsIndices;
+                int startTimeSeriesDimensionsConflictsPos = 0;
+                if (nonDimensionIndices == null) {
+                    newTimeSeriesDimensionsConflictsIndices = new String[between(1, 10)];
+                } else {
+                    newTimeSeriesDimensionsConflictsIndices = Arrays.copyOf(
+                        nonDimensionIndices,
+                        nonDimensionIndices.length + between(1, 10)
+                    );
+                    startTimeSeriesDimensionsConflictsPos = nonDimensionIndices.length;
+                }
+                for (int i = startTimeSeriesDimensionsConflictsPos; i < newTimeSeriesDimensionsConflictsIndices.length; i++) {
+                    newTimeSeriesDimensionsConflictsIndices[i] = randomAlphaOfLengthBetween(5, 20);
+                }
+                nonDimensionIndices = newTimeSeriesDimensionsConflictsIndices;
+                break;
+            case 12:
+                String[] newMetricConflictsIndices;
+                int startMetricConflictsPos = 0;
+                if (metricConflictsIndices == null) {
+                    newMetricConflictsIndices = new String[between(1, 10)];
+                } else {
+                    newMetricConflictsIndices = Arrays.copyOf(metricConflictsIndices, metricConflictsIndices.length + between(1, 10));
+                    startMetricConflictsPos = metricConflictsIndices.length;
+                }
+                for (int i = startMetricConflictsPos; i < newMetricConflictsIndices.length; i++) {
+                    newMetricConflictsIndices[i] = randomAlphaOfLengthBetween(5, 20);
+                }
+                metricConflictsIndices = newMetricConflictsIndices;
+                break;
+            default:
+                throw new AssertionError();
         }
         return new FieldCapabilities(
             name,

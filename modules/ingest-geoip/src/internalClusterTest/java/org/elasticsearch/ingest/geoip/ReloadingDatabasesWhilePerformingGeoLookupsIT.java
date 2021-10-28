@@ -62,17 +62,19 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseNodeService, clusterService);
-        Files.copy(ConfigDatabases.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"),
-            geoIpTmpDir.resolve("GeoLite2-City.mmdb"));
-        Files.copy(ConfigDatabases.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"),
-            geoIpTmpDir.resolve("GeoLite2-City-Test.mmdb"));
+        Files.copy(ConfigDatabases.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"), geoIpTmpDir.resolve("GeoLite2-City.mmdb"));
+        Files.copy(ConfigDatabases.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"), geoIpTmpDir.resolve("GeoLite2-City-Test.mmdb"));
         databaseNodeService.updateDatabase("GeoLite2-City.mmdb", "md5", geoIpTmpDir.resolve("GeoLite2-City.mmdb"));
         databaseNodeService.updateDatabase("GeoLite2-City-Test.mmdb", "md5", geoIpTmpDir.resolve("GeoLite2-City-Test.mmdb"));
         lazyLoadReaders(databaseNodeService);
 
         final GeoIpProcessor processor1 = (GeoIpProcessor) factory.create(null, "_tag", null, new HashMap<>(Map.of("field", "_field")));
-        final GeoIpProcessor processor2 = (GeoIpProcessor) factory.create(null, "_tag", null,
-            new HashMap<>(Map.of("field", "_field", "database_file", "GeoLite2-City-Test.mmdb")));
+        final GeoIpProcessor processor2 = (GeoIpProcessor) factory.create(
+            null,
+            "_tag",
+            null,
+            new HashMap<>(Map.of("field", "_field", "database_file", "GeoLite2-City-Test.mmdb"))
+        );
 
         final AtomicBoolean completed = new AtomicBoolean(false);
         final int numberOfDatabaseUpdates = randomIntBetween(2, 4);
@@ -85,12 +87,24 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
             ingestThreads[id] = new Thread(() -> {
                 while (completed.get() == false) {
                     try {
-                        IngestDocument document1 =
-                            new IngestDocument("index", "id", "routing", 1L, VersionType.EXTERNAL, Map.of("_field", "89.160.20.128"));
+                        IngestDocument document1 = new IngestDocument(
+                            "index",
+                            "id",
+                            "routing",
+                            1L,
+                            VersionType.EXTERNAL,
+                            Map.of("_field", "89.160.20.128")
+                        );
                         processor1.execute(document1);
                         assertThat(document1.getSourceAndMetadata().get("geoip"), notNullValue());
-                        IngestDocument document2 =
-                            new IngestDocument("index", "id", "routing", 1L, VersionType.EXTERNAL, Map.of("_field", "89.160.20.128"));
+                        IngestDocument document2 = new IngestDocument(
+                            "index",
+                            "id",
+                            "routing",
+                            1L,
+                            VersionType.EXTERNAL,
+                            Map.of("_field", "89.160.20.128")
+                        );
                         processor2.execute(document2);
                         assertThat(document2.getSourceAndMetadata().get("geoip"), notNullValue());
                         numberOfIngestRuns.incrementAndGet();
@@ -118,13 +132,17 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
                             assertThat(previous1.current(), equalTo(-1));
                         });
                     } else {
-                        Files.copy(ConfigDatabases.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"),
-                            geoIpTmpDir.resolve("GeoLite2-City.mmdb"), StandardCopyOption.REPLACE_EXISTING);
+                        Files.copy(
+                            ConfigDatabases.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"),
+                            geoIpTmpDir.resolve("GeoLite2-City.mmdb"),
+                            StandardCopyOption.REPLACE_EXISTING
+                        );
                         databaseNodeService.updateDatabase("GeoLite2-City.mmdb", "md5", geoIpTmpDir.resolve("GeoLite2-City.mmdb"));
                     }
                     DatabaseReaderLazyLoader previous2 = databaseNodeService.get("GeoLite2-City-Test.mmdb");
-                    InputStream source = ConfigDatabases.class.getResourceAsStream(i % 2 == 0 ? "/GeoIP2-City-Test.mmdb" :
-                        "/GeoLite2-City-Test.mmdb");
+                    InputStream source = ConfigDatabases.class.getResourceAsStream(
+                        i % 2 == 0 ? "/GeoIP2-City-Test.mmdb" : "/GeoLite2-City-Test.mmdb"
+                    );
                     Files.copy(source, geoIpTmpDir.resolve("GeoLite2-City-Test.mmdb"), StandardCopyOption.REPLACE_EXISTING);
                     databaseNodeService.updateDatabase("GeoLite2-City-Test.mmdb", "md5", geoIpTmpDir.resolve("GeoLite2-City-Test.mmdb"));
 
@@ -170,8 +188,13 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
         GeoIpCache cache = new GeoIpCache(0);
         ConfigDatabases configDatabases = new ConfigDatabases(geoIpConfigDir, cache);
         copyDatabaseFiles(geoIpConfigDir, configDatabases);
-        DatabaseNodeService databaseNodeService =
-            new DatabaseNodeService(geoIpTmpDir, mock(Client.class), cache, configDatabases, Runnable::run);
+        DatabaseNodeService databaseNodeService = new DatabaseNodeService(
+            geoIpTmpDir,
+            mock(Client.class),
+            cache,
+            configDatabases,
+            Runnable::run
+        );
         databaseNodeService.initialize("nodeId", mock(ResourceWatcherService.class), mock(IngestService.class));
         return databaseNodeService;
     }

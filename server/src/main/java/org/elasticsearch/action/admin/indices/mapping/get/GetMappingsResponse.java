@@ -9,18 +9,19 @@
 package org.elasticsearch.action.admin.indices.mapping.get;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 
@@ -69,8 +70,7 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         for (final ObjectObjectCursor<String, MappingMetadata> indexEntry : getMappings()) {
             builder.startObject(indexEntry.key);
-            boolean includeTypeName = params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER,
-                DEFAULT_INCLUDE_TYPE_NAME_POLICY);
+            boolean includeTypeName = params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
             if (builder.getRestApiVersion() == RestApiVersion.V_7 && includeTypeName && indexEntry.value != null) {
                 builder.startObject(MAPPINGS.getPreferredName());
 

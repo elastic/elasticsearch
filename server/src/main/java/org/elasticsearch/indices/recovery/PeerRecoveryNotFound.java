@@ -17,8 +17,15 @@ import java.io.IOException;
 public class PeerRecoveryNotFound extends ResourceNotFoundException {
 
     public PeerRecoveryNotFound(final long recoveryId, final ShardId shardId, final String targetAllocationId) {
-        super("Peer recovery for " + shardId + " with [recoveryId: " + recoveryId + ", targetAllocationId: " + targetAllocationId
-            + "] not found.");
+        super(
+            "Peer recovery for "
+                + shardId
+                + " with [recoveryId: "
+                + recoveryId
+                + ", targetAllocationId: "
+                + targetAllocationId
+                + "] not found."
+        );
     }
 
     public PeerRecoveryNotFound(StreamInput in) throws IOException {

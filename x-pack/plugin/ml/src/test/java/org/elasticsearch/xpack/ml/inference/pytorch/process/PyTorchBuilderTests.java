@@ -48,12 +48,15 @@ public class PyTorchBuilderTests extends ESTestCase {
 
         verify(nativeController).startProcess(commandCaptor.capture());
 
-        assertThat(commandCaptor.getValue(), contains(
-            "./pytorch_inference",
-            "--validElasticLicenseKeyConfirmed=true",
-            "--inferenceThreads=2",
-            "--modelThreads=4",
-            PROCESS_PIPES_ARG)
+        assertThat(
+            commandCaptor.getValue(),
+            contains(
+                "./pytorch_inference",
+                "--validElasticLicenseKeyConfirmed=true",
+                "--inferenceThreads=2",
+                "--modelThreads=4",
+                PROCESS_PIPES_ARG
+            )
         );
     }
 }

@@ -11,13 +11,13 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.xpack.core.common.table.TableColumnAttributeBuilder;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.rest.action.cat.RestTable;
+import org.elasticsearch.xpack.core.common.table.TableColumnAttributeBuilder;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction.Request;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction.Response;
@@ -32,9 +32,7 @@ public class RestCatDatafeedsAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, "_cat/ml/datafeeds/{" + DatafeedConfig.ID + "}"),
-            new Route(GET, "_cat/ml/datafeeds"));
+        return List.of(new Route(GET, "_cat/ml/datafeeds/{" + DatafeedConfig.ID + "}"), new Route(GET, "_cat/ml/datafeeds"));
     }
 
     @Override
@@ -55,7 +53,9 @@ public class RestCatDatafeedsAction extends AbstractCatAction {
         request.setAllowNoMatch(
             restRequest.paramAsBoolean(
                 Request.ALLOW_NO_MATCH,
-                restRequest.paramAsBoolean(Request.ALLOW_NO_DATAFEEDS, request.allowNoMatch())));
+                restRequest.paramAsBoolean(Request.ALLOW_NO_DATAFEEDS, request.allowNoMatch())
+            )
+        );
         return channel -> client.execute(GetDatafeedsStatsAction.INSTANCE, request, new RestResponseListener<>(channel) {
             @Override
             public RestResponse buildResponse(Response getDatafeedsStatsRespons) throws Exception {
@@ -77,55 +77,55 @@ public class RestCatDatafeedsAction extends AbstractCatAction {
 
         // Datafeed Info
         table.addCell("id", TableColumnAttributeBuilder.builder("the datafeed_id").build());
-        table.addCell("state",
+        table.addCell(
+            "state",
             TableColumnAttributeBuilder.builder("the datafeed state")
                 .setAliases("s")
                 .setTextAlignment(TableColumnAttributeBuilder.TextAlign.RIGHT)
-                .build());
-        table.addCell("assignment_explanation",
-            TableColumnAttributeBuilder.builder("why the datafeed is or is not assigned to a node", false)
-                .setAliases("ae")
-                .build());
+                .build()
+        );
+        table.addCell(
+            "assignment_explanation",
+            TableColumnAttributeBuilder.builder("why the datafeed is or is not assigned to a node", false).setAliases("ae").build()
+        );
 
         // Timing stats
-        table.addCell("buckets.count",
-            TableColumnAttributeBuilder.builder("bucket count")
-                .setAliases("bc", "bucketsCount")
-                .build());
-        table.addCell("search.count",
-            TableColumnAttributeBuilder.builder("number of searches ran by the datafeed")
-                .setAliases("sc", "searchCount")
-                .build());
-        table.addCell("search.time",
-            TableColumnAttributeBuilder.builder("the total search time", false)
-                .setAliases("st", "searchTime")
-                .build());
-        table.addCell("search.bucket_avg",
+        table.addCell("buckets.count", TableColumnAttributeBuilder.builder("bucket count").setAliases("bc", "bucketsCount").build());
+        table.addCell(
+            "search.count",
+            TableColumnAttributeBuilder.builder("number of searches ran by the datafeed").setAliases("sc", "searchCount").build()
+        );
+        table.addCell(
+            "search.time",
+            TableColumnAttributeBuilder.builder("the total search time", false).setAliases("st", "searchTime").build()
+        );
+        table.addCell(
+            "search.bucket_avg",
             TableColumnAttributeBuilder.builder("the average search time per bucket (millisecond)", false)
                 .setAliases("sba", "searchBucketAvg")
-                .build());
-        table.addCell("search.exp_avg_hour",
+                .build()
+        );
+        table.addCell(
+            "search.exp_avg_hour",
             TableColumnAttributeBuilder.builder("the exponential average search time per hour (millisecond)", false)
                 .setAliases("seah", "searchExpAvgHour")
-                .build());
+                .build()
+        );
 
-        //Node info
-        table.addCell("node.id",
-            TableColumnAttributeBuilder.builder("id of the assigned node", false)
-                .setAliases("ni", "nodeId")
-                .build());
-        table.addCell("node.name",
-            TableColumnAttributeBuilder.builder("name of the assigned node", false)
-                .setAliases("nn", "nodeName")
-                .build());
-        table.addCell("node.ephemeral_id",
-            TableColumnAttributeBuilder.builder("ephemeral id of the assigned node", false)
-                .setAliases("ne", "nodeEphemeralId")
-                .build());
-        table.addCell("node.address",
-            TableColumnAttributeBuilder.builder("network address of the assigned node", false)
-                .setAliases("na", "nodeAddress")
-                .build());
+        // Node info
+        table.addCell("node.id", TableColumnAttributeBuilder.builder("id of the assigned node", false).setAliases("ni", "nodeId").build());
+        table.addCell(
+            "node.name",
+            TableColumnAttributeBuilder.builder("name of the assigned node", false).setAliases("nn", "nodeName").build()
+        );
+        table.addCell(
+            "node.ephemeral_id",
+            TableColumnAttributeBuilder.builder("ephemeral id of the assigned node", false).setAliases("ne", "nodeEphemeralId").build()
+        );
+        table.addCell(
+            "node.address",
+            TableColumnAttributeBuilder.builder("network address of the assigned node", false).setAliases("na", "nodeAddress").build()
+        );
 
         table.endHeaders();
         return table;
@@ -142,9 +142,9 @@ public class RestCatDatafeedsAction extends AbstractCatAction {
             DatafeedTimingStats timingStats = df.getTimingStats();
             table.addCell(timingStats == null ? 0 : timingStats.getBucketCount());
             table.addCell(timingStats == null ? 0 : timingStats.getSearchCount());
-            table.addCell(timingStats == null ?
-                TimeValue.timeValueMillis(0) :
-                TimeValue.timeValueMillis((long)timingStats.getTotalSearchTimeMs()));
+            table.addCell(
+                timingStats == null ? TimeValue.timeValueMillis(0) : TimeValue.timeValueMillis((long) timingStats.getTotalSearchTimeMs())
+            );
             table.addCell(timingStats == null || timingStats.getBucketCount() == 0 ? 0.0 : timingStats.getAvgSearchTimePerBucketMs());
             table.addCell(timingStats == null ? 0.0 : timingStats.getExponentialAvgSearchTimePerHourMs());
 

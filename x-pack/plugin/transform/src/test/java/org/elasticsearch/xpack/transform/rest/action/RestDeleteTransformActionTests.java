@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.transform.rest.action;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.FakeRestRequest;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -29,12 +29,14 @@ public class RestDeleteTransformActionTests extends ESTestCase {
                 builder.field("id", "my_id");
             }
             builder.endObject();
-            final FakeRestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-                    .withContent(new BytesArray(builder.toString()), XContentType.JSON)
-                    .build();
+            final FakeRestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
+                new BytesArray(builder.toString()),
+                XContentType.JSON
+            ).build();
             IllegalArgumentException e = expectThrows(
-                    IllegalArgumentException.class,
-                    () -> handler.prepareRequest(request, mock(NodeClient.class)));
+                IllegalArgumentException.class,
+                () -> handler.prepareRequest(request, mock(NodeClient.class))
+            );
             assertThat(e.getMessage(), equalTo("delete transform requests can not have a request body"));
         }
     }

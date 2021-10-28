@@ -8,8 +8,8 @@
 package org.elasticsearch.client.core;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -25,8 +25,10 @@ public class PageParams implements ToXContentObject {
     public static final ParseField FROM = new ParseField("from");
     public static final ParseField SIZE = new ParseField("size");
 
-    public static final ConstructingObjectParser<PageParams, Void> PARSER = new ConstructingObjectParser<>(PAGE.getPreferredName(),
-            a -> new PageParams((Integer) a[0], (Integer) a[1]));
+    public static final ConstructingObjectParser<PageParams, Void> PARSER = new ConstructingObjectParser<>(
+        PAGE.getPreferredName(),
+        a -> new PageParams((Integer) a[0], (Integer) a[1])
+    );
 
     static {
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), FROM);
@@ -81,8 +83,7 @@ public class PageParams implements ToXContentObject {
             return false;
         }
         PageParams other = (PageParams) obj;
-        return Objects.equals(from, other.from) &&
-                Objects.equals(size, other.size);
+        return Objects.equals(from, other.from) && Objects.equals(size, other.size);
     }
 
 }

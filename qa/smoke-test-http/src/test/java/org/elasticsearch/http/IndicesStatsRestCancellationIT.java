@@ -19,10 +19,10 @@ public class IndicesStatsRestCancellationIT extends BlockedSearcherRestCancellat
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal, otherSettings))
-                // disable internal cluster info service to avoid internal indices stats calls
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
-                .build();
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            // disable internal cluster info service to avoid internal indices stats calls
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
+            .build();
     }
 
     public void testIndicesStatsRestCancellation() throws Exception {

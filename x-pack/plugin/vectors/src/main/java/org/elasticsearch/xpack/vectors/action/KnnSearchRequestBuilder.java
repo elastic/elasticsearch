@@ -41,25 +41,38 @@ class KnnSearchRequestBuilder {
 
     static {
         PARSER = new ObjectParser<>("knn-search");
-        PARSER.declareField(KnnSearchRequestBuilder::knnSearch, KnnSearch::parse,
-            KNN_SECTION_FIELD, ObjectParser.ValueType.OBJECT);
-        PARSER.declareField((p, request, c) -> request.fetchSource(FetchSourceContext.fromXContent(p)),
-            SearchSourceBuilder._SOURCE_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING);
-        PARSER.declareFieldArray(KnnSearchRequestBuilder::fields, (p, c) -> FieldAndFormat.fromXContent(p),
-            SearchSourceBuilder.FETCH_FIELDS_FIELD, ObjectParser.ValueType.OBJECT_ARRAY);
-        PARSER.declareFieldArray(KnnSearchRequestBuilder::docValueFields, (p, c) -> FieldAndFormat.fromXContent(p),
-            SearchSourceBuilder.DOCVALUE_FIELDS_FIELD, ObjectParser.ValueType.OBJECT_ARRAY);
-        PARSER.declareField((p, request, c) -> request.storedFields(
-                StoredFieldsContext.fromXContent(SearchSourceBuilder.STORED_FIELDS_FIELD.getPreferredName(), p)),
-            SearchSourceBuilder.STORED_FIELDS_FIELD, ObjectParser.ValueType.STRING_ARRAY);
+        PARSER.declareField(KnnSearchRequestBuilder::knnSearch, KnnSearch::parse, KNN_SECTION_FIELD, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(
+            (p, request, c) -> request.fetchSource(FetchSourceContext.fromXContent(p)),
+            SearchSourceBuilder._SOURCE_FIELD,
+            ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING
+        );
+        PARSER.declareFieldArray(
+            KnnSearchRequestBuilder::fields,
+            (p, c) -> FieldAndFormat.fromXContent(p),
+            SearchSourceBuilder.FETCH_FIELDS_FIELD,
+            ObjectParser.ValueType.OBJECT_ARRAY
+        );
+        PARSER.declareFieldArray(
+            KnnSearchRequestBuilder::docValueFields,
+            (p, c) -> FieldAndFormat.fromXContent(p),
+            SearchSourceBuilder.DOCVALUE_FIELDS_FIELD,
+            ObjectParser.ValueType.OBJECT_ARRAY
+        );
+        PARSER.declareField(
+            (p, request, c) -> request.storedFields(
+                StoredFieldsContext.fromXContent(SearchSourceBuilder.STORED_FIELDS_FIELD.getPreferredName(), p)
+            ),
+            SearchSourceBuilder.STORED_FIELDS_FIELD,
+            ObjectParser.ValueType.STRING_ARRAY
+        );
     }
 
     /**
      * Parses a {@link RestRequest} representing a kNN search into a request builder.
      */
     static KnnSearchRequestBuilder parseRestRequest(RestRequest restRequest) throws IOException {
-        KnnSearchRequestBuilder builder = new KnnSearchRequestBuilder(
-            Strings.splitStringByCommaToArray(restRequest.param("index")));
+        KnnSearchRequestBuilder builder = new KnnSearchRequestBuilder(Strings.splitStringByCommaToArray(restRequest.param("index")));
         builder.routing(restRequest.param("routing"));
 
         if (restRequest.hasContentOrSourceParam()) {
@@ -215,8 +228,9 @@ class KnnSearchRequestBuilder {
                 throw new IllegalArgumentException("[" + K_FIELD.getPreferredName() + "] must be greater than 0");
             }
             if (numCands < k) {
-                throw new IllegalArgumentException("[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot be less than " +
-                    "[" + K_FIELD.getPreferredName() + "]");
+                throw new IllegalArgumentException(
+                    "[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot be less than " + "[" + K_FIELD.getPreferredName() + "]"
+                );
             }
             if (numCands > NUM_CANDS_LIMIT) {
                 throw new IllegalArgumentException("[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot exceed [" + NUM_CANDS_LIMIT + "]");
@@ -231,8 +245,10 @@ class KnnSearchRequestBuilder {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             KnnSearch that = (KnnSearch) o;
-            return k == that.k && numCands == that.numCands
-                && Objects.equals(field, that.field) && Arrays.equals(queryVector, that.queryVector);
+            return k == that.k
+                && numCands == that.numCands
+                && Objects.equals(field, that.field)
+                && Arrays.equals(queryVector, that.queryVector);
         }
 
         @Override

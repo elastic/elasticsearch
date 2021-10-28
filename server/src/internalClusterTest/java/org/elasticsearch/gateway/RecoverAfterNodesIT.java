@@ -29,13 +29,19 @@ import static org.hamcrest.Matchers.hasItem;
 public class RecoverAfterNodesIT extends ESIntegTestCase {
     private static final TimeValue BLOCK_WAIT_TIMEOUT = TimeValue.timeValueSeconds(10);
 
-
     public Set<ClusterBlock> waitForNoBlocksOnNode(TimeValue timeout, Client nodeClient) {
         long start = System.currentTimeMillis();
         Set<ClusterBlock> blocks;
         do {
-            blocks = nodeClient.admin().cluster().prepareState().setLocal(true).execute().actionGet()
-                    .getState().blocks().global(ClusterBlockLevel.METADATA_WRITE);
+            blocks = nodeClient.admin()
+                .cluster()
+                .prepareState()
+                .setLocal(true)
+                .execute()
+                .actionGet()
+                .getState()
+                .blocks()
+                .global(ClusterBlockLevel.METADATA_WRITE);
         } while (blocks.isEmpty() == false && (System.currentTimeMillis() - start) < timeout.millis());
         return blocks;
     }
@@ -49,30 +55,84 @@ public class RecoverAfterNodesIT extends ESIntegTestCase {
         internalCluster().setBootstrapMasterNodeIndex(0);
         logger.info("--> start master_node (1)");
         Client master1 = startNode(Settings.builder().put(RECOVER_AFTER_DATA_NODES_SETTING.getKey(), 2).put(masterOnlyNode()));
-        assertThat(master1.admin().cluster().prepareState().setLocal(true).execute().actionGet()
-                .getState().blocks().global(ClusterBlockLevel.METADATA_WRITE),
-                hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
+        assertThat(
+            master1.admin()
+                .cluster()
+                .prepareState()
+                .setLocal(true)
+                .execute()
+                .actionGet()
+                .getState()
+                .blocks()
+                .global(ClusterBlockLevel.METADATA_WRITE),
+            hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK)
+        );
 
         logger.info("--> start data_node (1)");
         Client data1 = startNode(Settings.builder().put(RECOVER_AFTER_DATA_NODES_SETTING.getKey(), 2).put(dataOnlyNode()));
-        assertThat(master1.admin().cluster().prepareState().setLocal(true).execute().actionGet()
-                .getState().blocks().global(ClusterBlockLevel.METADATA_WRITE),
-                hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
-        assertThat(data1.admin().cluster().prepareState().setLocal(true).execute().actionGet()
-                .getState().blocks().global(ClusterBlockLevel.METADATA_WRITE),
-                hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
+        assertThat(
+            master1.admin()
+                .cluster()
+                .prepareState()
+                .setLocal(true)
+                .execute()
+                .actionGet()
+                .getState()
+                .blocks()
+                .global(ClusterBlockLevel.METADATA_WRITE),
+            hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK)
+        );
+        assertThat(
+            data1.admin()
+                .cluster()
+                .prepareState()
+                .setLocal(true)
+                .execute()
+                .actionGet()
+                .getState()
+                .blocks()
+                .global(ClusterBlockLevel.METADATA_WRITE),
+            hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK)
+        );
 
         logger.info("--> start master_node (2)");
         Client master2 = startNode(Settings.builder().put(RECOVER_AFTER_DATA_NODES_SETTING.getKey(), 2).put(masterOnlyNode()));
-        assertThat(master2.admin().cluster().prepareState().setLocal(true).execute().actionGet()
-                .getState().blocks().global(ClusterBlockLevel.METADATA_WRITE),
-                hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
-        assertThat(data1.admin().cluster().prepareState().setLocal(true).execute().actionGet()
-                .getState().blocks().global(ClusterBlockLevel.METADATA_WRITE),
-                hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
-        assertThat(master2.admin().cluster().prepareState().setLocal(true).execute().actionGet()
-                .getState().blocks().global(ClusterBlockLevel.METADATA_WRITE),
-                hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
+        assertThat(
+            master2.admin()
+                .cluster()
+                .prepareState()
+                .setLocal(true)
+                .execute()
+                .actionGet()
+                .getState()
+                .blocks()
+                .global(ClusterBlockLevel.METADATA_WRITE),
+            hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK)
+        );
+        assertThat(
+            data1.admin()
+                .cluster()
+                .prepareState()
+                .setLocal(true)
+                .execute()
+                .actionGet()
+                .getState()
+                .blocks()
+                .global(ClusterBlockLevel.METADATA_WRITE),
+            hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK)
+        );
+        assertThat(
+            master2.admin()
+                .cluster()
+                .prepareState()
+                .setLocal(true)
+                .execute()
+                .actionGet()
+                .getState()
+                .blocks()
+                .global(ClusterBlockLevel.METADATA_WRITE),
+            hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK)
+        );
 
         logger.info("--> start data_node (2)");
         Client data2 = startNode(Settings.builder().put(RECOVER_AFTER_DATA_NODES_SETTING.getKey(), 2).put(dataOnlyNode()));

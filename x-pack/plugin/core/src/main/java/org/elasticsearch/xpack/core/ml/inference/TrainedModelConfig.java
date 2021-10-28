@@ -235,8 +235,13 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             : null;
 
         this.inferenceConfig = in.readOptionalNamedWriteable(InferenceConfig.class);
-        this.modelType = in.readOptionalEnum(TrainedModelType.class);
-        this.location = in.readOptionalNamedWriteable(TrainedModelLocation.class);
+        if (in.getVersion().onOrAfter(VERSION_3RD_PARTY_CONFIG_ADDED)) {
+            this.modelType = in.readOptionalEnum(TrainedModelType.class);
+            this.location = in.readOptionalNamedWriteable(TrainedModelLocation.class);
+        } else {
+            this.modelType = null;
+            this.location = null;
+        }
     }
 
     public String getModelId() {
@@ -376,8 +381,10 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             out.writeBoolean(false);
         }
         out.writeOptionalNamedWriteable(inferenceConfig);
-        out.writeOptionalEnum(modelType);
-        out.writeOptionalNamedWriteable(location);
+        if (out.getVersion().onOrAfter(VERSION_3RD_PARTY_CONFIG_ADDED)) {
+            out.writeOptionalEnum(modelType);
+            out.writeOptionalNamedWriteable(location);
+        }
     }
 
     @Override
@@ -879,7 +886,11 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         }
 
         public static LazyModelDefinition fromStreamInput(StreamInput input) throws IOException {
-            return new LazyModelDefinition(input.readBytesReference(), null);
+            if (input.getVersion().onOrAfter(Version.V_8_0_0)) {
+                return new LazyModelDefinition(input.readBytesReference(), null);
+            } else {
+                return fromBase64String(input.readString());
+            }
         }
 
         private LazyModelDefinition(LazyModelDefinition definition) {
@@ -939,7 +950,11 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeBytesReference(getCompressedDefinition());
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeBytesReference(getCompressedDefinition());
+            } else {
+                out.writeString(getBase64CompressedDefinition());
+            }
         }
 
         @Override

@@ -100,7 +100,7 @@ public class FilterContentBenchmark {
             case "all_field":
                 Set<String> allKeys = new HashSet<>(keys);
                 allKeys.remove("cluster_uuid");
-                includesFilters = FilterPath.compile(keys);
+                includesFilters = FilterPath.compile(allKeys);
                 break;
             case "wildcard_field":
                 Set<String> wildcardField = new HashSet<>(Arrays.asList("*stats"));
@@ -115,9 +115,9 @@ public class FilterContentBenchmark {
                         "*stats*.xpack",
                         "*stats.*.segments",
                         "*stat*.*.data*",
-                        "*stats.**.request_cache",
-                        "*stats.**.stat",
-                        "*stats.**.threads",
+                        inclusive ? "*stats.**.request_cache" : "*stats.*.request_cache",
+                        inclusive ? "*stats.**.stat" : "*stats.*.stat",
+                        inclusive ? "*stats.**.threads" : "*stats.*.threads",
                         "*source_node.t*"
                     )
                 );

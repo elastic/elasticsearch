@@ -98,6 +98,8 @@ public class FilterContentBenchmark {
             }
                 break;
             case "all_field":
+                Set<String> allKeys = new HashSet<>(keys);
+                allKeys.remove("cluster_uuid");
                 includesFilters = FilterPath.compile(keys);
                 break;
             case "wildcard_field":

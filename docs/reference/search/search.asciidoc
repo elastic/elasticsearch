@@ -163,7 +163,7 @@ using the default method.
 
 `_shards:<shard>,<shard>`::
 Run the search only on the specified shards. You can combine this value with
-other `preference` values, excluding `<custom-string>`. However, the `_shards`
+other `preference` values. However, the `_shards`
 value must come first. For example: `_shards:2,3|_local`.
 
 `<custom-string>`::

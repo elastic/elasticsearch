@@ -34,7 +34,7 @@ import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class MachineLearningTests extends ESTestCase {
@@ -55,18 +55,17 @@ public class MachineLearningTests extends ESTestCase {
         MachineLearning machineLearning = createMachineLearning(Settings.EMPTY);
 
         SetOnce<Map<String, Object>> response = new SetOnce<>();
-        machineLearning.prepareForIndicesMigration(clusterService, client, ActionListener.wrap(
-            response::set,
-            e -> fail(e.getMessage())
-        ));
+        machineLearning.prepareForIndicesMigration(clusterService, client, ActionListener.wrap(response::set, e -> fail(e.getMessage())));
 
         assertThat(response.get(), equalTo(Collections.singletonMap("already_in_upgrade_mode", false)));
         verify(client).execute(same(SetUpgradeModeAction.INSTANCE), eq(new SetUpgradeModeAction.Request(true)), any(ActionListener.class));
 
-        machineLearning.indicesMigrationComplete(response.get(), clusterService, client, ActionListener.wrap(
-            ESTestCase::assertTrue,
-            e -> fail(e.getMessage())
-        ));
+        machineLearning.indicesMigrationComplete(
+            response.get(),
+            clusterService,
+            client,
+            ActionListener.wrap(ESTestCase::assertTrue, e -> fail(e.getMessage()))
+        );
 
         verify(client).execute(same(SetUpgradeModeAction.INSTANCE), eq(new SetUpgradeModeAction.Request(false)), any(ActionListener.class));
 
@@ -77,27 +76,28 @@ public class MachineLearningTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(
             ClusterState.builder(ClusterName.DEFAULT)
-                .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isUpgradeMode(true).build())).build());
+                .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isUpgradeMode(true).build()))
+                .build()
+        );
         Client client = mock(Client.class);
 
         MachineLearning machineLearning = createMachineLearning(Settings.EMPTY);
 
         SetOnce<Map<String, Object>> response = new SetOnce<>();
-        machineLearning.prepareForIndicesMigration(clusterService, client, ActionListener.wrap(
-            response::set,
-            e -> fail(e.getMessage())
-        ));
+        machineLearning.prepareForIndicesMigration(clusterService, client, ActionListener.wrap(response::set, e -> fail(e.getMessage())));
 
         assertThat(response.get(), equalTo(Collections.singletonMap("already_in_upgrade_mode", true)));
-        verifyZeroInteractions(client);
+        verifyNoMoreInteractions(client);
 
-        machineLearning.indicesMigrationComplete(response.get(), clusterService, client, ActionListener.wrap(
-            ESTestCase::assertTrue,
-            e -> fail(e.getMessage())
-        ));
+        machineLearning.indicesMigrationComplete(
+            response.get(),
+            clusterService,
+            client,
+            ActionListener.wrap(ESTestCase::assertTrue, e -> fail(e.getMessage()))
+        );
 
         // Neither pre nor post should have called any action
-        verifyZeroInteractions(client);
+        verifyNoMoreInteractions(client);
     }
 
     public void testMaxOpenWorkersSetting_givenDefault() {
@@ -129,10 +129,16 @@ public class MachineLearningTests extends ESTestCase {
         Settings.Builder settings = Settings.builder();
         int invalidMaxMachineMemoryPercent = randomFrom(4, 201);
         settings.put(MachineLearning.MAX_MACHINE_MEMORY_PERCENT.getKey(), invalidMaxMachineMemoryPercent);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings.build()));
-        assertThat(e.getMessage(), startsWith("Failed to parse value [" + invalidMaxMachineMemoryPercent
-            + "] for setting [xpack.ml.max_machine_memory_percent] must be"));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings.build())
+        );
+        assertThat(
+            e.getMessage(),
+            startsWith(
+                "Failed to parse value [" + invalidMaxMachineMemoryPercent + "] for setting [xpack.ml.max_machine_memory_percent] must be"
+            )
+        );
     }
 
     public void testNoAttributes_givenNoClash() {
@@ -168,8 +174,13 @@ public class MachineLearningTests extends ESTestCase {
         MachineLearning machineLearning = createMachineLearning(builder.put("path.home", createTempDir()).build());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, machineLearning::additionalSettings);
         assertThat(e.getMessage(), startsWith("Directly setting [node.attr.ml."));
-        assertThat(e.getMessage(), containsString("] is not permitted - " +
-                "it is reserved for machine learning. If your intention was to customize machine learning, set the [xpack.ml."));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "] is not permitted - "
+                    + "it is reserved for machine learning. If your intention was to customize machine learning, set the [xpack.ml."
+            )
+        );
     }
 
     private MachineLearning createMachineLearning(Settings settings) {

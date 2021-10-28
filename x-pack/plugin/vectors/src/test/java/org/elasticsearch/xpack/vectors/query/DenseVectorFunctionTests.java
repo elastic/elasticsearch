@@ -30,12 +30,12 @@ public class DenseVectorFunctionTests extends ESTestCase {
     public void testVectorFunctions() {
         String field = "vector";
         int dims = 5;
-        float[] docVector = new float[] {230.0f, 300.33f, -34.8988f, 15.555f, -200.0f};
+        float[] docVector = new float[] { 230.0f, 300.33f, -34.8988f, 15.555f, -200.0f };
         List<Number> queryVector = Arrays.asList(0.5f, 111.3f, -13.0f, 14.8f, -156.0f);
         List<Number> invalidQueryVector = Arrays.asList(0.5, 111.3);
 
         for (Version indexVersion : Arrays.asList(Version.V_7_4_0, Version.CURRENT)) {
-            BinaryDocValues docValues = BinaryDenseVectorScriptDocValuesTests.wrap(new float[][]{docVector}, indexVersion);
+            BinaryDocValues docValues = BinaryDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, indexVersion);
             DenseVectorScriptDocValues scriptDocValues = new BinaryDenseVectorScriptDocValues(docValues, indexVersion, dims);
 
             ScoreScript scoreScript = mock(ScoreScript.class);
@@ -43,8 +43,7 @@ public class DenseVectorFunctionTests extends ESTestCase {
 
             // Test cosine similarity explicitly, as it must perform special logic on top of the doc values
             CosineSimilarity function = new CosineSimilarity(scoreScript, queryVector, field);
-            assertEquals("cosineSimilarity result is not equal to the expected value!",
-                0.790, function.cosineSimilarity(), 0.001);
+            assertEquals("cosineSimilarity result is not equal to the expected value!", 0.790, function.cosineSimilarity(), 0.001);
 
             // Check each function rejects query vectors with the wrong dimension
             assertDimensionMismatch(() -> new DotProduct(scoreScript, invalidQueryVector, field));

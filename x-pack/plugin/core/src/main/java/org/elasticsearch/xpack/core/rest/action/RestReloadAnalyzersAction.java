@@ -25,9 +25,7 @@ public class RestReloadAnalyzersAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, "/{index}/_reload_search_analyzers"),
-            new Route(POST, "/{index}/_reload_search_analyzers"));
+        return List.of(new Route(GET, "/{index}/_reload_search_analyzers"), new Route(POST, "/{index}/_reload_search_analyzers"));
     }
 
     @Override
@@ -38,7 +36,8 @@ public class RestReloadAnalyzersAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         ReloadAnalyzersRequest reloadAnalyzersRequest = new ReloadAnalyzersRequest(
-                Strings.splitStringByCommaToArray(request.param("index")));
+            Strings.splitStringByCommaToArray(request.param("index"))
+        );
         reloadAnalyzersRequest.indicesOptions(IndicesOptions.fromRequest(request, reloadAnalyzersRequest.indicesOptions()));
         return channel -> client.execute(ReloadAnalyzerAction.INSTANCE, reloadAnalyzersRequest, new RestToXContentListener<>(channel));
     }

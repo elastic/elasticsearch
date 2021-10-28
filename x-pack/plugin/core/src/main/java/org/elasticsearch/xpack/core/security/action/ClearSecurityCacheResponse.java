@@ -20,8 +20,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 
-public class ClearSecurityCacheResponse extends BaseNodesResponse<ClearSecurityCacheResponse.Node>
-    implements ToXContentFragment {
+public class ClearSecurityCacheResponse extends BaseNodesResponse<ClearSecurityCacheResponse.Node> implements ToXContentFragment {
 
     public ClearSecurityCacheResponse(StreamInput in) throws IOException {
         super(in);

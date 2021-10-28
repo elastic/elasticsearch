@@ -8,9 +8,9 @@
 
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.Objects;
@@ -21,11 +21,11 @@ public class EstimateModelMemoryResponse {
 
     public static final ParseField MODEL_MEMORY_ESTIMATE = new ParseField("model_memory_estimate");
 
-    static final ConstructingObjectParser<EstimateModelMemoryResponse, Void> PARSER =
-        new ConstructingObjectParser<>(
-            "estimate_model_memory",
-            true,
-            args -> new EstimateModelMemoryResponse((String) args[0]));
+    static final ConstructingObjectParser<EstimateModelMemoryResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "estimate_model_memory",
+        true,
+        args -> new EstimateModelMemoryResponse((String) args[0])
+    );
 
     static {
         PARSER.declareString(constructorArg(), MODEL_MEMORY_ESTIMATE);

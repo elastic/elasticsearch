@@ -7,14 +7,15 @@
  */
 package org.elasticsearch.grok;
 
+import org.elasticsearch.test.ESTestCase;
+import org.joni.Matcher;
+import org.mockito.Mockito;
+
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.elasticsearch.test.ESTestCase;
-import org.joni.Matcher;
-import org.mockito.Mockito;
 
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -24,7 +25,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 
 public class MatcherWatchdogTests extends ESTestCase {
 
@@ -53,7 +53,8 @@ public class MatcherWatchdogTests extends ESTestCase {
             watchdog.register(matcher);
             verify(matcher, timeout(9999).atLeastOnce()).interrupt();
             interrupted.set(true);
-            while (run.get()) {} // wait here so that the size of the registry can be asserted
+            while (run.get()) {
+            } // wait here so that the size of the registry can be asserted
             watchdog.unregister(matcher);
         });
         thread.start();
@@ -62,26 +63,26 @@ public class MatcherWatchdogTests extends ESTestCase {
             assertThat(registry.size(), is(1));
         });
         run.set(false);
-        assertBusy(() -> {
-            assertThat(registry.size(), is(0));
-        });
+        assertBusy(() -> { assertThat(registry.size(), is(0)); });
     }
 
     public void testIdleIfNothingRegistered() throws Exception {
         long interval = 1L;
         ScheduledExecutorService threadPool = mock(ScheduledExecutorService.class);
-        MatcherWatchdog watchdog = MatcherWatchdog.newInstance(interval, Long.MAX_VALUE, System::currentTimeMillis,
-            (delay, command) -> threadPool.schedule(command, delay, TimeUnit.MILLISECONDS));
+        MatcherWatchdog watchdog = MatcherWatchdog.newInstance(
+            interval,
+            Long.MAX_VALUE,
+            System::currentTimeMillis,
+            (delay, command) -> threadPool.schedule(command, delay, TimeUnit.MILLISECONDS)
+        );
         // Periodic action is not scheduled because no thread is registered
-        verifyZeroInteractions(threadPool);
+        verifyNoMoreInteractions(threadPool);
         CompletableFuture<Runnable> commandFuture = new CompletableFuture<>();
         // Periodic action is scheduled because a thread is registered
         doAnswer(invocationOnMock -> {
             commandFuture.complete((Runnable) invocationOnMock.getArguments()[0]);
             return null;
-        }).when(threadPool).schedule(
-            any(Runnable.class), eq(interval), eq(TimeUnit.MILLISECONDS)
-        );
+        }).when(threadPool).schedule(any(Runnable.class), eq(interval), eq(TimeUnit.MILLISECONDS));
         Matcher matcher = mock(Matcher.class);
         watchdog.register(matcher);
         // Registering the first thread should have caused the command to get scheduled again
@@ -90,7 +91,7 @@ public class MatcherWatchdogTests extends ESTestCase {
         watchdog.unregister(matcher);
         command.run();
         // Periodic action is not scheduled again because no thread is registered
-        verifyZeroInteractions(threadPool);
+        verifyNoMoreInteractions(threadPool);
         watchdog.register(matcher);
         Thread otherThread = new Thread(() -> {
             Matcher otherMatcher = mock(Matcher.class);

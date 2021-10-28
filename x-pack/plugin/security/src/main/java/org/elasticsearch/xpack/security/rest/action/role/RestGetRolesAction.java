@@ -8,15 +8,15 @@ package org.elasticsearch.xpack.security.rest.action.role;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -39,10 +39,8 @@ public class RestGetRolesAction extends SecurityBaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(GET, "/_security/role/")
-                .replaces(GET, "/_xpack/security/role/", RestApiVersion.V_7).build(),
-            Route.builder(GET, "/_security/role/{name}")
-                .replaces(GET, "/_xpack/security/role/{name}", RestApiVersion.V_7).build()
+            Route.builder(GET, "/_security/role/").replaces(GET, "/_xpack/security/role/", RestApiVersion.V_7).build(),
+            Route.builder(GET, "/_security/role/{name}").replaces(GET, "/_xpack/security/role/{name}", RestApiVersion.V_7).build()
         );
     }
 
@@ -54,9 +52,7 @@ public class RestGetRolesAction extends SecurityBaseRestHandler {
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String[] roles = request.paramAsStringArray("name", Strings.EMPTY_ARRAY);
-        return channel -> new GetRolesRequestBuilder(client)
-            .names(roles)
-            .execute(new RestBuilderListener<>(channel) {
+        return channel -> new GetRolesRequestBuilder(client).names(roles).execute(new RestBuilderListener<>(channel) {
             @Override
             public RestResponse buildResponse(GetRolesResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();

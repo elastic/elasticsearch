@@ -28,9 +28,6 @@ abstract class AbstractConfusionMatrixMetric implements EvaluationMetric {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        return builder
-            .startObject()
-            .field(AT.getPreferredName(), thresholds)
-            .endObject();
+        return builder.startObject().field(AT.getPreferredName(), thresholds).endObject();
     }
 }

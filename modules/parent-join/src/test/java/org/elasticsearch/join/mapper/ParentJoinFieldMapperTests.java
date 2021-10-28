@@ -11,8 +11,6 @@ package org.elasticsearch.join.mapper;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
@@ -24,6 +22,8 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -46,8 +46,9 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
         DocumentMapper docMapper = mapperService.documentMapper();
-        Joiner joiner = Joiner.getJoiner(mapperService.mappingLookup().getMatchingFieldNames("*").stream()
-            .map(mapperService.mappingLookup()::getFieldType));
+        Joiner joiner = Joiner.getJoiner(
+            mapperService.mappingLookup().getMatchingFieldNames("*").stream().map(mapperService.mappingLookup()::getFieldType)
+        );
         assertNotNull(joiner);
         assertEquals("join_field", joiner.getJoinField());
 
@@ -66,8 +67,10 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
         assertEquals("child", doc.rootDoc().getBinaryValue("join_field").utf8ToString());
 
         // Unknown join name
-        MapperException exc = expectThrows(MapperParsingException.class,
-            () -> docMapper.parse(source(b -> b.field("join_field", "unknown"))));
+        MapperException exc = expectThrows(
+            MapperParsingException.class,
+            () -> docMapper.parse(source(b -> b.field("join_field", "unknown")))
+        );
         assertThat(exc.getRootCause().getMessage(), containsString("unknown join name [unknown] for field [join_field]"));
     }
 
@@ -98,8 +101,9 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
         }));
 
         // Doc without join
-        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "0",
-            BytesReference.bytes(XContentFactory.jsonBuilder().startObject().endObject()), XContentType.JSON));
+        ParsedDocument doc = docMapper.parse(
+            new SourceToParse("test", "0", BytesReference.bytes(XContentFactory.jsonBuilder().startObject().endObject()), XContentType.JSON)
+        );
         assertNull(doc.rootDoc().getBinaryValue("join_field"));
 
         // Doc parent
@@ -135,11 +139,17 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
         assertEquals("grand_child", doc.rootDoc().getBinaryValue("join_field").utf8ToString());
 
         // Unknown join name
-        exc = expectThrows(MapperParsingException.class,
-            () -> docMapper.parse(new SourceToParse("test", "1",
-                BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
-                    .field("join_field", "unknown")
-                    .endObject()), XContentType.JSON)));
+        exc = expectThrows(
+            MapperParsingException.class,
+            () -> docMapper.parse(
+                new SourceToParse(
+                    "test",
+                    "1",
+                    BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("join_field", "unknown").endObject()),
+                    XContentType.JSON
+                )
+            )
+        );
         assertThat(exc.getRootCause().getMessage(), containsString("unknown join name [unknown] for field [join_field]"));
     }
 
@@ -233,8 +243,9 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        Joiner joiner = Joiner.getJoiner(mapperService.mappingLookup().getMatchingFieldNames("*").stream()
-            .map(mapperService.mappingLookup()::getFieldType));
+        Joiner joiner = Joiner.getJoiner(
+            mapperService.mappingLookup().getMatchingFieldNames("*").stream().map(mapperService.mappingLookup()::getFieldType)
+        );
         assertNotNull(joiner);
         assertEquals("join_field", joiner.getJoinField());
         assertTrue(joiner.childTypeExists("child2"));
@@ -260,8 +271,9 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
             }
             b.endObject();
         }));
-        joiner = Joiner.getJoiner(mapperService.mappingLookup().getMatchingFieldNames("*").stream()
-            .map(mapperService.mappingLookup()::getFieldType));
+        joiner = Joiner.getJoiner(
+            mapperService.mappingLookup().getMatchingFieldNames("*").stream().map(mapperService.mappingLookup()::getFieldType)
+        );
         assertNotNull(joiner);
         assertEquals("join_field", joiner.getJoinField());
         assertTrue(joiner.childTypeExists("child2"));
@@ -295,8 +307,10 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
             }
             b.endObject();
         })));
-        assertThat(exc.getRootCause().getMessage(),
-            containsString("join field [object.join_field] cannot be added inside an object or in a multi-field"));
+        assertThat(
+            exc.getRootCause().getMessage(),
+            containsString("join field [object.join_field] cannot be added inside an object or in a multi-field")
+        );
     }
 
     public void testInvalidJoinFieldInsideMultiFields() throws Exception {
@@ -333,8 +347,10 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
                 b.field("type", "join");
                 b.startObject("relations").field("product", "item").endObject().endObject();
             })));
-            assertThat(exc.getMessage(),
-                equalTo("Only one [parent-join] field can be defined per index, got [join_field, another_join_field]"));
+            assertThat(
+                exc.getMessage(),
+                equalTo("Only one [parent-join] field can be defined per index, got [join_field, another_join_field]")
+            );
         }
 
         {
@@ -349,35 +365,44 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
                 IllegalArgumentException.class,
                 () -> merge(mapperService, mapping(b -> b.startObject("another_join_field").field("type", "join").endObject()))
             );
-            assertThat(exc.getMessage(),
-                equalTo("Only one [parent-join] field can be defined per index, got [join_field, another_join_field]"));
+            assertThat(
+                exc.getMessage(),
+                equalTo("Only one [parent-join] field can be defined per index, got [join_field, another_join_field]")
+            );
         }
     }
 
     public void testEagerGlobalOrdinals() throws Exception {
-        MapperService mapperService = createMapperService(mapping(b -> b
-                .startObject("join_field")
+        MapperService mapperService = createMapperService(
+            mapping(
+                b -> b.startObject("join_field")
                     .field("type", "join")
                     .startObject("relations")
-                        .field("parent", "child")
-                        .field("child", "grand_child")
+                    .field("parent", "child")
+                    .field("child", "grand_child")
                     .endObject()
-                .endObject()));
+                    .endObject()
+            )
+        );
         assertFalse(mapperService.fieldType("join_field").eagerGlobalOrdinals());
         assertNotNull(mapperService.fieldType("join_field#parent"));
         assertTrue(mapperService.fieldType("join_field#parent").eagerGlobalOrdinals());
         assertNotNull(mapperService.fieldType("join_field#child"));
         assertTrue(mapperService.fieldType("join_field#child").eagerGlobalOrdinals());
 
-        merge(mapperService, mapping(b -> b
-                .startObject("join_field")
+        merge(
+            mapperService,
+            mapping(
+                b -> b.startObject("join_field")
                     .field("type", "join")
                     .field("eager_global_ordinals", false)
                     .startObject("relations")
-                        .field("parent", "child")
-                        .field("child", "grand_child")
+                    .field("parent", "child")
+                    .field("child", "grand_child")
                     .endObject()
-                .endObject()));
+                    .endObject()
+            )
+        );
         assertFalse(mapperService.fieldType("join_field").eagerGlobalOrdinals());
         assertNotNull(mapperService.fieldType("join_field#parent"));
         assertFalse(mapperService.fieldType("join_field#parent").eagerGlobalOrdinals());
@@ -386,14 +411,17 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testSubFields() throws IOException {
-        MapperService mapperService = createMapperService(mapping(b -> b
-            .startObject("join_field")
-                .field("type", "join")
-                .startObject("relations")
+        MapperService mapperService = createMapperService(
+            mapping(
+                b -> b.startObject("join_field")
+                    .field("type", "join")
+                    .startObject("relations")
                     .field("parent", "child")
                     .field("child", "grand_child")
-                .endObject()
-            .endObject()));
+                    .endObject()
+                    .endObject()
+            )
+        );
         ParentJoinFieldMapper mapper = (ParentJoinFieldMapper) mapperService.mappingLookup().getMapper("join_field");
         assertTrue(mapper.fieldType().isSearchable());
         assertTrue(mapper.fieldType().isAggregatable());

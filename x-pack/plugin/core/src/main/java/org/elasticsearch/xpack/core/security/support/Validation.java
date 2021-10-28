@@ -23,25 +23,119 @@ public final class Validation {
     static final int MIN_NAME_LENGTH = 1;
     static final int MAX_NAME_LENGTH = 1024;
 
-    static final Set<Character> VALID_NAME_CHARS = unmodifiableSet(Sets.newHashSet(
-        ' ', '!', '"', '#', '$', '%', '&', '\'', '(', ')', '*', '+', ',', '-', '.', '/',
-        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ':', ';', '<', '=', '>', '?',
-        '@', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O',
-        'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '[', '\\', ']', '^', '_',
-        '`', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
-        'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '{', '|', '}', '~'
-    ));
+    static final Set<Character> VALID_NAME_CHARS = unmodifiableSet(
+        Sets.newHashSet(
+            ' ',
+            '!',
+            '"',
+            '#',
+            '$',
+            '%',
+            '&',
+            '\'',
+            '(',
+            ')',
+            '*',
+            '+',
+            ',',
+            '-',
+            '.',
+            '/',
+            '0',
+            '1',
+            '2',
+            '3',
+            '4',
+            '5',
+            '6',
+            '7',
+            '8',
+            '9',
+            ':',
+            ';',
+            '<',
+            '=',
+            '>',
+            '?',
+            '@',
+            'A',
+            'B',
+            'C',
+            'D',
+            'E',
+            'F',
+            'G',
+            'H',
+            'I',
+            'J',
+            'K',
+            'L',
+            'M',
+            'N',
+            'O',
+            'P',
+            'Q',
+            'R',
+            'S',
+            'T',
+            'U',
+            'V',
+            'W',
+            'X',
+            'Y',
+            'Z',
+            '[',
+            '\\',
+            ']',
+            '^',
+            '_',
+            '`',
+            'a',
+            'b',
+            'c',
+            'd',
+            'e',
+            'f',
+            'g',
+            'h',
+            'i',
+            'j',
+            'k',
+            'l',
+            'm',
+            'n',
+            'o',
+            'p',
+            'q',
+            'r',
+            's',
+            't',
+            'u',
+            'v',
+            'w',
+            'x',
+            'y',
+            'z',
+            '{',
+            '|',
+            '}',
+            '~'
+        )
+    );
 
-    private static final String INVALID_NAME_MESSAGE =
-        "%1s names must be at least " + MIN_NAME_LENGTH + " and no more than " + MAX_NAME_LENGTH + " characters. " +
-        "They can contain alphanumeric characters (a-z, A-Z, 0-9), spaces, punctuation, and printable symbols in the " +
-        "Basic Latin (ASCII) block. Leading or trailing whitespace is not allowed.";
+    private static final String INVALID_NAME_MESSAGE = "%1s names must be at least "
+        + MIN_NAME_LENGTH
+        + " and no more than "
+        + MAX_NAME_LENGTH
+        + " characters. "
+        + "They can contain alphanumeric characters (a-z, A-Z, 0-9), spaces, punctuation, and printable symbols in the "
+        + "Basic Latin (ASCII) block. Leading or trailing whitespace is not allowed.";
 
     private static final Pattern VALID_SERVICE_ACCOUNT_TOKEN_NAME = Pattern.compile("^[a-zA-Z0-9-][a-zA-Z0-9_-]{0,255}$");
 
-    public static final String INVALID_SERVICE_ACCOUNT_TOKEN_NAME_MESSAGE = "service account token name must have at least 1 character " +
-        "and at most 256 characters that are alphanumeric (A-Z, a-z, 0-9) or hyphen (-) or underscore (_). " +
-        "It must not begin with an underscore (_).";
+    public static final String INVALID_SERVICE_ACCOUNT_TOKEN_NAME_MESSAGE = "service account token name must have at least 1 character "
+        + "and at most 256 characters that are alphanumeric (A-Z, a-z, 0-9) or hyphen (-) or underscore (_). "
+        + "It must not begin with an underscore (_).";
 
     private static boolean isValidUserOrRoleName(String name) {
         if (name.length() < MIN_NAME_LENGTH || name.length() > MAX_NAME_LENGTH) {
@@ -99,9 +193,9 @@ public final class Validation {
         }
 
         public static Error validatePassword(SecureString password) {
-            return password.length() >= MIN_PASSWD_LENGTH ?
-                null :
-                new Error("passwords must be at least [" + MIN_PASSWD_LENGTH + "] characters long");
+            return password.length() >= MIN_PASSWD_LENGTH
+                ? null
+                : new Error("passwords must be at least [" + MIN_PASSWD_LENGTH + "] characters long");
         }
 
     }

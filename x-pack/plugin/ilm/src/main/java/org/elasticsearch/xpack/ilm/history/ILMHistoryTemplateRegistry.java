@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.ilm.history;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
@@ -58,9 +58,13 @@ public class ILMHistoryTemplateRegistry extends IndexTemplateRegistry {
 
     private final boolean ilmHistoryEnabled;
 
-    public ILMHistoryTemplateRegistry(Settings nodeSettings, ClusterService clusterService,
-                                      ThreadPool threadPool, Client client,
-                                      NamedXContentRegistry xContentRegistry) {
+    public ILMHistoryTemplateRegistry(
+        Settings nodeSettings,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        Client client,
+        NamedXContentRegistry xContentRegistry
+    ) {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
         this.ilmHistoryEnabled = LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.get(nodeSettings);
     }

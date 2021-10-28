@@ -46,9 +46,13 @@ public class RemoveProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         RemoveProcessor removeProcessor = factory.create(null, processorTag, null, config);
         assertThat(removeProcessor.getTag(), equalTo(processorTag));
-        assertThat(removeProcessor.getFields().stream()
-            .map(template -> template.newInstance(Collections.emptyMap()).execute())
-            .collect(Collectors.toList()), equalTo(Arrays.asList("field1", "field2")));
+        assertThat(
+            removeProcessor.getFields()
+                .stream()
+                .map(template -> template.newInstance(Collections.emptyMap()).execute())
+                .collect(Collectors.toList()),
+            equalTo(Arrays.asList("field1", "field2"))
+        );
     }
 
     public void testCreateMissingField() throws Exception {
@@ -56,7 +60,7 @@ public class RemoveProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(null, null, null, config);
             fail("factory create should have failed");
-        } catch(ElasticsearchParseException e) {
+        } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[field] required property is missing"));
         }
     }
@@ -66,8 +70,10 @@ public class RemoveProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "{{field1}}");
         String processorTag = randomAlphaOfLength(10);
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-            () -> factory.create(null, processorTag, null, config));
+        ElasticsearchException exception = expectThrows(
+            ElasticsearchException.class,
+            () -> factory.create(null, processorTag, null, config)
+        );
         assertThat(exception.getMessage(), equalTo("java.lang.RuntimeException: could not compile script"));
         assertThat(exception.getMetadata("es.processor_tag").get(0), equalTo(processorTag));
     }

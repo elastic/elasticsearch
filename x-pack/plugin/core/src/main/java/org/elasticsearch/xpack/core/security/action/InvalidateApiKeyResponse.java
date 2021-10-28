@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.core.security.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -56,11 +56,16 @@ public final class InvalidateApiKeyResponse extends ActionResponse implements To
      * @param previouslyInvalidatedApiKeys list of previously invalidated API key ids
      * @param errors list of encountered errors while invalidating API keys
      */
-    public InvalidateApiKeyResponse(List<String> invalidatedApiKeys, List<String> previouslyInvalidatedApiKeys,
-                                    @Nullable List<ElasticsearchException> errors) {
+    public InvalidateApiKeyResponse(
+        List<String> invalidatedApiKeys,
+        List<String> previouslyInvalidatedApiKeys,
+        @Nullable List<ElasticsearchException> errors
+    ) {
         this.invalidatedApiKeys = Objects.requireNonNull(invalidatedApiKeys, "invalidated_api_keys must be provided");
-        this.previouslyInvalidatedApiKeys = Objects.requireNonNull(previouslyInvalidatedApiKeys,
-                "previously_invalidated_api_keys must be provided");
+        this.previouslyInvalidatedApiKeys = Objects.requireNonNull(
+            previouslyInvalidatedApiKeys,
+            "previously_invalidated_api_keys must be provided"
+        );
         if (null != errors) {
             this.errors = errors;
         } else {
@@ -122,8 +127,11 @@ public final class InvalidateApiKeyResponse extends ActionResponse implements To
         PARSER.declareStringArray(constructorArg(), new ParseField("previously_invalidated_api_keys"));
         // we parse error_count but ignore it while constructing response
         PARSER.declareInt(constructorArg(), new ParseField("error_count"));
-        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ElasticsearchException.fromXContent(p),
-                new ParseField("error_details"));
+        PARSER.declareObjectArray(
+            optionalConstructorArg(),
+            (p, c) -> ElasticsearchException.fromXContent(p),
+            new ParseField("error_details")
+        );
     }
 
     public static InvalidateApiKeyResponse fromXContent(XContentParser parser) throws IOException {
@@ -132,8 +140,13 @@ public final class InvalidateApiKeyResponse extends ActionResponse implements To
 
     @Override
     public String toString() {
-        return "InvalidateApiKeyResponse [invalidatedApiKeys=" + invalidatedApiKeys + ", previouslyInvalidatedApiKeys="
-                + previouslyInvalidatedApiKeys + ", errors=" + errors + "]";
+        return "InvalidateApiKeyResponse [invalidatedApiKeys="
+            + invalidatedApiKeys
+            + ", previouslyInvalidatedApiKeys="
+            + previouslyInvalidatedApiKeys
+            + ", errors="
+            + errors
+            + "]";
     }
 
 }

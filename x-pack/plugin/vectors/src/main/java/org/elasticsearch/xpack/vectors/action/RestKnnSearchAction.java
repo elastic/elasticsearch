@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.vectors.action;
 
-
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -30,9 +29,7 @@ public class RestKnnSearchAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, "{index}/_knn_search"),
-            new Route(POST, "{index}/_knn_search"));
+        return List.of(new Route(GET, "{index}/_knn_search"), new Route(POST, "{index}/_knn_search"));
     }
 
     @Override

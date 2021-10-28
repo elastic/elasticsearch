@@ -42,35 +42,31 @@ import java.util.function.Supplier;
 
 public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScript.LeafFactory> {
 
-    public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name ->
-        new Builder<>(name, IpFieldScript.CONTEXT) {
-            @Override
-            AbstractScriptFieldType<?> createFieldType(String name,
-                                                       IpFieldScript.Factory factory,
-                                                       Script script,
-                                                       Map<String, String> meta) {
-                return new IpScriptFieldType(name, factory, getScript(), meta());
-            }
+    public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name -> new Builder<>(name, IpFieldScript.CONTEXT) {
+        @Override
+        AbstractScriptFieldType<?> createFieldType(String name, IpFieldScript.Factory factory, Script script, Map<String, String> meta) {
+            return new IpScriptFieldType(name, factory, getScript(), meta());
+        }
 
-            @Override
-            IpFieldScript.Factory getParseFromSourceFactory() {
-                return IpFieldScript.PARSE_FROM_SOURCE;
-            }
+        @Override
+        IpFieldScript.Factory getParseFromSourceFactory() {
+            return IpFieldScript.PARSE_FROM_SOURCE;
+        }
 
-            @Override
-            IpFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
-                return IpFieldScript.leafAdapter(parentScriptFactory);
-            }
-        });
+        @Override
+        IpFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+            return IpFieldScript.leafAdapter(parentScriptFactory);
+        }
+    });
 
-    IpScriptFieldType(
-        String name,
-        IpFieldScript.Factory scriptFactory,
-        Script script,
-        Map<String, String> meta
-    ) {
-        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
-            script, scriptFactory.isResultDeterministic(), meta);
+    IpScriptFieldType(String name, IpFieldScript.Factory scriptFactory, Script script, Map<String, String> meta) {
+        super(
+            name,
+            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
+            script,
+            scriptFactory.isResultDeterministic(),
+            meta
+        );
     }
 
     @Override

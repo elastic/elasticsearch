@@ -76,21 +76,26 @@ public class NetworkUtilsTests extends ESTestCase {
     public void testMaybeGetInterfaceByName() throws Exception {
         final List<NetworkInterface> networkInterfaces = getInterfaces();
         for (NetworkInterface netIf : networkInterfaces) {
-            final Optional<NetworkInterface> maybeNetworkInterface =
-                NetworkUtils.maybeGetInterfaceByName(networkInterfaces, netIf.getName());
+            final Optional<NetworkInterface> maybeNetworkInterface = NetworkUtils.maybeGetInterfaceByName(
+                networkInterfaces,
+                netIf.getName()
+            );
             assertThat(maybeNetworkInterface, OptionalMatchers.isPresent());
             assertThat(maybeNetworkInterface.get().getName(), equalTo(netIf.getName()));
         }
     }
 
     public void testNonExistingInterface() throws Exception {
-        final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> NetworkUtils.getAddressesForInterface("settingValue", ":suffix", "non-existing"));
+        final IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> NetworkUtils.getAddressesForInterface("settingValue", ":suffix", "non-existing")
+        );
         assertThat(exception.getMessage(), containsString("setting [settingValue] matched no network interfaces; valid values include"));
         final boolean atLeastOneInterfaceIsPresentInExceptionMessage = getInterfaces().stream()
             .anyMatch(anInterface -> exception.getMessage().contains(anInterface.getName() + ":suffix"));
 
-        assertThat("Expected to get at least one interface name in the exception but got none: " + exception.getMessage(),
+        assertThat(
+            "Expected to get at least one interface name in the exception but got none: " + exception.getMessage(),
             atLeastOneInterfaceIsPresentInExceptionMessage,
             equalTo(true)
         );

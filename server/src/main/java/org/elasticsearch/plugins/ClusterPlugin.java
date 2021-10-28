@@ -61,7 +61,6 @@ public interface ClusterPlugin {
     /**
      * Called when the node is started
      */
-    default void onNodeStarted() {
-    }
+    default void onNodeStarted() {}
 
 }

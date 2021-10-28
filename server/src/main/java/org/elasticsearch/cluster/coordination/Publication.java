@@ -155,8 +155,11 @@ public abstract class Publication {
         }
 
         if (isPublishQuorum(possiblySuccessfulNodes) == false) {
-            logger.debug("onPossibleCommitFailure: non-failed nodes {} do not form a quorum, so {} cannot succeed",
-                possiblySuccessfulNodes, this);
+            logger.debug(
+                "onPossibleCommitFailure: non-failed nodes {} do not form a quorum, so {} cannot succeed",
+                possiblySuccessfulNodes,
+                this
+            );
             Exception e = new FailedToCommitClusterStateException("non-failed nodes do not form a quorum");
             publicationTargets.stream().filter(PublicationTarget::isActive).forEach(pt -> pt.setFailed(e));
             onPossibleCompletion();
@@ -177,25 +180,41 @@ public abstract class Publication {
 
     protected abstract void onMissingJoin(DiscoveryNode discoveryNode);
 
-    protected abstract void sendPublishRequest(DiscoveryNode destination, PublishRequest publishRequest,
-                                               ActionListener<PublishWithJoinResponse> responseActionListener);
+    protected abstract void sendPublishRequest(
+        DiscoveryNode destination,
+        PublishRequest publishRequest,
+        ActionListener<PublishWithJoinResponse> responseActionListener
+    );
 
-    protected abstract void sendApplyCommit(DiscoveryNode destination, ApplyCommitRequest applyCommit,
-                                            ActionListener<TransportResponse.Empty> responseActionListener);
+    protected abstract void sendApplyCommit(
+        DiscoveryNode destination,
+        ApplyCommitRequest applyCommit,
+        ActionListener<TransportResponse.Empty> responseActionListener
+    );
 
     @Override
     public String toString() {
-        return "Publication{term=" + publishRequest.getAcceptedState().term() +
-            ", version=" + publishRequest.getAcceptedState().version() + '}';
+        return "Publication{term="
+            + publishRequest.getAcceptedState().term()
+            + ", version="
+            + publishRequest.getAcceptedState().version()
+            + '}';
     }
 
     void logIncompleteNodes(Level level) {
-        final String message = publicationTargets.stream().filter(PublicationTarget::isActive).map(publicationTarget ->
-            publicationTarget.getDiscoveryNode() + " [" + publicationTarget.getState() + "]").collect(Collectors.joining(", "));
+        final String message = publicationTargets.stream()
+            .filter(PublicationTarget::isActive)
+            .map(publicationTarget -> publicationTarget.getDiscoveryNode() + " [" + publicationTarget.getState() + "]")
+            .collect(Collectors.joining(", "));
         if (message.isEmpty() == false) {
             final TimeValue elapsedTime = TimeValue.timeValueMillis(currentTimeSupplier.getAsLong() - startTime);
-            logger.log(level, "after [{}] publication of cluster state version [{}] is still waiting for {}", elapsedTime,
-                publishRequest.getAcceptedState().version(), message);
+            logger.log(
+                level,
+                "after [{}] publication of cluster state version [{}] is still waiting for {}",
+                elapsedTime,
+                publishRequest.getAcceptedState().version(),
+                message
+            );
         }
     }
 
@@ -223,11 +242,7 @@ public abstract class Publication {
 
         @Override
         public String toString() {
-            return "PublicationTarget{" +
-                "discoveryNode=" + discoveryNode +
-                ", state=" + state +
-                ", ackIsPending=" + ackIsPending +
-                '}';
+            return "PublicationTarget{" + "discoveryNode=" + discoveryNode + ", state=" + state + ", ackIsPending=" + ackIsPending + '}';
         }
 
         void sendPublishRequest() {
@@ -251,7 +266,8 @@ public abstract class Publication {
                         assert applyCommitRequest.isPresent() == false;
                         applyCommitRequest = Optional.of(applyCommit);
                         ackListener.onCommit(TimeValue.timeValueMillis(currentTimeSupplier.getAsLong() - startTime));
-                        publicationTargets.stream().filter(PublicationTarget::isWaitingForQuorum)
+                        publicationTargets.stream()
+                            .filter(PublicationTarget::isWaitingForQuorum)
                             .forEach(PublicationTarget::sendApplyCommit);
                     });
                 } catch (Exception e) {
@@ -301,8 +317,7 @@ public abstract class Publication {
         }
 
         boolean isActive() {
-            return state != PublicationTargetState.FAILED
-                && state != PublicationTargetState.APPLIED_COMMIT;
+            return state != PublicationTargetState.FAILED && state != PublicationTargetState.APPLIED_COMMIT;
         }
 
         boolean isSuccessfullyCompleted() {
@@ -369,8 +384,7 @@ public abstract class Publication {
             @Override
             public void onResponse(TransportResponse.Empty ignored) {
                 if (isFailed()) {
-                    logger.debug("ApplyCommitResponseHandler.handleResponse: already failed, ignoring response from [{}]",
-                        discoveryNode);
+                    logger.debug("ApplyCommitResponseHandler.handleResponse: already failed, ignoring response from [{}]", discoveryNode);
                     return;
                 }
                 setAppliedCommit();

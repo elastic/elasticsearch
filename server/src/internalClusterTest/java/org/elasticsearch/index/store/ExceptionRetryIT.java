@@ -20,7 +20,6 @@ import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
@@ -28,6 +27,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -38,16 +38,15 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2,
-    supportsDedicatedMasters = false, numClientNodes = 1)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2, supportsDedicatedMasters = false, numClientNodes = 1)
 public class ExceptionRetryIT extends ESIntegTestCase {
 
     @Override
@@ -71,25 +70,33 @@ public class ExceptionRetryIT extends ESIntegTestCase {
         int numDocs = scaledRandomIntBetween(100, 1000);
         Client client = internalCluster().coordOnlyNodeClient();
         NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
-        NodeStats unluckyNode = randomFrom(nodeStats.getNodes().stream().filter((s) -> s.getNode().canContainData())
-            .collect(Collectors.toList()));
-        assertAcked(client().admin().indices().prepareCreate("index").setSettings(Settings.builder()
-            .put("index.number_of_replicas", 1)
-            .put("index.number_of_shards", 5)));
+        NodeStats unluckyNode = randomFrom(
+            nodeStats.getNodes().stream().filter((s) -> s.getNode().canContainData()).collect(Collectors.toList())
+        );
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("index")
+                .setSettings(Settings.builder().put("index.number_of_replicas", 1).put("index.number_of_shards", 5))
+        );
         ensureGreen("index");
         logger.info("unlucky node: {}", unluckyNode.getNode());
-        //create a transport service that throws a ConnectTransportException for one bulk request and therefore triggers a retry.
+        // create a transport service that throws a ConnectTransportException for one bulk request and therefore triggers a retry.
         for (NodeStats dataNode : nodeStats.getNodes()) {
-            MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class,
-                dataNode.getNode().getName()));
-            mockTransportService.addSendBehavior(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()),
+            MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(
+                TransportService.class,
+                dataNode.getNode().getName()
+            ));
+            mockTransportService.addSendBehavior(
+                internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()),
                 (connection, requestId, action, request, options) -> {
                     connection.sendRequest(requestId, action, request, options);
                     if (action.equals(TransportShardBulkAction.ACTION_NAME) && exceptionThrown.compareAndSet(false, true)) {
                         logger.debug("Throw ConnectTransportException");
                         throw new ConnectTransportException(connection.getNode(), action);
                     }
-                });
+                }
+            );
         }
 
         BulkRequestBuilder bulkBuilder = client.prepareBulk();
@@ -117,8 +124,10 @@ public class ExceptionRetryIT extends ESIntegTestCase {
         for (int i = 0; i < searchResponse.getHits().getHits().length; i++) {
             if (uniqueIds.add(searchResponse.getHits().getHits()[i].getId()) == false) {
                 if (found_duplicate_already == false) {
-                    SearchResponse dupIdResponse = client().prepareSearch("index").setQuery(termQuery("_id",
-                        searchResponse.getHits().getHits()[i].getId())).setExplain(true).get();
+                    SearchResponse dupIdResponse = client().prepareSearch("index")
+                        .setQuery(termQuery("_id", searchResponse.getHits().getHits()[i].getId()))
+                        .setExplain(true)
+                        .get();
                     assertThat(dupIdResponse.getHits().getTotalHits().value, greaterThan(1L));
                     logger.info("found a duplicate id:");
                     for (SearchHit hit : dupIdResponse.getHits()) {

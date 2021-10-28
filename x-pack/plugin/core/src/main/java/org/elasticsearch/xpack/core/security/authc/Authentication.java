@@ -52,8 +52,14 @@ public class Authentication implements ToXContentObject {
         this(user, authenticatedBy, lookedUpBy, version, AuthenticationType.REALM, Collections.emptyMap());
     }
 
-    public Authentication(User user, RealmRef authenticatedBy, RealmRef lookedUpBy, Version version,
-                          AuthenticationType type, Map<String, Object> metadata) {
+    public Authentication(
+        User user,
+        RealmRef authenticatedBy,
+        RealmRef lookedUpBy,
+        Version version,
+        AuthenticationType type,
+        Map<String, Object> metadata
+    ) {
         this.user = Objects.requireNonNull(user);
         this.authenticatedBy = Objects.requireNonNull(authenticatedBy);
         this.lookedUpBy = lookedUpBy;
@@ -159,8 +165,8 @@ public class Authentication implements ToXContentObject {
         if (AuthenticationType.API_KEY == getAuthenticationType() && AuthenticationType.API_KEY == other.getAuthenticationType()) {
             final boolean sameKeyId = getMetadata().get(API_KEY_ID_KEY).equals(other.getMetadata().get(API_KEY_ID_KEY));
             if (sameKeyId) {
-                assert getUser().principal().equals(other.getUser().principal()) :
-                    "The same API key ID cannot be attributed to two different usernames";
+                assert getUser().principal().equals(other.getUser().principal())
+                    : "The same API key ID cannot be attributed to two different usernames";
             }
             return sameKeyId;
         }
@@ -186,7 +192,7 @@ public class Authentication implements ToXContentObject {
                 AuthenticationType.INTERNAL
             ).containsAll(EnumSet.of(getAuthenticationType(), other.getAuthenticationType()))
                 : "cross AuthenticationType comparison for canAccessResourcesOf is not applicable for: "
-                + EnumSet.of(getAuthenticationType(), other.getAuthenticationType());
+                    + EnumSet.of(getAuthenticationType(), other.getAuthenticationType());
             return false;
         }
     }
@@ -196,12 +202,12 @@ public class Authentication implements ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Authentication that = (Authentication) o;
-        return user.equals(that.user) &&
-            authenticatedBy.equals(that.authenticatedBy) &&
-            Objects.equals(lookedUpBy, that.lookedUpBy) &&
-            version.equals(that.version) &&
-            type == that.type &&
-            metadata.equals(that.metadata);
+        return user.equals(that.user)
+            && authenticatedBy.equals(that.authenticatedBy)
+            && Objects.equals(lookedUpBy, that.lookedUpBy)
+            && version.equals(that.version)
+            && type == that.type
+            && metadata.equals(that.metadata);
     }
 
     @Override
@@ -229,8 +235,10 @@ public class Authentication implements ToXContentObject {
             assert tokenName != null : "token name cannot be null";
             final String tokenSource = (String) getMetadata().get(ServiceAccountSettings.TOKEN_SOURCE_FIELD);
             assert tokenSource != null : "token source cannot be null";
-            builder.field(User.Fields.TOKEN.getPreferredName(),
-                Map.of("name", tokenName, "type", ServiceAccountSettings.REALM_TYPE + "_" + tokenSource));
+            builder.field(
+                User.Fields.TOKEN.getPreferredName(),
+                Map.of("name", tokenName, "type", ServiceAccountSettings.REALM_TYPE + "_" + tokenSource)
+            );
         }
         builder.field(User.Fields.METADATA.getPreferredName(), user.metadata());
         builder.field(User.Fields.ENABLED.getPreferredName(), user.enabled());
@@ -252,10 +260,11 @@ public class Authentication implements ToXContentObject {
 
     @Override
     public String toString() {
-        StringBuilder builder = new StringBuilder("Authentication[")
-            .append(user)
-            .append(",type=").append(type)
-            .append(",by=").append(authenticatedBy);
+        StringBuilder builder = new StringBuilder("Authentication[").append(user)
+            .append(",type=")
+            .append(type)
+            .append(",by=")
+            .append(authenticatedBy);
         if (lookedUpBy != null) {
             builder.append(",lookup=").append(lookedUpBy);
         }

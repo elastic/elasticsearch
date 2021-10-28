@@ -82,8 +82,7 @@ public abstract class IndexLifecycleClusterStateUpdateTask implements ClusterSta
      * implementation was a noop and returned the input cluster state, then this method will not be invoked. It is therefore guaranteed
      * that {@code oldState} is always different from {@code newState}.
      */
-    protected void onClusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-    }
+    protected void onClusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {}
 
     @Override
     public abstract boolean equals(Object other);

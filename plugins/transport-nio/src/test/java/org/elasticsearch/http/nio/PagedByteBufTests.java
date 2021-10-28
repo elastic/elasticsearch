@@ -9,6 +9,7 @@
 package org.elasticsearch.http.nio;
 
 import io.netty.buffer.ByteBuf;
+
 import org.elasticsearch.nio.Page;
 import org.elasticsearch.test.ESTestCase;
 

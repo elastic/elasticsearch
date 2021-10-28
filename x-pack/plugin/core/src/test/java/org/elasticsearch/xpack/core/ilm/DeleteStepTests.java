@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -40,14 +39,14 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
         StepKey nextKey = instance.getNextStepKey();
 
         switch (between(0, 1)) {
-        case 0:
-            key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            break;
-        case 1:
-            nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 0:
+                key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+                break;
+            case 1:
+                nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
 
         return new DeleteStep(key, nextKey, instance.getClient());
@@ -59,8 +58,11 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
     }
 
     private static IndexMetadata getIndexMetadata() {
-        return IndexMetadata.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        return IndexMetadata.builder(randomAlphaOfLength(10))
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
     }
 
     public void testIndexSurvives() {
@@ -71,20 +73,20 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
         IndexMetadata indexMetadata = getIndexMetadata();
 
         Mockito.doAnswer(invocation -> {
-                DeleteIndexRequest request = (DeleteIndexRequest) invocation.getArguments()[0];
-                @SuppressWarnings("unchecked")
-                ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
-                assertNotNull(request);
-                assertEquals(1, request.indices().length);
-                assertEquals(indexMetadata.getIndex().getName(), request.indices()[0]);
-                listener.onResponse(null);
-                return null;
+            DeleteIndexRequest request = (DeleteIndexRequest) invocation.getArguments()[0];
+            @SuppressWarnings("unchecked")
+            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
+            assertNotNull(request);
+            assertEquals(1, request.indices().length);
+            assertEquals(indexMetadata.getIndex().getName(), request.indices()[0]);
+            listener.onResponse(null);
+            return null;
         }).when(indicesClient).delete(Mockito.any(), Mockito.any());
 
         DeleteStep step = createRandomInstance();
-        ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
-            Metadata.builder().put(indexMetadata, true).build()
-        ).build();
+        ClusterState clusterState = ClusterState.builder(emptyClusterState())
+            .metadata(Metadata.builder().put(indexMetadata, true).build())
+            .build();
         PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
 
         Mockito.verify(client, Mockito.only()).admin();
@@ -108,11 +110,16 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
         }).when(indicesClient).delete(Mockito.any(), Mockito.any());
 
         DeleteStep step = createRandomInstance();
-        ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
-            Metadata.builder().put(indexMetadata, true).build()
-        ).build();
-        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Void, Exception>get(
-            f -> step.performAction(indexMetadata, clusterState, null, f))));
+        ClusterState clusterState = ClusterState.builder(emptyClusterState())
+            .metadata(Metadata.builder().put(indexMetadata, true).build())
+            .build();
+        assertSame(
+            exception,
+            expectThrows(
+                Exception.class,
+                () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f))
+            )
+        );
     }
 
     public void testPerformActionThrowsExceptionIfIndexIsTheDataStreamWriteIndex() {
@@ -139,13 +146,17 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
                 .build();
         }
 
-        DataStream dataStream =
-            new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(index1.getIndex(), sourceIndexMetadata.getIndex()));
-        ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
-            Metadata.builder().put(index1, false).put(sourceIndexMetadata, false).put(dataStream).build()
-        ).build();
+        DataStream dataStream = new DataStream(
+            dataStreamName,
+            createTimestampField("@timestamp"),
+            List.of(index1.getIndex(), sourceIndexMetadata.getIndex())
+        );
+        ClusterState clusterState = ClusterState.builder(emptyClusterState())
+            .metadata(Metadata.builder().put(index1, false).put(sourceIndexMetadata, false).put(dataStream).build())
+            .build();
 
-        IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
+        IllegalStateException illegalStateException = expectThrows(
+            IllegalStateException.class,
             () -> createRandomInstance().performDuringNoSnapshot(sourceIndexMetadata, clusterState, new ActionListener<>() {
                 @Override
                 public void onResponse(Void complete) {
@@ -156,7 +167,8 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
                 public void onFailure(Exception e) {
                     fail("unexpected listener callback");
                 }
-            }));
+            })
+        );
         assertThat(
             illegalStateException.getMessage(),
             is(

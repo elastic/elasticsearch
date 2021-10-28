@@ -82,7 +82,9 @@ public class AutomatonsTests extends ESTestCase {
     }
 
     public void testPatternComplexity() {
-        List<String> patterns = Arrays.asList("*", "filebeat*de-tst-chatclassification*",
+        List<String> patterns = Arrays.asList(
+            "*",
+            "filebeat*de-tst-chatclassification*",
             "metricbeat*de-tst-chatclassification*",
             "packetbeat*de-tst-chatclassification*",
             "heartbeat*de-tst-chatclassification*",
@@ -105,7 +107,8 @@ public class AutomatonsTests extends ESTestCase {
             "filebeat*bender-minio-test-1*",
             "metricbeat*bender-minio-test-1*",
             "packetbeat*bender-minio-test-1*",
-            "heartbeat*bender-minio-test-1*");
+            "heartbeat*bender-minio-test-1*"
+        );
         final Automaton automaton = Automatons.patterns(patterns);
         assertTrue(Operations.isTotal(automaton));
         assertTrue(automaton.isDeterministic());
@@ -183,9 +186,7 @@ public class AutomatonsTests extends ESTestCase {
     }
 
     public void testConfigurationOfCacheSize() {
-        final Settings settings = Settings.builder()
-            .put(Automatons.CACHE_SIZE.getKey(), 2)
-            .build();
+        final Settings settings = Settings.builder().put(Automatons.CACHE_SIZE.getKey(), 2).build();
         Automatons.updateConfiguration(settings);
 
         String pattern1 = "a";
@@ -210,9 +211,7 @@ public class AutomatonsTests extends ESTestCase {
     }
 
     public void testDisableCache() {
-        final Settings settings = Settings.builder()
-            .put(Automatons.CACHE_ENABLED.getKey(), false)
-            .build();
+        final Settings settings = Settings.builder().put(Automatons.CACHE_ENABLED.getKey(), false).build();
         Automatons.updateConfiguration(settings);
 
         final String pattern = randomAlphaOfLengthBetween(5, 10);

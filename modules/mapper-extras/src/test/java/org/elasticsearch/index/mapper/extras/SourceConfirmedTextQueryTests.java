@@ -34,7 +34,6 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
-import org.elasticsearch.index.mapper.extras.SourceConfirmedTextQuery;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

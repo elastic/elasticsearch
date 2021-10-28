@@ -18,9 +18,9 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.CommandLineHttpClient;
 import org.elasticsearch.xpack.security.enrollment.ExternalEnrollmentTokenGenerator;
 import org.elasticsearch.xpack.security.tool.BaseRunAsSuperuserCommand;
-import org.elasticsearch.xpack.core.security.CommandLineHttpClient;
 
 import java.util.List;
 import java.util.function.Function;

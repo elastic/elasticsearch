@@ -31,8 +31,7 @@ public class SchedulerTests extends ESTestCase {
         ThreadPool threadPool = new TestThreadPool("test");
         AtomicLong executed = new AtomicLong();
         try {
-            ThreadPool.THREAD_POOL_TYPES.keySet().forEach(type ->
-                scheduleAndCancel(threadPool, executed, type));
+            ThreadPool.THREAD_POOL_TYPES.keySet().forEach(type -> scheduleAndCancel(threadPool, executed, type));
             assertEquals(0, executed.get());
         } finally {
             ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
@@ -54,13 +53,17 @@ public class SchedulerTests extends ESTestCase {
 
     public void testCancelOnScheduler() {
         ScheduledThreadPoolExecutor executor = Scheduler.initScheduler(Settings.EMPTY, "test-scheduler");
-        Scheduler scheduler = (command, delay, name) ->
-            Scheduler.wrapAsScheduledCancellable(executor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS));
+        Scheduler scheduler = (command, delay, name) -> Scheduler.wrapAsScheduledCancellable(
+            executor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS)
+        );
 
         AtomicLong executed = new AtomicLong();
         try {
-            Scheduler.ScheduledCancellable scheduled =
-                scheduler.schedule(executed::incrementAndGet, TimeValue.timeValueSeconds(20), ThreadPool.Names.SAME);
+            Scheduler.ScheduledCancellable scheduled = scheduler.schedule(
+                executed::incrementAndGet,
+                TimeValue.timeValueSeconds(20),
+                ThreadPool.Names.SAME
+            );
             assertEquals(1, executor.getQueue().size());
             assertFalse(scheduled.isCancelled());
             assertTrue(scheduled.cancel());
@@ -72,14 +75,11 @@ public class SchedulerTests extends ESTestCase {
         }
     }
 
-
     public void testDelay() throws InterruptedException {
         ThreadPool threadPool = new TestThreadPool("test");
         try {
-            List<Scheduler.ScheduledCancellable> jobs = LongStream.range(20,30)
-                .mapToObj(delay -> threadPool.schedule(() -> {},
-                    TimeValue.timeValueSeconds(delay),
-                    ThreadPool.Names.SAME))
+            List<Scheduler.ScheduledCancellable> jobs = LongStream.range(20, 30)
+                .mapToObj(delay -> threadPool.schedule(() -> {}, TimeValue.timeValueSeconds(delay), ThreadPool.Names.SAME))
                 .collect(Collectors.toCollection(ArrayList::new));
 
             Collections.reverse(jobs);
@@ -88,8 +88,7 @@ public class SchedulerTests extends ESTestCase {
             Thread.sleep(50);
             List<Long> laterDelays = verifyJobDelays(jobs);
 
-            assertThat(laterDelays,
-                Matchers.contains(initialDelays.stream().map(Matchers::lessThan).collect(Collectors.toList())));
+            assertThat(laterDelays, Matchers.contains(initialDelays.stream().map(Matchers::lessThan).collect(Collectors.toList())));
         } finally {
             ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
         }
@@ -121,8 +120,7 @@ public class SchedulerTests extends ESTestCase {
         CountDownLatch missingExecutions = new CountDownLatch(ThreadPool.THREAD_POOL_TYPES.keySet().size());
         try {
             ThreadPool.THREAD_POOL_TYPES.keySet()
-                .forEach(type ->
-                    threadPool.schedule(missingExecutions::countDown, TimeValue.timeValueMillis(randomInt(5)), type));
+                .forEach(type -> threadPool.schedule(missingExecutions::countDown, TimeValue.timeValueMillis(randomInt(5)), type));
 
             assertTrue(missingExecutions.await(30, TimeUnit.SECONDS));
         } finally {
@@ -134,8 +132,9 @@ public class SchedulerTests extends ESTestCase {
     public void testScheduledOnScheduler() throws InterruptedException {
         final String schedulerName = "test-scheduler";
         ScheduledThreadPoolExecutor executor = Scheduler.initScheduler(Settings.EMPTY, schedulerName);
-        Scheduler scheduler = (command, delay, name) ->
-            Scheduler.wrapAsScheduledCancellable(executor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS));
+        Scheduler scheduler = (command, delay, name) -> Scheduler.wrapAsScheduledCancellable(
+            executor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS)
+        );
 
         CountDownLatch missingExecutions = new CountDownLatch(1);
         try {
@@ -153,8 +152,12 @@ public class SchedulerTests extends ESTestCase {
         ScheduledThreadPoolExecutor executor = Scheduler.initScheduler(Settings.EMPTY, "test-scheduler");
         try {
             CountDownLatch missingExecutions = new CountDownLatch(randomIntBetween(1, 10));
-            executor.scheduleAtFixedRate(missingExecutions::countDown,
-                randomIntBetween(1, 10), randomIntBetween(1, 10), TimeUnit.MILLISECONDS);
+            executor.scheduleAtFixedRate(
+                missingExecutions::countDown,
+                randomIntBetween(1, 10),
+                randomIntBetween(1, 10),
+                TimeUnit.MILLISECONDS
+            );
             assertTrue(missingExecutions.await(30, TimeUnit.SECONDS));
         } finally {
             Scheduler.terminate(executor, 10, TimeUnit.SECONDS);

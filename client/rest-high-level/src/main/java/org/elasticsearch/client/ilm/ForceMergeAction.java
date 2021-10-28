@@ -7,9 +7,9 @@
  */
 package org.elasticsearch.client.ilm;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -21,8 +21,7 @@ public class ForceMergeAction implements LifecycleAction, ToXContentObject {
     public static final String NAME = "forcemerge";
     private static final ParseField MAX_NUM_SEGMENTS_FIELD = new ParseField("max_num_segments");
 
-    private static final ConstructingObjectParser<ForceMergeAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
-        true, a -> {
+    private static final ConstructingObjectParser<ForceMergeAction, Void> PARSER = new ConstructingObjectParser<>(NAME, true, a -> {
         int maxNumSegments = (int) a[0];
         return new ForceMergeAction(maxNumSegments);
     });
@@ -39,8 +38,7 @@ public class ForceMergeAction implements LifecycleAction, ToXContentObject {
 
     public ForceMergeAction(int maxNumSegments) {
         if (maxNumSegments <= 0) {
-            throw new IllegalArgumentException("[" + MAX_NUM_SEGMENTS_FIELD.getPreferredName()
-                + "] must be a positive integer");
+            throw new IllegalArgumentException("[" + MAX_NUM_SEGMENTS_FIELD.getPreferredName() + "] must be a positive integer");
         }
         this.maxNumSegments = maxNumSegments;
     }

@@ -11,12 +11,12 @@ package org.elasticsearch.index.query;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -30,12 +30,14 @@ public class CoordinatorRewriteContextProvider {
     private final Supplier<ClusterState> clusterStateSupplier;
     private final Function<Index, DateFieldMapper.DateFieldType> mappingSupplier;
 
-    public CoordinatorRewriteContextProvider(NamedXContentRegistry xContentRegistry,
-                                             NamedWriteableRegistry writeableRegistry,
-                                             Client client,
-                                             LongSupplier nowInMillis,
-                                             Supplier<ClusterState> clusterStateSupplier,
-                                             Function<Index, DateFieldMapper.DateFieldType> mappingSupplier) {
+    public CoordinatorRewriteContextProvider(
+        NamedXContentRegistry xContentRegistry,
+        NamedWriteableRegistry writeableRegistry,
+        Client client,
+        LongSupplier nowInMillis,
+        Supplier<ClusterState> clusterStateSupplier,
+        Function<Index, DateFieldMapper.DateFieldType> mappingSupplier
+    ) {
         this.xContentRegistry = xContentRegistry;
         this.writeableRegistry = writeableRegistry;
         this.client = client;
@@ -60,7 +62,8 @@ public class CoordinatorRewriteContextProvider {
         }
 
         IndexLongFieldRange timestampRange = indexMetadata.getTimestampRange();
-        return new CoordinatorRewriteContext(xContentRegistry,
+        return new CoordinatorRewriteContext(
+            xContentRegistry,
             writeableRegistry,
             client,
             nowInMillis,

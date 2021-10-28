@@ -11,8 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -41,9 +41,14 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
     private final SecurityContext securityContext;
 
     @Inject
-    public TransportSamlAuthenticateAction(ThreadPool threadPool, TransportService transportService,
-                                           ActionFilters actionFilters, AuthenticationService authenticationService,
-                                           TokenService tokenService, SecurityContext securityContext) {
+    public TransportSamlAuthenticateAction(
+        ThreadPool threadPool,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        AuthenticationService authenticationService,
+        TokenService tokenService,
+        SecurityContext securityContext
+    ) {
         super(SamlAuthenticateAction.NAME, transportService, actionFilters, SamlAuthenticateRequest::new);
         this.threadPool = threadPool;
         this.authenticationService = authenticationService;
@@ -67,13 +72,23 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
                 assert authentication != null : "authentication should never be null at this point";
                 @SuppressWarnings("unchecked")
                 final Map<String, Object> tokenMeta = (Map<String, Object>) result.getMetadata().get(SamlRealm.CONTEXT_TOKEN_DATA);
-                tokenService.createOAuth2Tokens(authentication, originatingAuthentication,
-                        tokenMeta, true, ActionListener.wrap(tokenResult -> {
-                            final TimeValue expiresIn = tokenService.getExpirationDelay();
-                            listener.onResponse(
-                                new SamlAuthenticateResponse(authentication, tokenResult.getAccessToken(), tokenResult.getRefreshToken(),
-                                    expiresIn));
-                        }, listener::onFailure));
+                tokenService.createOAuth2Tokens(
+                    authentication,
+                    originatingAuthentication,
+                    tokenMeta,
+                    true,
+                    ActionListener.wrap(tokenResult -> {
+                        final TimeValue expiresIn = tokenService.getExpirationDelay();
+                        listener.onResponse(
+                            new SamlAuthenticateResponse(
+                                authentication,
+                                tokenResult.getAccessToken(),
+                                tokenResult.getRefreshToken(),
+                                expiresIn
+                            )
+                        );
+                    }, listener::onFailure)
+                );
             }, e -> {
                 logger.debug(() -> new ParameterizedMessage("SamlToken [{}] could not be authenticated", saml), e);
                 listener.onFailure(e);

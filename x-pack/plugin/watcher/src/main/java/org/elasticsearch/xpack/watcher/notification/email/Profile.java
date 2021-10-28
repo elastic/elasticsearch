@@ -38,8 +38,10 @@ public enum Profile {
                 }
             }
             if (related == null) {
-                throw new IllegalStateException("could not extract body text from mime message using [standard] profile. could not find " +
-                        "part content type with [multipart/related]");
+                throw new IllegalStateException(
+                    "could not extract body text from mime message using [standard] profile. could not find "
+                        + "part content type with [multipart/related]"
+                );
             }
 
             MimeMultipart alternative = null;
@@ -51,8 +53,10 @@ public enum Profile {
                 }
             }
             if (alternative == null) {
-                throw new IllegalStateException("could not extract body text from mime message using [standard] profile. could not find " +
-                        "part content type with [multipart/alternative]");
+                throw new IllegalStateException(
+                    "could not extract body text from mime message using [standard] profile. could not find "
+                        + "part content type with [multipart/alternative]"
+                );
             }
 
             for (int i = 0; i < alternative.getCount(); i++) {
@@ -145,7 +149,7 @@ public enum Profile {
 
     static final String MESSAGE_ID_HEADER = "Message-ID";
 
-    public abstract MimeMessage toMimeMessage(Email email, Session session) throws MessagingException ;
+    public abstract MimeMessage toMimeMessage(Email email, Session session) throws MessagingException;
 
     public abstract String textBody(MimeMessage msg) throws IOException, MessagingException;
 
@@ -163,10 +167,14 @@ public enum Profile {
         }
         switch (name.toLowerCase(Locale.ROOT)) {
             case "std":
-            case "standard":    return STANDARD;
-            case "outlook":     return OUTLOOK;
-            case "gmail":       return GMAIL;
-            case "mac":         return MAC;
+            case "standard":
+                return STANDARD;
+            case "outlook":
+                return OUTLOOK;
+            case "gmail":
+                return GMAIL;
+            case "mac":
+                return MAC;
             default:
                 return defaultProfile;
         }

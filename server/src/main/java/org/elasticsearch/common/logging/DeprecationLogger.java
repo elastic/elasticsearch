@@ -33,7 +33,6 @@ public class DeprecationLogger {
      */
     public static Level CRITICAL = Level.forName("CRITICAL", Level.WARN.intLevel() - 1);
 
-
     private final Logger logger;
 
     /**
@@ -78,11 +77,7 @@ public class DeprecationLogger {
      * The message is also sent to the header warning logger,
      * so that it can be returned to the client.
      */
-    public DeprecationLogger critical(
-        final DeprecationCategory category,
-        final String key,
-        final String msg,
-        final Object... params) {
+    public DeprecationLogger critical(final DeprecationCategory category, final String key, final String msg, final Object... params) {
         return logDeprecation(CRITICAL, category, key, msg, params);
     }
 
@@ -92,17 +87,13 @@ public class DeprecationLogger {
      * The message is also sent to the header warning logger,
      * so that it can be returned to the client.
      */
-    public DeprecationLogger warn(
-        final DeprecationCategory category,
-        final String key,
-        final String msg,
-        final Object... params) {
+    public DeprecationLogger warn(final DeprecationCategory category, final String key, final String msg, final Object... params) {
         return logDeprecation(Level.WARN, category, key, msg, params);
     }
 
     private DeprecationLogger logDeprecation(Level level, DeprecationCategory category, String key, String msg, Object[] params) {
-        assert category != DeprecationCategory.COMPATIBLE_API :
-            "DeprecationCategory.COMPATIBLE_API should be logged with compatibleApiWarning method";
+        assert category != DeprecationCategory.COMPATIBLE_API
+            : "DeprecationCategory.COMPATIBLE_API should be logged with compatibleApiWarning method";
         ESLogMessage deprecationMessage = DeprecatedMessage.of(category, key, HeaderWarning.getXOpaqueId(), msg, params);
         logger.log(level, deprecationMessage);
         return this;
@@ -115,10 +106,7 @@ public class DeprecationLogger {
      * The message is also sent to the header warning logger,
      * so that it can be returned to the client.
      */
-    public DeprecationLogger compatibleCritical(
-        final String key,
-        final String msg,
-        final Object... params) {
+    public DeprecationLogger compatibleCritical(final String key, final String msg, final Object... params) {
         String opaqueId = HeaderWarning.getXOpaqueId();
         ESLogMessage deprecationMessage = DeprecatedMessage.compatibleDeprecationMessage(key, opaqueId, msg, params);
         logger.log(CRITICAL, deprecationMessage);

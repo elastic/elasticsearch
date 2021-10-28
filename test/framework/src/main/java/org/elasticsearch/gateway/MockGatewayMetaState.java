@@ -42,9 +42,7 @@ public class MockGatewayMetaState extends GatewayMetaState {
     }
 
     @Override
-    Metadata upgradeMetadataForNode(
-            Metadata metadata, IndexMetadataVerifier indexMetadataVerifier,
-            MetadataUpgrader metadataUpgrader) {
+    Metadata upgradeMetadataForNode(Metadata metadata, IndexMetadataVerifier indexMetadataVerifier, MetadataUpgrader metadataUpgrader) {
         // Metadata upgrade is tested in GatewayMetaStateTests, we override this method to NOP to make mocking easier
         return metadata;
     }
@@ -59,8 +57,9 @@ public class MockGatewayMetaState extends GatewayMetaState {
         final TransportService transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(mock(ThreadPool.class));
         final ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.getClusterSettings())
-            .thenReturn(new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
         final MetaStateService metaStateService = mock(MetaStateService.class);
         try {
             when(metaStateService.loadFullState()).thenReturn(new Tuple<>(Manifest.empty(), Metadata.builder().build()));
@@ -78,6 +77,8 @@ public class MockGatewayMetaState extends GatewayMetaState {
                 nodeEnvironment,
                 xContentRegistry,
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                () -> 0L));
+                () -> 0L
+            )
+        );
     }
 }

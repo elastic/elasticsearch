@@ -69,9 +69,11 @@ public class QueryPhase {
     public void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
         if (searchContext.hasOnlySuggest()) {
             suggestPhase.execute(searchContext);
-            searchContext.queryResult().topDocs(new TopDocsAndMaxScore(
-                    new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
-                new DocValueFormat[0]);
+            searchContext.queryResult()
+                .topDocs(
+                    new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
+                    new DocValueFormat[0]
+                );
             return;
         }
 
@@ -126,8 +128,7 @@ public class QueryPhase {
                         // now this gets interesting: since the search sort is a prefix of the index sort, we can directly
                         // skip to the desired doc
                         if (after != null) {
-                            query = new BooleanQuery.Builder()
-                                .add(query, BooleanClause.Occur.MUST)
+                            query = new BooleanQuery.Builder().add(query, BooleanClause.Occur.MUST)
                                 .add(new SearchAfterSortedDocQuery(searchContext.sort().sort, (FieldDoc) after), BooleanClause.Occur.FILTER)
                                 .build();
                         }
@@ -163,8 +164,9 @@ public class QueryPhase {
                 hasFilterCollector = true;
             }
 
-            boolean timeoutSet = scrollContext == null && searchContext.timeout() != null &&
-                searchContext.timeout().equals(SearchService.NO_TIMEOUT) == false;
+            boolean timeoutSet = scrollContext == null
+                && searchContext.timeout() != null
+                && searchContext.timeout().equals(SearchService.NO_TIMEOUT) == false;
 
             final Runnable timeoutRunnable;
             if (timeoutSet) {
@@ -184,9 +186,9 @@ public class QueryPhase {
             try {
                 boolean shouldRescore = searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, timeoutSet);
                 ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
-                assert executor instanceof EWMATrackingEsThreadPoolExecutor ||
-                    (executor instanceof EsThreadPoolExecutor == false /* in case thread pool is mocked out in tests */) :
-                    "SEARCH threadpool should have an executor that exposes EWMA metrics, but is of type " + executor.getClass();
+                assert executor instanceof EWMATrackingEsThreadPoolExecutor
+                    || (executor instanceof EsThreadPoolExecutor == false /* in case thread pool is mocked out in tests */)
+                    : "SEARCH threadpool should have an executor that exposes EWMA metrics, but is of type " + executor.getClass();
                 if (executor instanceof EWMATrackingEsThreadPoolExecutor) {
                     EWMATrackingEsThreadPoolExecutor rExecutor = (EWMATrackingEsThreadPoolExecutor) executor;
                     queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
@@ -197,7 +199,7 @@ public class QueryPhase {
                 // Search phase has finished, no longer need to check for timeout
                 // otherwise aggregation phase might get cancelled.
                 if (timeoutRunnable != null) {
-                   searcher.removeQueryCancellation(timeoutRunnable);
+                    searcher.removeQueryCancellation(timeoutRunnable);
                 }
             }
         } catch (Exception e) {
@@ -205,8 +207,14 @@ public class QueryPhase {
         }
     }
 
-    private static boolean searchWithCollector(SearchContext searchContext, ContextIndexSearcher searcher, Query query,
-            LinkedList<QueryCollectorContext> collectors, boolean hasFilterCollector, boolean timeoutSet) throws IOException {
+    private static boolean searchWithCollector(
+        SearchContext searchContext,
+        ContextIndexSearcher searcher,
+        Query query,
+        LinkedList<QueryCollectorContext> collectors,
+        boolean hasFilterCollector,
+        boolean timeoutSet
+    ) throws IOException {
         // create the top docs collector last when the other collectors are known
         final TopDocsCollectorContext topDocsFactory = createTopDocsCollectorContext(searchContext, hasFilterCollector);
         // add the top docs collector, the first collector context in the chain

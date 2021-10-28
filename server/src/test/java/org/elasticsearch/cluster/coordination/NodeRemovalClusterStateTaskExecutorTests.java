@@ -33,8 +33,7 @@ import static org.mockito.Mockito.when;
 public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
 
     public void testRemovingNonExistentNodes() throws Exception {
-        final NodeRemovalClusterStateTaskExecutor executor =
-                new NodeRemovalClusterStateTaskExecutor(null, logger);
+        final NodeRemovalClusterStateTaskExecutor executor = new NodeRemovalClusterStateTaskExecutor(null, logger);
         final DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         final int nodes = randomIntBetween(2, 16);
         for (int i = 0; i < nodes; i++) {
@@ -46,32 +45,31 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
         for (int i = nodes; i < nodes + randomIntBetween(1, 16); i++) {
             removeBuilder.add(node(i));
         }
-        final List<NodeRemovalClusterStateTaskExecutor.Task> tasks =
-                StreamSupport
-                        .stream(removeBuilder.build().spliterator(), false)
-                        .map(node -> new NodeRemovalClusterStateTaskExecutor.Task(node, randomBoolean() ? "left" : "failed"))
-                        .collect(Collectors.toList());
+        final List<NodeRemovalClusterStateTaskExecutor.Task> tasks = StreamSupport.stream(removeBuilder.build().spliterator(), false)
+            .map(node -> new NodeRemovalClusterStateTaskExecutor.Task(node, randomBoolean() ? "left" : "failed"))
+            .collect(Collectors.toList());
 
-        final ClusterStateTaskExecutor.ClusterTasksResult<NodeRemovalClusterStateTaskExecutor.Task> result
-                = executor.execute(clusterState, tasks);
+        final ClusterStateTaskExecutor.ClusterTasksResult<NodeRemovalClusterStateTaskExecutor.Task> result = executor.execute(
+            clusterState,
+            tasks
+        );
         assertThat(result.resultingState, equalTo(clusterState));
     }
 
     public void testRerouteAfterRemovingNodes() throws Exception {
         final AllocationService allocationService = mock(AllocationService.class);
-        when(allocationService.disassociateDeadNodes(any(ClusterState.class), eq(true), any(String.class)))
-            .thenAnswer(im -> im.getArguments()[0]);
+        when(allocationService.disassociateDeadNodes(any(ClusterState.class), eq(true), any(String.class))).thenAnswer(
+            im -> im.getArguments()[0]
+        );
 
         final AtomicReference<ClusterState> remainingNodesClusterState = new AtomicReference<>();
-        final NodeRemovalClusterStateTaskExecutor executor =
-                new NodeRemovalClusterStateTaskExecutor(allocationService, logger) {
-                    @Override
-                    protected ClusterState remainingNodesClusterState(ClusterState currentState,
-                                                                      DiscoveryNodes.Builder remainingNodesBuilder) {
-                        remainingNodesClusterState.set(super.remainingNodesClusterState(currentState, remainingNodesBuilder));
-                        return remainingNodesClusterState.get();
-                    }
-                };
+        final NodeRemovalClusterStateTaskExecutor executor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger) {
+            @Override
+            protected ClusterState remainingNodesClusterState(ClusterState currentState, DiscoveryNodes.Builder remainingNodesBuilder) {
+                remainingNodesClusterState.set(super.remainingNodesClusterState(currentState, remainingNodesBuilder));
+                return remainingNodesClusterState.get();
+            }
+        };
 
         final DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         final int nodes = randomIntBetween(2, 16);
@@ -88,8 +86,10 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
         }
         final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(builder).build();
 
-        final ClusterStateTaskExecutor.ClusterTasksResult<NodeRemovalClusterStateTaskExecutor.Task> result =
-                executor.execute(clusterState, tasks);
+        final ClusterStateTaskExecutor.ClusterTasksResult<NodeRemovalClusterStateTaskExecutor.Task> result = executor.execute(
+            clusterState,
+            tasks
+        );
 
         verify(allocationService).disassociateDeadNodes(eq(remainingNodesClusterState.get()), eq(true), any(String.class));
 

@@ -21,7 +21,7 @@ import java.util.Enumeration;
 @SuppressForbidden(reason = "exposes read-only view of system properties")
 public final class BootstrapInfo {
 
-    private static SetOnce<PrintStream> consoleOutput;
+    private static final SetOnce<PrintStream> consoleOutput = new SetOnce<>();
 
     /** no instantiation */
     private BootstrapInfo() {}
@@ -122,7 +122,6 @@ public final class BootstrapInfo {
     }
 
     public static void init() {
-        BootstrapInfo.consoleOutput = new SetOnce<>();
     }
 
     static void setConsoleOutput(PrintStream output) {

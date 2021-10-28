@@ -28,15 +28,21 @@ public class ConsoleLoader {
 
     private static final String CONSOLE_LOADER_CLASS = "org.elasticsearch.io.ansi.AnsiConsoleLoader";
 
-    @SuppressWarnings("unchecked")
     public static PrintStream loadConsole(Environment env) {
+        final ClassLoader classLoader = buildClassLoader(env);
+        final Supplier<PrintStream> supplier = buildConsoleLoader(classLoader);
+        return supplier.get();
+    }
+
+    @SuppressWarnings("unchecked")
+    static Supplier<PrintStream> buildConsoleLoader(ClassLoader classLoader) {
         try {
-            final Class<? extends Supplier<PrintStream>> cls = (Class<? extends Supplier<PrintStream>>) buildClassLoader(env).loadClass(
+            final Class<? extends Supplier<PrintStream>> cls = (Class<? extends Supplier<PrintStream>>) classLoader.loadClass(
                 CONSOLE_LOADER_CLASS
             );
             final Constructor<? extends Supplier<PrintStream>> constructor = cls.getConstructor();
-            Supplier<PrintStream> supplier = constructor.newInstance();
-            return supplier.get();
+            final Supplier<PrintStream> supplier = constructor.newInstance();
+            return supplier;
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException("Failed to load ANSI console", e);
         }

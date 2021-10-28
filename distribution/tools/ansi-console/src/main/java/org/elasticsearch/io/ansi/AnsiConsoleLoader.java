@@ -22,14 +22,18 @@ public class AnsiConsoleLoader implements Supplier<PrintStream> {
 
     public PrintStream get() {
         final AnsiPrintStream out = AnsiConsole.out();
-        if (out == null // cannot load stdout
-            || out.getType() == AnsiType.Redirected // output is a pipe (etc)
-            || out.getType() == AnsiType.Unsupported // could not determine terminal type
-            || out.getTerminalWidth() <= 0 // docker, non-terminal logs
-        ) {
-            return null;
-        } else {
+        if (isValidConsole(out)) {
             return out;
+        } else {
+            return null;
         }
+    }
+
+    static boolean isValidConsole(AnsiPrintStream out) {
+        return out != null // cannot load stdout
+            && out.getType() != AnsiType.Redirected // output is a pipe (etc)
+            && out.getType() != AnsiType.Unsupported // could not determine terminal type
+            && out.getTerminalWidth() > 0 // docker, non-terminal logs
+        ;
     }
 }

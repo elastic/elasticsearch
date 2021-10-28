@@ -353,16 +353,8 @@ public class DefaultSearchContextTests extends ESTestCase {
 
         IndexService indexService = mock(IndexService.class);
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
-        when(
-            indexService.newSearchExecutionContext(
-                eq(shardId.id()),
-                eq(shardId.id()),
-                any(),
-                any(),
-                nullable(String.class),
-                any()
-            )
-        ).thenReturn(searchExecutionContext);
+        when(indexService.newSearchExecutionContext(eq(shardId.id()), eq(shardId.id()), any(), any(), nullable(String.class), any()))
+            .thenReturn(searchExecutionContext);
 
         try (
             Directory dir = newDirectory();

@@ -59,6 +59,12 @@ setup:
                 token_count: count all these words please
 
     - do:
+        index:
+          index: test
+          id: 2
+          body: {}
+
+    - do:
         indices.refresh: {}
 
 ---
@@ -67,6 +73,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
+                query: { term: { _id: 1 } }
                 script_fields:
                     field:
                         script:
@@ -77,11 +84,79 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
+                query: { term: { _id: 1 } }
                 script_fields:
                     field:
                         script:
                             source: "doc['boolean'].value"
     - match: { hits.hits.0.fields.field.0: true }
+
+    - do:
+        search:
+            rest_total_hits_as_int: true
+            body:
+                query: { term: { _id: 1 } }
+                script_fields:
+                    field:
+                        script:
+                            source: "field('boolean').getValue(false)"
+    - match: { hits.hits.0.fields.field.0: true }
+
+    - do:
+        search:
+            rest_total_hits_as_int: true
+            body:
+                query: { term: { _id: 1 } }
+                script_fields:
+                    field:
+                        script:
+                            source: "field('boolean').getValue(false)"
+    - match: { hits.hits.0.fields.field.0: true }
+
+    - do:
+        search:
+            rest_total_hits_as_int: true
+            body:
+                query: { term: { _id: 2 } }
+                script_fields:
+                    field:
+                        script:
+                            source: "field('boolean').getValue(false)"
+    - match: { hits.hits.0.fields.field.0: false }
+
+    - do:
+        search:
+            rest_total_hits_as_int: true
+            body:
+                query: { term: { _id: 1 } }
+                script_fields:
+                    field:
+                        script:
+                            source: "field('boolean').getValue(1, false)"
+    - match: { hits.hits.0.fields.field.0: false }
+
+    - do:
+        search:
+            rest_total_hits_as_int: true
+            body:
+                query: { term: { _id: 1 } }
+                script_fields:
+                    field:
+                        script:
+                            source: "field('boolean').getValues().length"
+    - match: { hits.hits.0.fields.field.0: 1 }
+
+    - do:
+        search:
+            rest_total_hits_as_int: true
+            body:
+                query: { term: { _id: 2 } }
+                script_fields:
+                    field:
+                        script:
+                            source: "field('boolean').getValues().length"
+    - match: { hits.hits.0.fields.field.0: 0 }
+
 
 ---
 "date":
@@ -92,6 +167,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
+                query: { term: { _id: 1 } }
                 script_fields:
                     field:
                         script:
@@ -102,6 +178,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
+                query: { term: { _id: 1 } }
                 script_fields:
                     field:
                         script:
@@ -114,6 +191,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
+                query: { term: { _id: 1 } }
                 script_fields:
                     field:
                         script:
@@ -125,6 +203,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
+                query: { term: { _id: 1 } }
                 script_fields:
                     field:
                         script:
@@ -136,6 +215,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
+                query: { term: { _id: 1 } }
                 script_fields:
                     centroid:
                         script:
@@ -147,6 +227,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
+                query: { term: { _id: 1 } }
                 script_fields:
                     bbox:
                         script:
@@ -160,6 +241,7 @@ setup:
         search:
           rest_total_hits_as_int: true
           body:
+            query: { term: { _id: 1 } }
             script_fields:
                     topLeft:
                         script:
@@ -176,6 +258,7 @@ setup:
         search:
           rest_total_hits_as_int: true
           body:
+            query: { term: { _id: 1 } }
             script_fields:
                     type:
                         script:
@@ -186,6 +269,7 @@ setup:
         search:
           rest_total_hits_as_int: true
           body:
+            query: { term: { _id: 1 } }
             script_fields:
               width:
                 script:
@@ -202,6 +286,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
+                query: { term: { _id: 1 } }
                 script_fields:
                     field:
                         script:
@@ -212,6 +297,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
+                query: { term: { _id: 1 } }
                 script_fields:
                     field:
                         script:
@@ -224,6 +310,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
+                query: { term: { _id: 1 } }
                 script_fields:
                     field:
                         script:
@@ -234,6 +321,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
+                query: { term: { _id: 1 } }
                 script_fields:
                     field:
                         script:
@@ -249,6 +337,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
+                query: { term: { _id: 1 } }
                 script_fields:
                     field:
                         script:
@@ -259,6 +348,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
+                query: { term: { _id: 1 } }
                 script_fields:
                     field:
                         script:
@@ -271,6 +361,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
+                query: { term: { _id: 1 } }
                 script_fields:
                     field:
                         script:
@@ -281,6 +372,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
+                query: { term: { _id: 1 } }
                 script_fields:
                     field:
                         script:
@@ -293,6 +385,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
+                query: { term: { _id: 1 } }
                 script_fields:
                     field:
                         script:
@@ -303,6 +396,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
+                query: { term: { _id: 1 } }
                 script_fields:
                     field:
                         script:
@@ -315,6 +409,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
+                query: { term: { _id: 1 } }
                 script_fields:
                     field:
                         script:
@@ -325,6 +420,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
+                query: { term: { _id: 1 } }
                 script_fields:
                     field:
                         script:
@@ -337,6 +433,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
+                query: { term: { _id: 1 } }
                 script_fields:
                     field:
                         script:
@@ -347,6 +444,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
+                query: { term: { _id: 1 } }
                 script_fields:
                     field:
                         script:
@@ -359,6 +457,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
+                query: { term: { _id: 1 } }
                 script_fields:
                     field:
                         script:
@@ -369,6 +468,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
+                query: { term: { _id: 1 } }
                 script_fields:
                     field:
                         script:
@@ -381,6 +481,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
+                query: { term: { _id: 1 } }
                 script_fields:
                     field:
                         script:
@@ -391,6 +492,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
+                query: { term: { _id: 1 } }
                 script_fields:
                     field:
                         script:
@@ -403,6 +505,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
+                query: { term: { _id: 1 } }
                 script_fields:
                     field:
                         script:
@@ -413,6 +516,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
+                query: { term: { _id: 1 } }
                 script_fields:
                     field:
                         script:
@@ -425,6 +529,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
+                query: { term: { _id: 1 } }
                 script_fields:
                     field:
                         script:
@@ -435,6 +540,7 @@ setup:
         search:
             rest_total_hits_as_int: true
             body:
+                query: { term: { _id: 1 } }
                 script_fields:
                     field:
                         script:

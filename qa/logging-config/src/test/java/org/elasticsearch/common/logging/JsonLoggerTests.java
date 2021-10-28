@@ -104,7 +104,7 @@ public class JsonLoggerTests extends ESTestCase {
             );
         }
 
-        assertWarnings(true, new DeprecationWarning(DeprecationLogger.DeprecationLevel.WARNING,"deprecated warn message1"));
+        assertWarnings(true, new DeprecationWarning(DeprecationLogger.DeprecationLevel.WARNING, "deprecated warn message1"));
     }
 
     public void testDeprecatedMessageWithoutXOpaqueId() throws IOException {

@@ -175,7 +175,7 @@ public class SecurityContext {
                 )
             );
             existingRequestHeaders.forEach((k, v) -> {
-                if (false == AuthenticationField.AUTHENTICATION_KEY.equals(k)) {
+                if (threadContext.getHeader(k) == null) {
                     threadContext.putHeader(k, v);
                 }
             });

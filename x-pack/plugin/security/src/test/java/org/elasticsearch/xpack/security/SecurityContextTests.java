@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.core.List;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -121,8 +122,14 @@ public class SecurityContextTests extends ESTestCase {
         final Authentication original = new Authentication(user, authBy, authBy);
         original.writeToContext(threadContext);
         final Map<String, String> requestHeaders = org.elasticsearch.core.Map.of(
-            AuthenticationField.PRIVILEGE_CATEGORY_KEY, randomAlphaOfLengthBetween(3, 10),
-            randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)
+            AuthenticationField.PRIVILEGE_CATEGORY_KEY,
+            randomAlphaOfLengthBetween(3, 10),
+            randomAlphaOfLengthBetween(3, 8),
+            randomAlphaOfLengthBetween(3, 8),
+            Task.X_OPAQUE_ID,
+            randomAlphaOfLength(10),
+            Task.TRACE_ID,
+            randomAlphaOfLength(20)
         );
         threadContext.putHeader(requestHeaders);
 

@@ -21,7 +21,7 @@ import org.junit.Before;
 import java.util.function.Function;
 
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
-import static org.mockito.ArgumentMatchers.anyObject;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -39,12 +39,12 @@ public class LeafDocLookupTests extends ESTestCase {
 
         MappedFieldType fieldType1 = mock(MappedFieldType.class);
         when(fieldType1.name()).thenReturn("field");
-        when(fieldType1.valueForDisplay(anyObject())).then(returnsFirstArg());
+        when(fieldType1.valueForDisplay(any())).then(returnsFirstArg());
         IndexFieldData<?> fieldData1 = createFieldData(docValues, "field");
 
         MappedFieldType fieldType2 = mock(MappedFieldType.class);
         when(fieldType1.name()).thenReturn("alias");
-        when(fieldType1.valueForDisplay(anyObject())).then(returnsFirstArg());
+        when(fieldType1.valueForDisplay(any())).then(returnsFirstArg());
         IndexFieldData<?> fieldData2 = createFieldData(docValues, "alias");
 
         docLookup = new LeafDocLookup(
@@ -102,7 +102,7 @@ public class LeafDocLookupTests extends ESTestCase {
 
         IndexFieldData<?> fieldData = mock(IndexFieldData.class);
         when(fieldData.getFieldName()).thenReturn(name);
-        doReturn(leafFieldData).when(fieldData).load(anyObject());
+        doReturn(leafFieldData).when(fieldData).load(any());
 
         return fieldData;
     }

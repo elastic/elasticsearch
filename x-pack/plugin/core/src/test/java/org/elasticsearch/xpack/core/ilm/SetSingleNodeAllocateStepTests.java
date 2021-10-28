@@ -228,7 +228,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f))
         );
 
-        Mockito.verifyZeroInteractions(client);
+        Mockito.verifyNoMoreInteractions(client);
     }
 
     public void testPerformActionAttrsNoNodesValid() {
@@ -390,7 +390,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         );
         assertEquals(indexMetadata.getIndex(), e.getIndex());
 
-        Mockito.verifyZeroInteractions(client);
+        Mockito.verifyNoMoreInteractions(client);
     }
 
     public void testPerformActionSomeShardsOnlyOnNewNodes() throws Exception {
@@ -668,7 +668,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f))
         );
 
-        Mockito.verifyZeroInteractions(client);
+        Mockito.verifyNoMoreInteractions(client);
     }
 
     private IndexRoutingTable.Builder createRoutingTable(IndexMetadata indexMetadata, Index index, DiscoveryNodes discoveryNodes) {

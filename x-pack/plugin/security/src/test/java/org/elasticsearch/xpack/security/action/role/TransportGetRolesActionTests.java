@@ -41,7 +41,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class TransportGetRolesActionTests extends ESTestCase {
 
@@ -101,7 +101,7 @@ public class TransportGetRolesActionTests extends ESTestCase {
             .map(RoleDescriptor::getName)
             .collect(Collectors.toList());
         assertThat(retrievedRoleNames, containsInAnyOrder(expectedNames.toArray(Strings.EMPTY_ARRAY)));
-        verifyZeroInteractions(rolesStore);
+        verifyNoMoreInteractions(rolesStore);
     }
 
     public void testStoreRoles() {

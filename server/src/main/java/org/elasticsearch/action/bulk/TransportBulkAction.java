@@ -28,7 +28,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.IngestActionForwarder;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.node.NodeClient;
@@ -40,7 +39,6 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -527,44 +525,25 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
                     IndexRouting indexRouting = concreteIndices.routing(concreteIndex);
 
-                    int shardId;
                     switch (docWriteRequest.opType()) {
                         case CREATE:
                         case INDEX:
                             prohibitAppendWritesInBackingIndices(docWriteRequest, metadata);
                             prohibitCustomRoutingOnDataStream(docWriteRequest, metadata);
                             IndexRequest indexRequest = (IndexRequest) docWriteRequest;
-                            final IndexMetadata indexMetadata = metadata.index(concreteIndex);
-                            MappingMetadata mappingMd = indexMetadata.mapping();
-                            Version indexCreated = indexMetadata.getCreationVersion();
                             indexRequest.resolveRouting(metadata);
-                            indexRequest.process(indexCreated, mappingMd, concreteIndex.getName());
-                            shardId = indexRouting.indexShard(
-                                docWriteRequest.id(),
-                                docWriteRequest.routing(),
-                                indexRequest.getContentType(),
-                                indexRequest.source()
-                            );
+                            indexRequest.process();
                             break;
                         case UPDATE:
-                            TransportUpdateAction.resolveAndValidateRouting(
-                                metadata,
-                                concreteIndex.getName(),
-                                (UpdateRequest) docWriteRequest
-                            );
-                            shardId = indexRouting.updateShard(docWriteRequest.id(), docWriteRequest.routing());
+                            docWriteRequest.routing(metadata.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
                             break;
                         case DELETE:
                             docWriteRequest.routing(metadata.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
-                            // check if routing is required, if so, throw error if routing wasn't specified
-                            if (docWriteRequest.routing() == null && metadata.routingRequired(concreteIndex.getName())) {
-                                throw new RoutingMissingException(concreteIndex.getName(), docWriteRequest.id());
-                            }
-                            shardId = indexRouting.deleteShard(docWriteRequest.id(), docWriteRequest.routing());
                             break;
                         default:
                             throw new AssertionError("request type not supported: [" + docWriteRequest.opType() + "]");
                     }
+                    int shardId = docWriteRequest.route(indexRouting);
                     List<BulkItemRequest> shardRequests = requestsByShard.computeIfAbsent(
                         new ShardId(concreteIndex, shardId),
                         shard -> new ArrayList<>()

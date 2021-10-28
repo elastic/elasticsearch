@@ -67,6 +67,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.Closeable;
@@ -153,7 +154,7 @@ public class PersistedClusterStateService {
 
     private final Path[] dataPaths;
     private final String nodeId;
-    private final NamedXContentRegistry namedXContentRegistry;
+    private final XContentParserConfiguration parserConfig;
     private final LongSupplier relativeTimeMillisSupplier;
     private final ByteSizeValue documentPageSize;
 
@@ -177,7 +178,8 @@ public class PersistedClusterStateService {
     ) {
         this.dataPaths = dataPaths;
         this.nodeId = nodeId;
-        this.namedXContentRegistry = namedXContentRegistry;
+        this.parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE)
+            .withRegistry(namedXContentRegistry);
         this.relativeTimeMillisSupplier = relativeTimeMillisSupplier;
         this.slowWriteLoggingThreshold = clusterSettings.get(SLOW_WRITE_LOGGING_THRESHOLD);
         clusterSettings.addSettingsUpdateConsumer(SLOW_WRITE_LOGGING_THRESHOLD, this::setSlowWriteLoggingThreshold);
@@ -507,8 +509,7 @@ public class PersistedClusterStateService {
     }
 
     private <T> T readXContent(BytesReference bytes, CheckedFunction<XContentParser, T, IOException> reader) throws IOException {
-        final XContentParser parser = XContentFactory.xContent(XContentType.SMILE)
-            .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes.streamInput());
+        final XContentParser parser = XContentFactory.xContent(XContentType.SMILE).createParser(parserConfig, bytes.streamInput());
         try {
             return reader.apply(parser);
         } catch (Exception e) {

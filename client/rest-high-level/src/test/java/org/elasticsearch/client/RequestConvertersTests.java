@@ -55,7 +55,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.VersionType;
@@ -1257,17 +1256,16 @@ public class RequestConvertersTests extends ESTestCase {
             requests.add(searchRequest);
         };
         MultiSearchRequest.readMultiLineFormat(
-            new BytesArray(EntityUtils.toByteArray(request.getEntity())),
             REQUEST_BODY_CONTENT_TYPE.xContent(),
+            parserConfig(),
+            new BytesArray(EntityUtils.toByteArray(request.getEntity())),
             consumer,
             null,
             multiSearchRequest.indicesOptions(),
             null,
             null,
             null,
-            xContentRegistry(),
-            true,
-            RestApiVersion.current()
+            true
         );
         assertEquals(requests, multiSearchRequest.requests());
     }

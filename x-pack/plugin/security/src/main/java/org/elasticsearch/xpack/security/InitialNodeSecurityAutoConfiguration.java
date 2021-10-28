@@ -65,7 +65,7 @@ public class InitialNodeSecurityAutoConfiguration {
             client
         );
 
-        final PrintStream out = getConsoleOutput() ;
+        final PrintStream out = getConsoleOutput();
         if (out == null) {
             LOGGER.info(
                 "Auto-configuration will not generate a password for the elastic built-in superuser, as we cannot "

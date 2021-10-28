@@ -21,8 +21,8 @@ import java.nio.file.Path;
 import java.util.function.Supplier;
 
 /**
- * Dynamically loads an "AnsiPrintStream" from the JANSI library on a separate class loader (so that the server classpath
- * does not need to include jansi.jar
+ * Dynamically loads an "AnsiPrintStream" from the jANSI library on a separate class loader (so that the server classpath
+ * does not need to include jansi.jar)
  */
 public class ConsoleLoader {
 

@@ -121,8 +121,7 @@ public final class BootstrapInfo {
         return SYSTEM_PROPERTIES;
     }
 
-    public static void init() {
-    }
+    public static void init() {}
 
     static void setConsoleOutput(PrintStream output) {
         consoleOutput.set(output);

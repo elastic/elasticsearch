@@ -301,7 +301,7 @@ public class NioSelectorTests extends ESTestCase {
             selector.close();
             selector.queueWrite(new FlushReadyWrite(channelContext, buffers, listener));
         });
-        verify(listener).accept(isNull(Void.class), any(ClosedSelectorException.class));
+        verify(listener).accept(isNull(), any(ClosedSelectorException.class));
     }
 
     public void testQueueWriteChannelIsClosed() throws Exception {
@@ -312,7 +312,7 @@ public class NioSelectorTests extends ESTestCase {
         selector.preSelect();
 
         verify(channelContext, times(0)).queueWriteOperation(writeOperation);
-        verify(listener).accept(isNull(Void.class), any(ClosedChannelException.class));
+        verify(listener).accept(isNull(), any(ClosedChannelException.class));
     }
 
     public void testQueueWriteChannelIsUnregistered() throws Exception {
@@ -323,7 +323,7 @@ public class NioSelectorTests extends ESTestCase {
         selector.preSelect();
 
         verify(channelContext, times(0)).queueWriteOperation(writeOperation);
-        verify(listener).accept(isNull(Void.class), any(IllegalStateException.class));
+        verify(listener).accept(isNull(), any(IllegalStateException.class));
     }
 
     public void testQueueWriteSuccessful() throws Exception {
@@ -484,7 +484,7 @@ public class NioSelectorTests extends ESTestCase {
 
         selector.cleanupAndCloseChannels();
 
-        verify(listener).accept(isNull(Void.class), any(ClosedSelectorException.class));
+        verify(listener).accept(isNull(), any(ClosedSelectorException.class));
         verify(eventHandler).handleClose(channelContext);
         verify(eventHandler).handleClose(unregisteredContext);
     }

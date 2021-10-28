@@ -156,7 +156,7 @@ public abstract class LdapTestCase extends ESTestCase {
             AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
                 try (var c = ds.getConnection()) {
                     assertThat("Failed to connect to " + ds + " - ", c.isConnected(), is(true));
-                    logger.info("Test connection to [{}] was successful ({})", ds, c);
+                    logger.info("Test connection to [{}](port {}) was successful ({})", ds, ds.getListenPort(), c);
                 } catch (LDAPException e) {
                     throw new AssertionError("Failed to connect to " + ds, e);
                 }

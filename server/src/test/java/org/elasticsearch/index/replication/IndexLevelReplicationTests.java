@@ -12,7 +12,6 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -149,7 +148,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
         try (ReplicationGroup shards = createGroup(0)) {
             shards.startAll();
             final IndexRequest originalRequest = new IndexRequest(index.getName()).source("{}", XContentType.JSON);
-            originalRequest.process(Version.CURRENT, null, index.getName());
+            originalRequest.process();
             final IndexRequest retryRequest = copyIndexRequest(originalRequest);
             retryRequest.onRetry();
             shards.index(retryRequest);

@@ -48,7 +48,6 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class ServerTransportFilterTests extends ESTestCase {
@@ -129,7 +128,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         } catch (ElasticsearchSecurityException e) {
             assertThat(e.getMessage(), equalTo("authc failed"));
         }
-        verifyZeroInteractions(authzService);
+        verifyNoMoreInteractions(authzService);
     }
 
     public void testInboundAuthorizationException() throws Exception {

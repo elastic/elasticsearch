@@ -47,7 +47,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.xpack.core.ml.MachineLearningField.featureFromLicenseLevel;
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.featureCheckForMode;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.TRAINED_MODEL_INPUTS_DIFFER_SIGNIFICANTLY;
 
 public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMasterNodeAction<PutTrainedModelAliasAction.Request> {
@@ -93,7 +93,7 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
     ) throws Exception {
         final boolean mlSupported = MachineLearningField.ML_API_FEATURE.check(licenseState);
         final Predicate<TrainedModelConfig> isLicensed = (model) -> mlSupported
-            || featureFromLicenseLevel(model.getLicenseLevel()).check(licenseState);
+            || featureCheckForMode(model.getLicenseLevel(), licenseState);
         final String oldModelId = ModelAliasMetadata.fromState(state).getModelId(request.getModelAlias());
 
         if (oldModelId != null && (request.isReassign() == false)) {

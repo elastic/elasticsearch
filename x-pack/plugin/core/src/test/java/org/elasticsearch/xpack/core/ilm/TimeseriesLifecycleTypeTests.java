@@ -198,8 +198,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
 
     public void testValidateConflictingDataMigrationConfigurations() {
         Map<String, LifecycleAction> actions = new HashMap<>();
-        actions.put(TEST_ALLOCATE_ACTION.getWriteableName(), TEST_ALLOCATE_ACTION);
         actions.put(TEST_MIGRATE_ACTION.getWriteableName(), MigrateAction.ENABLED);
+        actions.put(TEST_ALLOCATE_ACTION.getWriteableName(), TEST_ALLOCATE_ACTION);
         List<Phase> phases = List.of(new Phase(WARM_PHASE, TimeValue.ZERO, actions), new Phase(COLD_PHASE, TimeValue.ZERO, actions));
 
         Exception validationException = expectThrows(

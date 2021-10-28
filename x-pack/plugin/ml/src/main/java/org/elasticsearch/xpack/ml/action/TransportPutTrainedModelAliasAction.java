@@ -24,6 +24,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
@@ -47,7 +48,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.xpack.core.ml.MachineLearningField.featureCheckForMode;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.TRAINED_MODEL_INPUTS_DIFFER_SIGNIFICANTLY;
 
 public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMasterNodeAction<PutTrainedModelAliasAction.Request> {
@@ -93,7 +93,8 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
     ) throws Exception {
         final boolean mlSupported = MachineLearningField.ML_API_FEATURE.check(licenseState);
         final Predicate<TrainedModelConfig> isLicensed = (model) -> mlSupported
-            || featureCheckForMode(model.getLicenseLevel(), licenseState);
+            // Either we support plat+ or the model is basic licensed
+            || model.getLicenseLevel() == License.OperationMode.BASIC;
         final String oldModelId = ModelAliasMetadata.fromState(state).getModelId(request.getModelAlias());
 
         if (oldModelId != null && (request.isReassign() == false)) {

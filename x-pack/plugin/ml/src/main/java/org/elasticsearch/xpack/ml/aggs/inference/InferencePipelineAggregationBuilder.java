@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -51,7 +52,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xpack.core.ml.MachineLearningField.featureCheckForMode;
 import static org.elasticsearch.xpack.ml.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
 
 public class InferencePipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<InferencePipelineAggregationBuilder> {
@@ -268,7 +268,7 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
                 loadedModel.set(model);
 
                 boolean isLicensed = MachineLearningField.ML_API_FEATURE.check(licenseState)
-                    || featureCheckForMode(model.getLicenseLevel(), licenseState);
+                    || model.getLicenseLevel() == License.OperationMode.BASIC;
                 if (isLicensed) {
                     delegate.onResponse(null);
                 } else {

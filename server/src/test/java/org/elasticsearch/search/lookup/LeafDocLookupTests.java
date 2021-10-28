@@ -21,7 +21,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.search.lookup.LeafDocLookup.TYPES_DEPRECATION_MESSAGE;
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
-import static org.mockito.ArgumentMatchers.anyObject;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -37,7 +37,7 @@ public class LeafDocLookupTests extends ESTestCase {
 
         MappedFieldType fieldType = mock(MappedFieldType.class);
         when(fieldType.name()).thenReturn("field");
-        when(fieldType.valueForDisplay(anyObject())).then(returnsFirstArg());
+        when(fieldType.valueForDisplay(any())).then(returnsFirstArg());
 
         docValues = mock(ScriptDocValues.class);
         IndexFieldData<?> fieldData = createFieldData(docValues);
@@ -102,7 +102,7 @@ public class LeafDocLookupTests extends ESTestCase {
 
         IndexFieldData<?> fieldData = mock(IndexFieldData.class);
         when(fieldData.getFieldName()).thenReturn("field");
-        doReturn(leafFieldData).when(fieldData).load(anyObject());
+        doReturn(leafFieldData).when(fieldData).load(any());
 
         return fieldData;
     }

@@ -34,7 +34,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class SecurityQueryTemplateEvaluatorTests extends ESTestCase {
@@ -126,7 +126,7 @@ public class SecurityQueryTemplateEvaluatorTests extends ESTestCase {
         String querySource = Strings.toString(new TermQueryBuilder("field", "value").toXContent(builder, ToXContent.EMPTY_PARAMS));
         String result = SecurityQueryTemplateEvaluator.evaluateTemplate(querySource, scriptService, null);
         assertThat(result, sameInstance(querySource));
-        verifyZeroInteractions(scriptService);
+        verifyNoMoreInteractions(scriptService);
     }
 
 }

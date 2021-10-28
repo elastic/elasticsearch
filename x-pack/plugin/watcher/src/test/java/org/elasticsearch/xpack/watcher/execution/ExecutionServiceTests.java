@@ -110,7 +110,6 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyObject;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -1184,7 +1183,7 @@ public class ExecutionServiceTests extends ESTestCase {
 
         ActionWrapper actionWrapper = mock(ActionWrapper.class);
         ActionWrapperResult actionWrapperResult = new ActionWrapperResult("_action", actionResult);
-        when(actionWrapper.execute(anyObject())).thenReturn(actionWrapperResult);
+        when(actionWrapper.execute(any())).thenReturn(actionWrapperResult);
 
         when(watch.actions()).thenReturn(Collections.singletonList(actionWrapper));
 
@@ -1241,7 +1240,7 @@ public class ExecutionServiceTests extends ESTestCase {
         when(ctx.watch()).thenReturn(watch);
 
         WatchExecutionSnapshot snapshot = new WatchExecutionSnapshot(ctx, new StackTraceElement[] {});
-        when(ctx.createSnapshot(anyObject())).thenReturn(snapshot);
+        when(ctx.createSnapshot(any())).thenReturn(snapshot);
 
         return ctx;
     }

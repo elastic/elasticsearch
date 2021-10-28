@@ -60,7 +60,6 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -292,8 +291,8 @@ public class SecurityActionFilterTests extends ESTestCase {
         Task task = mock(Task.class);
         when(licenseState.isSecurityEnabled()).thenReturn(false);
         filter.apply(task, "_action", request, listener, chain);
-        verifyZeroInteractions(authcService);
-        verifyZeroInteractions(authzService);
+        verifyNoMoreInteractions(authcService);
+        verifyNoMoreInteractions(authzService);
         verify(chain).proceed(eq(task), eq("_action"), eq(request), eq(listener));
     }
 

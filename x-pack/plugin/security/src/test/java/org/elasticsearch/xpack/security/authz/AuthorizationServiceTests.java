@@ -222,7 +222,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class AuthorizationServiceTests extends ESTestCase {
@@ -2770,7 +2769,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             "user1"
         );
         // The operator related exception is verified in the authorize(...) call
-        verifyZeroInteractions(auditTrail);
+        verifyNoMoreInteractions(auditTrail);
     }
 
     public void testAuthorizedIndiciesTimeChecker() throws Exception {

@@ -99,7 +99,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class RBACEngineTests extends ESTestCase {
@@ -191,7 +190,7 @@ public class RBACEngineTests extends ESTestCase {
         when(authenticatedBy.getType()).thenReturn(randomAlphaOfLengthBetween(4, 12));
 
         assertFalse(engine.checkSameUserPermissions(action, request, authentication));
-        verifyZeroInteractions(user, request, authentication);
+        verifyNoMoreInteractions(user, request, authentication);
     }
 
     public void testSameUserPermissionRunAsChecksAuthenticatedBy() {

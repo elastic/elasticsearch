@@ -141,7 +141,7 @@ public class MlDailyMaintenanceService implements Releasable {
         stop();
     }
 
-    private synchronized void  scheduleNext() {
+    private synchronized void scheduleNext() {
         try {
             cancellable = threadPool.schedule(this::triggerTasks, schedulerProvider.get(), ThreadPool.Names.GENERIC);
         } catch (EsRejectedExecutionException e) {

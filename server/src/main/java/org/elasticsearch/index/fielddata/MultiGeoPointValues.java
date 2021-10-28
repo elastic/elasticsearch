@@ -31,8 +31,7 @@ public abstract class MultiGeoPointValues {
     /**
      * Creates a new {@link MultiGeoPointValues} instance
      */
-    protected MultiGeoPointValues() {
-    }
+    protected MultiGeoPointValues() {}
 
     /**
      * Advance this instance to the given document id

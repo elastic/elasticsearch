@@ -47,11 +47,13 @@ public class ActiveShardsObserver {
      * @param onResult a function that is executed in response to the requisite shards becoming active or a timeout (whichever comes first)
      * @param onFailure a function that is executed in response to an error occurring during waiting for the active shards
      */
-    public void waitForActiveShards(final String[] indexNames,
-                                    final ActiveShardCount activeShardCount,
-                                    final TimeValue timeout,
-                                    final Consumer<Boolean> onResult,
-                                    final Consumer<Exception> onFailure) {
+    public void waitForActiveShards(
+        final String[] indexNames,
+        final ActiveShardCount activeShardCount,
+        final TimeValue timeout,
+        final Consumer<Boolean> onResult,
+        final Consumer<Exception> onFailure
+    ) {
 
         // wait for the configured number of active shards to be allocated before executing the result consumer
         if (activeShardCount == ActiveShardCount.NONE) {

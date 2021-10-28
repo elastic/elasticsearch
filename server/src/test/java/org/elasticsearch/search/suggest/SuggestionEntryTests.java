@@ -10,15 +10,15 @@ package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -94,10 +94,12 @@ public class SuggestionEntryTests extends ESTestCase {
                 // where we cannot add random stuff
                 // exclude "options" which contain SearchHits,
                 // on root level of SearchHit fields are interpreted as meta-fields and will be kept
-                Predicate<String> excludeFilter = (
-                        path -> path.endsWith(CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName()) || path.endsWith("highlight")
-                                || path.contains("fields") || path.contains("_source") || path.contains("inner_hits")
-                                || path.contains("options"));
+                Predicate<String> excludeFilter = (path -> path.endsWith(CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName())
+                    || path.endsWith("highlight")
+                    || path.contains("fields")
+                    || path.contains("_source")
+                    || path.contains("inner_hits")
+                    || path.contains("options"));
 
                 mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
             } else {
@@ -123,52 +125,65 @@ public class SuggestionEntryTests extends ESTestCase {
     }
 
     public void testToXContent() throws IOException {
-        PhraseSuggestion.Entry.Option phraseOption = new PhraseSuggestion.Entry.Option(new Text("someText"),
-                new Text("somethingHighlighted"),
-            1.3f, true);
+        PhraseSuggestion.Entry.Option phraseOption = new PhraseSuggestion.Entry.Option(
+            new Text("someText"),
+            new Text("somethingHighlighted"),
+            1.3f,
+            true
+        );
         PhraseSuggestion.Entry phraseEntry = new PhraseSuggestion.Entry(new Text("entryText"), 42, 313);
         phraseEntry.addOption(phraseOption);
         BytesReference xContent = toXContent(phraseEntry, XContentType.JSON, randomBoolean());
         assertEquals(
-                "{\"text\":\"entryText\","
+            "{\"text\":\"entryText\","
                 + "\"offset\":42,"
                 + "\"length\":313,"
                 + "\"options\":["
-                    + "{\"text\":\"someText\","
-                    + "\"highlighted\":\"somethingHighlighted\","
-                    + "\"score\":1.3,"
-                    + "\"collate_match\":true}"
-                + "]}", xContent.utf8ToString());
+                + "{\"text\":\"someText\","
+                + "\"highlighted\":\"somethingHighlighted\","
+                + "\"score\":1.3,"
+                + "\"collate_match\":true}"
+                + "]}",
+            xContent.utf8ToString()
+        );
 
         TermSuggestion.Entry.Option termOption = new TermSuggestion.Entry.Option(new Text("termSuggestOption"), 42, 3.13f);
         TermSuggestion.Entry termEntry = new TermSuggestion.Entry(new Text("entryText"), 42, 313);
         termEntry.addOption(termOption);
         xContent = toXContent(termEntry, XContentType.JSON, randomBoolean());
         assertEquals(
-                "{\"text\":\"entryText\","
+            "{\"text\":\"entryText\","
                 + "\"offset\":42,"
                 + "\"length\":313,"
                 + "\"options\":["
-                    + "{\"text\":\"termSuggestOption\","
-                    + "\"score\":3.13,"
-                    + "\"freq\":42}"
-                + "]}", xContent.utf8ToString());
+                + "{\"text\":\"termSuggestOption\","
+                + "\"score\":3.13,"
+                + "\"freq\":42}"
+                + "]}",
+            xContent.utf8ToString()
+        );
 
-        CompletionSuggestion.Entry.Option completionOption = new CompletionSuggestion.Entry.Option(-1, new Text("completionOption"),
-                        3.13f, Collections.singletonMap("key", Collections.singleton("value")));
+        CompletionSuggestion.Entry.Option completionOption = new CompletionSuggestion.Entry.Option(
+            -1,
+            new Text("completionOption"),
+            3.13f,
+            Collections.singletonMap("key", Collections.singleton("value"))
+        );
         CompletionSuggestion.Entry completionEntry = new CompletionSuggestion.Entry(new Text("entryText"), 42, 313);
         completionEntry.addOption(completionOption);
         xContent = toXContent(completionEntry, XContentType.JSON, randomBoolean());
         assertEquals(
-                "{\"text\":\"entryText\","
+            "{\"text\":\"entryText\","
                 + "\"offset\":42,"
                 + "\"length\":313,"
                 + "\"options\":["
-                    + "{\"text\":\"completionOption\","
-                    + "\"score\":3.13,"
-                    + "\"contexts\":{\"key\":[\"value\"]}"
-                    + "}"
-                + "]}", xContent.utf8ToString());
+                + "{\"text\":\"completionOption\","
+                + "\"score\":3.13,"
+                + "\"contexts\":{\"key\":[\"value\"]}"
+                + "}"
+                + "]}",
+            xContent.utf8ToString()
+        );
     }
 
 }

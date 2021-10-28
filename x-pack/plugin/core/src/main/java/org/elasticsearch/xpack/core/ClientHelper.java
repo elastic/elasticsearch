@@ -34,8 +34,10 @@ import java.util.stream.Collectors;
  */
 public final class ClientHelper {
 
-    private static Pattern authorizationHeaderPattern = Pattern.compile("\\s*" + Pattern.quote("Authorization") + "\\s*",
-            Pattern.CASE_INSENSITIVE);
+    private static Pattern authorizationHeaderPattern = Pattern.compile(
+        "\\s*" + Pattern.quote("Authorization") + "\\s*",
+        Pattern.CASE_INSENSITIVE
+    );
 
     public static void assertNoAuthorizationHeader(Map<String, String> headers) {
         if (org.elasticsearch.Assertions.ENABLED) {
@@ -50,11 +52,11 @@ public final class ClientHelper {
     /**
      * List of headers that are related to security
      */
-    public static final Set<String> SECURITY_HEADER_FILTERS =
-        Sets.newHashSet(
-            AuthenticationServiceField.RUN_AS_USER_HEADER,
-            AuthenticationField.AUTHENTICATION_KEY,
-            SecondaryAuthentication.THREAD_CTX_KEY);
+    public static final Set<String> SECURITY_HEADER_FILTERS = Sets.newHashSet(
+        AuthenticationServiceField.RUN_AS_USER_HEADER,
+        AuthenticationField.AUTHENTICATION_KEY,
+        SecondaryAuthentication.THREAD_CTX_KEY
+    );
 
     /**
      * Leaves only headers that are related to security and filters out the rest.
@@ -67,9 +69,11 @@ public final class ClientHelper {
             // fast-track to skip the artifice below
             return headers;
         } else {
-            return Objects.requireNonNull(headers).entrySet().stream()
-                    .filter(e -> SECURITY_HEADER_FILTERS.contains(e.getKey()))
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            return Objects.requireNonNull(headers)
+                .entrySet()
+                .stream()
+                .filter(e -> SECURITY_HEADER_FILTERS.contains(e.getKey()))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         }
     }
 
@@ -110,8 +114,12 @@ public final class ClientHelper {
      * Executes a consumer after setting the origin and wrapping the listener so that the proper context is restored
      */
     public static <Request extends ActionRequest, Response extends ActionResponse> void executeAsyncWithOrigin(
-            ThreadContext threadContext, String origin, Request request, ActionListener<Response> listener,
-            BiConsumer<Request, ActionListener<Response>> consumer) {
+        ThreadContext threadContext,
+        String origin,
+        Request request,
+        ActionListener<Response> listener,
+        BiConsumer<Request, ActionListener<Response>> consumer
+    ) {
         final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
         try (ThreadContext.StoredContext ignore = threadContext.stashWithOrigin(origin)) {
             consumer.accept(request, new ContextPreservingActionListener<>(supplier, listener));
@@ -122,10 +130,16 @@ public final class ClientHelper {
      * Executes an asynchronous action using the provided client. The origin is set in the context and the listener
      * is wrapped to ensure the proper context is restored
      */
-    public static <Request extends ActionRequest, Response extends ActionResponse,
-            RequestBuilder extends ActionRequestBuilder<Request, Response>> void executeAsyncWithOrigin(
-        Client client, String origin, ActionType<Response> action, Request request,
-        ActionListener<Response> listener) {
+    public static <
+        Request extends ActionRequest,
+        Response extends ActionResponse,
+        RequestBuilder extends ActionRequestBuilder<Request, Response>> void executeAsyncWithOrigin(
+            Client client,
+            String origin,
+            ActionType<Response> action,
+            Request request,
+            ActionListener<Response> listener
+        ) {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
         final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
         try (ThreadContext.StoredContext ignore = threadContext.stashWithOrigin(origin)) {
@@ -147,8 +161,12 @@ public final class ClientHelper {
      *            The action to run
      * @return An instance of the response class
      */
-    public static <T extends ActionResponse> T executeWithHeaders(Map<String, String> headers, String origin, Client client,
-            Supplier<T> supplier) {
+    public static <T extends ActionResponse> T executeWithHeaders(
+        Map<String, String> headers,
+        String origin,
+        Client client,
+        Supplier<T> supplier
+    ) {
         Map<String, String> filteredHeaders = filterSecurityHeaders(headers);
 
         // no security headers, we will have to use the xpack internal user for
@@ -180,9 +198,14 @@ public final class ClientHelper {
      * @param listener
      *            The listener to call when the action is complete
      */
-    public static <Request extends ActionRequest, Response extends ActionResponse>
-    void executeWithHeadersAsync(Map<String, String> headers, String origin, Client client, ActionType<Response> action, Request request,
-                                 ActionListener<Response> listener) {
+    public static <Request extends ActionRequest, Response extends ActionResponse> void executeWithHeadersAsync(
+        Map<String, String> headers,
+        String origin,
+        Client client,
+        ActionType<Response> action,
+        Request request,
+        ActionListener<Response> listener
+    ) {
         final Map<String, String> filteredHeaders = filterSecurityHeaders(headers);
         final ThreadContext threadContext = client.threadPool().getThreadContext();
         // No headers (e.g. security not installed/in use) so execute as origin

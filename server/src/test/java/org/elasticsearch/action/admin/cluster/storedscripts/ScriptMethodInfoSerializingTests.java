@@ -9,9 +9,9 @@
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.script.ScriptContextInfo.ScriptMethodInfo;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -29,6 +29,7 @@ public class ScriptMethodInfoSerializingTests extends AbstractSerializingTestCas
         EXECUTE,
         GETTER,
         OTHER;
+
         static NameType fromName(String name) {
             if (name.equals(ScriptMethodInfoSerializingTests.EXECUTE)) {
                 return EXECUTE;
@@ -50,7 +51,9 @@ public class ScriptMethodInfoSerializingTests extends AbstractSerializingTestCas
     }
 
     @Override
-    protected Writeable.Reader<ScriptMethodInfo> instanceReader() { return ScriptMethodInfo::new; }
+    protected Writeable.Reader<ScriptMethodInfo> instanceReader() {
+        return ScriptMethodInfo::new;
+    }
 
     @Override
     protected ScriptMethodInfo mutateInstance(ScriptMethodInfo instance) throws IOException {
@@ -142,11 +145,13 @@ public class ScriptMethodInfoSerializingTests extends AbstractSerializingTestCas
         for (int i = 0; i < numGetters; i++) {
             String suffix = randomValueOtherThanMany(suffixes::contains, () -> randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH));
             suffixes.add(suffix);
-            getters.add(new ScriptMethodInfo(
-                GET_PREFIX + suffix,
-                randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH),
-                Collections.unmodifiableList(new ArrayList<>())
-            ));
+            getters.add(
+                new ScriptMethodInfo(
+                    GET_PREFIX + suffix,
+                    randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH),
+                    Collections.unmodifiableList(new ArrayList<>())
+                )
+            );
         }
         return Collections.unmodifiableSet(getters);
     }

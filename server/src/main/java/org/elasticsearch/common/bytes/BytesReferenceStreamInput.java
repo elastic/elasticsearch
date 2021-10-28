@@ -203,8 +203,7 @@ class BytesReferenceStreamInput extends StreamInput {
         final int length = bytesReference.length();
         final int offset = offset();
         if (offset + len > length) {
-            throw new IndexOutOfBoundsException(
-                    "Cannot read " + len + " bytes from stream with length " + length + " at offset " + offset);
+            throw new IndexOutOfBoundsException("Cannot read " + len + " bytes from stream with length " + length + " at offset " + offset);
         }
         final int bytesRead = read(b, bOffset, len);
         assert bytesRead == len : bytesRead + " vs " + len;

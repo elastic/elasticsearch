@@ -28,8 +28,7 @@ public final class SortedSetBytesLeafFieldData extends AbstractLeafOrdinalsField
     private final LeafReader reader;
     private final String field;
 
-    SortedSetBytesLeafFieldData(LeafReader reader, String field, Function<SortedSetDocValues,
-            ScriptDocValues<?>> scriptFunction) {
+    SortedSetBytesLeafFieldData(LeafReader reader, String field, Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction) {
         super(scriptFunction);
         this.reader = reader;
         this.field = field;
@@ -45,8 +44,7 @@ public final class SortedSetBytesLeafFieldData extends AbstractLeafOrdinalsField
     }
 
     @Override
-    public void close() {
-    }
+    public void close() {}
 
     @Override
     public long ramBytesUsed() {

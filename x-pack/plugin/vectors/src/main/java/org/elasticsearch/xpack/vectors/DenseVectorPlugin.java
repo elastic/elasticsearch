@@ -33,7 +33,7 @@ import java.util.function.Supplier;
 
 public class DenseVectorPlugin extends Plugin implements ActionPlugin, MapperPlugin, SearchPlugin {
 
-    public DenseVectorPlugin() { }
+    public DenseVectorPlugin() {}
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
@@ -59,9 +59,14 @@ public class DenseVectorPlugin extends Plugin implements ActionPlugin, MapperPlu
     @Override
     public List<QuerySpec<?>> getQueries() {
         // This query is only meant to be used internally, and not passed to the _search endpoint
-        return List.of(new QuerySpec<>(KnnVectorQueryBuilder.NAME, KnnVectorQueryBuilder::new,
-            parser -> {
-                throw new IllegalArgumentException("[knn] queries cannot be provided directly, use the [_knn_search] endpoint instead");
-            }));
+        return List.of(
+            new QuerySpec<>(
+                KnnVectorQueryBuilder.NAME,
+                KnnVectorQueryBuilder::new,
+                parser -> {
+                    throw new IllegalArgumentException("[knn] queries cannot be provided directly, use the [_knn_search] endpoint instead");
+                }
+            )
+        );
     }
 }

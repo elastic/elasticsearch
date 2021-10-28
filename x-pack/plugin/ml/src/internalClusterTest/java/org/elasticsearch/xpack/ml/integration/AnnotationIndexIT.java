@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.is;
 public class AnnotationIndexIT extends MlSingleNodeTestCase {
 
     @Override
-    protected Settings nodeSettings()  {
+    protected Settings nodeSettings() {
         Settings.Builder newSettings = Settings.builder();
         newSettings.put(super.nodeSettings());
         newSettings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
@@ -76,15 +76,15 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
 
         // Create an old annotations index with both read and write aliases pointing at it.
         String oldIndex = randomFrom(AnnotationIndex.OLD_INDEX_NAMES);
-        CreateIndexRequest createIndexRequest =
-            new CreateIndexRequest(oldIndex)
-                .mapping(AnnotationIndex.annotationsMapping())
-                .settings(Settings.builder()
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(oldIndex).mapping(AnnotationIndex.annotationsMapping())
+            .settings(
+                Settings.builder()
                     .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
-                    .put(IndexMetadata.SETTING_INDEX_HIDDEN, true))
-                .alias(new Alias(AnnotationIndex.READ_ALIAS_NAME).isHidden(true))
-                .alias(new Alias(AnnotationIndex.WRITE_ALIAS_NAME).isHidden(true));
+                    .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
+            )
+            .alias(new Alias(AnnotationIndex.READ_ALIAS_NAME).isHidden(true))
+            .alias(new Alias(AnnotationIndex.WRITE_ALIAS_NAME).isHidden(true));
         client().execute(CreateIndexAction.INSTANCE, createIndexRequest).actionGet();
 
         // Because the old annotations index name began with .ml, it will trigger the new annotations index to be created.
@@ -92,7 +92,8 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
         // switched to only point at the new index.
         assertBusy(() -> {
             assertTrue(annotationsIndexExists());
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases = client().admin().indices()
+            ImmutableOpenMap<String, List<AliasMetadata>> aliases = client().admin()
+                .indices()
                 .prepareGetAliases(AnnotationIndex.READ_ALIAS_NAME, AnnotationIndex.WRITE_ALIAS_NAME)
                 .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
                 .get()
@@ -175,7 +176,8 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
 
     private int numberOfAnnotationsAliases() {
         int count = 0;
-        ImmutableOpenMap<String, List<AliasMetadata>> aliases = client().admin().indices()
+        ImmutableOpenMap<String, List<AliasMetadata>> aliases = client().admin()
+            .indices()
             .prepareGetAliases(AnnotationIndex.READ_ALIAS_NAME, AnnotationIndex.WRITE_ALIAS_NAME)
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
             .get()

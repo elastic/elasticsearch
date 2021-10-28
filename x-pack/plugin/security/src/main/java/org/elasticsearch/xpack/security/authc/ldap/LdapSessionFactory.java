@@ -47,8 +47,11 @@ public class LdapSessionFactory extends SessionFactory {
         super(config, sslService, threadPool);
         userDnTemplates = config.getSetting(LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING).toArray(Strings.EMPTY_ARRAY);
         if (userDnTemplates.length == 0) {
-            throw new IllegalArgumentException("missing required LDAP setting ["
-                    + RealmSettings.getFullSettingKey(config, LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING) + "]");
+            throw new IllegalArgumentException(
+                "missing required LDAP setting ["
+                    + RealmSettings.getFullSettingKey(config, LdapSessionFactorySettings.USER_DN_TEMPLATES_SETTING)
+                    + "]"
+            );
         }
         logger.info("Realm [{}] is in user-dn-template mode: [{}]", config.name(), userDnTemplates);
         groupResolver = groupResolver(config);
@@ -72,8 +75,17 @@ public class LdapSessionFactory extends SessionFactory {
                 @Override
                 protected void doRun() throws Exception {
                     listener.onResponse(
-                            (new LdapSession(logger, config, connection, ((SimpleBindRequest) connection.getLastBindRequest()).getBindDN(),
-                                    groupResolver, metadataResolver, timeout, null)));
+                        (new LdapSession(
+                            logger,
+                            config,
+                            connection,
+                            ((SimpleBindRequest) connection.getLastBindRequest()).getBindDN(),
+                            groupResolver,
+                            metadataResolver,
+                            timeout,
+                            null
+                        ))
+                    );
                 }
 
                 @Override
@@ -115,7 +127,7 @@ public class LdapSessionFactory extends SessionFactory {
      * @return DN (distinguished name) build from the template.
      */
     String buildDnFromTemplate(String username, String template) {
-        //this value must be escaped to avoid manipulation of the template DN.
+        // this value must be escaped to avoid manipulation of the template DN.
         String escapedUsername = escapedRDNValue(username);
         return new MessageFormat(template, Locale.ROOT).format(new Object[] { escapedUsername }, new StringBuffer(), null).toString();
     }

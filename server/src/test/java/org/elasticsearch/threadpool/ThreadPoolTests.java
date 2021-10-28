@@ -13,9 +13,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 
@@ -66,19 +66,25 @@ public class ThreadPoolTests extends ESTestCase {
 
     public void testEstimatedTimeIntervalSettingAcceptsOnlyZeroAndPositiveTime() {
         final Settings settings = Settings.builder().put("thread_pool.estimated_time_interval", -1).build();
-        assertThat(expectThrows(IllegalArgumentException.class, () -> ESTIMATED_TIME_INTERVAL_SETTING.get(settings)).getMessage(),
-                equalTo("failed to parse value [-1] for setting [thread_pool.estimated_time_interval], must be >= [0ms]"));
+        assertThat(
+            expectThrows(IllegalArgumentException.class, () -> ESTIMATED_TIME_INTERVAL_SETTING.get(settings)).getMessage(),
+            equalTo("failed to parse value [-1] for setting [thread_pool.estimated_time_interval], must be >= [0ms]")
+        );
     }
 
     public void testLateTimeIntervalWarningSettingAcceptsOnlyZeroAndPositiveTime() {
         final Settings settings = Settings.builder().put("thread_pool.estimated_time_interval.warn_threshold", -1).build();
-        assertThat(expectThrows(IllegalArgumentException.class, () -> LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING.get(settings)).getMessage(),
-                equalTo("failed to parse value [-1] for setting [thread_pool.estimated_time_interval.warn_threshold], must be >= [0ms]"));
+        assertThat(
+            expectThrows(IllegalArgumentException.class, () -> LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING.get(settings)).getMessage(),
+            equalTo("failed to parse value [-1] for setting [thread_pool.estimated_time_interval.warn_threshold], must be >= [0ms]")
+        );
     }
 
     public void testLateTimeIntervalWarningMuchLongerThanEstimatedTimeIntervalByDefault() {
-        assertThat(LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING.get(Settings.EMPTY).getMillis(),
-                greaterThan(ESTIMATED_TIME_INTERVAL_SETTING.get(Settings.EMPTY).getMillis() + 4000));
+        assertThat(
+            LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING.get(Settings.EMPTY).getMillis(),
+            greaterThan(ESTIMATED_TIME_INTERVAL_SETTING.get(Settings.EMPTY).getMillis() + 4000)
+        );
     }
 
     public void testTimerThreadWarningLogging() throws Exception {
@@ -87,16 +93,22 @@ public class ThreadPoolTests extends ESTestCase {
         appender.start();
         try {
             Loggers.addAppender(threadPoolLogger, appender);
-            appender.addExpectation(new MockLogAppender.SeenEventExpectation(
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
                     "expected warning for absolute clock",
                     ThreadPool.class.getName(),
                     Level.WARN,
-                    "timer thread slept for [*] on absolute clock which is above the warn threshold of [100ms]"));
-            appender.addExpectation(new MockLogAppender.SeenEventExpectation(
+                    "timer thread slept for [*] on absolute clock which is above the warn threshold of [100ms]"
+                )
+            );
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
                     "expected warning for relative clock",
                     ThreadPool.class.getName(),
                     Level.WARN,
-                    "timer thread slept for [*] on relative clock which is above the warn threshold of [100ms]"));
+                    "timer thread slept for [*] on relative clock which is above the warn threshold of [100ms]"
+                )
+            );
 
             final ThreadPool.CachedTimeThread thread = new ThreadPool.CachedTimeThread("[timer]", 200, 100);
             thread.start();
@@ -119,49 +131,57 @@ public class ThreadPoolTests extends ESTestCase {
             Loggers.addAppender(threadPoolLogger, appender);
 
             long absoluteMillis = randomLong(); // overflow should still be handled correctly
-            long relativeNanos  = randomLong(); // overflow should still be handled correctly
+            long relativeNanos = randomLong(); // overflow should still be handled correctly
 
             final ThreadPool.TimeChangeChecker timeChangeChecker = new ThreadPool.TimeChangeChecker(100, absoluteMillis, relativeNanos);
 
-
-            appender.addExpectation(new MockLogAppender.SeenEventExpectation(
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
                     "expected warning for absolute clock",
                     ThreadPool.class.getName(),
                     Level.WARN,
-                    "timer thread slept for [2s/2000ms] on absolute clock which is above the warn threshold of [100ms]"));
+                    "timer thread slept for [2s/2000ms] on absolute clock which is above the warn threshold of [100ms]"
+                )
+            );
 
             absoluteMillis += TimeValue.timeValueSeconds(2).millis();
             timeChangeChecker.check(absoluteMillis, relativeNanos);
             appender.assertAllExpectationsMatched();
 
-
-            appender.addExpectation(new MockLogAppender.SeenEventExpectation(
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
                     "expected warning for relative clock",
                     ThreadPool.class.getName(),
                     Level.WARN,
-                    "timer thread slept for [3s/3000000000ns] on relative clock which is above the warn threshold of [100ms]"));
+                    "timer thread slept for [3s/3000000000ns] on relative clock which is above the warn threshold of [100ms]"
+                )
+            );
 
             relativeNanos += TimeValue.timeValueSeconds(3).nanos();
             timeChangeChecker.check(absoluteMillis, relativeNanos);
             appender.assertAllExpectationsMatched();
 
-
-            appender.addExpectation(new MockLogAppender.SeenEventExpectation(
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
                     "expected warning for absolute clock",
                     ThreadPool.class.getName(),
                     Level.WARN,
-                    "absolute clock went backwards by [1ms/1ms] while timer thread was sleeping"));
+                    "absolute clock went backwards by [1ms/1ms] while timer thread was sleeping"
+                )
+            );
 
             absoluteMillis -= 1;
             timeChangeChecker.check(absoluteMillis, relativeNanos);
             appender.assertAllExpectationsMatched();
 
-
-            appender.addExpectation(new MockLogAppender.SeenEventExpectation(
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
                     "expected warning for relative clock",
                     ThreadPool.class.getName(),
                     Level.ERROR,
-                    "relative clock went backwards by [1nanos/1ns] while timer thread was sleeping"));
+                    "relative clock went backwards by [1nanos/1ns] while timer thread was sleeping"
+                )
+            );
 
             relativeNanos -= 1;
             try {
@@ -197,14 +217,17 @@ public class ThreadPoolTests extends ESTestCase {
     public void testAssertCurrentMethodIsNotCalledRecursively() {
         expectThrows(AssertionError.class, () -> factorial(between(2, 10)));
         assertThat(factorial(1), equalTo(1)); // is not called recursively
-        assertThat(expectThrows(AssertionError.class, () -> factorial(between(2, 10))).getMessage(),
-            equalTo("org.elasticsearch.threadpool.ThreadPoolTests#factorial is called recursively"));
+        assertThat(
+            expectThrows(AssertionError.class, () -> factorial(between(2, 10))).getMessage(),
+            equalTo("org.elasticsearch.threadpool.ThreadPoolTests#factorial is called recursively")
+        );
         TestThreadPool threadPool = new TestThreadPool("test");
         assertThat(factorialForked(1, threadPool.generic()), equalTo(1));
         assertThat(factorialForked(10, threadPool.generic()), equalTo(3628800));
-        assertThat(expectThrows(AssertionError.class,
-            () -> factorialForked(between(2, 10), EsExecutors.DIRECT_EXECUTOR_SERVICE)).getMessage(),
-            equalTo("org.elasticsearch.threadpool.ThreadPoolTests#factorialForked is called recursively"));
+        assertThat(
+            expectThrows(AssertionError.class, () -> factorialForked(between(2, 10), EsExecutors.DIRECT_EXECUTOR_SERVICE)).getMessage(),
+            equalTo("org.elasticsearch.threadpool.ThreadPoolTests#factorialForked is called recursively")
+        );
         terminate(threadPool);
     }
 
@@ -240,18 +263,23 @@ public class ThreadPoolTests extends ESTestCase {
     }
 
     public void testSchedulerWarnLogging() throws Exception {
-        final ThreadPool threadPool = new TestThreadPool("test",
-                Settings.builder().put(ThreadPool.SLOW_SCHEDULER_TASK_WARN_THRESHOLD_SETTING.getKey(), "10ms").build());
+        final ThreadPool threadPool = new TestThreadPool(
+            "test",
+            Settings.builder().put(ThreadPool.SLOW_SCHEDULER_TASK_WARN_THRESHOLD_SETTING.getKey(), "10ms").build()
+        );
         final Logger logger = LogManager.getLogger(ThreadPool.class);
         final MockLogAppender appender = new MockLogAppender();
         appender.start();
         try {
             Loggers.addAppender(logger, appender);
-            appender.addExpectation(new MockLogAppender.SeenEventExpectation(
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
                     "expected warning for slow task",
                     ThreadPool.class.getName(),
                     Level.WARN,
-                    "execution of [slow-test-task] took [*ms] which is above the warn threshold of [10ms]"));
+                    "execution of [slow-test-task] took [*ms] which is above the warn threshold of [10ms]"
+                )
+            );
             final Runnable runnable = new Runnable() {
                 @Override
                 public void run() {

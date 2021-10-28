@@ -42,11 +42,13 @@ public class UnresolvedFunctionTests extends AbstractNodeTestCase<UnresolvedFunc
 
     private static List<Expression> randomFunctionArgs() {
         // At this point we only support functions with 0, 1, or 2 arguments.
-        Supplier<List<Expression>> option = randomFrom(asList(
-            Collections::emptyList,
-            () -> singletonList(randomUnresolvedAttribute()),
-            () -> asList(randomUnresolvedAttribute(), randomUnresolvedAttribute())
-        ));
+        Supplier<List<Expression>> option = randomFrom(
+            asList(
+                Collections::emptyList,
+                () -> singletonList(randomUnresolvedAttribute()),
+                () -> asList(randomUnresolvedAttribute(), randomUnresolvedAttribute())
+            )
+        );
         return option.get();
     }
 
@@ -67,27 +69,63 @@ public class UnresolvedFunctionTests extends AbstractNodeTestCase<UnresolvedFunc
 
     @Override
     protected UnresolvedFunction mutate(UnresolvedFunction uf) {
-        Supplier<UnresolvedFunction> option = randomFrom(asList(
-            () -> new UnresolvedFunction(uf.source(), randomValueOtherThan(uf.name(), () -> randomAlphaOfLength(5)),
-                uf.resolutionStrategy(), uf.children(), uf.analyzed(), uf.unresolvedMessage()),
-            () -> new UnresolvedFunction(uf.source(), uf.name(),
-                randomValueOtherThan(uf.resolutionStrategy(), () -> randomFrom(resolutionStrategies())),
-                uf.children(), uf.analyzed(), uf.unresolvedMessage()),
-            () -> new UnresolvedFunction(uf.source(), uf.name(), uf.resolutionStrategy(),
-                randomValueOtherThan(uf.children(), UnresolvedFunctionTests::randomFunctionArgs),
-                uf.analyzed(), uf.unresolvedMessage()),
-            () -> new UnresolvedFunction(uf.source(), uf.name(), uf.resolutionStrategy(), uf.children(),
-                uf.analyzed() == false, uf.unresolvedMessage()),
-            () -> new UnresolvedFunction(uf.source(), uf.name(), uf.resolutionStrategy(), uf.children(),
-                uf.analyzed(), randomValueOtherThan(uf.unresolvedMessage(), () -> randomAlphaOfLength(5)))
-        ));
+        Supplier<UnresolvedFunction> option = randomFrom(
+            asList(
+                () -> new UnresolvedFunction(
+                    uf.source(),
+                    randomValueOtherThan(uf.name(), () -> randomAlphaOfLength(5)),
+                    uf.resolutionStrategy(),
+                    uf.children(),
+                    uf.analyzed(),
+                    uf.unresolvedMessage()
+                ),
+                () -> new UnresolvedFunction(
+                    uf.source(),
+                    uf.name(),
+                    randomValueOtherThan(uf.resolutionStrategy(), () -> randomFrom(resolutionStrategies())),
+                    uf.children(),
+                    uf.analyzed(),
+                    uf.unresolvedMessage()
+                ),
+                () -> new UnresolvedFunction(
+                    uf.source(),
+                    uf.name(),
+                    uf.resolutionStrategy(),
+                    randomValueOtherThan(uf.children(), UnresolvedFunctionTests::randomFunctionArgs),
+                    uf.analyzed(),
+                    uf.unresolvedMessage()
+                ),
+                () -> new UnresolvedFunction(
+                    uf.source(),
+                    uf.name(),
+                    uf.resolutionStrategy(),
+                    uf.children(),
+                    uf.analyzed() == false,
+                    uf.unresolvedMessage()
+                ),
+                () -> new UnresolvedFunction(
+                    uf.source(),
+                    uf.name(),
+                    uf.resolutionStrategy(),
+                    uf.children(),
+                    uf.analyzed(),
+                    randomValueOtherThan(uf.unresolvedMessage(), () -> randomAlphaOfLength(5))
+                )
+            )
+        );
         return option.get();
     }
 
     @Override
     protected UnresolvedFunction copy(UnresolvedFunction uf) {
-        return new UnresolvedFunction(uf.source(), uf.name(), uf.resolutionStrategy(), uf.children(),
-            uf.analyzed(), uf.unresolvedMessage());
+        return new UnresolvedFunction(
+            uf.source(),
+            uf.name(),
+            uf.resolutionStrategy(),
+            uf.children(),
+            uf.analyzed(),
+            uf.unresolvedMessage()
+        );
     }
 
     @Override
@@ -95,22 +133,32 @@ public class UnresolvedFunctionTests extends AbstractNodeTestCase<UnresolvedFunc
         UnresolvedFunction uf = randomUnresolvedFunction();
 
         String newName = randomValueOtherThan(uf.name(), () -> randomAlphaOfLength(5));
-        assertEquals(new UnresolvedFunction(uf.source(), newName, uf.resolutionStrategy(), uf.children(),
-                uf.analyzed(), uf.unresolvedMessage()),
-            uf.transformPropertiesOnly(Object.class, p -> Objects.equals(p, uf.name()) ? newName : p));
-        FunctionResolutionStrategy newResolution = randomValueOtherThan(uf.resolutionStrategy(),
-            () -> randomFrom(resolutionStrategies()));
-        assertEquals(new UnresolvedFunction(uf.source(), uf.name(), newResolution, uf.children(),
-                uf.analyzed(), uf.unresolvedMessage()),
-            uf.transformPropertiesOnly(Object.class, p -> Objects.equals(p, uf.resolutionStrategy()) ? newResolution : p));
+        assertEquals(
+            new UnresolvedFunction(uf.source(), newName, uf.resolutionStrategy(), uf.children(), uf.analyzed(), uf.unresolvedMessage()),
+            uf.transformPropertiesOnly(Object.class, p -> Objects.equals(p, uf.name()) ? newName : p)
+        );
+        FunctionResolutionStrategy newResolution = randomValueOtherThan(uf.resolutionStrategy(), () -> randomFrom(resolutionStrategies()));
+        assertEquals(
+            new UnresolvedFunction(uf.source(), uf.name(), newResolution, uf.children(), uf.analyzed(), uf.unresolvedMessage()),
+            uf.transformPropertiesOnly(Object.class, p -> Objects.equals(p, uf.resolutionStrategy()) ? newResolution : p)
+        );
         String newUnresolvedMessage = randomValueOtherThan(uf.unresolvedMessage(), UnresolvedFunctionTests::randomUnresolvedMessage);
-        assertEquals(new UnresolvedFunction(uf.source(), uf.name(), uf.resolutionStrategy(), uf.children(),
-                uf.analyzed(), newUnresolvedMessage),
-            uf.transformPropertiesOnly(Object.class, p -> Objects.equals(p, uf.unresolvedMessage()) ? newUnresolvedMessage : p));
+        assertEquals(
+            new UnresolvedFunction(uf.source(), uf.name(), uf.resolutionStrategy(), uf.children(), uf.analyzed(), newUnresolvedMessage),
+            uf.transformPropertiesOnly(Object.class, p -> Objects.equals(p, uf.unresolvedMessage()) ? newUnresolvedMessage : p)
+        );
 
-        assertEquals(new UnresolvedFunction(uf.source(), uf.name(), uf.resolutionStrategy(), uf.children(),
-                uf.analyzed() == false, uf.unresolvedMessage()),
-            uf.transformPropertiesOnly(Object.class, p -> Objects.equals(p, uf.analyzed()) ? uf.analyzed() == false : p));
+        assertEquals(
+            new UnresolvedFunction(
+                uf.source(),
+                uf.name(),
+                uf.resolutionStrategy(),
+                uf.children(),
+                uf.analyzed() == false,
+                uf.unresolvedMessage()
+            ),
+            uf.transformPropertiesOnly(Object.class, p -> Objects.equals(p, uf.analyzed()) ? uf.analyzed() == false : p)
+        );
 
     }
 
@@ -119,8 +167,9 @@ public class UnresolvedFunctionTests extends AbstractNodeTestCase<UnresolvedFunc
         UnresolvedFunction uf = randomUnresolvedFunction();
 
         List<Expression> newChildren = randomValueOtherThan(uf.children(), UnresolvedFunctionTests::randomFunctionArgs);
-        assertEquals(new UnresolvedFunction(uf.source(), uf.name(), uf.resolutionStrategy(), newChildren,
-                uf.analyzed(), uf.unresolvedMessage()),
-            uf.replaceChildren(newChildren));
+        assertEquals(
+            new UnresolvedFunction(uf.source(), uf.name(), uf.resolutionStrategy(), newChildren, uf.analyzed(), uf.unresolvedMessage()),
+            uf.replaceChildren(newChildren)
+        );
     }
 }

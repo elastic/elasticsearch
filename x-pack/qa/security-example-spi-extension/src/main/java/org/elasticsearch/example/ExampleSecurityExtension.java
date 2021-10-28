@@ -51,8 +51,7 @@ public class ExampleSecurityExtension implements SecurityExtension {
     public Map<String, Realm.Factory> getRealms(SecurityComponents components) {
         return Map.ofEntries(
             Map.entry(CustomRealm.TYPE, CustomRealm::new),
-            Map.entry(CustomRoleMappingRealm.TYPE,
-                config -> new CustomRoleMappingRealm(config, components.roleMapper()))
+            Map.entry(CustomRoleMappingRealm.TYPE, config -> new CustomRoleMappingRealm(config, components.roleMapper()))
         );
     }
 
@@ -62,8 +61,7 @@ public class ExampleSecurityExtension implements SecurityExtension {
     }
 
     @Override
-    public List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>>
-    getRolesProviders(SecurityComponents components) {
+    public List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> getRolesProviders(SecurityComponents components) {
         CustomInMemoryRolesProvider rp1 = new CustomInMemoryRolesProvider(Collections.singletonMap(ROLE_A, "read"));
         Map<String, String> roles = new HashMap<>();
         roles.put(ROLE_A, "all");

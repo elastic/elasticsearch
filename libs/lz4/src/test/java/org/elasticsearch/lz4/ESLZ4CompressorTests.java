@@ -9,9 +9,7 @@
 package org.elasticsearch.lz4;
 
 import net.jpountz.lz4.LZ4Compressor;
-
 import net.jpountz.lz4.LZ4Factory;
-
 import net.jpountz.lz4.LZ4FastDecompressor;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;

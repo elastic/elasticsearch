@@ -37,8 +37,7 @@ public class ByteArrayIndexInput extends IndexInput {
     }
 
     @Override
-    public void close() throws IOException {
-    }
+    public void close() throws IOException {}
 
     @Override
     public long getFilePointer() {
@@ -52,7 +51,7 @@ public class ByteArrayIndexInput extends IndexInput {
         } else if (l > length) {
             throw new EOFException("seek past EOF");
         }
-        pos = (int)l;
+        pos = (int) l;
     }
 
     @Override
@@ -63,10 +62,20 @@ public class ByteArrayIndexInput extends IndexInput {
     @Override
     public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
         if (offset >= 0L && length >= 0L && offset + length <= this.length) {
-            return new ByteArrayIndexInput(sliceDescription, bytes, this.offset + (int)offset, (int)length);
+            return new ByteArrayIndexInput(sliceDescription, bytes, this.offset + (int) offset, (int) length);
         } else {
-            throw new IllegalArgumentException("slice() " + sliceDescription + " out of bounds: offset=" + offset
-                    + ",length=" + length + ",fileLength=" + this.length + ": " + this);
+            throw new IllegalArgumentException(
+                "slice() "
+                    + sliceDescription
+                    + " out of bounds: offset="
+                    + offset
+                    + ",length="
+                    + length
+                    + ",fileLength="
+                    + this.length
+                    + ": "
+                    + this
+            );
         }
     }
 

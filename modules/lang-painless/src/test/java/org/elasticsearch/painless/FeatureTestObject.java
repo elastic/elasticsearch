@@ -47,8 +47,7 @@ public class FeatureTestObject {
     private Integer i;
 
     /** empty ctor */
-    public FeatureTestObject() {
-    }
+    public FeatureTestObject() {}
 
     /** ctor with params */
     public FeatureTestObject(int x, int y) {
@@ -95,7 +94,7 @@ public class FeatureTestObject {
     }
 
     public int injectWithLambda(int injected, Function<Short, Integer> fn, short arg) {
-        return this.x*fn.apply(arg)*injected;
+        return this.x * fn.apply(arg) * injected;
     }
 
     public int injectMultiTimesX(int inject1, int inject2, int inject3, short user) {
@@ -103,15 +102,15 @@ public class FeatureTestObject {
     }
 
     public int injectMultiWithLambda(int inject1, int inject2, int inject3, Function<Short, Integer> fn, short arg) {
-        return this.x*fn.apply(arg)*(inject1 + inject2 + inject3);
+        return this.x * fn.apply(arg) * (inject1 + inject2 + inject3);
     }
 
     public Double mixedAdd(int i, Byte b, char c, Float f) {
-        return (double)(i + b + c + f);
+        return (double) (i + b + c + f);
     }
 
     /** method taking two functions! */
-    public Object twoFunctionsOfX(Function<Object,Object> f, Function<Object,Object> g) {
+    public Object twoFunctionsOfX(Function<Object, Object> f, Function<Object, Object> g) {
         return f.apply(g.apply(x));
     }
 

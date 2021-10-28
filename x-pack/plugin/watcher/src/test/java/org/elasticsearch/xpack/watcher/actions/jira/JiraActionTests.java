@@ -12,12 +12,12 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.execution.Wid;
@@ -62,10 +62,7 @@ public class JiraActionTests extends ESTestCase {
         final String accountName = randomAlphaOfLength(10);
         final Map<String, Object> issueDefaults = JiraAccountTests.randomIssueDefaults();
 
-        XContentBuilder builder = jsonBuilder().startObject()
-                    .field("account", accountName)
-                    .field("fields", issueDefaults)
-                .endObject();
+        XContentBuilder builder = jsonBuilder().startObject().field("account", accountName).field("fields", issueDefaults).endObject();
 
         BytesReference bytes = BytesReference.bytes(builder);
         logger.info("jira action json [{}]", bytes.utf8ToString());
@@ -226,9 +223,9 @@ public class JiraActionTests extends ESTestCase {
         secureSettings.setString("secure_password", "secret");
 
         Settings.Builder settings = Settings.builder()
-                .setSecureSettings(secureSettings)
-                .put("issue_defaults.customfield_000", "foo")
-                .put("issue_defaults.customfield_001", "bar");
+            .setSecureSettings(secureSettings)
+            .put("issue_defaults.customfield_000", "foo")
+            .put("issue_defaults.customfield_001", "bar");
 
         JiraAccount account = new JiraAccount("account", settings.build(), httpClient);
 
@@ -243,12 +240,11 @@ public class JiraActionTests extends ESTestCase {
 
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
 
-        Wid wid = new Wid(randomAlphaOfLength(5),  now);
-        WatchExecutionContext context = mockExecutionContextBuilder(wid.watchId())
-                .wid(wid)
-                .payload(payload)
-                .time(wid.watchId(), now)
-                .buildMock();
+        Wid wid = new Wid(randomAlphaOfLength(5), now);
+        WatchExecutionContext context = mockExecutionContextBuilder(wid.watchId()).wid(wid)
+            .payload(payload)
+            .time(wid.watchId(), now)
+            .buildMock();
         when(context.simulateAction("test")).thenReturn(false);
 
         Action.Result result = executable.execute("test", context, new Payload.Simple());

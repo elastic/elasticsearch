@@ -11,8 +11,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction.Response.JobStats;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
@@ -53,9 +53,15 @@ public class JobStatsMonitoringDocTests extends BaseMonitoringDocTestCase<JobSta
     }
 
     @Override
-    protected JobStatsMonitoringDoc createMonitoringDoc(final String cluster, final long timestamp, long interval,
-                                                        final MonitoringDoc.Node node, final MonitoredSystem system,
-                                                        final String type, final String id) {
+    protected JobStatsMonitoringDoc createMonitoringDoc(
+        final String cluster,
+        final long timestamp,
+        long interval,
+        final MonitoringDoc.Node node,
+        final MonitoredSystem system,
+        final String type,
+        final String id
+    ) {
         return new JobStatsMonitoringDoc(cluster, timestamp, interval, node, jobStats);
     }
 
@@ -69,8 +75,7 @@ public class JobStatsMonitoringDocTests extends BaseMonitoringDocTestCase<JobSta
     }
 
     public void testConstructorJobStatsMustNotBeNull() {
-        expectThrows(NullPointerException.class,
-                     () -> new JobStatsMonitoringDoc(cluster, timestamp, interval, node, null));
+        expectThrows(NullPointerException.class, () -> new JobStatsMonitoringDoc(cluster, timestamp, interval, node, null));
     }
 
     @Override
@@ -85,41 +90,75 @@ public class JobStatsMonitoringDocTests extends BaseMonitoringDocTestCase<JobSta
         final Date date7 = new Date(ZonedDateTime.parse("2017-01-07T07:07:07.007+07:00").toInstant().toEpochMilli());
         final Instant date8 = ZonedDateTime.parse("2017-01-07T08:08:08.007+07:00").toInstant();
 
-        final DiscoveryNode discoveryNode = new DiscoveryNode("_node_name",
-                                                             "_node_id",
-                                                             "_ephemeral_id",
-                                                             "_host_name",
-                                                             "_host_address",
-                                                             new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-                                                             singletonMap("attr", "value"),
-                                                             singleton(DiscoveryNodeRole.MASTER_ROLE),
-                                                             Version.CURRENT);
+        final DiscoveryNode discoveryNode = new DiscoveryNode(
+            "_node_name",
+            "_node_id",
+            "_ephemeral_id",
+            "_host_name",
+            "_host_address",
+            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
+            singletonMap("attr", "value"),
+            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT
+        );
 
-        final ModelSizeStats modelStats = new ModelSizeStats.Builder("_model")
-                                                            .setModelBytes(100L)
-                                                            .setTotalByFieldCount(101L)
-                                                            .setTotalOverFieldCount(102L)
-                                                            .setTotalPartitionFieldCount(103L)
-                                                            .setBucketAllocationFailuresCount(104L)
-                                                            .setMemoryStatus(ModelSizeStats.MemoryStatus.OK)
-                                                            .setCategorizedDocCount(42)
-                                                            .setTotalCategoryCount(8)
-                                                            .setFrequentCategoryCount(4)
-                                                            .setRareCategoryCount(2)
-                                                            .setDeadCategoryCount(1)
-                                                            .setFailedCategoryCount(3)
-                                                            .setCategorizationStatus(CategorizationStatus.WARN)
-                                                            .setTimestamp(date1)
-                                                            .setLogTime(date2)
-                                                            .build();
+        final ModelSizeStats modelStats = new ModelSizeStats.Builder("_model").setModelBytes(100L)
+            .setTotalByFieldCount(101L)
+            .setTotalOverFieldCount(102L)
+            .setTotalPartitionFieldCount(103L)
+            .setBucketAllocationFailuresCount(104L)
+            .setMemoryStatus(ModelSizeStats.MemoryStatus.OK)
+            .setCategorizedDocCount(42)
+            .setTotalCategoryCount(8)
+            .setFrequentCategoryCount(4)
+            .setRareCategoryCount(2)
+            .setDeadCategoryCount(1)
+            .setFailedCategoryCount(3)
+            .setCategorizationStatus(CategorizationStatus.WARN)
+            .setTimestamp(date1)
+            .setLogTime(date2)
+            .build();
 
-        final DataCounts dataCounts = new DataCounts("_job_id", 0L, 1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L,
-            date3, date4, date5, date6, date7, date8);
+        final DataCounts dataCounts = new DataCounts(
+            "_job_id",
+            0L,
+            1L,
+            2L,
+            3L,
+            4L,
+            5L,
+            6L,
+            7L,
+            8L,
+            9L,
+            date3,
+            date4,
+            date5,
+            date6,
+            date7,
+            date8
+        );
         final ForecastStats forecastStats = new ForecastStats();
         final TimingStats timingStats = new TimingStats(
-            "_job_id", 100, 10.0, 30.0, 20.0, 25.0, new ExponentialAverageCalculationContext(50.0, null, null));
+            "_job_id",
+            100,
+            10.0,
+            30.0,
+            20.0,
+            25.0,
+            new ExponentialAverageCalculationContext(50.0, null, null)
+        );
         final JobStats jobStats = new JobStats(
-            "_job", dataCounts, modelStats, forecastStats, JobState.OPENED, discoveryNode, "_explanation", time, timingStats);
+            "_job",
+            dataCounts,
+            modelStats,
+            forecastStats,
+            JobState.OPENED,
+            discoveryNode,
+            "_explanation",
+            time,
+            timingStats
+        );
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
 
         final JobStatsMonitoringDoc document = new JobStatsMonitoringDoc("_cluster", 1502266739402L, 1506593717631L, node, jobStats);

@@ -41,25 +41,31 @@ import static org.mockito.Mockito.verify;
 public class TransportUpdateSettingsActionTests extends ESTestCase {
 
     private static final ClusterState CLUSTER_STATE = ClusterState.builder(new ClusterName("test"))
-        .metadata(Metadata.builder()
-            .put(IndexMetadata.builder(".my-system")
-                .system(true)
-                .settings(Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .build())
-                .build(), true)
-            .build())
+        .metadata(
+            Metadata.builder()
+                .put(
+                    IndexMetadata.builder(".my-system")
+                        .system(true)
+                        .settings(
+                            Settings.builder()
+                                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                                .build()
+                        )
+                        .build(),
+                    true
+                )
+                .build()
+        )
         .build();
 
     private static final String SYSTEM_INDEX_NAME = ".my-system";
     private static final SystemIndices SYSTEM_INDICES = new SystemIndices(
-        Map.of("test-feature", new SystemIndices.Feature(
+        Map.of(
             "test-feature",
-            "a test feature",
-            List.of(new SystemIndexDescriptor(SYSTEM_INDEX_NAME + "*", "test"))
-        ))
+            new SystemIndices.Feature("test-feature", "a test feature", List.of(new SystemIndexDescriptor(SYSTEM_INDEX_NAME + "*", "test")))
+        )
     );
 
     private TransportUpdateSettingsAction action;
@@ -83,11 +89,7 @@ public class TransportUpdateSettingsActionTests extends ESTestCase {
     }
 
     public void testSystemIndicesCannotBeSetToHidden() {
-        UpdateSettingsRequest request = new UpdateSettingsRequest(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
-                .build()
-        );
+        UpdateSettingsRequest request = new UpdateSettingsRequest(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build());
         request.indices(SYSTEM_INDEX_NAME);
 
         @SuppressWarnings("unchecked")

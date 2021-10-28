@@ -64,7 +64,8 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             indexNameExpressionResolver,
             clusterService,
             settings,
-            ingestService);
+            ingestService
+        );
     }
 
     protected TransportValidateTransformAction(
@@ -87,7 +88,8 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             transportService.getRemoteClusterService(),
             DiscoveryNode.isRemoteClusterClient(settings)
                 /* transforms are BASIC so always allowed, no need to check license */
-                ? new RemoteClusterLicenseChecker(client, mode -> true) : null,
+                ? new RemoteClusterLicenseChecker(client, null)
+                : null,
             ingestService,
             clusterService.getNodeName(),
             License.OperationMode.BASIC.description()
@@ -101,7 +103,15 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             TransformNodes.throwIfNoTransformNodes(clusterState);
             boolean requiresRemote = request.getConfig().getSource().requiresRemoteCluster();
             if (TransformNodes.redirectToAnotherNodeIfNeeded(
-                    clusterState, nodeSettings, requiresRemote, transportService, actionName, request, Response::new, listener)) {
+                clusterState,
+                nodeSettings,
+                requiresRemote,
+                transportService,
+                actionName,
+                request,
+                Response::new,
+                listener
+            )) {
                 return;
             }
         }
@@ -127,45 +137,33 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
 
         // <5> Final listener
         ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(
-            deducedMappings -> {
-                listener.onResponse(new Response(deducedMappings));
-            },
+            deducedMappings -> { listener.onResponse(new Response(deducedMappings)); },
             deduceTargetMappingsException -> listener.onFailure(
-                new RuntimeException(
-                    TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_DEDUCE_DEST_MAPPINGS,
-                    deduceTargetMappingsException)
+                new RuntimeException(TransformMessages.REST_PUT_TRANSFORM_FAILED_TO_DEDUCE_DEST_MAPPINGS, deduceTargetMappingsException)
             )
         );
 
         // <4> Deduce destination index mappings
-        ActionListener<Boolean> validateQueryListener = ActionListener.wrap(
-            validateQueryResponse -> {
-                if (request.isDeferValidation()) {
-                    deduceMappingsListener.onResponse(null);
-                } else {
-                    function.deduceMappings(client, config.getSource(), deduceMappingsListener);
-                }
-            },
-            listener::onFailure
-        );
+        ActionListener<Boolean> validateQueryListener = ActionListener.wrap(validateQueryResponse -> {
+            if (request.isDeferValidation()) {
+                deduceMappingsListener.onResponse(null);
+            } else {
+                function.deduceMappings(client, config.getSource(), deduceMappingsListener);
+            }
+        }, listener::onFailure);
 
         // <3> Validate transform query
-        ActionListener<Boolean> validateConfigListener = ActionListener.wrap(
-            validateConfigResponse -> {
-                if (request.isDeferValidation()) {
-                    validateQueryListener.onResponse(true);
-                } else {
-                    function.validateQuery(client, config.getSource(), validateQueryListener);
-                }
-            },
-            listener::onFailure
-        );
+        ActionListener<Boolean> validateConfigListener = ActionListener.wrap(validateConfigResponse -> {
+            if (request.isDeferValidation()) {
+                validateQueryListener.onResponse(true);
+            } else {
+                function.validateQuery(client, config.getSource(), validateQueryListener);
+            }
+        }, listener::onFailure);
 
         // <2> Validate transform function config
         ActionListener<Boolean> validateSourceDestListener = ActionListener.wrap(
-            validateSourceDestResponse -> {
-                function.validateConfig(validateConfigListener);
-            },
+            validateSourceDestResponse -> { function.validateConfig(validateConfigListener); },
             listener::onFailure
         );
 

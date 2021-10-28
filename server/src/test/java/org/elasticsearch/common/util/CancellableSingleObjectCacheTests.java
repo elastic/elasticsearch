@@ -181,8 +181,11 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
                     final StepListener<Integer> stepListener = new StepListener<>();
                     final AtomicBoolean isComplete = new AtomicBoolean();
                     final AtomicBoolean isCancelled = new AtomicBoolean();
-                    testCache.get(input, isCancelled::get, ActionListener.runBefore(stepListener,
-                            () -> assertTrue(isComplete.compareAndSet(false, true))));
+                    testCache.get(
+                        input,
+                        isCancelled::get,
+                        ActionListener.runBefore(stepListener, () -> assertTrue(isComplete.compareAndSet(false, true)))
+                    );
 
                     final Runnable next = queue.poll();
                     if (next != null) {
@@ -258,9 +261,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
         }
 
         void assertNextRefreshCancelled() {
-            nextRefresh().onResponse(k -> {
-                throw new AssertionError("should not be called");
-            });
+            nextRefresh().onResponse(k -> { throw new AssertionError("should not be called"); });
         }
 
         private StepListener<Function<String, Integer>> nextRefresh() {

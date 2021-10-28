@@ -32,8 +32,11 @@ public class DeleteActionTests extends AbstractActionTestCase<DeleteAction> {
 
     public void testToSteps() {
         String phase = randomAlphaOfLengthBetween(1, 10);
-        StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
-            randomAlphaOfLengthBetween(1, 10));
+        StepKey nextStepKey = new StepKey(
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10)
+        );
         {
             DeleteAction action = new DeleteAction(true);
             List<Step> steps = action.toSteps(null, phase, nextStepKey);

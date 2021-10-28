@@ -16,7 +16,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 
-
 public class NGramTokenFilterFactory extends AbstractTokenFilterFactory {
     private final int minGram;
     private final int maxGram;
@@ -32,8 +31,13 @@ public class NGramTokenFilterFactory extends AbstractTokenFilterFactory {
         if (ngramDiff > maxAllowedNgramDiff) {
             throw new IllegalArgumentException(
                 "The difference between max_gram and min_gram in NGram Tokenizer must be less than or equal to: ["
-                    + maxAllowedNgramDiff + "] but was [" + ngramDiff + "]. This limit can be set by changing the ["
-                    + IndexSettings.MAX_NGRAM_DIFF_SETTING.getKey() + "] index level setting.");
+                    + maxAllowedNgramDiff
+                    + "] but was ["
+                    + ngramDiff
+                    + "]. This limit can be set by changing the ["
+                    + IndexSettings.MAX_NGRAM_DIFF_SETTING.getKey()
+                    + "] index level setting."
+            );
         }
         preserveOriginal = settings.getAsBoolean(PRESERVE_ORIG_KEY, false);
     }

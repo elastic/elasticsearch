@@ -35,7 +35,7 @@ public class DeleteSnapshotLifecycleAction extends ActionType<DeleteSnapshotLife
             lifecycleId = in.readString();
         }
 
-        public Request() { }
+        public Request() {}
 
         public Request(String lifecycleId) {
             this.lifecycleId = Objects.requireNonNull(lifecycleId, "id may not be null");

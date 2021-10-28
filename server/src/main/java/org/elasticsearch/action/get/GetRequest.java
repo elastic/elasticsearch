@@ -99,8 +99,10 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
             validationException = addValidationError("id is missing", validationException);
         }
         if (versionType.validateVersionForReads(version) == false) {
-            validationException = ValidateActions.addValidationError("illegal version value [" + version + "] for version type ["
-                    + versionType.name() + "]", validationException);
+            validationException = ValidateActions.addValidationError(
+                "illegal version value [" + version + "] for version type [" + versionType.name() + "]",
+                validationException
+            );
         }
         return validationException;
     }

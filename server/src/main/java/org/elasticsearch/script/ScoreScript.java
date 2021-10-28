@@ -51,23 +51,24 @@ public abstract class ScoreScript extends DocBasedScript {
     }
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
-    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of(
-            "doc", value -> {
-                deprecationLogger.critical(DeprecationCategory.SCRIPTING, "score-script_doc",
-                        "Accessing variable [doc] via [params.doc] from within an score-script "
-                                + "is deprecated in favor of directly accessing [doc].");
-                return value;
-            },
-            "_doc", value -> {
-                deprecationLogger.critical(DeprecationCategory.SCRIPTING, "score-script__doc",
-                        "Accessing variable [doc] via [params._doc] from within an score-script "
-                                + "is deprecated in favor of directly accessing [doc].");
-                return value;
-            },
-            "_source", value -> ((SourceLookup)value).source()
-    );
+    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of("doc", value -> {
+        deprecationLogger.critical(
+            DeprecationCategory.SCRIPTING,
+            "score-script_doc",
+            "Accessing variable [doc] via [params.doc] from within an score-script " + "is deprecated in favor of directly accessing [doc]."
+        );
+        return value;
+    }, "_doc", value -> {
+        deprecationLogger.critical(
+            DeprecationCategory.SCRIPTING,
+            "score-script__doc",
+            "Accessing variable [doc] via [params._doc] from within an score-script "
+                + "is deprecated in favor of directly accessing [doc]."
+        );
+        return value;
+    }, "_source", value -> ((SourceLookup) value).source());
 
-    public static final String[] PARAMETERS = new String[]{ "explanation" };
+    public static final String[] PARAMETERS = new String[] { "explanation" };
 
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
@@ -80,19 +81,20 @@ public abstract class ScoreScript extends DocBasedScript {
     private String indexName = null;
 
     public ScoreScript(Map<String, Object> params, SearchLookup searchLookup, DocReader docReader) {
-        // searchLookup parameter is ignored but part of the ScriptFactory contract.  It is part of that contract because it's required
-        // for expressions.  Expressions should eventually be transitioned to using DocReader.
+        // searchLookup parameter is ignored but part of the ScriptFactory contract. It is part of that contract because it's required
+        // for expressions. Expressions should eventually be transitioned to using DocReader.
         super(docReader);
         // null check needed b/c of expression engine subclass
         if (docReader == null) {
             assert params == null;
-            this.params = null;;
+            this.params = null;
+            ;
             this.docBase = 0;
         } else {
             params = new HashMap<>(params);
             params.putAll(docReader.docAsMap());
             this.params = new DynamicMap(params, PARAMS_FUNCTIONS);
-            this.docBase = ((DocValuesDocReader)docReader).getLeafReaderContext().docBase;
+            this.docBase = ((DocValuesDocReader) docReader).getLeafReaderContext().docBase;
         }
     }
 
@@ -126,7 +128,6 @@ public abstract class ScoreScript extends DocBasedScript {
     public double get_score() {
         return scoreSupplier.getAsDouble();
     }
-
 
     /**
      * Starting a name with underscore, so that the user cannot access this function directly through a script
@@ -186,7 +187,6 @@ public abstract class ScoreScript extends DocBasedScript {
         this.indexName = indexName;
     }
 
-
     /** A factory to construct {@link ScoreScript} instances. */
     public interface LeafFactory {
 
@@ -200,7 +200,7 @@ public abstract class ScoreScript extends DocBasedScript {
 
     /** A factory to construct stateful {@link ScoreScript} factories for a specific index. */
     public interface Factory extends ScriptFactory {
-        // searchLookup is used taken in for compatibility with expressions.  See ExpressionScriptEngine.newScoreScript and
+        // searchLookup is used taken in for compatibility with expressions. See ExpressionScriptEngine.newScoreScript and
         // ExpressionScriptEngine.getDocValueSource for where it's used.
         ScoreScript.LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup);
 

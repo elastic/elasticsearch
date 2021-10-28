@@ -130,7 +130,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     }
 
     public void testRetryFailedDeleteAction() throws Exception {
-        createNewSingletonPolicy(client(), policy, "delete", new DeleteAction());
+        createNewSingletonPolicy(client(), policy, "delete", DeleteAction.WITH_SNAPSHOT_DELETE);
         createIndexWithSettings(
             client(),
             index,
@@ -157,7 +157,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     }
 
     public void testFreezeNoop() throws Exception {
-        createNewSingletonPolicy(client(), policy, "cold", new FreezeAction());
+        createNewSingletonPolicy(client(), policy, "cold", FreezeAction.INSTANCE);
 
         createIndexWithSettings(
             client(),
@@ -377,7 +377,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             alias,
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
         );
-        createNewSingletonPolicy(client(), policy, "delete", new DeleteAction());
+        createNewSingletonPolicy(client(), policy, "delete", DeleteAction.WITH_SNAPSHOT_DELETE);
         updatePolicy(client(), index, policy);
         assertBusy(() -> assertFalse(indexExists(index)));
     }
@@ -389,7 +389,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             alias,
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
         );
-        createNewSingletonPolicy(client(), policy, "delete", new DeleteAction(), TimeValue.timeValueHours(1));
+        createNewSingletonPolicy(client(), policy, "delete", DeleteAction.WITH_SNAPSHOT_DELETE, TimeValue.timeValueHours(1));
         updatePolicy(client(), index, policy);
         assertBusy(() -> {
             assertThat(getStepKeyForIndex(client(), index).getAction(), equalTo("complete"));
@@ -417,7 +417,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         );
         assertOK(client().performRequest(request));
         // create delete policy
-        createNewSingletonPolicy(client(), policy, "delete", new DeleteAction(), TimeValue.timeValueMillis(0));
+        createNewSingletonPolicy(client(), policy, "delete", DeleteAction.WITH_SNAPSHOT_DELETE, TimeValue.timeValueMillis(0));
         // create index without policy
         createIndexWithSettings(
             client(),
@@ -576,19 +576,31 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         ResponseException ex;
 
         policy = randomAlphaOfLengthBetween(0, 10) + "," + randomAlphaOfLengthBetween(0, 10);
-        ex = expectThrows(ResponseException.class, () -> createNewSingletonPolicy(client(), policy, "delete", new DeleteAction()));
+        ex = expectThrows(
+            ResponseException.class,
+            () -> createNewSingletonPolicy(client(), policy, "delete", DeleteAction.WITH_SNAPSHOT_DELETE)
+        );
         assertThat(ex.getMessage(), containsString("invalid policy name"));
 
         policy = randomAlphaOfLengthBetween(0, 10) + "%20" + randomAlphaOfLengthBetween(0, 10);
-        ex = expectThrows(ResponseException.class, () -> createNewSingletonPolicy(client(), policy, "delete", new DeleteAction()));
+        ex = expectThrows(
+            ResponseException.class,
+            () -> createNewSingletonPolicy(client(), policy, "delete", DeleteAction.WITH_SNAPSHOT_DELETE)
+        );
         assertThat(ex.getMessage(), containsString("invalid policy name"));
 
         policy = "_" + randomAlphaOfLengthBetween(1, 20);
-        ex = expectThrows(ResponseException.class, () -> createNewSingletonPolicy(client(), policy, "delete", new DeleteAction()));
+        ex = expectThrows(
+            ResponseException.class,
+            () -> createNewSingletonPolicy(client(), policy, "delete", DeleteAction.WITH_SNAPSHOT_DELETE)
+        );
         assertThat(ex.getMessage(), containsString("invalid policy name"));
 
         policy = randomAlphaOfLengthBetween(256, 1000);
-        ex = expectThrows(ResponseException.class, () -> createNewSingletonPolicy(client(), policy, "delete", new DeleteAction()));
+        ex = expectThrows(
+            ResponseException.class,
+            () -> createNewSingletonPolicy(client(), policy, "delete", DeleteAction.WITH_SNAPSHOT_DELETE)
+        );
         assertThat(ex.getMessage(), containsString("invalid policy name"));
     }
 
@@ -598,11 +610,11 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         String unmanagedIndex = randomAlphaOfLength(9).toLowerCase(Locale.ROOT);
         String managedByOtherPolicyIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
 
-        createNewSingletonPolicy(client(), policy, "delete", new DeleteAction(), TimeValue.timeValueHours(12));
+        createNewSingletonPolicy(client(), policy, "delete", DeleteAction.WITH_SNAPSHOT_DELETE, TimeValue.timeValueHours(12));
         String originalPolicy = policy;
         String otherPolicy = randomValueOtherThan(policy, () -> randomAlphaOfLength(5));
         policy = otherPolicy;
-        createNewSingletonPolicy(client(), policy, "delete", new DeleteAction(), TimeValue.timeValueHours(13));
+        createNewSingletonPolicy(client(), policy, "delete", DeleteAction.WITH_SNAPSHOT_DELETE, TimeValue.timeValueHours(13));
 
         createIndexWithSettings(
             client(),
@@ -828,7 +840,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     public void testHistoryIsWrittenWithDeletion() throws Exception {
         // Index should be created and then deleted by ILM
         createIndexWithSettings(client(), index, alias, Settings.builder(), false);
-        createNewSingletonPolicy(client(), policy, "delete", new DeleteAction());
+        createNewSingletonPolicy(client(), policy, "delete", DeleteAction.WITH_SNAPSHOT_DELETE);
         updatePolicy(client(), index, policy);
 
         assertBusy(() -> assertFalse(indexExists(index)));
@@ -953,7 +965,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             hotActions.put(SetPriorityAction.NAME, new SetPriorityAction(100));
             Map<String, Phase> phases = new HashMap<>();
             phases.put("hot", new Phase("hot", TimeValue.ZERO, hotActions));
-            phases.put("delete", new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, new DeleteAction())));
+            phases.put("delete", new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, DeleteAction.WITH_SNAPSHOT_DELETE)));
             LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
             // PUT policy
             XContentBuilder builder = jsonBuilder();
@@ -979,7 +991,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         phases.put("cold", new Phase("cold", TimeValue.ZERO, coldActions));
         phases.put(
             "delete",
-            new Phase("delete", TimeValue.timeValueMillis(10000), singletonMap(DeleteAction.NAME, new DeleteAction(false)))
+            new Phase("delete", TimeValue.timeValueMillis(10000), singletonMap(DeleteAction.NAME, DeleteAction.NO_SNAPSHOT_DELETE))
         );
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
         // PUT policy

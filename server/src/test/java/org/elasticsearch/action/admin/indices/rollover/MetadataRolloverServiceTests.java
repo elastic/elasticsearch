@@ -86,7 +86,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class MetadataRolloverServiceTests extends ESTestCase {
@@ -672,8 +672,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 null,
                 ScriptCompiler.NONE,
                 false,
-                Version.CURRENT,
-                "indexName"
+                Version.CURRENT
             ).build(MapperBuilderContext.ROOT);
             ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
             Environment env = mock(Environment.class);
@@ -688,8 +687,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                     DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
                     ScriptCompiler.NONE,
                     true,
-                    Version.CURRENT,
-                    "indexName"
+                    Version.CURRENT
                 )
             );
             MetadataFieldMapper dtfm = getDataStreamTimestampFieldMapper();
@@ -839,8 +837,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         assertSame(rolloverResult.clusterState, clusterState);
 
         verify(createIndexService).validateIndexName(any(), same(clusterState));
-        verifyZeroInteractions(createIndexService);
-        verifyZeroInteractions(metadataIndexAliasesService);
+        verifyNoMoreInteractions(createIndexService);
+        verifyNoMoreInteractions(metadataIndexAliasesService);
 
         reset(createIndexService);
         doThrow(new InvalidIndexNameException("test", "invalid")).when(createIndexService).validateIndexName(any(), any());
@@ -859,8 +857,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         );
 
         verify(createIndexService).validateIndexName(any(), same(clusterState));
-        verifyZeroInteractions(createIndexService);
-        verifyZeroInteractions(metadataIndexAliasesService);
+        verifyNoMoreInteractions(createIndexService);
+        verifyNoMoreInteractions(metadataIndexAliasesService);
     }
 
     public void testRolloverClusterStateForDataStreamNoTemplate() throws Exception {

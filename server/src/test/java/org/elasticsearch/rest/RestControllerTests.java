@@ -615,7 +615,7 @@ public class RestControllerTests extends ESTestCase {
 
     public void testDispatchUnsupportedHttpMethod() {
         final boolean hasContent = randomBoolean();
-        final RestRequest request = RestRequest.request(xContentRegistry(), new HttpRequest() {
+        final RestRequest request = RestRequest.request(parserConfig(), new HttpRequest() {
             @Override
             public RestRequest.Method method() {
                 throw new IllegalArgumentException("test");

@@ -1539,8 +1539,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     @SuppressWarnings("unchecked")
     public void testSystemIndexMetadataIsUpgraded() throws Exception {
-        final String systemIndexWarning = "this request accesses system indices: [.tasks], but in a future major version, direct "
-            + "access to system indices will be prevented by default";
+        final String systemIndexWarning = "[CRITICAL] this request accesses system indices: [.tasks], but in a future major version, "
+            + "direct access to system indices will be prevented by default";
         if (isRunningAgainstOldCluster()) {
             // create index
             Request createTestIndex = new Request("PUT", "/test_index_old");

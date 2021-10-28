@@ -68,9 +68,6 @@ public class AggProviderWireSerializationTests extends AbstractBWCWireSerializat
 
     @Override
     protected AggProvider mutateInstanceForVersion(AggProvider instance, Version version) {
-        if (version.before(Version.V_8_0_0)) {
-            return new AggProvider(instance.getAggs(), instance.getParsedAggs(), instance.getParsingException(), false);
-        }
         return instance;
     }
 }

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ml.autoscaling;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -47,13 +46,8 @@ public class MlScalingReason implements AutoscalingDeciderResult.Reason {
     public MlScalingReason(StreamInput in) throws IOException {
         this.waitingAnalyticsJobs = in.readStringList();
         this.waitingAnomalyJobs = in.readStringList();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            this.waitingModels = in.readStringList();
-        } else {
-            this.waitingModels = List.of();
-        }
+        this.waitingModels = in.readStringList();
         this.passedConfiguration = Settings.readSettingsFromStream(in);
-        ;
         this.currentMlCapacity = new AutoscalingCapacity(in);
         this.requiredCapacity = in.readOptionalWriteable(AutoscalingCapacity::new);
         this.largestWaitingAnalyticsJob = in.readOptionalVLong();
@@ -132,9 +126,7 @@ public class MlScalingReason implements AutoscalingDeciderResult.Reason {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringCollection(this.waitingAnalyticsJobs);
         out.writeStringCollection(this.waitingAnomalyJobs);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeStringCollection(this.waitingModels);
-        }
+        out.writeStringCollection(this.waitingModels);
         Settings.writeSettingsToStream(this.passedConfiguration, out);
         this.currentMlCapacity.writeTo(out);
         out.writeOptionalWriteable(this.requiredCapacity);

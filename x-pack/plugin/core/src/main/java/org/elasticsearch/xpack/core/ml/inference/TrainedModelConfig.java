@@ -235,13 +235,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             : null;
 
         this.inferenceConfig = in.readOptionalNamedWriteable(InferenceConfig.class);
-        if (in.getVersion().onOrAfter(VERSION_3RD_PARTY_CONFIG_ADDED)) {
-            this.modelType = in.readOptionalEnum(TrainedModelType.class);
-            this.location = in.readOptionalNamedWriteable(TrainedModelLocation.class);
-        } else {
-            this.modelType = null;
-            this.location = null;
-        }
+        this.modelType = in.readOptionalEnum(TrainedModelType.class);
+        this.location = in.readOptionalNamedWriteable(TrainedModelLocation.class);
     }
 
     public String getModelId() {
@@ -381,10 +376,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             out.writeBoolean(false);
         }
         out.writeOptionalNamedWriteable(inferenceConfig);
-        if (out.getVersion().onOrAfter(VERSION_3RD_PARTY_CONFIG_ADDED)) {
-            out.writeOptionalEnum(modelType);
-            out.writeOptionalNamedWriteable(location);
-        }
+        out.writeOptionalEnum(modelType);
+        out.writeOptionalNamedWriteable(location);
     }
 
     @Override
@@ -886,11 +879,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         }
 
         public static LazyModelDefinition fromStreamInput(StreamInput input) throws IOException {
-            if (input.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO adjust on backport
-                return new LazyModelDefinition(input.readBytesReference(), null);
-            } else {
-                return fromBase64String(input.readString());
-            }
+            return new LazyModelDefinition(input.readBytesReference(), null);
         }
 
         private LazyModelDefinition(LazyModelDefinition definition) {
@@ -950,11 +939,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO adjust on backport
-                out.writeBytesReference(getCompressedDefinition());
-            } else {
-                out.writeString(getBase64CompressedDefinition());
-            }
+            out.writeBytesReference(getCompressedDefinition());
         }
 
         @Override

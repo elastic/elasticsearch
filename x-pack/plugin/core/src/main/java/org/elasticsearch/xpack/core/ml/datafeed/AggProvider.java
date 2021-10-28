@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.ml.datafeed;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -40,9 +39,6 @@ class AggProvider implements Writeable, ToXContentObject {
 
     static AggProvider fromXContent(XContentParser parser, boolean lenient) throws IOException {
         Map<String, Object> aggs = parser.mapOrdered();
-        // NOTE: Always rewrite potentially old date histogram intervals.
-        // This should occur in 8.x+ but not 7.x.
-        // 7.x is BWC with versions that do not support the new date_histogram fields
         boolean rewroteAggs = false;
         if (lenient) {
             rewroteAggs = rewriteDateHistogramInterval(aggs, false);
@@ -117,7 +113,7 @@ class AggProvider implements Writeable, ToXContentObject {
             in.readMap(),
             in.readOptionalWriteable(AggregatorFactories.Builder::new),
             in.readException(),
-            in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readBoolean() : false
+            in.readBoolean()
         );
     }
 
@@ -140,9 +136,7 @@ class AggProvider implements Writeable, ToXContentObject {
         out.writeMap(aggs);
         out.writeOptionalWriteable(parsedAggs);
         out.writeException(parsingException);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeBoolean(rewroteAggs);
-        }
+        out.writeBoolean(rewroteAggs);
     }
 
     public Exception getParsingException() {

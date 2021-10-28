@@ -385,17 +385,6 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
 
     @Override
     protected TrainedModelConfig mutateInstanceForVersion(TrainedModelConfig instance, Version version) {
-        TrainedModelConfig.Builder builder = new TrainedModelConfig.Builder(instance);
-        if (version.before(Version.V_7_7_0)) {
-            builder.setDefaultFieldMap(null);
-        }
-        if (version.before(Version.V_7_8_0)) {
-            builder.setInferenceConfig(null);
-        }
-        if (version.before(TrainedModelConfig.VERSION_3RD_PARTY_CONFIG_ADDED)) {
-            builder.setModelType((TrainedModelType) null);
-            builder.setLocation(null);
-        }
-        return builder.build();
+        return instance;
     }
 }

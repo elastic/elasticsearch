@@ -35,8 +35,9 @@ version 7.14 or higher will automatically update {ilm-init} policies
 when there is any new plan change applied to your deployment.
 
 
-If you use custom index templates, check them after the automatic migration completes and remove any <<shard-allocation-filtering,
-attribute-based allocation filters>>.
+If you use custom index templates, check them after the automatic migration
+completes and remove any <<shard-allocation-filtering, attribute-based
+allocation filters>>.
 
 NOTE: You do not need to take any further action after the automatic migration.
 The following manual steps are only necessary if you do not allow the automatic

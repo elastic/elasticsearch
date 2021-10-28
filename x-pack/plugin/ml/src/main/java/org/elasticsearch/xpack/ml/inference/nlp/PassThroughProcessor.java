@@ -53,7 +53,8 @@ public class PassThroughProcessor implements NlpTask.Processor {
         // TODO - process all results in the batch
         return new PyTorchPassThroughResults(
             Optional.ofNullable(resultsField).orElse(DEFAULT_RESULTS_FIELD),
-            pyTorchResult.getInferenceResult()[0]
+            pyTorchResult.getInferenceResult()[0],
+            tokenization.anyTruncated()
         );
     }
 }

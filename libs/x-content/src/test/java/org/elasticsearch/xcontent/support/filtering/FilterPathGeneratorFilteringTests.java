@@ -71,6 +71,8 @@ public class FilterPathGeneratorFilteringTests extends ESTestCase {
 
         assertResult(SAMPLE, "h.i.j.k.l,h.i.j.k.l.m", true, "{'h':{'i':{'j':{'k':{'l':'l_value'}}}}}");
         assertResult(SAMPLE, "a,b,c,d,e.f1,e.f2,e.g1,e.g2,h.i.j.k.l", true, SAMPLE);
+        assertResult(SAMPLE, "", true, "");
+        assertResult(SAMPLE, "h.", true, "");
     }
 
     public void testExclusiveFilters() throws Exception {
@@ -157,6 +159,8 @@ public class FilterPathGeneratorFilteringTests extends ESTestCase {
         );
 
         assertResult(SAMPLE, "a,b,c,d,e.f1,e.f2,e.g1,e.g2,h.i.j.k.l", false, "");
+        assertResult(SAMPLE, "", false, SAMPLE);
+        assertResult(SAMPLE, "h.", false, SAMPLE);
     }
 
     public void testInclusiveFiltersWithDots() throws Exception {

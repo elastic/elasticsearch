@@ -24,20 +24,20 @@ public class FilterPath {
     private final Map<String, FilterPath> termsChildren;
     private final List<FilterPath> wildcardChildren;
     private final String pattern;
-    private final boolean doubleWildcard;
+    private final boolean isDoubleWildcard;
     private final boolean isFinalNode;
     private boolean hasDoubleWildcard;
 
     private FilterPath(
         String pattern,
-        boolean doubleWildcard,
+        boolean isDoubleWildcard,
         boolean isFinalNode,
         boolean hasDoubleWildcard,
         Map<String, FilterPath> termsChildren,
         List<FilterPath> wildcardChildren
     ) {
         this.pattern = pattern;
-        this.doubleWildcard = doubleWildcard;
+        this.isDoubleWildcard = isDoubleWildcard;
         this.isFinalNode = isFinalNode;
         this.hasDoubleWildcard = hasDoubleWildcard;
         this.termsChildren = termsChildren;
@@ -91,7 +91,7 @@ public class FilterPath {
             }
         }
 
-        if (doubleWildcard) {
+        if (isDoubleWildcard) {
             nextFilters.add(this);
         }
 

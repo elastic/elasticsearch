@@ -65,15 +65,21 @@ public class ImplicitTiebreakerTests extends ESTestCase {
             if (ordinal > 0) {
                 int previous = ordinal - 1;
                 // except the first request, the rest should have the previous response's search_after _shard_doc value
-                assertArrayEquals("Elements at stage " + ordinal + " do not match",
-                    r.searchSource().searchAfter(), new Object[] { String.valueOf(previous), implicitTiebreakerValues.get(previous) });
+                assertArrayEquals(
+                    "Elements at stage " + ordinal + " do not match",
+                    r.searchSource().searchAfter(),
+                    new Object[] { String.valueOf(previous), implicitTiebreakerValues.get(previous) }
+                );
             }
 
             long sortValue = implicitTiebreakerValues.get(ordinal);
             SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal), null, null);
-            searchHit.sortValues(new SearchSortValues(
-                new Long[] { (long) ordinal, sortValue },
-                new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW }));
+            searchHit.sortValues(
+                new SearchSortValues(
+                    new Long[] { (long) ordinal, sortValue },
+                    new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW }
+                )
+            );
             SearchHits searchHits = new SearchHits(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
             SearchResponseSections internal = new SearchResponseSections(searchHits, null, null, false, false, null, 0);
             SearchResponse s = new SearchResponse(internal, null, 0, 1, 0, 0, null, Clusters.EMPTY);
@@ -102,16 +108,22 @@ public class ImplicitTiebreakerTests extends ESTestCase {
 
         for (int i = 0; i < stages; i++) {
             final int j = i;
-            criteria.add(new Criterion<BoxedQueryRequest>(i,
-                new BoxedQueryRequest(() -> SearchSourceBuilder.searchSource()
-                    .size(10)
-                    .query(matchAllQuery())
-                    .terminateAfter(j), "@timestamp", emptyList(), emptySet()),
-                keyExtractors,
-                tsExtractor,
-                tbExtractor,
-                implicitTbExtractor,
-                criteriaDescending));
+            criteria.add(
+                new Criterion<BoxedQueryRequest>(
+                    i,
+                    new BoxedQueryRequest(
+                        () -> SearchSourceBuilder.searchSource().size(10).query(matchAllQuery()).terminateAfter(j),
+                        "@timestamp",
+                        emptyList(),
+                        emptySet()
+                    ),
+                    keyExtractors,
+                    tsExtractor,
+                    tbExtractor,
+                    implicitTbExtractor,
+                    criteriaDescending
+                )
+            );
             // for DESC (TAIL) sequences only the first criterion is descending the rest are ASC, so flip it after the first query
             if (criteriaDescending && i == 0) {
                 criteriaDescending = false;
@@ -120,8 +132,6 @@ public class ImplicitTiebreakerTests extends ESTestCase {
 
         SequenceMatcher matcher = new SequenceMatcher(stages, descending, TimeValue.MINUS_ONE, null, NOOP_CIRCUIT_BREAKER);
         TumblingWindow window = new TumblingWindow(client, criteria, null, matcher);
-        window.execute(wrap(p -> {}, ex -> {
-            throw ExceptionsHelper.convertToRuntime(ex);
-        }));
+        window.execute(wrap(p -> {}, ex -> { throw ExceptionsHelper.convertToRuntime(ex); }));
     }
 }

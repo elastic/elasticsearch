@@ -7,9 +7,7 @@
  */
 package org.elasticsearch.test.rest.yaml;
 
-
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.yaml.BlacklistedPathPatternMatcher;
 
 public class BlacklistedPathPatternMatcherTests extends ESTestCase {
 
@@ -51,7 +49,6 @@ public class BlacklistedPathPatternMatcherTests extends ESTestCase {
     public void testIgnoresUnsupportedSyntax() {
         assertMatch("indices.get/10_basic/[foo]{bar}baz?quux.", "indices.get/10_basic/[foo]{bar}baz?quux.");
     }
-
 
     private void assertMatch(String pattern, String path) {
         BlacklistedPathPatternMatcher matcher = new BlacklistedPathPatternMatcher(pattern);

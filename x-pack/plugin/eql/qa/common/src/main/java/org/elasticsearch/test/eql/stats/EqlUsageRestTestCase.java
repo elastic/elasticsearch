@@ -13,9 +13,9 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.test.eql.DataLoader;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -25,7 +25,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
 
 /**
  * Tests a random number of queries that increase various (most of the times, one query will "touch" multiple metrics values) metrics.
@@ -172,18 +171,27 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
         int randomMaxspanExecutions = randomIntBetween(1, 15);
         allTotalQueries += randomMaxspanExecutions;
         for (int i = 0; i < randomMaxspanExecutions; i++) {
-            runEql("sequence with maxspan=1d" +
-                "  [process where serial_event_id < 4] by exit_code" +
-                "  [process where opcode == 1] by pid" +
-                "  [process where opcode == 2] by pid" +
-                "  [file where parent_process_name == \\\"file_delete_event\\\"] by exit_code" +
-                " until [process where opcode==1] by ppid" +
-                " | head 4" +
-                " | tail 2");
+            runEql(
+                "sequence with maxspan=1d"
+                    + "  [process where serial_event_id < 4] by exit_code"
+                    + "  [process where opcode == 1] by pid"
+                    + "  [process where opcode == 2] by pid"
+                    + "  [file where parent_process_name == \\\"file_delete_event\\\"] by exit_code"
+                    + " until [process where opcode==1] by ppid"
+                    + " | head 4"
+                    + " | tail 2"
+            );
         }
         responseAsMap = getStats();
-        metricsToCheck = Set.of("sequence", "sequence_maxspan", "sequence_queries_four", "pipe_head", "pipe_tail", "join_keys_one",
-            "sequence_until");
+        metricsToCheck = Set.of(
+            "sequence",
+            "sequence_maxspan",
+            "sequence_queries_four",
+            "pipe_head",
+            "pipe_tail",
+            "join_keys_one",
+            "sequence_until"
+        );
         assertFeaturesMetrics(randomMaxspanExecutions, responseAsMap, metricsToCheck);
         assertFeaturesMetricsExcept(responseAsMap, metricsToCheck);
         assertAllQueryMetrics(allTotalQueries, responseAsMap);
@@ -194,10 +202,12 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
         int randomThreeQueriesSequences = randomIntBetween(1, 15);
         allTotalQueries += randomThreeQueriesSequences;
         for (int i = 0; i < randomThreeQueriesSequences; i++) {
-            runEql("sequence with maxspan=1d" +
-                "  [process where serial_event_id < 4] by user" +
-                "  [process where opcode == 1] by user" +
-                "  [process where opcode == 2] by user");
+            runEql(
+                "sequence with maxspan=1d"
+                    + "  [process where serial_event_id < 4] by user"
+                    + "  [process where opcode == 1] by user"
+                    + "  [process where opcode == 2] by user"
+            );
         }
         responseAsMap = getStats();
         metricsToCheck = Set.of("sequence", "sequence_queries_three", "join_keys_one", "sequence_maxspan", defaultPipe);
@@ -211,13 +221,15 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
         int randomFiveQueriesSequences = randomIntBetween(1, 15);
         allTotalQueries += randomFiveQueriesSequences;
         for (int i = 0; i < randomFiveQueriesSequences; i++) {
-            runEql("sequence by user, ppid, exit_code with maxspan=1m" +
-                "  [process where serial_event_id < 4]" +
-                "  [process where opcode == 1]" +
-                "  [file where parent_process_name == \\\"file_delete_event\\\"]" +
-                "  [process where serial_event_id < 4]" +
-                "  [process where opcode == 1]" +
-                "| tail 4");
+            runEql(
+                "sequence by user, ppid, exit_code with maxspan=1m"
+                    + "  [process where serial_event_id < 4]"
+                    + "  [process where opcode == 1]"
+                    + "  [file where parent_process_name == \\\"file_delete_event\\\"]"
+                    + "  [process where serial_event_id < 4]"
+                    + "  [process where opcode == 1]"
+                    + "| tail 4"
+            );
         }
         responseAsMap = getStats();
         metricsToCheck = Set.of("sequence", "sequence_queries_five_or_more", "pipe_tail", "join_keys_three", "sequence_maxspan");
@@ -231,9 +243,11 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
         int randomFourJoinKeysExecutions = randomIntBetween(1, 15);
         allTotalQueries += randomFourJoinKeysExecutions;
         for (int i = 0; i < randomFourJoinKeysExecutions; i++) {
-            runEql("sequence by exit_code, user, serial_event_id, pid" +
-                "  [process where serial_event_id < 4]" +
-                "  [process where opcode == 1]");
+            runEql(
+                "sequence by exit_code, user, serial_event_id, pid"
+                    + "  [process where serial_event_id < 4]"
+                    + "  [process where opcode == 1]"
+            );
         }
         responseAsMap = getStats();
         metricsToCheck = Set.of("sequence", "sequence_queries_two", "join_keys_four", defaultPipe);
@@ -247,9 +261,11 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
         int randomFiveJoinKeysExecutions = randomIntBetween(1, 15);
         allTotalQueries += randomFiveJoinKeysExecutions;
         for (int i = 0; i < randomFiveJoinKeysExecutions; i++) {
-            runEql("sequence by exit_code, user, serial_event_id, pid, ppid" +
-                "  [process where serial_event_id < 4]" +
-                "  [process where opcode == 1]");
+            runEql(
+                "sequence by exit_code, user, serial_event_id, pid, ppid"
+                    + "  [process where serial_event_id < 4]"
+                    + "  [process where opcode == 1]"
+            );
         }
         responseAsMap = getStats();
         metricsToCheck = Set.of("sequence", "sequence_queries_two", "join_keys_five_or_more", defaultPipe);
@@ -302,7 +318,7 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
 
     private void runEql(String eql) throws IOException {
         Request request = new Request("POST", DataLoader.TEST_INDEX + "/_eql/search");
-        request.setJsonEntity("{\"query\":\"" + eql +"\"}");
+        request.setJsonEntity("{\"query\":\"" + eql + "\"}");
         runRequest(request);
     }
 
@@ -311,7 +327,7 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
     }
 
     private void assertFeaturesMetrics(int expected, Map<String, Object> responseAsMap, Set<String> metricsToCheck) {
-        for(String metricName : metricsToCheck) {
+        for (String metricName : metricsToCheck) {
             assertFeatureMetric(expected, responseAsMap, metricName);
         }
     }
@@ -368,11 +384,7 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
 
     private RestHighLevelClient highLevelClient() {
         if (highLevelClient == null) {
-            highLevelClient = new RestHighLevelClient(
-                    client(),
-                    ignore -> {
-                    },
-                    Collections.emptyList()) {
+            highLevelClient = new RestHighLevelClient(client(), ignore -> {}, Collections.emptyList()) {
             };
         }
         return highLevelClient;
@@ -381,8 +393,6 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
     @Override
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 }

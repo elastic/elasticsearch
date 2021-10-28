@@ -6,5 +6,4 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-public interface StrictlyParsedInferenceConfig extends InferenceConfig {
-}
+public interface StrictlyParsedInferenceConfig extends InferenceConfig {}

@@ -9,9 +9,9 @@ package org.elasticsearch.persistent;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.client.Client;
@@ -52,10 +52,12 @@ public class PersistentTasksService {
     /**
      * Notifies the master node to create new persistent task and to assign it to a node.
      */
-    public <Params extends PersistentTaskParams> void sendStartRequest(final String taskId,
-                                                                       final String taskName,
-                                                                       final Params taskParams,
-                                                                       final ActionListener<PersistentTask<Params>> listener) {
+    public <Params extends PersistentTaskParams> void sendStartRequest(
+        final String taskId,
+        final String taskName,
+        final Params taskParams,
+        final ActionListener<PersistentTask<Params>> listener
+    ) {
         @SuppressWarnings("unchecked")
         final ActionListener<PersistentTask<?>> wrappedListener = listener.map(t -> (PersistentTask<Params>) t);
         StartPersistentTaskAction.Request request = new StartPersistentTaskAction.Request(taskId, taskName, taskParams);
@@ -69,13 +71,19 @@ public class PersistentTasksService {
      * provided. When both {@code failure} and {@code localAbortReason} are
      * {@code null}, the persistent task is considered as successfully completed.
      */
-    public void sendCompletionRequest(final String taskId,
-                                      final long taskAllocationId,
-                                      final @Nullable Exception taskFailure,
-                                      final @Nullable String localAbortReason,
-                                      final ActionListener<PersistentTask<?>> listener) {
-        CompletionPersistentTaskAction.Request request =
-            new CompletionPersistentTaskAction.Request(taskId, taskAllocationId, taskFailure, localAbortReason);
+    public void sendCompletionRequest(
+        final String taskId,
+        final long taskAllocationId,
+        final @Nullable Exception taskFailure,
+        final @Nullable String localAbortReason,
+        final ActionListener<PersistentTask<?>> listener
+    ) {
+        CompletionPersistentTaskAction.Request request = new CompletionPersistentTaskAction.Request(
+            taskId,
+            taskAllocationId,
+            taskFailure,
+            localAbortReason
+        );
         execute(request, CompletionPersistentTaskAction.INSTANCE, listener);
     }
 
@@ -99,12 +107,17 @@ public class PersistentTasksService {
      * Persistent task implementers shouldn't call this method directly and use
      * {@link AllocatedPersistentTask#updatePersistentTaskState} instead
      */
-    void sendUpdateStateRequest(final String taskId,
-                                final long taskAllocationID,
-                                final PersistentTaskState taskState,
-                                final ActionListener<PersistentTask<?>> listener) {
-        UpdatePersistentTaskStatusAction.Request request =
-            new UpdatePersistentTaskStatusAction.Request(taskId, taskAllocationID, taskState);
+    void sendUpdateStateRequest(
+        final String taskId,
+        final long taskAllocationID,
+        final PersistentTaskState taskState,
+        final ActionListener<PersistentTask<?>> listener
+    ) {
+        UpdatePersistentTaskStatusAction.Request request = new UpdatePersistentTaskStatusAction.Request(
+            taskId,
+            taskAllocationID,
+            taskState
+        );
         execute(request, UpdatePersistentTaskStatusAction.INSTANCE, listener);
     }
 
@@ -121,13 +134,16 @@ public class PersistentTasksService {
      * <p>
      * The origin is set in the context and the listener is wrapped to ensure the proper context is restored
      */
-    private <Req extends ActionRequest, Resp extends PersistentTaskResponse>
-        void execute(final Req request, final ActionType<Resp> action, final ActionListener<PersistentTask<?>> listener) {
-            try {
-                client.execute(action, request, listener.map(PersistentTaskResponse::getTask));
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
+    private <Req extends ActionRequest, Resp extends PersistentTaskResponse> void execute(
+        final Req request,
+        final ActionType<Resp> action,
+        final ActionListener<PersistentTask<?>> listener
+    ) {
+        try {
+            client.execute(action, request, listener.map(PersistentTaskResponse::getTask));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     /**
@@ -138,12 +154,15 @@ public class PersistentTasksService {
      * @param timeout a timeout for waiting
      * @param listener the callback listener
      */
-    public void waitForPersistentTaskCondition(final String taskId,
-                                               final Predicate<PersistentTask<?>> predicate,
-                                               final @Nullable TimeValue timeout,
-                                               final WaitForPersistentTaskListener<?> listener) {
-        final Predicate<ClusterState> clusterStatePredicate = clusterState ->
-            predicate.test(PersistentTasksCustomMetadata.getTaskWithId(clusterState, taskId));
+    public void waitForPersistentTaskCondition(
+        final String taskId,
+        final Predicate<PersistentTask<?>> predicate,
+        final @Nullable TimeValue timeout,
+        final WaitForPersistentTaskListener<?> listener
+    ) {
+        final Predicate<ClusterState> clusterStatePredicate = clusterState -> predicate.test(
+            PersistentTasksCustomMetadata.getTaskWithId(clusterState, taskId)
+        );
 
         final ClusterStateObserver observer = new ClusterStateObserver(clusterService, timeout, logger, threadPool.getThreadContext());
         final ClusterState clusterState = observer.setAndGetObservedState();
@@ -176,11 +195,14 @@ public class PersistentTasksService {
      * @param timeout a timeout for waiting
      * @param listener the callback listener
      */
-    public void waitForPersistentTasksCondition(final Predicate<PersistentTasksCustomMetadata> predicate,
-                                                final @Nullable TimeValue timeout,
-                                                final ActionListener<Boolean> listener) {
-        final Predicate<ClusterState> clusterStatePredicate = clusterState ->
-            predicate.test(clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE));
+    public void waitForPersistentTasksCondition(
+        final Predicate<PersistentTasksCustomMetadata> predicate,
+        final @Nullable TimeValue timeout,
+        final ActionListener<Boolean> listener
+    ) {
+        final Predicate<ClusterState> clusterStatePredicate = clusterState -> predicate.test(
+            clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE)
+        );
 
         final ClusterStateObserver observer = new ClusterStateObserver(clusterService, timeout, logger, threadPool.getThreadContext());
         if (clusterStatePredicate.test(observer.setAndGetObservedState())) {

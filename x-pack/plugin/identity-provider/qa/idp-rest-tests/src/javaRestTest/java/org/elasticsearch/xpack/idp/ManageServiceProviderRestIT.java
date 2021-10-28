@@ -35,10 +35,10 @@ public class ManageServiceProviderRestIT extends IdpRestTestCase {
 
     @Before
     public void defineApplicationPrivileges() throws IOException {
-        super.createApplicationPrivileges("elastic-cloud", Map.ofEntries(
-            Map.entry("deployment_admin", Set.of("sso:superuser")),
-            Map.entry("deployment_viewer", Set.of("sso:viewer"))
-        ));
+        super.createApplicationPrivileges(
+            "elastic-cloud",
+            Map.ofEntries(Map.entry("deployment_admin", Set.of("sso:superuser")), Map.entry("deployment_viewer", Set.of("sso:viewer")))
+        );
     }
 
     public void testCreateAndDeleteServiceProvider() throws Exception {
@@ -46,16 +46,17 @@ public class ManageServiceProviderRestIT extends IdpRestTestCase {
         final Map<String, Object> request = Map.ofEntries(
             Map.entry("name", "Test SP"),
             Map.entry("acs", "https://sp1.test.es.elasticsearch.org/saml/acs"),
-            Map.entry("privileges", Map.ofEntries(
-                Map.entry("resource", entityId),
-                Map.entry("roles", Set.of("role:(\\w+)"))
-            )),
-            Map.entry("attributes", Map.ofEntries(
-                Map.entry("principal", "https://idp.test.es.elasticsearch.org/attribute/principal"),
-                Map.entry("name", "https://idp.test.es.elasticsearch.org/attribute/name"),
-                Map.entry("email", "https://idp.test.es.elasticsearch.org/attribute/email"),
-                Map.entry("roles", "https://idp.test.es.elasticsearch.org/attribute/roles")
-            )));
+            Map.entry("privileges", Map.ofEntries(Map.entry("resource", entityId), Map.entry("roles", Set.of("role:(\\w+)")))),
+            Map.entry(
+                "attributes",
+                Map.ofEntries(
+                    Map.entry("principal", "https://idp.test.es.elasticsearch.org/attribute/principal"),
+                    Map.entry("name", "https://idp.test.es.elasticsearch.org/attribute/name"),
+                    Map.entry("email", "https://idp.test.es.elasticsearch.org/attribute/email"),
+                    Map.entry("roles", "https://idp.test.es.elasticsearch.org/attribute/roles")
+                )
+            )
+        );
         final DocumentVersion docVersion = createServiceProvider(entityId, request);
         checkIndexDoc(docVersion);
         ensureGreen(SamlServiceProviderIndex.INDEX_NAME);
@@ -66,8 +67,9 @@ public class ManageServiceProviderRestIT extends IdpRestTestCase {
     }
 
     private void deleteServiceProvider(String entityId, DocumentVersion version) throws IOException {
-        final Response response = client().performRequest(new Request("DELETE",
-            "/_idp/saml/sp/" + encode(entityId) + "?refresh=" + RefreshPolicy.IMMEDIATE.getValue()));
+        final Response response = client().performRequest(
+            new Request("DELETE", "/_idp/saml/sp/" + encode(entityId) + "?refresh=" + RefreshPolicy.IMMEDIATE.getValue())
+        );
         final Map<String, Object> map = entityAsMap(response);
 
         assertThat(ObjectPath.eval("document._id", map), equalTo(version.id));

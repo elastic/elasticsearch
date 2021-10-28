@@ -15,20 +15,20 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.List;
@@ -53,8 +53,14 @@ public abstract class ScrollableHitSource {
     private final Consumer<AsyncResponse> onResponse;
     protected final Consumer<Exception> fail;
 
-    public ScrollableHitSource(Logger logger, BackoffPolicy backoffPolicy, ThreadPool threadPool, Runnable countSearchRetry,
-                               Consumer<AsyncResponse> onResponse, Consumer<Exception> fail) {
+    public ScrollableHitSource(
+        Logger logger,
+        BackoffPolicy backoffPolicy,
+        ThreadPool threadPool,
+        Runnable countSearchRetry,
+        Consumer<AsyncResponse> onResponse,
+        Consumer<Exception> fail
+    ) {
         this.logger = logger;
         this.backoffPolicy = backoffPolicy;
         this.threadPool = threadPool;
@@ -72,14 +78,14 @@ public abstract class ScrollableHitSource {
             countSearchRetry.run();
             retryHandler.accept(listener);
         };
-        return new RetryListener(logger, threadPool, backoffPolicy, countingRetryHandler,
-            ActionListener.wrap(this::onResponse, fail));
+        return new RetryListener(logger, threadPool, backoffPolicy, countingRetryHandler, ActionListener.wrap(this::onResponse, fail));
     }
 
     // package private for tests.
     public final void startNextScroll(TimeValue extraKeepAlive) {
         startNextScroll(extraKeepAlive, createRetryListener(listener -> startNextScroll(extraKeepAlive, listener)));
     }
+
     private void startNextScroll(TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
         doStartNextScroll(scrollId.get(), extraKeepAlive, searchListener);
     }
@@ -89,6 +95,7 @@ public abstract class ScrollableHitSource {
         setScroll(response.getScrollId());
         onResponse.accept(new AsyncResponse() {
             private AtomicBoolean alreadyDone = new AtomicBoolean();
+
             @Override
             public Response response() {
                 return response;
@@ -114,8 +121,11 @@ public abstract class ScrollableHitSource {
     // following is the SPI to be implemented.
     protected abstract void doStart(RejectAwareActionListener<Response> searchListener);
 
-    protected abstract void doStartNextScroll(String scrollId, TimeValue extraKeepAlive,
-                                              RejectAwareActionListener<Response> searchListener);
+    protected abstract void doStartNextScroll(
+        String scrollId,
+        TimeValue extraKeepAlive,
+        RejectAwareActionListener<Response> searchListener
+    );
 
     /**
      * Called to clear a scroll id.
@@ -125,6 +135,7 @@ public abstract class ScrollableHitSource {
      *        successful or not
      */
     protected abstract void clearScroll(String scrollId, Runnable onCompletion);
+
     /**
      * Called after the process has been totally finished to clean up any resources the process
      * needed like remote connections.
@@ -217,10 +228,12 @@ public abstract class ScrollableHitSource {
          * The index in which the hit is stored.
          */
         String getIndex();
+
         /**
          * The document id of the hit.
          */
         String getId();
+
         /**
          * The version of the match or {@code -1} if the version wasn't requested. The {@code -1} keeps it inline with Elasticsearch's
          * internal APIs.
@@ -241,15 +254,20 @@ public abstract class ScrollableHitSource {
          * The source of the hit. Returns null if the source didn't come back from the search, usually because it source wasn't stored at
          * all.
          */
-        @Nullable BytesReference getSource();
+        @Nullable
+        BytesReference getSource();
+
         /**
          * The content type of the hit source. Returns null if the source didn't come back from the search.
          */
-        @Nullable XContentType getXContentType();
+        @Nullable
+        XContentType getXContentType();
+
         /**
          * The routing on the hit if there is any or null if there isn't.
          */
-        @Nullable String getRouting();
+        @Nullable
+        String getRouting();
     }
 
     /**
@@ -355,8 +373,13 @@ public abstract class ScrollableHitSource {
             this(reason, index, shardId, nodeId, ExceptionsHelper.status(reason));
         }
 
-        public SearchFailure(Throwable reason, @Nullable String index, @Nullable Integer shardId, @Nullable String nodeId,
-                             RestStatus status) {
+        public SearchFailure(
+            Throwable reason,
+            @Nullable String index,
+            @Nullable Integer shardId,
+            @Nullable String nodeId,
+            RestStatus status
+        ) {
             this.index = index;
             this.shardId = shardId;
             this.reason = requireNonNull(reason, "reason cannot be null");

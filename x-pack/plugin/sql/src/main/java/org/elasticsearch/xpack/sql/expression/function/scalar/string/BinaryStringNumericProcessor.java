@@ -23,21 +23,21 @@ import java.util.function.BiFunction;
 public class BinaryStringNumericProcessor extends FunctionalEnumBinaryProcessor<String, Number, String, BinaryStringNumericOperation> {
 
     public enum BinaryStringNumericOperation implements BiFunction<String, Number, String> {
-        LEFT((s,c) -> {
+        LEFT((s, c) -> {
             int i = c.intValue();
             if (i < 0) {
                 return "";
             }
             return i > s.length() ? s : s.substring(0, i);
         }),
-        RIGHT((s,c) -> {
+        RIGHT((s, c) -> {
             int i = c.intValue();
             if (i < 0) {
                 return "";
             }
             return i > s.length() ? s : s.substring(s.length() - i);
         }),
-        REPEAT((s,c) -> {
+        REPEAT((s, c) -> {
             int i = c.intValue();
             if (i <= 0) {
                 return null;

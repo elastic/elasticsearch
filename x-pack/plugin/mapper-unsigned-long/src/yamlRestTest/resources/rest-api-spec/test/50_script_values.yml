@@ -74,7 +74,7 @@ setup:
               order: desc
               type: number
               script:
-                source: "field('ul').getBigInteger(BigInteger.valueOf(Long.parseUnsignedLong('18446744073709551614'))).doubleValue()"
+                source: "field('ul').asBigInteger(BigInteger.valueOf(Long.parseUnsignedLong('18446744073709551614'))).doubleValue()"
 
   - match: { hits.hits.0.sort: [1.8446744073709552E19] }
   - match: { hits.hits.1.sort: [1.8446744073709552E19] }
@@ -128,7 +128,7 @@ setup:
               filter:
                script:
                  script:
-                   source: "field('ul').getBigInteger(BigInteger.valueOf(Long.parseUnsignedLong('18446744073709551614'))).doubleValue() > 10E18"
+                   source: "field('ul').asBigInteger(BigInteger.valueOf(Long.parseUnsignedLong('18446744073709551614'))).doubleValue() > 10E18"
           sort: [ { ul: asc } ]
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: "4" }
@@ -182,7 +182,7 @@ setup:
             script_score:
               query: {match_all: {}}
               script:
-                source: "field('ul').getBigInteger(BigInteger.valueOf(Long.parseUnsignedLong('18446744073709551614'))).doubleValue()"
+                source: "field('ul').asBigInteger(BigInteger.valueOf(Long.parseUnsignedLong('18446744073709551614'))).doubleValue()"
 
   - match: { hits.total.value: 5 }
   - do:

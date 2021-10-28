@@ -42,8 +42,14 @@ public class DeprecationRestHandler implements RestHandler {
      * @throws NullPointerException if any parameter except {@code deprecationMessage} is {@code null}
      * @throws IllegalArgumentException if {@code deprecationMessage} is not a valid header
      */
-    public DeprecationRestHandler(RestHandler handler, RestRequest.Method method, String path, String deprecationMessage,
-                                  DeprecationLogger deprecationLogger, boolean compatibleVersionWarning) {
+    public DeprecationRestHandler(
+        RestHandler handler,
+        RestRequest.Method method,
+        String path,
+        String deprecationMessage,
+        DeprecationLogger deprecationLogger,
+        boolean compatibleVersionWarning
+    ) {
         this.handler = Objects.requireNonNull(handler);
         this.deprecationMessage = requireValidHeader(deprecationMessage);
         this.deprecationLogger = Objects.requireNonNull(deprecationLogger);

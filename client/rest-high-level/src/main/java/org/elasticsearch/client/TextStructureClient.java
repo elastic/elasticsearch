@@ -14,7 +14,6 @@ import org.elasticsearch.client.textstructure.FindStructureResponse;
 import java.io.IOException;
 import java.util.Collections;
 
-
 /**
  * Text Structure API client wrapper for the {@link RestHighLevelClient}
  * <p>
@@ -48,11 +47,13 @@ public final class TextStructureClient {
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
     public FindStructureResponse findStructure(FindStructureRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
             TextStructureRequestConverters::findFileStructure,
             options,
             FindStructureResponse::fromXContent,
-            Collections.emptySet());
+            Collections.emptySet()
+        );
     }
 
     /**
@@ -67,14 +68,19 @@ public final class TextStructureClient {
      * @param listener Listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable findStructureAsync(FindStructureRequest request, RequestOptions options,
-                                          ActionListener<FindStructureResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request,
+    public Cancellable findStructureAsync(
+        FindStructureRequest request,
+        RequestOptions options,
+        ActionListener<FindStructureResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
             TextStructureRequestConverters::findFileStructure,
             options,
             FindStructureResponse::fromXContent,
             listener,
-            Collections.emptySet());
+            Collections.emptySet()
+        );
     }
 
 }

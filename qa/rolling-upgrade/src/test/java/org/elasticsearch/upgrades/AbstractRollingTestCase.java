@@ -52,7 +52,8 @@ public abstract class AbstractRollingTestCase extends ESRestTestCase {
 
     @Override
     protected final Settings restClientSettings() {
-        return Settings.builder().put(super.restClientSettings())
+        return Settings.builder()
+            .put(super.restClientSettings())
             // increase the timeout here to 90 seconds to handle long waits for a green
             // cluster health. the waits for green need to be longer than a minute to
             // account for delayed shards

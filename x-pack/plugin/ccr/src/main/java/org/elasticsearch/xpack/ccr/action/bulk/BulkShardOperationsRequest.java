@@ -17,7 +17,8 @@ import java.io.IOException;
 import java.util.List;
 
 public final class BulkShardOperationsRequest extends ReplicatedWriteRequest<BulkShardOperationsRequest>
-    implements RawIndexingDataTransportRequest {
+    implements
+        RawIndexingDataTransportRequest {
 
     private final String historyUUID;
     private final List<Translog.Operation> operations;
@@ -30,10 +31,12 @@ public final class BulkShardOperationsRequest extends ReplicatedWriteRequest<Bul
         operations = in.readList(Translog.Operation::readOperation);
     }
 
-    public BulkShardOperationsRequest(final ShardId shardId,
-                                      final String historyUUID,
-                                      final List<Translog.Operation> operations,
-                                      long maxSeqNoOfUpdatesOrDeletes) {
+    public BulkShardOperationsRequest(
+        final ShardId shardId,
+        final String historyUUID,
+        final List<Translog.Operation> operations,
+        long maxSeqNoOfUpdatesOrDeletes
+    ) {
         super(shardId);
         setRefreshPolicy(RefreshPolicy.NONE);
         this.historyUUID = historyUUID;
@@ -66,15 +69,23 @@ public final class BulkShardOperationsRequest extends ReplicatedWriteRequest<Bul
 
     @Override
     public String toString() {
-        return "BulkShardOperationsRequest{" +
-                "historyUUID=" + historyUUID +
-                ", operations=" + operations.size() +
-                ", maxSeqNoUpdates=" + maxSeqNoOfUpdatesOrDeletes +
-                ", shardId=" + shardId +
-                ", timeout=" + timeout +
-                ", index='" + index + '\'' +
-                ", waitForActiveShards=" + waitForActiveShards +
-                '}';
+        return "BulkShardOperationsRequest{"
+            + "historyUUID="
+            + historyUUID
+            + ", operations="
+            + operations.size()
+            + ", maxSeqNoUpdates="
+            + maxSeqNoOfUpdatesOrDeletes
+            + ", shardId="
+            + shardId
+            + ", timeout="
+            + timeout
+            + ", index='"
+            + index
+            + '\''
+            + ", waitForActiveShards="
+            + waitForActiveShards
+            + '}';
     }
 
 }

@@ -144,8 +144,7 @@ public class DataTypeConversionTests extends ESTestCase {
             Converter back = converterFor(KEYWORD, DATETIME);
             assertEquals(dt, back.convert(forward.convert(dt)));
             Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("0xff"));
-            assertEquals("cannot cast [0xff] to [datetime]: Text '0xff' could not be parsed at index 0",
-                e.getMessage());
+            assertEquals("cannot cast [0xff] to [datetime]: Text '0xff' could not be parsed at index 0", e.getMessage());
         }
     }
 
@@ -332,8 +331,7 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals((short) -12345, conversion.convert(asDateTime(-12345L)));
             // Nanos are ignored, only millis are used
             assertEquals((short) 1123, conversion.convert(DateUtils.asDateTime("1970-01-01T00:00:01.123456789Z")));
-            Exception e = expectThrows(QlIllegalArgumentException.class,
-                () -> conversion.convert(asDateTime(Integer.MAX_VALUE)));
+            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(asDateTime(Integer.MAX_VALUE)));
             assertEquals("[" + Integer.MAX_VALUE + "] out of [short] range", e.getMessage());
         }
     }
@@ -356,8 +354,7 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals((byte) -123, conversion.convert(asDateTime(-123L)));
             // Nanos are ignored, only millis are used
             assertEquals((byte) 123, conversion.convert(DateUtils.asDateTime("1970-01-01T00:00:00.123456789Z")));
-            Exception e = expectThrows(QlIllegalArgumentException.class,
-                () -> conversion.convert(asDateTime(Integer.MAX_VALUE)));
+            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(asDateTime(Integer.MAX_VALUE)));
             assertEquals("[" + Integer.MAX_VALUE + "] out of [byte] range", e.getMessage());
         }
     }
@@ -404,8 +401,7 @@ public class DataTypeConversionTests extends ESTestCase {
     }
 
     public void testConversionToUnsupported() {
-        Exception e = expectThrows(QlIllegalArgumentException.class,
-                () -> DataTypeConverter.convert(Integer.valueOf(1), UNSUPPORTED));
+        Exception e = expectThrows(QlIllegalArgumentException.class, () -> DataTypeConverter.convert(Integer.valueOf(1), UNSUPPORTED));
         assertEquals("cannot convert from [1], type [integer] to [unsupported]", e.getMessage());
     }
 

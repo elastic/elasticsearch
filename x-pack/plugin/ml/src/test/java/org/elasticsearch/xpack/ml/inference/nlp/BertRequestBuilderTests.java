@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
@@ -51,7 +51,7 @@ public class BertRequestBuilderTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public static List<Integer> nthListItemFromMap(String name, int n, Map<String, Object> jsonDocAsMap) {
-        return ((List<List<Integer>>)jsonDocAsMap.get(name)).get(n);
+        return ((List<List<Integer>>) jsonDocAsMap.get(name)).get(n);
     }
 
     public void testInputTooLarge() throws IOException {
@@ -61,12 +61,18 @@ public class BertRequestBuilderTests extends ESTestCase {
         ).build();
         {
             BertRequestBuilder requestBuilder = new BertRequestBuilder(tokenizer);
-            ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-                () -> requestBuilder.buildRequest(Collections.singletonList("Elasticsearch fun Elasticsearch fun Elasticsearch fun"),
-                    "request1"));
+            ElasticsearchStatusException e = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> requestBuilder.buildRequest(
+                    Collections.singletonList("Elasticsearch fun Elasticsearch fun Elasticsearch fun"),
+                    "request1"
+                )
+            );
 
-            assertThat(e.getMessage(),
-                containsString("Input too large. The tokenized input length [11] exceeds the maximum sequence length [5]"));
+            assertThat(
+                e.getMessage(),
+                containsString("Input too large. The tokenized input length [11] exceeds the maximum sequence length [5]")
+            );
         }
         {
             BertRequestBuilder requestBuilder = new BertRequestBuilder(tokenizer);
@@ -79,20 +85,27 @@ public class BertRequestBuilderTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testBatchWithPadding() throws IOException {
         BertTokenizer tokenizer = BertTokenizer.builder(
-            Arrays.asList(BertTokenizer.PAD_TOKEN, BertTokenizer.CLASS_TOKEN, BertTokenizer.SEPARATOR_TOKEN,
-                "Elastic", "##search", "fun",
-                "Pancake", "day",
-                "my", "little", "red", "car",
-                "God", "##zilla"
-                ),
+            Arrays.asList(
+                BertTokenizer.PAD_TOKEN,
+                BertTokenizer.CLASS_TOKEN,
+                BertTokenizer.SEPARATOR_TOKEN,
+                "Elastic",
+                "##search",
+                "fun",
+                "Pancake",
+                "day",
+                "my",
+                "little",
+                "red",
+                "car",
+                "God",
+                "##zilla"
+            ),
             new BertTokenization(null, null, 512, Tokenization.Truncate.NONE)
         ).build();
 
         BertRequestBuilder requestBuilder = new BertRequestBuilder(tokenizer);
-        NlpTask.Request request = requestBuilder.buildRequest(
-            List.of("Elasticsearch",
-                "my little red car",
-                "Godzilla day"), "request1");
+        NlpTask.Request request = requestBuilder.buildRequest(List.of("Elasticsearch", "my little red car", "Godzilla day"), "request1");
         Map<String, Object> jsonDocAsMap = XContentHelper.convertToMap(request.processInput, true, XContentType.JSON).v2();
 
         assertThat(jsonDocAsMap.keySet(), hasSize(5));

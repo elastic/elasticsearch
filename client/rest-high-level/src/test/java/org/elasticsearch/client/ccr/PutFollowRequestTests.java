@@ -24,8 +24,7 @@ public class PutFollowRequestTests extends AbstractRequestTestCase<PutFollowRequ
 
     @Override
     protected PutFollowRequest createClientTestInstance() {
-        PutFollowRequest putFollowRequest =
-            new PutFollowRequest(randomAlphaOfLength(4), randomAlphaOfLength(4), "followerIndex");
+        PutFollowRequest putFollowRequest = new PutFollowRequest(randomAlphaOfLength(4), randomAlphaOfLength(4), "followerIndex");
         if (randomBoolean()) {
             putFollowRequest.setMaxOutstandingReadRequests(randomIntBetween(0, Integer.MAX_VALUE));
         }

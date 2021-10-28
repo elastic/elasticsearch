@@ -8,14 +8,14 @@
 
 package org.elasticsearch.plugins.spi;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.pipeline.ParsedSimpleValue;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -54,16 +54,21 @@ public class NamedXContentProviderTests extends ESTestCase {
 
     public static class TestNamedXContentProvider implements NamedXContentProvider {
 
-        public TestNamedXContentProvider() {
-        }
+        public TestNamedXContentProvider() {}
 
         @Override
         public List<NamedXContentRegistry.Entry> getNamedXContentParsers() {
             return Arrays.asList(
-                    new NamedXContentRegistry.Entry(Aggregation.class, new ParseField("test_aggregation"),
-                            (parser, context) -> ParsedSimpleValue.fromXContent(parser, (String) context)),
-                    new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField("test_suggestion"),
-                            (parser, context) -> TermSuggestion.fromXContent(parser, (String) context))
+                new NamedXContentRegistry.Entry(
+                    Aggregation.class,
+                    new ParseField("test_aggregation"),
+                    (parser, context) -> ParsedSimpleValue.fromXContent(parser, (String) context)
+                ),
+                new NamedXContentRegistry.Entry(
+                    Suggest.Suggestion.class,
+                    new ParseField("test_suggestion"),
+                    (parser, context) -> TermSuggestion.fromXContent(parser, (String) context)
+                )
             );
         }
     }

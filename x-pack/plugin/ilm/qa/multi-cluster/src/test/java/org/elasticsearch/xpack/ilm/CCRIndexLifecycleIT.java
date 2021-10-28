@@ -17,13 +17,13 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ccr.ESCCRRestTestCase;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
@@ -55,7 +55,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
         String policyName = "basic-test";
         if ("leader".equals(targetCluster)) {
-            putILMPolicy(policyName, "50GB", null, TimeValue.timeValueHours(7*24));
+            putILMPolicy(policyName, "50GB", null, TimeValue.timeValueHours(7 * 24));
             Settings indexSettings = Settings.builder()
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
@@ -66,7 +66,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             ensureGreen(indexName);
         } else if ("follow".equals(targetCluster)) {
             // Policy with the same name must exist in follower cluster too:
-            putILMPolicy(policyName, "50GB", null, TimeValue.timeValueHours(7*24));
+            putILMPolicy(policyName, "50GB", null, TimeValue.timeValueHours(7 * 24));
             followIndex(indexName, indexName);
             ensureGreen(indexName);
 
@@ -85,10 +85,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                     assertILMPolicy(client(), indexName, policyName, "hot");
                 });
 
-                updateIndexSettings(leaderClient, indexName, Settings.builder()
-                    .put("index.lifecycle.indexing_complete", true)
-                    .build()
-                );
+                updateIndexSettings(leaderClient, indexName, Settings.builder().put("index.lifecycle.indexing_complete", true).build());
 
                 assertBusy(() -> {
                     // Ensure that 'index.lifecycle.indexing_complete' is replicated:
@@ -114,10 +111,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
     public void testCCRUnfollowDuringSnapshot() throws Exception {
         String indexName = "unfollow-test-index";
         if ("leader".equals(targetCluster)) {
-            Settings indexSettings = Settings.builder()
-                .put("index.number_of_shards", 2)
-                .put("index.number_of_replicas", 0)
-                .build();
+            Settings indexSettings = Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build();
             createIndex(indexName, indexSettings);
             ensureGreen(indexName);
         } else if ("follow".equals(targetCluster)) {
@@ -127,25 +121,26 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
             // Create the repository before taking the snapshot.
             Request request = new Request("PUT", "/_snapshot/repo");
-            request.setJsonEntity(Strings
-                .toString(JsonXContent.contentBuilder()
-                    .startObject()
-                    .field("type", "fs")
-                    .startObject("settings")
-                    .field("compress", randomBoolean())
-                    .field("location", System.getProperty("tests.path.repo"))
-                    .field("max_snapshot_bytes_per_sec", "256b")
-                    .endObject()
-                    .endObject()));
+            request.setJsonEntity(
+                Strings.toString(
+                    JsonXContent.contentBuilder()
+                        .startObject()
+                        .field("type", "fs")
+                        .startObject("settings")
+                        .field("compress", randomBoolean())
+                        .field("location", System.getProperty("tests.path.repo"))
+                        .field("max_snapshot_bytes_per_sec", "256b")
+                        .endObject()
+                        .endObject()
+                )
+            );
             assertOK(client().performRequest(request));
 
             try (RestClient leaderClient = buildLeaderClient()) {
                 index(leaderClient, indexName, "1");
                 assertDocumentExists(leaderClient, indexName, "1");
 
-                updateIndexSettings(leaderClient, indexName, Settings.builder()
-                    .put("index.lifecycle.indexing_complete", true)
-                    .build());
+                updateIndexSettings(leaderClient, indexName, Settings.builder().put("index.lifecycle.indexing_complete", true).build());
 
                 // start snapshot
                 String snapName = "snapshot-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -196,8 +191,9 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                 .put("index.lifecycle.name", policyName)
                 .put("index.lifecycle.rollover_alias", alias)
                 .build();
-            templateRequest.setJsonEntity("{\"index_patterns\":  [\"mymetrics-*\"], \"template\":{\"settings\":  " +
-                Strings.toString(indexSettings) + "}}");
+            templateRequest.setJsonEntity(
+                "{\"index_patterns\":  [\"mymetrics-*\"], \"template\":{\"settings\":  " + Strings.toString(indexSettings) + "}}"
+            );
             assertOK(client().performRequest(templateRequest));
         } else if ("follow".equals(targetCluster)) {
             // Policy with the same name must exist in follower cluster too:
@@ -205,16 +201,22 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
             // Set up an auto-follow pattern
             Request createAutoFollowRequest = new Request("PUT", "/_ccr/auto_follow/my_auto_follow_pattern");
-            createAutoFollowRequest.setJsonEntity("{\"leader_index_patterns\": [\"mymetrics-*\"], " +
-                "\"remote_cluster\": \"leader_cluster\", \"read_poll_timeout\": \"1000ms\"}");
+            createAutoFollowRequest.setJsonEntity(
+                "{\"leader_index_patterns\": [\"mymetrics-*\"], "
+                    + "\"remote_cluster\": \"leader_cluster\", \"read_poll_timeout\": \"1000ms\"}"
+            );
             assertOK(client().performRequest(createAutoFollowRequest));
 
             try (RestClient leaderClient = buildLeaderClient()) {
                 // Create an index on the leader using the template set up above
                 Request createIndexRequest = new Request("PUT", "/" + indexName);
-                createIndexRequest.setJsonEntity("{" +
-                    "\"mappings\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}, " +
-                    "\"aliases\": {\"" + alias + "\":  {\"is_write_index\":  true}} }");
+                createIndexRequest.setJsonEntity(
+                    "{"
+                        + "\"mappings\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}, "
+                        + "\"aliases\": {\""
+                        + alias
+                        + "\":  {\"is_write_index\":  true}} }"
+                );
                 assertOK(leaderClient.performRequest(createIndexRequest));
                 // Check that the new index is created
                 Request checkIndexRequest = new Request("GET", "/_cluster/health/" + indexName);
@@ -289,10 +291,10 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
         if ("leader".equals(targetCluster)) {
             Settings indexSettings = Settings.builder()
-                    .put("index.number_of_shards", 3)
-                    .put("index.number_of_replicas", 0)
-                    .put("index.lifecycle.name", policyName) // this policy won't exist on the leader, that's fine
-                    .build();
+                .put("index.number_of_shards", 3)
+                .put("index.number_of_replicas", 0)
+                .put("index.lifecycle.name", policyName) // this policy won't exist on the leader, that's fine
+                .build();
             final StringBuilder aliases = new StringBuilder();
             boolean first = true;
             for (int i = 0; i < numberOfAliases; i++) {
@@ -322,16 +324,13 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
             // Set the indexing_complete flag on the leader so the index will actually unfollow
             try (RestClient leaderClient = buildLeaderClient()) {
-                updateIndexSettings(leaderClient, indexName, Settings.builder()
-                        .put("index.lifecycle.indexing_complete", true)
-                        .build()
-                );
+                updateIndexSettings(leaderClient, indexName, Settings.builder().put("index.lifecycle.indexing_complete", true).build());
             }
 
             // Wait for the setting to get replicated
             assertBusy(() -> assertThat(getIndexSetting(client(), indexName, "index.lifecycle.indexing_complete"), equalTo("true")));
 
-            assertBusy(() -> assertThat(getShrinkIndexName(client(), indexName) , notNullValue()), 30, TimeUnit.SECONDS);
+            assertBusy(() -> assertThat(getShrinkIndexName(client(), indexName), notNullValue()), 30, TimeUnit.SECONDS);
             String shrunkenIndexName = getShrinkIndexName(client(), indexName);
 
             // Wait for the index to continue with its lifecycle and be shrunk
@@ -375,10 +374,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
             // Set the indexing_complete flag on the leader so the index will actually unfollow
             try (RestClient leaderClient = buildLeaderClient()) {
-                updateIndexSettings(leaderClient, indexName, Settings.builder()
-                    .put("index.lifecycle.indexing_complete", true)
-                    .build()
-                );
+                updateIndexSettings(leaderClient, indexName, Settings.builder().put("index.lifecycle.indexing_complete", true).build());
             }
 
             // Wait for the setting to get replicated
@@ -388,7 +384,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             // moves through the unfollow and shrink actions so fast that the
             // index often disappears between assertBusy checks
 
-            assertBusy(() -> assertThat(getShrinkIndexName(client(), indexName) , notNullValue()), 1, TimeUnit.MINUTES);
+            assertBusy(() -> assertThat(getShrinkIndexName(client(), indexName), notNullValue()), 1, TimeUnit.MINUTES);
             String shrunkenIndexName = getShrinkIndexName(client(), indexName);
 
             // Wait for the index to continue with its lifecycle and be shrunk
@@ -407,10 +403,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             // otherwise it'll proceed through shrink before we can set up the
             // follower
             putShrinkOnlyPolicy(client(), policyName);
-            Settings indexSettings = Settings.builder()
-                .put("index.number_of_shards", 2)
-                .put("index.number_of_replicas", 0)
-                .build();
+            Settings indexSettings = Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build();
             createIndex(indexName, indexSettings, "", "");
             ensureGreen(indexName);
         } else if ("follow".equals(targetCluster)) {
@@ -423,8 +416,10 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
                 // Now we can set up the leader to use the policy
                 Request changePolicyRequest = new Request("PUT", "/" + indexName + "/_settings");
-                final StringEntity changePolicyEntity = new StringEntity("{ \"index.lifecycle.name\": \"" + policyName + "\" }",
-                    ContentType.APPLICATION_JSON);
+                final StringEntity changePolicyEntity = new StringEntity(
+                    "{ \"index.lifecycle.name\": \"" + policyName + "\" }",
+                    ContentType.APPLICATION_JSON
+                );
                 changePolicyRequest.setEntity(changePolicyEntity);
                 assertOK(leaderClient.performRequest(changePolicyRequest));
 
@@ -452,12 +447,9 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                 assertILMPolicy(client(), indexName, policyName, "hot", "unfollow", "wait-for-indexing-complete");
 
                 // Manually set this to kick the process
-                updateIndexSettings(leaderClient, indexName, Settings.builder()
-                    .put("index.lifecycle.indexing_complete", true)
-                    .build()
-                );
+                updateIndexSettings(leaderClient, indexName, Settings.builder().put("index.lifecycle.indexing_complete", true).build());
 
-                assertBusy(() -> assertThat(getShrinkIndexName(leaderClient, indexName) , notNullValue()), 30, TimeUnit.SECONDS);
+                assertBusy(() -> assertThat(getShrinkIndexName(leaderClient, indexName), notNullValue()), 30, TimeUnit.SECONDS);
                 String shrunkenIndexName = getShrinkIndexName(leaderClient, indexName);
                 assertBusy(() -> {
                     // The shrunken index should now be created on the leader...
@@ -492,9 +484,9 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                 String leaderRemoteClusterSeed = System.getProperty("tests.leader_remote_cluster_seed");
                 configureRemoteClusters("other_remote", leaderRemoteClusterSeed);
                 assertBusy(() -> {
-                    Map<?, ?> localConnection = (Map<?, ?>) toMap(client()
-                        .performRequest(new Request("GET", "/_remote/info")))
-                        .get("other_remote");
+                    Map<?, ?> localConnection = (Map<?, ?>) toMap(client().performRequest(new Request("GET", "/_remote/info"))).get(
+                        "other_remote"
+                    );
                     assertThat(localConnection, notNullValue());
                     assertThat(localConnection.get("connected"), is(true));
                 });
@@ -506,29 +498,26 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                 client().performRequest(new Request("POST", "/_ilm/stop"));
 
                 // Set indexing complete and wait for it to be replicated
-                updateIndexSettings(leaderClient, leaderIndex, Settings.builder()
-                    .put("index.lifecycle.indexing_complete", true)
-                    .build()
+                updateIndexSettings(leaderClient, leaderIndex, Settings.builder().put("index.lifecycle.indexing_complete", true).build());
+                assertBusy(
+                    () -> { assertThat(getIndexSetting(client(), followerIndex, "index.lifecycle.indexing_complete"), is("true")); }
                 );
-                assertBusy(() -> {
-                    assertThat(getIndexSetting(client(), followerIndex, "index.lifecycle.indexing_complete"), is("true"));
-                });
 
                 // Remove remote cluster alias:
                 configureRemoteClusters("other_remote", null);
                 assertBusy(() -> {
-                    Map<?, ?> localConnection = (Map<?, ?>) toMap(client()
-                        .performRequest(new Request("GET", "/_remote/info")))
-                        .get("other_remote");
+                    Map<?, ?> localConnection = (Map<?, ?>) toMap(client().performRequest(new Request("GET", "/_remote/info"))).get(
+                        "other_remote"
+                    );
                     assertThat(localConnection, nullValue());
                 });
                 // Then add it back with an incorrect seed node:
                 // (unfollow api needs a remote cluster alias)
                 configureRemoteClusters("other_remote", "localhost:9999");
                 assertBusy(() -> {
-                    Map<?, ?> localConnection = (Map<?, ?>) toMap(client()
-                        .performRequest(new Request("GET", "/_remote/info")))
-                        .get("other_remote");
+                    Map<?, ?> localConnection = (Map<?, ?>) toMap(client().performRequest(new Request("GET", "/_remote/info"))).get(
+                        "other_remote"
+                    );
                     assertThat(localConnection, notNullValue());
                     assertThat(localConnection.get("connected"), is(false));
 
@@ -544,14 +533,10 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                 // Start ILM back up and let it unfollow
                 client().performRequest(new Request("POST", "/_ilm/start"));
                 // Wait for the policy to be complete
-                assertBusy(() -> {
-                    assertILMPolicy(client(), followerIndex, policyName, "hot", "complete", "complete");
-                });
+                assertBusy(() -> { assertILMPolicy(client(), followerIndex, policyName, "hot", "complete", "complete"); });
 
                 // Ensure the "follower" index has successfully unfollowed
-                assertBusy(() -> {
-                    assertThat(getIndexSetting(client(), followerIndex, "index.xpack.ccr.following_index"), nullValue());
-                });
+                assertBusy(() -> { assertThat(getIndexSetting(client(), followerIndex, "index.xpack.ccr.following_index"), nullValue()); });
             }
         }
     }
@@ -559,8 +544,13 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
     private void configureRemoteClusters(String name, String leaderRemoteClusterSeed) throws IOException {
         logger.info("Configuring leader remote cluster [{}]", leaderRemoteClusterSeed);
         Request request = new Request("PUT", "/_cluster/settings");
-        request.setJsonEntity("{\"persistent\": {\"cluster.remote." + name + ".seeds\": " +
-            (leaderRemoteClusterSeed != null ? String.format(Locale.ROOT, "\"%s\"", leaderRemoteClusterSeed) : null) + "}}");
+        request.setJsonEntity(
+            "{\"persistent\": {\"cluster.remote."
+                + name
+                + ".seeds\": "
+                + (leaderRemoteClusterSeed != null ? String.format(Locale.ROOT, "\"%s\"", leaderRemoteClusterSeed) : null)
+                + "}}"
+        );
         assertThat(client().performRequest(request).getStatusLine().getStatusCode(), equalTo(200));
     }
 
@@ -713,8 +703,14 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         assertILMPolicy(client, index, policy, expectedPhase, null, null);
     }
 
-    private static void assertILMPolicy(RestClient client, String index, String policy, String expectedPhase,
-                                        String expectedAction, String expectedStep) throws IOException {
+    private static void assertILMPolicy(
+        RestClient client,
+        String index,
+        String policy,
+        String expectedPhase,
+        String expectedAction,
+        String expectedStep
+    ) throws IOException {
         final Request request = new Request("GET", "/" + index + "/_ilm/explain");
         Map<String, Object> response = toMap(client.performRequest(request));
         LOGGER.info("response={}", response);
@@ -776,8 +772,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policyName, singletonMap(phase.getName(), phase));
         XContentBuilder builder = jsonBuilder();
         lifecyclePolicy.toXContent(builder, null);
-        final StringEntity entity = new StringEntity(
-            "{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
+        final StringEntity entity = new StringEntity("{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);
         Request request = new Request("PUT", "_ilm/policy/" + policyName);
         request.setEntity(entity);
         client().performRequest(request);
@@ -786,8 +781,10 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
     public static void updatePolicy(String indexName, String policy) throws IOException {
 
         Request changePolicyRequest = new Request("PUT", "/" + indexName + "/_settings");
-        final StringEntity changePolicyEntity = new StringEntity("{ \"index.lifecycle.name\": \"" + policy + "\" }",
-            ContentType.APPLICATION_JSON);
+        final StringEntity changePolicyEntity = new StringEntity(
+            "{ \"index.lifecycle.name\": \"" + policy + "\" }",
+            ContentType.APPLICATION_JSON
+        );
         changePolicyRequest.setEntity(changePolicyEntity);
         assertOK(client().performRequest(changePolicyRequest));
     }
@@ -810,8 +807,10 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         String[] shrunkenIndexName = new String[1];
         waitUntil(() -> {
             try {
-                Request explainRequest = new Request("GET", SHRUNKEN_INDEX_PREFIX + "*" + originalIndex + "," + originalIndex
-                    + "/_ilm/explain");
+                Request explainRequest = new Request(
+                    "GET",
+                    SHRUNKEN_INDEX_PREFIX + "*" + originalIndex + "," + originalIndex + "/_ilm/explain"
+                );
                 explainRequest.addParameter("only_errors", Boolean.toString(false));
                 explainRequest.addParameter("only_managed", Boolean.toString(false));
                 Response response = client.performRequest(explainRequest);
@@ -822,7 +821,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
 
                 Map<String, Map<String, Object>> indexResponse = ((Map<String, Map<String, Object>>) responseMap.get("indices"));
                 Map<String, Object> explainIndexResponse = indexResponse.get(originalIndex);
-                if(explainIndexResponse == null) {
+                if (explainIndexResponse == null) {
                     // maybe we swapped the alias from the original index to the shrunken one already
                     for (Map.Entry<String, Map<String, Object>> indexToExplainMap : indexResponse.entrySet()) {
                         // we don't know the exact name of the shrunken index, but we know it starts with the configured prefix
@@ -844,8 +843,8 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                 return false;
             }
         }, 30, TimeUnit.SECONDS);
-        assert shrunkenIndexName[0] != null : "lifecycle execution state must contain the target shrink index name for index ["
-            + originalIndex + "]";
+        assert shrunkenIndexName[0] != null
+            : "lifecycle execution state must contain the target shrink index name for index [" + originalIndex + "]";
         return shrunkenIndexName[0];
     }
 }

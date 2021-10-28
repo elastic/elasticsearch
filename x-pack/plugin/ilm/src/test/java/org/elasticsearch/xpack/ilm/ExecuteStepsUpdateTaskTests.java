@@ -18,10 +18,10 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.NodeRoles;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
@@ -87,25 +87,46 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         mixedPolicyName = randomAlphaOfLengthBetween(5, 10);
         allClusterPolicyName = randomAlphaOfLengthBetween(1, 4);
         invalidPolicyName = randomAlphaOfLength(11);
-        Phase mixedPhase = new Phase("first_phase", TimeValue.ZERO, Collections.singletonMap(MockAction.NAME,
-            new MockAction(Arrays.asList(firstStep, secondStep, thirdStep))));
-        Phase allClusterPhase = new Phase("first_phase", TimeValue.ZERO, Collections.singletonMap(MockAction.NAME,
-            new MockAction(Arrays.asList(firstStep, allClusterSecondStep))));
-        Phase invalidPhase = new Phase("invalid_phase", TimeValue.ZERO, Collections.singletonMap(MockAction.NAME,
-            new MockAction(Arrays.asList(new MockClusterStateActionStep(firstStepKey, invalidStepKey)))));
-        LifecyclePolicy mixedPolicy = newTestLifecyclePolicy(mixedPolicyName,
-            Collections.singletonMap(mixedPhase.getName(), mixedPhase));
-        LifecyclePolicy allClusterPolicy = newTestLifecyclePolicy(allClusterPolicyName,
-            Collections.singletonMap(allClusterPhase.getName(), allClusterPhase));
-        LifecyclePolicy invalidPolicy = newTestLifecyclePolicy(invalidPolicyName,
-            Collections.singletonMap(invalidPhase.getName(), invalidPhase));
+        Phase mixedPhase = new Phase(
+            "first_phase",
+            TimeValue.ZERO,
+            Collections.singletonMap(MockAction.NAME, new MockAction(Arrays.asList(firstStep, secondStep, thirdStep)))
+        );
+        Phase allClusterPhase = new Phase(
+            "first_phase",
+            TimeValue.ZERO,
+            Collections.singletonMap(MockAction.NAME, new MockAction(Arrays.asList(firstStep, allClusterSecondStep)))
+        );
+        Phase invalidPhase = new Phase(
+            "invalid_phase",
+            TimeValue.ZERO,
+            Collections.singletonMap(
+                MockAction.NAME,
+                new MockAction(Arrays.asList(new MockClusterStateActionStep(firstStepKey, invalidStepKey)))
+            )
+        );
+        LifecyclePolicy mixedPolicy = newTestLifecyclePolicy(mixedPolicyName, Collections.singletonMap(mixedPhase.getName(), mixedPhase));
+        LifecyclePolicy allClusterPolicy = newTestLifecyclePolicy(
+            allClusterPolicyName,
+            Collections.singletonMap(allClusterPhase.getName(), allClusterPhase)
+        );
+        LifecyclePolicy invalidPolicy = newTestLifecyclePolicy(
+            invalidPolicyName,
+            Collections.singletonMap(invalidPhase.getName(), invalidPhase)
+        );
         Map<String, LifecyclePolicyMetadata> policyMap = new HashMap<>();
-        policyMap.put(mixedPolicyName, new LifecyclePolicyMetadata(mixedPolicy, Collections.emptyMap(),
-            randomNonNegativeLong(), randomNonNegativeLong()));
-        policyMap.put(allClusterPolicyName, new LifecyclePolicyMetadata(allClusterPolicy, Collections.emptyMap(),
-            randomNonNegativeLong(), randomNonNegativeLong()));
-        policyMap.put(invalidPolicyName, new LifecyclePolicyMetadata(invalidPolicy, Collections.emptyMap(),
-            randomNonNegativeLong(), randomNonNegativeLong()));
+        policyMap.put(
+            mixedPolicyName,
+            new LifecyclePolicyMetadata(mixedPolicy, Collections.emptyMap(), randomNonNegativeLong(), randomNonNegativeLong())
+        );
+        policyMap.put(
+            allClusterPolicyName,
+            new LifecyclePolicyMetadata(allClusterPolicy, Collections.emptyMap(), randomNonNegativeLong(), randomNonNegativeLong())
+        );
+        policyMap.put(
+            invalidPolicyName,
+            new LifecyclePolicyMetadata(invalidPolicy, Collections.emptyMap(), randomNonNegativeLong(), randomNonNegativeLong())
+        );
         policyStepsRegistry = new PolicyStepsRegistry(NamedXContentRegistry.EMPTY, client, null);
 
         indexName = randomAlphaOfLength(5);
@@ -120,10 +141,11 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         lifecycleState.setAction("init");
         lifecycleState.setStep("init");
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT)
-                .put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
         index = indexMetadata.getIndex();
         Metadata metadata = Metadata.builder()
             .persistentSettings(settings(Version.CURRENT).build())
@@ -134,7 +156,8 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         DiscoveryNode masterNode = DiscoveryNode.createLocal(
             NodeRoles.masterNode(settings(Version.CURRENT).build()),
             new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-            nodeId);
+            nodeId
+        );
         clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
@@ -188,21 +211,33 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
     public void testExecuteInvalidStartStep() throws Exception {
         // Unset the index's phase/action/step to simulate starting from scratch
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder(
-            LifecycleExecutionState.fromIndexMetadata(clusterState.getMetadata().index(index)));
+            LifecycleExecutionState.fromIndexMetadata(clusterState.getMetadata().index(index))
+        );
         lifecycleState.setPhase(null);
         lifecycleState.setAction(null);
         lifecycleState.setStep(null);
         clusterState = ClusterState.builder(clusterState)
-            .metadata(Metadata.builder(clusterState.getMetadata())
-                .put(IndexMetadata.builder(clusterState.getMetadata().index(index))
-                    .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap()))).build();
+            .metadata(
+                Metadata.builder(clusterState.getMetadata())
+                    .put(
+                        IndexMetadata.builder(clusterState.getMetadata().index(index))
+                            .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
+                    )
+            )
+            .build();
 
         policyStepsRegistry.update(clusterState.metadata().custom(IndexLifecycleMetadata.TYPE));
 
         Step invalidStep = new MockClusterStateActionStep(firstStepKey, secondStepKey);
         long now = randomNonNegativeLong();
-        ExecuteStepsUpdateTask task = new ExecuteStepsUpdateTask(invalidPolicyName, index,
-            invalidStep, policyStepsRegistry, null, () -> now);
+        ExecuteStepsUpdateTask task = new ExecuteStepsUpdateTask(
+            invalidPolicyName,
+            index,
+            invalidStep,
+            policyStepsRegistry,
+            null,
+            () -> now
+        );
         ClusterState newState = task.execute(clusterState);
         assertSame(newState, clusterState);
     }
@@ -268,8 +303,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         assertNull(task.getNextStepKey());
         assertThat(lifecycleState.getPhaseTime(), nullValue());
         assertThat(lifecycleState.getActionTime(), nullValue());
-        assertThat(lifecycleState.getStepInfo(),
-            containsString("{\"type\":\"runtime_exception\",\"reason\":\"error\",\"stack_trace\":\""));
+        assertThat(lifecycleState.getStepInfo(), containsString("{\"type\":\"runtime_exception\",\"reason\":\"error\",\"stack_trace\":\""));
     }
 
     public void testClusterWaitStepThrowsException() throws Exception {
@@ -287,20 +321,25 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         assertThat(secondStep.getExecuteCount(), equalTo(1L));
         assertThat(lifecycleState.getPhaseTime(), nullValue());
         assertThat(lifecycleState.getActionTime(), nullValue());
-        assertThat(lifecycleState.getStepInfo(),
-            containsString("{\"type\":\"runtime_exception\",\"reason\":\"error\",\"stack_trace\":\""));
+        assertThat(lifecycleState.getStepInfo(), containsString("{\"type\":\"runtime_exception\",\"reason\":\"error\",\"stack_trace\":\""));
     }
 
     private void setStateToKey(StepKey stepKey) throws IOException {
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder(
-            LifecycleExecutionState.fromIndexMetadata(clusterState.getMetadata().index(index)));
+            LifecycleExecutionState.fromIndexMetadata(clusterState.getMetadata().index(index))
+        );
         lifecycleState.setPhase(stepKey.getPhase());
         lifecycleState.setAction(stepKey.getAction());
         lifecycleState.setStep(stepKey.getName());
         clusterState = ClusterState.builder(clusterState)
-            .metadata(Metadata.builder(clusterState.getMetadata())
-                .put(IndexMetadata.builder(clusterState.getMetadata().index(index))
-                    .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap()))).build();
+            .metadata(
+                Metadata.builder(clusterState.getMetadata())
+                    .put(
+                        IndexMetadata.builder(clusterState.getMetadata().index(index))
+                            .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
+                    )
+            )
+            .build();
         policyStepsRegistry.update(clusterState.metadata().custom(IndexLifecycleMetadata.TYPE));
     }
 }

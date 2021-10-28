@@ -121,10 +121,7 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
      * @param client For performing any update operations necessary to prepare for the upgrade.
      * @param listener Call {@link ActionListener#onResponse(Object)} when preparation for migration is complete.
      */
-    void prepareForIndicesMigration(
-        ClusterService clusterService,
-        Client client,
-        ActionListener<Map<String, Object>> listener) {
+    void prepareForIndicesMigration(ClusterService clusterService, Client client, ActionListener<Map<String, Object>> listener) {
         owningFeature.getPreMigrationFunction().prepareForIndicesMigration(clusterService, client, listener);
     }
 
@@ -199,13 +196,7 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
             // Copy mapping from the old index
             mapping = currentIndex.mapping().source().string();
         }
-        return new SystemIndexMigrationInfo(
-            currentIndex,
-            feature.getName(),
-            settings,
-            mapping,
-            descriptor.getOrigin(),
-            feature);
+        return new SystemIndexMigrationInfo(currentIndex, feature.getName(), settings, mapping, descriptor.getOrigin(), feature);
     }
 
     private static Settings copySettingsForNewIndex(Settings currentIndexSettings, IndexScopedSettings indexScopedSettings) {

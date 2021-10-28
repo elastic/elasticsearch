@@ -27,19 +27,19 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.termvectors.TermVectorsRequest.Flag;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.action.document.RestTermVectorsAction;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
 
 import java.io.ByteArrayInputStream;
@@ -162,7 +162,8 @@ public class TermVectorsUnitTests extends ESTestCase {
 
     public void testRestRequestParsing() throws Exception {
         BytesReference inputBytes = new BytesArray(
-                " {\"fields\" : [\"a\",  \"b\",\"c\"], \"offsets\":false, \"positions\":false, \"payloads\":true}");
+            " {\"fields\" : [\"a\",  \"b\",\"c\"], \"offsets\":false, \"positions\":false, \"payloads\":true}"
+        );
 
         TermVectorsRequest tvr = new TermVectorsRequest(null, null);
         XContentParser parser = createParser(JsonXContent.jsonXContent, inputBytes);
@@ -199,7 +200,8 @@ public class TermVectorsUnitTests extends ESTestCase {
 
     public void testRequestParsingThrowsException() throws Exception {
         BytesReference inputBytes = new BytesArray(
-                " {\"fields\" : \"a,  b,c   \", \"offsets\":false, \"positions\":false, \"payloads\":true, \"meaningless_term\":2}");
+            " {\"fields\" : \"a,  b,c   \", \"offsets\":false, \"positions\":false, \"payloads\":true, \"meaningless_term\":2}"
+        );
         TermVectorsRequest tvr = new TermVectorsRequest(null, null);
         boolean threwException = false;
         try {
@@ -322,7 +324,7 @@ public class TermVectorsUnitTests extends ESTestCase {
             assertThat(singleRequest.offsets(), equalTo(false));
             assertThat(singleRequest.termStatistics(), equalTo(true));
             assertThat(singleRequest.fieldStatistics(), equalTo(false));
-            assertThat(singleRequest.id(),Matchers.anyOf(Matchers.equalTo("1"), Matchers.equalTo("2")));
+            assertThat(singleRequest.id(), Matchers.anyOf(Matchers.equalTo("1"), Matchers.equalTo("2")));
             assertThat(singleRequest.selectedFields(), equalTo(fields));
         }
     }

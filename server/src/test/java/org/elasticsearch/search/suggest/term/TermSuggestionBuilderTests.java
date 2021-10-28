@@ -10,14 +10,14 @@ package org.elasticsearch.search.suggest.term;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.search.suggest.AbstractSuggestionBuilderTestCase;
 import org.elasticsearch.search.suggest.SortBy;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.StringDistanceImpl;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder.SuggestMode;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -67,31 +67,44 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
     private static SuggestMode randomSuggestMode() {
         final int randomVal = randomIntBetween(0, 2);
         switch (randomVal) {
-            case 0: return SuggestMode.MISSING;
-            case 1: return SuggestMode.POPULAR;
-            case 2: return SuggestMode.ALWAYS;
-            default: throw new IllegalArgumentException("No suggest mode with an ordinal of " + randomVal);
+            case 0:
+                return SuggestMode.MISSING;
+            case 1:
+                return SuggestMode.POPULAR;
+            case 2:
+                return SuggestMode.ALWAYS;
+            default:
+                throw new IllegalArgumentException("No suggest mode with an ordinal of " + randomVal);
         }
     }
 
     private static SortBy randomSort() {
         int randomVal = randomIntBetween(0, 1);
         switch (randomVal) {
-            case 0: return SortBy.SCORE;
-            case 1: return SortBy.FREQUENCY;
-            default: throw new IllegalArgumentException("No sort mode with an ordinal of " + randomVal);
+            case 0:
+                return SortBy.SCORE;
+            case 1:
+                return SortBy.FREQUENCY;
+            default:
+                throw new IllegalArgumentException("No sort mode with an ordinal of " + randomVal);
         }
     }
 
     private static StringDistanceImpl randomStringDistance() {
         int randomVal = randomIntBetween(0, 4);
         switch (randomVal) {
-            case 0: return StringDistanceImpl.INTERNAL;
-            case 1: return StringDistanceImpl.DAMERAU_LEVENSHTEIN;
-            case 2: return StringDistanceImpl.LEVENSHTEIN;
-            case 3: return StringDistanceImpl.JARO_WINKLER;
-            case 4: return StringDistanceImpl.NGRAM;
-            default: throw new IllegalArgumentException("No string distance algorithm with an ordinal of " + randomVal);
+            case 0:
+                return StringDistanceImpl.INTERNAL;
+            case 1:
+                return StringDistanceImpl.DAMERAU_LEVENSHTEIN;
+            case 2:
+                return StringDistanceImpl.LEVENSHTEIN;
+            case 3:
+                return StringDistanceImpl.JARO_WINKLER;
+            case 4:
+                return StringDistanceImpl.NGRAM;
+            default:
+                throw new IllegalArgumentException("No string distance algorithm with an ordinal of " + randomVal);
         }
     }
 
@@ -233,7 +246,9 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
         assertEquals(builder.suggestMode().toLucene(), termSuggesterCtx.getDirectSpellCheckerSettings().suggestMode());
         assertEquals(builder.sort(), termSuggesterCtx.getDirectSpellCheckerSettings().sort());
         // distance implementations don't implement equals() and have little to compare, so we only check class
-        assertEquals(builder.stringDistance().toLucene().getClass(),
-                termSuggesterCtx.getDirectSpellCheckerSettings().stringDistance().getClass());
+        assertEquals(
+            builder.stringDistance().toLucene().getClass(),
+            termSuggesterCtx.getDirectSpellCheckerSettings().stringDistance().getClass()
+        );
     }
 }

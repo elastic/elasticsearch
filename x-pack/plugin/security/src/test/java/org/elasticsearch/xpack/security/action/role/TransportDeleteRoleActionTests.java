@@ -35,17 +35,23 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class TransportDeleteRoleActionTests extends ESTestCase {
 
     public void testReservedRole() {
         final String roleName = randomFrom(new ArrayList<>(ReservedRolesStore.names()));
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
-        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, (x) -> null, null, Collections.emptySet());
-        TransportDeleteRoleAction action = new TransportDeleteRoleAction(mock(ActionFilters.class),
-                rolesStore, transportService);
+        TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            (x) -> null,
+            null,
+            Collections.emptySet()
+        );
+        TransportDeleteRoleAction action = new TransportDeleteRoleAction(mock(ActionFilters.class), rolesStore, transportService);
 
         DeleteRoleRequest request = new DeleteRoleRequest();
         request.name(roleName);
@@ -67,16 +73,22 @@ public class TransportDeleteRoleActionTests extends ESTestCase {
         assertThat(responseRef.get(), is(nullValue()));
         assertThat(throwableRef.get(), is(instanceOf(IllegalArgumentException.class)));
         assertThat(throwableRef.get().getMessage(), containsString("is reserved and cannot be deleted"));
-        verifyZeroInteractions(rolesStore);
+        verifyNoMoreInteractions(rolesStore);
     }
 
     public void testValidRole() {
         final String roleName = randomFrom("admin", "dept_a", "restricted");
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
-        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, (x) -> null, null, Collections.emptySet());
-        TransportDeleteRoleAction action = new TransportDeleteRoleAction(mock(ActionFilters.class),
-                rolesStore, transportService);
+        TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            (x) -> null,
+            null,
+            Collections.emptySet()
+        );
+        TransportDeleteRoleAction action = new TransportDeleteRoleAction(mock(ActionFilters.class), rolesStore, transportService);
 
         DeleteRoleRequest request = new DeleteRoleRequest();
         request.name(roleName);
@@ -115,8 +127,15 @@ public class TransportDeleteRoleActionTests extends ESTestCase {
         final Exception e = randomFrom(new ElasticsearchSecurityException(""), new IllegalStateException());
         final String roleName = randomFrom("admin", "dept_a", "restricted");
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
-        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, (x) -> null, null, Collections.emptySet());
+        TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            (x) -> null,
+            null,
+            Collections.emptySet()
+        );
         TransportDeleteRoleAction action = new TransportDeleteRoleAction(mock(ActionFilters.class), rolesStore, transportService);
 
         DeleteRoleRequest request = new DeleteRoleRequest();

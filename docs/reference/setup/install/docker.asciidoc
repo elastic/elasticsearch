@@ -271,7 +271,10 @@ https://docs.docker.com/engine/reference/commandline/dockerd/#default-ulimits[Do
 or explicitly set for the container as shown in the  <<docker-compose-file, sample compose file>>.
 When using `docker run`, you can specify:
 
-  -e "bootstrap.memory_lock=true" --ulimit memlock=-1:-1
+[source,sh]
+----
+-e "bootstrap.memory_lock=true" --ulimit memlock=-1:-1
+----
 
 ===== Randomize published ports
 

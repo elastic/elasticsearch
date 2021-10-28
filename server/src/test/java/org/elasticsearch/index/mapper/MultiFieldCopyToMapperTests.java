@@ -6,7 +6,6 @@
  * Side Public License, v 1.
  */
 
-
 package org.elasticsearch.index.mapper;
 
 import static org.hamcrest.core.IsEqual.equalTo;

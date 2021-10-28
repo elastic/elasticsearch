@@ -24,7 +24,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-
 public class ShortCircuitingRenormalizerTests extends ESTestCase {
 
     private static final String JOB_ID = "foo";
@@ -77,8 +76,10 @@ public class ShortCircuitingRenormalizerTests extends ESTestCase {
 
             // The quantiles immediately before the intermediate wait for idle must have been processed
             int intermediateWaitPoint = TEST_SIZE / 2 - 1;
-            assertTrue(quantilesUsed + " should contain " + intermediateWaitPoint,
-                    quantilesUsed.contains(Integer.toString(intermediateWaitPoint)));
+            assertTrue(
+                quantilesUsed + " should contain " + intermediateWaitPoint,
+                quantilesUsed.contains(Integer.toString(intermediateWaitPoint))
+            );
         } finally {
             threadpool.shutdown();
         }

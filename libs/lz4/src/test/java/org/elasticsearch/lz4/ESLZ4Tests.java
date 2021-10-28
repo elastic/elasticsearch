@@ -267,7 +267,7 @@ public class ESLZ4Tests extends AbstractLZ4TestCase {
     }
 
     public void testNullMatchDec() {
-        // 1 literal, 4 matchs with matchDec=0, 8 literals
+        // 1 literal, 4 matches with matchDec=0, 8 literals
         final byte[] invalid = new byte[] { 16, 42, 0, 0, (byte) 128, 42, 42, 42, 42, 42, 42, 42, 42 };
         // decompression should neither throw an exception nor loop indefinitely
         for (LZ4FastDecompressor decompressor : FAST_DECOMPRESSORS) {
@@ -279,7 +279,7 @@ public class ESLZ4Tests extends AbstractLZ4TestCase {
     }
 
     public void testEndsWithMatch() {
-        // 6 literals, 4 matchs
+        // 6 literals, 4 matches
         final byte[] invalid = new byte[] { 96, 42, 43, 44, 45, 46, 47, 5, 0 };
         final int decompressedLength = 10;
 
@@ -305,7 +305,7 @@ public class ESLZ4Tests extends AbstractLZ4TestCase {
     }
 
     public void testEndsWithLessThan5Literals() {
-        // 6 literals, 4 matchs
+        // 6 literals, 4 matches
         final byte[] invalidBase = new byte[] { 96, 42, 43, 44, 45, 46, 47, 5, 0 };
 
         for (int i = 1; i < 5; ++i) {

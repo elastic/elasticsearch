@@ -224,6 +224,13 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.valuesSourceRegistry = valuesSourceRegistry;
         this.runtimeMappings = runtimeMappings;
         this.allowedFields = allowedFields;
+        if (false == indexSettings.getIndexMetadata().getRoutingPaths().isEmpty()) {
+            for (String r : runtimeMappings.keySet()) {
+                if (Regex.simpleMatch(indexSettings.getIndexMetadata().getRoutingPaths(), r)) {
+                    throw new IllegalArgumentException("runtime fields may not match [routing_path] but [" + r + "] matched");
+                }
+            }
+        }
     }
 
     private void reset() {
@@ -536,6 +543,14 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public final void freezeContext() {
         this.frozen.set(Boolean.TRUE);
+    }
+
+    /**
+     * Marks this context as not cacheable.
+     * This method fails if {@link #freezeContext()} is called before on this context.
+     */
+    public void disableCache() {
+        failIfFrozen();
     }
 
     /**

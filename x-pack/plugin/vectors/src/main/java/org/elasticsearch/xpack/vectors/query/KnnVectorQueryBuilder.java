@@ -15,7 +15,6 @@
 
 package org.elasticsearch.xpack.vectors.query;
 
-import org.apache.lucene.search.KnnVectorQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -54,6 +53,14 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         return fieldName;
     }
 
+    public float[] queryVector() {
+        return queryVector;
+    }
+
+    public int numCands() {
+        return numCands;
+    }
+
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
@@ -87,15 +94,12 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 + DenseVectorFieldMapper.CONTENT_TYPE + "] fields");
         }
 
+        if (context.getNestedParent(fieldType.name()) != null) {
+            throw new IllegalArgumentException("[" + NAME + "] queries are not supported on nested fields");
+        }
+
         DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) fieldType;
-        if (queryVector.length != vectorFieldType.dims()) {
-            throw new IllegalArgumentException("the query vector has a different dimension [" + queryVector.length + "] "
-                + "than the index vectors [" + vectorFieldType.dims() + "]");
-        }
-        if (vectorFieldType.isSearchable() == false) {
-            throw new IllegalArgumentException("[" + "[" + NAME + "] queries are not supported if [index] is disabled");
-        }
-        return new KnnVectorQuery(fieldType.name(), queryVector, numCands);
+        return vectorFieldType.createKnnQuery(queryVector, numCands);
     }
 
     @Override

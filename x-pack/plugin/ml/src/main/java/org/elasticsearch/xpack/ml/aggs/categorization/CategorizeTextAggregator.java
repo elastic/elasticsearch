@@ -40,6 +40,8 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.elasticsearch.xpack.ml.aggs.categorization.CategorizeTextAggregationBuilder.MAX_MAX_MATCHED_TOKENS;
+
 public class CategorizeTextAggregator extends DeferableBucketAggregator {
 
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
@@ -181,7 +183,7 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
 
             private void collectFromSource(int doc, long owningBucketOrd, CategorizationTokenTree categorizer) throws IOException {
                 sourceLookup.setSegmentAndDocument(ctx, doc);
-                Iterator<String> itr = sourceLookup.extractRawValues(sourceFieldName).stream().map(obj -> {
+                Iterator<String> itr = sourceLookup.extractRawValuesWithoutCaching(sourceFieldName).stream().map(obj -> {
                     if (obj == null) {
                         return null;
                     }
@@ -206,8 +208,13 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
                 try {
                     CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
                     ts.reset();
-                    while (ts.incrementToken()) {
-                        tokens.add(bytesRefHash.put(new BytesRef(termAtt)));
+                    int numTokens = 0;
+                    // Only categorize the first MAX_MAX_MATCHED_TOKENS tokens
+                    while (ts.incrementToken() && numTokens < MAX_MAX_MATCHED_TOKENS) {
+                        if (termAtt.length() > 0) {
+                            tokens.add(bytesRefHash.put(new BytesRef(termAtt)));
+                            numTokens++;
+                        }
                     }
                     if (tokens.isEmpty()) {
                         return;

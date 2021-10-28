@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.transform.rest.action;
 
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -38,10 +40,11 @@ public class RestUpgradeTransformsAction extends BaseRestHandler {
         }
 
         boolean dryRun = restRequest.paramAsBoolean(TransformField.DRY_RUN.getPreferredName(), false);
+        TimeValue timeout = restRequest.paramAsTime(TransformField.TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
 
         return channel -> client.execute(
             UpgradeTransformsAction.INSTANCE,
-            new UpgradeTransformsAction.Request(dryRun),
+            new UpgradeTransformsAction.Request(dryRun, timeout),
             new RestToXContentListener<>(channel)
         );
     }

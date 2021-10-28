@@ -40,6 +40,13 @@ import java.io.IOException;
 
 import static java.util.Collections.emptySet;
 
+/**
+ * @deprecated The High Level Rest Client is deprecated in favor of the
+ * <a href="https://www.elastic.co/guide/en/elasticsearch/client/java-api-client/current/introduction.html">
+ * Elasticsearch Java API Client</a>
+ */
+@Deprecated(since = "7.16.0", forRemoval = true)
+@SuppressWarnings("removal")
 public class IndexLifecycleClient {
     private final RestHighLevelClient restHighLevelClient;
 

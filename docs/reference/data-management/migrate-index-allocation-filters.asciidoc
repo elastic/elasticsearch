@@ -21,7 +21,9 @@ deployments, you need to manually update your configuration, ILM policies, and
 indices to switch to node roles. 
 
 [discrete]
+[[cloud-migrate-to-node-roles]]
 === Automatically migrate to node roles on {ess} or {ece}
+
 If you are using node attributes on {ess} or {ece}, you will be
 prompted to switch to node roles when you:
 

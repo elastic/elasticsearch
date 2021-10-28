@@ -74,8 +74,7 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
             new Setting<?>[] {},
             new DeprecationWarning(
                 DeprecationLogger.DeprecationLevel.CRITICAL,
-                "Setting [discovery.ec2.access_key] is set but " + "[discovery.ec2.secret_key] is not, which will be " +
-                    "unsupported in future"
+                "Setting [discovery.ec2.access_key] is set but [discovery.ec2.secret_key] is not, which will be unsupported in future"
             )
         );
     }
@@ -93,8 +92,7 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
             new Setting<?>[] {},
             new DeprecationWarning(
                 DeprecationLogger.DeprecationLevel.CRITICAL,
-                "Setting [discovery.ec2.secret_key] is set but " + "[discovery.ec2.access_key] is not, which will be " +
-                    "unsupported in future"
+                "Setting [discovery.ec2.secret_key] is set but [discovery.ec2.access_key] is not, which will be unsupported in future"
             )
         );
     }

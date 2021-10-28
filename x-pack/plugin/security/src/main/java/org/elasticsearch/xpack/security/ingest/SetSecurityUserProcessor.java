@@ -147,13 +147,11 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                         final Map<String, Object> apiKeyField = existingApiKeyField instanceof Map
                             ? (Map<String, Object>) existingApiKeyField
                             : new HashMap<>();
-                        Object apiKeyName = authentication.getMetadata().get(AuthenticationField.API_KEY_NAME_KEY);
-                        if (apiKeyName != null) {
-                            apiKeyField.put("name", apiKeyName);
+                        if (authentication.getMetadata().containsKey(AuthenticationField.API_KEY_NAME_KEY)) {
+                            apiKeyField.put("name", authentication.getMetadata().get(AuthenticationField.API_KEY_NAME_KEY));
                         }
-                        Object apiKeyId = authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
-                        if (apiKeyId != null) {
-                            apiKeyField.put("id", apiKeyId);
+                        if (authentication.getMetadata().containsKey(AuthenticationField.API_KEY_ID_KEY)) {
+                            apiKeyField.put("id", authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY));
                         }
                         final Map<String, Object> apiKeyMetadata = ApiKeyService.getApiKeyMetadata(authentication);
                         if (false == apiKeyMetadata.isEmpty()) {

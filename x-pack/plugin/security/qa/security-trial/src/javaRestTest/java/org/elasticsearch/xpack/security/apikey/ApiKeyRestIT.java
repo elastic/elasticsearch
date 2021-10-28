@@ -12,10 +12,10 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.security.support.ApiKey;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
 import org.junit.After;
@@ -99,8 +99,10 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
 
     public void testGrantApiKeyForOtherUserWithPassword() throws IOException {
         Request request = new Request("POST", "_security/api_key/grant");
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization",
-            UsernamePasswordToken.basicAuthHeaderValue(SYSTEM_USER, SYSTEM_USER_PASSWORD)));
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(SYSTEM_USER, SYSTEM_USER_PASSWORD))
+        );
         final Map<String, Object> requestBody = Map.ofEntries(
             Map.entry("grant_type", "password"),
             Map.entry("username", END_USER),
@@ -125,8 +127,10 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         final String accessToken = token.v1();
 
         final Request request = new Request("POST", "_security/api_key/grant");
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization",
-            UsernamePasswordToken.basicAuthHeaderValue(SYSTEM_USER, SYSTEM_USER_PASSWORD)));
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(SYSTEM_USER, SYSTEM_USER_PASSWORD))
+        );
         final Map<String, Object> requestBody = Map.ofEntries(
             Map.entry("grant_type", "access_token"),
             Map.entry("access_token", accessToken),
@@ -155,8 +159,10 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
 
     public void testGrantApiKeyWithoutApiKeyNameWillFail() throws IOException {
         Request request = new Request("POST", "_security/api_key/grant");
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization",
-            UsernamePasswordToken.basicAuthHeaderValue(SYSTEM_USER, SYSTEM_USER_PASSWORD)));
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(SYSTEM_USER, SYSTEM_USER_PASSWORD))
+        );
         final Map<String, Object> requestBody = Map.ofEntries(
             Map.entry("grant_type", "password"),
             Map.entry("username", END_USER),
@@ -164,8 +170,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         );
         request.setJsonEntity(XContentTestUtils.convertToXContent(requestBody, XContentType.JSON).utf8ToString());
 
-        final ResponseException e =
-            expectThrows(ResponseException.class, () -> client().performRequest(request));
+        final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
 
         assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString("api key name is required"));

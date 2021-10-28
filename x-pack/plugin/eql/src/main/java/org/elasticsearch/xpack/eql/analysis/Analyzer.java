@@ -48,14 +48,9 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
         Batch optional = new Batch("Optional", Limiter.ONCE, new ResolveOrReplaceOptionalRefs());
 
-        Batch resolution = new Batch("Resolution",
-            new ResolveRefs(),
-            new ResolveFunctions()
-        );
+        Batch resolution = new Batch("Resolution", new ResolveRefs(), new ResolveFunctions());
 
-        Batch cleanup = new Batch("Finish Analysis", Limiter.ONCE,
-            new AddMissingEqualsToBoolField()
-        );
+        Batch cleanup = new Batch("Finish Analysis", Limiter.ONCE, new AddMissingEqualsToBoolField());
 
         return asList(optional, resolution, cleanup);
     }

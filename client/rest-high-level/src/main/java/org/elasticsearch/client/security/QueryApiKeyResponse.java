@@ -53,8 +53,7 @@ public final class QueryApiKeyResponse {
             @SuppressWarnings("unchecked")
             final List<ApiKey> items = (List<ApiKey>) args[2];
             if (count != items.size()) {
-                throw new IllegalArgumentException("count [" + count + "] is not equal to number of items ["
-                    + items.size() + "]");
+                throw new IllegalArgumentException("count [" + count + "] is not equal to number of items [" + items.size() + "]");
             }
             return new QueryApiKeyResponse(total, items);
         }

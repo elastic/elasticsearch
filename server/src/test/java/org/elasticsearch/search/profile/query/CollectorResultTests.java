@@ -10,11 +10,11 @@ package org.elasticsearch.search.profile.query;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -67,65 +67,77 @@ public class CollectorResultTests extends AbstractSerializingTestCase<CollectorR
         CollectorResult result = new CollectorResult("collectorName", "some reason", 123456L, children);
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         result.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\n" +
-            "  \"name\" : \"collectorName\",\n" +
-            "  \"reason\" : \"some reason\",\n" +
-            "  \"time_in_nanos\" : 123456,\n" +
-            "  \"children\" : [\n" +
-            "    {\n" +
-            "      \"name\" : \"child1\",\n" +
-            "      \"reason\" : \"reason1\",\n" +
-            "      \"time_in_nanos\" : 100\n" +
-            "    },\n" +
-            "    {\n" +
-            "      \"name\" : \"child2\",\n" +
-            "      \"reason\" : \"reason1\",\n" +
-            "      \"time_in_nanos\" : 123356\n" +
-            "    }\n" +
-            "  ]\n" +
-          "}", Strings.toString(builder));
+        assertEquals(
+            "{\n"
+                + "  \"name\" : \"collectorName\",\n"
+                + "  \"reason\" : \"some reason\",\n"
+                + "  \"time_in_nanos\" : 123456,\n"
+                + "  \"children\" : [\n"
+                + "    {\n"
+                + "      \"name\" : \"child1\",\n"
+                + "      \"reason\" : \"reason1\",\n"
+                + "      \"time_in_nanos\" : 100\n"
+                + "    },\n"
+                + "    {\n"
+                + "      \"name\" : \"child2\",\n"
+                + "      \"reason\" : \"reason1\",\n"
+                + "      \"time_in_nanos\" : 123356\n"
+                + "    }\n"
+                + "  ]\n"
+                + "}",
+            Strings.toString(builder)
+        );
 
         builder = XContentFactory.jsonBuilder().prettyPrint().humanReadable(true);
         result.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\n" +
-            "  \"name\" : \"collectorName\",\n" +
-            "  \"reason\" : \"some reason\",\n" +
-            "  \"time\" : \"123.4micros\",\n" +
-            "  \"time_in_nanos\" : 123456,\n" +
-            "  \"children\" : [\n" +
-            "    {\n" +
-            "      \"name\" : \"child1\",\n" +
-            "      \"reason\" : \"reason1\",\n" +
-            "      \"time\" : \"100nanos\",\n" +
-            "      \"time_in_nanos\" : 100\n" +
-            "    },\n" +
-            "    {\n" +
-            "      \"name\" : \"child2\",\n" +
-            "      \"reason\" : \"reason1\",\n" +
-            "      \"time\" : \"123.3micros\",\n" +
-            "      \"time_in_nanos\" : 123356\n" +
-            "    }\n" +
-            "  ]\n" +
-          "}", Strings.toString(builder));
+        assertEquals(
+            "{\n"
+                + "  \"name\" : \"collectorName\",\n"
+                + "  \"reason\" : \"some reason\",\n"
+                + "  \"time\" : \"123.4micros\",\n"
+                + "  \"time_in_nanos\" : 123456,\n"
+                + "  \"children\" : [\n"
+                + "    {\n"
+                + "      \"name\" : \"child1\",\n"
+                + "      \"reason\" : \"reason1\",\n"
+                + "      \"time\" : \"100nanos\",\n"
+                + "      \"time_in_nanos\" : 100\n"
+                + "    },\n"
+                + "    {\n"
+                + "      \"name\" : \"child2\",\n"
+                + "      \"reason\" : \"reason1\",\n"
+                + "      \"time\" : \"123.3micros\",\n"
+                + "      \"time_in_nanos\" : 123356\n"
+                + "    }\n"
+                + "  ]\n"
+                + "}",
+            Strings.toString(builder)
+        );
 
         result = new CollectorResult("collectorName", "some reason", 12345678L, Collections.emptyList());
         builder = XContentFactory.jsonBuilder().prettyPrint().humanReadable(true);
         result.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\n" +
-                "  \"name\" : \"collectorName\",\n" +
-                "  \"reason\" : \"some reason\",\n" +
-                "  \"time\" : \"12.3ms\",\n" +
-                "  \"time_in_nanos\" : 12345678\n" +
-              "}", Strings.toString(builder));
+        assertEquals(
+            "{\n"
+                + "  \"name\" : \"collectorName\",\n"
+                + "  \"reason\" : \"some reason\",\n"
+                + "  \"time\" : \"12.3ms\",\n"
+                + "  \"time_in_nanos\" : 12345678\n"
+                + "}",
+            Strings.toString(builder)
+        );
 
         result = new CollectorResult("collectorName", "some reason", 1234567890L, Collections.emptyList());
         builder = XContentFactory.jsonBuilder().prettyPrint().humanReadable(true);
         result.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\n" +
-                "  \"name\" : \"collectorName\",\n" +
-                "  \"reason\" : \"some reason\",\n" +
-                "  \"time\" : \"1.2s\",\n" +
-                "  \"time_in_nanos\" : 1234567890\n" +
-              "}", Strings.toString(builder));
+        assertEquals(
+            "{\n"
+                + "  \"name\" : \"collectorName\",\n"
+                + "  \"reason\" : \"some reason\",\n"
+                + "  \"time\" : \"1.2s\",\n"
+                + "  \"time_in_nanos\" : 1234567890\n"
+                + "}",
+            Strings.toString(builder)
+        );
     }
 }

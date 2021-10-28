@@ -240,12 +240,15 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
         }
 
         @Override
-        protected final RuntimeField createChildRuntimeField(MappingParserContext parserContext,
-                                                        String parent,
-                                                        Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+        protected final RuntimeField createChildRuntimeField(
+            MappingParserContext parserContext,
+            String parent,
+            Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory
+        ) {
             if (script.isConfigured()) {
-                throw new IllegalArgumentException("Cannot use [script] parameter on sub-field [" + name +
-                    "] of composite field [" + parent + "]");
+                throw new IllegalArgumentException(
+                    "Cannot use [script] parameter on sub-field [" + name + "] of composite field [" + parent + "]"
+                );
             }
             String fullName = parent + "." + name;
             return new LeafRuntimeField(

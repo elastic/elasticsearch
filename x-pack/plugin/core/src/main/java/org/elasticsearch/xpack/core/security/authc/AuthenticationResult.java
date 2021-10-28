@@ -52,8 +52,13 @@ public final class AuthenticationResult<T> {
     private final Exception exception;
     private final Map<String, Object> metadata;
 
-    private AuthenticationResult(Status status, @Nullable T value, @Nullable String message, @Nullable Exception exception,
-                                 @Nullable Map<String, Object> metadata) {
+    private AuthenticationResult(
+        Status status,
+        @Nullable T value,
+        @Nullable String message,
+        @Nullable Exception exception,
+        @Nullable Map<String, Object> metadata
+    ) {
         this.status = status;
         this.value = value;
         this.message = message;
@@ -167,12 +172,16 @@ public final class AuthenticationResult<T> {
 
     @Override
     public String toString() {
-        return "AuthenticationResult{" +
-                "status=" + status +
-                ", value=" + value +
-                ", message=" + message +
-                ", exception=" + exception +
-                '}';
+        return "AuthenticationResult{"
+            + "status="
+            + status
+            + ", value="
+            + value
+            + ", message="
+            + message
+            + ", exception="
+            + exception
+            + '}';
     }
 
 }

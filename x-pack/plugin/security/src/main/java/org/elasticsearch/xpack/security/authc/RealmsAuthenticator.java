@@ -46,8 +46,7 @@ class RealmsAuthenticator implements Authenticator {
     private final Cache<String, Realm> lastSuccessfulAuthCache;
     private boolean authenticationTokenExtracted = false;
 
-    RealmsAuthenticator(
-        String nodeName, AtomicLong numInvalidation, Cache<String, Realm> lastSuccessfulAuthCache) {
+    RealmsAuthenticator(String nodeName, AtomicLong numInvalidation, Cache<String, Realm> lastSuccessfulAuthCache) {
         this.nodeName = nodeName;
         this.numInvalidation = numInvalidation;
         this.lastSuccessfulAuthCache = lastSuccessfulAuthCache;
@@ -76,8 +75,9 @@ class RealmsAuthenticator implements Authenticator {
     @Override
     public void authenticate(Context context, ActionListener<AuthenticationResult<Authentication>> listener) {
         if (context.getMostRecentAuthenticationToken() == null) {
-            listener.onFailure(new ElasticsearchSecurityException(
-                "authentication token must present for realms authentication", RestStatus.UNAUTHORIZED));
+            listener.onFailure(
+                new ElasticsearchSecurityException("authentication token must present for realms authentication", RestStatus.UNAUTHORIZED)
+            );
             return;
         }
         assert context.getMostRecentAuthenticationToken() != null : "null token should be handled by fallback authenticator";
@@ -95,10 +95,12 @@ class RealmsAuthenticator implements Authenticator {
             for (Realm realm : context.getDefaultOrderedRealmList()) {
                 final AuthenticationToken token = realm.token(context.getThreadContext());
                 if (token != null) {
-                    logger.trace("Found authentication credentials [{}] for principal [{}] in request [{}]",
+                    logger.trace(
+                        "Found authentication credentials [{}] for principal [{}] in request [{}]",
                         token.getClass().getName(),
                         token.principal(),
-                        context.getRequest());
+                        context.getRequest()
+                    );
                     return token;
                 }
             }
@@ -108,10 +110,11 @@ class RealmsAuthenticator implements Authenticator {
         }
         if (context.getUnlicensedRealms().isEmpty() == false) {
             logger.warn(
-                "No authentication credential could be extracted using realms [{}]." +
-                    " Realms [{}] were skipped because they are not permitted on the current license",
+                "No authentication credential could be extracted using realms [{}]."
+                    + " Realms [{}] were skipped because they are not permitted on the current license",
                 Strings.collectionToCommaDelimitedString(context.getDefaultOrderedRealmList()),
-                Strings.collectionToCommaDelimitedString(context.getUnlicensedRealms()));
+                Strings.collectionToCommaDelimitedString(context.getUnlicensedRealms())
+            );
         }
         return null;
     }
@@ -126,8 +129,7 @@ class RealmsAuthenticator implements Authenticator {
     private void consumeToken(Context context, ActionListener<AuthenticationResult<Authentication>> listener) {
         final AuthenticationToken authenticationToken = context.getMostRecentAuthenticationToken();
         final List<Realm> realmsList = getRealmList(context, authenticationToken.principal());
-        logger.trace("Checking token of type [{}] against [{}] realm(s)",
-            authenticationToken.getClass().getName(), realmsList.size());
+        logger.trace("Checking token of type [{}] against [{}] realm(s)", authenticationToken.getClass().getName(), realmsList.size());
 
         final long startInvalidation = numInvalidation.get();
         final Map<Realm, Tuple<String, Exception>> messages = new LinkedHashMap<>();
@@ -137,17 +139,21 @@ class RealmsAuthenticator implements Authenticator {
 
         final BiConsumer<Realm, ActionListener<User>> realmAuthenticatingConsumer = (realm, userListener) -> {
             if (realm.supports(authenticationToken)) {
-                logger.trace("Trying to authenticate [{}] using realm [{}] with token [{}] ",
+                logger.trace(
+                    "Trying to authenticate [{}] using realm [{}] with token [{}] ",
                     authenticationToken.principal(),
                     realm,
-                    authenticationToken.getClass().getName());
+                    authenticationToken.getClass().getName()
+                );
                 realm.authenticate(authenticationToken, ActionListener.wrap(result -> {
                     assert result != null : "Realm " + realm + " produced a null authentication result";
-                    logger.debug("Authentication of [{}] using realm [{}] with token [{}] was [{}]",
+                    logger.debug(
+                        "Authentication of [{}] using realm [{}] with token [{}] was [{}]",
                         authenticationToken.principal(),
                         realm,
                         authenticationToken.getClass().getSimpleName(),
-                        result);
+                        result
+                    );
                     if (result.getStatus() == AuthenticationResult.Status.SUCCESS) {
                         // user was authenticated, populate the authenticated by information
                         authenticatedByRef.set(new Authentication.RealmRef(realm.name(), realm.type(), nodeName));
@@ -161,15 +167,22 @@ class RealmsAuthenticator implements Authenticator {
                         context.getRequest().realmAuthenticationFailed(authenticationToken, realm.name());
                         if (result.getStatus() == AuthenticationResult.Status.TERMINATE) {
                             if (result.getException() != null) {
-                                logger.info(new ParameterizedMessage("Authentication of [{}] was terminated by realm [{}] - {}",
-                                    authenticationToken.principal(),
-                                    realm.name(),
-                                    result.getMessage()), result.getException());
+                                logger.info(
+                                    new ParameterizedMessage(
+                                        "Authentication of [{}] was terminated by realm [{}] - {}",
+                                        authenticationToken.principal(),
+                                        realm.name(),
+                                        result.getMessage()
+                                    ),
+                                    result.getException()
+                                );
                             } else {
-                                logger.info("Authentication of [{}] was terminated by realm [{}] - {}",
+                                logger.info(
+                                    "Authentication of [{}] was terminated by realm [{}] - {}",
                                     authenticationToken.principal(),
                                     realm.name(),
-                                    result.getMessage());
+                                    result.getMessage()
+                                );
                             }
                             userListener.onFailure(result.getException());
                         } else {
@@ -180,9 +193,14 @@ class RealmsAuthenticator implements Authenticator {
                         }
                     }
                 }, (ex) -> {
-                    logger.warn(new ParameterizedMessage("An error occurred while attempting to authenticate [{}] against realm [{}]",
-                        authenticationToken.principal(),
-                        realm.name()), ex);
+                    logger.warn(
+                        new ParameterizedMessage(
+                            "An error occurred while attempting to authenticate [{}] against realm [{}]",
+                            authenticationToken.principal(),
+                            realm.name()
+                        ),
+                        ex
+                    );
                     userListener.onFailure(ex);
                 }));
             } else {
@@ -191,35 +209,37 @@ class RealmsAuthenticator implements Authenticator {
         };
 
         final IteratingActionListener<User, Realm> authenticatingListener = new IteratingActionListener<>(
-            ContextPreservingActionListener.wrapPreservingContext(ActionListener.wrap(
-                user -> {
-                    if (user == null) {
-                        consumeNullUser(context, messages, listener);
-                    } else {
-                        final AuthenticationResult<User> result = authenticationResultRef.get();
-                        assert result != null : "authentication result must not be null when user is not null";
-                        context.getThreadContext().putTransient(AuthenticationResult.THREAD_CONTEXT_KEY, result);
-                        listener.onResponse(AuthenticationResult.success(
-                            new Authentication(user, authenticatedByRef.get(), null)));
-                    }
-                },
-                e -> {
-                    if (e != null) {
-                        listener.onFailure(context.getRequest().exceptionProcessingRequest(e, authenticationToken));
-                    } else {
-                        listener.onFailure(context.getRequest().authenticationFailed(authenticationToken));
-                    }
-                }), context.getThreadContext()),
-            realmAuthenticatingConsumer, realmsList, context.getThreadContext()
+            ContextPreservingActionListener.wrapPreservingContext(ActionListener.wrap(user -> {
+                if (user == null) {
+                    consumeNullUser(context, messages, listener);
+                } else {
+                    final AuthenticationResult<User> result = authenticationResultRef.get();
+                    assert result != null : "authentication result must not be null when user is not null";
+                    context.getThreadContext().putTransient(AuthenticationResult.THREAD_CONTEXT_KEY, result);
+                    listener.onResponse(AuthenticationResult.success(new Authentication(user, authenticatedByRef.get(), null)));
+                }
+            }, e -> {
+                if (e != null) {
+                    listener.onFailure(context.getRequest().exceptionProcessingRequest(e, authenticationToken));
+                } else {
+                    listener.onFailure(context.getRequest().authenticationFailed(authenticationToken));
+                }
+            }), context.getThreadContext()),
+            realmAuthenticatingConsumer,
+            realmsList,
+            context.getThreadContext()
         );
         try {
             authenticatingListener.run();
         } catch (Exception e) {
             logger.debug(
-                new ParameterizedMessage("Authentication of [{}] with token [{}] failed",
+                new ParameterizedMessage(
+                    "Authentication of [{}] with token [{}] failed",
                     authenticationToken.principal(),
-                    authenticationToken.getClass().getName()),
-                e);
+                    authenticationToken.getClass().getName()
+                ),
+                e
+            );
             listener.onFailure(context.getRequest().exceptionProcessingRequest(e, authenticationToken));
         }
     }
@@ -238,10 +258,12 @@ class RealmsAuthenticator implements Authenticator {
             logger.warn("Authentication to realm {} failed - {}{}", realm.name(), message, cause);
         });
         if (context.getUnlicensedRealms().isEmpty() == false) {
-            logger.warn("Authentication failed using realms [{}]."
+            logger.warn(
+                "Authentication failed using realms [{}]."
                     + " Realms [{}] were skipped because they are not permitted on the current license",
                 Strings.collectionToCommaDelimitedString(context.getDefaultOrderedRealmList()),
-                Strings.collectionToCommaDelimitedString(context.getUnlicensedRealms()));
+                Strings.collectionToCommaDelimitedString(context.getUnlicensedRealms())
+            );
         }
         logger.trace("Failed to authenticate request [{}]", context.getRequest());
         listener.onFailure(context.getRequest().authenticationFailed(context.getMostRecentAuthenticationToken()));
@@ -265,8 +287,11 @@ class RealmsAuthenticator implements Authenticator {
             final long startInvalidationNum = numInvalidation.get();
             lookup.lookup(runAsUsername, ActionListener.wrap(tuple -> {
                 if (tuple == null) {
-                    logger.debug("Cannot find run-as user [{}] for authenticated user [{}]",
-                        runAsUsername, authentication.getUser().principal());
+                    logger.debug(
+                        "Cannot find run-as user [{}] for authenticated user [{}]",
+                        runAsUsername,
+                        authentication.getUser().principal()
+                    );
                     listener.onResponse(null);
                 } else {
                     User foundUser = Objects.requireNonNull(tuple.v1());
@@ -278,16 +303,25 @@ class RealmsAuthenticator implements Authenticator {
                     }
                     logger.trace("Using run-as user [{}] with authenticated user [{}]", foundUser, authentication.getUser().principal());
                     listener.onResponse(
-                        new Tuple<>(tuple.v1(), new Authentication.RealmRef(tuple.v2().name(), tuple.v2().type(), nodeName)));
+                        new Tuple<>(tuple.v1(), new Authentication.RealmRef(tuple.v2().name(), tuple.v2().type(), nodeName))
+                    );
                 }
             }, e -> listener.onFailure(context.getRequest().exceptionProcessingRequest(e, context.getMostRecentAuthenticationToken()))));
         } else if (runAsUsername == null) {
             listener.onResponse(null);
         } else {
             logger.debug("user [{}] attempted to runAs with an empty username", authentication.getUser().principal());
-            listener.onFailure(context.getRequest().runAsDenied(
-                new Authentication(new User(runAsUsername, null, authentication.getUser()), authentication.getAuthenticatedBy(), null),
-                context.getMostRecentAuthenticationToken()));
+            listener.onFailure(
+                context.getRequest()
+                    .runAsDenied(
+                        new Authentication(
+                            new User(runAsUsername, null, authentication.getUser()),
+                            authentication.getAuthenticatedBy(),
+                            null
+                        ),
+                        context.getMostRecentAuthenticationToken()
+                    )
+            );
         }
     }
 

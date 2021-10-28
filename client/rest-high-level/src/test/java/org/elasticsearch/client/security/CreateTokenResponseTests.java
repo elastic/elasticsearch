@@ -10,10 +10,10 @@ package org.elasticsearch.client.security;
 import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -42,10 +42,7 @@ public class CreateTokenResponseTests extends ESTestCase {
 
         final XContentType xContentType = randomFrom(XContentType.values());
         final XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
-        builder.startObject()
-            .field("access_token", accessToken)
-            .field("type", type)
-            .field("expires_in", expiresIn.seconds());
+        builder.startObject().field("access_token", accessToken).field("type", type).field("expires_in", expiresIn.seconds());
         if (refreshToken != null || randomBoolean()) {
             builder.field("refresh_token", refreshToken);
         }

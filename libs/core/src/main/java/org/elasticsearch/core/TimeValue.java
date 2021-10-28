@@ -371,8 +371,9 @@ public class TimeValue implements Comparable<TimeValue> {
             return TimeValue.ZERO;
         } else {
             // Missing units:
-            throw new IllegalArgumentException("failed to parse setting [" + settingName + "] with value [" + sValue +
-                    "] as a time value: unit is missing or unrecognized");
+            throw new IllegalArgumentException(
+                "failed to parse setting [" + settingName + "] with value [" + sValue + "] as a time value: unit is missing or unrecognized"
+            );
         }
     }
 
@@ -382,13 +383,19 @@ public class TimeValue implements Comparable<TimeValue> {
             final long value = Long.parseLong(s);
             if (value < -1) {
                 // -1 is magic, but reject any other negative values
-                throw new IllegalArgumentException("failed to parse setting [" + settingName + "] with value [" + initialInput +
-                    "] as a time value: negative durations are not supported");
+                throw new IllegalArgumentException(
+                    "failed to parse setting ["
+                        + settingName
+                        + "] with value ["
+                        + initialInput
+                        + "] as a time value: negative durations are not supported"
+                );
             }
             return value;
         } catch (final NumberFormatException e) {
             try {
-                @SuppressWarnings("unused") final double ignored = Double.parseDouble(s);
+                @SuppressWarnings("unused")
+                final double ignored = Double.parseDouble(s);
                 throw new IllegalArgumentException("failed to parse [" + initialInput + "], fractional time values are not supported", e);
             } catch (final NumberFormatException ignored) {
                 throw new IllegalArgumentException("failed to parse [" + initialInput + "]", e);

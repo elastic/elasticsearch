@@ -8,9 +8,9 @@
 
 package org.elasticsearch.client.transform.transforms;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -35,9 +35,10 @@ public class TransformIndexerPosition {
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<TransformIndexerPosition, Void> PARSER = new ConstructingObjectParser<>(
-            "transform_indexer_position",
-            true,
-            args -> new TransformIndexerPosition((Map<String, Object>) args[0],(Map<String, Object>) args[1]));
+        "transform_indexer_position",
+        true,
+        args -> new TransformIndexerPosition((Map<String, Object>) args[0], (Map<String, Object>) args[1])
+    );
 
     static {
         PARSER.declareField(optionalConstructorArg(), XContentParser::mapOrdered, INDEXER_POSITION, ValueType.OBJECT);
@@ -69,8 +70,7 @@ public class TransformIndexerPosition {
 
         TransformIndexerPosition that = (TransformIndexerPosition) other;
 
-        return Objects.equals(this.indexerPosition, that.indexerPosition) &&
-            Objects.equals(this.bucketPosition, that.bucketPosition);
+        return Objects.equals(this.indexerPosition, that.indexerPosition) && Objects.equals(this.bucketPosition, that.bucketPosition);
     }
 
     @Override

@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.ml.inference.trainedmodel;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -24,10 +24,11 @@ public class RegressionConfig implements InferenceConfig {
     public static final ParseField RESULTS_FIELD = new ParseField("results_field");
     public static final ParseField NUM_TOP_FEATURE_IMPORTANCE_VALUES = new ParseField("num_top_feature_importance_values");
 
-    private static final ConstructingObjectParser<RegressionConfig, Void> PARSER =
-            new ConstructingObjectParser<>(NAME.getPreferredName(),
-                true,
-                args -> new RegressionConfig((String) args[0], (Integer)args[1]));
+    private static final ConstructingObjectParser<RegressionConfig, Void> PARSER = new ConstructingObjectParser<>(
+        NAME.getPreferredName(),
+        true,
+        args -> new RegressionConfig((String) args[0], (Integer) args[1])
+    );
 
     static {
         PARSER.declareString(optionalConstructorArg(), RESULTS_FIELD);
@@ -80,7 +81,7 @@ public class RegressionConfig implements InferenceConfig {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        RegressionConfig that = (RegressionConfig)o;
+        RegressionConfig that = (RegressionConfig) o;
         return Objects.equals(this.resultsField, that.resultsField)
             && Objects.equals(this.numTopFeatureImportanceValues, that.numTopFeatureImportanceValues);
     }

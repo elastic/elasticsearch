@@ -14,14 +14,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.junit.Before;
 
@@ -45,7 +45,6 @@ public class AsyncSearchResponseTests extends ESTestCase {
         List<NamedWriteableRegistry.Entry> namedWriteables = searchModule.getNamedWriteables();
         namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
     }
-
 
     protected Writeable.Reader<AsyncSearchResponse> instanceReader() {
         return AsyncSearchResponse::new;
@@ -89,18 +88,41 @@ public class AsyncSearchResponseTests extends ESTestCase {
         int rand = randomIntBetween(0, 2);
         switch (rand) {
             case 0:
-                return new AsyncSearchResponse(searchId, randomBoolean(),
-                    randomBoolean(), randomNonNegativeLong(), randomNonNegativeLong());
+                return new AsyncSearchResponse(
+                    searchId,
+                    randomBoolean(),
+                    randomBoolean(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong()
+                );
 
             case 1:
-                return new AsyncSearchResponse(searchId, searchResponse, null,
-                    randomBoolean(), randomBoolean(), randomNonNegativeLong(), randomNonNegativeLong());
+                return new AsyncSearchResponse(
+                    searchId,
+                    searchResponse,
+                    null,
+                    randomBoolean(),
+                    randomBoolean(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong()
+                );
 
             case 2:
-                return new AsyncSearchResponse(searchId, searchResponse,
-                    new ScriptException("messageData", new Exception("causeData"), Arrays.asList("stack1", "stack2"),
-                        "sourceData", "langData"), randomBoolean(), randomBoolean(),
-                    randomNonNegativeLong(), randomNonNegativeLong());
+                return new AsyncSearchResponse(
+                    searchId,
+                    searchResponse,
+                    new ScriptException(
+                        "messageData",
+                        new Exception("causeData"),
+                        Arrays.asList("stack1", "stack2"),
+                        "sourceData",
+                        "langData"
+                    ),
+                    randomBoolean(),
+                    randomBoolean(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong()
+                );
 
             default:
                 throw new AssertionError();
@@ -113,8 +135,16 @@ public class AsyncSearchResponseTests extends ESTestCase {
         int successfulShards = randomIntBetween(0, totalShards);
         int skippedShards = randomIntBetween(0, successfulShards);
         InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
-        return new SearchResponse(internalSearchResponse, null, totalShards,
-            successfulShards, skippedShards, tookInMillis, ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+        return new SearchResponse(
+            internalSearchResponse,
+            null,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY
+        );
     }
 
     static void assertEqualResponses(AsyncSearchResponse expected, AsyncSearchResponse actual) {
@@ -131,31 +161,49 @@ public class AsyncSearchResponseTests extends ESTestCase {
         Date date = new Date();
         AsyncSearchResponse asyncSearchResponse = new AsyncSearchResponse("id", true, true, date.getTime(), date.getTime());
 
-        try ( XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.prettyPrint();
             asyncSearchResponse.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            assertEquals("{\n" +
-                "  \"id\" : \"id\",\n" +
-                "  \"is_partial\" : true,\n" +
-                "  \"is_running\" : true,\n" +
-                "  \"start_time_in_millis\" : " + date.getTime() + ",\n" +
-                "  \"expiration_time_in_millis\" : " + date.getTime() + "\n" +
-                "}", Strings.toString(builder));
+            assertEquals(
+                "{\n"
+                    + "  \"id\" : \"id\",\n"
+                    + "  \"is_partial\" : true,\n"
+                    + "  \"is_running\" : true,\n"
+                    + "  \"start_time_in_millis\" : "
+                    + date.getTime()
+                    + ",\n"
+                    + "  \"expiration_time_in_millis\" : "
+                    + date.getTime()
+                    + "\n"
+                    + "}",
+                Strings.toString(builder)
+            );
         }
 
-        try ( XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             builder.prettyPrint();
             builder.humanReadable(true);
             asyncSearchResponse.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("human", "true")));
-            assertEquals("{\n" +
-                "  \"id\" : \"id\",\n" +
-                "  \"is_partial\" : true,\n" +
-                "  \"is_running\" : true,\n" +
-                "  \"start_time\" : \"" + XContentElasticsearchExtension.DEFAULT_FORMATTER.format(date.toInstant()) + "\",\n" +
-                "  \"start_time_in_millis\" : " + date.getTime() + ",\n" +
-                "  \"expiration_time\" : \"" + XContentElasticsearchExtension.DEFAULT_FORMATTER.format(date.toInstant()) + "\",\n" +
-                "  \"expiration_time_in_millis\" : " + date.getTime() + "\n" +
-                "}", Strings.toString(builder));
+            assertEquals(
+                "{\n"
+                    + "  \"id\" : \"id\",\n"
+                    + "  \"is_partial\" : true,\n"
+                    + "  \"is_running\" : true,\n"
+                    + "  \"start_time\" : \""
+                    + XContentElasticsearchExtension.DEFAULT_FORMATTER.format(date.toInstant())
+                    + "\",\n"
+                    + "  \"start_time_in_millis\" : "
+                    + date.getTime()
+                    + ",\n"
+                    + "  \"expiration_time\" : \""
+                    + XContentElasticsearchExtension.DEFAULT_FORMATTER.format(date.toInstant())
+                    + "\",\n"
+                    + "  \"expiration_time_in_millis\" : "
+                    + date.getTime()
+                    + "\n"
+                    + "}",
+                Strings.toString(builder)
+            );
         }
     }
 }

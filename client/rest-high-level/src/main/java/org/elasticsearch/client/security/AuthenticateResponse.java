@@ -9,12 +9,12 @@
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.security.user.User;
-import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.List;
@@ -56,8 +56,11 @@ public final class AuthenticateResponse implements ToXContentObject {
                 (String) a[3], (String) a[4]), (Boolean) a[5], (RealmInfo) a[6], (RealmInfo) a[7], (String) a[8],
             (Map<String, Object>) a[9], (ApiKeyInfo) a[10]));
     static {
-        final ConstructingObjectParser<RealmInfo, Void> realmInfoParser = new ConstructingObjectParser<>("realm_info", true,
-            a -> new RealmInfo((String) a[0], (String) a[1]));
+        final ConstructingObjectParser<RealmInfo, Void> realmInfoParser = new ConstructingObjectParser<>(
+            "realm_info",
+            true,
+            a -> new RealmInfo((String) a[0], (String) a[1])
+        );
         realmInfoParser.declareString(constructorArg(), REALM_NAME);
         realmInfoParser.declareString(constructorArg(), REALM_TYPE);
 
@@ -89,8 +92,13 @@ public final class AuthenticateResponse implements ToXContentObject {
     @Nullable
     private final ApiKeyInfo apikeyinfo;
 
-    public AuthenticateResponse(User user, boolean enabled, RealmInfo authenticationRealm,
-                                RealmInfo lookupRealm, String authenticationType) {
+    public AuthenticateResponse(
+        User user,
+        boolean enabled,
+        RealmInfo authenticationRealm,
+        RealmInfo lookupRealm,
+        String authenticationType
+    ) {
         this(user, enabled, authenticationRealm, lookupRealm, authenticationType, null);
     }
 
@@ -234,8 +242,7 @@ public final class AuthenticateResponse implements ToXContentObject {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             RealmInfo realmInfo = (RealmInfo) o;
-            return Objects.equals(name, realmInfo.name) &&
-                Objects.equals(type, realmInfo.type);
+            return Objects.equals(name, realmInfo.name) && Objects.equals(type, realmInfo.type);
         }
 
         @Override

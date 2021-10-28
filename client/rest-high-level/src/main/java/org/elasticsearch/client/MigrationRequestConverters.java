@@ -16,12 +16,10 @@ import org.elasticsearch.client.migration.PostFeatureUpgradeRequest;
 
 final class MigrationRequestConverters {
 
-    private MigrationRequestConverters() {
-    }
+    private MigrationRequestConverters() {}
 
     static Request getDeprecationInfo(DeprecationInfoRequest deprecationInfoRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addCommaSeparatedPathParts(deprecationInfoRequest.getIndices())
+        String endpoint = new RequestConverters.EndpointBuilder().addCommaSeparatedPathParts(deprecationInfoRequest.getIndices())
             .addPathPartAsIs("_migration", "deprecations")
             .build();
 
@@ -34,9 +32,7 @@ final class MigrationRequestConverters {
      * @return a {@link Request} with the correct path and HTTP request type
      */
     static Request getFeatureUpgradeStatus(GetFeatureUpgradeStatusRequest getFeatureUpgradeStatusRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_migration", "system_features")
-            .build();
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_migration", "system_features").build();
 
         return new Request(HttpGet.METHOD_NAME, endpoint);
     }
@@ -47,9 +43,7 @@ final class MigrationRequestConverters {
      * @return a {@link Request} with the correct path and HTTP request type
      */
     static Request postFeatureUpgrade(PostFeatureUpgradeRequest postFeatureUpgradeRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_migration", "system_features")
-            .build();
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_migration", "system_features").build();
 
         return new Request(HttpPost.METHOD_NAME, endpoint);
     }

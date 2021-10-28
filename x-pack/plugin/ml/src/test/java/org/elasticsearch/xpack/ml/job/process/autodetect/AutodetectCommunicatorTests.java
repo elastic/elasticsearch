@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEventTests;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -49,13 +49,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
-import static org.mockito.ArgumentMatchers.nullable;
-import static org.mockito.Mockito.doAnswer;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -80,8 +80,13 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         DataLoadParams params = new DataLoadParams(TimeRange.builder().startTime("1").endTime("2").build(), Optional.empty());
         AutodetectProcess process = mockAutodetectProcessWithOutputStream();
         try (AutodetectCommunicator communicator = createAutodetectCommunicator(process, mock(AutodetectResultProcessor.class))) {
-            communicator.writeToJob(new ByteArrayInputStream(new byte[0]), analysisRegistry,
-                    randomFrom(XContentType.values()), params, (dataCounts, e) -> {});
+            communicator.writeToJob(
+                new ByteArrayInputStream(new byte[0]),
+                analysisRegistry,
+                randomFrom(XContentType.values()),
+                params,
+                (dataCounts, e) -> {}
+            );
             verify(process).writeResetBucketsControlMessage(params);
         }
     }
@@ -93,10 +98,10 @@ public class AutodetectCommunicatorTests extends ESTestCase {
 
         DetectionRule updatedRule = new DetectionRule.Builder(RuleScope.builder().exclude("foo", "bar")).build();
         List<JobUpdate.DetectorUpdate> detectorUpdates = Collections.singletonList(
-                new JobUpdate.DetectorUpdate(0, "updated description", Collections.singletonList(updatedRule)));
+            new JobUpdate.DetectorUpdate(0, "updated description", Collections.singletonList(updatedRule))
+        );
 
-        List<ScheduledEvent> events = Collections.singletonList(
-                ScheduledEventTests.createScheduledEvent(randomAlphaOfLength(10)));
+        List<ScheduledEvent> events = Collections.singletonList(ScheduledEventTests.createScheduledEvent(randomAlphaOfLength(10)));
         UpdateProcessMessage.Builder updateProcessMessage = new UpdateProcessMessage.Builder().setDetectorUpdates(detectorUpdates);
         updateProcessMessage.setScheduledEvents(events);
 
@@ -147,8 +152,8 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         AutodetectProcess process = mockAutodetectProcessWithOutputStream();
         AutodetectResultProcessor autodetectResultProcessor = mock(AutodetectResultProcessor.class);
         FlushAcknowledgement flushAcknowledgement = mock(FlushAcknowledgement.class);
-        when(autodetectResultProcessor.waitForFlushAcknowledgement(nullable(String.class), eq(Duration.ofSeconds(1))))
-                .thenReturn(null).thenReturn(flushAcknowledgement);
+        when(autodetectResultProcessor.waitForFlushAcknowledgement(nullable(String.class), eq(Duration.ofSeconds(1)))).thenReturn(null)
+            .thenReturn(flushAcknowledgement);
         FlushJobParams params = FlushJobParams.builder().build();
 
         try (AutodetectCommunicator communicator = createAutodetectCommunicator(process, autodetectResultProcessor)) {
@@ -190,8 +195,12 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         ExecutorService executorService = mock(ExecutorService.class);
 
         AtomicBoolean finishCalled = new AtomicBoolean(false);
-        AutodetectCommunicator communicator = createAutodetectCommunicator(executorService, process, resultProcessor,
-            (e, b) -> finishCalled.set(true));
+        AutodetectCommunicator communicator = createAutodetectCommunicator(
+            executorService,
+            process,
+            resultProcessor,
+            (e, b) -> finishCalled.set(true)
+        );
         boolean awaitCompletion = randomBoolean();
         boolean finish = randomBoolean();
         communicator.killProcess(awaitCompletion, finish);
@@ -229,19 +238,31 @@ public class AutodetectCommunicatorTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private AutodetectCommunicator createAutodetectCommunicator(ExecutorService executorService, AutodetectProcess autodetectProcess,
-                                                                AutodetectResultProcessor autodetectResultProcessor,
-                                                                BiConsumer<Exception, Boolean> finishHandler) throws IOException {
+    private AutodetectCommunicator createAutodetectCommunicator(
+        ExecutorService executorService,
+        AutodetectProcess autodetectProcess,
+        AutodetectResultProcessor autodetectResultProcessor,
+        BiConsumer<Exception, Boolean> finishHandler
+    ) throws IOException {
         DataCountsReporter dataCountsReporter = mock(DataCountsReporter.class);
         doNothing().when(dataCountsReporter).finishReporting();
-        return new AutodetectCommunicator(createJobDetails(), autodetectProcess,
-                stateStreamer, dataCountsReporter, autodetectResultProcessor, finishHandler,
-                new NamedXContentRegistry(Collections.emptyList()), executorService);
+        return new AutodetectCommunicator(
+            createJobDetails(),
+            autodetectProcess,
+            stateStreamer,
+            dataCountsReporter,
+            autodetectResultProcessor,
+            finishHandler,
+            new NamedXContentRegistry(Collections.emptyList()),
+            executorService
+        );
     }
 
     @SuppressWarnings("unchecked")
-    private AutodetectCommunicator createAutodetectCommunicator(AutodetectProcess autodetectProcess,
-                                                                AutodetectResultProcessor autodetectResultProcessor) throws IOException {
+    private AutodetectCommunicator createAutodetectCommunicator(
+        AutodetectProcess autodetectProcess,
+        AutodetectResultProcessor autodetectResultProcessor
+    ) throws IOException {
         ExecutorService executorService = mock(ExecutorService.class);
         doAnswer(invocationOnMock -> {
             Callable<?> runnable = (Callable<?>) invocationOnMock.getArguments()[0];

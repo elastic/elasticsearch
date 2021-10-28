@@ -33,8 +33,11 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
     private final Map<String, DocValuesField> localCacheScriptFieldData = new HashMap<>(4);
 
-    LeafDocLookup(Function<String, MappedFieldType> fieldTypeLookup, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup,
-                  LeafReaderContext reader) {
+    LeafDocLookup(
+        Function<String, MappedFieldType> fieldTypeLookup,
+        Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup,
+        LeafReaderContext reader
+    ) {
         this.fieldTypeLookup = fieldTypeLookup;
         this.fieldDataLookup = fieldDataLookup;
         this.reader = reader;

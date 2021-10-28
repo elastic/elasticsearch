@@ -28,7 +28,8 @@ import java.util.Objects;
  * Request builder for {@link PutPrivilegesRequest}
  */
 public final class PutPrivilegesRequestBuilder extends ActionRequestBuilder<PutPrivilegesRequest, PutPrivilegesResponse>
-    implements WriteRequestBuilder<PutPrivilegesRequestBuilder> {
+    implements
+        WriteRequestBuilder<PutPrivilegesRequestBuilder> {
 
     public PutPrivilegesRequestBuilder(ElasticsearchClient client) {
         super(client, PutPrivilegesAction.INSTANCE, new PutPrivilegesRequest());
@@ -46,13 +47,14 @@ public final class PutPrivilegesRequestBuilder extends ActionRequestBuilder<PutP
      * The value for each application-name, is an object keyed by privilege name.
      * The value for each privilege-name is a privilege object which much match the application and privilege names in which it is nested.
      */
-    public PutPrivilegesRequestBuilder source(BytesReference source, XContentType xContentType)
-        throws IOException {
+    public PutPrivilegesRequestBuilder source(BytesReference source, XContentType xContentType) throws IOException {
         Objects.requireNonNull(xContentType);
         // EMPTY is ok here because we never call namedObject
-        try (InputStream stream = source.streamInput();
-             XContentParser parser = xContentType.xContent()
-                 .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+        try (
+            InputStream stream = source.streamInput();
+            XContentParser parser = xContentType.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+        ) {
             XContentParser.Token token = parser.currentToken();
             if (token == null) {
                 token = parser.nextToken();
@@ -69,8 +71,11 @@ public final class PutPrivilegesRequestBuilder extends ActionRequestBuilder<PutP
 
                 token = parser.nextToken();
                 if (token != XContentParser.Token.START_OBJECT) {
-                    throw new ElasticsearchParseException("expected the value for {} to be an object, but found {} instead",
-                        applicationName, token);
+                    throw new ElasticsearchParseException(
+                        "expected the value for {} to be an object, but found {} instead",
+                        applicationName,
+                        token
+                    );
                 }
 
                 while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
@@ -80,8 +85,11 @@ public final class PutPrivilegesRequestBuilder extends ActionRequestBuilder<PutP
 
                     token = parser.nextToken();
                     if (token != XContentParser.Token.START_OBJECT) {
-                        throw new ElasticsearchParseException("expected the value for {} to be an object, but found {} instead",
-                            applicationName, token);
+                        throw new ElasticsearchParseException(
+                            "expected the value for {} to be an object, but found {} instead",
+                            applicationName,
+                            token
+                        );
                     }
                     privileges.add(parsePrivilege(parser, applicationName, privilegeName));
                 }
@@ -94,12 +102,18 @@ public final class PutPrivilegesRequestBuilder extends ActionRequestBuilder<PutP
     private void checkPrivilegeName(ApplicationPrivilegeDescriptor privilege, String applicationName, String providedName) {
         final String privilegeName = privilege.getName();
         if (Strings.isNullOrEmpty(applicationName) == false && applicationName.equals(privilege.getApplication()) == false) {
-            throw new IllegalArgumentException("privilege application [" + privilege.getApplication()
-                + "] in source does not match the provided application [" + applicationName + "]");
+            throw new IllegalArgumentException(
+                "privilege application ["
+                    + privilege.getApplication()
+                    + "] in source does not match the provided application ["
+                    + applicationName
+                    + "]"
+            );
         }
         if (Strings.isNullOrEmpty(providedName) == false && providedName.equals(privilegeName) == false) {
-            throw new IllegalArgumentException("privilege name [" + privilegeName
-                + "] in source does not match the provided name [" + providedName + "]");
+            throw new IllegalArgumentException(
+                "privilege name [" + privilegeName + "] in source does not match the provided name [" + providedName + "]"
+            );
         }
     }
 }

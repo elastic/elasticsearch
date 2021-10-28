@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.ml.dataframe.stats.common;
 
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -43,7 +43,9 @@ public class MemoryUsageTests extends AbstractXContentTestCase<MemoryUsage> {
 
     public void testToString_GivenNullTimestamp() {
         MemoryUsage memoryUsage = new MemoryUsage(null, 42L, MemoryUsage.Status.OK, null);
-        assertThat(memoryUsage.toString(), equalTo(
-            "MemoryUsage[timestamp=null, peak_usage_bytes=42, status=ok, memory_reestimate_bytes=null]"));
+        assertThat(
+            memoryUsage.toString(),
+            equalTo("MemoryUsage[timestamp=null, peak_usage_bytes=42, status=ok, memory_reestimate_bytes=null]")
+        );
     }
 }

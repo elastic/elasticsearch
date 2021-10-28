@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -23,7 +24,6 @@ import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
@@ -39,8 +39,10 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         client().execute(PutJobAction.INSTANCE, putJobRequest).get();
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId())).get();
         assertBusy(() -> {
-            GetJobsStatsAction.Response statsResponse =
-                    client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request("close-failed-job-1")).actionGet();
+            GetJobsStatsAction.Response statsResponse = client().execute(
+                GetJobsStatsAction.INSTANCE,
+                new GetJobsStatsAction.Request("close-failed-job-1")
+            ).actionGet();
             assertEquals(statsResponse.getResponse().results().get(0).getState(), JobState.OPENED);
         });
 
@@ -48,12 +50,16 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         job = createJob("close-failed-job-2", ByteSizeValue.ofMb(2));
         putJobRequest = new PutJobAction.Request(job);
         client().execute(PutJobAction.INSTANCE, putJobRequest).get();
-        expectThrows(ElasticsearchStatusException.class,
-                () -> client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request("close-failed-job-2")).actionGet());
+        expectThrows(
+            ElasticsearchStatusException.class,
+            () -> client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request("close-failed-job-2")).actionGet()
+        );
 
         // Ensure that the second job didn't even attempt to be opened and we still have 1 job open:
-        GetJobsStatsAction.Response statsResponse =
-                client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request("close-failed-job-2")).actionGet();
+        GetJobsStatsAction.Response statsResponse = client().execute(
+            GetJobsStatsAction.INSTANCE,
+            new GetJobsStatsAction.Request("close-failed-job-2")
+        ).actionGet();
         assertEquals(statsResponse.getResponse().results().get(0).getState(), JobState.CLOSED);
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
@@ -70,31 +76,31 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         internalCluster().ensureAtMostNumDataNodes(0);
         logger.info("[{}] is [{}]", MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), maxNumberOfJobsPerNode);
         for (int i = 0; i < numNodes; i++) {
-            internalCluster().startNode(Settings.builder()
-                .put(MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), maxNumberOfJobsPerNode));
+            internalCluster().startNode(Settings.builder().put(MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), maxNumberOfJobsPerNode));
         }
         logger.info("Started [{}] nodes", numNodes);
         ensureStableCluster(numNodes);
         ensureTemplatesArePresent();
         logger.info("[{}] is [{}]", MachineLearning.MAX_LAZY_ML_NODES.getKey(), maxNumberOfLazyNodes);
         // Set our lazy node number
-        assertTrue(client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setPersistentSettings(
-                Settings.builder()
-                    .put(MachineLearning.MAX_LAZY_ML_NODES.getKey(), maxNumberOfLazyNodes))
-            .get()
-            .isAcknowledged());
+        assertTrue(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put(MachineLearning.MAX_LAZY_ML_NODES.getKey(), maxNumberOfLazyNodes))
+                .get()
+                .isAcknowledged()
+        );
         // create and open first job, which succeeds:
         Job.Builder job = createJob("lazy-node-validation-job-1", ByteSizeValue.ofMb(2));
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
         client().execute(PutJobAction.INSTANCE, putJobRequest).get();
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId())).get();
         assertBusy(() -> {
-            GetJobsStatsAction.Response statsResponse =
-                client().execute(GetJobsStatsAction.INSTANCE,
-                    new GetJobsStatsAction.Request("lazy-node-validation-job-1")).actionGet();
+            GetJobsStatsAction.Response statsResponse = client().execute(
+                GetJobsStatsAction.INSTANCE,
+                new GetJobsStatsAction.Request("lazy-node-validation-job-1")
+            ).actionGet();
             assertEquals(statsResponse.getResponse().results().get(0).getState(), JobState.OPENED);
         });
 
@@ -105,23 +111,24 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId())).get(); // Should return while job is opening
 
         assertBusy(() -> {
-            GetJobsStatsAction.Response statsResponse =
-                client().execute(GetJobsStatsAction.INSTANCE,
-                    new GetJobsStatsAction.Request("lazy-node-validation-job-2")).actionGet();
+            GetJobsStatsAction.Response statsResponse = client().execute(
+                GetJobsStatsAction.INSTANCE,
+                new GetJobsStatsAction.Request("lazy-node-validation-job-2")
+            ).actionGet();
             // Should get to opening state w/o a node
             assertEquals(JobState.OPENING, statsResponse.getResponse().results().get(0).getState());
         });
 
         // Add another Node so we can get allocated
-        internalCluster().startNode(Settings.builder()
-            .put(MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), maxNumberOfJobsPerNode));
-        ensureStableCluster(numNodes+1);
+        internalCluster().startNode(Settings.builder().put(MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), maxNumberOfJobsPerNode));
+        ensureStableCluster(numNodes + 1);
 
         // We should automatically get allocated and opened to new node
         assertBusy(() -> {
-            GetJobsStatsAction.Response statsResponse =
-                client().execute(GetJobsStatsAction.INSTANCE,
-                    new GetJobsStatsAction.Request("lazy-node-validation-job-2")).actionGet();
+            GetJobsStatsAction.Response statsResponse = client().execute(
+                GetJobsStatsAction.INSTANCE,
+                new GetJobsStatsAction.Request("lazy-node-validation-job-2")
+            ).actionGet();
             assertEquals(JobState.OPENED, statsResponse.getResponse().results().get(0).getState());
         });
     }
@@ -145,7 +152,8 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         for (int i = 1; i <= (clusterWideMaxNumberOfJobs + 1); i++) {
             if (i == 2 && testDynamicChange) {
                 ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = new ClusterUpdateSettingsRequest().persistentSettings(
-                        Settings.builder().put(MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), maxNumberOfJobsPerNode).build());
+                    Settings.builder().put(MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), maxNumberOfJobsPerNode).build()
+                );
                 client().execute(ClusterUpdateSettingsAction.INSTANCE, clusterUpdateSettingsRequest).actionGet();
             }
             Job.Builder job = createJob("max-number-of-jobs-limit-job-" + Integer.toString(i), jobModelMemoryLimit);
@@ -156,8 +164,10 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
             try {
                 client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
                 assertBusy(() -> {
-                    GetJobsStatsAction.Response statsResponse =
-                            client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
+                    GetJobsStatsAction.Response statsResponse = client().execute(
+                        GetJobsStatsAction.INSTANCE,
+                        new GetJobsStatsAction.Request(job.getId())
+                    ).actionGet();
                     assertEquals(statsResponse.getResponse().results().get(0).getState(), JobState.OPENED);
                 });
                 logger.info("Opened {}th job", i);
@@ -166,18 +176,36 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
                 IllegalStateException detail = (IllegalStateException) e.getCause();
                 assertNotNull(detail);
                 String detailedMessage = detail.getMessage();
-                assertTrue(detailedMessage,
-                    detailedMessage.startsWith("Could not open job because no suitable nodes were found, allocation explanation"));
+                assertTrue(
+                    detailedMessage,
+                    detailedMessage.startsWith("Could not open job because no suitable nodes were found, allocation explanation")
+                );
                 if (expectMemoryLimitBeforeCountLimit) {
                     int expectedJobsAlreadyOpenOnNode = (i - 1) / numNodes;
-                    assertTrue(detailedMessage,
-                        detailedMessage.endsWith("node has insufficient available memory. Available memory for ML [" +
-                            maxMlMemoryPerNode + "], memory required by existing jobs [" +
-                            (expectedJobsAlreadyOpenOnNode * memoryFootprintPerJob) + "], estimated memory required for this job [" +
-                            memoryFootprintPerJob + "].]"));
+                    assertTrue(
+                        detailedMessage,
+                        detailedMessage.endsWith(
+                            "node has insufficient available memory. Available memory for ML ["
+                                + maxMlMemoryPerNode
+                                + "], memory required by existing jobs ["
+                                + (expectedJobsAlreadyOpenOnNode * memoryFootprintPerJob)
+                                + "], estimated memory required for this job ["
+                                + memoryFootprintPerJob
+                                + "].]"
+                        )
+                    );
                 } else {
-                    assertTrue(detailedMessage, detailedMessage.endsWith("node is full. Number of opened jobs and allocated native " +
-                        "inference processes [" + maxNumberOfJobsPerNode + "], xpack.ml.max_open_jobs [" + maxNumberOfJobsPerNode + "].]"));
+                    assertTrue(
+                        detailedMessage,
+                        detailedMessage.endsWith(
+                            "node is full. Number of opened jobs and allocated native "
+                                + "inference processes ["
+                                + maxNumberOfJobsPerNode
+                                + "], xpack.ml.max_open_jobs ["
+                                + maxNumberOfJobsPerNode
+                                + "].]"
+                        )
+                    );
                 }
                 logger.info("good news everybody --> reached maximum number of allowed opened jobs, after trying to open the {}th job", i);
 
@@ -189,8 +217,13 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
                 client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
                 assertBusy(() -> {
                     for (Client client : clients()) {
-                        PersistentTasksCustomMetadata tasks = client.admin().cluster().prepareState().get().getState()
-                                .getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+                        PersistentTasksCustomMetadata tasks = client.admin()
+                            .cluster()
+                            .prepareState()
+                            .get()
+                            .getState()
+                            .getMetadata()
+                            .custom(PersistentTasksCustomMetadata.TYPE);
                         assertEquals(MlTasks.getJobState(job.getId(), tasks), JobState.OPENED);
                     }
                 });
@@ -205,8 +238,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         internalCluster().ensureAtMostNumDataNodes(0);
         logger.info("[{}] is [{}]", MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), maxNumberOfWorkersPerNode);
         for (int i = 0; i < numNodes; i++) {
-            internalCluster().startNode(Settings.builder()
-                    .put(MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), maxNumberOfWorkersPerNode));
+            internalCluster().startNode(Settings.builder().put(MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), maxNumberOfWorkersPerNode));
         }
         logger.info("Started [{}] nodes", numNodes);
         ensureStableCluster(numNodes);

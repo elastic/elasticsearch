@@ -7,9 +7,9 @@
  */
 package org.elasticsearch.client.ml.dataframe.stats.outlierdetection;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -20,9 +20,11 @@ public class TimingStats implements ToXContentObject {
 
     public static final ParseField ELAPSED_TIME = new ParseField("elapsed_time");
 
-    public static ConstructingObjectParser<TimingStats, Void> PARSER = new ConstructingObjectParser<>("outlier_detection_timing_stats",
+    public static ConstructingObjectParser<TimingStats, Void> PARSER = new ConstructingObjectParser<>(
+        "outlier_detection_timing_stats",
         true,
-        a -> new TimingStats(a[0] == null ? null : TimeValue.timeValueMillis((long) a[0])));
+        a -> new TimingStats(a[0] == null ? null : TimeValue.timeValueMillis((long) a[0]))
+    );
 
     static {
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), ELAPSED_TIME);

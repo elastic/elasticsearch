@@ -27,7 +27,6 @@ import static java.time.temporal.ChronoField.MINUTE_OF_HOUR;
 import static java.time.temporal.ChronoField.NANO_OF_SECOND;
 import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
 
-
 //FIXME: Taken from sql-proto (StringUtils)
 //Ideally it should be shared but the dependencies across projects and and SQL-client make it tricky.
 // Maybe a gradle task would fix that...
@@ -37,29 +36,27 @@ public class DateUtils {
 
     public static final String EMPTY = "";
 
-    public static final DateTimeFormatter ISO_DATE_WITH_NANOS = new DateTimeFormatterBuilder()
-            .parseCaseInsensitive()
-            .append(ISO_LOCAL_DATE)
-            .appendLiteral('T')
-            .appendValue(HOUR_OF_DAY, 2)
-            .appendLiteral(':')
-            .appendValue(MINUTE_OF_HOUR, 2)
-            .appendLiteral(':')
-            .appendValue(SECOND_OF_MINUTE, 2)
-            .appendFraction(NANO_OF_SECOND, 3, 9, true)
-            .appendOffsetId()
-            .toFormatter(Locale.ROOT);
+    public static final DateTimeFormatter ISO_DATE_WITH_NANOS = new DateTimeFormatterBuilder().parseCaseInsensitive()
+        .append(ISO_LOCAL_DATE)
+        .appendLiteral('T')
+        .appendValue(HOUR_OF_DAY, 2)
+        .appendLiteral(':')
+        .appendValue(MINUTE_OF_HOUR, 2)
+        .appendLiteral(':')
+        .appendValue(SECOND_OF_MINUTE, 2)
+        .appendFraction(NANO_OF_SECOND, 3, 9, true)
+        .appendOffsetId()
+        .toFormatter(Locale.ROOT);
 
-    public static final DateTimeFormatter ISO_TIME_WITH_NANOS = new DateTimeFormatterBuilder()
-            .parseCaseInsensitive()
-            .appendValue(HOUR_OF_DAY, 2)
-            .appendLiteral(':')
-            .appendValue(MINUTE_OF_HOUR, 2)
-            .appendLiteral(':')
-            .appendValue(SECOND_OF_MINUTE, 2)
-            .appendFraction(NANO_OF_SECOND, 3, 9, true)
-            .appendOffsetId()
-            .toFormatter(Locale.ROOT);
+    public static final DateTimeFormatter ISO_TIME_WITH_NANOS = new DateTimeFormatterBuilder().parseCaseInsensitive()
+        .appendValue(HOUR_OF_DAY, 2)
+        .appendLiteral(':')
+        .appendValue(MINUTE_OF_HOUR, 2)
+        .appendLiteral(':')
+        .appendValue(SECOND_OF_MINUTE, 2)
+        .appendFraction(NANO_OF_SECOND, 3, 9, true)
+        .appendOffsetId()
+        .toFormatter(Locale.ROOT);
 
     public static final int SECONDS_PER_MINUTE = 60;
     public static final int SECONDS_PER_HOUR = SECONDS_PER_MINUTE * 60;

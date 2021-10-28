@@ -14,10 +14,10 @@ import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.comparators.DocComparator;
 
- /**
-  * A {@link SortField} that first compares the shard index and then uses the document number (_doc)
-  * to tiebreak if the value is the same.
-  **/
+/**
+ * A {@link SortField} that first compares the shard index and then uses the document number (_doc)
+ * to tiebreak if the value is the same.
+ **/
 public class ShardDocSortField extends SortField {
     public static final String NAME = "_shard_doc";
 

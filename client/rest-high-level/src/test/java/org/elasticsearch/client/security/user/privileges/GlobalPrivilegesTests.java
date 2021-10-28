@@ -8,9 +8,9 @@
 
 package org.elasticsearch.client.security.user.privileges;
 
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -46,8 +46,9 @@ public class GlobalPrivilegesTests extends AbstractXContentTestCase<GlobalPrivil
 
     @Override
     protected GlobalPrivileges createTestInstance() {
-        final List<GlobalOperationPrivilege> privilegeList = Arrays
-                .asList(randomArray(1, 4, size -> new GlobalOperationPrivilege[size], () -> buildRandomGlobalScopedPrivilege()));
+        final List<GlobalOperationPrivilege> privilegeList = Arrays.asList(
+            randomArray(1, 4, size -> new GlobalOperationPrivilege[size], () -> buildRandomGlobalScopedPrivilege())
+        );
         return new GlobalPrivileges(privilegeList);
     }
 
@@ -63,8 +64,10 @@ public class GlobalPrivilegesTests extends AbstractXContentTestCase<GlobalPrivil
 
     public void testEmptyOrNullGlobalOperationPrivilege() {
         final Map<String, Object> privilege = randomBoolean() ? null : Collections.emptyMap();
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> new GlobalOperationPrivilege(randomAlphaOfLength(2), randomAlphaOfLength(2), privilege));
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new GlobalOperationPrivilege(randomAlphaOfLength(2), randomAlphaOfLength(2), privilege)
+        );
         assertThat(e.getMessage(), is("privileges cannot be empty or null"));
     }
 
@@ -77,8 +80,11 @@ public class GlobalPrivilegesTests extends AbstractXContentTestCase<GlobalPrivil
     public void testDuplicateGlobalOperationPrivilege() {
         final GlobalOperationPrivilege privilege = buildRandomGlobalScopedPrivilege();
         // duplicate
-        final GlobalOperationPrivilege privilege2 = new GlobalOperationPrivilege(privilege.getCategory(), privilege.getOperation(),
-                new HashMap<>(privilege.getRaw()));
+        final GlobalOperationPrivilege privilege2 = new GlobalOperationPrivilege(
+            privilege.getCategory(),
+            privilege.getOperation(),
+            new HashMap<>(privilege.getRaw())
+        );
         final GlobalPrivileges globalPrivilege = new GlobalPrivileges(Arrays.asList(privilege, privilege2));
         assertThat(globalPrivilege.getPrivileges().size(), is(1));
         assertThat(globalPrivilege.getPrivileges().iterator().next(), is(privilege));
@@ -86,27 +92,37 @@ public class GlobalPrivilegesTests extends AbstractXContentTestCase<GlobalPrivil
 
     public void testSameScopeGlobalOperationPrivilege() {
         final GlobalOperationPrivilege privilege = buildRandomGlobalScopedPrivilege();
-        final GlobalOperationPrivilege sameOperationPrivilege = new GlobalOperationPrivilege(privilege.getCategory(),
-                privilege.getOperation(), buildRandomGlobalScopedPrivilege().getRaw());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> new GlobalPrivileges(Arrays.asList(privilege, sameOperationPrivilege)));
+        final GlobalOperationPrivilege sameOperationPrivilege = new GlobalOperationPrivilege(
+            privilege.getCategory(),
+            privilege.getOperation(),
+            buildRandomGlobalScopedPrivilege().getRaw()
+        );
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new GlobalPrivileges(Arrays.asList(privilege, sameOperationPrivilege))
+        );
         assertThat(e.getMessage(), is("Different privileges for the same category and operation are not permitted"));
     }
 
     public void testEqualsHashCode() {
-        final List<GlobalOperationPrivilege> privilegeList = Arrays
-                .asList(randomArray(1, 4, size -> new GlobalOperationPrivilege[size], () -> buildRandomGlobalScopedPrivilege()));
+        final List<GlobalOperationPrivilege> privilegeList = Arrays.asList(
+            randomArray(1, 4, size -> new GlobalOperationPrivilege[size], () -> buildRandomGlobalScopedPrivilege())
+        );
         GlobalPrivileges globalPrivileges = new GlobalPrivileges(privilegeList);
 
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(globalPrivileges, (original) -> {
-            return new GlobalPrivileges(original.getPrivileges());
-        });
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(globalPrivileges, (original) -> {
-            return new GlobalPrivileges(original.getPrivileges());
-        }, (original) -> {
-            final List<GlobalOperationPrivilege> newList = Arrays
-                    .asList(randomArray(1, 4, size -> new GlobalOperationPrivilege[size], () -> buildRandomGlobalScopedPrivilege()));
-            return new GlobalPrivileges(newList);
-        });
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            globalPrivileges,
+            (original) -> { return new GlobalPrivileges(original.getPrivileges()); }
+        );
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            globalPrivileges,
+            (original) -> { return new GlobalPrivileges(original.getPrivileges()); },
+            (original) -> {
+                final List<GlobalOperationPrivilege> newList = Arrays.asList(
+                    randomArray(1, 4, size -> new GlobalOperationPrivilege[size], () -> buildRandomGlobalScopedPrivilege())
+                );
+                return new GlobalPrivileges(newList);
+            }
+        );
     }
 }

@@ -21,8 +21,10 @@ public class HotThreadsIT extends ESRestTestCase {
         final IndexingIT.Nodes nodes = IndexingIT.buildNodeAndVersions(client());
         assumeFalse("no new node found", nodes.getNewNodes().isEmpty());
         assumeFalse("no bwc node found", nodes.getBWCNodes().isEmpty());
-        assumeTrue("new nodes are higher version than BWC nodes",
-            nodes.getNewNodes().get(0).getVersion().compareTo(nodes.getBWCNodes().get(0).getVersion()) > 0);
+        assumeTrue(
+            "new nodes are higher version than BWC nodes",
+            nodes.getNewNodes().get(0).getVersion().compareTo(nodes.getBWCNodes().get(0).getVersion()) > 0
+        );
         final Request request = new Request("GET", "/_nodes/hot_threads");
         final Response response = client().performRequest(request);
         final String responseString = EntityUtils.toString(response.getEntity());

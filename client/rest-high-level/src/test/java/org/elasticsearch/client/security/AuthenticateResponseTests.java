@@ -9,10 +9,10 @@
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.security.user.User;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -26,21 +26,16 @@ import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 public class AuthenticateResponseTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
-        xContentTester(
-            this::createParser,
-            this::createTestInstance,
-            this::toXContent,
-            AuthenticateResponse::fromXContent)
+        xContentTester(this::createParser, this::createTestInstance, this::toXContent, AuthenticateResponse::fromXContent)
             .supportsUnknownFields(true)
-            //metadata  and token are a series of kv pairs, so we dont want to add random fields here for test equality
+            // metadata and token are a series of kv pairs, so we dont want to add random fields here for test equality
             .randomFieldsExcludeFilter(f -> f.startsWith("metadata") || f.equals("token"))
             .test();
     }
 
     public void testEqualsAndHashCode() {
         final AuthenticateResponse response = createTestInstance();
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(response, this::copy,
-            this::mutate);
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(response, this::copy, this::mutate);
     }
 
     protected AuthenticateResponse createTestInstance() {
@@ -62,10 +57,11 @@ public class AuthenticateResponseTests extends ESTestCase {
         final String email = randomFrom(random(), null, randomAlphaOfLengthBetween(0, 4));
         final boolean enabled = randomBoolean();
         final String authenticationRealmName = randomAlphaOfLength(5);
-        final String authenticationRealmType = randomFrom(
-            "service_account");
-        final AuthenticateResponse.RealmInfo authenticationRealm =
-            new AuthenticateResponse.RealmInfo(authenticationRealmName, authenticationRealmType);
+        final String authenticationRealmType = randomFrom("service_account");
+        final AuthenticateResponse.RealmInfo authenticationRealm = new AuthenticateResponse.RealmInfo(
+            authenticationRealmName,
+            authenticationRealmType
+        );
 
         final AuthenticateResponse.RealmInfo lookupRealm;
         final Map<String, Object> tokenInfo;
@@ -143,8 +139,16 @@ public class AuthenticateResponseTests extends ESTestCase {
                     originalUser.getFullName(), originalUser.getEmail()), response.enabled() == false, response.getAuthenticationRealm(),
                     response.getLookupRealm(), response.getAuthenticationType(), response.getToken(), response.getApiKeyInfo());
             case 7:
-                return new AuthenticateResponse(new User(originalUser.getUsername(), originalUser.getRoles(), originalUser.getMetadata(),
-                    originalUser.getFullName(), originalUser.getEmail()), response.enabled(), response.getAuthenticationRealm(),
+                return new AuthenticateResponse(
+                    new User(
+                        originalUser.getUsername(),
+                        originalUser.getRoles(),
+                        originalUser.getMetadata(),
+                        originalUser.getFullName(),
+                        originalUser.getEmail()
+                    ),
+                    response.enabled(),
+                    response.getAuthenticationRealm(),
                     new AuthenticateResponse.RealmInfo(randomAlphaOfLength(5), randomAlphaOfLength(5)),
                     response.getAuthenticationType(), response.getToken(), response.getApiKeyInfo());
             case 8:
@@ -153,8 +157,16 @@ public class AuthenticateResponseTests extends ESTestCase {
                     new AuthenticateResponse.RealmInfo(randomAlphaOfLength(5), randomAlphaOfLength(5)), response.getLookupRealm(),
                     response.getAuthenticationType(), response.getToken(), response.getApiKeyInfo());
             case 9:
-                return new AuthenticateResponse(new User(originalUser.getUsername(), originalUser.getRoles(), originalUser.getMetadata(),
-                    originalUser.getFullName(), originalUser.getEmail()), response.enabled(), response.getAuthenticationRealm(),
+                return new AuthenticateResponse(
+                    new User(
+                        originalUser.getUsername(),
+                        originalUser.getRoles(),
+                        originalUser.getMetadata(),
+                        originalUser.getFullName(),
+                        originalUser.getEmail()
+                    ),
+                    response.enabled(),
+                    response.getAuthenticationRealm(),
                     response.getLookupRealm(),
                     randomValueOtherThan(response.getAuthenticationType(),
                         () -> randomFrom("realm", "api_key", "token", "anonymous", "internal")), response.getToken(),

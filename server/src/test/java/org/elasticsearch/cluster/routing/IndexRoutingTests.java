@@ -33,29 +33,37 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-public class IndexRoutingTests extends ESTestCase{
+public class IndexRoutingTests extends ESTestCase {
     public void testGenerateShardId() {
-        int[][] possibleValues = new int[][] {
-            {8,4,2}, {20, 10, 2}, {36, 12, 3}, {15,5,1}
-        };
+        int[][] possibleValues = new int[][] { { 8, 4, 2 }, { 20, 10, 2 }, { 36, 12, 3 }, { 15, 5, 1 } };
         for (int i = 0; i < 10; i++) {
             int[] shardSplits = randomFrom(possibleValues);
             assertEquals(shardSplits[0], (shardSplits[0] / shardSplits[1]) * shardSplits[1]);
             assertEquals(shardSplits[1], (shardSplits[1] / shardSplits[2]) * shardSplits[2]);
-            IndexMetadata metadata = IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(shardSplits[0])
-                .numberOfReplicas(1).build();
+            IndexMetadata metadata = IndexMetadata.builder("test")
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(shardSplits[0])
+                .numberOfReplicas(1)
+                .build();
             String term = randomAlphaOfLength(10);
             final int shard = shardIdFromSimple(IndexRouting.fromIndexMetadata(metadata), term, null);
-            IndexMetadata shrunk = IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(shardSplits[1])
+            IndexMetadata shrunk = IndexMetadata.builder("test")
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(shardSplits[1])
                 .numberOfReplicas(1)
-                .setRoutingNumShards(shardSplits[0]).build();
+                .setRoutingNumShards(shardSplits[0])
+                .build();
             int shrunkShard = shardIdFromSimple(IndexRouting.fromIndexMetadata(shrunk), term, null);
 
             Set<ShardId> shardIds = IndexMetadata.selectShrinkShards(shrunkShard, metadata, shrunk.getNumberOfShards());
             assertEquals(1, shardIds.stream().filter((sid) -> sid.id() == shard).count());
 
-            shrunk = IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(shardSplits[2]).numberOfReplicas(1)
-                .setRoutingNumShards(shardSplits[0]).build();
+            shrunk = IndexMetadata.builder("test")
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(shardSplits[2])
+                .numberOfReplicas(1)
+                .setRoutingNumShards(shardSplits[0])
+                .build();
             shrunkShard = shardIdFromSimple(IndexRouting.fromIndexMetadata(shrunk), term, null);
             shardIds = IndexMetadata.selectShrinkShards(shrunkShard, metadata, shrunk.getNumberOfShards());
             assertEquals(Arrays.toString(shardSplits), 1, shardIds.stream().filter((sid) -> sid.id() == shard).count());
@@ -63,28 +71,37 @@ public class IndexRoutingTests extends ESTestCase{
     }
 
     public void testGenerateShardIdSplit() {
-        int[][] possibleValues = new int[][] {
-            {2,4,8}, {2, 10, 20}, {3, 12, 36}, {1,5,15}
-        };
+        int[][] possibleValues = new int[][] { { 2, 4, 8 }, { 2, 10, 20 }, { 3, 12, 36 }, { 1, 5, 15 } };
         for (int i = 0; i < 10; i++) {
             int[] shardSplits = randomFrom(possibleValues);
             assertEquals(shardSplits[0], (shardSplits[0] * shardSplits[1]) / shardSplits[1]);
             assertEquals(shardSplits[1], (shardSplits[1] * shardSplits[2]) / shardSplits[2]);
-            IndexMetadata metadata = IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(shardSplits[0])
-                .numberOfReplicas(1).setRoutingNumShards(shardSplits[2]).build();
+            IndexMetadata metadata = IndexMetadata.builder("test")
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(shardSplits[0])
+                .numberOfReplicas(1)
+                .setRoutingNumShards(shardSplits[2])
+                .build();
             String term = randomAlphaOfLength(10);
             final int shard = shardIdFromSimple(IndexRouting.fromIndexMetadata(metadata), term, null);
-            IndexMetadata split = IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(shardSplits[1])
+            IndexMetadata split = IndexMetadata.builder("test")
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(shardSplits[1])
                 .numberOfReplicas(1)
-                .setRoutingNumShards(shardSplits[2]).build();
+                .setRoutingNumShards(shardSplits[2])
+                .build();
             int shrunkShard = shardIdFromSimple(IndexRouting.fromIndexMetadata(split), term, null);
 
             ShardId shardId = IndexMetadata.selectSplitShard(shrunkShard, metadata, split.getNumberOfShards());
             assertNotNull(shardId);
             assertEquals(shard, shardId.getId());
 
-            split = IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(shardSplits[2]).numberOfReplicas(1)
-                .setRoutingNumShards(shardSplits[2]).build();
+            split = IndexMetadata.builder("test")
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(shardSplits[2])
+                .numberOfReplicas(1)
+                .setRoutingNumShards(shardSplits[2])
+                .build();
             shrunkShard = shardIdFromSimple(IndexRouting.fromIndexMetadata(split), term, null);
             shardId = IndexMetadata.selectSplitShard(shrunkShard, metadata, split.getNumberOfShards());
             assertNotNull(shardId);
@@ -471,13 +488,13 @@ public class IndexRoutingTests extends ESTestCase{
     }
 
     public void testRoutingPathOneTopLevel() throws IOException {
-        int shards = between (2, 1000);
+        int shards = between(2, 1000);
         IndexRouting routing = indexRoutingForPath(shards, "foo");
         assertIndexShard(routing, Map.of("foo", "cat", "bar", "dog"), Math.floorMod(hash(List.of("foo", "cat")), shards));
     }
 
     public void testRoutingPathManyTopLevel() throws IOException {
-        int shards = between (2, 1000);
+        int shards = between(2, 1000);
         IndexRouting routing = indexRoutingForPath(shards, "f*");
         assertIndexShard(
             routing,
@@ -487,7 +504,7 @@ public class IndexRoutingTests extends ESTestCase{
     }
 
     public void testRoutingPathOneSub() throws IOException {
-        int shards = between (2, 1000);
+        int shards = between(2, 1000);
         IndexRouting routing = indexRoutingForPath(shards, "foo.*");
         assertIndexShard(
             routing,
@@ -497,7 +514,7 @@ public class IndexRoutingTests extends ESTestCase{
     }
 
     public void testRoutingPathManySubs() throws IOException {
-        int shards = between (2, 1000);
+        int shards = between(2, 1000);
         IndexRouting routing = indexRoutingForPath(shards, "foo.*,bar.*,baz.*");
         assertIndexShard(
             routing,
@@ -564,7 +581,7 @@ public class IndexRoutingTests extends ESTestCase{
         assertThat(keysAndValues.size() % 2, equalTo(0));
         int hash = 0;
         for (int i = 0; i < keysAndValues.size(); i += 2) {
-            int thisHash =  Murmur3HashFunction.hash(keysAndValues.get(i).toString()) ^ expectedValueHash(keysAndValues.get(i + 1));
+            int thisHash = Murmur3HashFunction.hash(keysAndValues.get(i).toString()) ^ expectedValueHash(keysAndValues.get(i + 1));
             hash = hash * 31 + thisHash;
         }
         return hash;

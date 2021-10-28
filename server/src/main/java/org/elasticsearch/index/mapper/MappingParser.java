@@ -31,10 +31,12 @@ public final class MappingParser {
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers;
     private final Function<String, String> documentTypeResolver;
 
-    MappingParser(Supplier<MappingParserContext> parserContextSupplier,
-                  Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
-                  Supplier<Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersSupplier,
-                  Function<String, String> documentTypeResolver) {
+    MappingParser(
+        Supplier<MappingParserContext> parserContextSupplier,
+        Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
+        Supplier<Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersSupplier,
+        Function<String, String> documentTypeResolver
+    ) {
         this.parserContextSupplier = parserContextSupplier;
         this.metadataMapperParsers = metadataMapperParsers;
         this.metadataMappersSupplier = metadataMappersSupplier;
@@ -114,8 +116,8 @@ public final class MappingParser {
                 }
                 @SuppressWarnings("unchecked")
                 Map<String, Object> fieldNodeMap = (Map<String, Object>) fieldNode;
-                MetadataFieldMapper metadataFieldMapper
-                    = typeParser.parse(fieldName, fieldNodeMap, parserContext).build(MapperBuilderContext.ROOT);
+                MetadataFieldMapper metadataFieldMapper = typeParser.parse(fieldName, fieldNodeMap, parserContext)
+                    .build(MapperBuilderContext.ROOT);
                 metadataMappers.put(metadataFieldMapper.getClass(), metadataFieldMapper);
                 fieldNodeMap.remove("type");
                 checkNoRemainingFields(fieldName, fieldNodeMap);
@@ -146,6 +148,7 @@ public final class MappingParser {
         return new Mapping(
             rootObjectMapperBuilder.build(MapperBuilderContext.ROOT),
             metadataMappers.values().toArray(new MetadataFieldMapper[0]),
-            meta);
+            meta
+        );
     }
 }

@@ -40,8 +40,7 @@ public class NerResultsTests extends InferenceResultsTestCase<NerResults> {
                     randomIntBetween(-1, 5),
                     randomIntBetween(5, 10)
                 )
-                ).limit(numEntities)
-                .collect(Collectors.toList())
+            ).limit(numEntities).collect(Collectors.toList())
         );
     }
 
@@ -49,7 +48,7 @@ public class NerResultsTests extends InferenceResultsTestCase<NerResults> {
     public void testAsMap() {
         NerResults testInstance = createTestInstance();
         Map<String, Object> asMap = testInstance.asMap();
-        List<Map<String, Object>> resultList = (List<Map<String, Object>>)asMap.get(ENTITY_FIELD);
+        List<Map<String, Object>> resultList = (List<Map<String, Object>>) asMap.get(ENTITY_FIELD);
         if (resultList == null) {
             return;
         }
@@ -61,8 +60,8 @@ public class NerResultsTests extends InferenceResultsTestCase<NerResults> {
             assertThat(map.get(NerResults.EntityGroup.CLASS_NAME), equalTo(entity.getClassName()));
             assertThat(map.get("entity"), equalTo(entity.getEntity()));
             assertThat(map.get(NerResults.EntityGroup.CLASS_PROBABILITY), equalTo(entity.getClassProbability()));
-            Integer startPos = (Integer)map.get(NerResults.EntityGroup.START_POS);
-            Integer endPos = (Integer)map.get(NerResults.EntityGroup.END_POS);
+            Integer startPos = (Integer) map.get(NerResults.EntityGroup.START_POS);
+            Integer endPos = (Integer) map.get(NerResults.EntityGroup.END_POS);
             if (startPos != null) {
                 assertThat(startPos, equalTo(entity.getStartPos()));
             }
@@ -92,8 +91,8 @@ public class NerResultsTests extends InferenceResultsTestCase<NerResults> {
                 assertThat(map.get(NerResults.EntityGroup.CLASS_NAME), equalTo(entity.getClassName()));
                 assertThat(map.get("entity"), equalTo(entity.getEntity()));
                 assertThat(map.get(NerResults.EntityGroup.CLASS_PROBABILITY), equalTo(entity.getClassProbability()));
-                Integer startPos = (Integer)map.get(NerResults.EntityGroup.START_POS);
-                Integer endPos = (Integer)map.get(NerResults.EntityGroup.END_POS);
+                Integer startPos = (Integer) map.get(NerResults.EntityGroup.START_POS);
+                Integer endPos = (Integer) map.get(NerResults.EntityGroup.END_POS);
                 if (startPos != null) {
                     assertThat(startPos, equalTo(entity.getStartPos()));
                 }

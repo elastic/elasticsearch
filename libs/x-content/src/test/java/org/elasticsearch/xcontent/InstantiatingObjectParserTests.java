@@ -54,9 +54,7 @@ public class InstantiatingObjectParserTests extends ESTestCase {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             NoAnnotations that = (NoAnnotations) o;
-            return a == that.a &&
-                c == that.c &&
-                Objects.equals(b, that.b);
+            return a == that.a && c == that.c && Objects.equals(b, that.b);
         }
 
         @Override
@@ -91,9 +89,10 @@ public class InstantiatingObjectParserTests extends ESTestCase {
         builder.declareInt(constructorArg(), new ParseField("a"));
         builder.declareString(constructorArg(), new ParseField("b"));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
-        assertThat(e.getMessage(), containsString(
-            "More then one public constructor with 2 arguments found. The use of @ParserConstructor annotation is required"
-        ));
+        assertThat(
+            e.getMessage(),
+            containsString("More then one public constructor with 2 arguments found. The use of @ParserConstructor annotation is required")
+        );
     }
 
     public void testPrivateConstructor() {
@@ -126,8 +125,7 @@ public class InstantiatingObjectParserTests extends ESTestCase {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             LonelyArgument that = (LonelyArgument) o;
-            return a == that.a &&
-                Objects.equals(b, that.b);
+            return a == that.a && Objects.equals(b, that.b);
         }
 
         @Override
@@ -188,9 +186,7 @@ public class InstantiatingObjectParserTests extends ESTestCase {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Annotations that = (Annotations) o;
-            return a == that.a &&
-                c == that.c &&
-                Objects.equals(b, that.b);
+            return a == that.a && c == that.c && Objects.equals(b, that.b);
         }
 
         @Override
@@ -229,12 +225,16 @@ public class InstantiatingObjectParserTests extends ESTestCase {
             }
         }
 
-        InstantiatingObjectParser.Builder<DoubleFieldDeclaration, Void> builder =
-            InstantiatingObjectParser.builder("double_declaration", DoubleFieldDeclaration.class);
+        InstantiatingObjectParser.Builder<DoubleFieldDeclaration, Void> builder = InstantiatingObjectParser.builder(
+            "double_declaration",
+            DoubleFieldDeclaration.class
+        );
         builder.declareInt(constructorArg(), new ParseField("name"));
 
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> builder.declareInt(constructorArg(), new ParseField("name")));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> builder.declareInt(constructorArg(), new ParseField("name"))
+        );
 
         assertThat(exception, instanceOf(IllegalArgumentException.class));
         assertThat(exception.getMessage(), startsWith("Parser already registered for name=[name]"));
@@ -253,7 +253,6 @@ public class InstantiatingObjectParserTests extends ESTestCase {
         public ContextArgument(int a, String b) {
             this(a, b, -1);
         }
-
 
         public ContextArgument(int a, String b, long c) {
             this(null, a, b, c);
@@ -279,9 +278,7 @@ public class InstantiatingObjectParserTests extends ESTestCase {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             ContextArgument that = (ContextArgument) o;
-            return a == that.a &&
-                c == that.c &&
-                Objects.equals(b, that.b);
+            return a == that.a && c == that.c && Objects.equals(b, that.b);
         }
 
         @Override

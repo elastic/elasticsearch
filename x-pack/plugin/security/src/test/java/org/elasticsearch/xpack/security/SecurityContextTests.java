@@ -43,9 +43,7 @@ public class SecurityContextTests extends ESTestCase {
 
     @Before
     public void buildSecurityContext() throws IOException {
-        settings = Settings.builder()
-                .put("path.home", createTempDir())
-                .build();
+        settings = Settings.builder().put("path.home", createTempDir()).build();
         threadContext = new ThreadContext(settings);
         securityContext = new SecurityContext(settings, threadContext);
     }
@@ -80,8 +78,10 @@ public class SecurityContextTests extends ESTestCase {
         assertEquals(user, securityContext.getUser());
         assertEquals(AuthenticationType.INTERNAL, securityContext.getAuthentication().getAuthenticationType());
 
-        IllegalStateException e = expectThrows(IllegalStateException.class,
-                () -> securityContext.setUser(randomFrom(user, SystemUser.INSTANCE), Version.CURRENT));
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> securityContext.setUser(randomFrom(user, SystemUser.INSTANCE), Version.CURRENT)
+        );
         assertEquals("authentication ([_xpack_security_authentication]) is already present in the context", e.getMessage());
     }
 
@@ -120,8 +120,10 @@ public class SecurityContextTests extends ESTestCase {
         final Authentication original = new Authentication(user, authBy, authBy);
         original.writeToContext(threadContext);
         final Map<String, String> requestHeaders = Map.of(
-            AuthenticationField.PRIVILEGE_CATEGORY_KEY, randomAlphaOfLengthBetween(3, 10),
-            randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)
+            AuthenticationField.PRIVILEGE_CATEGORY_KEY,
+            randomAlphaOfLengthBetween(3, 10),
+            randomAlphaOfLengthBetween(3, 8),
+            randomAlphaOfLengthBetween(3, 8)
         );
         threadContext.putHeader(requestHeaders);
 

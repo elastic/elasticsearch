@@ -38,7 +38,8 @@ public class CacheInvalidatorRegistryTests extends ESTestCase {
         cacheInvalidatorRegistry.registerCacheInvalidator("service1", mock(CacheInvalidator.class));
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> cacheInvalidatorRegistry.registerCacheInvalidator("service1", mock(CacheInvalidator.class)));
+            () -> cacheInvalidatorRegistry.registerCacheInvalidator("service1", mock(CacheInvalidator.class))
+        );
         assertThat(e.getMessage(), containsString("already has an entry with name: [service1]"));
     }
 
@@ -54,8 +55,17 @@ public class CacheInvalidatorRegistryTests extends ESTestCase {
 
         final SecurityIndexManager.State previousState = SecurityIndexManager.State.UNRECOVERED_STATE;
         final SecurityIndexManager.State currentState = new SecurityIndexManager.State(
-            Instant.now(), true, true, true, Version.CURRENT,
-            ".security", ClusterHealthStatus.GREEN, IndexMetadata.State.OPEN, null, "my_uuid");
+            Instant.now(),
+            true,
+            true,
+            true,
+            Version.CURRENT,
+            ".security",
+            ClusterHealthStatus.GREEN,
+            IndexMetadata.State.OPEN,
+            null,
+            "my_uuid"
+        );
 
         cacheInvalidatorRegistry.onSecurityIndexStateChange(previousState, currentState);
         verify(invalidator1).invalidateAll();
@@ -74,9 +84,10 @@ public class CacheInvalidatorRegistryTests extends ESTestCase {
         verify(invalidator2).invalidate(List.of("k1", "k2"));
 
         // Trying to invalidate entries from a non-existing cache will throw error
-        final IllegalArgumentException e =
-            expectThrows(IllegalArgumentException.class,
-                () -> cacheInvalidatorRegistry.invalidateByKey("non-exist", List.of("k1", "k2")));
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> cacheInvalidatorRegistry.invalidateByKey("non-exist", List.of("k1", "k2"))
+        );
         assertThat(e.getMessage(), containsString("No cache named [non-exist] is found"));
     }
 
@@ -91,9 +102,10 @@ public class CacheInvalidatorRegistryTests extends ESTestCase {
         verify(invalidator2, never()).invalidateAll();
 
         // Trying to invalidate entries from a non-existing cache will throw error
-        final IllegalArgumentException e =
-            expectThrows(IllegalArgumentException.class,
-                () -> cacheInvalidatorRegistry.invalidateCache("non-exist"));
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> cacheInvalidatorRegistry.invalidateCache("non-exist")
+        );
         assertThat(e.getMessage(), containsString("No cache named [non-exist] is found"));
     }
 
@@ -103,18 +115,24 @@ public class CacheInvalidatorRegistryTests extends ESTestCase {
         final CacheInvalidator invalidator2 = mock(CacheInvalidator.class);
         cacheInvalidatorRegistry.registerCacheInvalidator("cache2", invalidator2);
 
-        final NullPointerException e1 =
-            expectThrows(NullPointerException.class, () -> cacheInvalidatorRegistry.registerAlias(null, Set.of()));
+        final NullPointerException e1 = expectThrows(
+            NullPointerException.class,
+            () -> cacheInvalidatorRegistry.registerAlias(null, Set.of())
+        );
         assertThat(e1.getMessage(), containsString("cache alias cannot be null"));
 
-        final IllegalArgumentException e2 =
-            expectThrows(IllegalArgumentException.class, () -> cacheInvalidatorRegistry.registerAlias("alias1", Set.of()));
+        final IllegalArgumentException e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> cacheInvalidatorRegistry.registerAlias("alias1", Set.of())
+        );
         assertThat(e2.getMessage(), containsString("cache names cannot be empty for aliasing"));
 
         cacheInvalidatorRegistry.registerAlias("alias1", randomFrom(Set.of("cache1"), Set.of("cache1", "cache2")));
 
-        final IllegalArgumentException e3 =
-            expectThrows(IllegalArgumentException.class, () -> cacheInvalidatorRegistry.registerAlias("alias1", Set.of("cache1")));
+        final IllegalArgumentException e3 = expectThrows(
+            IllegalArgumentException.class,
+            () -> cacheInvalidatorRegistry.registerAlias("alias1", Set.of("cache1"))
+        );
         assertThat(e3.getMessage(), containsString("cache alias already exists"));
 
         // validation should pass
@@ -125,8 +143,7 @@ public class CacheInvalidatorRegistryTests extends ESTestCase {
         final CacheInvalidator invalidator1 = mock(CacheInvalidator.class);
         cacheInvalidatorRegistry.registerCacheInvalidator("cache1", invalidator1);
         cacheInvalidatorRegistry.registerAlias("cache1", Set.of("cache1"));
-        final IllegalStateException e =
-            expectThrows(IllegalStateException.class, () -> cacheInvalidatorRegistry.validate());
+        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> cacheInvalidatorRegistry.validate());
         assertThat(e.getMessage(), containsString("cache alias cannot clash with cache name"));
     }
 
@@ -134,8 +151,7 @@ public class CacheInvalidatorRegistryTests extends ESTestCase {
         final CacheInvalidator invalidator1 = mock(CacheInvalidator.class);
         cacheInvalidatorRegistry.registerCacheInvalidator("cache1", invalidator1);
         cacheInvalidatorRegistry.registerAlias("alias1", Set.of("cache1", "cache2"));
-        final IllegalStateException e =
-            expectThrows(IllegalStateException.class, () -> cacheInvalidatorRegistry.validate());
+        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> cacheInvalidatorRegistry.validate());
         assertThat(e.getMessage(), containsString("cache names not found: [cache2]"));
     }
 }

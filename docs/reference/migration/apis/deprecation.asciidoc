@@ -47,13 +47,11 @@ You can use the following settings to control the behavior of the deprecation in
 [[skip_deprecated_settings]]
 NOTE: This setting is designed for indirect use by {ess-trial}[{ess}], {ece-ref}[{ece}], and {eck-ref}[{eck}].
 Direct use is not supported.
-
 // tag::skip_deprecated_settings-tag[]
 `deprecation.skip_deprecated_settings`
 (<<dynamic-cluster-setting,Dynamic>>)
 Defaults to an empty list. Set to a list of setting names to be ignored by the deprecation info API. Any
 deprecations related to settings in this list will not be returned by the API. Simple wildcard matching is supported.
-
 // end::skip_deprecated_settings-tag[]
 
 [[migration-api-example]]

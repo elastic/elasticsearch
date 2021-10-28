@@ -58,26 +58,20 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
         Map<ShardId, MultiTermVectorsShardRequest> shardRequests = new HashMap<>();
         for (int i = 0; i < request.requests.size(); i++) {
             TermVectorsRequest termVectorsRequest = request.requests.get(i);
-            String concreteSingleIndex;
+            ShardId shardId;
             try {
                 termVectorsRequest.routing(
                     clusterState.metadata().resolveIndexRouting(termVectorsRequest.routing(), termVectorsRequest.index())
                 );
-                concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, termVectorsRequest).getName();
-                if (termVectorsRequest.routing() == null && clusterState.getMetadata().routingRequired(concreteSingleIndex)) {
-                    responses.set(
-                        i,
-                        new MultiTermVectorsItemResponse(
-                            null,
-                            new MultiTermVectorsResponse.Failure(
-                                concreteSingleIndex,
-                                termVectorsRequest.id(),
-                                new RoutingMissingException(concreteSingleIndex, termVectorsRequest.id())
-                            )
-                        )
-                    );
-                    continue;
-                }
+                String concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, termVectorsRequest).getName();
+                shardId = clusterService.operationRouting()
+                    .shardId(clusterState, concreteSingleIndex, termVectorsRequest.id(), termVectorsRequest.routing());
+            } catch (RoutingMissingException e) {
+                responses.set(
+                    i,
+                    new MultiTermVectorsItemResponse(null, new MultiTermVectorsResponse.Failure(e.getIndex().getName(), e.getId(), e))
+                );
+                continue;
             } catch (Exception e) {
                 responses.set(
                     i,
@@ -89,8 +83,6 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
                 continue;
             }
 
-            ShardId shardId = clusterService.operationRouting()
-                .shardId(clusterState, concreteSingleIndex, termVectorsRequest.id(), termVectorsRequest.routing());
             MultiTermVectorsShardRequest shardRequest = shardRequests.get(shardId);
             if (shardRequest == null) {
                 shardRequest = new MultiTermVectorsShardRequest(shardId.getIndexName(), shardId.id());

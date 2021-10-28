@@ -136,7 +136,7 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
 
         PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
 
-        Mockito.verifyZeroInteractions(client);
+        Mockito.verifyNoMoreInteractions(client);
     }
 
     public final void testNoShardFollowTasksForManagedIndex() throws Exception {
@@ -159,7 +159,7 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
 
         PlainActionFuture.<Void, Exception>get(f -> step.performAction(managedIndex, clusterState, null, f));
 
-        Mockito.verifyZeroInteractions(client);
+        Mockito.verifyNoMoreInteractions(client);
     }
 
     private static ClusterState setupClusterStateWithFollowingIndex(IndexMetadata followerIndex) {

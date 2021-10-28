@@ -316,7 +316,10 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
     public void testApiKeyPopulation() throws Exception {
         User user = new User(randomAlphaOfLengthBetween(4, 12), null, null);
         Authentication.RealmRef realmRef = new Authentication.RealmRef(
-            AuthenticationField.API_KEY_REALM_NAME, AuthenticationField.API_KEY_REALM_TYPE, "_node_name");
+            AuthenticationField.API_KEY_REALM_NAME,
+            AuthenticationField.API_KEY_REALM_TYPE,
+            "_node_name"
+        );
 
         final Map<String, Object> authMetadata = new HashMap<>();
         authMetadata.put(AuthenticationField.API_KEY_ID_KEY, "api_key_id");
@@ -325,8 +328,10 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         authMetadata.put(AuthenticationField.API_KEY_CREATOR_REALM_TYPE, "creator_realm_type");
         final Map<String, Object> apiKeyMetadata = ApiKeyTests.randomMetadata();
         if (apiKeyMetadata != null) {
-            authMetadata.put(AuthenticationField.API_KEY_METADATA_KEY,
-                XContentTestUtils.convertToXContent(apiKeyMetadata, XContentType.JSON));
+            authMetadata.put(
+                AuthenticationField.API_KEY_METADATA_KEY,
+                XContentTestUtils.convertToXContent(apiKeyMetadata, XContentType.JSON)
+            );
         }
 
         Authentication auth = new Authentication(user, realmRef, null, Version.CURRENT, AuthenticationType.API_KEY, authMetadata);
@@ -363,7 +368,10 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
     public void testWillNotOverwriteExistingApiKeyAndRealm() throws Exception {
         User user = new User(randomAlphaOfLengthBetween(4, 12), null, null);
         Authentication.RealmRef realmRef = new Authentication.RealmRef(
-            AuthenticationField.API_KEY_REALM_NAME, AuthenticationField.API_KEY_REALM_TYPE, "_node_name");
+            AuthenticationField.API_KEY_REALM_NAME,
+            AuthenticationField.API_KEY_REALM_TYPE,
+            "_node_name"
+        );
 
         final Map<String, Object> authMetadata = new HashMap<>();
         authMetadata.put(AuthenticationField.API_KEY_ID_KEY, "api_key_id");
@@ -372,8 +380,10 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         authMetadata.put(AuthenticationField.API_KEY_CREATOR_REALM_TYPE, "creator_realm_type");
         final Map<String, Object> apiKeyMetadata = ApiKeyTests.randomMetadata();
         if (apiKeyMetadata != null) {
-            authMetadata.put(AuthenticationField.API_KEY_METADATA_KEY,
-                XContentTestUtils.convertToXContent(apiKeyMetadata, XContentType.JSON));
+            authMetadata.put(
+                AuthenticationField.API_KEY_METADATA_KEY,
+                XContentTestUtils.convertToXContent(apiKeyMetadata, XContentType.JSON)
+            );
         }
 
         Authentication auth = new Authentication(user, realmRef, null, Version.CURRENT, AuthenticationType.API_KEY, authMetadata);

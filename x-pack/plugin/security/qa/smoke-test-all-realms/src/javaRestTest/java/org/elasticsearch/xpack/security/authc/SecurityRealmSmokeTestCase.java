@@ -106,7 +106,7 @@ public abstract class SecurityRealmSmokeTestCase extends ESRestTestCase {
 
     protected void assertNoApiKeyInfo(Map<String, Object> authenticateResponse, AuthenticationType type) {
         // If authentication type is API_KEY, authentication.api_key={"id":"abc123","name":"my-api-key"}. No encoded, api_key, or metadata.
-        // If authentication type is other,   authentication.api_key not present.
+        // If authentication type is other, authentication.api_key not present.
         assertThat(authenticateResponse, not(hasKey("api_key")));
     }
 

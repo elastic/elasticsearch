@@ -29,8 +29,8 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.emptyString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.instanceOf;
@@ -66,7 +66,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         invalidateApiKeysForUser(END_USER);
     }
 
-    @SuppressWarnings({"unchecked"})
+    @SuppressWarnings({ "unchecked" })
     public void testAuthenticateResponseApiKey() throws IOException {
         final String expectedApiKeyName = "my-api-key-name";
         final Map<String, String> expectedApiKeyMetadata = Map.of("not", "returned");
@@ -85,15 +85,16 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertThat(actualApiKeyEncoded, not(emptyString()));
 
         final Request authenticateRequest = new Request("GET", "_security/_authenticate");
-        authenticateRequest.setOptions(authenticateRequest.getOptions().toBuilder().addHeader(
-            "Authorization", "ApiKey " + actualApiKeyEncoded));
+        authenticateRequest.setOptions(
+            authenticateRequest.getOptions().toBuilder().addHeader("Authorization", "ApiKey " + actualApiKeyEncoded)
+        );
 
         final Response authenticateResponse = client().performRequest(authenticateRequest);
         assertOK(authenticateResponse);
         final Map<String, Object> authenticate = responseAsMap(authenticateResponse); // keys: username, roles, full_name, etc
 
         // If authentication type is API_KEY, authentication.api_key={"id":"abc123","name":"my-api-key"}. No encoded, api_key, or metadata.
-        // If authentication type is other,   authentication.api_key not present.
+        // If authentication type is other, authentication.api_key not present.
         assertThat(authenticate, hasEntry("api_key", Map.of("id", actualApiKeyId, "name", expectedApiKeyName)));
     }
 

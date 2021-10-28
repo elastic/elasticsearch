@@ -1311,11 +1311,12 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         // accessGranted
-        Authentication authentication = randomBoolean() ? createAuthentication(user, filteredRealm) :
-                createApiKeyAuthentication(apiKeyService, createAuthentication(user, filteredRealm));
-        auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "_action", request, authzInfo(new String[]{"role1"}));
-        if (authentication.getAuthenticationType() == Authentication.AuthenticationType.API_KEY &&
-            false == authentication.getMetadata().containsKey(AuthenticationField.API_KEY_CREATOR_REALM_NAME)) {
+        Authentication authentication = randomBoolean()
+            ? createAuthentication(user, filteredRealm)
+            : createApiKeyAuthentication(apiKeyService, createAuthentication(user, filteredRealm));
+        auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "_action", request, authzInfo(new String[] { "role1" }));
+        if (authentication.getAuthenticationType() == Authentication.AuthenticationType.API_KEY
+            && false == authentication.getMetadata().containsKey(AuthenticationField.API_KEY_CREATOR_REALM_NAME)) {
             if (filterMissingRealm) {
                 assertThat("AccessGranted message: not filtered out by the missing realm filter", logOutput.size(), is(0));
             } else {
@@ -1327,11 +1328,12 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         logOutput.clear();
         threadContext.stashContext();
 
-        authentication = randomBoolean() ? createAuthentication(user, unfilteredRealm) :
-                createApiKeyAuthentication(apiKeyService, createAuthentication(user, unfilteredRealm));
-        auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "_action", request, authzInfo(new String[]{"role1"}));
-        if (authentication.getAuthenticationType() == Authentication.AuthenticationType.API_KEY &&
-            false == authentication.getMetadata().containsKey(AuthenticationField.API_KEY_CREATOR_REALM_NAME)) {
+        authentication = randomBoolean()
+            ? createAuthentication(user, unfilteredRealm)
+            : createApiKeyAuthentication(apiKeyService, createAuthentication(user, unfilteredRealm));
+        auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "_action", request, authzInfo(new String[] { "role1" }));
+        if (authentication.getAuthenticationType() == Authentication.AuthenticationType.API_KEY
+            && false == authentication.getMetadata().containsKey(AuthenticationField.API_KEY_CREATOR_REALM_NAME)) {
             if (filterMissingRealm) {
                 assertThat("AccessGranted message: not filtered out by the missing realm filter", logOutput.size(), is(0));
             } else {
@@ -1365,11 +1367,12 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         logOutput.clear();
         threadContext.stashContext();
 
-        authentication = randomBoolean() ? createAuthentication(user, filteredRealm) :
-                createApiKeyAuthentication(apiKeyService, createAuthentication(user, filteredRealm));
-        auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "internal:_action", request, authzInfo(new String[]{"role1"}));
-        if (authentication.getAuthenticationType() == Authentication.AuthenticationType.API_KEY &&
-            false == authentication.getMetadata().containsKey(AuthenticationField.API_KEY_CREATOR_REALM_NAME)) {
+        authentication = randomBoolean()
+            ? createAuthentication(user, filteredRealm)
+            : createApiKeyAuthentication(apiKeyService, createAuthentication(user, filteredRealm));
+        auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "internal:_action", request, authzInfo(new String[] { "role1" }));
+        if (authentication.getAuthenticationType() == Authentication.AuthenticationType.API_KEY
+            && false == authentication.getMetadata().containsKey(AuthenticationField.API_KEY_CREATOR_REALM_NAME)) {
             if (filterMissingRealm) {
                 assertThat("AccessGranted internal message: not filtered out by the missing realm filter", logOutput.size(), is(0));
             } else {
@@ -1385,8 +1388,8 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
             ? createAuthentication(user, unfilteredRealm)
             : createApiKeyAuthentication(apiKeyService, createAuthentication(user, unfilteredRealm));
         auditTrail.accessGranted(randomAlphaOfLength(8), authentication, "internal:_action", request, authzInfo(new String[] { "role1" }));
-        if (authentication.getAuthenticationType() == Authentication.AuthenticationType.API_KEY &&
-            false == authentication.getMetadata().containsKey(AuthenticationField.API_KEY_CREATOR_REALM_NAME)) {
+        if (authentication.getAuthenticationType() == Authentication.AuthenticationType.API_KEY
+            && false == authentication.getMetadata().containsKey(AuthenticationField.API_KEY_CREATOR_REALM_NAME)) {
             if (filterMissingRealm) {
                 assertThat("AccessGranted internal message: not filtered out by the missing realm filter", logOutput.size(), is(0));
             } else {
@@ -1399,11 +1402,12 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         threadContext.stashContext();
 
         // accessDenied
-        authentication = randomBoolean() ? createAuthentication(user, filteredRealm) :
-                createApiKeyAuthentication(apiKeyService, createAuthentication(user, filteredRealm));
-        auditTrail.accessDenied(randomAlphaOfLength(8), authentication, "_action", request, authzInfo(new String[]{"role1"}));
-        if (authentication.getAuthenticationType() == Authentication.AuthenticationType.API_KEY &&
-            false == authentication.getMetadata().containsKey(AuthenticationField.API_KEY_CREATOR_REALM_NAME)) {
+        authentication = randomBoolean()
+            ? createAuthentication(user, filteredRealm)
+            : createApiKeyAuthentication(apiKeyService, createAuthentication(user, filteredRealm));
+        auditTrail.accessDenied(randomAlphaOfLength(8), authentication, "_action", request, authzInfo(new String[] { "role1" }));
+        if (authentication.getAuthenticationType() == Authentication.AuthenticationType.API_KEY
+            && false == authentication.getMetadata().containsKey(AuthenticationField.API_KEY_CREATOR_REALM_NAME)) {
             if (filterMissingRealm) {
                 assertThat("AccessDenied message: not filtered out by the missing realm filter", logOutput.size(), is(0));
             } else {
@@ -1415,11 +1419,12 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         logOutput.clear();
         threadContext.stashContext();
 
-        authentication = randomBoolean() ? createAuthentication(user, unfilteredRealm) :
-                createApiKeyAuthentication(apiKeyService, createAuthentication(user, unfilteredRealm));
-        auditTrail.accessDenied(randomAlphaOfLength(8), authentication, "_action", request, authzInfo(new String[]{"role1"}));
-        if (authentication.getAuthenticationType() == Authentication.AuthenticationType.API_KEY &&
-            false == authentication.getMetadata().containsKey(AuthenticationField.API_KEY_CREATOR_REALM_NAME)) {
+        authentication = randomBoolean()
+            ? createAuthentication(user, unfilteredRealm)
+            : createApiKeyAuthentication(apiKeyService, createAuthentication(user, unfilteredRealm));
+        auditTrail.accessDenied(randomAlphaOfLength(8), authentication, "_action", request, authzInfo(new String[] { "role1" }));
+        if (authentication.getAuthenticationType() == Authentication.AuthenticationType.API_KEY
+            && false == authentication.getMetadata().containsKey(AuthenticationField.API_KEY_CREATOR_REALM_NAME)) {
             if (filterMissingRealm) {
                 assertThat("AccessDenied message: not filtered out by the missing realm filter", logOutput.size(), is(0));
             } else {
@@ -1453,11 +1458,12 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         logOutput.clear();
         threadContext.stashContext();
 
-        authentication = randomBoolean() ? createAuthentication(user, filteredRealm) :
-                createApiKeyAuthentication(apiKeyService, createAuthentication(user, filteredRealm));
-        auditTrail.accessDenied(randomAlphaOfLength(8), authentication, "internal:_action", request, authzInfo(new String[]{"role1"}));
-        if (authentication.getAuthenticationType() == Authentication.AuthenticationType.API_KEY &&
-            false == authentication.getMetadata().containsKey(AuthenticationField.API_KEY_CREATOR_REALM_NAME)) {
+        authentication = randomBoolean()
+            ? createAuthentication(user, filteredRealm)
+            : createApiKeyAuthentication(apiKeyService, createAuthentication(user, filteredRealm));
+        auditTrail.accessDenied(randomAlphaOfLength(8), authentication, "internal:_action", request, authzInfo(new String[] { "role1" }));
+        if (authentication.getAuthenticationType() == Authentication.AuthenticationType.API_KEY
+            && false == authentication.getMetadata().containsKey(AuthenticationField.API_KEY_CREATOR_REALM_NAME)) {
             if (filterMissingRealm) {
                 assertThat("AccessDenied internal message: not filtered out by the missing realm filter", logOutput.size(), is(0));
             } else {
@@ -1469,12 +1475,12 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         logOutput.clear();
         threadContext.stashContext();
 
-        authentication = randomBoolean() ? createAuthentication(user, unfilteredRealm) :
-                createApiKeyAuthentication(apiKeyService, createAuthentication(user, unfilteredRealm));
-        auditTrail.accessDenied(randomAlphaOfLength(8), authentication, "internal:_action",
-                request, authzInfo(new String[]{"role1"}));
-        if (authentication.getAuthenticationType() == Authentication.AuthenticationType.API_KEY &&
-            false == authentication.getMetadata().containsKey(AuthenticationField.API_KEY_CREATOR_REALM_NAME)) {
+        authentication = randomBoolean()
+            ? createAuthentication(user, unfilteredRealm)
+            : createApiKeyAuthentication(apiKeyService, createAuthentication(user, unfilteredRealm));
+        auditTrail.accessDenied(randomAlphaOfLength(8), authentication, "internal:_action", request, authzInfo(new String[] { "role1" }));
+        if (authentication.getAuthenticationType() == Authentication.AuthenticationType.API_KEY
+            && false == authentication.getMetadata().containsKey(AuthenticationField.API_KEY_CREATOR_REALM_NAME)) {
             if (filterMissingRealm) {
                 assertThat("AccessDenied internal message: not filtered out by the missing realm filter", logOutput.size(), is(0));
             } else {
@@ -1509,8 +1515,8 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
             ? createAuthentication(user, filteredRealm)
             : createApiKeyAuthentication(apiKeyService, createAuthentication(user, filteredRealm));
         auditTrail.tamperedRequest(randomAlphaOfLength(8), authentication, "_action", request);
-        if (authentication.getAuthenticationType() == Authentication.AuthenticationType.API_KEY &&
-            false == authentication.getMetadata().containsKey(AuthenticationField.API_KEY_CREATOR_REALM_NAME)) {
+        if (authentication.getAuthenticationType() == Authentication.AuthenticationType.API_KEY
+            && false == authentication.getMetadata().containsKey(AuthenticationField.API_KEY_CREATOR_REALM_NAME)) {
             if (filterMissingRealm) {
                 assertThat("Tampered message: not filtered out by the missing realm filter", logOutput.size(), is(0));
             } else {
@@ -1526,8 +1532,8 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
             ? createAuthentication(user, unfilteredRealm)
             : createApiKeyAuthentication(apiKeyService, createAuthentication(user, unfilteredRealm));
         auditTrail.tamperedRequest(randomAlphaOfLength(8), authentication, "_action", request);
-        if (authentication.getAuthenticationType() == Authentication.AuthenticationType.API_KEY &&
-            false == authentication.getMetadata().containsKey(AuthenticationField.API_KEY_CREATOR_REALM_NAME)) {
+        if (authentication.getAuthenticationType() == Authentication.AuthenticationType.API_KEY
+            && false == authentication.getMetadata().containsKey(AuthenticationField.API_KEY_CREATOR_REALM_NAME)) {
             if (filterMissingRealm) {
                 assertThat("Tampered message: not filtered out by the missing realm filter", logOutput.size(), is(0));
             } else {

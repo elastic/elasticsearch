@@ -449,10 +449,19 @@ public class ApiKeyService {
             throw new IllegalArgumentException("API Key authn result must be successful");
         }
         final User user = authResult.getValue();
-        final RealmRef authenticatedBy = new RealmRef(AuthenticationField.API_KEY_REALM_NAME, AuthenticationField.API_KEY_REALM_TYPE,
-            nodeName);
-        return new Authentication(user, authenticatedBy, null, Version.CURRENT, Authentication.AuthenticationType.API_KEY,
-            authResult.getMetadata());
+        final RealmRef authenticatedBy = new RealmRef(
+            AuthenticationField.API_KEY_REALM_NAME,
+            AuthenticationField.API_KEY_REALM_TYPE,
+            nodeName
+        );
+        return new Authentication(
+            user,
+            authenticatedBy,
+            null,
+            Version.CURRENT,
+            Authentication.AuthenticationType.API_KEY,
+            authResult.getMetadata()
+        );
     }
 
     void loadApiKeyAndValidateCredentials(
@@ -540,10 +549,12 @@ public class ApiKeyService {
 
         final Map<String, Object> metadata = authentication.getMetadata();
         final String apiKeyId = (String) metadata.get(AuthenticationField.API_KEY_ID_KEY);
-        @SuppressWarnings("unchecked") final Map<String, Object> roleDescriptors =
-            (Map<String, Object>) metadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY);
-        @SuppressWarnings("unchecked") final Map<String, Object> authnRoleDescriptors =
-            (Map<String, Object>) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY);
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> roleDescriptors = (Map<String, Object>) metadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY);
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> authnRoleDescriptors = (Map<String, Object>) metadata.get(
+            AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY
+        );
 
         if (roleDescriptors == null && authnRoleDescriptors == null) {
             listener.onFailure(new ElasticsearchSecurityException("no role descriptors found for API key"));
@@ -565,8 +576,9 @@ public class ApiKeyService {
             : "This method only applies to authentication objects created on or after v7.9.0";
 
         final Map<String, Object> metadata = authentication.getMetadata();
-        final BytesReference bytesReference = (BytesReference) metadata.get(limitedBy
-            ? AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY : AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY);
+        final BytesReference bytesReference = (BytesReference) metadata.get(
+            limitedBy ? AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY : AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY
+        );
         if (limitedBy && bytesReference.length() == 2 && "{}".equals(bytesReference.utf8ToString())) {
             if (ServiceAccountSettings.REALM_NAME.equals(metadata.get(AuthenticationField.API_KEY_CREATOR_REALM_NAME))
                 && "elastic/fleet-server".equals(authentication.getUser().principal())) {

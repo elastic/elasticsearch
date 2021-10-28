@@ -110,11 +110,11 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_METADATA_KEY;
 import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_METADATA_KEY;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -503,8 +503,10 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(result.getValue().roles(), is(emptyArray()));
         assertThat(result.getValue().metadata(), is(Collections.emptyMap()));
         assertThat(result.getMetadata().get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY), equalTo(apiKeyDoc.roleDescriptorsBytes));
-        assertThat(result.getMetadata().get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
-            equalTo(apiKeyDoc.limitedByRoleDescriptorsBytes));
+        assertThat(
+            result.getMetadata().get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
+            equalTo(apiKeyDoc.limitedByRoleDescriptorsBytes)
+        );
         assertThat(result.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME), is("realm1"));
 
         apiKeyDoc = buildApiKeyDoc(hash, Clock.systemUTC().instant().plus(1L, ChronoUnit.HOURS).toEpochMilli(), false);
@@ -525,8 +527,10 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(result.getValue().roles(), is(emptyArray()));
         assertThat(result.getValue().metadata(), is(Collections.emptyMap()));
         assertThat(result.getMetadata().get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY), equalTo(apiKeyDoc.roleDescriptorsBytes));
-        assertThat(result.getMetadata().get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
-            equalTo(apiKeyDoc.limitedByRoleDescriptorsBytes));
+        assertThat(
+            result.getMetadata().get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
+            equalTo(apiKeyDoc.limitedByRoleDescriptorsBytes)
+        );
         assertThat(result.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME), is("realm1"));
 
         apiKeyDoc = buildApiKeyDoc(hash, Clock.systemUTC().instant().minus(1L, ChronoUnit.HOURS).toEpochMilli(), false);
@@ -564,19 +568,23 @@ public class ApiKeyServiceTests extends ESTestCase {
     public void testGetRolesForApiKeyNotInContext() throws Exception {
         Map<String, Object> superUserRdMap;
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            superUserRdMap = XContentHelper.convertToMap(XContentType.JSON.xContent(),
-                BytesReference.bytes(SUPERUSER_ROLE_DESCRIPTOR
-                        .toXContent(builder, ToXContent.EMPTY_PARAMS, true))
-                    .streamInput(),
-                false);
+            superUserRdMap = XContentHelper.convertToMap(
+                XContentType.JSON.xContent(),
+                BytesReference.bytes(SUPERUSER_ROLE_DESCRIPTOR.toXContent(builder, ToXContent.EMPTY_PARAMS, true)).streamInput(),
+                false
+            );
         }
         Map<String, Object> authMetadata = new HashMap<>();
         authMetadata.put(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLength(12));
         authMetadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLength(12));
-        authMetadata.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
-            Collections.singletonMap(SUPERUSER_ROLE_DESCRIPTOR.getName(), superUserRdMap));
-        authMetadata.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
-            Collections.singletonMap(SUPERUSER_ROLE_DESCRIPTOR.getName(), superUserRdMap));
+        authMetadata.put(
+            AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
+            Collections.singletonMap(SUPERUSER_ROLE_DESCRIPTOR.getName(), superUserRdMap)
+        );
+        authMetadata.put(
+            AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+            Collections.singletonMap(SUPERUSER_ROLE_DESCRIPTOR.getName(), superUserRdMap)
+        );
 
         final Authentication authentication = new Authentication(
             new User("joe"),
@@ -616,9 +624,12 @@ public class ApiKeyServiceTests extends ESTestCase {
                 false
             );
         }
-        authMetadata.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
-            (emptyApiKeyRoleDescriptor) ? randomFrom(Arrays.asList(null, Collections.emptyMap()))
-                : Collections.singletonMap("a role", roleARDMap));
+        authMetadata.put(
+            AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
+            (emptyApiKeyRoleDescriptor)
+                ? randomFrom(Arrays.asList(null, Collections.emptyMap()))
+                : Collections.singletonMap("a role", roleARDMap)
+        );
 
         final RoleDescriptor limitedRoleDescriptor = new RoleDescriptor(
             "limited role",

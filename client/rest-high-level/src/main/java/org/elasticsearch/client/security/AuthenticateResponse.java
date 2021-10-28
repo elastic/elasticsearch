@@ -50,11 +50,18 @@ public final class AuthenticateResponse implements ToXContentObject {
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<AuthenticateResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "client_security_authenticate_response", true,
+        "client_security_authenticate_response",
+        true,
         a -> new AuthenticateResponse(
-            new User((String) a[0], ((List<String>) a[1]), (Map<String, Object>) a[2],
-                (String) a[3], (String) a[4]), (Boolean) a[5], (RealmInfo) a[6], (RealmInfo) a[7], (String) a[8],
-            (Map<String, Object>) a[9], (ApiKeyInfo) a[10]));
+            new User((String) a[0], ((List<String>) a[1]), (Map<String, Object>) a[2], (String) a[3], (String) a[4]),
+            (Boolean) a[5],
+            (RealmInfo) a[6],
+            (RealmInfo) a[7],
+            (String) a[8],
+            (Map<String, Object>) a[9],
+            (ApiKeyInfo) a[10]
+        )
+    );
     static {
         final ConstructingObjectParser<RealmInfo, Void> realmInfoParser = new ConstructingObjectParser<>(
             "realm_info",
@@ -64,8 +71,11 @@ public final class AuthenticateResponse implements ToXContentObject {
         realmInfoParser.declareString(constructorArg(), REALM_NAME);
         realmInfoParser.declareString(constructorArg(), REALM_TYPE);
 
-        final ConstructingObjectParser<ApiKeyInfo, Void> apiKeyInfoParser = new ConstructingObjectParser<>("api_key", true,
-            a -> new ApiKeyInfo((String) a[0], (String) a[1]));
+        final ConstructingObjectParser<ApiKeyInfo, Void> apiKeyInfoParser = new ConstructingObjectParser<>(
+            "api_key",
+            true,
+            a -> new ApiKeyInfo((String) a[0], (String) a[1])
+        );
         apiKeyInfoParser.declareString(constructorArg(), API_KEY_INFO_ID);
         apiKeyInfoParser.declareString(optionalConstructorArg(), API_KEY_INFO_NAME);
 
@@ -102,14 +112,26 @@ public final class AuthenticateResponse implements ToXContentObject {
         this(user, enabled, authenticationRealm, lookupRealm, authenticationType, null);
     }
 
-    public AuthenticateResponse(User user, boolean enabled, RealmInfo authenticationRealm,
-                                RealmInfo lookupRealm, String authenticationType, @Nullable Map<String, Object> token) {
+    public AuthenticateResponse(
+        User user,
+        boolean enabled,
+        RealmInfo authenticationRealm,
+        RealmInfo lookupRealm,
+        String authenticationType,
+        @Nullable Map<String, Object> token
+    ) {
         this(user, enabled, authenticationRealm, lookupRealm, authenticationType, null, null);
     }
 
-    public AuthenticateResponse(User user, boolean enabled, RealmInfo authenticationRealm,
-                                RealmInfo lookupRealm, String authenticationType, @Nullable Map<String, Object> token,
-                                @Nullable ApiKeyInfo apikeyinfo) {
+    public AuthenticateResponse(
+        User user,
+        boolean enabled,
+        RealmInfo authenticationRealm,
+        RealmInfo lookupRealm,
+        String authenticationType,
+        @Nullable Map<String, Object> token,
+        @Nullable ApiKeyInfo apikeyinfo
+    ) {
         this.user = user;
         this.enabled = enabled;
         this.authenticationRealm = authenticationRealm;
@@ -202,13 +224,13 @@ public final class AuthenticateResponse implements ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AuthenticateResponse that = (AuthenticateResponse) o;
-        return enabled == that.enabled &&
-            Objects.equals(user, that.user) &&
-            Objects.equals(authenticationRealm, that.authenticationRealm) &&
-            Objects.equals(lookupRealm, that.lookupRealm) &&
-            Objects.equals(authenticationType, that.authenticationType) &&
-            Objects.equals(token, that.token) &&
-            Objects.equals(apikeyinfo, that.apikeyinfo);
+        return enabled == that.enabled
+            && Objects.equals(user, that.user)
+            && Objects.equals(authenticationRealm, that.authenticationRealm)
+            && Objects.equals(lookupRealm, that.lookupRealm)
+            && Objects.equals(authenticationType, that.authenticationType)
+            && Objects.equals(token, that.token)
+            && Objects.equals(apikeyinfo, that.apikeyinfo);
     }
 
     @Override
@@ -273,8 +295,7 @@ public final class AuthenticateResponse implements ToXContentObject {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             final ApiKeyInfo that = (ApiKeyInfo) o;
-            return Objects.equals(this.id, that.id) &&
-                Objects.equals(this.name, that.name);
+            return Objects.equals(this.id, that.id) && Objects.equals(this.name, that.name);
         }
 
         @Override

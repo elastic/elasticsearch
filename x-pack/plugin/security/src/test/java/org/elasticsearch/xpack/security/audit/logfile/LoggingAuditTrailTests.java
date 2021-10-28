@@ -2603,8 +2603,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
         checkedFields.put(LoggingAuditTrail.AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
         if (Authentication.AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
             assert false == authentication.getUser().isRunAs();
-            checkedFields.put(LoggingAuditTrail.API_KEY_ID_FIELD_NAME,
-                (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY));
+            checkedFields.put(
+                LoggingAuditTrail.API_KEY_ID_FIELD_NAME,
+                (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY)
+            );
             String apiKeyName = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_NAME_KEY);
             if (apiKeyName != null) {
                 checkedFields.put(LoggingAuditTrail.API_KEY_NAME_FIELD_NAME, apiKeyName);

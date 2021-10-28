@@ -99,23 +99,41 @@ public class DelegatePkiAuthenticationResponseTests extends AbstractResponseTest
 
     AuthenticateResponse createServerAuthenticationResponse(Authentication authentication) {
         User user = authentication.getUser();
-        org.elasticsearch.client.security.user.User cUser = new org.elasticsearch.client.security.user.User(user.principal(),
-            Arrays.asList(user.roles()), user.metadata(), user.fullName(), user.email());
-        AuthenticateResponse.RealmInfo authenticatedBy = new AuthenticateResponse.RealmInfo(authentication.getAuthenticatedBy().getName(),
-            authentication.getAuthenticatedBy().getType());
-        AuthenticateResponse.RealmInfo lookedUpBy = new AuthenticateResponse.RealmInfo(authentication.getLookedUpBy() == null?
-            authentication.getAuthenticatedBy().getName(): authentication.getLookedUpBy().getName(),
-            authentication.getLookedUpBy() == null?
-                authentication.getAuthenticatedBy().getType(): authentication.getLookedUpBy().getType());
+        org.elasticsearch.client.security.user.User cUser = new org.elasticsearch.client.security.user.User(
+            user.principal(),
+            Arrays.asList(user.roles()),
+            user.metadata(),
+            user.fullName(),
+            user.email()
+        );
+        AuthenticateResponse.RealmInfo authenticatedBy = new AuthenticateResponse.RealmInfo(
+            authentication.getAuthenticatedBy().getName(),
+            authentication.getAuthenticatedBy().getType()
+        );
+        AuthenticateResponse.RealmInfo lookedUpBy = new AuthenticateResponse.RealmInfo(
+            authentication.getLookedUpBy() == null
+                ? authentication.getAuthenticatedBy().getName()
+                : authentication.getLookedUpBy().getName(),
+            authentication.getLookedUpBy() == null
+                ? authentication.getAuthenticatedBy().getType()
+                : authentication.getLookedUpBy().getType()
+        );
         final AuthenticateResponse.ApiKeyInfo apiKeyInfo;
         if (Authentication.AuthenticationType.API_KEY.equals(authentication.getAuthenticationType())) {
-            final String apiKeyId   = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);   // mandatory
+            final String apiKeyId = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);   // mandatory
             final String apiKeyName = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_NAME_KEY); // optional
             apiKeyInfo = new AuthenticateResponse.ApiKeyInfo(apiKeyId, apiKeyName);
         } else {
             apiKeyInfo = null;
         }
-        return new AuthenticateResponse(cUser, user.enabled(), authenticatedBy, lookedUpBy,
-            authentication.getAuthenticationType().toString().toLowerCase(Locale.ROOT), null, apiKeyInfo);
+        return new AuthenticateResponse(
+            cUser,
+            user.enabled(),
+            authenticatedBy,
+            lookedUpBy,
+            authentication.getAuthenticationType().toString().toLowerCase(Locale.ROOT),
+            null,
+            apiKeyInfo
+        );
     }
 }

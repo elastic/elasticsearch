@@ -16,8 +16,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.is;
-
 /**
  * Integration Rest Test for testing authentication when all possible realms are configured
  */

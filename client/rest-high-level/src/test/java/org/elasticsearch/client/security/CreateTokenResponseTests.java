@@ -29,10 +29,12 @@ public class CreateTokenResponseTests extends ESTestCase {
         final String scope = randomBoolean() ? null : randomAlphaOfLength(4);
         final String type = randomAlphaOfLength(6);
         final String kerberosAuthenticationResponseToken = randomBoolean() ? null : randomAlphaOfLength(7);
-        final AuthenticateResponse authentication = new AuthenticateResponse(new User(randomAlphaOfLength(7),
-            Arrays.asList(randomAlphaOfLength(9))),
-            true, new AuthenticateResponse.RealmInfo(randomAlphaOfLength(5), randomAlphaOfLength(7)),
-            new AuthenticateResponse.RealmInfo(randomAlphaOfLength(5), randomAlphaOfLength(5)), "realm",
+        final AuthenticateResponse authentication = new AuthenticateResponse(
+            new User(randomAlphaOfLength(7), Arrays.asList(randomAlphaOfLength(9))),
+            true,
+            new AuthenticateResponse.RealmInfo(randomAlphaOfLength(5), randomAlphaOfLength(7)),
+            new AuthenticateResponse.RealmInfo(randomAlphaOfLength(5), randomAlphaOfLength(5)),
+            "realm",
             null,
             new AuthenticateResponse.ApiKeyInfo(
                 randomAlphaOfLength(16),                         // mandatory

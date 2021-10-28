@@ -15,8 +15,6 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import java.io.IOException;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.is;
-
 /**
  * Integration Rest Test for testing authentication when all possible realms are configured
  */

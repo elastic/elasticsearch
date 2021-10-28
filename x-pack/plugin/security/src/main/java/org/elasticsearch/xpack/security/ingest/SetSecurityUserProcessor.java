@@ -143,8 +143,10 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                     if (Authentication.AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
                         final String apiKey = "api_key";
                         final Object existingApiKeyField = userObject.get(apiKey);
-                        @SuppressWarnings("unchecked") final Map<String, Object> apiKeyField =
-                            existingApiKeyField instanceof Map ? (Map<String, Object>) existingApiKeyField : new HashMap<>();
+                        @SuppressWarnings("unchecked")
+                        final Map<String, Object> apiKeyField = existingApiKeyField instanceof Map
+                            ? (Map<String, Object>) existingApiKeyField
+                            : new HashMap<>();
                         Object apiKeyName = authentication.getMetadata().get(AuthenticationField.API_KEY_NAME_KEY);
                         if (apiKeyName != null) {
                             apiKeyField.put("name", apiKeyName);

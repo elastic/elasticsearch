@@ -1531,12 +1531,14 @@ public class CompositeRolesStoreTests extends ESTestCase {
         metadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 16));
         metadata.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, roleBytes);
         metadata.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, limitedByRoleBytes);
-        Authentication authentication = new Authentication(new User("test api key user", "superuser"),
+        Authentication authentication = new Authentication(
+            new User("test api key user", "superuser"),
             new RealmRef("_es_api_key", "_es_api_key", "node"),
             null,
             Version.CURRENT,
             AuthenticationType.API_KEY,
-            metadata);
+            metadata
+        );
         doCallRealMethod().when(apiKeyService).getApiKeyIdAndRoleBytes(eq(authentication), anyBoolean());
 
         PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
@@ -1553,12 +1555,14 @@ public class CompositeRolesStoreTests extends ESTestCase {
         metadata2.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 16));
         metadata2.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, roleBytes);
         metadata2.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, limitedByRoleBytes);
-        authentication = new Authentication(new User("test api key user 2", "superuser"),
+        authentication = new Authentication(
+            new User("test api key user 2", "superuser"),
             new RealmRef("_es_api_key", "_es_api_key", "node"),
             null,
             Version.CURRENT,
             AuthenticationType.API_KEY,
-            metadata2);
+            metadata2
+        );
         doCallRealMethod().when(apiKeyService).getApiKeyIdAndRoleBytes(eq(authentication), anyBoolean());
         roleFuture = new PlainActionFuture<>();
         compositeRolesStore.getRoles(authentication.getUser(), authentication, roleFuture);
@@ -1574,12 +1578,14 @@ public class CompositeRolesStoreTests extends ESTestCase {
         metadata3.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 16));
         metadata3.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, anotherRoleBytes);
         metadata3.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, limitedByRoleBytes);
-        authentication = new Authentication(new User("test api key user 2", "superuser"),
+        authentication = new Authentication(
+            new User("test api key user 2", "superuser"),
             new RealmRef("_es_api_key", "_es_api_key", "node"),
             null,
             Version.CURRENT,
             AuthenticationType.API_KEY,
-            metadata3);
+            metadata3
+        );
         doCallRealMethod().when(apiKeyService).getApiKeyIdAndRoleBytes(eq(authentication), anyBoolean());
         roleFuture = new PlainActionFuture<>();
         compositeRolesStore.getRoles(authentication.getUser(), authentication, roleFuture);

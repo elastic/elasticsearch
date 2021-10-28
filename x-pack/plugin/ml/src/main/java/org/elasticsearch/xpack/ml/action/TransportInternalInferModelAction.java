@@ -85,10 +85,9 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
                 ActionListener.wrap(trainedModelConfig -> {
                     // Since we just checked MachineLearningField.ML_API_FEATURE.check(licenseState) and that check failed
                     // That means we don't have a plat+ license. The only licenses for trained models are basic (free) and plat.
-                    if (trainedModelConfig.getLicenseLevel() != License.OperationMode.BASIC) {
-                        responseBuilder.setLicensed(false);
-                    }
-                    if (request.isPreviouslyLicensed()) {
+                    boolean allowed = trainedModelConfig.getLicenseLevel() == License.OperationMode.BASIC;
+                    responseBuilder.setLicensed(allowed);
+                    if (allowed || request.isPreviouslyLicensed()) {
                         doInfer(request, responseBuilder, listener);
                     } else {
                         listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));

@@ -267,8 +267,8 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
             .getModelForSearch(modelId, listener.delegateFailure((delegate, model) -> {
                 loadedModel.set(model);
 
-                boolean isLicensed = MachineLearningField.ML_API_FEATURE.check(licenseState)
-                    || model.getLicenseLevel() == License.OperationMode.BASIC;
+                boolean isLicensed = model.getLicenseLevel() == License.OperationMode.BASIC
+                    || MachineLearningField.ML_API_FEATURE.check(licenseState);
                 if (isLicensed) {
                     delegate.onResponse(null);
                 } else {

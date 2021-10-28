@@ -50,21 +50,22 @@ valid nodes.
 
 `model_threads`::
 (Optional, integer)
-Indicates how many threads should be used when sending inference requests to
-the model. When increased, this generally increases the throughput. Defaults to
+Indicates how many threads are used when sending inference requests to
+the model. Increasing this value generally increases the throughput. Defaults to
 1.
 
 `inference_threads`::
 (Optional, integer)
 Sets the number of threads used by the inference process. This generally increases
-the inference speed. The inference process is a compute-bound process, meaning any
-number greater than the number of available CPU cores on the machine isn't useful.
+the inference speed. The inference process is a compute-bound process; any number 
+greater than the number of available CPU cores on the machine does not increase the 
+inference speed.
 Defaults to 1.
 
 `queue_capacity`::
 (Optional, integer)
 Controls how many inference requests are allowed in the queue at a time. Once the
-number of requests exceeds the provided value, new requests are rejected with a 429 error.
+number of requests exceeds this value, new requests are rejected with a 429 error.
 Defaults to 1024.
 
 [[start-trained-model-deployment-example]]

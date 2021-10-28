@@ -1650,7 +1650,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
     }
 
     private boolean containsFile(List<StoreFileMetadata> filesMetadata, StoreFileMetadata storeFileMetadata) {
-        return filesMetadata.stream().anyMatch(f -> f.isSame(storeFileMetadata));
+        return filesMetadata.stream().anyMatch(f -> f.name().equals(storeFileMetadata.name()) && f.isSame(storeFileMetadata));
     }
 
     private boolean containsFile(List<StoreFileMetadata> files, String fileName, long length) {

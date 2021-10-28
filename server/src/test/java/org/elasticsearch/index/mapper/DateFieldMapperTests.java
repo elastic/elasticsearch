@@ -8,17 +8,16 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.logging.log4j.Level;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -56,8 +55,7 @@ public class DateFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("format", b -> b.field("format", "yyyy-MM-dd"));
         checker.registerConflictCheck("locale", b -> b.field("locale", "es"));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", "34500000"));
-        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true),
-            m -> assertTrue(((DateFieldMapper)m).getIgnoreMalformed()));
+        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> assertTrue(((DateFieldMapper) m).getIgnoreMalformed()));
     }
 
     public void testExistsQueryDocValuesDisabled() throws IOException {
@@ -88,9 +86,7 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     public void testNotIndexed() throws Exception {
 
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b
-            .field("type", "date")
-            .field("index", false)));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("index", false)));
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "2016-03-11")));
 
@@ -102,9 +98,7 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     public void testNoDocValues() throws Exception {
 
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b
-            .field("type", "date")
-            .field("doc_values", false)));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("doc_values", false)));
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "2016-03-11")));
 
@@ -116,9 +110,7 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     public void testStore() throws Exception {
 
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b
-            .field("type", "date")
-            .field("store", true)));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("store", true)));
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "2016-03-11")));
 
@@ -134,40 +126,31 @@ public class DateFieldMapperTests extends MapperTestCase {
     }
 
     public void testIgnoreMalformed() throws IOException {
-        testIgnoreMalformedForValue("2016-03-99",
+        testIgnoreMalformedForValue(
+            "2016-03-99",
             "failed to parse date field [2016-03-99] with format [strict_date_optional_time||epoch_millis]",
-            "strict_date_optional_time||epoch_millis");
-        testIgnoreMalformedForValue("-2147483648",
+            "strict_date_optional_time||epoch_millis"
+        );
+        testIgnoreMalformedForValue(
+            "-2147483648",
             "failed to parse date field [-2147483648] with format [strict_date_optional_time||epoch_millis]",
-            "strict_date_optional_time||epoch_millis");
+            "strict_date_optional_time||epoch_millis"
+        );
         testIgnoreMalformedForValue("-522000000", "long overflow", "date_optional_time");
-    }
-
-    public void testResolutionLossDeprecation() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b
-            .field("type", "date")));
-
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "2018-10-03T14:42:44.123456+0000")));
-
-        assertWarnings(true, new DeprecationWarning(Level.WARN, "You are attempting to store a nanosecond resolution " +
-            "on a field [field] of type date on index [index]. " +
-            "The nanosecond part was lost. Use date_nanos field type."));
     }
 
     private void testIgnoreMalformedForValue(String value, String expectedCause, String dateFormat) throws IOException {
 
-        DocumentMapper mapper = createDocumentMapper(fieldMapping((builder)-> dateFieldMapping(builder, dateFormat)));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping((builder) -> dateFieldMapping(builder, dateFormat)));
 
-        MapperParsingException e = expectThrows(MapperParsingException.class,
-            () -> mapper.parse(source(b -> b.field("field", value))));
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field("field", value))));
         assertThat(e.getMessage(), containsString("failed to parse field [field] of type [date]"));
         assertThat(e.getMessage(), containsString("Preview of field's value: '" + value + "'"));
         assertThat(e.getCause().getMessage(), containsString(expectedCause));
 
-        DocumentMapper mapper2 = createDocumentMapper(fieldMapping(b -> b
-            .field("type", "date")
-            .field("format", dateFormat)
-            .field("ignore_malformed", true)));
+        DocumentMapper mapper2 = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "date").field("format", dateFormat).field("ignore_malformed", true))
+        );
 
         ParsedDocument doc = mapper2.parse(source(b -> b.field("field", value)));
 
@@ -177,15 +160,14 @@ public class DateFieldMapperTests extends MapperTestCase {
     }
 
     private void dateFieldMapping(XContentBuilder builder, String dateFormat) throws IOException {
-         builder.field("type", "date");
-         builder.field("format", dateFormat);
+        builder.field("type", "date");
+        builder.field("format", dateFormat);
 
     }
+
     public void testChangeFormat() throws IOException {
 
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b
-            .field("type", "date")
-            .field("format", "epoch_second")));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("format", "epoch_second")));
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", 1457654400)));
 
@@ -196,12 +178,11 @@ public class DateFieldMapperTests extends MapperTestCase {
     }
 
     public void testChangeLocale() throws IOException {
-        assumeTrue("need java 9 for testing ",JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0);
+        assumeTrue("need java 9 for testing ", JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0);
 
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b
-            .field("type", "date")
-            .field("format", "E, d MMM yyyy HH:mm:ss Z")
-            .field("locale", "de")));
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "date").field("format", "E, d MMM yyyy HH:mm:ss Z").field("locale", "de"))
+        );
 
         mapper.parse(source(b -> b.field("field", "Mi, 06 Dez 2000 02:55:00 -0800")));
     }
@@ -213,9 +194,7 @@ public class DateFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
         assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
 
-        mapper = createDocumentMapper(fieldMapping(b -> b
-            .field("type", "date")
-            .field("null_value", "2016-03-11")));
+        mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("null_value", "2016-03-11")));
 
         doc = mapper.parse(source(b -> b.nullField("field")));
         IndexableField[] fields = doc.rootDoc().getFields("field");
@@ -237,9 +216,9 @@ public class DateFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
         assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
 
-        MapperService mapperService = createMapperService(fieldMapping(b -> b
-            .field("type", "date_nanos")
-            .field("null_value", "2016-03-11")));
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", "date_nanos").field("null_value", "2016-03-11"))
+        );
 
         DateFieldMapper.DateFieldType ft = (DateFieldMapper.DateFieldType) mapperService.fieldType("field");
         long expectedNullValue = ft.parse("2016-03-11");
@@ -260,12 +239,18 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     public void testBadNullValue() throws IOException {
 
-        MapperParsingException e = expectThrows(MapperParsingException.class,
-            () -> createDocumentMapper(Version.V_8_0_0, fieldMapping(b -> b.field("type", "date").field("null_value", "foo"))));
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(Version.V_8_0_0, fieldMapping(b -> b.field("type", "date").field("null_value", "foo")))
+        );
 
-        assertThat(e.getMessage(),
-            equalTo("Failed to parse mapping: Error parsing [null_value] on field [field]: " +
-                "failed to parse date field [foo] with format [strict_date_optional_time||epoch_millis]"));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Failed to parse mapping: Error parsing [null_value] on field [field]: "
+                    + "failed to parse date field [foo] with format [strict_date_optional_time||epoch_millis]"
+            )
+        );
 
         createDocumentMapper(Version.V_7_9_0, fieldMapping(b -> b.field("type", "date").field("null_value", "foo")));
 
@@ -273,17 +258,17 @@ public class DateFieldMapperTests extends MapperTestCase {
     }
 
     public void testNullConfigValuesFail() {
-        Exception e = expectThrows(MapperParsingException.class,
-            () -> createDocumentMapper(fieldMapping(b -> b.field("type", "date").nullField("format"))));
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(fieldMapping(b -> b.field("type", "date").nullField("format")))
+        );
         assertThat(e.getMessage(), containsString("[format] on mapper [field] of type [date] must not have a [null] value"));
     }
 
     public void testTimeZoneParsing() throws Exception {
         final String timeZonePattern = "yyyy-MM-dd" + randomFrom("XXX", "[XXX]", "'['XXX']'");
 
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b
-            .field("type", "date")
-            .field("format", timeZonePattern)));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("format", timeZonePattern)));
 
         DateFormatter formatter = DateFormatter.forPattern(timeZonePattern);
         final ZoneId randomTimeZone = randomBoolean() ? ZoneId.of(randomFrom("UTC", "CET")) : randomZone();
@@ -299,35 +284,36 @@ public class DateFieldMapperTests extends MapperTestCase {
     }
 
     public void testMergeDate() throws IOException {
-        MapperService mapperService = createMapperService(fieldMapping(b -> b
-            .field("type", "date")
-            .field("format", "yyyy/MM/dd")));
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "date").field("format", "yyyy/MM/dd")));
 
         assertThat(mapperService.fieldType("field"), notNullValue());
         assertFalse(mapperService.fieldType("field").isStored());
 
-        Exception e = expectThrows(IllegalArgumentException.class,
-            () -> merge(mapperService, fieldMapping(b -> b.field("type", "date").field("format", "epoch_millis"))));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> merge(mapperService, fieldMapping(b -> b.field("type", "date").field("format", "epoch_millis")))
+        );
         assertThat(e.getMessage(), containsString("parameter [format] from [yyyy/MM/dd] to [epoch_millis]"));
     }
 
     public void testMergeText() throws Exception {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> merge(mapperService, fieldMapping(b -> b.field("type", "text"))));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> merge(mapperService, fieldMapping(b -> b.field("type", "text")))
+        );
         assertEquals("mapper [field] cannot be changed from type [date] to [text]", e.getMessage());
     }
 
     public void testIllegalFormatField() {
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> b
-                    .field("type", "date")
-                    .field("format", "test_format"))));
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("format", "test_format")))
+        );
         assertThat(e.getMessage(), containsString("Invalid format: [test_format]: Unknown pattern letter: t"));
         assertThat(e.getMessage(), containsString("Error parsing [format] on field [field]: Invalid"));
     }
-
-
 
     public void testFetchDocValuesMillis() throws IOException {
         MapperService mapperService = createMapperService(
@@ -341,9 +327,7 @@ public class DateFieldMapperTests extends MapperTestCase {
     }
 
     public void testFormatPreserveNanos() throws IOException {
-        MapperService mapperService = createMapperService(
-            fieldMapping(b -> b.field("type", "date_nanos"))
-        );
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "date_nanos")));
         DateFieldMapper.DateFieldType ft = (DateFieldMapper.DateFieldType) mapperService.fieldType("field");
         assertEquals(ft.dateTimeFormatter, DateFieldMapper.DEFAULT_DATE_TIME_NANOS_FORMATTER);
         DocValueFormat format = ft.docValueFormat(null, null);
@@ -418,11 +402,11 @@ public class DateFieldMapperTests extends MapperTestCase {
     }
 
     public void testFetchMillisFromIso8601Nanos() throws IOException {
-        assertFetch(dateNanosMapperService(), "field", randomIs8601Nanos(MAX_NANOS), null);
+        assertFetch(dateMapperService(), "field", randomIs8601Nanos(MAX_ISO_DATE), null);
     }
 
     public void testFetchMillisFromIso8601NanosFormatted() throws IOException {
-        assertFetch(dateNanosMapperService(), "field", randomIs8601Nanos(MAX_NANOS), "strict_date_optional_time_nanos");
+        assertFetch(dateMapperService(), "field", randomIs8601Nanos(MAX_ISO_DATE), "strict_date_optional_time_nanos");
     }
 
     /**
@@ -433,8 +417,7 @@ public class DateFieldMapperTests extends MapperTestCase {
      * way.
      */
     public void testFetchMillisFromRoundedNanos() throws IOException {
-        assertFetch(dateMapperService(), "field", randomDecimalMillis(MAX_ISO_DATE), null);
-        assertFetch(dateNanosMapperService(), "field", randomDecimalNanos(MAX_NANOS), null);
+        assertFetch(dateMapperService(), "field", randomDecimalNanos(MAX_ISO_DATE), null);
     }
 
     /**
@@ -500,12 +483,7 @@ public class DateFieldMapperTests extends MapperTestCase {
      * values and field fetching via the {@code date_nanos} field.
      */
     public void testFetchNanosFromFixedNanos() throws IOException {
-        assertFetch(
-            dateNanosMapperService(),
-            "field",
-            new BigDecimal(randomDecimalNanos(MAX_MILLIS_DOUBLE_NANOS_KEEPS_PRECISION)),
-            null
-        );
+        assertFetch(dateNanosMapperService(), "field", new BigDecimal(randomDecimalNanos(MAX_MILLIS_DOUBLE_NANOS_KEEPS_PRECISION)), null);
     }
 
     /**
@@ -547,7 +525,7 @@ public class DateFieldMapperTests extends MapperTestCase {
         switch (((DateFieldType) ft).resolution()) {
             case MILLISECONDS:
                 if (randomBoolean()) {
-                    return randomDecimalMillis(MAX_ISO_DATE);
+                    return randomIs8601Nanos(MAX_ISO_DATE);
                 }
                 return randomLongBetween(0, Long.MAX_VALUE);
             case NANOSECONDS:
@@ -580,10 +558,6 @@ public class DateFieldMapperTests extends MapperTestCase {
         return Long.toString(randomLongBetween(0, maxMillis)) + "." + between(0, 999999);
     }
 
-    private String randomDecimalMillis(long maxMillis) {
-        return Long.toString(randomLongBetween(0, maxMillis));
-    }
-
     public void testScriptAndPrecludedParameters() {
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
@@ -591,8 +565,10 @@ public class DateFieldMapperTests extends MapperTestCase {
                 b.field("script", "test");
                 b.field("null_value", 7);
             })));
-            assertThat(e.getMessage(),
-                equalTo("Failed to parse mapping: Field [null_value] cannot be set in conjunction with field [script]"));
+            assertThat(
+                e.getMessage(),
+                equalTo("Failed to parse mapping: Field [null_value] cannot be set in conjunction with field [script]")
+            );
         }
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
@@ -600,8 +576,10 @@ public class DateFieldMapperTests extends MapperTestCase {
                 b.field("script", "test");
                 b.field("ignore_malformed", "true");
             })));
-            assertThat(e.getMessage(),
-                equalTo("Failed to parse mapping: Field [ignore_malformed] cannot be set in conjunction with field [script]"));
+            assertThat(
+                e.getMessage(),
+                equalTo("Failed to parse mapping: Field [ignore_malformed] cannot be set in conjunction with field [script]")
+            );
         }
     }
 }

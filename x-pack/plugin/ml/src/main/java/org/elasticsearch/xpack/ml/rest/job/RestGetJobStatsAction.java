@@ -31,9 +31,11 @@ public class RestGetJobStatsAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             Route.builder(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_stats")
-                .replaces(GET, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_stats", RestApiVersion.V_7).build(),
+                .replaces(GET, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_stats", RestApiVersion.V_7)
+                .build(),
             Route.builder(GET, BASE_PATH + "anomaly_detectors/_stats")
-                .replaces(GET, PRE_V7_BASE_PATH + "anomaly_detectors/_stats", RestApiVersion.V_7).build()
+                .replaces(GET, PRE_V7_BASE_PATH + "anomaly_detectors/_stats", RestApiVersion.V_7)
+                .build()
         );
     }
 
@@ -53,9 +55,8 @@ public class RestGetJobStatsAction extends BaseRestHandler {
             LoggingDeprecationHandler.INSTANCE.logRenamedField(null, () -> null, Request.ALLOW_NO_JOBS, Request.ALLOW_NO_MATCH);
         }
         request.setAllowNoMatch(
-            restRequest.paramAsBoolean(
-                Request.ALLOW_NO_MATCH,
-                restRequest.paramAsBoolean(Request.ALLOW_NO_JOBS, request.allowNoMatch())));
+            restRequest.paramAsBoolean(Request.ALLOW_NO_MATCH, restRequest.paramAsBoolean(Request.ALLOW_NO_JOBS, request.allowNoMatch()))
+        );
         return channel -> client.execute(GetJobsStatsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

@@ -49,8 +49,9 @@ final class TransportHandshaker {
         numHandshakes.inc();
         final HandshakeResponseHandler handler = new HandshakeResponseHandler(requestId, version, listener);
         pendingHandshakes.put(requestId, handler);
-        channel.addCloseListener(ActionListener.wrap(
-            () -> handler.handleLocalException(new TransportException("handshake failed because connection reset"))));
+        channel.addCloseListener(
+            ActionListener.wrap(() -> handler.handleLocalException(new TransportException("handshake failed because connection reset")))
+        );
         boolean success = false;
         try {
             // for the request we use the minCompatVersion since we don't know what's the version of the node we talk to
@@ -62,7 +63,8 @@ final class TransportHandshaker {
             threadPool.schedule(
                 () -> handler.handleLocalException(new ConnectTransportException(node, "handshake_timeout[" + timeout + "]")),
                 timeout,
-                ThreadPool.Names.GENERIC);
+                ThreadPool.Names.GENERIC
+            );
             success = true;
         } catch (Exception e) {
             handler.handleLocalException(new ConnectTransportException(node, "failure to send " + HANDSHAKE_ACTION_NAME, e));
@@ -79,8 +81,15 @@ final class TransportHandshaker {
         HandshakeRequest handshakeRequest = new HandshakeRequest(stream);
         final int nextByte = stream.read();
         if (nextByte != -1) {
-            throw new IllegalStateException("Handshake request not fully read for requestId [" + requestId + "], action ["
-                + TransportHandshaker.HANDSHAKE_ACTION_NAME + "], available [" + stream.available() + "]; resetting");
+            throw new IllegalStateException(
+                "Handshake request not fully read for requestId ["
+                    + requestId
+                    + "], action ["
+                    + TransportHandshaker.HANDSHAKE_ACTION_NAME
+                    + "], available ["
+                    + stream.available()
+                    + "]; resetting"
+            );
         }
         channel.sendResponse(new HandshakeResponse(this.version));
     }
@@ -120,8 +129,15 @@ final class TransportHandshaker {
             if (isDone.compareAndSet(false, true)) {
                 Version responseVersion = response.responseVersion;
                 if (currentVersion.isCompatible(responseVersion) == false) {
-                    listener.onFailure(new IllegalStateException("Received message from unsupported version: [" + responseVersion
-                        + "] minimal compatible version is: [" + currentVersion.minimumCompatibilityVersion() + "]"));
+                    listener.onFailure(
+                        new IllegalStateException(
+                            "Received message from unsupported version: ["
+                                + responseVersion
+                                + "] minimal compatible version is: ["
+                                + currentVersion.minimumCompatibilityVersion()
+                                + "]"
+                        )
+                    );
                 } else {
                     listener.onResponse(responseVersion);
                 }

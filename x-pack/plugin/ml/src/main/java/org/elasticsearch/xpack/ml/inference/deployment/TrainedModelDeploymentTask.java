@@ -12,6 +12,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.license.LicensedFeature;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -35,6 +37,8 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
     private volatile boolean stopped;
     private final SetOnce<String> stoppedReason = new SetOnce<>();
     private final SetOnce<InferenceConfig> inferenceConfig = new SetOnce<>();
+    private final XPackLicenseState licenseState;
+    private final LicensedFeature.Persistent licensedFeature;
 
     public TrainedModelDeploymentTask(
         long id,
@@ -43,7 +47,9 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         TaskId parentTask,
         Map<String, String> headers,
         TaskParams taskParams,
-        TrainedModelAllocationNodeService trainedModelAllocationNodeService
+        TrainedModelAllocationNodeService trainedModelAllocationNodeService,
+        XPackLicenseState licenseState,
+        LicensedFeature.Persistent licensedFeature
     ) {
         super(id, type, action, MlTasks.trainedModelDeploymentTaskId(taskParams.getModelId()), parentTask, headers);
         this.params = taskParams;
@@ -51,10 +57,13 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
             trainedModelAllocationNodeService,
             "trainedModelAllocationNodeService"
         );
+        this.licenseState = licenseState;
+        this.licensedFeature = licensedFeature;
     }
 
     void init(InferenceConfig inferenceConfig) {
         this.inferenceConfig.set(inferenceConfig);
+        licensedFeature.startTracking(licenseState, "model-" + params.getModelId());
     }
 
     public String getModelId() {
@@ -71,12 +80,14 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
 
     public void stop(String reason) {
         logger.debug("[{}] Stopping due to reason [{}]", getModelId(), reason);
+        licensedFeature.stopTracking(licenseState, "model-" + params.getModelId());
         stopped = true;
         stoppedReason.trySet(reason);
         trainedModelAllocationNodeService.stopDeploymentAndNotify(this, reason);
     }
 
     public void stopWithoutNotification(String reason) {
+        licensedFeature.stopTracking(licenseState, "model-" + params.getModelId());
         logger.debug("[{}] Stopping due to reason [{}]", getModelId(), reason);
         stoppedReason.trySet(reason);
         stopped = true;

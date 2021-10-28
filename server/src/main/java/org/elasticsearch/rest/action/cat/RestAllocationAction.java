@@ -9,6 +9,7 @@
 package org.elasticsearch.rest.action.cat;
 
 import com.carrotsearch.hppc.ObjectIntScatterMap;
+
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -30,14 +31,11 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-
 public class RestAllocationAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, "/_cat/allocation"),
-            new Route(GET, "/_cat/allocation/{nodes}"));
+        return List.of(new Route(GET, "/_cat/allocation"), new Route(GET, "/_cat/allocation/{nodes}"));
     }
 
     @Override
@@ -62,7 +60,8 @@ public class RestAllocationAction extends AbstractCatAction {
             @Override
             public void processResponse(final ClusterStateResponse state) {
                 NodesStatsRequest statsRequest = new NodesStatsRequest(nodes);
-                statsRequest.clear().addMetric(NodesStatsRequest.Metric.FS.metricName())
+                statsRequest.clear()
+                    .addMetric(NodesStatsRequest.Metric.FS.metricName())
                     .indices(new CommonStatsFlags(CommonStatsFlags.Flag.Store));
 
                 client.admin().cluster().nodesStats(statsRequest, new RestResponseListener<NodesStatsResponse>(channel) {
@@ -116,7 +115,7 @@ public class RestAllocationAction extends AbstractCatAction {
 
             ByteSizeValue total = nodeStats.getFs().getTotal().getTotal();
             ByteSizeValue avail = nodeStats.getFs().getTotal().getAvailable();
-            //if we don't know how much we use (non data nodes), it means 0
+            // if we don't know how much we use (non data nodes), it means 0
             long used = 0;
             short diskPercent = -1;
             if (total.getBytes() > 0) {

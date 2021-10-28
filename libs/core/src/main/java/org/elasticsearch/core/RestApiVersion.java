@@ -32,7 +32,7 @@ public enum RestApiVersion {
         return fromMajorVersion(major - 1);
     }
 
-    public boolean matches(Function<RestApiVersion, Boolean> restApiVersionFunctions){
+    public boolean matches(Function<RestApiVersion, Boolean> restApiVersionFunctions) {
         return restApiVersionFunctions.apply(this);
     }
 

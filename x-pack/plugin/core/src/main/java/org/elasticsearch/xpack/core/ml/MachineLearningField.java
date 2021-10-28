@@ -13,6 +13,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
+import org.elasticsearch.license.XPackLicenseState;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
@@ -21,16 +22,28 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 public final class MachineLearningField {
-    public static final Setting<Boolean> AUTODETECT_PROCESS =
-            Setting.boolSetting("xpack.ml.autodetect_process", true, Setting.Property.NodeScope);
-    public static final Setting<ByteSizeValue> MAX_MODEL_MEMORY_LIMIT =
-            Setting.memorySizeSetting("xpack.ml.max_model_memory_limit", ByteSizeValue.ZERO,
-                    Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<Boolean> AUTODETECT_PROCESS = Setting.boolSetting(
+        "xpack.ml.autodetect_process",
+        true,
+        Setting.Property.NodeScope
+    );
+    public static final Setting<ByteSizeValue> MAX_MODEL_MEMORY_LIMIT = Setting.memorySizeSetting(
+        "xpack.ml.max_model_memory_limit",
+        ByteSizeValue.ZERO,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
     public static final TimeValue STATE_PERSIST_RESTORE_TIMEOUT = TimeValue.timeValueMinutes(30);
     public static final String ML_FEATURE_FAMILY = "machine-learning";
     public static final LicensedFeature.Momentary ML_API_FEATURE = LicensedFeature.momentary(
         ML_FEATURE_FAMILY,
         "api",
+        License.OperationMode.PLATINUM
+    );
+
+    public static final LicensedFeature.Momentary ML_MODEL_INFERENCE_PLATINUM_FEATURE = LicensedFeature.momentary(
+        MachineLearningField.ML_FEATURE_FAMILY,
+        "model-inference-platinum-check",
         License.OperationMode.PLATINUM
     );
 
@@ -44,5 +57,12 @@ public final class MachineLearningField {
         System.arraycopy(Numbers.longToBytes(hash.h1), 0, hashedBytes, 0, 8);
         System.arraycopy(Numbers.longToBytes(hash.h2), 0, hashedBytes, 8, 8);
         return new BigInteger(hashedBytes) + "_" + combined.length();
+    }
+
+    public static boolean featureCheckForMode(License.OperationMode mode, XPackLicenseState licenseState) {
+        if (mode.equals(License.OperationMode.PLATINUM)) {
+            return ML_MODEL_INFERENCE_PLATINUM_FEATURE.check(licenseState);
+        }
+        return true;
     }
 }

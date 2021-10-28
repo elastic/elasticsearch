@@ -33,8 +33,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -150,8 +150,10 @@ public class StatsCollectorTests extends BaseCollectorTestCase {
         assertThat(document.getId(), nullValue());
         assertThat(document.stats(), is(autoFollowStats));
 
-        assertWarnings("[xpack.monitoring.collection.ccr.stats.timeout] setting was deprecated in Elasticsearch and will be removed in " +
-            "a future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(
+            "[xpack.monitoring.collection.ccr.stats.timeout] setting was deprecated in Elasticsearch and will be removed in "
+                + "a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     private List<FollowStatsAction.StatsResponse> mockStatuses() {
@@ -169,10 +171,12 @@ public class StatsCollectorTests extends BaseCollectorTestCase {
         return statuses;
     }
 
-    private StatsCollector createCollector(Settings settings,
-                                           ClusterService clusterService,
-                                           XPackLicenseState licenseState,
-                                           Client client) {
+    private StatsCollector createCollector(
+        Settings settings,
+        ClusterService clusterService,
+        XPackLicenseState licenseState,
+        Client client
+    ) {
         return new StatsCollector(settings, clusterService, licenseState, client);
     }
 

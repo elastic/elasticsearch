@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
@@ -27,14 +26,14 @@ public class FreezeStepTests extends AbstractStepTestCase<FreezeStep> {
         StepKey nextKey = instance.getNextStepKey();
 
         switch (between(0, 1)) {
-        case 0:
-            key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            break;
-        case 1:
-            nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 0:
+                key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+                break;
+            case 1:
+                nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
 
         return new FreezeStep(key, nextKey, instance.getClient());
@@ -46,8 +45,11 @@ public class FreezeStepTests extends AbstractStepTestCase<FreezeStep> {
     }
 
     private static IndexMetadata getIndexMetadata() {
-        return IndexMetadata.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        return IndexMetadata.builder(randomAlphaOfLength(10))
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
     }
 
     public void testIndexSurvives() {

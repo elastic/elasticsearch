@@ -8,8 +8,8 @@
 
 package org.elasticsearch.client.ml.dataframe;
 
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -56,15 +56,14 @@ public class OutlierDetectionTests extends AbstractXContentTestCase<OutlierDetec
     }
 
     public void testGetParams_GivenExplicitValues() {
-        OutlierDetection outlierDetection =
-            OutlierDetection.builder()
-                .setNNeighbors(42)
-                .setMethod(OutlierDetection.Method.LDOF)
-                .setFeatureInfluenceThreshold(0.5)
-                .setComputeFeatureInfluence(true)
-                .setOutlierFraction(0.42)
-                .setStandardizationEnabled(false)
-                .build();
+        OutlierDetection outlierDetection = OutlierDetection.builder()
+            .setNNeighbors(42)
+            .setMethod(OutlierDetection.Method.LDOF)
+            .setFeatureInfluenceThreshold(0.5)
+            .setComputeFeatureInfluence(true)
+            .setOutlierFraction(0.42)
+            .setStandardizationEnabled(false)
+            .build();
         assertThat(outlierDetection.getNNeighbors(), equalTo(42));
         assertThat(outlierDetection.getMethod(), equalTo(OutlierDetection.Method.LDOF));
         assertThat(outlierDetection.getFeatureInfluenceThreshold(), closeTo(0.5, 1E-9));

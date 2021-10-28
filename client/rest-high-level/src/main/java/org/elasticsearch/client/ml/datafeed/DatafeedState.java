@@ -16,7 +16,10 @@ import java.util.Locale;
  */
 public enum DatafeedState {
 
-    STARTED, STOPPED, STARTING, STOPPING;
+    STARTED,
+    STOPPED,
+    STARTING,
+    STOPPING;
 
     public static final ParseField STATE = new ParseField("state");
 

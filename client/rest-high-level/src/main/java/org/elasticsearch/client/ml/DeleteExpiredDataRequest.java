@@ -28,7 +28,7 @@ public class DeleteExpiredDataRequest implements Validatable, ToXContentObject {
     private final Float requestsPerSecond;
     private final TimeValue timeout;
 
-   /**
+    /**
      * Create a new request to delete expired data
      */
     public DeleteExpiredDataRequest() {
@@ -76,9 +76,9 @@ public class DeleteExpiredDataRequest implements Validatable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DeleteExpiredDataRequest that = (DeleteExpiredDataRequest) o;
-        return Objects.equals(requestsPerSecond, that.requestsPerSecond) &&
-            Objects.equals(timeout, that.timeout) &&
-            Objects.equals(jobId, that.jobId);
+        return Objects.equals(requestsPerSecond, that.requestsPerSecond)
+            && Objects.equals(timeout, that.timeout)
+            && Objects.equals(jobId, that.jobId);
     }
 
     @Override

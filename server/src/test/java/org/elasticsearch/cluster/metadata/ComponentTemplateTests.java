@@ -14,13 +14,13 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -117,8 +117,10 @@ public class ComponentTemplateTests extends AbstractDiffableSerializationTestCas
         if (randomBoolean()) {
             return Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(4));
         } else {
-            return Collections.singletonMap(randomAlphaOfLength(5),
-                Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(4)));
+            return Collections.singletonMap(
+                randomAlphaOfLength(5),
+                Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(4))
+            );
         }
     }
 
@@ -134,30 +136,51 @@ public class ComponentTemplateTests extends AbstractDiffableSerializationTestCas
                     case 0:
                         Template ot = orig.template();
                         return new ComponentTemplate(
-                            new Template(randomValueOtherThan(ot.settings(), ComponentTemplateTests::randomSettings),
-                                ot.mappings(), ot.aliases()),
-                            orig.version(), orig.metadata());
+                            new Template(
+                                randomValueOtherThan(ot.settings(), ComponentTemplateTests::randomSettings),
+                                ot.mappings(),
+                                ot.aliases()
+                            ),
+                            orig.version(),
+                            orig.metadata()
+                        );
                     case 1:
                         Template ot2 = orig.template();
                         return new ComponentTemplate(
-                            new Template(ot2.settings(),
-                                randomValueOtherThan(ot2.mappings(), ComponentTemplateTests::randomMappings), ot2.aliases()),
-                            orig.version(), orig.metadata());
+                            new Template(
+                                ot2.settings(),
+                                randomValueOtherThan(ot2.mappings(), ComponentTemplateTests::randomMappings),
+                                ot2.aliases()
+                            ),
+                            orig.version(),
+                            orig.metadata()
+                        );
                     case 2:
                         Template ot3 = orig.template();
                         return new ComponentTemplate(
-                            new Template(ot3.settings(), ot3.mappings(),
-                                randomValueOtherThan(ot3.aliases(), ComponentTemplateTests::randomAliases)),
-                            orig.version(), orig.metadata());
+                            new Template(
+                                ot3.settings(),
+                                ot3.mappings(),
+                                randomValueOtherThan(ot3.aliases(), ComponentTemplateTests::randomAliases)
+                            ),
+                            orig.version(),
+                            orig.metadata()
+                        );
                     default:
                         throw new IllegalStateException("illegal randomization branch");
                 }
             case 1:
-                return new ComponentTemplate(orig.template(), randomValueOtherThan(orig.version(), ESTestCase::randomNonNegativeLong),
-                    orig.metadata());
+                return new ComponentTemplate(
+                    orig.template(),
+                    randomValueOtherThan(orig.version(), ESTestCase::randomNonNegativeLong),
+                    orig.metadata()
+                );
             case 2:
-                return new ComponentTemplate(orig.template(), orig.version(),
-                    randomValueOtherThan(orig.metadata(), ComponentTemplateTests::randomMeta));
+                return new ComponentTemplate(
+                    orig.template(),
+                    orig.version(),
+                    randomValueOtherThan(orig.metadata(), ComponentTemplateTests::randomMeta)
+                );
             default:
                 throw new IllegalStateException("illegal randomization branch");
         }

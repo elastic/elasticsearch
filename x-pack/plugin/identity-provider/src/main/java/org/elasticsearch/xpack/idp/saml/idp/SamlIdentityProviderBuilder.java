@@ -22,7 +22,6 @@ import org.opensaml.saml.saml2.metadata.ContactPersonTypeEnumeration;
 import org.opensaml.security.x509.X509Credential;
 import org.opensaml.security.x509.impl.X509KeyManagerX509CredentialAdapter;
 
-import javax.net.ssl.X509KeyManager;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.security.PrivateKey;
@@ -38,6 +37,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import javax.net.ssl.X509KeyManager;
+
 import static org.opensaml.saml.common.xml.SAMLConstants.SAML2_POST_BINDING_URI;
 import static org.opensaml.saml.common.xml.SAMLConstants.SAML2_REDIRECT_BINDING_URI;
 import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
@@ -50,33 +51,68 @@ public class SamlIdentityProviderBuilder {
     private static final List<String> ALLOWED_NAMEID_FORMATS = List.of(TRANSIENT);
     public static final Setting<String> IDP_ENTITY_ID = Setting.simpleString("xpack.idp.entity_id", Setting.Property.NodeScope);
 
-    public static final Setting<URL> IDP_SSO_REDIRECT_ENDPOINT = new Setting<>("xpack.idp.sso_endpoint.redirect", "https:",
-        value -> parseUrl("xpack.idp.sso_endpoint.redirect", value), Setting.Property.NodeScope);
-    public static final Setting<URL> IDP_SSO_POST_ENDPOINT = new Setting<>("xpack.idp.sso_endpoint.post", "https:",
-        value -> parseUrl("xpack.idp.sso_endpoint.post", value), Setting.Property.NodeScope);
-    public static final Setting<URL> IDP_SLO_REDIRECT_ENDPOINT = new Setting<>("xpack.idp.slo_endpoint.redirect", "https:",
-        value -> parseUrl("xpack.idp.slo_endpoint.redirect", value), Setting.Property.NodeScope);
-    public static final Setting<URL> IDP_SLO_POST_ENDPOINT = new Setting<>("xpack.idp.slo_endpoint.post", "https:",
-        value -> parseUrl("xpack.idp.slo_endpoint.post", value), Setting.Property.NodeScope);
-    public static final Setting<List<String>> IDP_ALLOWED_NAMEID_FORMATS = Setting.listSetting("xpack.idp.allowed_nameid_formats",
-        List.of(TRANSIENT), Function.identity(), SamlIdentityProviderBuilder::validateNameIDs, Setting.Property.NodeScope);
+    public static final Setting<URL> IDP_SSO_REDIRECT_ENDPOINT = new Setting<>(
+        "xpack.idp.sso_endpoint.redirect",
+        "https:",
+        value -> parseUrl("xpack.idp.sso_endpoint.redirect", value),
+        Setting.Property.NodeScope
+    );
+    public static final Setting<URL> IDP_SSO_POST_ENDPOINT = new Setting<>(
+        "xpack.idp.sso_endpoint.post",
+        "https:",
+        value -> parseUrl("xpack.idp.sso_endpoint.post", value),
+        Setting.Property.NodeScope
+    );
+    public static final Setting<URL> IDP_SLO_REDIRECT_ENDPOINT = new Setting<>(
+        "xpack.idp.slo_endpoint.redirect",
+        "https:",
+        value -> parseUrl("xpack.idp.slo_endpoint.redirect", value),
+        Setting.Property.NodeScope
+    );
+    public static final Setting<URL> IDP_SLO_POST_ENDPOINT = new Setting<>(
+        "xpack.idp.slo_endpoint.post",
+        "https:",
+        value -> parseUrl("xpack.idp.slo_endpoint.post", value),
+        Setting.Property.NodeScope
+    );
+    public static final Setting<List<String>> IDP_ALLOWED_NAMEID_FORMATS = Setting.listSetting(
+        "xpack.idp.allowed_nameid_formats",
+        List.of(TRANSIENT),
+        Function.identity(),
+        SamlIdentityProviderBuilder::validateNameIDs,
+        Setting.Property.NodeScope
+    );
 
-    public static final Setting<String> IDP_SIGNING_KEY_ALIAS = Setting.simpleString("xpack.idp.signing.keystore.alias",
-        Setting.Property.NodeScope);
-    public static final Setting<String> IDP_METADATA_SIGNING_KEY_ALIAS = Setting.simpleString("xpack.idp.metadata.signing.keystore.alias",
-        Setting.Property.NodeScope);
+    public static final Setting<String> IDP_SIGNING_KEY_ALIAS = Setting.simpleString(
+        "xpack.idp.signing.keystore.alias",
+        Setting.Property.NodeScope
+    );
+    public static final Setting<String> IDP_METADATA_SIGNING_KEY_ALIAS = Setting.simpleString(
+        "xpack.idp.metadata.signing.keystore.alias",
+        Setting.Property.NodeScope
+    );
 
-    public static final Setting<String> IDP_ORGANIZATION_NAME = Setting.simpleString("xpack.idp.organization.name",
-        Setting.Property.NodeScope);
-    public static final Setting<String> IDP_ORGANIZATION_DISPLAY_NAME = Setting.simpleString("xpack.idp.organization.display_name",
-        IDP_ORGANIZATION_NAME, Setting.Property.NodeScope);
-    public static final Setting<URL> IDP_ORGANIZATION_URL = new Setting<>("xpack.idp.organization.url", "http:",
-        value -> parseUrl("xpack.idp.organization.url", value), Setting.Property.NodeScope);
+    public static final Setting<String> IDP_ORGANIZATION_NAME = Setting.simpleString(
+        "xpack.idp.organization.name",
+        Setting.Property.NodeScope
+    );
+    public static final Setting<String> IDP_ORGANIZATION_DISPLAY_NAME = Setting.simpleString(
+        "xpack.idp.organization.display_name",
+        IDP_ORGANIZATION_NAME,
+        Setting.Property.NodeScope
+    );
+    public static final Setting<URL> IDP_ORGANIZATION_URL = new Setting<>(
+        "xpack.idp.organization.url",
+        "http:",
+        value -> parseUrl("xpack.idp.organization.url", value),
+        Setting.Property.NodeScope
+    );
 
-    public static final Setting<String> IDP_CONTACT_GIVEN_NAME = Setting.simpleString("xpack.idp.contact.given_name",
-        Setting.Property.NodeScope);
-    public static final Setting<String> IDP_CONTACT_SURNAME = Setting.simpleString("xpack.idp.contact.surname",
-        Setting.Property.NodeScope);
+    public static final Setting<String> IDP_CONTACT_GIVEN_NAME = Setting.simpleString(
+        "xpack.idp.contact.given_name",
+        Setting.Property.NodeScope
+    );
+    public static final Setting<String> IDP_CONTACT_SURNAME = Setting.simpleString("xpack.idp.contact.surname", Setting.Property.NodeScope);
     public static final Setting<String> IDP_CONTACT_EMAIL = Setting.simpleString("xpack.idp.contact.email", Setting.Property.NodeScope);
 
     private final SamlServiceProviderResolver serviceProviderResolver;
@@ -141,11 +177,14 @@ public class SamlIdentityProviderBuilder {
             Map.copyOf(ssoEndpoints),
             sloEndpoints == null ? Map.of() : Map.copyOf(sloEndpoints),
             Set.copyOf(allowedNameIdFormats),
-            signingCredential, metadataSigningCredential,
-            technicalContact, organization,
+            signingCredential,
+            metadataSigningCredential,
+            technicalContact,
+            organization,
             serviceProviderDefaults,
             serviceProviderResolver,
-            wildcardServiceResolver);
+            wildcardServiceResolver
+        );
     }
 
     public SamlIdentityProviderBuilder fromSettings(Environment env) {
@@ -186,7 +225,8 @@ public class SamlIdentityProviderBuilder {
             IDP_ORGANIZATION_URL,
             IDP_CONTACT_GIVEN_NAME,
             IDP_CONTACT_SURNAME,
-            IDP_CONTACT_EMAIL);
+            IDP_CONTACT_EMAIL
+        );
     }
 
     public SamlIdentityProviderBuilder serviceProviderDefaults(ServiceProviderDefaults serviceProviderDefaults) {
@@ -253,11 +293,14 @@ public class SamlIdentityProviderBuilder {
     }
 
     private static void validateNameIDs(List<String> values) {
-        final Set<String> invalidFormats =
-            values.stream().distinct().filter(e -> ALLOWED_NAMEID_FORMATS.contains(e) == false).collect(Collectors.toSet());
+        final Set<String> invalidFormats = values.stream()
+            .distinct()
+            .filter(e -> ALLOWED_NAMEID_FORMATS.contains(e) == false)
+            .collect(Collectors.toSet());
         if (invalidFormats.size() > 0) {
             throw new IllegalArgumentException(
-                invalidFormats + " are not valid NameID formats. Allowed values are " + ALLOWED_NAMEID_FORMATS);
+                invalidFormats + " are not valid NameID formats. Allowed values are " + ALLOWED_NAMEID_FORMATS
+            );
         }
     }
 
@@ -310,11 +353,13 @@ public class SamlIdentityProviderBuilder {
             }
             if (selectedAliases.isEmpty()) {
                 throw new IllegalArgumentException(
-                    "The configured keystore for [" + prefix + "keystore] does not contain any RSA or EC key pairs.");
+                    "The configured keystore for [" + prefix + "keystore] does not contain any RSA or EC key pairs."
+                );
             }
             if (selectedAliases.size() > 1 && allowMultiple == false) {
                 throw new IllegalArgumentException(
-                    "The configured keystore for [" + prefix + "keystore] contains multiple private key entries, when one was expected.");
+                    "The configured keystore for [" + prefix + "keystore] contains multiple private key entries, when one was expected."
+                );
             }
         } else {
             selectedAliases.add(configAlias);
@@ -323,8 +368,14 @@ public class SamlIdentityProviderBuilder {
             try {
                 validateSigningKey(keyManager.getPrivateKey(alias));
             } catch (ElasticsearchSecurityException e) {
-                throw new IllegalArgumentException("The configured credential [" + prefix + "keystore] with alias [" + alias
-                    + "] is not a valid signing key - " + e.getMessage());
+                throw new IllegalArgumentException(
+                    "The configured credential ["
+                        + prefix
+                        + "keystore] with alias ["
+                        + alias
+                        + "] is not a valid signing key - "
+                        + e.getMessage()
+                );
             }
             credentials.add(new X509KeyManagerX509CredentialAdapter(keyManager, alias));
         }
@@ -337,15 +388,17 @@ public class SamlIdentityProviderBuilder {
         }
         final String keyType = privateKey.getAlgorithm();
         if (keyType.equals("RSA") == false && keyType.equals("EC") == false) {
-            throw new ElasticsearchSecurityException("The private key uses unsupported key algorithm type [" + keyType
-                + "], only RSA and EC are supported");
+            throw new ElasticsearchSecurityException(
+                "The private key uses unsupported key algorithm type [" + keyType + "], only RSA and EC are supported"
+            );
         }
     }
 
     private static SamlIdentityProvider.OrganizationInfo buildOrganization(Settings settings) {
         final String name = settings.hasValue(IDP_ORGANIZATION_NAME.getKey()) ? IDP_ORGANIZATION_NAME.get(settings) : null;
-        final String displayName = settings.hasValue(IDP_ORGANIZATION_DISPLAY_NAME.getKey()) ?
-            IDP_ORGANIZATION_DISPLAY_NAME.get(settings) : null;
+        final String displayName = settings.hasValue(IDP_ORGANIZATION_DISPLAY_NAME.getKey())
+            ? IDP_ORGANIZATION_DISPLAY_NAME.get(settings)
+            : null;
         final String url = settings.hasValue(IDP_ORGANIZATION_URL.getKey()) ? IDP_ORGANIZATION_URL.get(settings).toString() : null;
         if (Stream.of(name, displayName, url).allMatch(Objects::isNull) == false) {
             return new SamlIdentityProvider.OrganizationInfo(name, displayName, url);
@@ -355,8 +408,12 @@ public class SamlIdentityProviderBuilder {
 
     private static SamlIdentityProvider.ContactInfo buildContactInfo(Settings settings) {
         if (settings.hasValue(IDP_CONTACT_EMAIL.getKey())) {
-            return new SamlIdentityProvider.ContactInfo(ContactPersonTypeEnumeration.TECHNICAL,
-                IDP_CONTACT_GIVEN_NAME.get(settings), IDP_CONTACT_SURNAME.get(settings), IDP_CONTACT_EMAIL.get(settings));
+            return new SamlIdentityProvider.ContactInfo(
+                ContactPersonTypeEnumeration.TECHNICAL,
+                IDP_CONTACT_GIVEN_NAME.get(settings),
+                IDP_CONTACT_SURNAME.get(settings),
+                IDP_CONTACT_EMAIL.get(settings)
+            );
         }
         return null;
     }

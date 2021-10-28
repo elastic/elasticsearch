@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.core.watcher.transport.actions.execute;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.core.watcher.execution.ActionExecutionMode;
@@ -35,16 +35,17 @@ public class ExecuteWatchRequest extends ActionRequest {
     private String id;
     private boolean ignoreCondition = false;
     private boolean recordExecution = false;
-    @Nullable private Map<String, Object> triggerData = null;
-    @Nullable private Map<String, Object> alternativeInput = null;
+    @Nullable
+    private Map<String, Object> triggerData = null;
+    @Nullable
+    private Map<String, Object> alternativeInput = null;
     private Map<String, ActionExecutionMode> actionModes = new HashMap<>();
     private BytesReference watchSource;
     private XContentType xContentType = XContentType.JSON;
 
     private boolean debug = false;
 
-    public ExecuteWatchRequest() {
-    }
+    public ExecuteWatchRequest() {}
 
     /**
      * @param id the id of the watch to execute
@@ -58,7 +59,7 @@ public class ExecuteWatchRequest extends ActionRequest {
         id = in.readOptionalString();
         ignoreCondition = in.readBoolean();
         recordExecution = in.readBoolean();
-        if (in.readBoolean()){
+        if (in.readBoolean()) {
             alternativeInput = in.readMap();
         }
         if (in.readBoolean()) {
@@ -244,9 +245,11 @@ public class ExecuteWatchRequest extends ActionRequest {
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (id == null && watchSource == null){
-            validationException = ValidateActions.addValidationError("a watch execution request must either have a watch id or an inline " +
-                    "watch source, but both are missing", validationException);
+        if (id == null && watchSource == null) {
+            validationException = ValidateActions.addValidationError(
+                "a watch execution request must either have a watch id or an inline " + "watch source, but both are missing",
+                validationException
+            );
         }
         if (id != null && WatcherUtils.isValidId(id) == false) {
             validationException = ValidateActions.addValidationError("watch id contains whitespace", validationException);
@@ -254,19 +257,27 @@ public class ExecuteWatchRequest extends ActionRequest {
         for (String actionId : actionModes.keySet()) {
             if (actionId == null) {
                 validationException = ValidateActions.addValidationError(
-                        String.format(Locale.ROOT, "action id may not be null"), validationException);
+                    String.format(Locale.ROOT, "action id may not be null"),
+                    validationException
+                );
             } else if (WatcherUtils.isValidId(actionId) == false) {
                 validationException = ValidateActions.addValidationError(
-                        String.format(Locale.ROOT, "action id [%s] contains whitespace", actionId), validationException);
+                    String.format(Locale.ROOT, "action id [%s] contains whitespace", actionId),
+                    validationException
+                );
             }
         }
         if (watchSource != null && id != null) {
-            validationException = ValidateActions.addValidationError("a watch execution request must either have a watch id or an inline " +
-                    "watch source but not both", validationException);
+            validationException = ValidateActions.addValidationError(
+                "a watch execution request must either have a watch id or an inline " + "watch source but not both",
+                validationException
+            );
         }
         if (watchSource != null && recordExecution) {
-            validationException = ValidateActions.addValidationError("the execution of an inline watch cannot be recorded",
-                    validationException);
+            validationException = ValidateActions.addValidationError(
+                "the execution of an inline watch cannot be recorded",
+                validationException
+            );
         }
         return validationException;
     }

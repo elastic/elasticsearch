@@ -21,8 +21,11 @@ public final class DeleteUserResponse extends AcknowledgedResponse {
 
     private static final String PARSE_FIELD_NAME = "found";
 
-    private static final ConstructingObjectParser<DeleteUserResponse, Void> PARSER = AcknowledgedResponse
-        .generateParser("delete_user_response", DeleteUserResponse::new, PARSE_FIELD_NAME);
+    private static final ConstructingObjectParser<DeleteUserResponse, Void> PARSER = AcknowledgedResponse.generateParser(
+        "delete_user_response",
+        DeleteUserResponse::new,
+        PARSE_FIELD_NAME
+    );
 
     public DeleteUserResponse(boolean acknowledged) {
         super(acknowledged);

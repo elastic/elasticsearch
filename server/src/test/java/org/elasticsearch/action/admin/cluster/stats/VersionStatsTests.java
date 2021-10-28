@@ -54,26 +54,40 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
 
     @Override
     protected VersionStats mutateInstance(VersionStats instance) throws IOException {
-        return new VersionStats(instance.versionStats().stream()
-            .map(svs -> {
-                switch (randomIntBetween(1, 4)) {
-                    case 1:
-                        return new VersionStats.SingleVersionStats(Version.V_7_3_0,
-                            svs.indexCount, svs.primaryShardCount, svs.totalPrimaryByteCount);
-                    case 2:
-                        return new VersionStats.SingleVersionStats(svs.version,
-                            svs.indexCount + 1, svs.primaryShardCount, svs.totalPrimaryByteCount);
-                    case 3:
-                        return new VersionStats.SingleVersionStats(svs.version,
-                            svs.indexCount, svs.primaryShardCount + 1, svs.totalPrimaryByteCount);
-                    case 4:
-                        return new VersionStats.SingleVersionStats(svs.version,
-                            svs.indexCount, svs.primaryShardCount, svs.totalPrimaryByteCount + 1);
-                    default:
-                        throw new IllegalArgumentException("unexpected branch");
-                }
-            })
-            .collect(Collectors.toList()));
+        return new VersionStats(instance.versionStats().stream().map(svs -> {
+            switch (randomIntBetween(1, 4)) {
+                case 1:
+                    return new VersionStats.SingleVersionStats(
+                        Version.V_7_3_0,
+                        svs.indexCount,
+                        svs.primaryShardCount,
+                        svs.totalPrimaryByteCount
+                    );
+                case 2:
+                    return new VersionStats.SingleVersionStats(
+                        svs.version,
+                        svs.indexCount + 1,
+                        svs.primaryShardCount,
+                        svs.totalPrimaryByteCount
+                    );
+                case 3:
+                    return new VersionStats.SingleVersionStats(
+                        svs.version,
+                        svs.indexCount,
+                        svs.primaryShardCount + 1,
+                        svs.totalPrimaryByteCount
+                    );
+                case 4:
+                    return new VersionStats.SingleVersionStats(
+                        svs.version,
+                        svs.indexCount,
+                        svs.primaryShardCount,
+                        svs.totalPrimaryByteCount + 1
+                    );
+                default:
+                    throw new IllegalArgumentException("unexpected branch");
+            }
+        }).collect(Collectors.toList()));
     }
 
     public void testCreation() {
@@ -81,9 +95,7 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
         VersionStats stats = VersionStats.of(metadata, Collections.emptyList());
         assertThat(stats.versionStats(), equalTo(Collections.emptySet()));
 
-
-        metadata = new Metadata.Builder()
-            .put(indexMeta("foo", Version.CURRENT, 4), true)
+        metadata = new Metadata.Builder().put(indexMeta("foo", Version.CURRENT, 4), true)
             .put(indexMeta("bar", Version.CURRENT, 3), true)
             .put(indexMeta("baz", Version.V_7_0_0, 2), true)
             .build();
@@ -94,19 +106,33 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
         assertThat(stats.versionStats(), containsInAnyOrder(s1, s2));
 
         ShardId shardId = new ShardId("bar", "uuid", 0);
-        ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true,
-            RecoverySource.PeerRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "message"));
-        Path path = createTempDir().resolve("indices").resolve(shardRouting.shardId().getIndex().getUUID())
+        ShardRouting shardRouting = ShardRouting.newUnassigned(
+            shardId,
+            true,
+            RecoverySource.PeerRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "message")
+        );
+        Path path = createTempDir().resolve("indices")
+            .resolve(shardRouting.shardId().getIndex().getUUID())
             .resolve(String.valueOf(shardRouting.shardId().id()));
         IndexShard indexShard = mock(IndexShard.class);
         StoreStats storeStats = new StoreStats(100, 150, 200);
         when(indexShard.storeStats()).thenReturn(storeStats);
-        ShardStats shardStats = new ShardStats(shardRouting, new ShardPath(false, path, path, shardRouting.shardId()),
+        ShardStats shardStats = new ShardStats(
+            shardRouting,
+            new ShardPath(false, path, path, shardRouting.shardId()),
             new CommonStats(null, indexShard, new CommonStatsFlags(CommonStatsFlags.Flag.Store)),
-            null, null, null);
-        ClusterStatsNodeResponse nodeResponse =
-            new ClusterStatsNodeResponse(new DiscoveryNode("id", buildNewFakeTransportAddress(), Version.CURRENT),
-                ClusterHealthStatus.GREEN, null, null, new ShardStats[]{shardStats});
+            null,
+            null,
+            null
+        );
+        ClusterStatsNodeResponse nodeResponse = new ClusterStatsNodeResponse(
+            new DiscoveryNode("id", buildNewFakeTransportAddress(), Version.CURRENT),
+            ClusterHealthStatus.GREEN,
+            null,
+            null,
+            new ShardStats[] { shardStats }
+        );
 
         stats = VersionStats.of(metadata, Collections.singletonList(nodeResponse));
         assertThat(stats.versionStats().size(), equalTo(2));
@@ -129,8 +155,12 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
         List<Version> versions = Arrays.asList(Version.CURRENT, Version.V_7_0_0, Version.V_7_1_0, Version.V_7_2_0);
         List<VersionStats.SingleVersionStats> stats = new ArrayList<>();
         for (Version v : versions) {
-            VersionStats.SingleVersionStats s =
-                new VersionStats.SingleVersionStats(v, randomIntBetween(10, 20), randomIntBetween(20, 30), randomNonNegativeLong());
+            VersionStats.SingleVersionStats s = new VersionStats.SingleVersionStats(
+                v,
+                randomIntBetween(10, 20),
+                randomIntBetween(20, 30),
+                randomNonNegativeLong()
+            );
             stats.add(s);
         }
         return new VersionStats(stats);

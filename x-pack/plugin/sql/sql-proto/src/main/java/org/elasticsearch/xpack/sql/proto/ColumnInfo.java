@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.sql.proto;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -25,13 +25,16 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  */
 public class ColumnInfo implements ToXContentObject {
 
-    private static final ConstructingObjectParser<ColumnInfo, Void> PARSER =
-        new ConstructingObjectParser<>("column_info", true, objects ->
-            new ColumnInfo(
-                objects[0] == null ? "" : (String) objects[0],
-                (String) objects[1],
-                (String) objects[2],
-                (Integer) objects[3]));
+    private static final ConstructingObjectParser<ColumnInfo, Void> PARSER = new ConstructingObjectParser<>(
+        "column_info",
+        true,
+        objects -> new ColumnInfo(
+            objects[0] == null ? "" : (String) objects[0],
+            (String) objects[1],
+            (String) objects[2],
+            (Integer) objects[3]
+        )
+    );
 
     private static final ParseField TABLE = new ParseField("table");
     private static final ParseField NAME = new ParseField("name");
@@ -78,7 +81,6 @@ public class ColumnInfo implements ToXContentObject {
         return builder.endObject();
     }
 
-
     public static ColumnInfo fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
@@ -120,10 +122,10 @@ public class ColumnInfo implements ToXContentObject {
             return false;
         }
         ColumnInfo that = (ColumnInfo) o;
-        return Objects.equals(displaySize, that.displaySize) &&
-            Objects.equals(table, that.table) &&
-            Objects.equals(name, that.name) &&
-            Objects.equals(esType, that.esType);
+        return Objects.equals(displaySize, that.displaySize)
+            && Objects.equals(table, that.table)
+            && Objects.equals(name, that.name)
+            && Objects.equals(esType, that.esType);
     }
 
     @Override

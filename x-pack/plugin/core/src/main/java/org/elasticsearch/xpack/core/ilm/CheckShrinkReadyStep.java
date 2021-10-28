@@ -16,12 +16,12 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
 
 import java.io.IOException;
@@ -59,8 +59,7 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
 
         if (idxMeta == null) {
             // Index must have been since deleted, ignore it
-            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists",
-                getKey().getAction(), index.getName());
+            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
             return new Result(false, null);
         }
 
@@ -91,24 +90,44 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
             }
         }
 
-        logger.trace("{} checking for shrink readiness on [{}], found {} shards and need {}",
-            index, idShardsShouldBeOn, foundShards, expectedShardCount);
+        logger.trace(
+            "{} checking for shrink readiness on [{}], found {} shards and need {}",
+            index,
+            idShardsShouldBeOn,
+            foundShards,
+            expectedShardCount
+        );
 
         if (foundShards == expectedShardCount) {
-            logger.trace("{} successfully found {} allocated shards for shrink readiness on node [{}] ({})",
-                index, expectedShardCount, idShardsShouldBeOn, getKey().getAction());
+            logger.trace(
+                "{} successfully found {} allocated shards for shrink readiness on node [{}] ({})",
+                index,
+                expectedShardCount,
+                idShardsShouldBeOn,
+                getKey().getAction()
+            );
             return new Result(true, null);
         } else {
             if (nodeBeingRemoved) {
                 completable = false;
-                return new Result(false, new SingleMessageFieldInfo("node with id [" + idShardsShouldBeOn +
-                    "] is currently marked as shutting down for removal"));
+                return new Result(
+                    false,
+                    new SingleMessageFieldInfo("node with id [" + idShardsShouldBeOn + "] is currently marked as shutting down for removal")
+                );
             }
 
-            logger.trace("{} failed to find {} allocated shards (found {}) on node [{}] for shrink readiness ({})",
-                index, expectedShardCount, foundShards, idShardsShouldBeOn, getKey().getAction());
-            return new Result(false, new CheckShrinkReadyStep.Info(idShardsShouldBeOn, expectedShardCount,
-                expectedShardCount - foundShards));
+            logger.trace(
+                "{} failed to find {} allocated shards (found {}) on node [{}] for shrink readiness ({})",
+                index,
+                expectedShardCount,
+                foundShards,
+                idShardsShouldBeOn,
+                getKey().getAction()
+            );
+            return new Result(
+                false,
+                new CheckShrinkReadyStep.Info(idShardsShouldBeOn, expectedShardCount, expectedShardCount - foundShards)
+            );
         }
     }
 
@@ -140,7 +159,9 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
         static final ParseField SHARDS_TO_ALLOCATE = new ParseField("shards_left_to_allocate");
         static final ParseField MESSAGE = new ParseField("message");
         static final ConstructingObjectParser<CheckShrinkReadyStep.Info, Void> PARSER = new ConstructingObjectParser<>(
-            "check_shrink_ready_step_info", a -> new CheckShrinkReadyStep.Info((String) a[0], (long) a[1], (long) a[2]));
+            "check_shrink_ready_step_info",
+            a -> new CheckShrinkReadyStep.Info((String) a[0], (long) a[1], (long) a[2])
+        );
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), NODE_ID);
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), EXPECTED_SHARDS);
@@ -155,8 +176,14 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
             if (numberShardsLeftToAllocate < 0) {
                 this.message = "Waiting for all shards to become active";
             } else {
-                this.message = String.format(Locale.ROOT, "Waiting for node [%s] to contain [%d] shards, found [%d], remaining [%d]",
-                    nodeId, expectedShards, expectedShards - numberShardsLeftToAllocate, numberShardsLeftToAllocate);
+                this.message = String.format(
+                    Locale.ROOT,
+                    "Waiting for node [%s] to contain [%d] shards, found [%d], remaining [%d]",
+                    nodeId,
+                    expectedShards,
+                    expectedShards - numberShardsLeftToAllocate,
+                    numberShardsLeftToAllocate
+                );
             }
         }
 
@@ -185,9 +212,9 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
                 return false;
             }
             CheckShrinkReadyStep.Info other = (CheckShrinkReadyStep.Info) obj;
-            return Objects.equals(actualReplicas, other.actualReplicas) &&
-                Objects.equals(numberShardsLeftToAllocate, other.numberShardsLeftToAllocate) &&
-                Objects.equals(nodeId, other.nodeId);
+            return Objects.equals(actualReplicas, other.actualReplicas)
+                && Objects.equals(numberShardsLeftToAllocate, other.numberShardsLeftToAllocate)
+                && Objects.equals(nodeId, other.nodeId);
         }
 
         @Override

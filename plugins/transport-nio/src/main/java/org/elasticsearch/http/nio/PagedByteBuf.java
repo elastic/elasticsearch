@@ -13,6 +13,7 @@ import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.buffer.UnpooledByteBufAllocator;
 import io.netty.buffer.UnpooledHeapByteBuf;
+
 import org.elasticsearch.nio.Page;
 
 import java.nio.ByteBuffer;
@@ -51,7 +52,6 @@ public class PagedByteBuf extends UnpooledHeapByteBuf {
         PagedByteBuf newByteBuf = new PagedByteBuf(buffer.array(), page::close);
         return newByteBuf.slice(offset, buffer.remaining());
     }
-
 
     @Override
     protected void deallocate() {

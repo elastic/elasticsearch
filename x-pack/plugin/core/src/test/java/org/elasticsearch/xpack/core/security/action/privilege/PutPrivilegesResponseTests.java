@@ -25,9 +25,7 @@ public class PutPrivilegesResponseTests extends ESTestCase {
         final int applicationCount = randomInt(3);
         final Map<String, List<String>> map = new HashMap<>(applicationCount);
         for (int i = 0; i < applicationCount; i++) {
-            map.put(randomAlphaOfLengthBetween(3, 8),
-                Arrays.asList(generateRandomStringArray(5, 6, false, true))
-            );
+            map.put(randomAlphaOfLengthBetween(3, 8), Arrays.asList(generateRandomStringArray(5, 6, false, true)));
         }
         final PutPrivilegesResponse original = new PutPrivilegesResponse(map);
 

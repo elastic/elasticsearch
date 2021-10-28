@@ -21,7 +21,8 @@ import static org.elasticsearch.xpack.core.watcher.actions.throttler.Throttler.T
  */
 public class PeriodThrottler implements Throttler {
 
-    @Nullable private final TimeValue period;
+    @Nullable
+    private final TimeValue period;
     private final Clock clock;
 
     public PeriodThrottler(Clock clock, TimeValue period) {
@@ -52,8 +53,12 @@ public class PeriodThrottler implements Throttler {
         long executionTime = status.lastSuccessfulExecution().timestamp().toInstant().toEpochMilli();
         TimeValue timeElapsed = TimeValue.timeValueMillis(now - executionTime);
         if (timeElapsed.getMillis() <= period.getMillis()) {
-            return Result.throttle(PERIOD, "throttling interval is set to [{}] but time elapsed since last execution is [{}]",
-                    period, timeElapsed);
+            return Result.throttle(
+                PERIOD,
+                "throttling interval is set to [{}] but time elapsed since last execution is [{}]",
+                period,
+                timeElapsed
+            );
         }
         return Result.NO;
     }

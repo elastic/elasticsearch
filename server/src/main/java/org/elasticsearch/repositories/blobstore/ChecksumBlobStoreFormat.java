@@ -19,11 +19,13 @@ import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.gateway.CorruptStateException;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -64,15 +66,33 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
 
     private final CheckedBiFunction<String, XContentParser, T, IOException> reader;
 
+    private final CheckedBiFunction<String, XContentParser, T, IOException> fallbackReader;
+
+    /**
+     * @param codec          codec name
+     * @param blobNameFormat format of the blobname in {@link String#format} format
+     * @param reader         prototype object that can deserialize T from XContent
+     * @param fallbackReader fallback prototype object that can deserialize T from XContent in case reader fails
+     */
+    public ChecksumBlobStoreFormat(
+        String codec,
+        String blobNameFormat,
+        CheckedBiFunction<String, XContentParser, T, IOException> reader,
+        @Nullable CheckedBiFunction<String, XContentParser, T, IOException> fallbackReader
+    ) {
+        this.reader = reader;
+        this.blobNameFormat = blobNameFormat;
+        this.codec = codec;
+        this.fallbackReader = fallbackReader;
+    }
+
     /**
      * @param codec          codec name
      * @param blobNameFormat format of the blobname in {@link String#format} format
      * @param reader         prototype object that can deserialize T from XContent
      */
     public ChecksumBlobStoreFormat(String codec, String blobNameFormat, CheckedBiFunction<String, XContentParser, T, IOException> reader) {
-        this.reader = reader;
-        this.blobNameFormat = blobNameFormat;
-        this.codec = codec;
+        this(codec, blobNameFormat, reader, null);
     }
 
     /**
@@ -104,15 +124,37 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
             } else {
                 wrappedStream = deserializeMetaBlobInputStream;
             }
-            final T result;
-            try (
-                XContentParser parser = XContentType.SMILE.xContent()
-                    .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, wrappedStream)
-            ) {
-                result = reader.apply(repoName, parser);
-                XContentParserUtils.ensureExpectedToken(null, parser.nextToken(), parser);
+            T result;
+
+            if (fallbackReader != null) {
+                // fully read stream to allow rereading it when calling fallback
+                BytesReference bytesReference = Streams.readFully(wrappedStream);
+                deserializeMetaBlobInputStream.verifyFooter();
+                try (
+                    XContentParser parser = XContentType.SMILE.xContent()
+                        .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytesReference.streamInput())
+                ) {
+                    result = reader.apply(repoName, parser);
+                    XContentParserUtils.ensureExpectedToken(null, parser.nextToken(), parser);
+                } catch (Exception e) {
+                    try (
+                        XContentParser parser = XContentType.SMILE.xContent()
+                            .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytesReference.streamInput())
+                    ) {
+                        result = fallbackReader.apply(repoName, parser);
+                        XContentParserUtils.ensureExpectedToken(null, parser.nextToken(), parser);
+                    }
+                }
+            } else {
+                try (
+                    XContentParser parser = XContentType.SMILE.xContent()
+                        .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, wrappedStream)
+                ) {
+                    result = reader.apply(repoName, parser);
+                    XContentParserUtils.ensureExpectedToken(null, parser.nextToken(), parser);
+                }
+                deserializeMetaBlobInputStream.verifyFooter();
             }
-            deserializeMetaBlobInputStream.verifyFooter();
             return result;
         } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
             // we trick this into a dedicated exception with the original stacktrace

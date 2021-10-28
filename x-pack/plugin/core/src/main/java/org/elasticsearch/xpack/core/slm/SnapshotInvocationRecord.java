@@ -12,12 +12,12 @@ import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -27,7 +27,10 @@ import java.util.Objects;
  * presented to the user. This class is used for both successes and failures as the structure of the data is very similar.
  */
 public class SnapshotInvocationRecord extends AbstractDiffable<SnapshotInvocationRecord>
-    implements Writeable, ToXContentObject, Diffable<SnapshotInvocationRecord> {
+    implements
+        Writeable,
+        ToXContentObject,
+        Diffable<SnapshotInvocationRecord> {
 
     static final ParseField SNAPSHOT_NAME = new ParseField("snapshot_name");
     static final ParseField START_TIMESTAMP = new ParseField("start_time");
@@ -39,9 +42,11 @@ public class SnapshotInvocationRecord extends AbstractDiffable<SnapshotInvocatio
     private long snapshotFinishTimestamp;
     private String details;
 
-    public static final ConstructingObjectParser<SnapshotInvocationRecord, String> PARSER =
-        new ConstructingObjectParser<>("snapshot_policy_invocation_record", true,
-            a -> new SnapshotInvocationRecord((String) a[0], (Long) a[1], (long) a[2], (String) a[3]));
+    public static final ConstructingObjectParser<SnapshotInvocationRecord, String> PARSER = new ConstructingObjectParser<>(
+        "snapshot_policy_invocation_record",
+        true,
+        a -> new SnapshotInvocationRecord((String) a[0], (Long) a[1], (long) a[2], (String) a[3])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), SNAPSHOT_NAME);
@@ -115,10 +120,10 @@ public class SnapshotInvocationRecord extends AbstractDiffable<SnapshotInvocatio
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SnapshotInvocationRecord that = (SnapshotInvocationRecord) o;
-        return getSnapshotFinishTimestamp() == that.getSnapshotFinishTimestamp() &&
-            Objects.equals(getSnapshotStartTimestamp(), that.getSnapshotStartTimestamp()) &&
-            Objects.equals(getSnapshotName(), that.getSnapshotName()) &&
-            Objects.equals(getDetails(), that.getDetails());
+        return getSnapshotFinishTimestamp() == that.getSnapshotFinishTimestamp()
+            && Objects.equals(getSnapshotStartTimestamp(), that.getSnapshotStartTimestamp())
+            && Objects.equals(getSnapshotName(), that.getSnapshotName())
+            && Objects.equals(getDetails(), that.getDetails());
     }
 
     @Override

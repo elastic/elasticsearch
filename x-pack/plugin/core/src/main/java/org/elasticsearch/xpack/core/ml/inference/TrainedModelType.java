@@ -48,7 +48,7 @@ public enum TrainedModelType {
     private final TrainedModelInput defaultInput;
 
     TrainedModelType(@Nullable TrainedModelInput defaultInput) {
-        this.defaultInput =defaultInput;
+        this.defaultInput = defaultInput;
     }
 
     @Override
@@ -70,11 +70,7 @@ public enum TrainedModelType {
                 return new IndexLocation(InferenceIndexConstants.nativeDefinitionStore());
             default:
                 throw new IllegalArgumentException(
-                    "can not determine appropriate location for type ["
-                        + this
-                        + " for model ["
-                        + modelId
-                        + "]"
+                    "can not determine appropriate location for type [" + this + " for model [" + modelId + "]"
                 );
         }
     }

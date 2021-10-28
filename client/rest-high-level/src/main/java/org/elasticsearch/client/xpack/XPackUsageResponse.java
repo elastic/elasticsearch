@@ -29,7 +29,7 @@ public class XPackUsageResponse {
 
     @SuppressWarnings("unchecked")
     private static Map<String, Object> castMap(Object value) {
-        return (Map<String, Object>)value;
+        return (Map<String, Object>) value;
     }
 
     /** Return a map from feature name to usage information for that feature. */
@@ -39,8 +39,9 @@ public class XPackUsageResponse {
 
     public static XPackUsageResponse fromXContent(XContentParser parser) throws IOException {
         Map<String, Object> rawMap = parser.map();
-        Map<String, Map<String, Object>> usages = rawMap.entrySet().stream().collect(
-            Collectors.toMap(Map.Entry::getKey, e -> castMap(e.getValue())));
+        Map<String, Map<String, Object>> usages = rawMap.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> castMap(e.getValue())));
         return new XPackUsageResponse(usages);
     }
 }

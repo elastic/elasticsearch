@@ -107,10 +107,10 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DiscoveryNodeRole that = (DiscoveryNodeRole) o;
-        return roleName.equals(that.roleName) &&
-            roleNameAbbreviation.equals(that.roleNameAbbreviation) &&
-            canContainData == that.canContainData &&
-            isKnownRole == that.isKnownRole;
+        return roleName.equals(that.roleName)
+            && roleNameAbbreviation.equals(that.roleNameAbbreviation)
+            && canContainData == that.canContainData
+            && isKnownRole == that.isKnownRole;
     }
 
     @Override
@@ -125,12 +125,17 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
 
     @Override
     public final String toString() {
-        return "DiscoveryNodeRole{" +
-                "roleName='" + roleName + '\'' +
-                ", roleNameAbbreviation='" + roleNameAbbreviation + '\'' +
-                ", canContainData=" + canContainData +
-                (isKnownRole ? "" : ", isKnownRole=false") +
-                '}';
+        return "DiscoveryNodeRole{"
+            + "roleName='"
+            + roleName
+            + '\''
+            + ", roleNameAbbreviation='"
+            + roleNameAbbreviation
+            + '\''
+            + ", canContainData="
+            + canContainData
+            + (isKnownRole ? "" : ", isKnownRole=false")
+            + '}';
     }
 
     /**
@@ -272,25 +277,20 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
             .filter(f -> f.getType().equals(DiscoveryNodeRole.class))
             .collect(Collectors.toUnmodifiableList());
         // this will detect duplicate role names
-        final Map<String, DiscoveryNodeRole> roleMap = roleFields.stream()
-            .map(f -> {
-                try {
-                    return (DiscoveryNodeRole) f.get(null);
-                } catch (final IllegalAccessException e) {
-                    throw new AssertionError(e);
-                }
-            })
-            .collect(Collectors.toUnmodifiableMap(DiscoveryNodeRole::roleName, Function.identity()));
-        assert roleMap.size() == roleFields.size() :
-            "roles by name [" + roleMap + "], role fields [" + roleFields + "]";
+        final Map<String, DiscoveryNodeRole> roleMap = roleFields.stream().map(f -> {
+            try {
+                return (DiscoveryNodeRole) f.get(null);
+            } catch (final IllegalAccessException e) {
+                throw new AssertionError(e);
+            }
+        }).collect(Collectors.toUnmodifiableMap(DiscoveryNodeRole::roleName, Function.identity()));
+        assert roleMap.size() == roleFields.size() : "roles by name [" + roleMap + "], role fields [" + roleFields + "]";
         // now we can collect the roles, don't do this first and then collect the role map because the set collector will allow duplicates
         final SortedSet<DiscoveryNodeRole> roles = roleMap.values().stream().collect(Sets.toUnmodifiableSortedSet());
         // this will detect duplicate role abbreviations
-        final Map<String, DiscoveryNodeRole> abbreviations = roles
-            .stream()
+        final Map<String, DiscoveryNodeRole> abbreviations = roles.stream()
             .collect(Collectors.toUnmodifiableMap(DiscoveryNodeRole::roleNameAbbreviation, Function.identity()));
-        assert abbreviations.size() == roleFields.size() :
-            "role abbreviations [" + abbreviations + "], role fields [" + roleFields + "]";
+        assert abbreviations.size() == roleFields.size() : "role abbreviations [" + abbreviations + "], role fields [" + roleFields + "]";
         ROLES = roles;
         ROLE_MAP = roleMap;
     }

@@ -28,9 +28,13 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -64,6 +68,7 @@ import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformIn
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -99,10 +104,19 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
     private static final Logger logger = LogManager.getLogger(IndexBasedTransformConfigManager.class);
     private static final int MAX_RESULTS_WINDOW = 10_000;
 
+    private final ClusterService clusterService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
 
-    public IndexBasedTransformConfigManager(Client client, NamedXContentRegistry xContentRegistry) {
+    public IndexBasedTransformConfigManager(
+        ClusterService clusterService,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Client client,
+        NamedXContentRegistry xContentRegistry
+    ) {
+        this.clusterService = clusterService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.client = client;
         this.xContentRegistry = xContentRegistry;
     }
@@ -255,11 +269,42 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
 
     @Override
     public void deleteOldIndices(ActionListener<Boolean> listener) {
-        DeleteIndexRequest deleteRequest = new DeleteIndexRequest(
-            TransformInternalIndexConstants.INDEX_NAME_PATTERN,
-            TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED,
-            "-" + TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME
-        ).indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
+        ClusterState state = clusterService.state();
+        Set<String> indicesToDelete = new HashSet<>();
+
+        // use the transform context as we access system indexes
+        try (ThreadContext.StoredContext ctx = client.threadPool().getThreadContext().stashWithOrigin(TRANSFORM_ORIGIN)) {
+            indicesToDelete.addAll(
+                Arrays.asList(
+                    indexNameExpressionResolver.concreteIndexNames(
+                        state,
+                        IndicesOptions.lenientExpandHidden(),
+                        TransformInternalIndexConstants.INDEX_NAME_PATTERN
+                    )
+                )
+            );
+
+            indicesToDelete.addAll(
+                Arrays.asList(
+                    indexNameExpressionResolver.concreteIndexNames(
+                        state,
+                        IndicesOptions.lenientExpandHidden(),
+                        TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED
+                    )
+                )
+            );
+
+            indicesToDelete.remove(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
+        }
+
+        if (indicesToDelete.isEmpty()) {
+            listener.onResponse(true);
+            return;
+        }
+
+        DeleteIndexRequest deleteRequest = new DeleteIndexRequest(indicesToDelete.toArray(new String[0])).indicesOptions(
+            IndicesOptions.LENIENT_EXPAND_OPEN
+        );
 
         executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, DeleteIndexAction.INSTANCE, deleteRequest, ActionListener.wrap(response -> {
             if (response.isAcknowledged() == false) {

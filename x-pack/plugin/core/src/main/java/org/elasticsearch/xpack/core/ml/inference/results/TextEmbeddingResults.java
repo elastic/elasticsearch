@@ -80,8 +80,6 @@ public class TextEmbeddingResults extends NlpInferenceResults {
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(super.hashCode(), resultsField);
-        result = 31 * result + Arrays.hashCode(inference);
-        return result;
+        return Objects.hash(super.hashCode(), resultsField, Arrays.hashCode(inference));
     }
 }

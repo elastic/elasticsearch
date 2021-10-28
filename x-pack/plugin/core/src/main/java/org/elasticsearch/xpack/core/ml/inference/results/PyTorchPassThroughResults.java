@@ -81,8 +81,6 @@ public class PyTorchPassThroughResults extends NlpInferenceResults {
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(super.hashCode(), resultsField);
-        result = 31 * result + Arrays.deepHashCode(inference);
-        return result;
+        return Objects.hash(super.hashCode(), resultsField, Arrays.deepHashCode(inference));
     }
 }

@@ -45,8 +45,7 @@ public class UserPrivilegeResolver {
 
         @Override
         public String toString() {
-            StringBuilder str = new StringBuilder()
-                .append(getClass().getSimpleName())
+            StringBuilder str = new StringBuilder().append(getClass().getSimpleName())
                 .append("{")
                 .append(principal)
                 .append(", ")
@@ -90,16 +89,17 @@ public class UserPrivilegeResolver {
             request.clusterPrivileges(Strings.EMPTY_ARRAY);
             request.indexPrivileges(new RoleDescriptor.IndicesPrivileges[0]);
             request.applicationPrivileges(resourcePrivilege);
-            client.execute(HasPrivilegesAction.INSTANCE, request, ActionListener.wrap(
-                response -> {
-                    logger.debug("Checking access for user [{}] to application [{}] resource [{}]",
-                        username, service.getApplicationName(), service.getResource());
-                    UserPrivileges privileges = buildResult(response, service);
-                    logger.debug("Resolved service privileges [{}]", privileges);
-                    listener.onResponse(privileges);
-                },
-                listener::onFailure
-            ));
+            client.execute(HasPrivilegesAction.INSTANCE, request, ActionListener.wrap(response -> {
+                logger.debug(
+                    "Checking access for user [{}] to application [{}] resource [{}]",
+                    username,
+                    service.getApplicationName(),
+                    service.getResource()
+                );
+                UserPrivileges privileges = buildResult(response, service);
+                logger.debug("Resolved service privileges [{}]", privileges);
+                listener.onResponse(privileges);
+            }, listener::onFailure));
         }, listener::onFailure));
 
     }
@@ -124,8 +124,10 @@ public class UserPrivilegeResolver {
         return new UserPrivileges(response.getUsername(), hasAccess, roles);
     }
 
-    private void buildResourcePrivilege(ServiceProviderPrivileges service,
-                                        ActionListener<RoleDescriptor.ApplicationResourcePrivileges> listener) {
+    private void buildResourcePrivilege(
+        ServiceProviderPrivileges service,
+        ActionListener<RoleDescriptor.ApplicationResourcePrivileges> listener
+    ) {
         actionsResolver.getActions(service.getApplicationName(), ActionListener.wrap(actions -> {
             if (actions == null || actions.isEmpty()) {
                 logger.warn("No application-privilege actions defined for application [{}]", service.getApplicationName());

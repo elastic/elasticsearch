@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.cli;
 
 import joptsimple.OptionSet;
-
 import joptsimple.OptionSpec;
 
 import org.apache.commons.io.FileUtils;
@@ -84,6 +83,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
 import javax.security.auth.x500.X500Principal;
 
 import static org.elasticsearch.common.ssl.PemUtils.parsePKCS8PemString;
@@ -1056,12 +1056,11 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         if (Files.exists(KeyStoreWrapper.keystorePath(env.configFile()))) {
             try (
                 KeyStoreWrapper existingKeystore = KeyStoreWrapper.load(env.configFile());
-                SecureString keystorePassword = existingKeystore.hasPassword() ? new SecureString(
-                    terminal.readSecret(
-                        "Enter password for the elasticsearch keystore: ",
-                        KeyStoreWrapper.MAX_PASSPHRASE_LENGTH
+                SecureString keystorePassword = existingKeystore.hasPassword()
+                    ? new SecureString(
+                        terminal.readSecret("Enter password for the elasticsearch keystore: ", KeyStoreWrapper.MAX_PASSPHRASE_LENGTH)
                     )
-                ) : new SecureString(new char[0]);
+                    : new SecureString(new char[0]);
             ) {
                 existingKeystore.decrypt(keystorePassword.getChars());
                 List<String> secureSettingsToRemove = List.of(

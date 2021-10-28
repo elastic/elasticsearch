@@ -295,8 +295,9 @@ public class SqlBinaryArithmeticTests extends ESTestCase {
     }
 
     private static Literal interval(TemporalAmount value, DataType intervalType) {
-        Object i = value instanceof Period ? new IntervalYearMonth((Period) value, intervalType)
-                 : new IntervalDayTime((Duration) value, intervalType);
+        Object i = value instanceof Period
+            ? new IntervalYearMonth((Period) value, intervalType)
+            : new IntervalDayTime((Duration) value, intervalType);
         return new Literal(EMPTY, i, SqlDataTypes.fromJava(i));
     }
 }

@@ -23,8 +23,15 @@ public class RollupTask extends CancellableTask {
     private RollupActionConfig config;
     private RollupJobStatus status;
 
-    RollupTask(long id, String type, String action, TaskId parentTask, String rollupIndex, RollupActionConfig config,
-               Map<String, String> headers) {
+    RollupTask(
+        long id,
+        String type,
+        String action,
+        TaskId parentTask,
+        String rollupIndex,
+        RollupActionConfig config,
+        Map<String, String> headers
+    ) {
         super(id, type, action, RollupField.NAME + "_" + rollupIndex, parentTask, headers);
         this.rollupIndex = rollupIndex;
         this.config = config;

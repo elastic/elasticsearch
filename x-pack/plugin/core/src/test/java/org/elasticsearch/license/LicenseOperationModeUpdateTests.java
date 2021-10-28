@@ -19,7 +19,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class LicenseOperationModeUpdateTests extends ESTestCase {
 
@@ -53,20 +53,20 @@ public class LicenseOperationModeUpdateTests extends ESTestCase {
         assertThat(license.operationMode(), equalTo(License.OperationMode.resolve(type)));
         OperationModeFileWatcherTests.writeMode("gold", licenseModeFile);
         license.setOperationModeFileWatcher(operationModeFileWatcher);
-        verifyZeroInteractions(resourceWatcherService);
+        verifyNoMoreInteractions(resourceWatcherService);
         assertThat(license.operationMode(), equalTo(License.OperationMode.resolve(type)));
     }
 
     public void testCloudInternalLicenseOperationModeUpdate() throws Exception {
         License license = License.builder()
-                .uid("id")
-                .expiryDate(0)
-                .issueDate(0)
-                .issuedTo("elasticsearch")
-                .issuer("issuer")
-                .type("cloud_internal")
-                .maxNodes(1)
-                .build();
+            .uid("id")
+            .expiryDate(0)
+            .issueDate(0)
+            .issuedTo("elasticsearch")
+            .issuer("issuer")
+            .type("cloud_internal")
+            .maxNodes(1)
+            .build();
 
         assertThat(license.operationMode(), equalTo(License.OperationMode.PLATINUM));
         OperationModeFileWatcherTests.writeMode("gold", licenseModeFile);

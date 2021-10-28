@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.core.ml.job.results;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 
 import java.io.IOException;
@@ -21,14 +21,20 @@ import java.util.Date;
 public class InfluencerTests extends AbstractSerializingTestCase<Influencer> {
 
     public Influencer createTestInstance(String jobId) {
-        Influencer influencer = new Influencer(jobId, randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20),
-                new Date(randomNonNegativeLong()), randomNonNegativeLong());
+        Influencer influencer = new Influencer(
+            jobId,
+            randomAlphaOfLengthBetween(1, 20),
+            randomAlphaOfLengthBetween(1, 20),
+            new Date(randomNonNegativeLong()),
+            randomNonNegativeLong()
+        );
         influencer.setInterim(randomBoolean());
         influencer.setInfluencerScore(randomDouble());
         influencer.setInitialInfluencerScore(randomDouble());
         influencer.setProbability(randomDouble());
         return influencer;
     }
+
     @Override
     protected Influencer createTestInstance() {
         return createTestInstance(randomAlphaOfLengthBetween(1, 20));
@@ -70,8 +76,8 @@ public class InfluencerTests extends AbstractSerializingTestCase<Influencer> {
     }
 
     public void testLenientParser() throws IOException {
-        String json = "{\"job_id\":\"job_1\", \"timestamp\": 123544456, \"bucket_span\": 3600," +
-                "\"influencer_field_name\":\"foo_1\", \"influencer_field_value\": \"foo_2\", \"foo\":\"bar\"}";
+        String json = "{\"job_id\":\"job_1\", \"timestamp\": 123544456, \"bucket_span\": 3600,"
+            + "\"influencer_field_name\":\"foo_1\", \"influencer_field_value\": \"foo_2\", \"foo\":\"bar\"}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             Influencer.LENIENT_PARSER.apply(parser, null);
         }

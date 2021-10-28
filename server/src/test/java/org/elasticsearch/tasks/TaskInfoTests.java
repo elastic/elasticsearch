@@ -12,9 +12,9 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -41,8 +41,9 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(Collections.singletonList(
-                new NamedWriteableRegistry.Entry(Task.Status.class, RawTaskStatus.NAME, RawTaskStatus::new)));
+        return new NamedWriteableRegistry(
+            Collections.singletonList(new NamedWriteableRegistry.Entry(Task.Status.class, RawTaskStatus.NAME, RawTaskStatus::new))
+        );
     }
 
     @Override
@@ -52,7 +53,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        //status and headers hold arbitrary content, we can't inject random fields in them
+        // status and headers hold arbitrary content, we can't inject random fields in them
         return field -> "status".equals(field) || "headers".equals(field);
     }
 
@@ -62,134 +63,143 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
             case 0:
                 TaskId taskId = new TaskId(info.getTaskId().getNodeId() + randomAlphaOfLength(5), info.getTaskId().getId());
                 return new TaskInfo(
-                        taskId,
-                        info.getType(),
-                        info.getAction(),
-                        info.getDescription(),
-                        info.getStatus(),
-                        info.getStartTime(),
-                        info.getRunningTimeNanos(),
-                        info.isCancellable(),
-                        info.isCancelled(),
-                        info.getParentTaskId(),
-                        info.getHeaders());
+                    taskId,
+                    info.getType(),
+                    info.getAction(),
+                    info.getDescription(),
+                    info.getStatus(),
+                    info.getStartTime(),
+                    info.getRunningTimeNanos(),
+                    info.isCancellable(),
+                    info.isCancelled(),
+                    info.getParentTaskId(),
+                    info.getHeaders()
+                );
             case 1:
                 return new TaskInfo(
-                        info.getTaskId(),
-                        info.getType() + randomAlphaOfLength(5),
-                        info.getAction(),
-                        info.getDescription(),
-                        info.getStatus(),
-                        info.getStartTime(),
-                        info.getRunningTimeNanos(),
-                        info.isCancellable(),
-                        info.isCancelled(),
-                        info.getParentTaskId(),
-                        info.getHeaders());
+                    info.getTaskId(),
+                    info.getType() + randomAlphaOfLength(5),
+                    info.getAction(),
+                    info.getDescription(),
+                    info.getStatus(),
+                    info.getStartTime(),
+                    info.getRunningTimeNanos(),
+                    info.isCancellable(),
+                    info.isCancelled(),
+                    info.getParentTaskId(),
+                    info.getHeaders()
+                );
             case 2:
                 return new TaskInfo(
-                        info.getTaskId(),
-                        info.getType(),
-                        info.getAction() + randomAlphaOfLength(5),
-                        info.getDescription(),
-                        info.getStatus(),
-                        info.getStartTime(),
-                        info.getRunningTimeNanos(),
-                        info.isCancellable(),
-                        info.isCancelled(),
-                        info.getParentTaskId(),
-                        info.getHeaders());
+                    info.getTaskId(),
+                    info.getType(),
+                    info.getAction() + randomAlphaOfLength(5),
+                    info.getDescription(),
+                    info.getStatus(),
+                    info.getStartTime(),
+                    info.getRunningTimeNanos(),
+                    info.isCancellable(),
+                    info.isCancelled(),
+                    info.getParentTaskId(),
+                    info.getHeaders()
+                );
             case 3:
                 return new TaskInfo(
-                        info.getTaskId(),
-                        info.getType(),
-                        info.getAction(),
-                        info.getDescription() + randomAlphaOfLength(5),
-                        info.getStatus(),
-                        info.getStartTime(),
-                        info.getRunningTimeNanos(),
-                        info.isCancellable(),
-                        info.isCancelled(),
-                        info.getParentTaskId(),
-                        info.getHeaders());
+                    info.getTaskId(),
+                    info.getType(),
+                    info.getAction(),
+                    info.getDescription() + randomAlphaOfLength(5),
+                    info.getStatus(),
+                    info.getStartTime(),
+                    info.getRunningTimeNanos(),
+                    info.isCancellable(),
+                    info.isCancelled(),
+                    info.getParentTaskId(),
+                    info.getHeaders()
+                );
             case 4:
                 Task.Status newStatus = randomValueOtherThan(info.getStatus(), TaskInfoTests::randomRawTaskStatus);
                 return new TaskInfo(
-                        info.getTaskId(),
-                        info.getType(),
-                        info.getAction(),
-                        info.getDescription(),
-                        newStatus,
-                        info.getStartTime(),
-                        info.getRunningTimeNanos(),
-                        info.isCancellable(),
-                        info.isCancelled(),
-                        info.getParentTaskId(),
-                        info.getHeaders());
+                    info.getTaskId(),
+                    info.getType(),
+                    info.getAction(),
+                    info.getDescription(),
+                    newStatus,
+                    info.getStartTime(),
+                    info.getRunningTimeNanos(),
+                    info.isCancellable(),
+                    info.isCancelled(),
+                    info.getParentTaskId(),
+                    info.getHeaders()
+                );
             case 5:
                 return new TaskInfo(
-                        info.getTaskId(),
-                        info.getType(),
-                        info.getAction(),
-                        info.getDescription(),
-                        info.getStatus(),
-                        info.getStartTime() + between(1, 100),
-                        info.getRunningTimeNanos(),
-                        info.isCancellable(),
-                        info.isCancelled(),
-                        info.getParentTaskId(),
-                        info.getHeaders());
+                    info.getTaskId(),
+                    info.getType(),
+                    info.getAction(),
+                    info.getDescription(),
+                    info.getStatus(),
+                    info.getStartTime() + between(1, 100),
+                    info.getRunningTimeNanos(),
+                    info.isCancellable(),
+                    info.isCancelled(),
+                    info.getParentTaskId(),
+                    info.getHeaders()
+                );
             case 6:
                 return new TaskInfo(
-                        info.getTaskId(),
-                        info.getType(),
-                        info.getAction(),
-                        info.getDescription(),
-                        info.getStatus(),
-                        info.getStartTime(),
-                        info.getRunningTimeNanos() + between(1, 100),
-                        info.isCancellable(),
-                        info.isCancelled(),
-                        info.getParentTaskId(),
-                        info.getHeaders());
+                    info.getTaskId(),
+                    info.getType(),
+                    info.getAction(),
+                    info.getDescription(),
+                    info.getStatus(),
+                    info.getStartTime(),
+                    info.getRunningTimeNanos() + between(1, 100),
+                    info.isCancellable(),
+                    info.isCancelled(),
+                    info.getParentTaskId(),
+                    info.getHeaders()
+                );
             case 7:
                 // if not cancellable then mutate cancellable flag but leave cancelled flag unset
                 // if cancelled then mutate cancelled flag but leave cancellable flag set
                 // if cancellable but not cancelled then mutate exactly one of the flags
                 //
                 // cancellable | cancelled | random | cancellable == cancelled | isNowCancellable | isNowCancelled
-                // false       | false     | -      | true                     | true             | false
-                // true        | true      | -      | true                     | true             | false
-                // true        | false     | false  | false                    | false            | false
-                // true        | false     | true   | false                    | true             | true
+                // false | false | - | true | true | false
+                // true | true | - | true | true | false
+                // true | false | false | false | false | false
+                // true | false | true | false | true | true
                 boolean isNowCancellable = info.isCancellable() == info.isCancelled() || randomBoolean();
                 boolean isNowCancelled = isNowCancellable != (info.isCancellable() == info.isCancelled());
                 return new TaskInfo(
-                        info.getTaskId(),
-                        info.getType(),
-                        info.getAction(),
-                        info.getDescription(),
-                        info.getStatus(),
-                        info.getStartTime(),
-                        info.getRunningTimeNanos(),
-                        isNowCancellable,
-                        isNowCancelled,
-                        info.getParentTaskId(),
-                        info.getHeaders());
+                    info.getTaskId(),
+                    info.getType(),
+                    info.getAction(),
+                    info.getDescription(),
+                    info.getStatus(),
+                    info.getStartTime(),
+                    info.getRunningTimeNanos(),
+                    isNowCancellable,
+                    isNowCancelled,
+                    info.getParentTaskId(),
+                    info.getHeaders()
+                );
             case 8:
                 TaskId parentId = new TaskId(info.getParentTaskId().getNodeId() + randomAlphaOfLength(5), info.getParentTaskId().getId());
                 return new TaskInfo(
-                        info.getTaskId(),
-                        info.getType(),
-                        info.getAction(),
-                        info.getDescription(),
-                        info.getStatus(),
-                        info.getStartTime(),
-                        info.getRunningTimeNanos(),
-                        info.isCancellable(),
-                        info.isCancelled(),
-                        parentId,
-                        info.getHeaders());
+                    info.getTaskId(),
+                    info.getType(),
+                    info.getAction(),
+                    info.getDescription(),
+                    info.getStatus(),
+                    info.getStartTime(),
+                    info.getRunningTimeNanos(),
+                    info.isCancellable(),
+                    info.isCancelled(),
+                    parentId,
+                    info.getHeaders()
+                );
             case 9:
                 Map<String, String> headers = info.getHeaders();
                 if (headers == null) {
@@ -199,17 +209,18 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                 }
                 headers.put(randomAlphaOfLength(15), randomAlphaOfLength(15));
                 return new TaskInfo(
-                        info.getTaskId(),
-                        info.getType(),
-                        info.getAction(),
-                        info.getDescription(),
-                        info.getStatus(),
-                        info.getStartTime(),
-                        info.getRunningTimeNanos(),
-                        info.isCancellable(),
-                        info.isCancelled(),
-                        info.getParentTaskId(),
-                        headers);
+                    info.getTaskId(),
+                    info.getType(),
+                    info.getAction(),
+                    info.getDescription(),
+                    info.getStatus(),
+                    info.getStartTime(),
+                    info.getRunningTimeNanos(),
+                    info.isCancellable(),
+                    info.isCancelled(),
+                    info.getParentTaskId(),
+                    headers
+                );
             default:
                 throw new IllegalStateException();
         }
@@ -226,21 +237,22 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
         boolean cancellable = randomBoolean();
         boolean cancelled = cancellable && randomBoolean();
         TaskId parentTaskId = randomBoolean() ? TaskId.EMPTY_TASK_ID : randomTaskId();
-        Map<String, String> headers = randomBoolean() ?
-                Collections.emptyMap() :
-                Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5));
+        Map<String, String> headers = randomBoolean()
+            ? Collections.emptyMap()
+            : Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5));
         return new TaskInfo(
-                taskId,
-                type,
-                action,
-                description,
-                status,
-                startTime,
-                runningTimeNanos,
-                cancellable,
-                cancelled,
-                parentTaskId,
-                headers);
+            taskId,
+            type,
+            action,
+            description,
+            status,
+            startTime,
+            runningTimeNanos,
+            cancellable,
+            cancelled,
+            parentTaskId,
+            headers
+        );
     }
 
     private static TaskId randomTaskId() {

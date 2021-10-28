@@ -8,11 +8,6 @@
 
 package org.elasticsearch.reindex;
 
-import static java.util.Collections.emptyList;
-
-import java.util.List;
-import java.util.function.Function;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
@@ -33,9 +28,18 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.List;
+import java.util.function.Function;
+
+import static java.util.Collections.emptyList;
+
 public class TransportReindexAction extends HandledTransportAction<ReindexRequest, BulkByScrollResponse> {
-    public static final Setting<List<String>> REMOTE_CLUSTER_WHITELIST =
-            Setting.listSetting("reindex.remote.whitelist", emptyList(), Function.identity(), Property.NodeScope);
+    public static final Setting<List<String>> REMOTE_CLUSTER_WHITELIST = Setting.listSetting(
+        "reindex.remote.whitelist",
+        emptyList(),
+        Function.identity(),
+        Property.NodeScope
+    );
 
     protected final ReindexValidator reindexValidator;
     private final Reindexer reindexer;
@@ -43,17 +47,46 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     protected final Client client;
 
     @Inject
-    public TransportReindexAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService, ScriptService scriptService,
-            AutoCreateIndex autoCreateIndex, Client client, TransportService transportService, ReindexSslConfig sslConfig) {
-        this(ReindexAction.NAME, settings, threadPool, actionFilters, indexNameExpressionResolver, clusterService, scriptService,
-            autoCreateIndex, client, transportService, sslConfig);
+    public TransportReindexAction(
+        Settings settings,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ClusterService clusterService,
+        ScriptService scriptService,
+        AutoCreateIndex autoCreateIndex,
+        Client client,
+        TransportService transportService,
+        ReindexSslConfig sslConfig
+    ) {
+        this(
+            ReindexAction.NAME,
+            settings,
+            threadPool,
+            actionFilters,
+            indexNameExpressionResolver,
+            clusterService,
+            scriptService,
+            autoCreateIndex,
+            client,
+            transportService,
+            sslConfig
+        );
     }
 
-    protected TransportReindexAction(String name, Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
-                                     IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService,
-                                     ScriptService scriptService, AutoCreateIndex autoCreateIndex, Client client,
-                                     TransportService transportService, ReindexSslConfig sslConfig) {
+    protected TransportReindexAction(
+        String name,
+        Settings settings,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ClusterService clusterService,
+        ScriptService scriptService,
+        AutoCreateIndex autoCreateIndex,
+        Client client,
+        TransportService transportService,
+        ReindexSslConfig sslConfig
+    ) {
         super(name, transportService, actionFilters, ReindexRequest::new);
         this.client = client;
         this.reindexValidator = new ReindexValidator(settings, clusterService, indexNameExpressionResolver, autoCreateIndex);
@@ -64,8 +97,11 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     protected void doExecute(Task task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
         validate(request);
         BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
-        reindexer.initTask(bulkByScrollTask, request,
-                listener.delegateFailure((l, v) -> reindexer.execute(bulkByScrollTask, request, getBulkClient(), l)));
+        reindexer.initTask(
+            bulkByScrollTask,
+            request,
+            listener.delegateFailure((l, v) -> reindexer.execute(bulkByScrollTask, request, getBulkClient(), l))
+        );
     }
 
     /**

@@ -18,9 +18,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -28,6 +25,9 @@ import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
@@ -90,12 +90,14 @@ public final class DatafeedManager {
     private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
     private final Settings settings;
 
-    public DatafeedManager(DatafeedConfigProvider datafeedConfigProvider,
-                           JobConfigProvider jobConfigProvider,
-                           NamedXContentRegistry xContentRegistry,
-                           ClusterService clusterService,
-                           Settings settings,
-                           Client client) {
+    public DatafeedManager(
+        DatafeedConfigProvider datafeedConfigProvider,
+        JobConfigProvider jobConfigProvider,
+        NamedXContentRegistry xContentRegistry,
+        ClusterService clusterService,
+        Settings settings,
+        Client client
+    ) {
         this.datafeedConfigProvider = datafeedConfigProvider;
         this.jobConfigProvider = jobConfigProvider;
         this.xContentRegistry = xContentRegistry;
@@ -128,36 +130,36 @@ public final class DatafeedManager {
 
                 ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
                     r -> handlePrivsResponse(username, request, r, state, threadPool, listener),
-                    listener::onFailure);
+                    listener::onFailure
+                );
 
-                ActionListener<GetRollupIndexCapsAction.Response> getRollupIndexCapsActionHandler = ActionListener.wrap(
-                    response -> {
-                        if (response.getJobs().isEmpty()) { // This means no rollup indexes are in the config
-                            indicesPrivilegesBuilder.privileges(SearchAction.NAME);
-                        } else {
-                            indicesPrivilegesBuilder.privileges(SearchAction.NAME, RollupSearchAction.NAME);
-                        }
+                ActionListener<GetRollupIndexCapsAction.Response> getRollupIndexCapsActionHandler = ActionListener.wrap(response -> {
+                    if (response.getJobs().isEmpty()) { // This means no rollup indexes are in the config
+                        indicesPrivilegesBuilder.privileges(SearchAction.NAME);
+                    } else {
+                        indicesPrivilegesBuilder.privileges(SearchAction.NAME, RollupSearchAction.NAME);
+                    }
+                    privRequest.indexPrivileges(indicesPrivilegesBuilder.build());
+                    client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
+                }, e -> {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
+                        indicesPrivilegesBuilder.privileges(SearchAction.NAME);
                         privRequest.indexPrivileges(indicesPrivilegesBuilder.build());
                         client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
-                    },
-                    e -> {
-                        if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
-                            indicesPrivilegesBuilder.privileges(SearchAction.NAME);
-                            privRequest.indexPrivileges(indicesPrivilegesBuilder.build());
-                            client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
-                        } else {
-                            listener.onFailure(e);
-                        }
+                    } else {
+                        listener.onFailure(e);
                     }
-                );
+                });
                 if (RemoteClusterLicenseChecker.containsRemoteIndex(request.getDatafeed().getIndices())) {
                     getRollupIndexCapsActionHandler.onResponse(new GetRollupIndexCapsAction.Response());
                 } else {
-                    executeAsyncWithOrigin(client,
+                    executeAsyncWithOrigin(
+                        client,
                         ML_ORIGIN,
                         GetRollupIndexCapsAction.INSTANCE,
                         new GetRollupIndexCapsAction.Request(indices),
-                        getRollupIndexCapsActionHandler);
+                        getRollupIndexCapsActionHandler
+                    );
                 }
             });
         } else {
@@ -176,48 +178,55 @@ public final class DatafeedManager {
             state
         );
 
-        datafeedConfigProvider.expandDatafeedConfigs(request.getDatafeedId(), request.allowNoMatch(), ActionListener.wrap(
-            datafeedBuilders -> {
+        datafeedConfigProvider.expandDatafeedConfigs(
+            request.getDatafeedId(),
+            request.allowNoMatch(),
+            ActionListener.wrap(datafeedBuilders -> {
                 // Check for duplicate datafeeds
                 for (DatafeedConfig.Builder datafeed : datafeedBuilders) {
                     if (clusterStateConfigs.containsKey(datafeed.getId())) {
-                        listener.onFailure(new IllegalStateException("Datafeed [" + datafeed.getId() + "] configuration " +
-                            "exists in both clusterstate and index"));
+                        listener.onFailure(
+                            new IllegalStateException(
+                                "Datafeed [" + datafeed.getId() + "] configuration " + "exists in both clusterstate and index"
+                            )
+                        );
                         return;
                     }
                 }
 
                 // Merge cluster state and index configs
                 List<DatafeedConfig> datafeeds = new ArrayList<>(datafeedBuilders.size() + clusterStateConfigs.values().size());
-                for (DatafeedConfig.Builder builder: datafeedBuilders) {
+                for (DatafeedConfig.Builder builder : datafeedBuilders) {
                     datafeeds.add(builder.build());
                 }
 
                 datafeeds.addAll(clusterStateConfigs.values());
                 Collections.sort(datafeeds, Comparator.comparing(DatafeedConfig::getId));
                 listener.onResponse(new QueryPage<>(datafeeds, datafeeds.size(), DatafeedConfig.RESULTS_FIELD));
-            },
-            listener::onFailure
-        ));
+            }, listener::onFailure)
+        );
     }
 
     public void getDatafeedsByJobIds(Set<String> jobIds, ClusterState state, ActionListener<Map<String, DatafeedConfig.Builder>> listener) {
-        datafeedConfigProvider.findDatafeedsByJobIds(jobIds, ActionListener.wrap(
-            datafeeds -> {
-                Map<String, DatafeedConfig.Builder> response = new HashMap<>(datafeeds);
-                Map<String, DatafeedConfig> fromState = MlMetadata.getMlMetadata(state).getDatafeedsByJobIds(jobIds);
-                for (Map.Entry<String, DatafeedConfig> datafeedConfigEntry : fromState.entrySet()) {
-                    DatafeedConfig.Builder alreadyExistingDatafeed = response.get(datafeedConfigEntry.getKey());
-                    if (alreadyExistingDatafeed != null) {
-                        if (alreadyExistingDatafeed.getId().equals(datafeedConfigEntry.getValue().getId())) {
-                            listener.onFailure(new IllegalStateException(
+        datafeedConfigProvider.findDatafeedsByJobIds(jobIds, ActionListener.wrap(datafeeds -> {
+            Map<String, DatafeedConfig.Builder> response = new HashMap<>(datafeeds);
+            Map<String, DatafeedConfig> fromState = MlMetadata.getMlMetadata(state).getDatafeedsByJobIds(jobIds);
+            for (Map.Entry<String, DatafeedConfig> datafeedConfigEntry : fromState.entrySet()) {
+                DatafeedConfig.Builder alreadyExistingDatafeed = response.get(datafeedConfigEntry.getKey());
+                if (alreadyExistingDatafeed != null) {
+                    if (alreadyExistingDatafeed.getId().equals(datafeedConfigEntry.getValue().getId())) {
+                        listener.onFailure(
+                            new IllegalStateException(
                                 "Datafeed ["
                                     + alreadyExistingDatafeed.getId()
                                     + "] configuration "
-                                    + "exists in both clusterstate and index"));
-                            return;
-                        }
-                        listener.onFailure(new IllegalStateException(
+                                    + "exists in both clusterstate and index"
+                            )
+                        );
+                        return;
+                    }
+                    listener.onFailure(
+                        new IllegalStateException(
                             "datafeed ["
                                 + datafeedConfigEntry.getValue().getId()
                                 + "] configuration in cluster state and ["
@@ -225,15 +234,14 @@ public final class DatafeedManager {
                                 + "] in the configuration index both refer to job ["
                                 + datafeedConfigEntry.getKey()
                                 + "]"
-                        ));
-                        return;
-                    }
-                    response.put(datafeedConfigEntry.getKey(), new DatafeedConfig.Builder(datafeedConfigEntry.getValue()));
+                        )
+                    );
+                    return;
                 }
-                listener.onResponse(response);
-            },
-            listener::onFailure
-        ));
+                response.put(datafeedConfigEntry.getKey(), new DatafeedConfig.Builder(datafeedConfigEntry.getValue()));
+            }
+            listener.onResponse(response);
+        }, listener::onFailure));
     }
 
     public void updateDatafeed(
@@ -249,67 +257,70 @@ public final class DatafeedManager {
         }
         // Check datafeed is stopped
         if (getDatafeedTask(state, request.getUpdate().getId()) != null) {
-            listener.onFailure(ExceptionsHelper.conflictStatusException(
-                Messages.getMessage(Messages.DATAFEED_CANNOT_UPDATE_IN_CURRENT_STATE,
-                    request.getUpdate().getId(), DatafeedState.STARTED)));
+            listener.onFailure(
+                ExceptionsHelper.conflictStatusException(
+                    Messages.getMessage(
+                        Messages.DATAFEED_CANNOT_UPDATE_IN_CURRENT_STATE,
+                        request.getUpdate().getId(),
+                        DatafeedState.STARTED
+                    )
+                )
+            );
             return;
         }
 
-        Runnable doUpdate = () ->
-            useSecondaryAuthIfAvailable(securityContext, () -> {
-                final Map<String, String> headers = threadPool.getThreadContext().getHeaders();
-                datafeedConfigProvider.updateDatefeedConfig(
-                    request.getUpdate().getId(),
-                    request.getUpdate(),
-                    headers,
-                    jobConfigProvider::validateDatafeedJob,
-                    ActionListener.wrap(
-                        updatedConfig -> listener.onResponse(new PutDatafeedAction.Response(updatedConfig)),
-                        listener::onFailure));
-            });
+        Runnable doUpdate = () -> useSecondaryAuthIfAvailable(securityContext, () -> {
+            final Map<String, String> headers = threadPool.getThreadContext().getHeaders();
+            datafeedConfigProvider.updateDatefeedConfig(
+                request.getUpdate().getId(),
+                request.getUpdate(),
+                headers,
+                jobConfigProvider::validateDatafeedJob,
+                ActionListener.wrap(
+                    updatedConfig -> listener.onResponse(new PutDatafeedAction.Response(updatedConfig)),
+                    listener::onFailure
+                )
+            );
+        });
 
         // Obviously if we're updating a datafeed it's impossible that the config index has no mappings at
         // all, but if we rewrite the datafeed config we may add new fields that require the latest mappings
         ElasticsearchMappings.addDocMappingIfMissing(
-            MlConfigIndex.indexName(), MlConfigIndex::mapping, client, state, request.masterNodeTimeout(),
-            ActionListener.wrap(bool -> doUpdate.run(), listener::onFailure));
+            MlConfigIndex.indexName(),
+            MlConfigIndex::mapping,
+            client,
+            state,
+            request.masterNodeTimeout(),
+            ActionListener.wrap(bool -> doUpdate.run(), listener::onFailure)
+        );
     }
 
-    public void deleteDatafeed(
-        DeleteDatafeedAction.Request request,
-        ClusterState state,
-        ActionListener<AcknowledgedResponse> listener
-    ) {
+    public void deleteDatafeed(DeleteDatafeedAction.Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
         if (getDatafeedTask(state, request.getDatafeedId()) != null) {
-            listener.onFailure(ExceptionsHelper.conflictStatusException(
-                Messages.getMessage(Messages.DATAFEED_CANNOT_DELETE_IN_CURRENT_STATE, request.getDatafeedId(), DatafeedState.STARTED)));
+            listener.onFailure(
+                ExceptionsHelper.conflictStatusException(
+                    Messages.getMessage(Messages.DATAFEED_CANNOT_DELETE_IN_CURRENT_STATE, request.getDatafeedId(), DatafeedState.STARTED)
+                )
+            );
             return;
         }
 
         String datafeedId = request.getDatafeedId();
 
-        datafeedConfigProvider.getDatafeedConfig(
-            datafeedId,
-            ActionListener.wrap(
-                datafeedConfigBuilder -> {
-                    String jobId = datafeedConfigBuilder.build().getJobId();
-                    JobDataDeleter jobDataDeleter = new JobDataDeleter(client, jobId);
-                    jobDataDeleter.deleteDatafeedTimingStats(
-                        ActionListener.wrap(
-                            unused1 -> {
-                                datafeedConfigProvider.deleteDatafeedConfig(
-                                    datafeedId,
-                                    ActionListener.wrap(
-                                        unused2 -> listener.onResponse(AcknowledgedResponse.TRUE),
-                                        listener::onFailure));
-                            },
-                            listener::onFailure));
-                },
-                listener::onFailure));
+        datafeedConfigProvider.getDatafeedConfig(datafeedId, ActionListener.wrap(datafeedConfigBuilder -> {
+            String jobId = datafeedConfigBuilder.build().getJobId();
+            JobDataDeleter jobDataDeleter = new JobDataDeleter(client, jobId);
+            jobDataDeleter.deleteDatafeedTimingStats(ActionListener.wrap(unused1 -> {
+                datafeedConfigProvider.deleteDatafeedConfig(
+                    datafeedId,
+                    ActionListener.wrap(unused2 -> listener.onResponse(AcknowledgedResponse.TRUE), listener::onFailure)
+                );
+            }, listener::onFailure));
+        }, listener::onFailure));
 
     }
 
-    private  PersistentTasksCustomMetadata.PersistentTask<?> getDatafeedTask(ClusterState state, String datafeedId) {
+    private PersistentTasksCustomMetadata.PersistentTask<?> getDatafeedTask(ClusterState state, String datafeedId) {
         PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         return MlTasks.getDatafeedTask(datafeedId, tasks);
     }
@@ -328,19 +339,21 @@ public final class DatafeedManager {
             for (String expandedDatafeedId : expandedDatafeedIds) {
                 configById.put(expandedDatafeedId, mlMetadata.getDatafeed(expandedDatafeedId));
             }
-        } catch (Exception e){
+        } catch (Exception e) {
             // ignore
         }
 
         return configById;
     }
 
-    private void handlePrivsResponse(String username,
-                                     PutDatafeedAction.Request request,
-                                     HasPrivilegesResponse response,
-                                     ClusterState clusterState,
-                                     ThreadPool threadPool,
-                                     ActionListener<PutDatafeedAction.Response> listener) throws IOException {
+    private void handlePrivsResponse(
+        String username,
+        PutDatafeedAction.Request request,
+        HasPrivilegesResponse response,
+        ClusterState clusterState,
+        ThreadPool threadPool,
+        ActionListener<PutDatafeedAction.Response> listener
+    ) throws IOException {
         if (response.isCompleteMatch()) {
             putDatafeed(request, threadPool.getThreadContext().getHeaders(), clusterState, listener);
         } else {
@@ -352,16 +365,23 @@ public final class DatafeedManager {
             }
             builder.endObject();
 
-            listener.onFailure(Exceptions.authorizationError("Cannot create datafeed [{}]" +
-                    " because user {} lacks permissions on the indices: {}",
-                request.getDatafeed().getId(), username, Strings.toString(builder)));
+            listener.onFailure(
+                Exceptions.authorizationError(
+                    "Cannot create datafeed [{}]" + " because user {} lacks permissions on the indices: {}",
+                    request.getDatafeed().getId(),
+                    username,
+                    Strings.toString(builder)
+                )
+            );
         }
     }
 
-    private void putDatafeed(PutDatafeedAction.Request request,
-                             Map<String, String> headers,
-                             ClusterState clusterState,
-                             ActionListener<PutDatafeedAction.Response> listener) {
+    private void putDatafeed(
+        PutDatafeedAction.Request request,
+        Map<String, String> headers,
+        ClusterState clusterState,
+        ActionListener<PutDatafeedAction.Response> listener
+    ) {
 
         String datafeedId = request.getDatafeed().getId();
         String jobId = request.getDatafeed().getJobId();
@@ -379,7 +399,8 @@ public final class DatafeedManager {
                 ActionListener.wrap(
                     indexResponse -> listener.onResponse(new PutDatafeedAction.Response(request.getDatafeed())),
                     listener::onFailure
-                ));
+                )
+            );
         };
 
         CheckedConsumer<Boolean, Exception> validationOk = ok -> {
@@ -394,11 +415,14 @@ public final class DatafeedManager {
                 client,
                 clusterState,
                 request.masterNodeTimeout(),
-                ActionListener.wrap(mappingsUpdated, listener::onFailure));
+                ActionListener.wrap(mappingsUpdated, listener::onFailure)
+            );
         };
 
-        CheckedConsumer<Boolean, Exception> jobOk = ok ->
-            jobConfigProvider.validateDatafeedJob(request.getDatafeed(), ActionListener.wrap(validationOk, listener::onFailure));
+        CheckedConsumer<Boolean, Exception> jobOk = ok -> jobConfigProvider.validateDatafeedJob(
+            request.getDatafeed(),
+            ActionListener.wrap(validationOk, listener::onFailure)
+        );
 
         checkJobDoesNotHaveADatafeed(jobId, ActionListener.wrap(jobOk, listener::onFailure));
     }
@@ -417,24 +441,30 @@ public final class DatafeedManager {
         }
 
         if (mlMetadata.getDatafeedByJobId(jobId).isPresent()) {
-            return ExceptionsHelper.conflictStatusException("Cannot create datafeed [" + datafeedId + "] as a " +
-                "job [" + jobId + "] defined in the cluster state references a datafeed with the same Id");
+            return ExceptionsHelper.conflictStatusException(
+                "Cannot create datafeed ["
+                    + datafeedId
+                    + "] as a "
+                    + "job ["
+                    + jobId
+                    + "] defined in the cluster state references a datafeed with the same Id"
+            );
         }
 
         return null;
     }
 
     private void checkJobDoesNotHaveADatafeed(String jobId, ActionListener<Boolean> listener) {
-        datafeedConfigProvider.findDatafeedIdsForJobIds(Collections.singletonList(jobId), ActionListener.wrap(
-            datafeedIds -> {
-                if (datafeedIds.isEmpty()) {
-                    listener.onResponse(Boolean.TRUE);
-                } else {
-                    listener.onFailure(ExceptionsHelper.conflictStatusException("A datafeed [" + datafeedIds.iterator().next()
-                        + "] already exists for job [" + jobId + "]"));
-                }
-            },
-            listener::onFailure
-        ));
+        datafeedConfigProvider.findDatafeedIdsForJobIds(Collections.singletonList(jobId), ActionListener.wrap(datafeedIds -> {
+            if (datafeedIds.isEmpty()) {
+                listener.onResponse(Boolean.TRUE);
+            } else {
+                listener.onFailure(
+                    ExceptionsHelper.conflictStatusException(
+                        "A datafeed [" + datafeedIds.iterator().next() + "] already exists for job [" + jobId + "]"
+                    )
+                );
+            }
+        }, listener::onFailure));
     }
 }

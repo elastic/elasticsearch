@@ -33,8 +33,11 @@ public class NodesHotThreadsRequestTests extends ESTestCase {
         request.snapshots(3);
 
         Version latest = Version.CURRENT;
-        Version previous = VersionUtils.randomVersionBetween(random(),
-            VersionUtils.getFirstVersion(), VersionUtils.getPreviousVersion(Version.CURRENT));
+        Version previous = VersionUtils.randomVersionBetween(
+            random(),
+            VersionUtils.getFirstVersion(),
+            VersionUtils.getPreviousVersion(Version.CURRENT)
+        );
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setVersion(latest);

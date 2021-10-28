@@ -42,14 +42,24 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
     private final Function<SortedNumericDocValues, SortedNumericDocValues> converter;
     private final NumericType targetNumericType;
 
-    public LongValuesComparatorSource(IndexNumericFieldData indexFieldData, @Nullable Object missingValue,
-                                      MultiValueMode sortMode, Nested nested, NumericType targetNumericType) {
+    public LongValuesComparatorSource(
+        IndexNumericFieldData indexFieldData,
+        @Nullable Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested,
+        NumericType targetNumericType
+    ) {
         this(indexFieldData, missingValue, sortMode, nested, null, targetNumericType);
     }
 
-    public LongValuesComparatorSource(IndexNumericFieldData indexFieldData, @Nullable Object missingValue,
-                                      MultiValueMode sortMode, Nested nested,
-                                      Function<SortedNumericDocValues, SortedNumericDocValues> converter, NumericType targetNumericType) {
+    public LongValuesComparatorSource(
+        IndexNumericFieldData indexFieldData,
+        @Nullable Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested,
+        Function<SortedNumericDocValues, SortedNumericDocValues> converter,
+        NumericType targetNumericType
+    ) {
         super(missingValue, sortMode, nested);
         this.indexFieldData = indexFieldData;
         this.converter = converter;
@@ -107,8 +117,13 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
     }
 
     @Override
-    public BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format,
-            int bucketSize, BucketedSort.ExtraData extra) {
+    public BucketedSort newBucketedSort(
+        BigArrays bigArrays,
+        SortOrder sortOrder,
+        DocValueFormat format,
+        int bucketSize,
+        BucketedSort.ExtraData extra
+    ) {
         return new BucketedSort.ForLongs(bigArrays, sortOrder, format, bucketSize, extra) {
             private final long lMissingValue = (Long) missingObject(missingValue, sortOrder == SortOrder.DESC);
 

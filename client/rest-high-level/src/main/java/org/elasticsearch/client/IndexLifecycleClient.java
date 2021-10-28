@@ -63,10 +63,14 @@ public class IndexLifecycleClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public GetLifecyclePolicyResponse getLifecyclePolicy(GetLifecyclePolicyRequest request,
-                                                         RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, IndexLifecycleRequestConverters::getLifecyclePolicy, options,
-            GetLifecyclePolicyResponse::fromXContent, emptySet());
+    public GetLifecyclePolicyResponse getLifecyclePolicy(GetLifecyclePolicyRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            IndexLifecycleRequestConverters::getLifecyclePolicy,
+            options,
+            GetLifecyclePolicyResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -78,10 +82,19 @@ public class IndexLifecycleClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable getLifecyclePolicyAsync(GetLifecyclePolicyRequest request, RequestOptions options,
-                                               ActionListener<GetLifecyclePolicyResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::getLifecyclePolicy, options,
-            GetLifecyclePolicyResponse::fromXContent, listener, emptySet());
+    public Cancellable getLifecyclePolicyAsync(
+        GetLifecyclePolicyRequest request,
+        RequestOptions options,
+        ActionListener<GetLifecyclePolicyResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            IndexLifecycleRequestConverters::getLifecyclePolicy,
+            options,
+            GetLifecyclePolicyResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -93,10 +106,14 @@ public class IndexLifecycleClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public AcknowledgedResponse putLifecyclePolicy(PutLifecyclePolicyRequest request,
-                                                   RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, IndexLifecycleRequestConverters::putLifecyclePolicy, options,
-            AcknowledgedResponse::fromXContent, emptySet());
+    public AcknowledgedResponse putLifecyclePolicy(PutLifecyclePolicyRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            IndexLifecycleRequestConverters::putLifecyclePolicy,
+            options,
+            AcknowledgedResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -108,10 +125,19 @@ public class IndexLifecycleClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable putLifecyclePolicyAsync(PutLifecyclePolicyRequest request, RequestOptions options,
-                                               ActionListener<AcknowledgedResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::putLifecyclePolicy, options,
-            AcknowledgedResponse::fromXContent, listener, emptySet());
+    public Cancellable putLifecyclePolicyAsync(
+        PutLifecyclePolicyRequest request,
+        RequestOptions options,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            IndexLifecycleRequestConverters::putLifecyclePolicy,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -126,10 +152,14 @@ public class IndexLifecycleClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public AcknowledgedResponse deleteLifecyclePolicy(DeleteLifecyclePolicyRequest request,
-                                                      RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, IndexLifecycleRequestConverters::deleteLifecyclePolicy, options,
-            AcknowledgedResponse::fromXContent, emptySet());
+    public AcknowledgedResponse deleteLifecyclePolicy(DeleteLifecyclePolicyRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            IndexLifecycleRequestConverters::deleteLifecyclePolicy,
+            options,
+            AcknowledgedResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -144,11 +174,19 @@ public class IndexLifecycleClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable deleteLifecyclePolicyAsync(DeleteLifecyclePolicyRequest request, RequestOptions options,
-                                                  ActionListener<AcknowledgedResponse> listener) {
+    public Cancellable deleteLifecyclePolicyAsync(
+        DeleteLifecyclePolicyRequest request,
+        RequestOptions options,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
-            request, IndexLifecycleRequestConverters::deleteLifecyclePolicy, options,
-            AcknowledgedResponse::fromXContent, listener, emptySet());
+            request,
+            IndexLifecycleRequestConverters::deleteLifecyclePolicy,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -163,10 +201,15 @@ public class IndexLifecycleClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public RemoveIndexLifecyclePolicyResponse removeIndexLifecyclePolicy(RemoveIndexLifecyclePolicyRequest request,
-            RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, IndexLifecycleRequestConverters::removeIndexLifecyclePolicy,
-            options, RemoveIndexLifecyclePolicyResponse::fromXContent, emptySet());
+    public RemoveIndexLifecyclePolicyResponse removeIndexLifecyclePolicy(RemoveIndexLifecyclePolicyRequest request, RequestOptions options)
+        throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            IndexLifecycleRequestConverters::removeIndexLifecyclePolicy,
+            options,
+            RemoveIndexLifecyclePolicyResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -181,11 +224,19 @@ public class IndexLifecycleClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable removeIndexLifecyclePolicyAsync(RemoveIndexLifecyclePolicyRequest request, RequestOptions options,
-                                                       ActionListener<RemoveIndexLifecyclePolicyResponse> listener) {
+    public Cancellable removeIndexLifecyclePolicyAsync(
+        RemoveIndexLifecyclePolicyRequest request,
+        RequestOptions options,
+        ActionListener<RemoveIndexLifecyclePolicyResponse> listener
+    ) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
-            request, IndexLifecycleRequestConverters::removeIndexLifecyclePolicy, options,
-                RemoveIndexLifecyclePolicyResponse::fromXContent, listener, emptySet());
+            request,
+            IndexLifecycleRequestConverters::removeIndexLifecyclePolicy,
+            options,
+            RemoveIndexLifecyclePolicyResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -201,8 +252,13 @@ public class IndexLifecycleClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public AcknowledgedResponse startILM(StartILMRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, IndexLifecycleRequestConverters::startILM, options,
-                AcknowledgedResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            IndexLifecycleRequestConverters::startILM,
+            options,
+            AcknowledgedResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -218,8 +274,14 @@ public class IndexLifecycleClient {
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable startILMAsync(StartILMRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::startILM, options,
-                AcknowledgedResponse::fromXContent, listener, emptySet());
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            IndexLifecycleRequestConverters::startILM,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -235,8 +297,13 @@ public class IndexLifecycleClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public AcknowledgedResponse stopILM(StopILMRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, IndexLifecycleRequestConverters::stopILM, options,
-                AcknowledgedResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            IndexLifecycleRequestConverters::stopILM,
+            options,
+            AcknowledgedResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -252,8 +319,14 @@ public class IndexLifecycleClient {
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable stopILMAsync(StopILMRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::stopILM, options,
-            AcknowledgedResponse::fromXContent, listener, emptySet());
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            IndexLifecycleRequestConverters::stopILM,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -269,8 +342,13 @@ public class IndexLifecycleClient {
      */
     public LifecycleManagementStatusResponse lifecycleManagementStatus(LifecycleManagementStatusRequest request, RequestOptions options)
         throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, IndexLifecycleRequestConverters::lifecycleManagementStatus,
-            options, LifecycleManagementStatusResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            IndexLifecycleRequestConverters::lifecycleManagementStatus,
+            options,
+            LifecycleManagementStatusResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -285,11 +363,19 @@ public class IndexLifecycleClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable lifecycleManagementStatusAsync(LifecycleManagementStatusRequest request, RequestOptions options,
-                                                      ActionListener<LifecycleManagementStatusResponse> listener) {
+    public Cancellable lifecycleManagementStatusAsync(
+        LifecycleManagementStatusRequest request,
+        RequestOptions options,
+        ActionListener<LifecycleManagementStatusResponse> listener
+    ) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
-            request, IndexLifecycleRequestConverters::lifecycleManagementStatus, options,
-            LifecycleManagementStatusResponse::fromXContent, listener, emptySet());
+            request,
+            IndexLifecycleRequestConverters::lifecycleManagementStatus,
+            options,
+            LifecycleManagementStatusResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -304,9 +390,14 @@ public class IndexLifecycleClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public ExplainLifecycleResponse explainLifecycle(ExplainLifecycleRequest request,RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, IndexLifecycleRequestConverters::explainLifecycle, options,
-            ExplainLifecycleResponse::fromXContent, emptySet());
+    public ExplainLifecycleResponse explainLifecycle(ExplainLifecycleRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            IndexLifecycleRequestConverters::explainLifecycle,
+            options,
+            ExplainLifecycleResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -321,10 +412,19 @@ public class IndexLifecycleClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable explainLifecycleAsync(ExplainLifecycleRequest request, RequestOptions options,
-                                             ActionListener<ExplainLifecycleResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::explainLifecycle, options,
-                ExplainLifecycleResponse::fromXContent, listener, emptySet());
+    public Cancellable explainLifecycleAsync(
+        ExplainLifecycleRequest request,
+        RequestOptions options,
+        ActionListener<ExplainLifecycleResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            IndexLifecycleRequestConverters::explainLifecycle,
+            options,
+            ExplainLifecycleResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -340,8 +440,13 @@ public class IndexLifecycleClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public AcknowledgedResponse retryLifecyclePolicy(RetryLifecyclePolicyRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, IndexLifecycleRequestConverters::retryLifecycle, options,
-            AcknowledgedResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            IndexLifecycleRequestConverters::retryLifecycle,
+            options,
+            AcknowledgedResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -356,10 +461,19 @@ public class IndexLifecycleClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable retryLifecyclePolicyAsync(RetryLifecyclePolicyRequest request, RequestOptions options,
-                                                 ActionListener<AcknowledgedResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::retryLifecycle, options,
-            AcknowledgedResponse::fromXContent, listener, emptySet());
+    public Cancellable retryLifecyclePolicyAsync(
+        RetryLifecyclePolicyRequest request,
+        RequestOptions options,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            IndexLifecycleRequestConverters::retryLifecycle,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -374,10 +488,15 @@ public class IndexLifecycleClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public GetSnapshotLifecyclePolicyResponse getSnapshotLifecyclePolicy(GetSnapshotLifecyclePolicyRequest request,
-                                                                         RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, IndexLifecycleRequestConverters::getSnapshotLifecyclePolicy,
-            options, GetSnapshotLifecyclePolicyResponse::fromXContent, emptySet());
+    public GetSnapshotLifecyclePolicyResponse getSnapshotLifecyclePolicy(GetSnapshotLifecyclePolicyRequest request, RequestOptions options)
+        throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            IndexLifecycleRequestConverters::getSnapshotLifecyclePolicy,
+            options,
+            GetSnapshotLifecyclePolicyResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -392,10 +511,19 @@ public class IndexLifecycleClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable getSnapshotLifecyclePolicyAsync(GetSnapshotLifecyclePolicyRequest request, RequestOptions options,
-                                                       ActionListener<GetSnapshotLifecyclePolicyResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::getSnapshotLifecyclePolicy,
-            options, GetSnapshotLifecyclePolicyResponse::fromXContent, listener, emptySet());
+    public Cancellable getSnapshotLifecyclePolicyAsync(
+        GetSnapshotLifecyclePolicyRequest request,
+        RequestOptions options,
+        ActionListener<GetSnapshotLifecyclePolicyResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            IndexLifecycleRequestConverters::getSnapshotLifecyclePolicy,
+            options,
+            GetSnapshotLifecyclePolicyResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -410,10 +538,15 @@ public class IndexLifecycleClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public AcknowledgedResponse putSnapshotLifecyclePolicy(PutSnapshotLifecyclePolicyRequest request,
-                                                           RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, IndexLifecycleRequestConverters::putSnapshotLifecyclePolicy,
-            options, AcknowledgedResponse::fromXContent, emptySet());
+    public AcknowledgedResponse putSnapshotLifecyclePolicy(PutSnapshotLifecyclePolicyRequest request, RequestOptions options)
+        throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            IndexLifecycleRequestConverters::putSnapshotLifecyclePolicy,
+            options,
+            AcknowledgedResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -428,10 +561,19 @@ public class IndexLifecycleClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable putSnapshotLifecyclePolicyAsync(PutSnapshotLifecyclePolicyRequest request, RequestOptions options,
-                                                       ActionListener<AcknowledgedResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::putSnapshotLifecyclePolicy,
-            options, AcknowledgedResponse::fromXContent, listener, emptySet());
+    public Cancellable putSnapshotLifecyclePolicyAsync(
+        PutSnapshotLifecyclePolicyRequest request,
+        RequestOptions options,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            IndexLifecycleRequestConverters::putSnapshotLifecyclePolicy,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -446,10 +588,15 @@ public class IndexLifecycleClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public AcknowledgedResponse deleteSnapshotLifecyclePolicy(DeleteSnapshotLifecyclePolicyRequest request,
-                                                              RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, IndexLifecycleRequestConverters::deleteSnapshotLifecyclePolicy,
-            options, AcknowledgedResponse::fromXContent, emptySet());
+    public AcknowledgedResponse deleteSnapshotLifecyclePolicy(DeleteSnapshotLifecyclePolicyRequest request, RequestOptions options)
+        throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            IndexLifecycleRequestConverters::deleteSnapshotLifecyclePolicy,
+            options,
+            AcknowledgedResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -464,11 +611,19 @@ public class IndexLifecycleClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable deleteSnapshotLifecyclePolicyAsync(DeleteSnapshotLifecyclePolicyRequest request,
-                                          RequestOptions options,ActionListener<AcknowledgedResponse> listener) {
+    public Cancellable deleteSnapshotLifecyclePolicyAsync(
+        DeleteSnapshotLifecyclePolicyRequest request,
+        RequestOptions options,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
-            request, IndexLifecycleRequestConverters::deleteSnapshotLifecyclePolicy,
-            options, AcknowledgedResponse::fromXContent, listener, emptySet());
+            request,
+            IndexLifecycleRequestConverters::deleteSnapshotLifecyclePolicy,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -483,10 +638,17 @@ public class IndexLifecycleClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public ExecuteSnapshotLifecyclePolicyResponse executeSnapshotLifecyclePolicy(ExecuteSnapshotLifecyclePolicyRequest request,
-                                                                                 RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, IndexLifecycleRequestConverters::executeSnapshotLifecyclePolicy,
-            options, ExecuteSnapshotLifecyclePolicyResponse::fromXContent, emptySet());
+    public ExecuteSnapshotLifecyclePolicyResponse executeSnapshotLifecyclePolicy(
+        ExecuteSnapshotLifecyclePolicyRequest request,
+        RequestOptions options
+    ) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            IndexLifecycleRequestConverters::executeSnapshotLifecyclePolicy,
+            options,
+            ExecuteSnapshotLifecyclePolicyResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -502,11 +664,18 @@ public class IndexLifecycleClient {
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable executeSnapshotLifecyclePolicyAsync(
-        ExecuteSnapshotLifecyclePolicyRequest request, RequestOptions options,
-        ActionListener<ExecuteSnapshotLifecyclePolicyResponse> listener) {
+        ExecuteSnapshotLifecyclePolicyRequest request,
+        RequestOptions options,
+        ActionListener<ExecuteSnapshotLifecyclePolicyResponse> listener
+    ) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
-            request, IndexLifecycleRequestConverters::executeSnapshotLifecyclePolicy,
-            options, ExecuteSnapshotLifecyclePolicyResponse::fromXContent, listener, emptySet());
+            request,
+            IndexLifecycleRequestConverters::executeSnapshotLifecyclePolicy,
+            options,
+            ExecuteSnapshotLifecyclePolicyResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -521,10 +690,15 @@ public class IndexLifecycleClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public AcknowledgedResponse executeSnapshotLifecycleRetention(ExecuteSnapshotLifecycleRetentionRequest request,
-                                                                  RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, IndexLifecycleRequestConverters::executeSnapshotLifecycleRetention,
-            options, AcknowledgedResponse::fromXContent, emptySet());
+    public AcknowledgedResponse executeSnapshotLifecycleRetention(ExecuteSnapshotLifecycleRetentionRequest request, RequestOptions options)
+        throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            IndexLifecycleRequestConverters::executeSnapshotLifecycleRetention,
+            options,
+            AcknowledgedResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -540,11 +714,18 @@ public class IndexLifecycleClient {
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable executeSnapshotLifecycleRetentionAsync(
-        ExecuteSnapshotLifecycleRetentionRequest request, RequestOptions options,
-        ActionListener<AcknowledgedResponse> listener) {
+        ExecuteSnapshotLifecycleRetentionRequest request,
+        RequestOptions options,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
-            request, IndexLifecycleRequestConverters::executeSnapshotLifecycleRetention,
-            options, AcknowledgedResponse::fromXContent, listener, emptySet());
+            request,
+            IndexLifecycleRequestConverters::executeSnapshotLifecycleRetention,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -559,10 +740,15 @@ public class IndexLifecycleClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public GetSnapshotLifecycleStatsResponse getSnapshotLifecycleStats(GetSnapshotLifecycleStatsRequest request,
-                                                                       RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, IndexLifecycleRequestConverters::getSnapshotLifecycleStats,
-            options, GetSnapshotLifecycleStatsResponse::fromXContent, emptySet());
+    public GetSnapshotLifecycleStatsResponse getSnapshotLifecycleStats(GetSnapshotLifecycleStatsRequest request, RequestOptions options)
+        throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            IndexLifecycleRequestConverters::getSnapshotLifecycleStats,
+            options,
+            GetSnapshotLifecycleStatsResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -577,10 +763,19 @@ public class IndexLifecycleClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable getSnapshotLifecycleStatsAsync(GetSnapshotLifecycleStatsRequest request, RequestOptions options,
-                                                      ActionListener<GetSnapshotLifecycleStatsResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::getSnapshotLifecycleStats,
-            options, GetSnapshotLifecycleStatsResponse::fromXContent, listener, emptySet());
+    public Cancellable getSnapshotLifecycleStatsAsync(
+        GetSnapshotLifecycleStatsRequest request,
+        RequestOptions options,
+        ActionListener<GetSnapshotLifecycleStatsResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            IndexLifecycleRequestConverters::getSnapshotLifecycleStats,
+            options,
+            GetSnapshotLifecycleStatsResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -595,8 +790,13 @@ public class IndexLifecycleClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public AcknowledgedResponse startSLM(StartSLMRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, IndexLifecycleRequestConverters::startSLM, options,
-            AcknowledgedResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            IndexLifecycleRequestConverters::startSLM,
+            options,
+            AcknowledgedResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -610,8 +810,14 @@ public class IndexLifecycleClient {
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable startSLMAsync(StartSLMRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::startSLM, options,
-            AcknowledgedResponse::fromXContent, listener, emptySet());
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            IndexLifecycleRequestConverters::startSLM,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -626,8 +832,13 @@ public class IndexLifecycleClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public AcknowledgedResponse stopSLM(StopSLMRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, IndexLifecycleRequestConverters::stopSLM, options,
-            AcknowledgedResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            IndexLifecycleRequestConverters::stopSLM,
+            options,
+            AcknowledgedResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -642,8 +853,14 @@ public class IndexLifecycleClient {
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable stopSLMAsync(StopSLMRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request, IndexLifecycleRequestConverters::stopSLM, options,
-            AcknowledgedResponse::fromXContent, listener, emptySet());
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            IndexLifecycleRequestConverters::stopSLM,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -657,10 +874,15 @@ public class IndexLifecycleClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public LifecycleManagementStatusResponse getSLMStatus(SnapshotLifecycleManagementStatusRequest request,
-                                                          RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, IndexLifecycleRequestConverters::snapshotLifecycleManagementStatus,
-            options, LifecycleManagementStatusResponse::fromXContent, emptySet());
+    public LifecycleManagementStatusResponse getSLMStatus(SnapshotLifecycleManagementStatusRequest request, RequestOptions options)
+        throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            IndexLifecycleRequestConverters::snapshotLifecycleManagementStatus,
+            options,
+            LifecycleManagementStatusResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -674,10 +896,18 @@ public class IndexLifecycleClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable getSLMStatusAsync(SnapshotLifecycleManagementStatusRequest request, RequestOptions options,
-                                         ActionListener<LifecycleManagementStatusResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request,
-            IndexLifecycleRequestConverters::snapshotLifecycleManagementStatus, options, LifecycleManagementStatusResponse::fromXContent,
-            listener, emptySet());
+    public Cancellable getSLMStatusAsync(
+        SnapshotLifecycleManagementStatusRequest request,
+        RequestOptions options,
+        ActionListener<LifecycleManagementStatusResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            IndexLifecycleRequestConverters::snapshotLifecycleManagementStatus,
+            options,
+            LifecycleManagementStatusResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 }

@@ -56,8 +56,11 @@ public class Lz4TransportDecompressorTests extends ESTestCase {
         int uncompressedLength = intsToWrite * 4;
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            try (StreamOutput lz4BlockStream = new OutputStreamStreamOutput(Compression.Scheme.lz4OutputStream(
-                Streams.flushOnCloseStream(output)))) {
+            try (
+                StreamOutput lz4BlockStream = new OutputStreamStreamOutput(
+                    Compression.Scheme.lz4OutputStream(Streams.flushOnCloseStream(output))
+                )
+            ) {
                 for (int i = 0; i < intsToWrite; ++i) {
                     int lowByte = (i & 0xFF);
                     if (lowByte < 128) {
@@ -98,7 +101,7 @@ public class Lz4TransportDecompressorTests extends ESTestCase {
                 int lowByte = (i & 0xFF);
                 if (lowByte < 128) {
                     assertEquals(0, streamInput.readInt());
-                }  else if (lowByte < 200) {
+                } else if (lowByte < 200) {
                     assertEquals(1, streamInput.readInt());
                 } else {
                     assertEquals(i, streamInput.readInt());
@@ -113,8 +116,11 @@ public class Lz4TransportDecompressorTests extends ESTestCase {
         int uncompressedLength = intsToWrite * 4;
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            try (StreamOutput lz4BlockStream = new OutputStreamStreamOutput(
-                Compression.Scheme.lz4OutputStream(Streams.flushOnCloseStream(output)))) {
+            try (
+                StreamOutput lz4BlockStream = new OutputStreamStreamOutput(
+                    Compression.Scheme.lz4OutputStream(Streams.flushOnCloseStream(output))
+                )
+            ) {
                 for (int i = 0; i < intsToWrite; ++i) {
                     int lowByte = (i & 0xFF);
                     if (lowByte < 128) {
@@ -166,7 +172,7 @@ public class Lz4TransportDecompressorTests extends ESTestCase {
                 int lowByte = (i & 0xFF);
                 if (lowByte < 128) {
                     assertEquals(0, streamInput.readInt());
-                }  else if (lowByte < 200) {
+                } else if (lowByte < 200) {
                     assertEquals(1, streamInput.readInt());
                 } else {
                     assertEquals(i, streamInput.readInt());

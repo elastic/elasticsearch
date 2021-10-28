@@ -60,19 +60,23 @@ class JdbcHttpClient {
 
     Cursor query(String sql, List<SqlTypedParamValue> params, RequestMeta meta) throws SQLException {
         int fetch = meta.fetchSize() > 0 ? meta.fetchSize() : conCfg.pageSize();
-        SqlQueryRequest sqlRequest = new SqlQueryRequest(sql, params, conCfg.zoneId(),
-                jdbcConn.getCatalog(),
-                fetch,
-                TimeValue.timeValueMillis(meta.queryTimeoutInMs()),
-                TimeValue.timeValueMillis(meta.pageTimeoutInMs()),
-                null,
-                Boolean.FALSE,
-                null,
-                new RequestInfo(Mode.JDBC, ClientVersion.CURRENT),
-                conCfg.fieldMultiValueLeniency(),
-                conCfg.indexIncludeFrozen(),
-                conCfg.binaryCommunication(),
-                emptyMap());
+        SqlQueryRequest sqlRequest = new SqlQueryRequest(
+            sql,
+            params,
+            conCfg.zoneId(),
+            jdbcConn.getCatalog(),
+            fetch,
+            TimeValue.timeValueMillis(meta.queryTimeoutInMs()),
+            TimeValue.timeValueMillis(meta.pageTimeoutInMs()),
+            null,
+            Boolean.FALSE,
+            null,
+            new RequestInfo(Mode.JDBC, ClientVersion.CURRENT),
+            conCfg.fieldMultiValueLeniency(),
+            conCfg.indexIncludeFrozen(),
+            conCfg.binaryCommunication(),
+            emptyMap()
+        );
         SqlQueryResponse response = httpClient.query(sqlRequest);
         return new DefaultCursor(this, response.cursor(), toJdbcColumnInfo(response.columns()), response.rows(), meta);
     }
@@ -112,9 +116,12 @@ class JdbcHttpClient {
 
     private void checkServerVersion() throws SQLException {
         if (ClientVersion.isServerCompatible(serverInfo.version) == false) {
-            throw new SQLException("This version of the JDBC driver is only compatible with Elasticsearch version " +
-                ClientVersion.CURRENT.majorMinorToString() + " or newer; attempting to connect to a server version " +
-                serverInfo.version.toString());
+            throw new SQLException(
+                "This version of the JDBC driver is only compatible with Elasticsearch version "
+                    + ClientVersion.CURRENT.majorMinorToString()
+                    + " or newer; attempting to connect to a server version "
+                    + serverInfo.version.toString()
+            );
         }
     }
 

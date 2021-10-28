@@ -43,14 +43,17 @@ public class RestDeleteRepositoryAction extends BaseRestHandler {
         DeleteRepositoryRequest deleteRepositoryRequest = deleteRepositoryRequest(request.param("repository"));
         deleteRepositoryRequest.timeout(request.paramAsTime("timeout", deleteRepositoryRequest.timeout()));
         deleteRepositoryRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteRepositoryRequest.masterNodeTimeout()));
-        return channel -> client.admin().cluster().deleteRepository(deleteRepositoryRequest,
-            new RestToXContentListener<AcknowledgedResponse>(channel).delegateResponse((delegate, err) -> {
-                if (request.getRestApiVersion().equals(RestApiVersion.V_7) && err instanceof RepositoryConflictException) {
-                    delegate.onFailure(new IllegalStateException(((RepositoryConflictException) err).getBackwardCompatibleMessage()));
-                } else {
-                    delegate.onFailure(err);
-                }
-            })
-        );
+        return channel -> client.admin()
+            .cluster()
+            .deleteRepository(
+                deleteRepositoryRequest,
+                new RestToXContentListener<AcknowledgedResponse>(channel).delegateResponse((delegate, err) -> {
+                    if (request.getRestApiVersion().equals(RestApiVersion.V_7) && err instanceof RepositoryConflictException) {
+                        delegate.onFailure(new IllegalStateException(((RepositoryConflictException) err).getBackwardCompatibleMessage()));
+                    } else {
+                        delegate.onFailure(err);
+                    }
+                })
+            );
     }
 }

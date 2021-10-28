@@ -8,9 +8,9 @@
 package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.ml.calendars.ScheduledEvent;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -22,14 +22,16 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 /**
  * Contains a {@link List} of the found {@link ScheduledEvent} objects and the total count found
  */
-public class GetCalendarEventsResponse extends AbstractResultResponse<ScheduledEvent>  {
+public class GetCalendarEventsResponse extends AbstractResultResponse<ScheduledEvent> {
 
     public static final ParseField RESULTS_FIELD = new ParseField("events");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<GetCalendarEventsResponse, Void> PARSER =
-        new ConstructingObjectParser<>("calendar_events_response", true,
-            a -> new GetCalendarEventsResponse((List<ScheduledEvent>) a[0], (long) a[1]));
+    public static final ConstructingObjectParser<GetCalendarEventsResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "calendar_events_response",
+        true,
+        a -> new GetCalendarEventsResponse((List<ScheduledEvent>) a[0], (long) a[1])
+    );
 
     static {
         PARSER.declareObjectArray(constructorArg(), ScheduledEvent.PARSER, RESULTS_FIELD);

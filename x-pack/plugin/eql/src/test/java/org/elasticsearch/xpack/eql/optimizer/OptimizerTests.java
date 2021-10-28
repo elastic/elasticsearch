@@ -91,8 +91,9 @@ public class OptimizerTests extends ESTestCase {
         PreAnalyzer preAnalyzer = new PreAnalyzer();
         PostAnalyzer postAnalyzer = new PostAnalyzer();
         Analyzer analyzer = new Analyzer(TEST_CFG, new EqlFunctionRegistry(), new Verifier(new Metrics()));
-        return optimizer.optimize(postAnalyzer.postAnalyze(analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement(eql),
-            resolution)), TEST_CFG));
+        return optimizer.optimize(
+            postAnalyzer.postAnalyze(analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement(eql), resolution)), TEST_CFG)
+        );
     }
 
     private LogicalPlan accept(String eql) {
@@ -100,10 +101,7 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testIsNull() {
-        List<String> tests = asList(
-            "foo where command_line == null",
-            "foo where null == command_line"
-        );
+        List<String> tests = asList("foo where command_line == null", "foo where null == command_line");
 
         for (String q : tests) {
             LogicalPlan plan = defaultPipes(accept(q));
@@ -119,10 +117,7 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testIsNotNull() {
-        List<String> tests = asList(
-            "foo where command_line != null",
-            "foo where null != command_line"
-        );
+        List<String> tests = asList("foo where command_line != null", "foo where null != command_line");
 
         for (String q : tests) {
             LogicalPlan plan = defaultPipes(accept(q));
@@ -170,17 +165,13 @@ public class OptimizerTests extends ESTestCase {
 
         Like like = (Like) condition.right();
         assertEquals("command_line", ((FieldAttribute) like.field()).name());
-        assertEquals( "^. bar .$", like.pattern().asJavaRegex());
+        assertEquals("^. bar .$", like.pattern().asJavaRegex());
         assertEquals("? bar ?", like.pattern().asLuceneWildcard());
-        assertEquals( "* bar *", like.pattern().asIndexNameWildcard());
+        assertEquals("* bar *", like.pattern().asIndexNameWildcard());
     }
 
     public void testEqualsWildcardWithLiteralsOnLeft() {
-        List<String> tests = asList(
-            "foo where \"abc\": \"*b*\"",
-            "foo where \"abc\": \"ab*\"",
-            "foo where \"abc\": \"*bc\""
-        );
+        List<String> tests = asList("foo where \"abc\": \"*b*\"", "foo where \"abc\": \"ab*\"", "foo where \"abc\": \"*bc\"");
 
         for (String q : tests) {
             LogicalPlan plan = accept(q);

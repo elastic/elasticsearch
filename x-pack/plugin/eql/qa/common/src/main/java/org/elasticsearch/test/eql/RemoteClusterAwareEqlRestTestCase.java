@@ -62,11 +62,7 @@ public abstract class RemoteClusterAwareEqlRestTestCase extends ESRestTestCase {
     }
 
     protected static RestHighLevelClient highLevelClient(RestClient client) {
-        return new RestHighLevelClient(
-                client,
-                ignore -> {
-                },
-                Collections.emptyList()) {
+        return new RestHighLevelClient(client, ignore -> {}, Collections.emptyList()) {
         };
     }
 
@@ -131,9 +127,7 @@ public abstract class RemoteClusterAwareEqlRestTestCase extends ESRestTestCase {
         String pass = System.getProperty("tests.rest.cluster.remote.password");
         if (hasText(user) && hasText(pass)) {
             String token = basicAuthHeaderValue(user, new SecureString(pass.toCharArray()));
-            return Settings.builder()
-                .put(ThreadContext.PREFIX + ".Authorization", token)
-                .build();
+            return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
         }
         return Settings.EMPTY;
     }

@@ -8,17 +8,17 @@
 
 package org.elasticsearch.painless.action;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.painless.lookup.PainlessClassBinding;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.painless.lookup.PainlessClassBinding;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -36,15 +36,8 @@ public class PainlessContextClassBindingInfo implements Writeable, ToXContentObj
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<PainlessContextClassBindingInfo, Void> PARSER = new ConstructingObjectParser<>(
-            PainlessContextClassBindingInfo.class.getCanonicalName(),
-            (v) ->
-                    new PainlessContextClassBindingInfo(
-                            (String)v[0],
-                            (String)v[1],
-                            (String)v[2],
-                            (int)v[3],
-                            (List<String>)v[4]
-                    )
+        PainlessContextClassBindingInfo.class.getCanonicalName(),
+        (v) -> new PainlessContextClassBindingInfo((String) v[0], (String) v[1], (String) v[2], (int) v[3], (List<String>) v[4])
     );
 
     static {
@@ -63,11 +56,11 @@ public class PainlessContextClassBindingInfo implements Writeable, ToXContentObj
 
     public PainlessContextClassBindingInfo(PainlessClassBinding painlessClassBinding) {
         this(
-                painlessClassBinding.javaMethod.getDeclaringClass().getName(),
-                painlessClassBinding.javaMethod.getName(),
-                painlessClassBinding.returnType.getName(),
-                painlessClassBinding.javaConstructor.getParameterCount(),
-                painlessClassBinding.typeParameters.stream().map(Class::getName).collect(Collectors.toList())
+            painlessClassBinding.javaMethod.getDeclaringClass().getName(),
+            painlessClassBinding.javaMethod.getName(),
+            painlessClassBinding.returnType.getName(),
+            painlessClassBinding.javaConstructor.getParameterCount(),
+            painlessClassBinding.typeParameters.stream().map(Class::getName).collect(Collectors.toList())
         );
     }
 
@@ -122,11 +115,11 @@ public class PainlessContextClassBindingInfo implements Writeable, ToXContentObj
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PainlessContextClassBindingInfo that = (PainlessContextClassBindingInfo) o;
-        return readOnly == that.readOnly &&
-                Objects.equals(declaring, that.declaring) &&
-                Objects.equals(name, that.name) &&
-                Objects.equals(rtn, that.rtn) &&
-                Objects.equals(parameters, that.parameters);
+        return readOnly == that.readOnly
+            && Objects.equals(declaring, that.declaring)
+            && Objects.equals(name, that.name)
+            && Objects.equals(rtn, that.rtn)
+            && Objects.equals(parameters, that.parameters);
     }
 
     @Override
@@ -136,13 +129,21 @@ public class PainlessContextClassBindingInfo implements Writeable, ToXContentObj
 
     @Override
     public String toString() {
-        return "PainlessContextClassBindingInfo{" +
-                "declaring='" + declaring + '\'' +
-                ", name='" + name + '\'' +
-                ", rtn='" + rtn + '\'' +
-                ", readOnly=" + readOnly +
-                ", parameters=" + parameters +
-                '}';
+        return "PainlessContextClassBindingInfo{"
+            + "declaring='"
+            + declaring
+            + '\''
+            + ", name='"
+            + name
+            + '\''
+            + ", rtn='"
+            + rtn
+            + '\''
+            + ", readOnly="
+            + readOnly
+            + ", parameters="
+            + parameters
+            + '}';
     }
 
     public String getDeclaring() {

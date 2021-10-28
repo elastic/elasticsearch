@@ -9,9 +9,9 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.cli.Command;
-import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.jdk.JarHell;
@@ -102,15 +102,21 @@ final class Security {
 
         // enable security policy: union of template and environment-based paths, and possibly plugin permissions
         Map<String, URL> codebases = PolicyUtil.getCodebaseJarMap(JarHell.parseClassPath());
-        Policy.setPolicy(new ESPolicy(codebases, createPermissions(environment),
-            getPluginAndModulePermissions(environment), filterBadDefaults, createRecursiveDataPathPermission(environment)));
+        Policy.setPolicy(
+            new ESPolicy(
+                codebases,
+                createPermissions(environment),
+                getPluginAndModulePermissions(environment),
+                filterBadDefaults,
+                createRecursiveDataPathPermission(environment)
+            )
+        );
 
         // enable security manager
-        final String[] classesThatCanExit =
-                new String[]{
-                        // SecureSM matches class names as regular expressions so we escape the $ that arises from the nested class name
-                        ElasticsearchUncaughtExceptionHandler.PrivilegedHaltAction.class.getName().replace("$", "\\$"),
-                        Command.class.getName()};
+        final String[] classesThatCanExit = new String[] {
+            // SecureSM matches class names as regular expressions so we escape the $ that arises from the nested class name
+            ElasticsearchUncaughtExceptionHandler.PrivilegedHaltAction.class.getName().replace("$", "\\$"),
+            Command.class.getName() };
         System.setSecurityManager(new SecureSM(classesThatCanExit));
 
         // do some basic tests
@@ -122,8 +128,8 @@ final class Security {
      * we look for matching plugins and set URLs to fit
      */
     @SuppressForbidden(reason = "proper use of URL")
-    static Map<String,Policy> getPluginAndModulePermissions(Environment environment) throws IOException {
-        Map<String,Policy> map = new HashMap<>();
+    static Map<String, Policy> getPluginAndModulePermissions(Environment environment) throws IOException {
+        Map<String, Policy> map = new HashMap<>();
         Consumer<PluginPolicyInfo> addPolicy = pluginPolicy -> {
             if (pluginPolicy == null) {
                 return;
@@ -200,8 +206,13 @@ final class Security {
         addDirectoryPath(policy, "java.io.tmpdir", environment.tmpFile(), "read,readlink,write,delete", false);
         addDirectoryPath(policy, Environment.PATH_LOGS_SETTING.getKey(), environment.logsFile(), "read,readlink,write,delete", false);
         if (environment.sharedDataFile() != null) {
-            addDirectoryPath(policy, Environment.PATH_SHARED_DATA_SETTING.getKey(), environment.sharedDataFile(),
-                "read,readlink,write,delete", false);
+            addDirectoryPath(
+                policy,
+                Environment.PATH_SHARED_DATA_SETTING.getKey(),
+                environment.sharedDataFile(),
+                "read,readlink,write,delete",
+                false
+            );
         }
         final Set<Path> dataFilesPaths = new HashSet<>();
         for (Path path : environment.dataFiles()) {

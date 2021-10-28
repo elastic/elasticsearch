@@ -13,7 +13,6 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.DocValuesField;
 
-
 final class BytesBinaryDVLeafFieldData extends AbstractBinaryDVLeafFieldData {
     BytesBinaryDVLeafFieldData(BinaryDocValues values) {
         super(values);
@@ -24,4 +23,3 @@ final class BytesBinaryDVLeafFieldData extends AbstractBinaryDVLeafFieldData {
         return new DelegateDocValuesField(new ScriptDocValues.BytesRefs(getBytesValues()), name);
     }
 }
-

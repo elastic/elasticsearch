@@ -28,19 +28,44 @@ import static org.elasticsearch.common.recycler.Recyclers.none;
 /** A recycler of fixed-size pages. */
 public class PageCacheRecycler {
 
-    public static final Setting<Type> TYPE_SETTING =
-        new Setting<>("cache.recycler.page.type", Type.CONCURRENT.name(), Type::parse, Property.NodeScope);
-    public static final Setting<ByteSizeValue> LIMIT_HEAP_SETTING  =
-        Setting.memorySizeSetting("cache.recycler.page.limit.heap", "10%", Property.NodeScope);
-    public static final Setting<Double> WEIGHT_BYTES_SETTING  =
-        Setting.doubleSetting("cache.recycler.page.weight.bytes", 1d, 0d, Property.NodeScope);
-    public static final Setting<Double> WEIGHT_LONG_SETTING  =
-        Setting.doubleSetting("cache.recycler.page.weight.longs", 1d, 0d, Property.NodeScope, Property.Deprecated);
-    public static final Setting<Double> WEIGHT_INT_SETTING  =
-        Setting.doubleSetting("cache.recycler.page.weight.ints", 1d, 0d, Property.NodeScope, Property.Deprecated);
+    public static final Setting<Type> TYPE_SETTING = new Setting<>(
+        "cache.recycler.page.type",
+        Type.CONCURRENT.name(),
+        Type::parse,
+        Property.NodeScope
+    );
+    public static final Setting<ByteSizeValue> LIMIT_HEAP_SETTING = Setting.memorySizeSetting(
+        "cache.recycler.page.limit.heap",
+        "10%",
+        Property.NodeScope
+    );
+    public static final Setting<Double> WEIGHT_BYTES_SETTING = Setting.doubleSetting(
+        "cache.recycler.page.weight.bytes",
+        1d,
+        0d,
+        Property.NodeScope
+    );
+    public static final Setting<Double> WEIGHT_LONG_SETTING = Setting.doubleSetting(
+        "cache.recycler.page.weight.longs",
+        1d,
+        0d,
+        Property.NodeScope,
+        Property.Deprecated
+    );
+    public static final Setting<Double> WEIGHT_INT_SETTING = Setting.doubleSetting(
+        "cache.recycler.page.weight.ints",
+        1d,
+        0d,
+        Property.NodeScope,
+        Property.Deprecated
+    );
     // object pages are less useful to us so we give them a lower weight by default
-    public static final Setting<Double> WEIGHT_OBJECTS_SETTING  =
-        Setting.doubleSetting("cache.recycler.page.weight.objects", 0.1d, 0d, Property.NodeScope);
+    public static final Setting<Double> WEIGHT_OBJECTS_SETTING = Setting.doubleSetting(
+        "cache.recycler.page.weight.objects",
+        0.1d,
+        0d,
+        Property.NodeScope
+    );
 
     /** Page size in bytes: 16KB */
     public static final int PAGE_SIZE_IN_BYTES = 1 << 14;
@@ -67,8 +92,8 @@ public class PageCacheRecycler {
 
         // We have a global amount of memory that we need to divide across data types.
         // Since some types are more useful than other ones we give them different weights.
-        final double bytesWeight = WEIGHT_BYTES_SETTING .get(settings);
-        final double objectsWeight = WEIGHT_OBJECTS_SETTING .get(settings);
+        final double bytesWeight = WEIGHT_BYTES_SETTING.get(settings);
+        final double objectsWeight = WEIGHT_OBJECTS_SETTING.get(settings);
 
         final double totalWeight = bytesWeight + objectsWeight;
         final int maxPageCount = (int) Math.min(Integer.MAX_VALUE, limit / PAGE_SIZE_IN_BYTES);
@@ -79,6 +104,7 @@ public class PageCacheRecycler {
             public byte[] newInstance() {
                 return new byte[BYTE_PAGE_SIZE];
             }
+
             @Override
             public void recycle(byte[] value) {
                 // nothing to do
@@ -91,6 +117,7 @@ public class PageCacheRecycler {
             public Object[] newInstance() {
                 return new Object[OBJECT_PAGE_SIZE];
             }
+
             @Override
             public void recycle(Object[] value) {
                 Arrays.fill(value, null); // we need to remove the strong refs on the objects stored in the array

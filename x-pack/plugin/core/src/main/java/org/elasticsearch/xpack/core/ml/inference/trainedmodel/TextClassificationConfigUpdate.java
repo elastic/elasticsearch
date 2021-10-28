@@ -32,9 +32,9 @@ public class TextClassificationConfigUpdate extends NlpConfigUpdate implements N
     @SuppressWarnings("unchecked")
     public static TextClassificationConfigUpdate fromMap(Map<String, Object> map) {
         Map<String, Object> options = new HashMap<>(map);
-        Integer numTopClasses = (Integer)options.remove(NUM_TOP_CLASSES.getPreferredName());
-        String resultsField = (String)options.remove(RESULTS_FIELD.getPreferredName());
-        List<String> classificationLabels = (List<String>)options.remove(CLASSIFICATION_LABELS.getPreferredName());
+        Integer numTopClasses = (Integer) options.remove(NUM_TOP_CLASSES.getPreferredName());
+        String resultsField = (String) options.remove(RESULTS_FIELD.getPreferredName());
+        List<String> classificationLabels = (List<String>) options.remove(CLASSIFICATION_LABELS.getPreferredName());
 
         if (options.isEmpty() == false) {
             throw ExceptionsHelper.badRequestException("Unrecognized fields {}.", options.keySet());
@@ -45,10 +45,7 @@ public class TextClassificationConfigUpdate extends NlpConfigUpdate implements N
     private static final ObjectParser<TextClassificationConfigUpdate.Builder, Void> STRICT_PARSER = createParser(false);
 
     private static ObjectParser<TextClassificationConfigUpdate.Builder, Void> createParser(boolean lenient) {
-        ObjectParser<Builder, Void> parser = new ObjectParser<>(
-            NAME,
-            lenient,
-            TextClassificationConfigUpdate.Builder::new);
+        ObjectParser<Builder, Void> parser = new ObjectParser<>(NAME, lenient, TextClassificationConfigUpdate.Builder::new);
         parser.declareStringArray(Builder::setClassificationLabels, CLASSIFICATION_LABELS);
         parser.declareString(Builder::setResultsField, RESULTS_FIELD);
         parser.declareInt(Builder::setNumTopClasses, NUM_TOP_CLASSES);
@@ -98,10 +95,11 @@ public class TextClassificationConfigUpdate extends NlpConfigUpdate implements N
             throw ExceptionsHelper.badRequestException(
                 "Inference config of type [{}] can not be updated with a request of type [{}]",
                 originalConfig.getName(),
-                getName());
+                getName()
+            );
         }
 
-        TextClassificationConfig classificationConfig = (TextClassificationConfig)originalConfig;
+        TextClassificationConfig classificationConfig = (TextClassificationConfig) originalConfig;
         if (isNoop(classificationConfig)) {
             return originalConfig;
         }
@@ -128,9 +126,9 @@ public class TextClassificationConfigUpdate extends NlpConfigUpdate implements N
     }
 
     boolean isNoop(TextClassificationConfig originalConfig) {
-        return (this.numTopClasses == null || this.numTopClasses == originalConfig.getNumTopClasses()) &&
-            (this.classificationLabels == null) &&
-            (this.resultsField == null || this.resultsField.equals(originalConfig.getResultsField()));
+        return (this.numTopClasses == null || this.numTopClasses == originalConfig.getNumTopClasses())
+            && (this.classificationLabels == null)
+            && (this.resultsField == null || this.resultsField.equals(originalConfig.getResultsField()));
     }
 
     @Override
@@ -145,10 +143,7 @@ public class TextClassificationConfigUpdate extends NlpConfigUpdate implements N
 
     @Override
     public InferenceConfigUpdate.Builder<? extends InferenceConfigUpdate.Builder<?, ?>, ? extends InferenceConfigUpdate> newBuilder() {
-        return new Builder()
-            .setClassificationLabels(classificationLabels)
-            .setNumTopClasses(numTopClasses)
-            .setResultsField(resultsField);
+        return new Builder().setClassificationLabels(classificationLabels).setNumTopClasses(numTopClasses).setResultsField(resultsField);
     }
 
     @Override
@@ -172,9 +167,9 @@ public class TextClassificationConfigUpdate extends NlpConfigUpdate implements N
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         TextClassificationConfigUpdate that = (TextClassificationConfigUpdate) o;
-        return Objects.equals(classificationLabels, that.classificationLabels) &&
-            Objects.equals(numTopClasses, that.numTopClasses) &&
-            Objects.equals(resultsField, that.resultsField);
+        return Objects.equals(classificationLabels, that.classificationLabels)
+            && Objects.equals(numTopClasses, that.numTopClasses)
+            && Objects.equals(resultsField, that.resultsField);
     }
 
     @Override
@@ -183,7 +178,8 @@ public class TextClassificationConfigUpdate extends NlpConfigUpdate implements N
     }
 
     public static class Builder
-        implements InferenceConfigUpdate.Builder<TextClassificationConfigUpdate.Builder, TextClassificationConfigUpdate> {
+        implements
+            InferenceConfigUpdate.Builder<TextClassificationConfigUpdate.Builder, TextClassificationConfigUpdate> {
         private List<String> classificationLabels;
         private Integer numTopClasses;
         private String resultsField;

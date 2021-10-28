@@ -20,19 +20,21 @@ public class ScriptCacheTests extends ESTestCase {
     // simply by multiplying by five, so even setting it to one, requires five compilations to break
     public void testCompilationCircuitBreaking() throws Exception {
         String context = randomFrom(
-            ScriptModule.CORE_CONTEXTS.values().stream().filter(
-                c -> c.compilationRateLimited
-            ).collect(Collectors.toList())
+            ScriptModule.CORE_CONTEXTS.values().stream().filter(c -> c.compilationRateLimited).collect(Collectors.toList())
         ).name;
         final TimeValue expire = ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace(context).get(Settings.EMPTY);
         final Integer size = ScriptService.SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(context).get(Settings.EMPTY);
-        Setting<ScriptCache.CompilationRate> rateSetting =
-            ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(context);
-        ScriptCache.CompilationRate rate =
-            ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(context).get(Settings.EMPTY);
+        Setting<ScriptCache.CompilationRate> rateSetting = ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING
+            .getConcreteSettingForNamespace(context);
+        ScriptCache.CompilationRate rate = ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(context)
+            .get(Settings.EMPTY);
         String rateSettingName = rateSetting.getKey();
-        ScriptCache cache = new ScriptCache(size, expire,
-            new ScriptCache.CompilationRate(1, TimeValue.timeValueMinutes(1)), rateSettingName);
+        ScriptCache cache = new ScriptCache(
+            size,
+            expire,
+            new ScriptCache.CompilationRate(1, TimeValue.timeValueMinutes(1)),
+            rateSettingName
+        );
         cache.checkCompilationLimit(); // should pass
         expectThrows(CircuitBreakingException.class, cache::checkCompilationLimit);
         cache = new ScriptCache(size, expire, new ScriptCache.CompilationRate(2, TimeValue.timeValueMinutes(1)), rateSettingName);
@@ -47,8 +49,12 @@ public class ScriptCacheTests extends ESTestCase {
         expectThrows(CircuitBreakingException.class, cache::checkCompilationLimit);
         cache = new ScriptCache(size, expire, new ScriptCache.CompilationRate(0, TimeValue.timeValueMinutes(1)), rateSettingName);
         expectThrows(CircuitBreakingException.class, cache::checkCompilationLimit);
-        cache = new ScriptCache(size, expire,
-                                new ScriptCache.CompilationRate(Integer.MAX_VALUE, TimeValue.timeValueMinutes(1)), rateSettingName);
+        cache = new ScriptCache(
+            size,
+            expire,
+            new ScriptCache.CompilationRate(Integer.MAX_VALUE, TimeValue.timeValueMinutes(1)),
+            rateSettingName
+        );
         int largeLimit = randomIntBetween(1000, 10000);
         for (int i = 0; i < largeLimit; i++) {
             cache.checkCompilationLimit();
@@ -74,8 +80,12 @@ public class ScriptCacheTests extends ESTestCase {
         expectThrows(CircuitBreakingException.class, cache::checkCompilationLimit);
         cache = new ScriptCache(size, expire, new ScriptCache.CompilationRate(0, TimeValue.timeValueMinutes(1)), settingName);
         expectThrows(CircuitBreakingException.class, cache::checkCompilationLimit);
-        cache = new ScriptCache(size, expire,
-            new ScriptCache.CompilationRate(Integer.MAX_VALUE, TimeValue.timeValueMinutes(1)), settingName);
+        cache = new ScriptCache(
+            size,
+            expire,
+            new ScriptCache.CompilationRate(Integer.MAX_VALUE, TimeValue.timeValueMinutes(1)),
+            settingName
+        );
         int largeLimit = randomIntBetween(1000, 10000);
         for (int i = 0; i < largeLimit; i++) {
             cache.checkCompilationLimit();
@@ -84,16 +94,14 @@ public class ScriptCacheTests extends ESTestCase {
 
     public void testUnlimitedCompilationRate() {
         String context = randomFrom(
-            ScriptModule.CORE_CONTEXTS.values().stream().filter(
-                c -> c.compilationRateLimited
-            ).collect(Collectors.toList())
+            ScriptModule.CORE_CONTEXTS.values().stream().filter(c -> c.compilationRateLimited).collect(Collectors.toList())
         ).name;
         final Integer size = ScriptService.SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(context).get(Settings.EMPTY);
         final TimeValue expire = ScriptService.SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace(context).get(Settings.EMPTY);
         String settingName = ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(context).getKey();
         ScriptCache cache = new ScriptCache(size, expire, ScriptCache.UNLIMITED_COMPILATION_RATE, settingName);
         ScriptCache.TokenBucketState initialState = cache.tokenBucketState.get();
-        for(int i=0; i < 3000; i++) {
+        for (int i = 0; i < 3000; i++) {
             cache.checkCompilationLimit();
             ScriptCache.TokenBucketState currentState = cache.tokenBucketState.get();
             assertEquals(initialState.lastInlineCompileTime, currentState.lastInlineCompileTime);
@@ -107,7 +115,7 @@ public class ScriptCacheTests extends ESTestCase {
         String settingName = ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey();
         ScriptCache cache = new ScriptCache(size, expire, ScriptCache.UNLIMITED_COMPILATION_RATE, settingName);
         ScriptCache.TokenBucketState initialState = cache.tokenBucketState.get();
-        for(int i=0; i < 3000; i++) {
+        for (int i = 0; i < 3000; i++) {
             cache.checkCompilationLimit();
             ScriptCache.TokenBucketState currentState = cache.tokenBucketState.get();
             assertEquals(initialState.lastInlineCompileTime, currentState.lastInlineCompileTime);

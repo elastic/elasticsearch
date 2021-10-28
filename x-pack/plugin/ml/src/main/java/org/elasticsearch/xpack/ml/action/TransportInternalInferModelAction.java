@@ -197,5 +197,4 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             })
         );
     }
-
 }

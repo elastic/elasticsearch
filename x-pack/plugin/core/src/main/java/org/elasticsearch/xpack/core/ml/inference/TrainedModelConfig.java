@@ -351,7 +351,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     }
 
     // TODO if we ever support anything other than "basic" and platinum, we need to adjust our feature tracking logic
-    // Additionally, see `MachineLearningField.featureFromLicenseLevel` for handling modes
+    // Additionally, see `MachineLearningField. featureCheckForMode` for handling modes
     public License.OperationMode getLicenseLevel() {
         return licenseLevel;
     }

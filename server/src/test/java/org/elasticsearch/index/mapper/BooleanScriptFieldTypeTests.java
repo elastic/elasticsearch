@@ -150,7 +150,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                             @Override
                             public double execute(ExplanationHolder explanation) {
                                 BooleanDocValuesField booleans = (BooleanDocValuesField) field("test");
-                                return booleans.getValues()[0] ? 3 : 0;
+                                return booleans.getValues().get(0) ? 3 : 0;
                             }
                         };
                     }

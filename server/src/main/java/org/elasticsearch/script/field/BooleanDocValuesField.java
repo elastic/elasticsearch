@@ -13,7 +13,10 @@ import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 public class BooleanDocValuesField implements DocValuesField {
 
@@ -23,7 +26,7 @@ public class BooleanDocValuesField implements DocValuesField {
     private boolean[] values = new boolean[0];
     private int count;
 
-    private ScriptDocValues.Booleans booleansSDV = null;
+    private ScriptDocValues.Booleans booleans = null;
 
     public BooleanDocValuesField(SortedNumericDocValues input, String name) {
         this.input = input;
@@ -63,11 +66,11 @@ public class BooleanDocValuesField implements DocValuesField {
      */
     @Override
     public ScriptDocValues<?> getScriptDocValues() {
-        if (booleansSDV == null) {
-            booleansSDV = new ScriptDocValues.Booleans(this);
+        if (booleans == null) {
+            booleans = new ScriptDocValues.Booleans(this);
         }
 
-        return booleansSDV;
+        return booleans;
     }
 
     /**
@@ -94,11 +97,15 @@ public class BooleanDocValuesField implements DocValuesField {
         return count;
     }
 
-    public boolean[] getValues() {
+    public List<Boolean> getValues() {
         if (isEmpty()) {
-            return new boolean[0];
+            return Collections.emptyList();
         }
-        return Arrays.copyOf(values, count);
+        List<Boolean> list = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            list.add(i, values[i]);
+        }
+        return list;
     }
 
     public boolean getValue(boolean defaultValue) {
@@ -116,5 +123,4 @@ public class BooleanDocValuesField implements DocValuesField {
     public boolean[] getInternalValues() {
         return values;
     }
-
 }

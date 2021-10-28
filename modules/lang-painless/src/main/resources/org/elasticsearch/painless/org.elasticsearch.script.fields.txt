@@ -27,5 +27,5 @@ class org.elasticsearch.script.field.DelegateDocValuesField @dynamic_type {
 class org.elasticsearch.script.field.BooleanDocValuesField @dynamic_type {
   boolean getValue(boolean)
   boolean getValue(int, boolean)
-  boolean[] getValues()
+  List getValues()
 }

@@ -462,7 +462,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public void setNextDocId(int docId) throws IOException {
-            throw new UnsupportedOperationException();
+            booleanDocValuesField.setNextDocId(docId);
         }
 
         public boolean getValue() {

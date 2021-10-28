@@ -310,15 +310,7 @@ public final class BulkRequestParser {
                             + "but will be rejected in a future version."
                     );
                 }
-
-                boolean moreDataAfterClosingBrace;
-                try {
-                    parser.nextToken();
-                    moreDataAfterClosingBrace = true;
-                } catch (JsonEOFException e) {
-                    moreDataAfterClosingBrace = false;
-                }
-                if (moreDataAfterClosingBrace) {
+                if (parser.nextToken() != null) {
                     deprecationLogger.compatibleCritical(
                         "bulk_request_strict_action_parsing",
                         "A bulk action contains trailing junk after the closing brace. It is currently ignored "

@@ -38,8 +38,7 @@ public class ESLZ4Compressor extends LZ4Compressor {
 
     public static final LZ4Compressor INSTANCE = new ESLZ4Compressor();
 
-    ESLZ4Compressor() {
-    }
+    ESLZ4Compressor() {}
 
     static int compress64k(byte[] src, int srcOff, int srcLen, byte[] dest, int destOff, int destEnd) {
         int srcEnd = srcOff + srcLen;
@@ -53,8 +52,7 @@ public class ESLZ4Compressor extends LZ4Compressor {
             Arrays.fill(hashTable, (short) 0);
             int sOff = srcOff + 1;
 
-            label53:
-            while(true) {
+            label53: while (true) {
                 int forwardOff = sOff;
                 int step = 1;
                 int var16 = 1 << LZ4Constants.SKIP_STRENGTH;
@@ -73,7 +71,7 @@ public class ESLZ4Compressor extends LZ4Compressor {
                     ref = srcOff + SafeUtils.readShort(hashTable, excess);
                     SafeUtils.writeShort(hashTable, excess, sOff - srcOff);
                     // Modified to use explicit == false
-                } while(LZ4SafeUtils.readIntEquals(src, ref, sOff) == false);
+                } while (LZ4SafeUtils.readIntEquals(src, ref, sOff) == false);
 
                 excess = LZ4SafeUtils.commonBytesBackward(src, ref, sOff, srcOff, anchor);
                 sOff -= excess;
@@ -94,8 +92,8 @@ public class ESLZ4Compressor extends LZ4Compressor {
                 LZ4SafeUtils.wildArraycopy(src, anchor, dest, dOff, runLen);
                 dOff += runLen;
 
-                while(true) {
-                    SafeUtils.writeShortLE(dest, dOff, (short)(sOff - ref));
+                while (true) {
+                    SafeUtils.writeShortLE(dest, dOff, (short) (sOff - ref));
                     dOff += 2;
                     sOff += 4;
                     ref += 4;
@@ -154,13 +152,12 @@ public class ESLZ4Compressor extends LZ4Compressor {
             int[] hashTable = biggerHashTable.get();
             Arrays.fill(hashTable, srcOff);
 
-            label63:
-            while(true) {
+            label63: while (true) {
                 int forwardOff = sOff;
                 int step = 1;
                 int var18 = 1 << LZ4Constants.SKIP_STRENGTH;
 
-                while(true) {
+                while (true) {
                     sOff = forwardOff;
                     forwardOff += step;
                     step = var18++ >>> LZ4Constants.SKIP_STRENGTH;
@@ -193,7 +190,7 @@ public class ESLZ4Compressor extends LZ4Compressor {
                         LZ4SafeUtils.wildArraycopy(src, anchor, dest, dOff, runLen);
                         dOff += runLen;
 
-                        while(true) {
+                        while (true) {
                             SafeUtils.writeShortLE(dest, dOff, back);
                             dOff += 2;
                             sOff += 4;

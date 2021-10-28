@@ -31,8 +31,7 @@ public class ShowTables extends Command {
     private final LikePattern pattern;
     private final boolean includeFrozen;
 
-    public ShowTables(Source source, LikePattern catalogPattern, String catalog, String index, LikePattern pattern,
-                      boolean includeFrozen) {
+    public ShowTables(Source source, LikePattern catalogPattern, String catalog, String index, LikePattern pattern, boolean includeFrozen) {
         super(source);
         this.catalogPattern = catalogPattern;
         this.catalog = catalog;
@@ -70,9 +69,12 @@ public class ShowTables extends Command {
         // to avoid redundancy, indicate whether frozen fields are required by specifying the type
         EnumSet<IndexType> indexType = withFrozen ? IndexType.VALID_INCLUDE_FROZEN : IndexType.VALID_REGULAR;
         session.indexResolver().resolveNames(cat, idx, regex, indexType, ActionListener.wrap(result -> {
-            listener.onResponse(of(session, result.stream()
-                .map(t -> asList(t.cluster(), t.name(), t.type().toSql(), t.type().toNative()))
-                .collect(toList())));
+            listener.onResponse(
+                of(
+                    session,
+                    result.stream().map(t -> asList(t.cluster(), t.name(), t.type().toSql(), t.type().toNative())).collect(toList())
+                )
+            );
         }, listener::onFailure));
     }
 
@@ -92,8 +94,6 @@ public class ShowTables extends Command {
         }
 
         ShowTables other = (ShowTables) obj;
-        return Objects.equals(index, other.index)
-                && Objects.equals(pattern, other.pattern)
-                && includeFrozen == other.includeFrozen;
+        return Objects.equals(index, other.index) && Objects.equals(pattern, other.pattern) && includeFrozen == other.includeFrozen;
     }
 }

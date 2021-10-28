@@ -55,14 +55,8 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
     /**
      * Magic number of LZ4 block.
      */
-    static final long MAGIC_NUMBER = (long) 'L' << 56 |
-        (long) 'Z' << 48 |
-        (long) '4' << 40 |
-        (long) 'B' << 32 |
-        'l' << 24 |
-        'o' << 16 |
-        'c' << 8  |
-        'k';
+    static final long MAGIC_NUMBER = (long) 'L' << 56 | (long) 'Z' << 48 | (long) '4' << 40 | (long) 'B' << 32 | 'l' << 24 | 'o' << 16 | 'c'
+        << 8 | 'k';
 
     static final int HEADER_LENGTH = 8 +  // magic number
         1 +  // token
@@ -70,14 +64,13 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
         4 +  // decompressed length
         4;   // checksum
 
-
     /**
      * Base value for compression level.
      */
     static final int COMPRESSION_LEVEL_BASE = 10;
 
     static final int MIN_BLOCK_SIZE = 64;
-    static final int MAX_BLOCK_SIZE = 1 << COMPRESSION_LEVEL_BASE + 0x0F;   //  32 M
+    static final int MAX_BLOCK_SIZE = 1 << COMPRESSION_LEVEL_BASE + 0x0F;   // 32 M
     static final int DEFAULT_BLOCK_SIZE = 1 << 16;  // 64 KB
 
     static final int BLOCK_TYPE_NON_COMPRESSED = 0x10;
@@ -201,24 +194,39 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
 
                         int compressedLength = Integer.reverseBytes(in.readInt());
                         if (compressedLength < 0 || compressedLength > MAX_BLOCK_SIZE) {
-                            throw new IllegalStateException(String.format(Locale.ROOT,
-                                "invalid compressedLength: %d (expected: 0-%d)",
-                                compressedLength, MAX_BLOCK_SIZE));
+                            throw new IllegalStateException(
+                                String.format(
+                                    Locale.ROOT,
+                                    "invalid compressedLength: %d (expected: 0-%d)",
+                                    compressedLength,
+                                    MAX_BLOCK_SIZE
+                                )
+                            );
                         }
 
                         int decompressedLength = Integer.reverseBytes(in.readInt());
                         final int maxDecompressedLength = 1 << compressionLevel;
                         if (decompressedLength < 0 || decompressedLength > maxDecompressedLength) {
-                            throw new IllegalStateException(String.format(Locale.ROOT,
-                                "invalid decompressedLength: %d (expected: 0-%d)",
-                                decompressedLength, maxDecompressedLength));
+                            throw new IllegalStateException(
+                                String.format(
+                                    Locale.ROOT,
+                                    "invalid decompressedLength: %d (expected: 0-%d)",
+                                    decompressedLength,
+                                    maxDecompressedLength
+                                )
+                            );
                         }
                         if (decompressedLength == 0 && compressedLength != 0
                             || decompressedLength != 0 && compressedLength == 0
                             || blockType == BLOCK_TYPE_NON_COMPRESSED && decompressedLength != compressedLength) {
-                            throw new IllegalStateException(String.format(Locale.ROOT,
-                                "stream corrupted: compressedLength(%d) and decompressedLength(%d) mismatch",
-                                compressedLength, decompressedLength));
+                            throw new IllegalStateException(
+                                String.format(
+                                    Locale.ROOT,
+                                    "stream corrupted: compressedLength(%d) and decompressedLength(%d) mismatch",
+                                    compressedLength,
+                                    decompressedLength
+                                )
+                            );
                         }
 
                         // Read int where checksum would normally be written
@@ -269,9 +277,15 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
                                 decompressor.decompress(compressed, compressedOffset, decompressed, 0, decompressedLength);
                                 break;
                             default:
-                                throw new IllegalStateException(String.format(Locale.ROOT,
-                                    "unexpected blockType: %d (expected: %d or %d)",
-                                    blockType, BLOCK_TYPE_NON_COMPRESSED, BLOCK_TYPE_COMPRESSED));
+                                throw new IllegalStateException(
+                                    String.format(
+                                        Locale.ROOT,
+                                        "unexpected blockType: %d (expected: %d or %d)",
+                                        blockType,
+                                        BLOCK_TYPE_NON_COMPRESSED,
+                                        BLOCK_TYPE_COMPRESSED
+                                    )
+                                );
                         }
                         // Skip inbound bytes after we processed them.
                         bytesConsumed += compressedLength;

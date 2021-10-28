@@ -59,8 +59,19 @@ public class RoundTripTests extends ESTestCase {
             TimeValue socketTimeout = parseTimeValue(randomPositiveTimeValue(), "socketTimeout");
             TimeValue connectTimeout = parseTimeValue(randomPositiveTimeValue(), "connectTimeout");
             reindex.setRemoteInfo(
-                new RemoteInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), port, null,
-                    query, username, password, headers, socketTimeout, connectTimeout));
+                new RemoteInfo(
+                    randomAlphaOfLength(5),
+                    randomAlphaOfLength(5),
+                    port,
+                    null,
+                    query,
+                    username,
+                    password,
+                    headers,
+                    socketTimeout,
+                    connectTimeout
+                )
+            );
         }
         ReindexRequest tripped = new ReindexRequest(toInputByteStream(reindex));
         assertRequestEquals(reindex, tripped);
@@ -140,8 +151,7 @@ public class RoundTripTests extends ESTestCase {
         }
     }
 
-    private void assertRequestEquals(AbstractBulkIndexByScrollRequest<?> request,
-            AbstractBulkIndexByScrollRequest<?> tripped) {
+    private void assertRequestEquals(AbstractBulkIndexByScrollRequest<?> request, AbstractBulkIndexByScrollRequest<?> tripped) {
         assertRequestEquals((AbstractBulkByScrollRequest<?>) request, (AbstractBulkByScrollRequest<?>) tripped);
         assertEquals(request.getScript(), tripped.getScript());
     }

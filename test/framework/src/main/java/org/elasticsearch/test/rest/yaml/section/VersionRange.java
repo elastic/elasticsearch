@@ -27,8 +27,7 @@ public class VersionRange {
     }
 
     public boolean contains(Version currentVersion) {
-        return lower != null && upper != null && currentVersion.onOrAfter(lower)
-            && currentVersion.onOrBefore(upper);
+        return lower != null && upper != null && currentVersion.onOrAfter(lower) && currentVersion.onOrBefore(upper);
     }
 
     @Override

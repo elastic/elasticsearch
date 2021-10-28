@@ -49,8 +49,11 @@ public final class TransportSamlCompleteLogoutAction extends HandledTransportAct
         }
     }
 
-    private void processLogoutResponse(SamlRealm samlRealm, SamlCompleteLogoutRequest request,
-                                       ActionListener<ActionResponse.Empty> listener) {
+    private void processLogoutResponse(
+        SamlRealm samlRealm,
+        SamlCompleteLogoutRequest request,
+        ActionListener<ActionResponse.Empty> listener
+    ) {
 
         final SamlLogoutResponseHandler logoutResponseHandler = samlRealm.getLogoutResponseHandler();
         try {

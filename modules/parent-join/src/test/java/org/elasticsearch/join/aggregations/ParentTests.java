@@ -8,13 +8,13 @@
 
 package org.elasticsearch.join.aggregations;
 
-import java.util.Arrays;
-import java.util.Collection;
-
 import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
+
+import java.util.Arrays;
+import java.util.Collection;
 
 public class ParentTests extends BaseAggregationTestCase<ParentAggregationBuilder> {
 

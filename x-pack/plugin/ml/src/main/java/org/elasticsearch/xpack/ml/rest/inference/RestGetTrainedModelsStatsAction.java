@@ -30,9 +30,11 @@ public class RestGetTrainedModelsStatsAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             Route.builder(GET, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID + "}/_stats")
-                .replaces(GET, BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID + "}/_stats", RestApiVersion.V_8).build(),
+                .replaces(GET, BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID + "}/_stats", RestApiVersion.V_8)
+                .build(),
             Route.builder(GET, BASE_PATH + "trained_models/_stats")
-                .replaces(GET, BASE_PATH + "inference/_stats", RestApiVersion.V_8).build()
+                .replaces(GET, BASE_PATH + "inference/_stats", RestApiVersion.V_8)
+                .build()
         );
     }
 
@@ -49,8 +51,12 @@ public class RestGetTrainedModelsStatsAction extends BaseRestHandler {
         }
         GetTrainedModelsStatsAction.Request request = new GetTrainedModelsStatsAction.Request(modelId);
         if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {
-            request.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
-                restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
+            request.setPageParams(
+                new PageParams(
+                    restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
+                    restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)
+                )
+            );
         }
         request.setAllowNoResources(restRequest.paramAsBoolean(ALLOW_NO_MATCH.getPreferredName(), request.isAllowNoResources()));
         return channel -> client.execute(GetTrainedModelsStatsAction.INSTANCE, request, new RestToXContentListener<>(channel));

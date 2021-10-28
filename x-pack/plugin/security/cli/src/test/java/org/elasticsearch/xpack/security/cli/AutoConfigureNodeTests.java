@@ -75,7 +75,8 @@ public class AutoConfigureNodeTests extends ESTestCase {
             "# commented out line",
             "# commented out line",
             "# commented out line",
-            "some.extra.added.setting: value");
+            "some.extra.added.setting: value"
+        );
         final List<String> file2 = List.of(
             "# commented out line",
             "# commented out line",
@@ -101,7 +102,8 @@ public class AutoConfigureNodeTests extends ESTestCase {
             "xpack.security.transport.ssl.keystore.path: /path/to/the/file",
             "xpack.security.transport.ssl.truststore.path: /path/to/the/file",
             "",
-            AutoConfigureNode.AUTO_CONFIGURATION_END_MARKER);
+            AutoConfigureNode.AUTO_CONFIGURATION_END_MARKER
+        );
         assertEquals(file1, removePreviousAutoconfiguration(file2));
     }
 }

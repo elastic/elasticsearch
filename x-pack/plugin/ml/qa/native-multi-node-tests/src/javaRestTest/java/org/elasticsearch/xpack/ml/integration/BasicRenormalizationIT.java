@@ -71,18 +71,17 @@ public class BasicRenormalizationIT extends MlNativeAutodetectIntegTestCase {
 
         Job.Builder job = buildAndRegisterJob(jobId, bucketSpan, renormalizationWindow);
         openJob(job.getId());
-        postData(job.getId(), generateData(startTime, bucketSpan, 50,
-                bucketIndex -> {
-                    if (bucketIndex == 35) {
-                        // First anomaly is 10 events
-                        return 10;
-                    } else if (bucketIndex == 45) {
-                        // Second anomaly is 100, should get the highest score and should bring the first score down
-                        return 100;
-                    } else {
-                        return 1;
-                    }
-                }).stream().collect(Collectors.joining()));
+        postData(job.getId(), generateData(startTime, bucketSpan, 50, bucketIndex -> {
+            if (bucketIndex == 35) {
+                // First anomaly is 10 events
+                return 10;
+            } else if (bucketIndex == 45) {
+                // Second anomaly is 100, should get the highest score and should bring the first score down
+                return 100;
+            } else {
+                return 1;
+            }
+        }).stream().collect(Collectors.joining()));
         closeJob(job.getId());
     }
 

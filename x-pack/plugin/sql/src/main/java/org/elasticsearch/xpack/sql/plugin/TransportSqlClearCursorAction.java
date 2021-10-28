@@ -25,8 +25,12 @@ public class TransportSqlClearCursorAction extends HandledTransportAction<SqlCle
     private final SqlLicenseChecker sqlLicenseChecker;
 
     @Inject
-    public TransportSqlClearCursorAction(TransportService transportService, ActionFilters actionFilters, PlanExecutor planExecutor,
-                                         SqlLicenseChecker sqlLicenseChecker) {
+    public TransportSqlClearCursorAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        PlanExecutor planExecutor,
+        SqlLicenseChecker sqlLicenseChecker
+    ) {
         super(NAME, transportService, actionFilters, SqlClearCursorRequest::new);
         this.planExecutor = planExecutor;
         this.sqlLicenseChecker = sqlLicenseChecker;
@@ -38,8 +42,11 @@ public class TransportSqlClearCursorAction extends HandledTransportAction<SqlCle
         operation(planExecutor, request, listener);
     }
 
-    public static void operation(PlanExecutor planExecutor, SqlClearCursorRequest request,
-            ActionListener<SqlClearCursorResponse> listener) {
+    public static void operation(
+        PlanExecutor planExecutor,
+        SqlClearCursorRequest request,
+        ActionListener<SqlClearCursorResponse> listener
+    ) {
         Cursor cursor = Cursors.decodeFromStringWithZone(request.getCursor()).v1();
         planExecutor.cleanCursor(
             cursor,
@@ -47,4 +54,3 @@ public class TransportSqlClearCursorAction extends HandledTransportAction<SqlCle
         );
     }
 }
-

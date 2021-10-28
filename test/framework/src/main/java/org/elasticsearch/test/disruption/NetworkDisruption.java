@@ -9,13 +9,14 @@
 package org.elasticsearch.test.disruption;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -116,8 +117,8 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
     @Override
     public synchronized void removeFromNode(String node1, InternalTestCluster cluster) {
         logger.info("stop disrupting node (disruption type: {}, disrupted links: {})", networkLinkDisruptionType, disruptedLinks);
-        applyToNodes(new String[]{ node1 }, cluster.getNodeNames(), networkLinkDisruptionType::removeDisruption);
-        applyToNodes(cluster.getNodeNames(), new String[]{ node1 }, networkLinkDisruptionType::removeDisruption);
+        applyToNodes(new String[] { node1 }, cluster.getNodeNames(), networkLinkDisruptionType::removeDisruption);
+        applyToNodes(cluster.getNodeNames(), new String[] { node1 }, networkLinkDisruptionType::removeDisruption);
     }
 
     @Override
@@ -356,8 +357,13 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
         }
 
         public String toString() {
-            return "bridge partition (super connected node: [" + bridgeNode + "], partition 1: " + nodesSideOne +
-                " and partition 2: " + nodesSideTwo + ")";
+            return "bridge partition (super connected node: ["
+                + bridgeNode
+                + "], partition 1: "
+                + nodesSideOne
+                + " and partition 2: "
+                + nodesSideTwo
+                + ")";
         }
     }
 
@@ -475,9 +481,13 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
          * @param delayMax maximum delay
          */
         public static NetworkDelay random(Random random, TimeValue delayMin, TimeValue delayMax) {
-            return new NetworkDelay(TimeValue.timeValueMillis(delayMin.millis() == delayMax.millis() ?
-                    delayMin.millis() :
-                    delayMin.millis() + random.nextInt((int) (delayMax.millis() - delayMin.millis()))));
+            return new NetworkDelay(
+                TimeValue.timeValueMillis(
+                    delayMin.millis() == delayMax.millis()
+                        ? delayMin.millis()
+                        : delayMin.millis() + random.nextInt((int) (delayMax.millis() - delayMin.millis()))
+                )
+            );
         }
 
         @Override

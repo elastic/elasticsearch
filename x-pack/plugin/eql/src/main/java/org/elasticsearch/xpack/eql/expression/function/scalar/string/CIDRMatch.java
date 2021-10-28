@@ -114,19 +114,19 @@ public class CIDRMatch extends ScalarFunction {
 
         List<Object> values = new ArrayList<>(new LinkedHashSet<>(Expressions.fold(addresses)));
         return new ScriptTemplate(
-                formatTemplate(LoggerMessageFormat.format("{eql}.","cidrMatch({}, {})", leftScript.template())),
-                paramsBuilder()
-                        .script(leftScript.params())
-                        .variable(values)
-                        .build(),
-                dataType());
+            formatTemplate(LoggerMessageFormat.format("{eql}.", "cidrMatch({}, {})", leftScript.template())),
+            paramsBuilder().script(leftScript.params()).variable(values).build(),
+            dataType()
+        );
     }
 
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
-        return new ScriptTemplate(processScript(Scripts.DOC_VALUE),
-                paramsBuilder().variable(field.exactAttribute().name()).build(),
-                dataType());
+        return new ScriptTemplate(
+            processScript(Scripts.DOC_VALUE),
+            paramsBuilder().variable(field.exactAttribute().name()).build(),
+            dataType()
+        );
     }
 
     @Override

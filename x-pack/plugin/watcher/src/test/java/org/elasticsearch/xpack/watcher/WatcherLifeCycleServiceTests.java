@@ -51,7 +51,6 @@ import static org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateR
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyObject;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -61,7 +60,6 @@ import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class WatcherLifeCycleServiceTests extends ESTestCase {
@@ -91,29 +89,28 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
 
         IndexRoutingTable watchRoutingTable = IndexRoutingTable.builder(new Index(Watch.INDEX, "foo")).build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("my-cluster"))
-            .metadata(Metadata.builder()
-                .put(IndexTemplateMetadata.builder(HISTORY_TEMPLATE_NAME).patterns(randomIndexPatterns()))
-                .build())
+            .metadata(Metadata.builder().put(IndexTemplateMetadata.builder(HISTORY_TEMPLATE_NAME).patterns(randomIndexPatterns())).build())
             .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1").add(newNode("node_1")))
             .routingTable(RoutingTable.builder().add(watchRoutingTable).build())
             .build();
 
         when(watcherService.validate(clusterState)).thenReturn(true);
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterState, previousClusterState));
-        verifyZeroInteractions(watcherService);
+        verifyNoMoreInteractions(watcherService);
 
         // Trying to start a second time, but that should have no effect.
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterState, previousClusterState));
-        verifyZeroInteractions(watcherService);
+        verifyNoMoreInteractions(watcherService);
     }
 
     public void testStartWithStateNotRecoveredBlock() {
         DiscoveryNodes.Builder nodes = new DiscoveryNodes.Builder().masterNodeId("id1").localNodeId("id1");
         ClusterState clusterState = ClusterState.builder(new ClusterName("my-cluster"))
             .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK))
-            .nodes(nodes).build();
+            .nodes(nodes)
+            .build();
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterState, clusterState));
-        verifyZeroInteractions(watcherService);
+        verifyNoMoreInteractions(watcherService);
     }
 
     public void testShutdown() {
@@ -121,9 +118,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("my-cluster"))
             .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1").add(newNode("node_1")))
             .routingTable(RoutingTable.builder().add(watchRoutingTable).build())
-            .metadata(Metadata.builder()
-                .put(IndexTemplateMetadata.builder(HISTORY_TEMPLATE_NAME).patterns(randomIndexPatterns()))
-                .build())
+            .metadata(Metadata.builder().put(IndexTemplateMetadata.builder(HISTORY_TEMPLATE_NAME).patterns(randomIndexPatterns())).build())
             .build();
 
         when(watcherService.validate(clusterState)).thenReturn(true);
@@ -134,17 +129,17 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
 
         reset(watcherService);
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterState, clusterState));
-        verifyZeroInteractions(watcherService);
+        verifyNoMoreInteractions(watcherService);
     }
 
     public void testManualStartStop() {
         Index index = new Index(Watch.INDEX, "uuid");
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
-        indexRoutingTableBuilder.addShard(
-            TestShardRouting.newShardRouting(Watch.INDEX, 0, "node_1", true, ShardRoutingState.STARTED));
-        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(Watch.INDEX).settings(settings(Version.CURRENT)
-            .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6)) // the internal index format, required
-            .numberOfShards(1).numberOfReplicas(0);
+        indexRoutingTableBuilder.addShard(TestShardRouting.newShardRouting(Watch.INDEX, 0, "node_1", true, ShardRoutingState.STARTED));
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(Watch.INDEX)
+            .settings(settings(Version.CURRENT).put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6)) // the internal index format, required
+            .numberOfShards(1)
+            .numberOfReplicas(0);
         Metadata.Builder metadataBuilder = Metadata.builder()
             .put(indexMetadataBuilder)
             .put(IndexTemplateMetadata.builder(HISTORY_TEMPLATE_NAME).patterns(randomIndexPatterns()));
@@ -170,8 +165,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
 
         lifeCycleService.clusterChanged(new ClusterChangedEvent("foo", stoppedClusterState, clusterState));
         ArgumentCaptor<Runnable> captor = ArgumentCaptor.forClass(Runnable.class);
-        verify(watcherService, times(1))
-            .stop(eq("watcher manually marked to shutdown by cluster state update"), captor.capture());
+        verify(watcherService, times(1)).stop(eq("watcher manually marked to shutdown by cluster state update"), captor.capture());
         assertEquals(WatcherState.STOPPING, lifeCycleService.getState().get());
         captor.getValue().run();
         assertEquals(WatcherState.STOPPED, lifeCycleService.getState().get());
@@ -180,32 +174,38 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         reset(watcherService);
         when(watcherService.validate(clusterState)).thenReturn(true);
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterState, stoppedClusterState));
-        verify(watcherService, times(1)).start(eq(clusterState), anyObject());
+        verify(watcherService, times(1)).start(eq(clusterState), any());
 
         // no change, keep going
         reset(watcherService);
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterState, clusterState));
-        verifyZeroInteractions(watcherService);
+        verifyNoMoreInteractions(watcherService);
     }
 
     public void testNoLocalShards() {
         Index watchIndex = new Index(Watch.INDEX, "foo");
         ShardId shardId = new ShardId(watchIndex, 0);
-        DiscoveryNodes nodes = new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1")
-            .add(newNode("node_1")).add(newNode("node_2"))
+        DiscoveryNodes nodes = new DiscoveryNodes.Builder().masterNodeId("node_1")
+            .localNodeId("node_1")
+            .add(newNode("node_1"))
+            .add(newNode("node_2"))
             .build();
         IndexMetadata indexMetadata = IndexMetadata.builder(Watch.INDEX)
-            .settings(Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6)
-            ).build();
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6)
+            )
+            .build();
 
         IndexRoutingTable watchRoutingTable = IndexRoutingTable.builder(watchIndex)
-            .addShard(randomBoolean() ?
-                TestShardRouting.newShardRouting(shardId, "node_1", true, STARTED) :
-                TestShardRouting.newShardRouting(shardId, "node_1", "node_2", true, RELOCATING))
+            .addShard(
+                randomBoolean()
+                    ? TestShardRouting.newShardRouting(shardId, "node_1", true, STARTED)
+                    : TestShardRouting.newShardRouting(shardId, "node_1", "node_2", true, RELOCATING)
+            )
             .build();
         ClusterState clusterStateWithLocalShards = ClusterState.builder(new ClusterName("my-cluster"))
             .nodes(nodes)
@@ -215,9 +215,11 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
 
         // shard moved over to node 2
         IndexRoutingTable watchRoutingTableNode2 = IndexRoutingTable.builder(watchIndex)
-            .addShard(randomBoolean() ?
-                TestShardRouting.newShardRouting(shardId, "node_2", true, STARTED) :
-                TestShardRouting.newShardRouting(shardId, "node_2", "node_1", true, RELOCATING))
+            .addShard(
+                randomBoolean()
+                    ? TestShardRouting.newShardRouting(shardId, "node_2", true, STARTED)
+                    : TestShardRouting.newShardRouting(shardId, "node_2", "node_1", true, RELOCATING)
+            )
             .build();
         ClusterState clusterStateWithoutLocalShards = ClusterState.builder(new ClusterName("my-cluster"))
             .nodes(nodes)
@@ -242,14 +244,15 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         // no further invocations should happen if the cluster state does not change in regard to local shards
         reset(watcherService);
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterStateWithoutLocalShards, clusterStateWithoutLocalShards));
-        verifyZeroInteractions(watcherService);
+        verifyNoMoreInteractions(watcherService);
     }
 
     public void testReplicaWasAddedOrRemoved() {
         Index watchIndex = new Index(Watch.INDEX, "foo");
         ShardId shardId = new ShardId(watchIndex, 0);
         ShardId secondShardId = new ShardId(watchIndex, 1);
-        DiscoveryNodes discoveryNodes = new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1")
+        DiscoveryNodes discoveryNodes = new DiscoveryNodes.Builder().masterNodeId("node_1")
+            .localNodeId("node_1")
             .add(newNode("node_1"))
             .add(newNode("node_2"))
             .build();
@@ -263,12 +266,14 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             .build();
 
         IndexMetadata indexMetadata = IndexMetadata.builder(Watch.INDEX)
-            .settings(Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6)
-            ).build();
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6)
+            )
+            .build();
 
         ClusterState stateWithPrimaryShard = ClusterState.builder(new ClusterName("my-cluster"))
             .nodes(discoveryNodes)
@@ -326,20 +331,36 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, "node2", true, STARTED);
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index).addShard(shardRouting);
 
-        DiscoveryNode node1 = new DiscoveryNode("node_1", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-            new HashSet<>(asList(randomFrom(DiscoveryNodeRole.INGEST_ROLE, DiscoveryNodeRole.MASTER_ROLE))), Version.CURRENT);
+        DiscoveryNode node1 = new DiscoveryNode(
+            "node_1",
+            ESTestCase.buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            new HashSet<>(asList(randomFrom(DiscoveryNodeRole.INGEST_ROLE, DiscoveryNodeRole.MASTER_ROLE))),
+            Version.CURRENT
+        );
 
-        DiscoveryNode node2 = new DiscoveryNode("node_2", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-            new HashSet<>(asList(DiscoveryNodeRole.DATA_ROLE)), Version.CURRENT);
+        DiscoveryNode node2 = new DiscoveryNode(
+            "node_2",
+            ESTestCase.buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            new HashSet<>(asList(DiscoveryNodeRole.DATA_ROLE)),
+            Version.CURRENT
+        );
 
-        DiscoveryNode node3 = new DiscoveryNode("node_3", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-            new HashSet<>(asList(DiscoveryNodeRole.DATA_ROLE)), Version.CURRENT);
+        DiscoveryNode node3 = new DiscoveryNode(
+            "node_3",
+            ESTestCase.buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            new HashSet<>(asList(DiscoveryNodeRole.DATA_ROLE)),
+            Version.CURRENT
+        );
 
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(Watch.INDEX)
-            .settings(Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             );
 
         ClusterState previousState = ClusterState.builder(new ClusterName("my-cluster"))
@@ -349,10 +370,11 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             .build();
 
         IndexMetadata.Builder newIndexMetadataBuilder = IndexMetadata.builder(Watch.INDEX)
-            .settings(Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             );
 
         ShardRouting replicaShardRouting = TestShardRouting.newShardRouting(shardId, "node3", false, STARTED);
@@ -364,7 +386,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             .build();
 
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", currentState, previousState));
-        verify(watcherService, times(0)).pauseExecution(anyObject());
+        verify(watcherService, times(0)).pauseExecution(any());
         verify(watcherService, times(0)).reload(any(), any());
     }
 
@@ -372,15 +394,17 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         Index watchIndex = new Index(Watch.INDEX, "foo");
         ShardId shardId = new ShardId(watchIndex, 0);
         IndexRoutingTable watchRoutingTable = IndexRoutingTable.builder(watchIndex)
-            .addShard(TestShardRouting.newShardRouting(shardId, "node_1", true, STARTED)).build();
+            .addShard(TestShardRouting.newShardRouting(shardId, "node_1", true, STARTED))
+            .build();
         DiscoveryNodes nodes = new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1").add(newNode("node_1")).build();
 
         IndexMetadata.Builder newIndexMetadataBuilder = IndexMetadata.builder(Watch.INDEX)
-            .settings(Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6)
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6)
             );
 
         ClusterState clusterStateWithWatcherIndex = ClusterState.builder(new ClusterName("my-cluster"))
@@ -389,9 +413,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             .metadata(Metadata.builder().put(newIndexMetadataBuilder))
             .build();
 
-        ClusterState clusterStateWithoutWatcherIndex = ClusterState.builder(new ClusterName("my-cluster"))
-            .nodes(nodes)
-            .build();
+        ClusterState clusterStateWithoutWatcherIndex = ClusterState.builder(new ClusterName("my-cluster")).nodes(nodes).build();
 
         when(watcherService.validate(eq(clusterStateWithWatcherIndex))).thenReturn(true);
         when(watcherService.validate(eq(clusterStateWithoutWatcherIndex))).thenReturn(false);
@@ -402,18 +424,15 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
 
         // now remove watches index, and ensure that pausing is only called once, no matter how often called (i.e. each CS update)
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterStateWithoutWatcherIndex, clusterStateWithWatcherIndex));
-        verify(watcherService, times(1)).pauseExecution(anyObject());
+        verify(watcherService, times(1)).pauseExecution(any());
 
         reset(watcherService);
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterStateWithoutWatcherIndex, clusterStateWithWatcherIndex));
-        verifyZeroInteractions(watcherService);
+        verifyNoMoreInteractions(watcherService);
     }
 
     public void testWatcherServiceDoesNotStartIfIndexTemplatesAreMissing() throws Exception {
-        DiscoveryNodes nodes = new DiscoveryNodes.Builder()
-            .masterNodeId("node_1").localNodeId("node_1")
-            .add(newNode("node_1"))
-            .build();
+        DiscoveryNodes nodes = new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1").add(newNode("node_1")).build();
 
         Metadata.Builder metadataBuilder = Metadata.builder();
         boolean isHistoryTemplateAdded = randomBoolean();
@@ -424,16 +443,13 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         when(watcherService.validate(eq(state))).thenReturn(true);
 
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", state, state));
-        verify(watcherService, times(0)).start(any(ClusterState.class), anyObject());
+        verify(watcherService, times(0)).start(any(ClusterState.class), any());
     }
 
     public void testWatcherStopsWhenMasterNodeIsMissing() {
         startWatcher();
 
-        DiscoveryNodes nodes = new DiscoveryNodes.Builder()
-            .localNodeId("node_1")
-            .add(newNode("node_1"))
-            .build();
+        DiscoveryNodes nodes = new DiscoveryNodes.Builder().localNodeId("node_1").add(newNode("node_1")).build();
         ClusterState state = ClusterState.builder(new ClusterName("my-cluster")).nodes(nodes).build();
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", state, state));
         verify(watcherService, times(1)).pauseExecution(eq("no master node"));
@@ -442,11 +458,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
     public void testWatcherStopsOnClusterLevelBlock() {
         startWatcher();
 
-        DiscoveryNodes nodes = new DiscoveryNodes.Builder()
-            .localNodeId("node_1")
-            .masterNodeId("node_1")
-            .add(newNode("node_1"))
-            .build();
+        DiscoveryNodes nodes = new DiscoveryNodes.Builder().localNodeId("node_1").masterNodeId("node_1").add(newNode("node_1")).build();
         ClusterBlocks clusterBlocks = ClusterBlocks.builder().addGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_WRITES).build();
         ClusterState state = ClusterState.builder(new ClusterName("my-cluster")).nodes(nodes).blocks(clusterBlocks).build();
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", state, state));
@@ -454,19 +466,30 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
     }
 
     public void testMasterOnlyNodeCanStart() {
-        List<DiscoveryNodeRole> roles =
-                Collections.singletonList(randomFrom(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INGEST_ROLE));
+        List<DiscoveryNodeRole> roles = Collections.singletonList(randomFrom(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INGEST_ROLE));
         ClusterState state = ClusterState.builder(new ClusterName("my-cluster"))
-            .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1")
-                .add(new DiscoveryNode("node_1", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-                    new HashSet<>(roles), Version.CURRENT))).build();
+            .nodes(
+                new DiscoveryNodes.Builder().masterNodeId("node_1")
+                    .localNodeId("node_1")
+                    .add(
+                        new DiscoveryNode(
+                            "node_1",
+                            ESTestCase.buildNewFakeTransportAddress(),
+                            Collections.emptyMap(),
+                            new HashSet<>(roles),
+                            Version.CURRENT
+                        )
+                    )
+            )
+            .build();
 
         lifeCycleService.clusterChanged(new ClusterChangedEvent("test", state, state));
         assertThat(lifeCycleService.getState().get(), is(WatcherState.STARTED));
     }
 
     public void testDataNodeWithoutDataCanStart() {
-        Metadata metadata = Metadata.builder().put(IndexTemplateMetadata.builder(HISTORY_TEMPLATE_NAME).patterns(randomIndexPatterns()))
+        Metadata metadata = Metadata.builder()
+            .put(IndexTemplateMetadata.builder(HISTORY_TEMPLATE_NAME).patterns(randomIndexPatterns()))
             .build();
         ClusterState state = ClusterState.builder(new ClusterName("my-cluster"))
             .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1").add(newNode("node_1")))
@@ -485,7 +508,8 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         ShardId shardId = new ShardId(watchIndex, 0);
         String localNodeId = randomFrom("node_1", "node_2");
         String outageNodeId = localNodeId.equals("node_1") ? "node_2" : "node_1";
-        DiscoveryNodes previousDiscoveryNodes = new DiscoveryNodes.Builder().masterNodeId(localNodeId).localNodeId(localNodeId)
+        DiscoveryNodes previousDiscoveryNodes = new DiscoveryNodes.Builder().masterNodeId(localNodeId)
+            .localNodeId(localNodeId)
             .add(newNode(localNodeId))
             .add(newNode(outageNodeId))
             .build();
@@ -498,12 +522,14 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             .build();
 
         IndexMetadata indexMetadata = IndexMetadata.builder(Watch.INDEX)
-            .settings(Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6)
-            ).build();
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6)
+            )
+            .build();
 
         ClusterState previousState = ClusterState.builder(new ClusterName("my-cluster"))
             .nodes(previousDiscoveryNodes)
@@ -512,11 +538,10 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             .build();
 
         ShardRouting nowPrimaryShardRouting = replicaShardRouting.moveActiveReplicaToPrimary();
-        IndexRoutingTable currentWatchRoutingTable = IndexRoutingTable.builder(watchIndex)
-            .addShard(nowPrimaryShardRouting)
-            .build();
+        IndexRoutingTable currentWatchRoutingTable = IndexRoutingTable.builder(watchIndex).addShard(nowPrimaryShardRouting).build();
 
-        DiscoveryNodes currentDiscoveryNodes = new DiscoveryNodes.Builder().masterNodeId(localNodeId).localNodeId(localNodeId)
+        DiscoveryNodes currentDiscoveryNodes = new DiscoveryNodes.Builder().masterNodeId(localNodeId)
+            .localNodeId(localNodeId)
             .add(newNode(localNodeId))
             .build();
 
@@ -527,11 +552,11 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             .build();
 
         // initialize the previous state, so all the allocation ids are loaded
-        when(watcherService.validate(anyObject())).thenReturn(true);
+        when(watcherService.validate(any())).thenReturn(true);
         lifeCycleService.clusterChanged(new ClusterChangedEvent("whatever", previousState, currentState));
 
         reset(watcherService);
-        when(watcherService.validate(anyObject())).thenReturn(true);
+        when(watcherService.validate(any())).thenReturn(true);
         ClusterChangedEvent event = new ClusterChangedEvent("whatever", currentState, previousState);
         lifeCycleService.clusterChanged(event);
         verify(watcherService).reload(eq(event.state()), anyString());
@@ -540,23 +565,22 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
     private void startWatcher() {
         Index index = new Index(Watch.INDEX, "uuid");
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
-        indexRoutingTableBuilder.addShard(
-            TestShardRouting.newShardRouting(Watch.INDEX, 0, "node_1", true, ShardRoutingState.STARTED));
-        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(Watch.INDEX).settings(settings(Version.CURRENT)
-            .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6)) // the internal index format, required
-            .numberOfShards(1).numberOfReplicas(0);
-        Metadata metadata = Metadata.builder().put(IndexTemplateMetadata.builder(HISTORY_TEMPLATE_NAME).patterns(randomIndexPatterns()))
+        indexRoutingTableBuilder.addShard(TestShardRouting.newShardRouting(Watch.INDEX, 0, "node_1", true, ShardRoutingState.STARTED));
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(Watch.INDEX)
+            .settings(settings(Version.CURRENT).put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 6)) // the internal index format, required
+            .numberOfShards(1)
+            .numberOfReplicas(0);
+        Metadata metadata = Metadata.builder()
+            .put(IndexTemplateMetadata.builder(HISTORY_TEMPLATE_NAME).patterns(randomIndexPatterns()))
             .put(indexMetadataBuilder)
             .build();
         ClusterState state = ClusterState.builder(new ClusterName("my-cluster"))
-            .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1")
-                .add(newNode("node_1")))
+            .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1").add(newNode("node_1")))
             .routingTable(RoutingTable.builder().add(indexRoutingTableBuilder.build()).build())
             .metadata(metadata)
             .build();
         ClusterState emptyState = ClusterState.builder(new ClusterName("my-cluster"))
-            .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1")
-                .add(newNode("node_1")))
+            .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1").add(newNode("node_1")))
             .metadata(metadata)
             .build();
 
@@ -572,9 +596,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
     }
 
     private List<String> randomIndexPatterns() {
-        return IntStream.range(0, between(1, 10))
-            .mapToObj(n -> randomAlphaOfLengthBetween(1, 100))
-            .collect(Collectors.toList());
+        return IntStream.range(0, between(1, 10)).mapToObj(n -> randomAlphaOfLengthBetween(1, 100)).collect(Collectors.toList());
     }
 
     private static DiscoveryNode newNode(String nodeName) {
@@ -582,7 +604,12 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(String nodeName, Version version) {
-        return new DiscoveryNode(nodeName, ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-            DiscoveryNodeRole.roles(), version);
+        return new DiscoveryNode(
+            nodeName,
+            ESTestCase.buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            DiscoveryNodeRole.roles(),
+            version
+        );
     }
 }

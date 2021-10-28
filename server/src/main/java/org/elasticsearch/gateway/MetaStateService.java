@@ -17,9 +17,9 @@ import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -64,8 +64,12 @@ public class MetaStateService {
         if (manifest.isGlobalGenerationMissing()) {
             metadataBuilder = Metadata.builder();
         } else {
-            final Metadata globalMetadata = Metadata.FORMAT.loadGeneration(logger, namedXContentRegistry, manifest.getGlobalGeneration(),
-                    nodeEnv.nodeDataPaths());
+            final Metadata globalMetadata = Metadata.FORMAT.loadGeneration(
+                logger,
+                namedXContentRegistry,
+                manifest.getGlobalGeneration(),
+                nodeEnv.nodeDataPaths()
+            );
             if (globalMetadata != null) {
                 metadataBuilder = Metadata.builder(globalMetadata);
             } else {
@@ -77,13 +81,24 @@ public class MetaStateService {
             final Index index = entry.getKey();
             final long generation = entry.getValue();
             final String indexFolderName = index.getUUID();
-            final IndexMetadata indexMetadata = IndexMetadata.FORMAT.loadGeneration(logger, namedXContentRegistry, generation,
-                    nodeEnv.resolveIndexFolder(indexFolderName));
+            final IndexMetadata indexMetadata = IndexMetadata.FORMAT.loadGeneration(
+                logger,
+                namedXContentRegistry,
+                generation,
+                nodeEnv.resolveIndexFolder(indexFolderName)
+            );
             if (indexMetadata != null) {
                 metadataBuilder.put(indexMetadata, false);
             } else {
-                throw new IOException("failed to find metadata for existing index " + index.getName() + " [location: " + indexFolderName +
-                        ", generation: " + generation + "]");
+                throw new IOException(
+                    "failed to find metadata for existing index "
+                        + index.getName()
+                        + " [location: "
+                        + indexFolderName
+                        + ", generation: "
+                        + generation
+                        + "]"
+                );
             }
         }
 
@@ -97,8 +112,11 @@ public class MetaStateService {
         Map<Index, Long> indices = new HashMap<>();
         Metadata.Builder metadataBuilder;
 
-        Tuple<Metadata, Long> metadataAndGeneration =
-                Metadata.FORMAT.loadLatestStateWithGeneration(logger, namedXContentRegistry, nodeEnv.nodeDataPaths());
+        Tuple<Metadata, Long> metadataAndGeneration = Metadata.FORMAT.loadLatestStateWithGeneration(
+            logger,
+            namedXContentRegistry,
+            nodeEnv.nodeDataPaths()
+        );
         Metadata globalMetadata = metadataAndGeneration.v1();
         long globalStateGeneration = metadataAndGeneration.v2();
 
@@ -112,9 +130,11 @@ public class MetaStateService {
         }
 
         for (String indexFolderName : nodeEnv.availableIndexFolders()) {
-            Tuple<IndexMetadata, Long> indexMetadataAndGeneration =
-                    IndexMetadata.FORMAT.loadLatestStateWithGeneration(logger, namedXContentRegistry,
-                            nodeEnv.resolveIndexFolder(indexFolderName));
+            Tuple<IndexMetadata, Long> indexMetadataAndGeneration = IndexMetadata.FORMAT.loadLatestStateWithGeneration(
+                logger,
+                namedXContentRegistry,
+                nodeEnv.resolveIndexFolder(indexFolderName)
+            );
             IndexMetadata indexMetadata = indexMetadataAndGeneration.v1();
             long generation = indexMetadataAndGeneration.v2();
             if (indexMetadata != null) {
@@ -148,10 +168,13 @@ public class MetaStateService {
     List<IndexMetadata> loadIndicesStates(Predicate<String> excludeIndexPathIdsPredicate) throws IOException {
         List<IndexMetadata> indexMetadataList = new ArrayList<>();
         for (String indexFolderName : nodeEnv.availableIndexFolders(excludeIndexPathIdsPredicate)) {
-            assert excludeIndexPathIdsPredicate.test(indexFolderName) == false :
-                    "unexpected folder " + indexFolderName + " which should have been excluded";
-            IndexMetadata indexMetadata = IndexMetadata.FORMAT.loadLatestState(logger, namedXContentRegistry,
-                    nodeEnv.resolveIndexFolder(indexFolderName));
+            assert excludeIndexPathIdsPredicate.test(indexFolderName) == false
+                : "unexpected folder " + indexFolderName + " which should have been excluded";
+            IndexMetadata indexMetadata = IndexMetadata.FORMAT.loadLatestState(
+                logger,
+                namedXContentRegistry,
+                nodeEnv.resolveIndexFolder(indexFolderName)
+            );
             if (indexMetadata != null) {
                 final String indexPathId = indexMetadata.getIndex().getUUID();
                 if (indexFolderName.equals(indexPathId)) {
@@ -197,4 +220,3 @@ public class MetaStateService {
         Manifest.FORMAT.cleanupOldFiles(Long.MAX_VALUE, nodeEnv.nodeDataPaths()); // finally delete manifest
     }
 }
-

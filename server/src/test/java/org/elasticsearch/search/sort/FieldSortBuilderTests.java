@@ -31,9 +31,6 @@ import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.xcontent.XContentParseException;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -52,6 +49,9 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.SearchSortValuesAndFormats;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -76,14 +76,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         return randomFieldSortBuilder();
     }
 
-    private List<Object> missingContent = Arrays.asList(
-            "_last",
-            "_first",
-            Integer.toString(randomInt()),
-            randomInt());
-
-
-
+    private List<Object> missingContent = Arrays.asList("_last", "_first", Integer.toString(randomInt()), randomInt());
 
     public FieldSortBuilder randomFieldSortBuilder() {
         String fieldName = rarely() ? FieldSortBuilder.DOC_FIELD_NAME : randomAlphaOfLengthBetween(1, 10);
@@ -120,33 +113,31 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         FieldSortBuilder mutated = new FieldSortBuilder(original);
         int parameter = randomIntBetween(0, 6);
         switch (parameter) {
-        case 0:
-            mutated.setNestedSort(
-                randomValueOtherThan(original.getNestedSort(), () -> NestedSortBuilderTests.createRandomNestedSort(3)));
-            break;
-        case 1:
-            mutated.sortMode(randomValueOtherThan(original.sortMode(), () -> randomFrom(SortMode.values())));
-            break;
-        case 2:
-            mutated.unmappedType(randomValueOtherThan(
-                    original.unmappedType(),
-                    () -> randomAlphaOfLengthBetween(1, 10)));
-            break;
-        case 3:
-            mutated.missing(randomValueOtherThan(original.missing(), () -> randomFrom(missingContent)));
-            break;
-        case 4:
-            mutated.order(randomValueOtherThan(original.order(), () -> randomFrom(SortOrder.values())));
-            break;
-        case 5:
-            mutated.setNumericType(randomValueOtherThan(original.getNumericType(),
-                () -> randomFrom("long", "double")));
-            break;
-        case 6:
-            mutated.setFormat(randomValueOtherThan(original.getFormat(), () -> randomFrom("yyyy-MM-dd", "yyyy/MM/dd")));
-            break;
-        default:
-            throw new IllegalStateException("Unsupported mutation.");
+            case 0:
+                mutated.setNestedSort(
+                    randomValueOtherThan(original.getNestedSort(), () -> NestedSortBuilderTests.createRandomNestedSort(3))
+                );
+                break;
+            case 1:
+                mutated.sortMode(randomValueOtherThan(original.sortMode(), () -> randomFrom(SortMode.values())));
+                break;
+            case 2:
+                mutated.unmappedType(randomValueOtherThan(original.unmappedType(), () -> randomAlphaOfLengthBetween(1, 10)));
+                break;
+            case 3:
+                mutated.missing(randomValueOtherThan(original.missing(), () -> randomFrom(missingContent)));
+                break;
+            case 4:
+                mutated.order(randomValueOtherThan(original.order(), () -> randomFrom(SortOrder.values())));
+                break;
+            case 5:
+                mutated.setNumericType(randomValueOtherThan(original.getNumericType(), () -> randomFrom("long", "double")));
+                break;
+            case 6:
+                mutated.setFormat(randomValueOtherThan(original.getFormat(), () -> randomFrom("yyyy-MM-dd", "yyyy/MM/dd")));
+                break;
+            default:
+                throw new IllegalStateException("Unsupported mutation.");
         }
         return mutated;
     }
@@ -280,8 +271,9 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
     public void testBuildNested() throws IOException {
         SearchExecutionContext searchExecutionContext = createMockSearchExecutionContext();
 
-        FieldSortBuilder sortBuilder = new FieldSortBuilder("fieldName")
-                .setNestedSort(new NestedSortBuilder("path").setFilter(QueryBuilders.termQuery(MAPPED_STRING_FIELDNAME, "value")));
+        FieldSortBuilder sortBuilder = new FieldSortBuilder("fieldName").setNestedSort(
+            new NestedSortBuilder("path").setFilter(QueryBuilders.termQuery(MAPPED_STRING_FIELDNAME, "value"))
+        );
         SortField sortField = sortBuilder.build(searchExecutionContext).field;
         assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
         XFieldComparatorSource comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
@@ -326,8 +318,9 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         SearchExecutionContext searchExecutionContext = createMockSearchExecutionContext();
 
         boolean reverse = randomBoolean();
-        FieldSortBuilder sortBuilder = new FieldSortBuilder(FieldSortBuilder.SHARD_DOC_FIELD_NAME)
-            .order(reverse ? SortOrder.DESC : SortOrder.ASC);
+        FieldSortBuilder sortBuilder = new FieldSortBuilder(FieldSortBuilder.SHARD_DOC_FIELD_NAME).order(
+            reverse ? SortOrder.DESC : SortOrder.ASC
+        );
         SortFieldAndFormat sortAndFormat = sortBuilder.build(searchExecutionContext);
         assertThat(sortAndFormat.field.getClass(), equalTo(ShardDocSortField.class));
         ShardDocSortField sortField = (ShardDocSortField) sortAndFormat.field;
@@ -354,8 +347,10 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
 
     public void testInvalidFormat() {
         SearchExecutionContext searchExecutionContext = createMockSearchExecutionContext();
-        IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
-            () -> SortBuilders.fieldSort("custom-keyword").setFormat("yyyy/MM/dd HH:mm:ss").build(searchExecutionContext));
+        IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> SortBuilders.fieldSort("custom-keyword").setFormat("yyyy/MM/dd HH:mm:ss").build(searchExecutionContext)
+        );
         assertThat(error.getMessage(), equalTo("Field [custom-keyword] of type [keyword] does not support custom formats"));
     }
 
@@ -400,16 +395,22 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         assertEquals(SortedSetSelector.Type.MAX, ((SortedSetSortField) sortField).getSelector());
 
         String expectedError = "we only support AVG, MEDIAN and SUM on number based fields";
-        QueryShardException e = expectThrows(QueryShardException.class,
-                () -> new FieldSortBuilder(MAPPED_STRING_FIELDNAME).sortMode(SortMode.AVG).build(searchExecutionContext));
+        QueryShardException e = expectThrows(
+            QueryShardException.class,
+            () -> new FieldSortBuilder(MAPPED_STRING_FIELDNAME).sortMode(SortMode.AVG).build(searchExecutionContext)
+        );
         assertEquals(expectedError, e.getMessage());
 
-        e = expectThrows(QueryShardException.class,
-                () -> new FieldSortBuilder(MAPPED_STRING_FIELDNAME).sortMode(SortMode.SUM).build(searchExecutionContext));
+        e = expectThrows(
+            QueryShardException.class,
+            () -> new FieldSortBuilder(MAPPED_STRING_FIELDNAME).sortMode(SortMode.SUM).build(searchExecutionContext)
+        );
         assertEquals(expectedError, e.getMessage());
 
-        e = expectThrows(QueryShardException.class,
-                () -> new FieldSortBuilder(MAPPED_STRING_FIELDNAME).sortMode(SortMode.MEDIAN).build(searchExecutionContext));
+        e = expectThrows(
+            QueryShardException.class,
+            () -> new FieldSortBuilder(MAPPED_STRING_FIELDNAME).sortMode(SortMode.MEDIAN).build(searchExecutionContext)
+        );
         assertEquals(expectedError, e.getMessage());
     }
 
@@ -427,8 +428,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         NestedSortBuilder nestedSort = new NestedSortBuilder("path");
         nestedSort.setFilter(rangeQuery);
         sortBuilder.setNestedSort(nestedSort);
-        FieldSortBuilder rewritten = sortBuilder
-                .rewrite(createMockSearchExecutionContext());
+        FieldSortBuilder rewritten = sortBuilder.rewrite(createMockSearchExecutionContext());
         assertNotSame(rangeQuery, rewritten.getNestedSort().getFilter());
     }
 
@@ -444,8 +444,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
             }
         };
         sortBuilder.setNestedSort(new NestedSortBuilder("path").setFilter(rangeQuery));
-        FieldSortBuilder rewritten = sortBuilder
-                .rewrite(createMockSearchExecutionContext());
+        FieldSortBuilder rewritten = sortBuilder.rewrite(createMockSearchExecutionContext());
         assertNotSame(rangeQuery, rewritten.getNestedSort().getFilter());
     }
 
@@ -455,10 +454,10 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         assertNull(getPrimaryFieldSortOrNull(new SearchSourceBuilder().sort(SortBuilders.scoreSort())));
         FieldSortBuilder sortBuilder = new FieldSortBuilder(MAPPED_STRING_FIELDNAME);
         assertEquals(sortBuilder, getPrimaryFieldSortOrNull(new SearchSourceBuilder().sort(sortBuilder)));
-        assertNull(getPrimaryFieldSortOrNull(new SearchSourceBuilder()
-            .sort(SortBuilders.scoreSort()).sort(sortBuilder)));
-        assertNull(getPrimaryFieldSortOrNull(new SearchSourceBuilder()
-            .sort(SortBuilders.geoDistanceSort("field", 0d, 0d)).sort(sortBuilder)));
+        assertNull(getPrimaryFieldSortOrNull(new SearchSourceBuilder().sort(SortBuilders.scoreSort()).sort(sortBuilder)));
+        assertNull(
+            getPrimaryFieldSortOrNull(new SearchSourceBuilder().sort(SortBuilders.geoDistanceSort("field", 0d, 0d)).sort(sortBuilder))
+        );
     }
 
     public void testGetMaxNumericSortValue() throws IOException {
@@ -531,8 +530,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
                             assertNull(getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)));
                         } else {
                             assertNull(getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName + "-ni")));
-                            assertEquals(values[numDocs - 1],
-                                getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)).getMax());
+                            assertEquals(values[numDocs - 1], getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)).getMax());
                             assertEquals(values[0], getMinMaxOrNull(newContext, SortBuilders.fieldSort(fieldName)).getMin());
                         }
                     }
@@ -602,8 +600,9 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
                     SearchExecutionContext context = createMockSearchExecutionContext(new IndexSearcher(reader));
                     DocValueFormat[] dateValueFormat = new DocValueFormat[] {
                         context.getFieldType("custom-date").docValueFormat(null, null) };
-                    assertTrue(fieldSort.isBottomSortShardDisjoint(context,
-                        new SearchSortValuesAndFormats(new Object[] { 0L }, dateValueFormat)));
+                    assertTrue(
+                        fieldSort.isBottomSortShardDisjoint(context, new SearchSortValuesAndFormats(new Object[] { 0L }, dateValueFormat))
+                    );
                 }
                 for (int i = 0; i < numDocs; i++) {
                     Document doc = new Document();
@@ -619,26 +618,58 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
                     DocValueFormat[] dateValueFormat = new DocValueFormat[] {
                         context.getFieldType("custom-date").docValueFormat(null, null) };
                     assertFalse(fieldSort.isBottomSortShardDisjoint(context, null));
-                    assertFalse(fieldSort.isBottomSortShardDisjoint(context,
-                        new SearchSortValuesAndFormats(new Object[] { minValue }, dateValueFormat)));
-                    assertTrue(fieldSort.isBottomSortShardDisjoint(context,
-                        new SearchSortValuesAndFormats(new Object[] { minValue-1 }, dateValueFormat)));
-                    assertFalse(fieldSort.isBottomSortShardDisjoint(context,
-                        new SearchSortValuesAndFormats(new Object[] { minValue+1 }, dateValueFormat)));
+                    assertFalse(
+                        fieldSort.isBottomSortShardDisjoint(
+                            context,
+                            new SearchSortValuesAndFormats(new Object[] { minValue }, dateValueFormat)
+                        )
+                    );
+                    assertTrue(
+                        fieldSort.isBottomSortShardDisjoint(
+                            context,
+                            new SearchSortValuesAndFormats(new Object[] { minValue - 1 }, dateValueFormat)
+                        )
+                    );
+                    assertFalse(
+                        fieldSort.isBottomSortShardDisjoint(
+                            context,
+                            new SearchSortValuesAndFormats(new Object[] { minValue + 1 }, dateValueFormat)
+                        )
+                    );
                     fieldSort.order(SortOrder.DESC);
-                    assertTrue(fieldSort.isBottomSortShardDisjoint(context,
-                        new SearchSortValuesAndFormats(new Object[] { maxValue+1 }, dateValueFormat)));
-                    assertFalse(fieldSort.isBottomSortShardDisjoint(context,
-                        new SearchSortValuesAndFormats(new Object[] { maxValue }, dateValueFormat)));
-                    assertFalse(fieldSort.isBottomSortShardDisjoint(context,
-                        new SearchSortValuesAndFormats(new Object[] { minValue }, dateValueFormat)));
+                    assertTrue(
+                        fieldSort.isBottomSortShardDisjoint(
+                            context,
+                            new SearchSortValuesAndFormats(new Object[] { maxValue + 1 }, dateValueFormat)
+                        )
+                    );
+                    assertFalse(
+                        fieldSort.isBottomSortShardDisjoint(
+                            context,
+                            new SearchSortValuesAndFormats(new Object[] { maxValue }, dateValueFormat)
+                        )
+                    );
+                    assertFalse(
+                        fieldSort.isBottomSortShardDisjoint(
+                            context,
+                            new SearchSortValuesAndFormats(new Object[] { minValue }, dateValueFormat)
+                        )
+                    );
                     fieldSort.setNestedSort(new NestedSortBuilder("empty"));
-                    assertFalse(fieldSort.isBottomSortShardDisjoint(context,
-                        new SearchSortValuesAndFormats(new Object[] { minValue-1 }, dateValueFormat)));
+                    assertFalse(
+                        fieldSort.isBottomSortShardDisjoint(
+                            context,
+                            new SearchSortValuesAndFormats(new Object[] { minValue - 1 }, dateValueFormat)
+                        )
+                    );
                     fieldSort.setNestedSort(null);
                     fieldSort.missing("100");
-                    assertFalse(fieldSort.isBottomSortShardDisjoint(context,
-                        new SearchSortValuesAndFormats(new Object[] { maxValue+1 }, dateValueFormat)));
+                    assertFalse(
+                        fieldSort.isBottomSortShardDisjoint(
+                            context,
+                            new SearchSortValuesAndFormats(new Object[] { maxValue + 1 }, dateValueFormat)
+                        )
+                    );
                 }
             }
         }

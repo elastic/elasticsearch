@@ -25,7 +25,8 @@ public class GeoShapeQueryBuilderGeoShapeTests extends GeoShapeQueryBuilderTests
             ShapeType.MULTIPOINT,
             ShapeType.LINESTRING,
             ShapeType.MULTILINESTRING,
-            ShapeType.POLYGON);
+            ShapeType.POLYGON
+        );
         Geometry geometry = GeometryTestUtils.randomGeometry(shapeType, false);
         GeoShapeQueryBuilder builder;
         clearShapeFields();
@@ -54,8 +55,9 @@ public class GeoShapeQueryBuilderGeoShapeTests extends GeoShapeQueryBuilderTests
                 if (shapeType == ShapeType.LINESTRING || shapeType == ShapeType.MULTILINESTRING) {
                     builder.relation(randomFrom(ShapeRelation.DISJOINT, ShapeRelation.INTERSECTS, ShapeRelation.CONTAINS));
                 } else {
-                    builder.relation(randomFrom(ShapeRelation.DISJOINT, ShapeRelation.INTERSECTS,
-                        ShapeRelation.WITHIN, ShapeRelation.CONTAINS));
+                    builder.relation(
+                        randomFrom(ShapeRelation.DISJOINT, ShapeRelation.INTERSECTS, ShapeRelation.WITHIN, ShapeRelation.CONTAINS)
+                    );
                 }
             } else {
                 if (shapeType == ShapeType.LINESTRING || shapeType == ShapeType.MULTILINESTRING) {

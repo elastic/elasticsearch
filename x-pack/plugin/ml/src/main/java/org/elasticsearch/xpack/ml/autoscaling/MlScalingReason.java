@@ -52,7 +52,8 @@ public class MlScalingReason implements AutoscalingDeciderResult.Reason {
         } else {
             this.waitingModels = List.of();
         }
-        this.passedConfiguration = Settings.readSettingsFromStream(in);;
+        this.passedConfiguration = Settings.readSettingsFromStream(in);
+        ;
         this.currentMlCapacity = new AutoscalingCapacity(in);
         this.requiredCapacity = in.readOptionalWriteable(AutoscalingCapacity::new);
         this.largestWaitingAnalyticsJob = in.readOptionalVLong();
@@ -60,15 +61,17 @@ public class MlScalingReason implements AutoscalingDeciderResult.Reason {
         this.simpleReason = in.readString();
     }
 
-    MlScalingReason(List<String> waitingAnalyticsJobs,
-                    List<String> waitingAnomalyJobs,
-                    List<String> waitingModels,
-                    Settings passedConfiguration,
-                    Long largestWaitingAnalyticsJob,
-                    Long largestWaitingAnomalyJob,
-                    AutoscalingCapacity currentMlCapacity,
-                    AutoscalingCapacity requiredCapacity,
-                    String simpleReason) {
+    MlScalingReason(
+        List<String> waitingAnalyticsJobs,
+        List<String> waitingAnomalyJobs,
+        List<String> waitingModels,
+        Settings passedConfiguration,
+        Long largestWaitingAnalyticsJob,
+        Long largestWaitingAnomalyJob,
+        AutoscalingCapacity currentMlCapacity,
+        AutoscalingCapacity requiredCapacity,
+        String simpleReason
+    ) {
         this.waitingAnalyticsJobs = waitingAnalyticsJobs == null ? Collections.emptyList() : waitingAnalyticsJobs;
         this.waitingAnomalyJobs = waitingAnomalyJobs == null ? Collections.emptyList() : waitingAnomalyJobs;
         this.waitingModels = waitingModels == null ? List.of() : waitingModels;
@@ -89,20 +92,21 @@ public class MlScalingReason implements AutoscalingDeciderResult.Reason {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         MlScalingReason that = (MlScalingReason) o;
-        return Objects.equals(waitingAnalyticsJobs, that.waitingAnalyticsJobs) &&
-            Objects.equals(waitingAnomalyJobs, that.waitingAnomalyJobs) &&
-            Objects.equals(waitingModels, that.waitingModels) &&
-            Objects.equals(passedConfiguration, that.passedConfiguration) &&
-            Objects.equals(largestWaitingAnalyticsJob, that.largestWaitingAnalyticsJob) &&
-            Objects.equals(largestWaitingAnomalyJob, that.largestWaitingAnomalyJob) &&
-            Objects.equals(currentMlCapacity, that.currentMlCapacity) &&
-            Objects.equals(requiredCapacity, that.requiredCapacity) &&
-            Objects.equals(simpleReason, that.simpleReason);
+        return Objects.equals(waitingAnalyticsJobs, that.waitingAnalyticsJobs)
+            && Objects.equals(waitingAnomalyJobs, that.waitingAnomalyJobs)
+            && Objects.equals(waitingModels, that.waitingModels)
+            && Objects.equals(passedConfiguration, that.passedConfiguration)
+            && Objects.equals(largestWaitingAnalyticsJob, that.largestWaitingAnalyticsJob)
+            && Objects.equals(largestWaitingAnomalyJob, that.largestWaitingAnomalyJob)
+            && Objects.equals(currentMlCapacity, that.currentMlCapacity)
+            && Objects.equals(requiredCapacity, that.requiredCapacity)
+            && Objects.equals(simpleReason, that.simpleReason);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(waitingAnalyticsJobs,
+        return Objects.hash(
+            waitingAnalyticsJobs,
             waitingAnomalyJobs,
             passedConfiguration,
             largestWaitingAnalyticsJob,
@@ -110,7 +114,8 @@ public class MlScalingReason implements AutoscalingDeciderResult.Reason {
             largestWaitingAnomalyJob,
             currentMlCapacity,
             requiredCapacity,
-            simpleReason);
+            simpleReason
+        );
     }
 
     @Override

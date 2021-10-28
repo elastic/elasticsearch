@@ -32,8 +32,13 @@ public class SearchableSnapshotShardStatsTests extends AbstractWireSerializingTe
     protected SearchableSnapshotShardStats createTestInstance() {
         SnapshotId snapshotId = new SnapshotId(randomAlphaOfLength(5), randomAlphaOfLength(5));
         IndexId indexId = new IndexId(randomAlphaOfLength(5), randomAlphaOfLength(5));
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(randomAlphaOfLength(5), randomInt(10), randomAlphaOfLength(5),
-            randomBoolean(), ShardRoutingState.STARTED);
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(
+            randomAlphaOfLength(5),
+            randomInt(10),
+            randomAlphaOfLength(5),
+            randomBoolean(),
+            ShardRoutingState.STARTED
+        );
 
         final List<CacheIndexInputStats> inputStats = new ArrayList<>();
         for (int j = 0; j < randomInt(20); j++) {
@@ -43,15 +48,29 @@ public class SearchableSnapshotShardStatsTests extends AbstractWireSerializingTe
     }
 
     private CacheIndexInputStats randomCacheIndexInputStats() {
-        return new CacheIndexInputStats(randomAlphaOfLength(10), randomNonNegativeLong(), new ByteSizeValue(randomNonNegativeLong()),
-            new ByteSizeValue(randomNonNegativeLong()), new ByteSizeValue(randomNonNegativeLong()),
-            randomNonNegativeLong(), randomNonNegativeLong(),
-            randomCounter(), randomCounter(),
-            randomCounter(), randomCounter(),
-            randomCounter(), randomCounter(),
-            randomCounter(), randomCounter(), randomTimedCounter(),
-            randomTimedCounter(), randomTimedCounter(),
-            randomCounter(), randomCounter(), randomNonNegativeLong());
+        return new CacheIndexInputStats(
+            randomAlphaOfLength(10),
+            randomNonNegativeLong(),
+            new ByteSizeValue(randomNonNegativeLong()),
+            new ByteSizeValue(randomNonNegativeLong()),
+            new ByteSizeValue(randomNonNegativeLong()),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomCounter(),
+            randomCounter(),
+            randomCounter(),
+            randomCounter(),
+            randomCounter(),
+            randomCounter(),
+            randomCounter(),
+            randomCounter(),
+            randomTimedCounter(),
+            randomTimedCounter(),
+            randomTimedCounter(),
+            randomCounter(),
+            randomCounter(),
+            randomNonNegativeLong()
+        );
     }
 
     private Counter randomCounter() {

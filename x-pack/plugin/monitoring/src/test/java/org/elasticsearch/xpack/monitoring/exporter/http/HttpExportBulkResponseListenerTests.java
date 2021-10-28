@@ -10,6 +10,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContent;
@@ -17,7 +18,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xcontent.XContentType;
 import org.mockito.Mockito;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -53,13 +53,17 @@ public class HttpExportBulkResponseListenerTests extends ESTestCase {
 
         when(response.getEntity()).thenReturn(entity);
         when(entity.getContent()).thenReturn(stream);
-        when(xContent.createParser(Mockito.any(NamedXContentRegistry.class),
-                Mockito.any(DeprecationHandler.class), Mockito.eq(stream))).thenReturn(parser);
+        when(xContent.createParser(Mockito.any(NamedXContentRegistry.class), Mockito.any(DeprecationHandler.class), Mockito.eq(stream)))
+            .thenReturn(parser);
 
         // {, "took", 4, "errors", false
-        when(parser.nextToken()).thenReturn(Token.START_OBJECT,
-                                            Token.FIELD_NAME, Token.VALUE_NUMBER,
-                                            Token.FIELD_NAME, Token.VALUE_BOOLEAN);
+        when(parser.nextToken()).thenReturn(
+            Token.START_OBJECT,
+            Token.FIELD_NAME,
+            Token.VALUE_NUMBER,
+            Token.FIELD_NAME,
+            Token.VALUE_BOOLEAN
+        );
         when(parser.currentName()).thenReturn("took", "errors");
         when(parser.booleanValue()).thenReturn(false);
 
@@ -75,15 +79,20 @@ public class HttpExportBulkResponseListenerTests extends ESTestCase {
         final AtomicInteger counter = new AtomicInteger(0);
         final Response response = mock(Response.class);
         final StringEntity entity = new StringEntity(
-                "{\"took\":4,\"errors\":true,\"items\":[" +
-                        "{\"index\":{\"_index\":\".monitoring-data-2\",\"_type\":\"node\",\"_id\":\"123\"}}," +
-                        "{\"index\":{\"_index\":\".monitoring-data-2\",\"_type\":\"node\",\"_id\":\"456\"," +
-                            "\"error\":\"" + expectedErrors[0] + "\"}}," +
-                        "{\"index\":{\"_index\":\".monitoring-data-2\",\"_type\":\"node\",\"_id\":\"789\"}}," +
-                        "{\"index\":{\"_index\":\".monitoring-data-2\",\"_type\":\"node\",\"_id\":\"012\"," +
-                            "\"error\":\"" + expectedErrors[1] + "\"}}" +
-                "]}",
-                ContentType.APPLICATION_JSON);
+            "{\"took\":4,\"errors\":true,\"items\":["
+                + "{\"index\":{\"_index\":\".monitoring-data-2\",\"_type\":\"node\",\"_id\":\"123\"}},"
+                + "{\"index\":{\"_index\":\".monitoring-data-2\",\"_type\":\"node\",\"_id\":\"456\","
+                + "\"error\":\""
+                + expectedErrors[0]
+                + "\"}},"
+                + "{\"index\":{\"_index\":\".monitoring-data-2\",\"_type\":\"node\",\"_id\":\"789\"}},"
+                + "{\"index\":{\"_index\":\".monitoring-data-2\",\"_type\":\"node\",\"_id\":\"012\","
+                + "\"error\":\""
+                + expectedErrors[1]
+                + "\"}}"
+                + "]}",
+            ContentType.APPLICATION_JSON
+        );
 
         when(response.getEntity()).thenReturn(entity);
 
@@ -100,8 +109,8 @@ public class HttpExportBulkResponseListenerTests extends ESTestCase {
 
     public void testOnSuccessParsingWithInnerErrors() throws IOException {
         // {"took": 4, "errors": true, "items": [ { "index": { "_index": "ignored", "_type": "ignored", "_id": "ignored" },
-        //                                        { "index": { "_index": "ignored", "_type": "ignored", "_id": "ignored", "error": "blah" }
-        //                                      ]...
+        // { "index": { "_index": "ignored", "_type": "ignored", "_id": "ignored", "error": "blah" }
+        // ]...
         final Response response = mock(Response.class);
         final XContent xContent = mock(XContent.class);
         final XContentParser parser = mock(XContentParser.class);
@@ -110,8 +119,8 @@ public class HttpExportBulkResponseListenerTests extends ESTestCase {
 
         when(response.getEntity()).thenReturn(entity);
         when(entity.getContent()).thenReturn(stream);
-        when(xContent.createParser(Mockito.any(NamedXContentRegistry.class),
-                Mockito.any(DeprecationHandler.class), Mockito.eq(stream))).thenReturn(parser);
+        when(xContent.createParser(Mockito.any(NamedXContentRegistry.class), Mockito.any(DeprecationHandler.class), Mockito.eq(stream)))
+            .thenReturn(parser);
 
         // tag::disable-formatting
         // {, "took", 4, "errors", false
@@ -136,9 +145,20 @@ public class HttpExportBulkResponseListenerTests extends ESTestCase {
                 Token.END_OBJECT,                          // 29
             Token.END_ARRAY);                              // 30
         // end::disable-formatting
-        when(parser.currentName()).thenReturn("took", "errors", "items",
-                                              "index", "_index", "_type", "_id",
-                                              "index", "_index", "_type", "_id", "error");
+        when(parser.currentName()).thenReturn(
+            "took",
+            "errors",
+            "items",
+            "index",
+            "_index",
+            "_type",
+            "_id",
+            "index",
+            "_index",
+            "_type",
+            "_id",
+            "error"
+        );
         // there were errors; so go diving for the error
         when(parser.booleanValue()).thenReturn(true);
         when(parser.text()).thenReturn("this is the error");

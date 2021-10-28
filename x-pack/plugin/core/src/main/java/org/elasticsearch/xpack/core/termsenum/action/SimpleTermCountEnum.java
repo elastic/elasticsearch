@@ -24,15 +24,15 @@ import java.util.Comparator;
  * but can't return a raw Lucene TermsEnum.
  */
 public class SimpleTermCountEnum extends TermsEnum {
-    int index =-1;
+    int index = -1;
     TermCount[] sortedTerms;
     TermCount current = null;
-    
+
     public SimpleTermCountEnum(TermCount[] terms) {
         sortedTerms = Arrays.copyOf(terms, terms.length);
         Arrays.sort(sortedTerms, Comparator.comparing(TermCount::getTerm));
     }
-    
+
     public SimpleTermCountEnum(TermCount termCount) {
         sortedTerms = new TermCount[1];
         sortedTerms[0] = termCount;
@@ -44,7 +44,7 @@ public class SimpleTermCountEnum extends TermsEnum {
             return null;
         }
         return new BytesRef(current.getTerm());
-    }    
+    }
 
     @Override
     public BytesRef next() throws IOException {
@@ -56,18 +56,17 @@ public class SimpleTermCountEnum extends TermsEnum {
         }
         return term();
     }
-    
+
     @Override
     public int docFreq() throws IOException {
         if (current == null) {
             return 0;
         }
         return (int) current.getDocCount();
-    }    
+    }
 
-    
-    //===============  All other TermsEnum methods not supported =================
-    
+    // =============== All other TermsEnum methods not supported =================
+
     @Override
     public AttributeSource attributes() {
         throw new UnsupportedOperationException();

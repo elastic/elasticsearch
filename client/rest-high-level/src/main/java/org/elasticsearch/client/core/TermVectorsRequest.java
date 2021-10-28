@@ -9,8 +9,8 @@
 package org.elasticsearch.client.core;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -21,7 +21,8 @@ import java.util.Map;
 public class TermVectorsRequest implements ToXContentObject, Validatable {
 
     private final String index;
-    @Nullable private final String type;
+    @Nullable
+    private final String type;
     private String id = null;
     private XContentBuilder docBuilder = null;
 
@@ -93,7 +94,6 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
         this.type = type;
         this.docBuilder = docBuilder;
     }
-
 
     /**
      * Constructs a new TermVectorRequest from a template
@@ -238,7 +238,6 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
         return realtime;
     }
 
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -265,8 +264,14 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
 
         if (filterSettings != null) {
             builder.startObject("filter");
-            String[] filterSettingNames =
-                {"max_num_terms", "min_term_freq", "max_term_freq", "min_doc_freq", "max_doc_freq", "min_word_length", "max_word_length"};
+            String[] filterSettingNames = {
+                "max_num_terms",
+                "min_term_freq",
+                "max_term_freq",
+                "min_doc_freq",
+                "max_doc_freq",
+                "min_word_length",
+                "max_word_length" };
             for (String settingName : filterSettingNames) {
                 if (filterSettings.containsKey(settingName)) builder.field(settingName, filterSettings.get(settingName));
             }

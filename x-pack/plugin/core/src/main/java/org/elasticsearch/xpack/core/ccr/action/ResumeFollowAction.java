@@ -54,8 +54,7 @@ public final class ResumeFollowAction extends ActionType<AcknowledgedResponse> {
         private String followerIndex;
         private FollowParameters parameters = new FollowParameters();
 
-        public Request() {
-        }
+        public Request() {}
 
         public String getFollowerIndex() {
             return followerIndex;
@@ -110,8 +109,7 @@ public final class ResumeFollowAction extends ActionType<AcknowledgedResponse> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(followerIndex, request.followerIndex) &&
-                Objects.equals(parameters, request.parameters);
+            return Objects.equals(followerIndex, request.followerIndex) && Objects.equals(parameters, request.parameters);
         }
 
         @Override

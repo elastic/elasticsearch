@@ -93,7 +93,7 @@ public class NestedQuery extends Query {
             return;
         }
 
-        //TODO: Add all filters in nested sorting when https://github.com/elastic/elasticsearch/issues/33079 is implemented
+        // TODO: Add all filters in nested sorting when https://github.com/elastic/elasticsearch/issues/33079 is implemented
         // Adding multiple filters to sort sections makes sense for nested queries where multiple conditions belong to the same
         // nested query. The current functionality creates one nested query for each condition involving a nested field.
         QueryBuilder childAsBuilder = child.asBuilder();
@@ -118,8 +118,7 @@ public class NestedQuery extends Query {
             for (Map.Entry<String, Map.Entry<Boolean, String>> entry : fields.entrySet()) {
                 if (entry.getValue().getKey()) {
                     ihb.addFetchField(entry.getKey(), entry.getValue().getValue());
-                }
-                else {
+                } else {
                     ihb.addFetchField(entry.getKey());
                 }
             }
@@ -155,9 +154,7 @@ public class NestedQuery extends Query {
             return false;
         }
         NestedQuery other = (NestedQuery) obj;
-        return path.equals(other.path)
-                && fields.equals(other.fields)
-                && child.equals(other.child);
+        return path.equals(other.path) && fields.equals(other.fields) && child.equals(other.child);
     }
 
     @Override

@@ -6,7 +6,7 @@
 <titleabbrev>Legacy collection methods</titleabbrev>
 ++++
 
-include::{ref}/monitoring-settings.asciidoc[tag=monitoring-deprecation-notice]
+include::{es-ref-dir}/settings/monitoring-settings.asciidoc[tag=monitoring-deprecation-notice]
 
 This method for collecting metrics about {es} involves sending the metrics to
 the monitoring cluster by using exporters. For the recommended method, see <<configuring-metricbeat>>.

@@ -170,7 +170,7 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
                     String warning = Messages.getMessage(TRAINED_MODEL_INPUTS_DIFFER_SIGNIFICANTLY, request.getModelId(), oldModelId);
                     auditor.warning(oldModelId, warning);
                     logger.warn("[{}] {}", oldModelId, warning);
-                    HeaderWarning.addWarning(DeprecationLogger.CRITICAL, warning);
+                    HeaderWarning.addWarning(DeprecationLogger.DeprecationLevel.CRITICAL, warning);
                 }
             }
             clusterService.submitStateUpdateTask("update-model-alias", new AckedClusterStateUpdateTask(request, listener) {

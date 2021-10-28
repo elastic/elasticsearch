@@ -82,7 +82,7 @@ public class ErrorQueryBuilder extends AbstractQueryBuilder<ErrorQueryBuilder> {
         }
         final String header = "[" + context.index().getName() + "][" + context.getShardId() + "]";
         if (error.getErrorType() == IndexError.ERROR_TYPE.WARNING) {
-            HeaderWarning.addWarning(DeprecationLogger.CRITICAL, header + " " + error.getMessage());
+            HeaderWarning.addWarning(DeprecationLogger.DeprecationLevel.CRITICAL, header + " " + error.getMessage());
             return new MatchAllDocsQuery();
         } else {
             throw new RuntimeException(header + " " + error.getMessage());

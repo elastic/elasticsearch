@@ -241,7 +241,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                 );
                 auditor.warning(jobId, warning);
                 logger.warn("[{}] {}", jobId, warning);
-                HeaderWarning.addWarning(DeprecationLogger.CRITICAL, warning);
+                HeaderWarning.addWarning(DeprecationLogger.DeprecationLevel.CRITICAL, warning);
             }
             // Refresh memory requirement for jobs
             memoryTracker.addDataFrameAnalyticsJobMemoryAndRefreshAllOthers(

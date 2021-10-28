@@ -218,7 +218,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
             );
 
             List<String> warnings = TransformConfigLinter.getWarnings(function, source, syncConfig);
-            warnings.forEach(warning -> HeaderWarning.addWarning(DeprecationLogger.CRITICAL, warning));
+            warnings.forEach(warning -> HeaderWarning.addWarning(DeprecationLogger.DeprecationLevel.CRITICAL, warning));
             listener.onResponse(new Response(docs, generatedDestIndexSettings));
         }, listener::onFailure);
 
@@ -230,7 +230,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
                     Clock.systemUTC()
                 );
                 List<String> warnings = TransformConfigLinter.getWarnings(function, source, syncConfig);
-                warnings.forEach(warning -> HeaderWarning.addWarning(DeprecationLogger.CRITICAL, warning));
+                warnings.forEach(warning -> HeaderWarning.addWarning(DeprecationLogger.DeprecationLevel.CRITICAL, warning));
                 listener.onResponse(new Response(docs, generatedDestIndexSettings));
             } else {
                 List<Map<String, Object>> results = docs.stream().map(doc -> {

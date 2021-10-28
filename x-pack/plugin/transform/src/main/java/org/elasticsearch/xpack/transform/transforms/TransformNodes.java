@@ -161,7 +161,7 @@ public final class TransformNodes {
     public static void warnIfNoTransformNodes(ClusterState clusterState) {
         if (TransformMetadata.getTransformMetadata(clusterState).isResetMode() == false) {
             if (hasAnyTransformNode(clusterState.getNodes()) == false) {
-                HeaderWarning.addWarning(DeprecationLogger.CRITICAL, TransformMessages.REST_WARN_NO_TRANSFORM_NODES);
+                HeaderWarning.addWarning(DeprecationLogger.DeprecationLevel.CRITICAL, TransformMessages.REST_WARN_NO_TRANSFORM_NODES);
             }
         }
     }

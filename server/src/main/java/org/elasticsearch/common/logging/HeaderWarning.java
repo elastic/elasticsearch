@@ -191,7 +191,7 @@ public class HeaderWarning {
      * Format a warning string in the proper warning format by prepending a warn code, warn agent, wrapping the warning string in quotes,
      * and appending the RFC 7231 date.
      *
-     * @param level the level of the warning - Level.WARN or DeprecationLogger.CRITICAL
+     * @param level the level of the warning - DeprecationLogger.DeprecationLevel.WARN or DeprecationLogger.DeprecationLevel.CRITICAL
      * @param s the warning string to format
      * @return a warning value formatted according to RFC 7234
      */

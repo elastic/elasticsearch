@@ -21,7 +21,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -167,7 +166,7 @@ public class SecurityContext {
                 authentication.getLookedUpBy(), version, authentication.getAuthenticationType(),
                 rewriteMetadataForApiKeyRoleDescriptors(version, authentication)));
             existingRequestHeaders.forEach((k, v) -> {
-                if (false == AuthenticationField.AUTHENTICATION_KEY.equals(k)) {
+                if (threadContext.getHeader(k) == null) {
                     threadContext.putHeader(k, v);
                 }
             });

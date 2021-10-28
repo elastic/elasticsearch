@@ -14,10 +14,9 @@ import org.elasticsearch.rest.RestRequest;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
-
 public final class RestCompatibilityChecker {
 
-    private RestCompatibilityChecker() { }
+    private RestCompatibilityChecker() {}
 
     public static <T> void checkAndSetDeprecatedParam(
         String deprecatedParam,

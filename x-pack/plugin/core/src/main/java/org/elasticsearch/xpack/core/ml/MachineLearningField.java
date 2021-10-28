@@ -21,7 +21,6 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-
 public final class MachineLearningField {
 
     public static final String DEPRECATED_ALLOW_NO_JOBS_PARAM = "allow_no_jobs";

@@ -28,6 +28,7 @@
             - '>test-mute'
     builders:
       - inject:
+          # Use FIPS-specific Java versions
           properties-file: '.ci/java-versions-fips.properties'
           properties-content: |
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA

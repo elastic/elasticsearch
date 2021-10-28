@@ -393,6 +393,11 @@ For example, to bind-mount `custom_elasticsearch.yml` with `docker run`, specify
 -v full_path_to/custom_elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
 --------------------------------------------
 
+If you bind-mount a custom `elasticsearch.yml` file, ensure it includes the
+`network.host: 0.0.0.0` setting. This setting ensures the node is reachable for
+HTTP and transport traffic, provided its ports are exposed. The Docker image's
+built-in `elasticsearch.yml` file includes this setting by default.
+
 IMPORTANT: The container **runs {es} as user `elasticsearch` using
 uid:gid `1000:0`**. Bind mounted host directories and files must be accessible by this user,
 and the data and log directories must be writable by this user.

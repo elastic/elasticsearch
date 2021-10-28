@@ -177,7 +177,7 @@ public class IndexingIT extends AbstractRollingTestCase {
         }
     }
 
-    //await backport to v8.0
+    // await backport to v8.0
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79994")
     public void testDateNanosFormatUpgrade() throws IOException {
         final String indexName = "test_date_nanos";

@@ -47,7 +47,6 @@ public class BooleanDocValuesField implements DocValuesField {
         }
     }
 
-
     private void resize(int newSize) {
         count = newSize;
 

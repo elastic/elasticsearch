@@ -48,18 +48,7 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
         Client client,
         NamedXContentRegistry xContentRegistry
     ) {
-        this(GetTransformAction.NAME, transportService, actionFilters, clusterService, client, xContentRegistry);
-    }
-
-    protected TransportGetTransformAction(
-        String name,
-        TransportService transportService,
-        ActionFilters actionFilters,
-        ClusterService clusterService,
-        Client client,
-        NamedXContentRegistry xContentRegistry
-    ) {
-        super(name, transportService, actionFilters, Request::new, client, xContentRegistry);
+        super(GetTransformAction.NAME, transportService, actionFilters, Request::new, client, xContentRegistry);
         this.clusterService = clusterService;
     }
 

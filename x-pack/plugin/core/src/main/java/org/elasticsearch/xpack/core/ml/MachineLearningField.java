@@ -70,7 +70,7 @@ public final class MachineLearningField {
             case PLATINUM:
                 return ML_MODEL_INFERENCE_PLATINUM_FEATURE;
             default:
-                assert false: "Unrecognized licensing mode for inference models [" + mode + "]";
+                assert false : "Unrecognized licensing mode for inference models [" + mode + "]";
                 return ML_MODEL_INFERENCE_PLATINUM_FEATURE;
         }
     }

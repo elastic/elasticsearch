@@ -74,7 +74,7 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
             new Setting<?>[] {},
             new DeprecationWarning(
                 DeprecationLogger.DeprecationLevel.CRITICAL,
-                "[CRITICAL] Setting [discovery.ec2.access_key] is set but " + "[discovery.ec2.secret_key] is not, which will be " +
+                "Setting [discovery.ec2.access_key] is set but " + "[discovery.ec2.secret_key] is not, which will be " +
                     "unsupported in future"
             )
         );
@@ -93,7 +93,7 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
             new Setting<?>[] {},
             new DeprecationWarning(
                 DeprecationLogger.DeprecationLevel.CRITICAL,
-                "[CRITICAL] Setting [discovery.ec2.secret_key] is set but " + "[discovery.ec2.access_key] is not, which will be " +
+                "Setting [discovery.ec2.secret_key] is set but " + "[discovery.ec2.access_key] is not, which will be " +
                     "unsupported in future"
             )
         );
@@ -111,8 +111,7 @@ public class AwsEc2ServiceImplTests extends ESTestCase {
         );
         assertThat(
             e.getMessage(),
-            is("[CRITICAL] Setting [discovery.ec2.session_token] is set but [discovery.ec2.access_key] and [discovery.ec2.secret_key] are" +
-                " not")
+            is("Setting [discovery.ec2.session_token] is set but [discovery.ec2.access_key] and [discovery.ec2.secret_key] are not")
         );
     }
 

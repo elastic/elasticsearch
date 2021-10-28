@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -30,6 +31,8 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.function.LongSupplier;
+
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.DEPRECATED_ALLOW_NO_JOBS_PARAM;
 
 /**
  * <p>
@@ -62,9 +65,7 @@ public class GetOverallBucketsAction extends ActionType<GetOverallBucketsAction.
         public static final ParseField EXCLUDE_INTERIM = new ParseField("exclude_interim");
         public static final ParseField START = new ParseField("start");
         public static final ParseField END = new ParseField("end");
-        @Deprecated
-        public static final String ALLOW_NO_JOBS = "allow_no_jobs";
-        public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match", ALLOW_NO_JOBS);
+        public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match", DEPRECATED_ALLOW_NO_JOBS_PARAM);
 
         private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
@@ -237,7 +238,11 @@ public class GetOverallBucketsAction extends ActionType<GetOverallBucketsAction.
             if (end != null) {
                 builder.field(END.getPreferredName(), String.valueOf(end));
             }
-            builder.field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch);
+            if (builder.getRestApiVersion() == RestApiVersion.V_7) {
+                builder.field(DEPRECATED_ALLOW_NO_JOBS_PARAM, allowNoMatch);
+            } else {
+                builder.field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch);
+            }
             builder.endObject();
             return builder;
         }

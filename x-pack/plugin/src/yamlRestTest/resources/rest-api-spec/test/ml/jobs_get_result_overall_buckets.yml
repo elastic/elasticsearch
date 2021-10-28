@@ -250,14 +250,6 @@ setup:
         job_id: "none-matching-*"
         allow_no_match: false
 
-  - do:
-      warnings:
-        - 'Deprecated field [allow_no_jobs] used, expected [allow_no_match] instead'
-      catch: missing
-      ml.get_overall_buckets:
-        job_id: "none-matching-*"
-        allow_no_jobs: false
-
 ---
 "Test overall buckets given top_n is 0":
   - do:

@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -26,6 +27,8 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.DEPRECATED_ALLOW_NO_DATAFEEDS_PARAM;
 
 public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> {
 
@@ -41,9 +44,7 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
 
         public static final ParseField TIMEOUT = new ParseField("timeout");
         public static final ParseField FORCE = new ParseField("force");
-        @Deprecated
-        public static final String ALLOW_NO_DATAFEEDS = "allow_no_datafeeds";
-        public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match", ALLOW_NO_DATAFEEDS);
+        public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match", DEPRECATED_ALLOW_NO_DATAFEEDS_PARAM);
 
         public static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
         static {
@@ -167,7 +168,11 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
             builder.field(DatafeedConfig.ID.getPreferredName(), datafeedId);
             builder.field(TIMEOUT.getPreferredName(), stopTimeout.getStringRep());
             builder.field(FORCE.getPreferredName(), force);
-            builder.field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch);
+            if (builder.getRestApiVersion() == RestApiVersion.V_7) {
+                builder.field(DEPRECATED_ALLOW_NO_DATAFEEDS_PARAM, allowNoMatch);
+            } else {
+                builder.field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch);
+            }
             builder.endObject();
             return builder;
         }

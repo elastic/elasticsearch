@@ -8,7 +8,6 @@
 
 package org.elasticsearch.analysis.common;
 
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.LowerCaseFilter;

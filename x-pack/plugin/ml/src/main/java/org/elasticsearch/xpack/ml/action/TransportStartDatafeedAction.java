@@ -225,7 +225,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             if (remoteIndices.isEmpty() == false) {
                 final RemoteClusterLicenseChecker remoteClusterLicenseChecker = new RemoteClusterLicenseChecker(
                     client,
-                    XPackLicenseState::isMachineLearningAllowedForOperationMode
+                    MachineLearningField.ML_API_FEATURE
                 );
                 remoteClusterLicenseChecker.checkRemoteClusterLicenses(
                     RemoteClusterLicenseChecker.remoteClusterAliases(
@@ -459,11 +459,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             "cannot start datafeed [%s] as it is configured to use indices on remote cluster [%s] that is not licensed for ml; %s",
             datafeedId,
             licenseCheck.remoteClusterLicenseInfo().clusterAlias(),
-            RemoteClusterLicenseChecker.buildErrorMessage(
-                "ml",
-                licenseCheck.remoteClusterLicenseInfo(),
-                RemoteClusterLicenseChecker::isAllowedByLicense
-            )
+            RemoteClusterLicenseChecker.buildErrorMessage(MachineLearningField.ML_API_FEATURE, licenseCheck.remoteClusterLicenseInfo())
         );
         return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
     }

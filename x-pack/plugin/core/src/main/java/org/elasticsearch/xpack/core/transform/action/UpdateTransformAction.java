@@ -136,7 +136,6 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
                 out.writeBoolean(true);
                 config.writeTo(out);
             }
-            return;
         }
 
         @Override
@@ -187,7 +186,6 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             config.writeTo(out);
-            return;
         }
 
         @Override

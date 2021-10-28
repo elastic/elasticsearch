@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -57,7 +56,9 @@ public class InitializePolicyContextStepTests extends AbstractStepTestCase<Initi
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
             .settings(settings(Version.CURRENT))
             .creationDate(creationDate)
-            .numberOfShards(1).numberOfReplicas(0).build();
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
         Metadata metadata = Metadata.builder()
             .persistentSettings(settings(Version.CURRENT).build())
             .put(IndexMetadata.builder(indexMetadata))
@@ -77,7 +78,9 @@ public class InitializePolicyContextStepTests extends AbstractStepTestCase<Initi
             .settings(settings(Version.CURRENT))
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
             .creationDate(creationDate)
-            .numberOfShards(1).numberOfReplicas(0).build();
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
         Metadata metadata = Metadata.builder()
             .persistentSettings(settings(Version.CURRENT).build())
             .put(IndexMetadata.builder(indexMetadata))

@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.core.watcher.watch;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.core.watcher.condition.ExecutableCondition;
@@ -34,19 +34,31 @@ public class Watch implements ToXContentObject {
     private final Trigger trigger;
     private final ExecutableInput<? extends Input, ? extends Input.Result> input;
     private final ExecutableCondition condition;
-    @Nullable private final ExecutableTransform<? extends Transform, ? extends Transform.Result> transform;
+    @Nullable
+    private final ExecutableTransform<? extends Transform, ? extends Transform.Result> transform;
     private final List<ActionWrapper> actions;
-    @Nullable private final TimeValue throttlePeriod;
-    @Nullable private final Map<String, Object> metadata;
+    @Nullable
+    private final TimeValue throttlePeriod;
+    @Nullable
+    private final Map<String, Object> metadata;
     private final WatchStatus status;
 
     private final long sourceSeqNo;
     private final long sourcePrimaryTerm;
 
-    public Watch(String id, Trigger trigger, ExecutableInput<? extends Input, ? extends Input.Result>input, ExecutableCondition condition,
-                 @Nullable ExecutableTransform<? extends Transform, ? extends Transform.Result> transform,
-                 @Nullable TimeValue throttlePeriod, List<ActionWrapper> actions, @Nullable Map<String, Object> metadata,
-                 WatchStatus status, long sourceSeqNo, long sourcePrimaryTerm) {
+    public Watch(
+        String id,
+        Trigger trigger,
+        ExecutableInput<? extends Input, ? extends Input.Result> input,
+        ExecutableCondition condition,
+        @Nullable ExecutableTransform<? extends Transform, ? extends Transform.Result> transform,
+        @Nullable TimeValue throttlePeriod,
+        List<ActionWrapper> actions,
+        @Nullable Map<String, Object> metadata,
+        WatchStatus status,
+        long sourceSeqNo,
+        long sourcePrimaryTerm
+    ) {
         this.id = id;
         this.trigger = trigger;
         this.input = input;
@@ -68,7 +80,9 @@ public class Watch implements ToXContentObject {
         return trigger;
     }
 
-    public ExecutableInput<? extends Input, ? extends Input.Result> input() { return input;}
+    public ExecutableInput<? extends Input, ? extends Input.Result> input() {
+        return input;
+    }
 
     public ExecutableCondition condition() {
         return condition;
@@ -157,8 +171,11 @@ public class Watch implements ToXContentObject {
             builder.field(WatchField.TRANSFORM.getPreferredName()).startObject().field(transform.type(), transform, params).endObject();
         }
         if (throttlePeriod != null) {
-            builder.humanReadableField(WatchField.THROTTLE_PERIOD.getPreferredName(),
-                    WatchField.THROTTLE_PERIOD_HUMAN.getPreferredName(), throttlePeriod);
+            builder.humanReadableField(
+                WatchField.THROTTLE_PERIOD.getPreferredName(),
+                WatchField.THROTTLE_PERIOD_HUMAN.getPreferredName(),
+                throttlePeriod
+            );
         }
         builder.startObject(WatchField.ACTIONS.getPreferredName());
         for (ActionWrapper action : actions) {

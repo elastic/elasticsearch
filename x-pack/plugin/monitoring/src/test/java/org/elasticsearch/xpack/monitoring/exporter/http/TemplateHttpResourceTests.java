@@ -27,11 +27,11 @@ public class TemplateHttpResourceTests extends AbstractPublishableHttpResourceTe
 
     private final String templateName = ".my_template";
 
-    //the internal representation has the type, the external representation should not
-    private final String templateValueInternal = "{\"order\":0,\"index_patterns\":[\".xyz-*\"],\"settings\":{},\"mappings\":{\"_doc\"" +
-        ":{\"properties\":{\"one\":{\"properties\":{\"two\":{\"properties\":{\"name\":{\"type\":\"keyword\"}}}}}}}},\"aliases\":{}}";
-    private final String templateValueExternal = "{\"order\":0,\"index_patterns\":[\".xyz-*\"],\"settings\":{},\"mappings\"" +
-        ":{\"properties\":{\"one\":{\"properties\":{\"two\":{\"properties\":{\"name\":{\"type\":\"keyword\"}}}}}}},\"aliases\":{}}";
+    // the internal representation has the type, the external representation should not
+    private final String templateValueInternal = "{\"order\":0,\"index_patterns\":[\".xyz-*\"],\"settings\":{},\"mappings\":{\"_doc\""
+        + ":{\"properties\":{\"one\":{\"properties\":{\"two\":{\"properties\":{\"name\":{\"type\":\"keyword\"}}}}}}}},\"aliases\":{}}";
+    private final String templateValueExternal = "{\"order\":0,\"index_patterns\":[\".xyz-*\"],\"settings\":{},\"mappings\""
+        + ":{\"properties\":{\"one\":{\"properties\":{\"two\":{\"properties\":{\"name\":{\"type\":\"keyword\"}}}}}}},\"aliases\":{}}";
     private final Supplier<String> template = () -> templateValueInternal;
     private final int minimumVersion = Math.min(MonitoringTemplateUtils.LAST_UPDATED_VERSION, Version.CURRENT.id);
 
@@ -70,15 +70,16 @@ public class TemplateHttpResourceTests extends AbstractPublishableHttpResourceTe
     public void testDoPublishFalseWithNonPublishedResource() {
         RestClient mockClient = mock(RestClient.class);
         SetOnce<HttpResource.ResourcePublishResult> result = new SetOnce<>();
-        resource.doPublish(mockClient, ActionListener.wrap(result::set,
-            e -> {throw new RuntimeException("Unexpected exception", e);}));
+        resource.doPublish(mockClient, ActionListener.wrap(result::set, e -> { throw new RuntimeException("Unexpected exception", e); }));
         verifyZeroInteractions(mockClient); // Should not have used the client at all.
         HttpResource.ResourcePublishResult resourcePublishResult = result.get();
         assertThat(resourcePublishResult, notNullValue());
         assertThat(resourcePublishResult.getResourceState(), notNullValue());
         assertThat(resourcePublishResult.getResourceState(), is(HttpResource.State.DIRTY));
-        assertThat(resourcePublishResult.getReason(),
-            is("waiting for remote monitoring cluster to install appropriate template [.my_template] (version mismatch or missing)"));
+        assertThat(
+            resourcePublishResult.getReason(),
+            is("waiting for remote monitoring cluster to install appropriate template [.my_template] (version mismatch or missing)")
+        );
     }
 
     public void testParameters() {

@@ -170,7 +170,7 @@ public final class RemoteClusterLicenseChecker {
                     return;
                 }
                 if ((licenseInfo.getStatus() == LicenseStatus.ACTIVE) == false
-                        || predicate.test(License.OperationMode.parse(licenseInfo.getMode())) == false) {
+                    || predicate.test(License.OperationMode.parse(licenseInfo.getMode())) == false) {
                     listener.onResponse(LicenseCheck.failure(new RemoteClusterLicenseInfo(clusterAlias.get(), licenseInfo)));
                     return;
                 }
@@ -199,8 +199,10 @@ public final class RemoteClusterLicenseChecker {
 
     private void remoteClusterLicense(final String clusterAlias, final ActionListener<XPackInfoResponse> listener) {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
-        final ContextPreservingActionListener<XPackInfoResponse> contextPreservingActionListener =
-                new ContextPreservingActionListener<>(threadContext.newRestorableContext(false), listener);
+        final ContextPreservingActionListener<XPackInfoResponse> contextPreservingActionListener = new ContextPreservingActionListener<>(
+            threadContext.newRestorableContext(false),
+            listener
+        );
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             // we stash any context here since this is an internal execution and should not leak any existing context information
             threadContext.markAsSystemContext();
@@ -257,12 +259,12 @@ public final class RemoteClusterLicenseChecker {
      */
     public static List<String> remoteClusterAliases(final Set<String> remoteClusters, final List<String> indices) {
         return indices.stream()
-                .filter(RemoteClusterLicenseChecker::isRemoteIndex)
-                .map(index -> index.substring(0, index.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR)))
-                .distinct()
-                .flatMap(clusterExpression -> clusterNameExpressionResolver.resolveClusterNames(remoteClusters, clusterExpression).stream())
-                .distinct()
-                .collect(Collectors.toList());
+            .filter(RemoteClusterLicenseChecker::isRemoteIndex)
+            .map(index -> index.substring(0, index.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR)))
+            .distinct()
+            .flatMap(clusterExpression -> clusterNameExpressionResolver.resolveClusterNames(remoteClusters, clusterExpression).stream())
+            .distinct()
+            .collect(Collectors.toList());
     }
 
     /**
@@ -273,20 +275,22 @@ public final class RemoteClusterLicenseChecker {
      * @return an error message representing license incompatibility
      */
     public static String buildErrorMessage(
-            final String feature,
-            final RemoteClusterLicenseInfo remoteClusterLicenseInfo,
-            final Predicate<XPackInfoResponse.LicenseInfo> predicate) {
+        final String feature,
+        final RemoteClusterLicenseInfo remoteClusterLicenseInfo,
+        final Predicate<XPackInfoResponse.LicenseInfo> predicate
+    ) {
         final StringBuilder error = new StringBuilder();
         if (remoteClusterLicenseInfo.licenseInfo().getStatus() != LicenseStatus.ACTIVE) {
             error.append(String.format(Locale.ROOT, "the license on cluster [%s] is not active", remoteClusterLicenseInfo.clusterAlias()));
         } else {
             assert predicate.test(remoteClusterLicenseInfo.licenseInfo()) == false : "license must be incompatible to build error message";
             final String message = String.format(
-                    Locale.ROOT,
-                    "the license mode [%s] on cluster [%s] does not enable [%s]",
-                    License.OperationMode.parse(remoteClusterLicenseInfo.licenseInfo().getMode()),
-                    remoteClusterLicenseInfo.clusterAlias(),
-                    feature);
+                Locale.ROOT,
+                "the license mode [%s] on cluster [%s] does not enable [%s]",
+                License.OperationMode.parse(remoteClusterLicenseInfo.licenseInfo().getMode()),
+                remoteClusterLicenseInfo.clusterAlias(),
+                feature
+            );
             error.append(message);
         }
 

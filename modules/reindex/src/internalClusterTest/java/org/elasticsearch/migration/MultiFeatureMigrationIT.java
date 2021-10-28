@@ -118,10 +118,7 @@ public class MultiFeatureMigrationIT extends FeatureMigrationIT {
             assertThat(secondPluginPreMigrationHookCalled.get(), nullValue());
             assertThat(secondPluginPostMigrationHookCalled.get(), nullValue());
 
-            assertThat(
-                metadata,
-                hasEntry("stringKey", "first plugin value")
-            );
+            assertThat(metadata, hasEntry("stringKey", "first plugin value"));
 
             // We shouldn't have any results in the cluster state given no features have finished yet.
             FeatureMigrationResults currentResults = clusterState.metadata().custom(FeatureMigrationResults.TYPE);
@@ -157,10 +154,7 @@ public class MultiFeatureMigrationIT extends FeatureMigrationIT {
             assertThat(postMigrationHookCalled.get(), is(true));
             assertThat(secondPluginPreMigrationHookCalled.get(), is(true));
 
-            assertThat(
-                metadata,
-                hasEntry("stringKey", "second plugin value")
-            );
+            assertThat(metadata, hasEntry("stringKey", "second plugin value"));
 
             // And here, the results should be the same, as we haven't updated the state with this feature's status yet.
             FeatureMigrationResults currentResults = clusterState.metadata().custom(FeatureMigrationResults.TYPE);
@@ -276,25 +270,33 @@ public class MultiFeatureMigrationIT extends FeatureMigrationIT {
 
         }
 
-        @Override public String getFeatureName() {
+        @Override
+        public String getFeatureName() {
             return SECOND_FEATURE_NAME;
         }
 
-        @Override public String getFeatureDescription() {
+        @Override
+        public String getFeatureDescription() {
             return "a plugin for test system index migration with multiple features";
         }
 
-        @Override public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+        @Override
+        public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
             return Collections.singletonList(SECOND_FEATURE_IDX_DESCIPTOR);
         }
 
-        @Override public void prepareForIndicesMigration(
-            ClusterService clusterService, Client client, ActionListener<Map<String, Object>> listener) {
+        @Override
+        public void prepareForIndicesMigration(ClusterService clusterService, Client client, ActionListener<Map<String, Object>> listener) {
             listener.onResponse(preMigrationHook.get().apply(clusterService.state()));
         }
 
-        @Override public void indicesMigrationComplete(
-            Map<String, Object> preUpgradeMetadata, ClusterService clusterService, Client client, ActionListener<Boolean> listener) {
+        @Override
+        public void indicesMigrationComplete(
+            Map<String, Object> preUpgradeMetadata,
+            ClusterService clusterService,
+            Client client,
+            ActionListener<Boolean> listener
+        ) {
             postMigrationHook.get().accept(clusterService.state(), preUpgradeMetadata);
             listener.onResponse(true);
         }

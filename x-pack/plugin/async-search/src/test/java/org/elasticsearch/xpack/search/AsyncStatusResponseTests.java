@@ -9,15 +9,16 @@ package org.elasticsearch.xpack.search;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Date;
+
 import static org.elasticsearch.xpack.core.async.GetAsyncResultRequestTests.randomSearchId;
 
 public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<AsyncStatusResponse> {
@@ -76,26 +77,44 @@ public class AsyncStatusResponseTests extends AbstractWireSerializingTestCase<As
     public void testToXContent() throws IOException {
         AsyncStatusResponse response = createTestInstance();
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-            String expectedJson = "{\n" +
-                "  \"id\" : \"" + response.getId() + "\",\n" +
-                "  \"is_running\" : " + response.isRunning() + ",\n" +
-                "  \"is_partial\" : " + response.isPartial() + ",\n" +
-                "  \"start_time_in_millis\" : " + response.getStartTime() + ",\n" +
-                "  \"expiration_time_in_millis\" : " + response.getExpirationTime() + ",\n" +
-                "  \"_shards\" : {\n" +
-                "    \"total\" : " + response.getTotalShards() + ",\n" +
-                "    \"successful\" : " + response.getSuccessfulShards() + ",\n" +
-                "    \"skipped\" : " + response.getSkippedShards() + ",\n" +
-                "    \"failed\" : " + response.getFailedShards() + "\n";
+            String expectedJson = "{\n"
+                + "  \"id\" : \""
+                + response.getId()
+                + "\",\n"
+                + "  \"is_running\" : "
+                + response.isRunning()
+                + ",\n"
+                + "  \"is_partial\" : "
+                + response.isPartial()
+                + ",\n"
+                + "  \"start_time_in_millis\" : "
+                + response.getStartTime()
+                + ",\n"
+                + "  \"expiration_time_in_millis\" : "
+                + response.getExpirationTime()
+                + ",\n"
+                + "  \"_shards\" : {\n"
+                + "    \"total\" : "
+                + response.getTotalShards()
+                + ",\n"
+                + "    \"successful\" : "
+                + response.getSuccessfulShards()
+                + ",\n"
+                + "    \"skipped\" : "
+                + response.getSkippedShards()
+                + ",\n"
+                + "    \"failed\" : "
+                + response.getFailedShards()
+                + "\n";
             if (response.getCompletionStatus() == null) {
-                expectedJson = expectedJson +
-                    "  }\n" +
-                    "}";
+                expectedJson = expectedJson + "  }\n" + "}";
             } else {
-                expectedJson = expectedJson +
-                    "  },\n" +
-                    "  \"completion_status\" : " + response.getCompletionStatus().getStatus() + "\n" +
-                    "}";
+                expectedJson = expectedJson
+                    + "  },\n"
+                    + "  \"completion_status\" : "
+                    + response.getCompletionStatus().getStatus()
+                    + "\n"
+                    + "}";
             }
             builder.prettyPrint();
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);

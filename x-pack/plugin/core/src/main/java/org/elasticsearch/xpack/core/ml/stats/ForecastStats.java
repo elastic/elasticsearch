@@ -51,8 +51,13 @@ public class ForecastStats implements ToXContentObject, Writeable {
     /*
      * Construct ForecastStats for 1 job. Additional statistics can be added by merging other ForecastStats into it.
      */
-    public ForecastStats(long total, StatsAccumulator memoryStats, StatsAccumulator recordStats, StatsAccumulator runtimeStats,
-            CountAccumulator statusCounts) {
+    public ForecastStats(
+        long total,
+        StatsAccumulator memoryStats,
+        StatsAccumulator recordStats,
+        StatsAccumulator runtimeStats,
+        CountAccumulator statusCounts
+    ) {
         this.total = total;
         this.forecastedJobs = total > 0 ? 1 : 0;
         this.memoryStats = Objects.requireNonNull(memoryStats);
@@ -170,8 +175,11 @@ public class ForecastStats implements ToXContentObject, Writeable {
         }
 
         ForecastStats other = (ForecastStats) obj;
-        return Objects.equals(total, other.total) && Objects.equals(forecastedJobs, other.forecastedJobs)
-                && Objects.equals(memoryStats, other.memoryStats) && Objects.equals(recordStats, other.recordStats)
-                && Objects.equals(runtimeStats, other.runtimeStats) && Objects.equals(statusCounts, other.statusCounts);
+        return Objects.equals(total, other.total)
+            && Objects.equals(forecastedJobs, other.forecastedJobs)
+            && Objects.equals(memoryStats, other.memoryStats)
+            && Objects.equals(recordStats, other.recordStats)
+            && Objects.equals(runtimeStats, other.runtimeStats)
+            && Objects.equals(statusCounts, other.statusCounts);
     }
 }

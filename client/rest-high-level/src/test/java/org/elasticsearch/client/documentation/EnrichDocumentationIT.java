@@ -16,9 +16,9 @@ import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.enrich.DeletePolicyRequest;
 import org.elasticsearch.client.enrich.ExecutePolicyRequest;
 import org.elasticsearch.client.enrich.ExecutePolicyResponse;
-import org.elasticsearch.client.enrich.NamedPolicy;
 import org.elasticsearch.client.enrich.GetPolicyRequest;
 import org.elasticsearch.client.enrich.GetPolicyResponse;
+import org.elasticsearch.client.enrich.NamedPolicy;
 import org.elasticsearch.client.enrich.PutPolicyRequest;
 import org.elasticsearch.client.enrich.StatsRequest;
 import org.elasticsearch.client.enrich.StatsResponse;
@@ -48,8 +48,9 @@ public class EnrichDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testPutPolicy() throws Exception {
         RestHighLevelClient client = highLevelClient();
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest("users")
-            .mapping(Map.of("properties", Map.of("email", Map.of("type", "keyword"))));
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest("users").mapping(
+            Map.of("properties", Map.of("email", Map.of("type", "keyword")))
+        );
         client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
 
         // tag::enrich-put-policy-request
@@ -98,14 +99,19 @@ public class EnrichDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         {
-            CreateIndexRequest createIndexRequest = new CreateIndexRequest("users")
-                .mapping(Map.of("properties", Map.of("email", Map.of("type", "keyword"))));
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest("users").mapping(
+                Map.of("properties", Map.of("email", Map.of("type", "keyword")))
+            );
             client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
 
             // Add a policy, so that it can be deleted:
             PutPolicyRequest putPolicyRequest = new PutPolicyRequest(
-                "users-policy", "match", List.of("users"),
-                "email", List.of("address", "zip", "city", "state"));
+                "users-policy",
+                "match",
+                List.of("users"),
+                "email",
+                List.of("address", "zip", "city", "state")
+            );
             client.enrich().putPolicy(putPolicyRequest, RequestOptions.DEFAULT);
         }
 
@@ -153,13 +159,18 @@ public class EnrichDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testGetPolicy() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest("users")
-            .mapping(Map.of("properties", Map.of("email", Map.of("type", "keyword"))));
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest("users").mapping(
+            Map.of("properties", Map.of("email", Map.of("type", "keyword")))
+        );
         client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
 
         PutPolicyRequest putPolicyRequest = new PutPolicyRequest(
-            "users-policy", "match", List.of("users"),
-            "email", List.of("address", "zip", "city", "state"));
+            "users-policy",
+            "match",
+            List.of("users"),
+            "email",
+            List.of("address", "zip", "city", "state")
+        );
         client.enrich().putPolicy(putPolicyRequest, RequestOptions.DEFAULT);
 
         // tag::enrich-get-policy-request
@@ -255,12 +266,17 @@ public class EnrichDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         {
-            CreateIndexRequest createIndexRequest = new CreateIndexRequest("users")
-                .mapping(Map.of("properties", Map.of("email", Map.of("type", "keyword"))));
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest("users").mapping(
+                Map.of("properties", Map.of("email", Map.of("type", "keyword")))
+            );
             client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
             PutPolicyRequest putPolicyRequest = new PutPolicyRequest(
-                "users-policy", "match", List.of("users"),
-                "email", List.of("address", "zip", "city", "state"));
+                "users-policy",
+                "match",
+                List.of("users"),
+                "email",
+                List.of("address", "zip", "city", "state")
+            );
             client.enrich().putPolicy(putPolicyRequest, RequestOptions.DEFAULT);
         }
 

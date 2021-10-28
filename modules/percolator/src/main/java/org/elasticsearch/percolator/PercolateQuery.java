@@ -25,9 +25,9 @@ import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.core.CheckedFunction;
 
 import java.io.IOException;
 import java.util.List;
@@ -46,9 +46,15 @@ final class PercolateQuery extends Query implements Accountable {
     private final IndexSearcher percolatorIndexSearcher;
     private final Query nonNestedDocsFilter;
 
-    PercolateQuery(String name, QueryStore queryStore, List<BytesReference> documents,
-                   Query candidateMatchesQuery, IndexSearcher percolatorIndexSearcher,
-                   Query nonNestedDocsFilter, Query verifiedMatchesQuery) {
+    PercolateQuery(
+        String name,
+        QueryStore queryStore,
+        List<BytesReference> documents,
+        Query candidateMatchesQuery,
+        IndexSearcher percolatorIndexSearcher,
+        Query nonNestedDocsFilter,
+        Query verifiedMatchesQuery
+    ) {
         this.name = name;
         this.documents = Objects.requireNonNull(documents);
         this.candidateMatchesQuery = Objects.requireNonNull(candidateMatchesQuery);
@@ -62,8 +68,15 @@ final class PercolateQuery extends Query implements Accountable {
     public Query rewrite(IndexReader reader) throws IOException {
         Query rewritten = candidateMatchesQuery.rewrite(reader);
         if (rewritten != candidateMatchesQuery) {
-            return new PercolateQuery(name, queryStore, documents, rewritten, percolatorIndexSearcher,
-                    nonNestedDocsFilter, verifiedMatchesQuery);
+            return new PercolateQuery(
+                name,
+                queryStore,
+                documents,
+                rewritten,
+                percolatorIndexSearcher,
+                nonNestedDocsFilter,
+                verifiedMatchesQuery
+            );
         } else {
             return this;
         }
@@ -114,10 +127,9 @@ final class PercolateQuery extends Query implements Accountable {
                             Query query = percolatorQueries.apply(docId);
                             if (query != null) {
                                 if (nonNestedDocsFilter != null) {
-                                    query = new BooleanQuery.Builder()
-                                            .add(query, Occur.MUST)
-                                            .add(nonNestedDocsFilter, Occur.FILTER)
-                                            .build();
+                                    query = new BooleanQuery.Builder().add(query, Occur.MUST)
+                                        .add(nonNestedDocsFilter, Occur.FILTER)
+                                        .build();
                                 }
                                 TopDocs topDocs = percolatorIndexSearcher.search(query, 1);
                                 if (topDocs.scoreDocs.length > 0) {
@@ -160,10 +172,7 @@ final class PercolateQuery extends Query implements Accountable {
                                 return false;
                             }
                             if (nonNestedDocsFilter != null) {
-                                query = new BooleanQuery.Builder()
-                                        .add(query, Occur.MUST)
-                                        .add(nonNestedDocsFilter, Occur.FILTER)
-                                        .build();
+                                query = new BooleanQuery.Builder().add(query, Occur.MUST).add(nonNestedDocsFilter, Occur.FILTER).build();
                             }
                             return Lucene.exists(percolatorIndexSearcher, query);
                         }
@@ -230,15 +239,13 @@ final class PercolateQuery extends Query implements Accountable {
             sources.append(document.utf8ToString());
             sources.append('\n');
         }
-        return "PercolateQuery{document_sources={" + sources + "},inner={" +
-            candidateMatchesQuery.toString(s)  + "}}";
+        return "PercolateQuery{document_sources={" + sources + "},inner={" + candidateMatchesQuery.toString(s) + "}}";
     }
 
     @Override
     public void visit(QueryVisitor visitor) {
         visitor.visitLeaf(this);
     }
-
 
     @Override
     public long ramBytesUsed() {

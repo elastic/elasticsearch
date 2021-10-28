@@ -10,10 +10,10 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
-import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 
 import java.util.Objects;
 
@@ -26,12 +26,14 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
     private final NamedXContentRegistry xContentRegistry;
     private final DatafeedTimingStatsReporter timingStatsReporter;
 
-    public ChunkedDataExtractorFactory(Client client,
-                                       DatafeedConfig datafeedConfig,
-                                       Job job,
-                                       NamedXContentRegistry xContentRegistry,
-                                       DataExtractorFactory dataExtractorFactory,
-                                       DatafeedTimingStatsReporter timingStatsReporter) {
+    public ChunkedDataExtractorFactory(
+        Client client,
+        DatafeedConfig datafeedConfig,
+        Job job,
+        NamedXContentRegistry xContentRegistry,
+        DataExtractorFactory dataExtractorFactory,
+        DatafeedTimingStatsReporter timingStatsReporter
+    ) {
         this.client = Objects.requireNonNull(client);
         this.datafeedConfig = Objects.requireNonNull(datafeedConfig);
         this.job = Objects.requireNonNull(job);
@@ -44,21 +46,21 @@ public class ChunkedDataExtractorFactory implements DataExtractorFactory {
     public DataExtractor newExtractor(long start, long end) {
         ChunkedDataExtractorContext.TimeAligner timeAligner = newTimeAligner();
         ChunkedDataExtractorContext dataExtractorContext = new ChunkedDataExtractorContext(
-                job.getId(),
-                job.getDataDescription().getTimeField(),
-                datafeedConfig.getIndices(),
-                datafeedConfig.getParsedQuery(xContentRegistry),
-                datafeedConfig.getScrollSize(),
-                timeAligner.alignToCeil(start),
-                timeAligner.alignToFloor(end),
-                datafeedConfig.getChunkingConfig().getTimeSpan(),
-                timeAligner,
-                datafeedConfig.getHeaders(),
-                datafeedConfig.hasAggregations(),
-                datafeedConfig.hasAggregations() ? datafeedConfig.getHistogramIntervalMillis(xContentRegistry) : null,
-                datafeedConfig.getIndicesOptions(),
-                datafeedConfig.getRuntimeMappings()
-            );
+            job.getId(),
+            job.getDataDescription().getTimeField(),
+            datafeedConfig.getIndices(),
+            datafeedConfig.getParsedQuery(xContentRegistry),
+            datafeedConfig.getScrollSize(),
+            timeAligner.alignToCeil(start),
+            timeAligner.alignToFloor(end),
+            datafeedConfig.getChunkingConfig().getTimeSpan(),
+            timeAligner,
+            datafeedConfig.getHeaders(),
+            datafeedConfig.hasAggregations(),
+            datafeedConfig.hasAggregations() ? datafeedConfig.getHistogramIntervalMillis(xContentRegistry) : null,
+            datafeedConfig.getIndicesOptions(),
+            datafeedConfig.getRuntimeMappings()
+        );
         return new ChunkedDataExtractor(client, dataExtractorFactory, dataExtractorContext, timingStatsReporter);
     }
 

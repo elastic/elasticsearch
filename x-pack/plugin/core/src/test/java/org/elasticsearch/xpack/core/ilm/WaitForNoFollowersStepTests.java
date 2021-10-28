@@ -17,12 +17,12 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.mockito.Mockito;
 
 import java.nio.file.Path;
@@ -36,7 +36,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoFollowersStep> {
-
 
     @Override
     protected WaitForNoFollowersStep createRandomInstance() {
@@ -67,7 +66,7 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
     public void testConditionMet() {
         WaitForNoFollowersStep step = createRandomInstance();
 
-        String indexName = randomAlphaOfLengthBetween(5,10);
+        String indexName = randomAlphaOfLengthBetween(5, 10);
 
         int numberOfShards = randomIntBetween(1, 100);
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
@@ -100,7 +99,7 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
     public void testConditionNotMet() {
         WaitForNoFollowersStep step = createRandomInstance();
 
-        String indexName = randomAlphaOfLengthBetween(5,10);
+        String indexName = randomAlphaOfLengthBetween(5, 10);
 
         int numberOfShards = randomIntBetween(1, 100);
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
@@ -127,14 +126,16 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
         }, MASTER_TIMEOUT);
 
         assertFalse(conditionMetHolder.get());
-        assertThat(Strings.toString(stepInfoHolder.get()),
-            containsString("this index is a leader index; waiting for all following indices to cease following before proceeding"));
+        assertThat(
+            Strings.toString(stepInfoHolder.get()),
+            containsString("this index is a leader index; waiting for all following indices to cease following before proceeding")
+        );
     }
 
     public void testNoShardStats() {
         WaitForNoFollowersStep step = createRandomInstance();
 
-        String indexName = randomAlphaOfLengthBetween(5,10);
+        String indexName = randomAlphaOfLengthBetween(5, 10);
 
         int numberOfShards = randomIntBetween(1, 100);
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
@@ -170,7 +171,7 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
     public void testFailure() {
         WaitForNoFollowersStep step = createRandomInstance();
 
-        String indexName = randomAlphaOfLengthBetween(5,10);
+        String indexName = randomAlphaOfLengthBetween(5, 10);
 
         int numberOfShards = randomIntBetween(1, 100);
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
@@ -192,8 +193,12 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
         step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject infomationContext) {
-                fail("onResponse should not be called in this test, called with conditionMet: " + conditionMet
-                    + " and stepInfo: " + Strings.toString(infomationContext));
+                fail(
+                    "onResponse should not be called in this test, called with conditionMet: "
+                        + conditionMet
+                        + " and stepInfo: "
+                        + Strings.toString(infomationContext)
+                );
             }
 
             @Override
@@ -232,24 +237,26 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
     }
 
     private ShardStats randomShardStats(boolean isLeaderIndex) {
-        return new ShardStats(null,
-            mockShardPath(),
-            null,
-            null,
-            null,
-            randomRetentionLeaseStats(isLeaderIndex));
+        return new ShardStats(null, mockShardPath(), null, null, null, randomRetentionLeaseStats(isLeaderIndex));
     }
 
     private RetentionLeaseStats randomRetentionLeaseStats(boolean isLeaderIndex) {
         int numOfLeases = randomIntBetween(1, 10);
 
         ArrayList<RetentionLease> leases = new ArrayList<>();
-        for (int i=0; i < numOfLeases; i++) {
-            leases.add(new RetentionLease(randomAlphaOfLength(5), randomNonNegativeLong(), randomNonNegativeLong(),
-                isLeaderIndex ? CCR_LEASE_KEY : randomAlphaOfLength(5)));
+        for (int i = 0; i < numOfLeases; i++) {
+            leases.add(
+                new RetentionLease(
+                    randomAlphaOfLength(5),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    isLeaderIndex ? CCR_LEASE_KEY : randomAlphaOfLength(5)
+                )
+            );
         }
         return new RetentionLeaseStats(
-                new RetentionLeases(randomLongBetween(1, Long.MAX_VALUE), randomLongBetween(1, Long.MAX_VALUE), leases));
+            new RetentionLeases(randomLongBetween(1, Long.MAX_VALUE), randomLongBetween(1, Long.MAX_VALUE), leases)
+        );
     }
 
     private ShardPath mockShardPath() {
@@ -258,7 +265,7 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
         final Path getFileNameShardId = mock(Path.class);
         when(getFileNameShardId.toString()).thenReturn(Integer.toString(shardId));
 
-        final String shardUuid =  randomAlphaOfLength(5);
+        final String shardUuid = randomAlphaOfLength(5);
         final Path getFileNameShardUuid = mock(Path.class);
         when(getFileNameShardUuid.toString()).thenReturn(shardUuid);
 

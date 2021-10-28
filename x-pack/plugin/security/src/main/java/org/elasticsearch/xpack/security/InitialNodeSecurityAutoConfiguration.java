@@ -68,9 +68,11 @@ public class InitialNodeSecurityAutoConfiguration {
         // Check if it has been closed, try to write something so that we trigger PrintStream#ensureOpen
         out.println();
         if (out.checkError()) {
-            LOGGER.info("Auto-configuration will not generate a password for the elastic built-in superuser, as we cannot " +
-                " determine if there is a terminal attached to the elasticsearch process. You can use the" +
-                " `bin/elasticsearch-reset-password` tool to set the password for the elastic user.");
+            LOGGER.info(
+                "Auto-configuration will not generate a password for the elastic built-in superuser, as we cannot "
+                    + " determine if there is a terminal attached to the elasticsearch process. You can use the"
+                    + " `bin/elasticsearch-reset-password` tool to set the password for the elastic user."
+            );
             return;
         }
         // if enrollment is enabled, we assume (and document this assumption) that the node is auto-configured in a specific way
@@ -86,15 +88,19 @@ public class InitialNodeSecurityAutoConfiguration {
                 String fingerprint;
                 try {
                     fingerprint = enrollmentTokenGenerator.getHttpsCaFingerprint();
-                    LOGGER.info("HTTPS has been configured with automatically generated certificates, " +
-                        "and the CA's hex-encoded SHA-256 fingerprint is [" + fingerprint + "]");
+                    LOGGER.info(
+                        "HTTPS has been configured with automatically generated certificates, "
+                            + "and the CA's hex-encoded SHA-256 fingerprint is ["
+                            + fingerprint
+                            + "]"
+                    );
                 } catch (Exception e) {
                     fingerprint = null;
                     LOGGER.error("Failed to compute the HTTPS CA fingerprint, probably the certs are not auto-generated", e);
                 }
                 final String httpsCaFingerprint = fingerprint;
-                GroupedActionListener<Map<String, String>> groupedActionListener =
-                    new GroupedActionListener<>(ActionListener.wrap(results -> {
+                GroupedActionListener<Map<String, String>> groupedActionListener = new GroupedActionListener<>(
+                    ActionListener.wrap(results -> {
                         final Map<String, String> allResultsMap = new HashMap<>();
                         for (Map<String, String> result : results) {
                             allResultsMap.putAll(result);
@@ -103,20 +109,19 @@ public class InitialNodeSecurityAutoConfiguration {
                         final String kibanaEnrollmentToken = allResultsMap.get("kibana_enrollment_token");
                         final String nodeEnrollmentToken = allResultsMap.get("node_enrollment_token");
                         outputInformationToConsole(elasticPassword, kibanaEnrollmentToken, nodeEnrollmentToken, httpsCaFingerprint, out);
-                    }, e -> {
-                        LOGGER.error("Unexpected exception during security auto-configuration", e);
-                    }), 3);
+                    }, e -> { LOGGER.error("Unexpected exception during security auto-configuration", e); }),
+                    3
+                );
                 // we only generate the elastic user password if the node has been auto-configured in a specific way, such that the first
                 // time a node starts it will form a cluster by itself and can hold the .security index (which we assume it is when
                 // {@code ENROLLMENT_ENABLED} is true), that the node process's output is a terminal and that the password is not
                 // specified already via the two secure settings
-                if (false == BOOTSTRAP_ELASTIC_PASSWORD.exists(environment.settings()) &&
-                    false == AUTOCONFIG_ELASTIC_PASSWORD_HASH.exists(environment.settings())) {
+                if (false == BOOTSTRAP_ELASTIC_PASSWORD.exists(environment.settings())
+                    && false == AUTOCONFIG_ELASTIC_PASSWORD_HASH.exists(environment.settings())) {
                     final char[] elasticPassword = generatePassword(20);
                     nativeUsersStore.createElasticUser(elasticPassword, ActionListener.wrap(aVoid -> {
                         LOGGER.debug("elastic credentials generated successfully");
-                        groupedActionListener.onResponse(Map.of(
-                            "generated_elastic_user_password", new String(elasticPassword)));
+                        groupedActionListener.onResponse(Map.of("generated_elastic_user_password", new String(elasticPassword)));
                     }, e -> {
                         LOGGER.error("Failed to generate credentials for the elastic built-in superuser", e);
                         // null password in case of error
@@ -124,9 +129,12 @@ public class InitialNodeSecurityAutoConfiguration {
                     }));
                 } else {
                     if (false == BOOTSTRAP_ELASTIC_PASSWORD.exists(environment.settings())) {
-                        LOGGER.info("Auto-configuration will not generate a password for the elastic built-in superuser, " +
-                            "you should use the password specified in the node's secure setting [" + BOOTSTRAP_ELASTIC_PASSWORD.getKey() +
-                            "] in order to authenticate as elastic");
+                        LOGGER.info(
+                            "Auto-configuration will not generate a password for the elastic built-in superuser, "
+                                + "you should use the password specified in the node's secure setting ["
+                                + BOOTSTRAP_ELASTIC_PASSWORD.getKey()
+                                + "] in order to authenticate as elastic"
+                        );
                     }
                     // empty password in case password generation is skyped
                     groupedActionListener.onResponse(Map.of("generated_elastic_user_password", ""));
@@ -155,8 +163,13 @@ public class InitialNodeSecurityAutoConfiguration {
         });
     }
 
-    private static void outputInformationToConsole(String elasticPassword, String kibanaEnrollmentToken,
-        String nodeEnrollmentToken, String caCertFingerprint, PrintStream out) {
+    private static void outputInformationToConsole(
+        String elasticPassword,
+        String kibanaEnrollmentToken,
+        String nodeEnrollmentToken,
+        String caCertFingerprint,
+        PrintStream out
+    ) {
         StringBuilder builder = new StringBuilder();
         builder.append(System.lineSeparator());
         builder.append(System.lineSeparator());

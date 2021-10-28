@@ -5,7 +5,6 @@
  * 2.0.
  */
 
-
 package org.elasticsearch.xpack.constantkeyword.mapper;
 
 import org.apache.lucene.index.TermsEnum;
@@ -24,7 +23,6 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.mapper.ConstantFieldType;
@@ -39,6 +37,7 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.termsenum.action.SimpleTermCountEnum;
 import org.elasticsearch.xpack.core.termsenum.action.TermCount;
 
@@ -70,15 +69,13 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
     public static class Builder extends FieldMapper.Builder {
 
         // This is defined as updateable because it can be updated once, from [null] to any value,
-        // by a dynamic mapping update.  Once it has been set, however, the value cannot be changed.
-        private final Parameter<String> value = new Parameter<>("value", true, () -> null,
-            (n, c, o) -> {
-                if (o instanceof Number == false && o instanceof CharSequence == false) {
-                    throw new MapperParsingException("Property [value] on field [" + n +
-                        "] must be a number or a string, but got [" + o + "]");
-                }
-                return o.toString();
-            }, m -> toType(m).fieldType().value);
+        // by a dynamic mapping update. Once it has been set, however, the value cannot be changed.
+        private final Parameter<String> value = new Parameter<>("value", true, () -> null, (n, c, o) -> {
+            if (o instanceof Number == false && o instanceof CharSequence == false) {
+                throw new MapperParsingException("Property [value] on field [" + n + "] must be a number or a string, but got [" + o + "]");
+            }
+            return o.toString();
+        }, m -> toType(m).fieldType().value);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
@@ -95,7 +92,9 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         @Override
         public ConstantKeywordFieldMapper build(MapperBuilderContext context) {
             return new ConstantKeywordFieldMapper(
-                    name, new ConstantKeywordFieldType(context.buildFullName(name), value.getValue(), meta.getValue()));
+                name,
+                new ConstantKeywordFieldType(context.buildFullName(name), value.getValue(), meta.getValue())
+            );
         }
     }
 
@@ -140,19 +139,15 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
 
-            return value == null
-                ? (lookup, ignoredValues) -> List.of()
-                : (lookup, ignoredValues) -> List.of(value);
+            return value == null ? (lookup, ignoredValues) -> List.of() : (lookup, ignoredValues) -> List.of(value);
         }
-
-
 
         @Override
         public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
             throws IOException {
-            boolean matches = caseInsensitive ?
-                value.toLowerCase(Locale.ROOT).startsWith(string.toLowerCase(Locale.ROOT)) :
-                value.startsWith(string);
+            boolean matches = caseInsensitive
+                ? value.toLowerCase(Locale.ROOT).startsWith(string.toLowerCase(Locale.ROOT))
+                : value.startsWith(string);
             if (matches == false) {
                 return null;
             }
@@ -181,10 +176,15 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         @Override
         public Query rangeQuery(
-                Object lowerTerm, Object upperTerm,
-                boolean includeLower, boolean includeUpper,
-                ShapeRelation relation, ZoneId timeZone, DateMathParser parser,
-                SearchExecutionContext context) {
+            Object lowerTerm,
+            Object upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            ShapeRelation relation,
+            ZoneId timeZone,
+            DateMathParser parser,
+            SearchExecutionContext context
+        ) {
             if (this.value == null) {
                 return new MatchNoDocsQuery();
             }
@@ -200,8 +200,14 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
-                boolean transpositions, SearchExecutionContext context) {
+        public Query fuzzyQuery(
+            Object value,
+            Fuzziness fuzziness,
+            int prefixLength,
+            int maxExpansions,
+            boolean transpositions,
+            SearchExecutionContext context
+        ) {
             if (this.value == null) {
                 return new MatchNoDocsQuery();
             }
@@ -211,7 +217,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
             final int[] termText = new int[termAsString.codePointCount(0, termAsString.length())];
             for (int cp, i = 0, j = 0; i < termAsString.length(); i += Character.charCount(cp)) {
-              termText[j++] = cp = termAsString.codePointAt(i);
+                termText[j++] = cp = termAsString.codePointAt(i);
             }
             final int termLength = termText.length;
 
@@ -230,8 +236,14 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query regexpQuery(String value, int syntaxFlags, int matchFlags, int maxDeterminizedStates,
-                MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
+        public Query regexpQuery(
+            String value,
+            int syntaxFlags,
+            int matchFlags,
+            int maxDeterminizedStates,
+            MultiTermQuery.RewriteMethod method,
+            SearchExecutionContext context
+        ) {
             if (this.value == null) {
                 return new MatchNoDocsQuery();
             }
@@ -270,9 +282,15 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             Mapper update = new ConstantKeywordFieldMapper(simpleName(), newFieldType);
             context.addDynamicMapper(update);
         } else if (Objects.equals(fieldType().value, value) == false) {
-            throw new IllegalArgumentException("[constant_keyword] field [" + name() +
-                    "] only accepts values that are equal to the value defined in the mappings [" + fieldType().value() +
-                    "], but got [" + value + "]");
+            throw new IllegalArgumentException(
+                "[constant_keyword] field ["
+                    + name()
+                    + "] only accepts values that are equal to the value defined in the mappings ["
+                    + fieldType().value()
+                    + "], but got ["
+                    + value
+                    + "]"
+            );
         }
     }
 

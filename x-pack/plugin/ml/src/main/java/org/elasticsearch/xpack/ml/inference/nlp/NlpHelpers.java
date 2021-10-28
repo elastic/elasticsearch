@@ -65,7 +65,6 @@ public final class NlpHelpers {
         return maxIndex;
     }
 
-
     /**
      * Find the top K highest values in {@code arr} and their
      * index positions. Similar to {@link #argmax(double[])}
@@ -86,7 +85,7 @@ public final class NlpHelpers {
 
         PriorityQueue<ScoreAndIndex> minHeap = new PriorityQueue<>(k, Comparator.comparingDouble(o -> o.score));
         // initialise with the first k values
-        for (int i=0; i<k; i++) {
+        for (int i = 0; i < k; i++) {
             minHeap.add(new ScoreAndIndex(arr[i], i));
         }
 
@@ -102,7 +101,7 @@ public final class NlpHelpers {
         ScoreAndIndex[] result = new ScoreAndIndex[k];
         // The result should be ordered highest score first
         // so reverse the min heap order
-        for (int i=k-1; i>=0; i--) {
+        for (int i = k - 1; i >= 0; i--) {
             result[i] = minHeap.poll();
         }
         return result;

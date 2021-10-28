@@ -20,6 +20,7 @@ import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
+
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -29,10 +30,10 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.AbstractHttpServerTransportTestCase;
 import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.http.CorsHandler;
@@ -117,8 +118,7 @@ public class NioHttpServerTransportTests extends AbstractHttpServerTransportTest
         final int maxContentLength = randomIntBetween(1, 104857600);
         final Settings settings = createBuilderWithPort().put(key, maxContentLength + "b").build();
         final int contentLength = randomIntBetween(maxContentLength + 1, Integer.MAX_VALUE);
-        runExpectHeaderTest(
-            settings, HttpHeaderValues.CONTINUE.toString(), contentLength, HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE);
+        runExpectHeaderTest(settings, HttpHeaderValues.CONTINUE.toString(), contentLength, HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE);
     }
 
     /**
@@ -134,7 +134,8 @@ public class NioHttpServerTransportTests extends AbstractHttpServerTransportTest
         final Settings settings,
         final String expectation,
         final int contentLength,
-        final HttpResponseStatus expectedStatus) throws InterruptedException {
+        final HttpResponseStatus expectedStatus
+    ) throws InterruptedException {
         final HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
             @Override
             public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
@@ -143,13 +144,26 @@ public class NioHttpServerTransportTests extends AbstractHttpServerTransportTest
 
             @Override
             public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
-                logger.error(new ParameterizedMessage("--> Unexpected bad request [{}]",
-                    FakeRestRequest.requestToString(channel.request())), cause);
+                logger.error(
+                    new ParameterizedMessage("--> Unexpected bad request [{}]", FakeRestRequest.requestToString(channel.request())),
+                    cause
+                );
                 throw new AssertionError();
             }
         };
-        try (NioHttpServerTransport transport = new NioHttpServerTransport(settings, networkService, bigArrays, pageRecycler, threadPool,
-            xContentRegistry(), dispatcher, new NioGroupFactory(settings, logger), randomClusterSettings())) {
+        try (
+            NioHttpServerTransport transport = new NioHttpServerTransport(
+                settings,
+                networkService,
+                bigArrays,
+                pageRecycler,
+                threadPool,
+                xContentRegistry(),
+                dispatcher,
+                new NioGroupFactory(settings, logger),
+                randomClusterSettings()
+            )
+        ) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
             try (NioHttpClient client = new NioHttpClient()) {
@@ -161,13 +175,18 @@ public class NioHttpServerTransportTests extends AbstractHttpServerTransportTest
                 try {
                     assertThat(response.status(), equalTo(expectedStatus));
                     if (expectedStatus.equals(HttpResponseStatus.CONTINUE)) {
-                        final FullHttpRequest continuationRequest =
-                            new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/", Unpooled.EMPTY_BUFFER);
+                        final FullHttpRequest continuationRequest = new DefaultFullHttpRequest(
+                            HttpVersion.HTTP_1_1,
+                            HttpMethod.POST,
+                            "/",
+                            Unpooled.EMPTY_BUFFER
+                        );
                         final FullHttpResponse continuationResponse = client.send(remoteAddress.address(), continuationRequest);
                         try {
                             assertThat(continuationResponse.status(), is(HttpResponseStatus.OK));
                             assertThat(
-                                new String(ByteBufUtil.getBytes(continuationResponse.content()), StandardCharsets.UTF_8), is("done")
+                                new String(ByteBufUtil.getBytes(continuationResponse.content()), StandardCharsets.UTF_8),
+                                is("done")
                             );
                         } finally {
                             continuationResponse.release();
@@ -182,23 +201,40 @@ public class NioHttpServerTransportTests extends AbstractHttpServerTransportTest
 
     public void testBindUnavailableAddress() {
         final Settings initialSettings = createSettings();
-        try (NioHttpServerTransport transport = new NioHttpServerTransport(initialSettings, networkService, bigArrays, pageRecycler,
-            threadPool, xContentRegistry(), new NullDispatcher(), new NioGroupFactory(Settings.EMPTY, logger),
-            randomClusterSettings())) {
+        try (
+            NioHttpServerTransport transport = new NioHttpServerTransport(
+                initialSettings,
+                networkService,
+                bigArrays,
+                pageRecycler,
+                threadPool,
+                xContentRegistry(),
+                new NullDispatcher(),
+                new NioGroupFactory(Settings.EMPTY, logger),
+                randomClusterSettings()
+            )
+        ) {
             transport.start();
             TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
             Settings settings = Settings.builder()
                 .put("http.port", remoteAddress.getPort())
                 .put("network.host", remoteAddress.getAddress())
                 .build();
-            try (NioHttpServerTransport otherTransport = new NioHttpServerTransport(settings, networkService, bigArrays, pageRecycler,
-                threadPool, xContentRegistry(), new NullDispatcher(), new NioGroupFactory(Settings.EMPTY, logger),
-                randomClusterSettings())) {
+            try (
+                NioHttpServerTransport otherTransport = new NioHttpServerTransport(
+                    settings,
+                    networkService,
+                    bigArrays,
+                    pageRecycler,
+                    threadPool,
+                    xContentRegistry(),
+                    new NullDispatcher(),
+                    new NioGroupFactory(Settings.EMPTY, logger),
+                    randomClusterSettings()
+                )
+            ) {
                 BindHttpException bindHttpException = expectThrows(BindHttpException.class, () -> otherTransport.start());
-                assertEquals(
-                    "Failed to bind to " + NetworkAddress.format(remoteAddress.address()),
-                    bindHttpException.getMessage()
-                );
+                assertEquals("Failed to bind to " + NetworkAddress.format(remoteAddress.address()), bindHttpException.getMessage());
             }
         }
     }
@@ -213,24 +249,33 @@ public class NioHttpServerTransportTests extends AbstractHttpServerTransportTest
             }
 
             @Override
-            public void dispatchBadRequest(final RestChannel channel,
-                                           final ThreadContext threadContext,
-                                           final Throwable cause) {
-                logger.error(new ParameterizedMessage("--> Unexpected bad request [{}]",
-                    FakeRestRequest.requestToString(channel.request())), cause);
+            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
+                logger.error(
+                    new ParameterizedMessage("--> Unexpected bad request [{}]", FakeRestRequest.requestToString(channel.request())),
+                    cause
+                );
                 throw new AssertionError();
             }
 
         };
 
-        final Settings settings = createBuilderWithPort()
-            .put(SETTING_CORS_ENABLED.getKey(), true)
+        final Settings settings = createBuilderWithPort().put(SETTING_CORS_ENABLED.getKey(), true)
             .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "elastic.co")
             .build();
 
-        try (NioHttpServerTransport transport = new NioHttpServerTransport(settings, networkService, bigArrays, pageRecycler,
-            threadPool, xContentRegistry(), dispatcher, new NioGroupFactory(settings, logger),
-            randomClusterSettings())) {
+        try (
+            NioHttpServerTransport transport = new NioHttpServerTransport(
+                settings,
+                networkService,
+                bigArrays,
+                pageRecycler,
+                threadPool,
+                xContentRegistry(),
+                dispatcher,
+                new NioGroupFactory(settings, logger),
+                randomClusterSettings()
+            )
+        ) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
@@ -283,16 +328,28 @@ public class NioHttpServerTransportTests extends AbstractHttpServerTransportTest
 
             @Override
             public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
-                logger.error(new ParameterizedMessage("--> Unexpected bad request [{}]",
-                    FakeRestRequest.requestToString(channel.request())), cause);
+                logger.error(
+                    new ParameterizedMessage("--> Unexpected bad request [{}]", FakeRestRequest.requestToString(channel.request())),
+                    cause
+                );
                 throw new AssertionError();
             }
 
         };
 
-        try (NioHttpServerTransport transport = new NioHttpServerTransport(
-            Settings.EMPTY, networkService, bigArrays, pageRecycler, threadPool, xContentRegistry(), dispatcher,
-            new NioGroupFactory(Settings.EMPTY, logger), randomClusterSettings())) {
+        try (
+            NioHttpServerTransport transport = new NioHttpServerTransport(
+                Settings.EMPTY,
+                networkService,
+                bigArrays,
+                pageRecycler,
+                threadPool,
+                xContentRegistry(),
+                dispatcher,
+                new NioGroupFactory(Settings.EMPTY, logger),
+                randomClusterSettings()
+            )
+        ) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
@@ -346,9 +403,19 @@ public class NioHttpServerTransportTests extends AbstractHttpServerTransportTest
             settings = createBuilderWithPort().put(httpMaxInitialLineLengthSetting.getKey(), maxInitialLineLength + "b").build();
         }
 
-        try (NioHttpServerTransport transport = new NioHttpServerTransport(settings, networkService, bigArrays, pageRecycler,
-            threadPool, xContentRegistry(), dispatcher, new NioGroupFactory(settings, logger),
-            randomClusterSettings())) {
+        try (
+            NioHttpServerTransport transport = new NioHttpServerTransport(
+                settings,
+                networkService,
+                bigArrays,
+                pageRecycler,
+                threadPool,
+                xContentRegistry(),
+                dispatcher,
+                new NioGroupFactory(settings, logger),
+                randomClusterSettings()
+            )
+        ) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
@@ -361,7 +428,8 @@ public class NioHttpServerTransportTests extends AbstractHttpServerTransportTest
                     assertThat(response.status(), equalTo(HttpResponseStatus.BAD_REQUEST));
                     assertThat(
                         new String(response.content().array(), Charset.forName("UTF-8")),
-                        containsString("you sent a bad request and you should feel bad"));
+                        containsString("you sent a bad request and you should feel bad")
+                    );
                 } finally {
                     response.release();
                 }
@@ -382,23 +450,34 @@ public class NioHttpServerTransportTests extends AbstractHttpServerTransportTest
             }
 
             @Override
-            public void dispatchBadRequest(final RestChannel channel,
-                                           final ThreadContext threadContext,
-                                           final Throwable cause) {
-                logger.error(new ParameterizedMessage("--> Unexpected bad request [{}]",
-                    FakeRestRequest.requestToString(channel.request())), cause);
+            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
+                logger.error(
+                    new ParameterizedMessage("--> Unexpected bad request [{}]", FakeRestRequest.requestToString(channel.request())),
+                    cause
+                );
                 throw new AssertionError("Should not have received a dispatched request");
             }
 
         };
 
-        Settings settings = createBuilderWithPort()
-            .put(HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT.getKey(), new TimeValue(randomIntBetween(100, 300)))
-            .build();
+        Settings settings = createBuilderWithPort().put(
+            HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT.getKey(),
+            new TimeValue(randomIntBetween(100, 300))
+        ).build();
 
-        try (NioHttpServerTransport transport = new NioHttpServerTransport(settings, networkService, bigArrays, pageRecycler,
-            threadPool, xContentRegistry(), dispatcher, new NioGroupFactory(settings, logger),
-            randomClusterSettings())) {
+        try (
+            NioHttpServerTransport transport = new NioHttpServerTransport(
+                settings,
+                networkService,
+                bigArrays,
+                pageRecycler,
+                threadPool,
+                xContentRegistry(),
+                dispatcher,
+                new NioGroupFactory(settings, logger),
+                randomClusterSettings()
+            )
+        ) {
             transport.start();
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 

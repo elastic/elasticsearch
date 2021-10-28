@@ -37,8 +37,17 @@ public class AnalyticsProcessConfig implements ToXContentObject {
     private final DataFrameAnalysis analysis;
     private final ExtractedFields extractedFields;
 
-    public AnalyticsProcessConfig(String jobId, long rows, int cols, ByteSizeValue memoryLimit, int threads, String resultsField,
-                                  Set<String> categoricalFields, DataFrameAnalysis analysis, ExtractedFields extractedFields) {
+    public AnalyticsProcessConfig(
+        String jobId,
+        long rows,
+        int cols,
+        ByteSizeValue memoryLimit,
+        int threads,
+        String resultsField,
+        Set<String> categoricalFields,
+        DataFrameAnalysis analysis,
+        ExtractedFields extractedFields
+    ) {
         this.jobId = Objects.requireNonNull(jobId);
         this.rows = rows;
         this.cols = cols;

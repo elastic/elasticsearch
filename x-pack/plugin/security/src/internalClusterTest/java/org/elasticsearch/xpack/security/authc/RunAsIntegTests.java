@@ -22,9 +22,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
 
     private static final String RUN_AS_USER = "run_as_user";
     private static final String CLIENT_USER = "transport_user";
-    private static final String ROLES =
-            "run_as_role:\n" +
-            "  run_as: [ '" + SecuritySettingsSource.TEST_USER_NAME + "', 'idontexist' ]\n";
+    private static final String ROLES = "run_as_role:\n" + "  run_as: [ '" + SecuritySettingsSource.TEST_USER_NAME + "', 'idontexist' ]\n";
 
     // indicates whether the RUN_AS_USER that is being authenticated is also a superuser
     private static boolean runAsHasSuperUserRole;
@@ -47,18 +45,21 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
     @Override
     public String configUsers() {
         return super.configUsers()
-                + RUN_AS_USER + ":" + SecuritySettingsSource.TEST_PASSWORD_HASHED + "\n"
-                + CLIENT_USER + ":" + SecuritySettingsSource.TEST_PASSWORD_HASHED + "\n";
+            + RUN_AS_USER
+            + ":"
+            + SecuritySettingsSource.TEST_PASSWORD_HASHED
+            + "\n"
+            + CLIENT_USER
+            + ":"
+            + SecuritySettingsSource.TEST_PASSWORD_HASHED
+            + "\n";
     }
 
     @Override
     public String configUsersRoles() {
-        String roles = super.configUsersRoles()
-                + "run_as_role:" + RUN_AS_USER + "\n"
-                + "transport_client:" + CLIENT_USER;
+        String roles = super.configUsersRoles() + "run_as_role:" + RUN_AS_USER + "\n" + "transport_client:" + CLIENT_USER;
         if (runAsHasSuperUserRole) {
-            roles = roles + "\n"
-                    + "superuser:" + RUN_AS_USER;
+            roles = roles + "\n" + "superuser:" + RUN_AS_USER;
         }
         return roles;
     }
@@ -73,19 +74,18 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
         try {
             Request request = new Request("GET", "/_nodes");
             RequestOptions.Builder options = request.getOptions().toBuilder();
-            options.addHeader("Authorization",
-                    UsernamePasswordToken.basicAuthHeaderValue(CLIENT_USER, TEST_PASSWORD_SECURE_STRING));
+            options.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(CLIENT_USER, TEST_PASSWORD_SECURE_STRING));
             options.addHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, SecuritySettingsSource.TEST_USER_NAME);
             request.setOptions(options);
             getRestClient().performRequest(request);
             fail("request should have failed");
-        } catch(ResponseException e) {
+        } catch (ResponseException e) {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(403));
         }
 
         if (runAsHasSuperUserRole == false) {
             try {
-                //the run as user shouldn't have access to the nodes api
+                // the run as user shouldn't have access to the nodes api
                 Request request = new Request("GET", "/_nodes");
                 RequestOptions.Builder options = request.getOptions().toBuilder();
                 options.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER, TEST_PASSWORD_SECURE_STRING));
@@ -105,7 +105,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
         try {
             getRestClient().performRequest(requestForUserRunAsUser(""));
             fail("request should have failed");
-        } catch(ResponseException e) {
+        } catch (ResponseException e) {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
         }
     }

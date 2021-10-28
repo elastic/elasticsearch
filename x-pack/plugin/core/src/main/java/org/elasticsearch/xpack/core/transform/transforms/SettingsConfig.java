@@ -13,13 +13,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.transform.TransformField;
 
@@ -142,8 +142,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         return validationException;
     }
 
-    public void checkForDeprecations(String id, NamedXContentRegistry namedXContentRegistry, Consumer<DeprecationIssue> onDeprecation) {
-    }
+    public void checkForDeprecations(String id, NamedXContentRegistry namedXContentRegistry, Consumer<DeprecationIssue> onDeprecation) {}
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
@@ -309,7 +308,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
                     ? null
                     : update.getDatesAsEpochMillisForUpdate();
             }
-            if (update.getAlignCheckpointsForUpdate() != null)  {
+            if (update.getAlignCheckpointsForUpdate() != null) {
                 this.alignCheckpoints = update.getAlignCheckpointsForUpdate().equals(DEFAULT_ALIGN_CHECKPOINTS)
                     ? null
                     : update.getAlignCheckpointsForUpdate();

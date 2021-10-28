@@ -36,8 +36,7 @@ public class AttributeSet implements Set<Attribute> {
     public AttributeSet(Collection<? extends Attribute> attr) {
         if (attr.isEmpty()) {
             delegate = EMPTY_DELEGATE;
-        }
-        else {
+        } else {
             delegate = new AttributeMap<>();
 
             for (Attribute a : attr) {
@@ -180,6 +179,7 @@ public class AttributeSet implements Set<Attribute> {
     public int hashCode() {
         return delegate.hashCode();
     }
+
     @Override
     public String toString() {
         return delegate.keySet().toString();

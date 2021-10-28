@@ -39,7 +39,6 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyObject;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -60,8 +59,7 @@ public class TransportPutWatchActionTests extends ESTestCase {
         TransportService transportService = mock(TransportService.class);
 
         WatchParser parser = mock(WatchParser.class);
-        when(parser.parseWithSecrets(eq("_id"), eq(false), anyObject(), anyObject(), anyObject(), anyBoolean(), anyLong(), anyLong()))
-            .thenReturn(watch);
+        when(parser.parseWithSecrets(eq("_id"), eq(false), any(), any(), any(), anyBoolean(), anyLong(), anyLong())).thenReturn(watch);
 
         Client client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
@@ -77,11 +75,18 @@ public class TransportPutWatchActionTests extends ESTestCase {
             return null;
         }).when(client).execute(any(), any(), any());
 
-        action = new TransportPutWatchAction(transportService, threadPool, new ActionFilters(Collections.emptySet()),
-            new ClockHolder(new ClockMock()), TestUtils.newTestLicenseState(), parser, client);
+        action = new TransportPutWatchAction(
+            transportService,
+            threadPool,
+            new ActionFilters(Collections.emptySet()),
+            new ClockHolder(new ClockMock()),
+            TestUtils.newTestLicenseState(),
+            parser,
+            client
+        );
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testHeadersAreFilteredWhenPuttingWatches() throws Exception {
         // set up threadcontext with some arbitrary info
         String headerName = randomFrom(ClientHelper.SECURITY_HEADER_FILTERS);

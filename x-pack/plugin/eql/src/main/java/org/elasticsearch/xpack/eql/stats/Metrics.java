@@ -22,7 +22,8 @@ import java.util.Map.Entry;
 public class Metrics {
 
     private enum OperationType {
-        FAILED, TOTAL;
+        FAILED,
+        TOTAL;
 
         @Override
         public String toString() {
@@ -41,7 +42,7 @@ public class Metrics {
         for (QueryMetric metric : QueryMetric.values()) {
             Map<OperationType, CounterMetric> metricsMap = new LinkedHashMap<>(OperationType.values().length);
             for (OperationType type : OperationType.values()) {
-                metricsMap.put(type,  new CounterMetric());
+                metricsMap.put(type, new CounterMetric());
             }
 
             qMap.put(metric, Collections.unmodifiableMap(metricsMap));
@@ -50,7 +51,7 @@ public class Metrics {
 
         Map<FeatureMetric, CounterMetric> fMap = new LinkedHashMap<>(FeatureMetric.values().length);
         for (FeatureMetric featureMetric : FeatureMetric.values()) {
-            fMap.put(featureMetric,  new CounterMetric());
+            fMap.put(featureMetric, new CounterMetric());
         }
         featuresMetrics = Collections.unmodifiableMap(fMap);
     }

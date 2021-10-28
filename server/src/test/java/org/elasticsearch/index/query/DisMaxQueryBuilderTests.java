@@ -51,11 +51,7 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
         QueryBuilder innerQuery = createTestQueryBuilder().innerQueries().get(0);
         DisMaxQueryBuilder expectedQuery = new DisMaxQueryBuilder();
         expectedQuery.add(innerQuery);
-        String contentString = "{\n" +
-                "    \"dis_max\" : {\n" +
-                "        \"queries\" : " + innerQuery.toString() +
-                "    }\n" +
-                "}";
+        String contentString = "{\n" + "    \"dis_max\" : {\n" + "        \"queries\" : " + innerQuery.toString() + "    }\n" + "}";
         alternateVersions.put(contentString, expectedQuery);
         return alternateVersions;
     }
@@ -66,50 +62,49 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
     }
 
     public void testToQueryInnerPrefixQuery() throws Exception {
-        String queryAsString = "{\n" +
-                "    \"dis_max\":{\n" +
-                "        \"queries\":[\n" +
-                "            {\n" +
-                "                \"prefix\":{\n" +
-                "                    \"" + TEXT_FIELD_NAME + "\":{\n" +
-                "                        \"value\":\"sh\",\n" +
-                "                        \"boost\":1.2\n" +
-                "                    }\n" +
-                "                }\n" +
-                "            }\n" +
-                "        ]\n" +
-                "    }\n" +
-                "}";
+        String queryAsString = "{\n"
+            + "    \"dis_max\":{\n"
+            + "        \"queries\":[\n"
+            + "            {\n"
+            + "                \"prefix\":{\n"
+            + "                    \""
+            + TEXT_FIELD_NAME
+            + "\":{\n"
+            + "                        \"value\":\"sh\",\n"
+            + "                        \"boost\":1.2\n"
+            + "                    }\n"
+            + "                }\n"
+            + "            }\n"
+            + "        ]\n"
+            + "    }\n"
+            + "}";
         Query query = parseQuery(queryAsString).toQuery(createSearchExecutionContext());
-        Query expected = new DisjunctionMaxQuery(List.of(
-            new BoostQuery(new PrefixQuery(new Term(TEXT_FIELD_NAME, "sh")), 1.2f)
-        ), 0);
+        Query expected = new DisjunctionMaxQuery(List.of(new BoostQuery(new PrefixQuery(new Term(TEXT_FIELD_NAME, "sh")), 1.2f)), 0);
         assertEquals(expected, query);
     }
 
     public void testFromJson() throws IOException {
-        String json =
-                "{\n" +
-                "  \"dis_max\" : {\n" +
-                "    \"tie_breaker\" : 0.7,\n" +
-                "    \"queries\" : [ {\n" +
-                "      \"term\" : {\n" +
-                "        \"age\" : {\n" +
-                "          \"value\" : 34,\n" +
-                "          \"boost\" : 1.0\n" +
-                "        }\n" +
-                "      }\n" +
-                "    }, {\n" +
-                "      \"term\" : {\n" +
-                "        \"age\" : {\n" +
-                "          \"value\" : 35,\n" +
-                "          \"boost\" : 1.0\n" +
-                "        }\n" +
-                "      }\n" +
-                "    } ],\n" +
-                "    \"boost\" : 1.2\n" +
-                "  }\n" +
-                "}";
+        String json = "{\n"
+            + "  \"dis_max\" : {\n"
+            + "    \"tie_breaker\" : 0.7,\n"
+            + "    \"queries\" : [ {\n"
+            + "      \"term\" : {\n"
+            + "        \"age\" : {\n"
+            + "          \"value\" : 34,\n"
+            + "          \"boost\" : 1.0\n"
+            + "        }\n"
+            + "      }\n"
+            + "    }, {\n"
+            + "      \"term\" : {\n"
+            + "        \"age\" : {\n"
+            + "          \"value\" : 35,\n"
+            + "          \"boost\" : 1.0\n"
+            + "        }\n"
+            + "      }\n"
+            + "    } ],\n"
+            + "    \"boost\" : 1.2\n"
+            + "  }\n"
+            + "}";
 
         DisMaxQueryBuilder parsed = (DisMaxQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

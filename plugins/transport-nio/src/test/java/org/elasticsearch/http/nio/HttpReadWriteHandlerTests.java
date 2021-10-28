@@ -22,6 +22,7 @@ import io.netty.handler.codec.http.HttpResponseDecoder;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
+
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -240,8 +241,6 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         httpResponse.addHeader(HttpHeaderNames.CONTENT_LENGTH.toString(), "0");
         return httpResponse;
     }
-
-
 
     private void prepareHandlerForResponse(HttpReadWriteHandler handler) throws IOException {
         HttpMethod method = randomBoolean() ? HttpMethod.GET : HttpMethod.HEAD;

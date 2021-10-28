@@ -11,14 +11,14 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -39,8 +39,11 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
     private static final ParseField RESPONSES = new ParseField(Fields.RESPONSES);
     private static final ParseField TOOK_IN_MILLIS = new ParseField("took");
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<MultiSearchResponse, Void> PARSER = new ConstructingObjectParser<>("multi_search",
-            true, a -> new MultiSearchResponse(((List<Item>)a[0]).toArray(new Item[0]), (long) a[1]));
+    private static final ConstructingObjectParser<MultiSearchResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "multi_search",
+        true,
+        a -> new MultiSearchResponse(((List<Item>) a[0]).toArray(new Item[0]), (long) a[1])
+    );
     static {
         PARSER.declareObjectArray(constructorArg(), (p, c) -> itemFromXContent(p), RESPONSES);
         PARSER.declareLong(constructorArg(), TOOK_IN_MILLIS);
@@ -58,7 +61,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
             this.exception = exception;
         }
 
-        Item(StreamInput in) throws IOException{
+        Item(StreamInput in) throws IOException {
             if (in.readBoolean()) {
                 this.response = new SearchResponse(in);
                 this.exception = null;
@@ -175,9 +178,9 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
         // This parsing logic is a bit tricky here, because the multi search response itself is tricky:
         // 1) The json objects inside the responses array are either a search response or a serialized exception
         // 2) Each response json object gets a status field injected that ElasticsearchException.failureFromXContent(...) does not parse,
-        //    but SearchResponse.innerFromXContent(...) parses and then ignores. The status field is not needed to parse
-        //    the response item. However in both cases this method does need to parse the 'status' field otherwise the parsing of
-        //    the response item in the next json array element will fail due to parsing errors.
+        // but SearchResponse.innerFromXContent(...) parses and then ignores. The status field is not needed to parse
+        // the response item. However in both cases this method does need to parse the 'status' field otherwise the parsing of
+        // the response item in the next json array element will fail due to parsing errors.
 
         Item item = null;
         String fieldName = null;

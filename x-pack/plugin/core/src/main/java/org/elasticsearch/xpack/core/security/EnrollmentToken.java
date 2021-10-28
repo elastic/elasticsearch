@@ -28,12 +28,23 @@ public class EnrollmentToken {
     private final String apiKey;
     private final String fingerprint;
     private final String version;
-    private final List<String > boundAddress;
+    private final List<String> boundAddress;
 
-    public String getApiKey() { return apiKey; }
-    public String getFingerprint() { return fingerprint; }
-    public String getVersion() { return version; }
-    public List<String> getBoundAddress() { return boundAddress; }
+    public String getApiKey() {
+        return apiKey;
+    }
+
+    public String getFingerprint() {
+        return fingerprint;
+    }
+
+    public String getVersion() {
+        return version;
+    }
+
+    public List<String> getBoundAddress() {
+        return boundAddress;
+    }
 
     private static final ParseField API_KEY = new ParseField("key");
     private static final ParseField FINGERPRINT = new ParseField("fgr");
@@ -41,8 +52,11 @@ public class EnrollmentToken {
     private static final ParseField ADDRESS = new ParseField("adr");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<EnrollmentToken, Void> PARSER = new ConstructingObjectParser<>("enrollment_token", false,
-        a -> new EnrollmentToken((String) a[0], (String) a[1], (String) a[2], (List<String>) a[3]));
+    public static final ConstructingObjectParser<EnrollmentToken, Void> PARSER = new ConstructingObjectParser<>(
+        "enrollment_token",
+        false,
+        a -> new EnrollmentToken((String) a[0], (String) a[1], (String) a[2], (List<String>) a[3])
+    );
 
     static {
         PARSER.declareString(constructorArg(), API_KEY);
@@ -50,6 +64,7 @@ public class EnrollmentToken {
         PARSER.declareString(constructorArg(), VERSION);
         PARSER.declareStringArray(constructorArg(), ADDRESS);
     }
+
     /**
      * Create an EnrollmentToken
      *
@@ -108,8 +123,10 @@ public class EnrollmentToken {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         EnrollmentToken that = (EnrollmentToken) o;
-        return apiKey.equals(that.apiKey) && fingerprint.equals(that.fingerprint) && version.equals(that.version) && boundAddress.equals(
-            that.boundAddress);
+        return apiKey.equals(that.apiKey)
+            && fingerprint.equals(that.fingerprint)
+            && version.equals(that.version)
+            && boundAddress.equals(that.boundAddress);
     }
 
     @Override

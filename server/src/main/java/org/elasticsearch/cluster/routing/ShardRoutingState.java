@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-
 /**
  * Represents the current state of a {@link ShardRouting} as defined by the
  * cluster.

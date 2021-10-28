@@ -105,7 +105,7 @@ public class RankEvalIT extends ESRestHighLevelClientTestCase {
     private static List<RatedRequest> createTestEvaluationSpec() {
         SearchSourceBuilder testQuery = new SearchSourceBuilder();
         testQuery.query(new MatchAllQueryBuilder());
-        List<RatedDocument> amsterdamRatedDocs = createRelevant("index" , "amsterdam1", "amsterdam2", "amsterdam3", "amsterdam4");
+        List<RatedDocument> amsterdamRatedDocs = createRelevant("index", "amsterdam1", "amsterdam2", "amsterdam3", "amsterdam4");
         amsterdamRatedDocs.addAll(createRelevant("index2", "amsterdam0"));
         RatedRequest amsterdamRequest = new RatedRequest("amsterdam_query", amsterdamRatedDocs, testQuery);
         RatedRequest berlinRequest = new RatedRequest("berlin_query", createRelevant("index", "berlin"), testQuery);
@@ -120,9 +120,14 @@ public class RankEvalIT extends ESRestHighLevelClientTestCase {
      */
     public void testMetrics() throws IOException {
         List<RatedRequest> specifications = createTestEvaluationSpec();
-        List<Supplier<EvaluationMetric>> metrics = Arrays.asList(PrecisionAtK::new, RecallAtK::new,
-            MeanReciprocalRank::new, DiscountedCumulativeGain::new, () -> new ExpectedReciprocalRank(1));
-        double expectedScores[] = new double[] {0.4285714285714286, 1.0, 0.75, 1.6408962261063627, 0.4407738095238095};
+        List<Supplier<EvaluationMetric>> metrics = Arrays.asList(
+            PrecisionAtK::new,
+            RecallAtK::new,
+            MeanReciprocalRank::new,
+            DiscountedCumulativeGain::new,
+            () -> new ExpectedReciprocalRank(1)
+        );
+        double expectedScores[] = new double[] { 0.4285714285714286, 1.0, 0.75, 1.6408962261063627, 0.4407738095238095 };
         int i = 0;
         for (Supplier<EvaluationMetric> metricSupplier : metrics) {
             RankEvalSpec spec = new RankEvalSpec(specifications, metricSupplier.get());

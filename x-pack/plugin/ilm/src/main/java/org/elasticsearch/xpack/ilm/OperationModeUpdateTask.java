@@ -11,8 +11,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
@@ -86,9 +86,10 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
             logger.info("updating ILM operation mode to {}", newMode);
         }
         return ClusterState.builder(currentState)
-            .metadata(Metadata.builder(currentState.metadata())
-                    .putCustom(IndexLifecycleMetadata.TYPE,
-                        new IndexLifecycleMetadata(currentMetadata.getPolicyMetadatas(), newMode)))
+            .metadata(
+                Metadata.builder(currentState.metadata())
+                    .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(currentMetadata.getPolicyMetadatas(), newMode))
+            )
             .build();
     }
 
@@ -114,10 +115,13 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
             logger.info("updating SLM operation mode to {}", newMode);
         }
         return ClusterState.builder(currentState)
-            .metadata(Metadata.builder(currentState.metadata())
-                .putCustom(SnapshotLifecycleMetadata.TYPE,
-                    new SnapshotLifecycleMetadata(currentMetadata.getSnapshotConfigurations(),
-                        newMode, currentMetadata.getStats())))
+            .metadata(
+                Metadata.builder(currentState.metadata())
+                    .putCustom(
+                        SnapshotLifecycleMetadata.TYPE,
+                        new SnapshotLifecycleMetadata(currentMetadata.getSnapshotConfigurations(), newMode, currentMetadata.getStats())
+                    )
+            )
             .build();
     }
 

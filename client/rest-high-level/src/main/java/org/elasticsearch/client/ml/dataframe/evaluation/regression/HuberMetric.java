@@ -10,8 +10,8 @@ package org.elasticsearch.client.ml.dataframe.evaluation.regression;
 import org.elasticsearch.client.ml.dataframe.Regression.LossFunction;
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -34,8 +34,11 @@ public class HuberMetric implements EvaluationMetric {
 
     public static final ParseField DELTA = new ParseField("delta");
 
-    private static final ConstructingObjectParser<HuberMetric, Void> PARSER =
-        new ConstructingObjectParser<>(NAME, true, args -> new HuberMetric((Double) args[0]));
+    private static final ConstructingObjectParser<HuberMetric, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        true,
+        args -> new HuberMetric((Double) args[0])
+    );
 
     static {
         PARSER.declareDouble(optionalConstructorArg(), DELTA);
@@ -88,8 +91,11 @@ public class HuberMetric implements EvaluationMetric {
             return PARSER.apply(parser, null);
         }
 
-        private static final ConstructingObjectParser<Result, Void> PARSER =
-            new ConstructingObjectParser<>(NAME + "_result", true, args -> new Result((double) args[0]));
+        private static final ConstructingObjectParser<Result, Void> PARSER = new ConstructingObjectParser<>(
+            NAME + "_result",
+            true,
+            args -> new Result((double) args[0])
+        );
 
         static {
             PARSER.declareDouble(constructorArg(), VALUE);

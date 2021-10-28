@@ -96,8 +96,12 @@ public class WeeklySchedule extends CronnableSchedule {
                 }
                 return times.isEmpty() ? new WeeklySchedule() : new WeeklySchedule(times.toArray(new WeekTimes[times.size()]));
             }
-            throw new ElasticsearchParseException("could not parse [{}] schedule. expected either an object or an array " +
-                    "of objects representing weekly times, but found [{}] instead", TYPE, parser.currentToken());
+            throw new ElasticsearchParseException(
+                "could not parse [{}] schedule. expected either an object or an array "
+                    + "of objects representing weekly times, but found [{}] instead",
+                TYPE,
+                parser.currentToken()
+            );
         }
     }
 
@@ -119,6 +123,5 @@ public class WeeklySchedule extends CronnableSchedule {
         }
 
     }
-
 
 }

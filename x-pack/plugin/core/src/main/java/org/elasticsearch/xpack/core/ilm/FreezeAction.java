@@ -37,15 +37,12 @@ public class FreezeAction implements LifecycleAction {
         return PARSER.apply(parser, null);
     }
 
-    public FreezeAction() {
-    }
+    public FreezeAction() {}
 
-    public FreezeAction(StreamInput in) {
-    }
+    public FreezeAction(StreamInput in) {}
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-    }
+    public void writeTo(StreamOutput out) throws IOException {}
 
     @Override
     public String getWriteableName() {
@@ -70,25 +67,37 @@ public class FreezeAction implements LifecycleAction {
         StepKey checkNotWriteIndex = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey freezeStepKey = new StepKey(phase, NAME, FreezeStep.NAME);
 
-        BranchingStep conditionalSkipFreezeStep = new BranchingStep(preFreezeMergeBranchingKey, checkNotWriteIndex, nextStepKey,
+        BranchingStep conditionalSkipFreezeStep = new BranchingStep(
+            preFreezeMergeBranchingKey,
+            checkNotWriteIndex,
+            nextStepKey,
             (index, clusterState) -> {
                 IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
                 assert indexMetadata != null : "index " + index.getName() + " must exist in the cluster state";
                 String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
                 if (indexMetadata.getSettings().get(LifecycleSettings.SNAPSHOT_INDEX_NAME) != null) {
-                    logger.warn("[{}] action is configured for index [{}] in policy [{}] which is mounted as searchable snapshot. " +
-                        "Skipping this action", FreezeAction.NAME, index.getName(), policyName);
+                    logger.warn(
+                        "[{}] action is configured for index [{}] in policy [{}] which is mounted as searchable snapshot. "
+                            + "Skipping this action",
+                        FreezeAction.NAME,
+                        index.getName(),
+                        policyName
+                    );
                     return true;
                 }
                 if (indexMetadata.getSettings().getAsBoolean("index.frozen", false)) {
-                    logger.debug("skipping [{}] action for index [{}] in policy [{}] as the index is already frozen", FreezeAction.NAME,
-                        index.getName(), policyName);
+                    logger.debug(
+                        "skipping [{}] action for index [{}] in policy [{}] as the index is already frozen",
+                        FreezeAction.NAME,
+                        index.getName(),
+                        policyName
+                    );
                     return true;
                 }
                 return false;
-            });
-        CheckNotDataStreamWriteIndexStep checkNoWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNotWriteIndex,
-            freezeStepKey);
+            }
+        );
+        CheckNotDataStreamWriteIndexStep checkNoWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNotWriteIndex, freezeStepKey);
         FreezeStep freezeStep = new FreezeStep(freezeStepKey, nextStepKey, client);
         return Arrays.asList(conditionalSkipFreezeStep, checkNoWriteIndexStep, freezeStep);
     }

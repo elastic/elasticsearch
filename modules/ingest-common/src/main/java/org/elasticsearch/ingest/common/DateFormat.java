@@ -37,9 +37,8 @@ enum DateFormat {
         Function<String, ZonedDateTime> getFunction(String format, ZoneId timezone, Locale locale) {
             return (date) -> {
                 TemporalAccessor accessor = DateFormatter.forPattern("iso8601").parse(date);
-                //even though locale could be set to en-us, Locale.ROOT (following iso8601 calendar data rules) should be used
-                return DateFormatters.from(accessor, Locale.ROOT, timezone)
-                                                .withZoneSameInstant(timezone);
+                // even though locale could be set to en-us, Locale.ROOT (following iso8601 calendar data rules) should be used
+                return DateFormatters.from(accessor, Locale.ROOT, timezone).withZoneSameInstant(timezone);
             };
 
         }
@@ -69,12 +68,18 @@ enum DateFormat {
             long base = Long.parseLong(date.substring(1, 16), 16);
             // 1356138046000
             long rest = Long.parseLong(date.substring(16, 24), 16);
-            return ((base * 1000) - 10000) + (rest/1000000);
+            return ((base * 1000) - 10000) + (rest / 1000000);
         }
     },
     Java {
-        private final List<ChronoField> FIELDS =
-            Arrays.asList(NANO_OF_SECOND, SECOND_OF_DAY, MINUTE_OF_DAY, HOUR_OF_DAY, DAY_OF_MONTH, MONTH_OF_YEAR);
+        private final List<ChronoField> FIELDS = Arrays.asList(
+            NANO_OF_SECOND,
+            SECOND_OF_DAY,
+            MINUTE_OF_DAY,
+            HOUR_OF_DAY,
+            DAY_OF_MONTH,
+            MONTH_OF_YEAR
+        );
 
         @Override
         Function<String, ZonedDateTime> getFunction(String format, ZoneId zoneId, Locale locale) {
@@ -83,8 +88,7 @@ enum DateFormat {
                 format = format.substring(1);
             }
 
-            DateFormatter dateFormatter = DateFormatter.forPattern(format)
-                .withLocale(locale);
+            DateFormatter dateFormatter = DateFormatter.forPattern(format).withLocale(locale);
 
             final DateFormatter formatter = dateFormatter;
             return text -> {
@@ -105,8 +109,7 @@ enum DateFormat {
                     accessor = newTime.withZoneSameLocal(zoneId);
                 }
 
-                return DateFormatters.from(accessor, locale, zoneId)
-                    .withZoneSameInstant(zoneId);
+                return DateFormatters.from(accessor, locale, zoneId).withZoneSameInstant(zoneId);
 
             };
         }

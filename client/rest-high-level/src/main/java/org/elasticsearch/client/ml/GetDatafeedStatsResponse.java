@@ -8,9 +8,9 @@
 package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.ml.datafeed.DatafeedStats;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -27,10 +27,11 @@ public class GetDatafeedStatsResponse extends AbstractResultResponse<DatafeedSta
     public static final ParseField RESULTS_FIELD = new ParseField("datafeeds");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<GetDatafeedStatsResponse, Void> PARSER =
-        new ConstructingObjectParser<>("get_datafeed_stats_response",
-            true,
-            a -> new GetDatafeedStatsResponse((List<DatafeedStats>) a[0], (long) a[1]));
+    public static final ConstructingObjectParser<GetDatafeedStatsResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "get_datafeed_stats_response",
+        true,
+        a -> new GetDatafeedStatsResponse((List<DatafeedStats>) a[0], (long) a[1])
+    );
 
     static {
         PARSER.declareObjectArray(constructorArg(), DatafeedStats.PARSER, RESULTS_FIELD);

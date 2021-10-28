@@ -18,22 +18,22 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -106,8 +106,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         }
     }
 
-    public CreateIndexRequest() {
-    }
+    public CreateIndexRequest() {}
 
     /**
      * Constructs a request to create an index.
@@ -140,7 +139,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     @Override
     public String[] indices() {
-        return new String[]{index};
+        return new String[] { index };
     }
 
     @Override
@@ -273,8 +272,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         // wrap it in a type map if its not
         if (source.size() != 1 || source.containsKey(type) == false) {
             source = Map.of(MapperService.SINGLE_MAPPING_NAME, source);
-        }
-        else if (MapperService.SINGLE_MAPPING_NAME.equals(type) == false) {
+        } else if (MapperService.SINGLE_MAPPING_NAME.equals(type) == false) {
             // if it has a different type name, then unwrap and rewrap with _doc
             source = Map.of(MapperService.SINGLE_MAPPING_NAME, source.get(type));
         }
@@ -327,15 +325,14 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      */
     public CreateIndexRequest aliases(BytesReference source) {
         // EMPTY is safe here because we never call namedObject
-        try (XContentParser parser = XContentHelper
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)) {
-            //move to the first alias
+        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)) {
+            // move to the first alias
             parser.nextToken();
             while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 alias(Alias.fromXContent(parser));
             }
             return this;
-        } catch(IOException e) {
+        } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse aliases", e);
         }
     }
@@ -483,13 +480,13 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         CreateIndexRequest that = (CreateIndexRequest) obj;
-        return Objects.equals(cause, that.cause) &&
-            Objects.equals(index, that.index) &&
-            Objects.equals(settings, that.settings) &&
-            Objects.equals(mappings, that.mappings) &&
-            Objects.equals(aliases, that.aliases) &&
-            Objects.equals(waitForActiveShards, that.waitForActiveShards) &&
-            Objects.equals(origin, that.origin);
+        return Objects.equals(cause, that.cause)
+            && Objects.equals(index, that.index)
+            && Objects.equals(settings, that.settings)
+            && Objects.equals(mappings, that.mappings)
+            && Objects.equals(aliases, that.aliases)
+            && Objects.equals(waitForActiveShards, that.waitForActiveShards)
+            && Objects.equals(origin, that.origin);
     }
 
     @Override

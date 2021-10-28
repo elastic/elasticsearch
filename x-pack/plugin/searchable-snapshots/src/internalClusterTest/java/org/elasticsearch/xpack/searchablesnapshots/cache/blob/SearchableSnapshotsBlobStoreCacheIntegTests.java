@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.cache.blob;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -31,14 +29,12 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -69,9 +65,6 @@ import static org.elasticsearch.xpack.searchablesnapshots.cache.shared.SharedByt
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-@SuppressForbidden(reason = "sometimes you don't have the choice")
-@Repeat(iterations = 50)
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearchableSnapshotsIntegTestCase {
 
     private static Settings cacheSettings = null;

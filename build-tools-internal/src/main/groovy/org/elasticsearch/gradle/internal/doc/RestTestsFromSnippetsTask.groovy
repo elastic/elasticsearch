@@ -270,7 +270,6 @@ class RestTestsFromSnippetsTask extends SnippetsTask {
                     case 'gold':
                     case 'platinum':
                     case 'enterprise':
-                        current.println("        - xpack")
                         break;
                     default:
                         throw new InvalidUserDataException('Unsupported testEnv: '

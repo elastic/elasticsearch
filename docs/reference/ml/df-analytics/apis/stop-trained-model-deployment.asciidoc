@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[stop-trained-model-deployment]]
 = Stop trained model deployment API
 [subs="attributes"]

@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[get-trained-model-deployment-stats]]
 = Get trained model deployment statistics API
 [subs="attributes"]

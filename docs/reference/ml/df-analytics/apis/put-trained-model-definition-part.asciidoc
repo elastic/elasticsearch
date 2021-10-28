@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[put-trained-model-definition-part]]
 = Create trained model definition part API
 [subs="attributes"]

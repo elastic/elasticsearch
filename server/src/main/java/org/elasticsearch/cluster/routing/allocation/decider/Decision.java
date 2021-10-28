@@ -8,10 +8,10 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -216,9 +216,7 @@ public abstract class Decision implements ToXContent, Writeable {
             }
 
             Decision.Single s = (Decision.Single) object;
-            return this.type == s.type &&
-                       Objects.equals(label, s.label) &&
-                       Objects.equals(explanationString, s.explanationString);
+            return this.type == s.type && Objects.equals(label, s.label) && Objects.equals(explanationString, s.explanationString);
         }
 
         @Override

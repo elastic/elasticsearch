@@ -35,11 +35,24 @@ public class TransportDeleteIndexTemplateAction extends AcknowledgedTransportMas
     private final MetadataIndexTemplateService indexTemplateService;
 
     @Inject
-    public TransportDeleteIndexTemplateAction(TransportService transportService, ClusterService clusterService,
-                                              ThreadPool threadPool, MetadataIndexTemplateService indexTemplateService,
-                                              ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(DeleteIndexTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            DeleteIndexTemplateRequest::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
+    public TransportDeleteIndexTemplateAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        MetadataIndexTemplateService indexTemplateService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            DeleteIndexTemplateAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            DeleteIndexTemplateRequest::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
+        );
         this.indexTemplateService = indexTemplateService;
     }
 
@@ -49,12 +62,14 @@ public class TransportDeleteIndexTemplateAction extends AcknowledgedTransportMas
     }
 
     @Override
-    protected void masterOperation(Task task, final DeleteIndexTemplateRequest request, final ClusterState state,
-                                   final ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        final DeleteIndexTemplateRequest request,
+        final ClusterState state,
+        final ActionListener<AcknowledgedResponse> listener
+    ) {
         indexTemplateService.removeTemplates(
-            new MetadataIndexTemplateService
-                .RemoveRequest(request.name())
-                .masterTimeout(request.masterNodeTimeout()),
+            new MetadataIndexTemplateService.RemoveRequest(request.name()).masterTimeout(request.masterNodeTimeout()),
             new MetadataIndexTemplateService.RemoveListener() {
                 @Override
                 public void onResponse(AcknowledgedResponse response) {
@@ -66,6 +81,7 @@ public class TransportDeleteIndexTemplateAction extends AcknowledgedTransportMas
                     logger.debug(() -> new ParameterizedMessage("failed to delete templates [{}]", request.name()), e);
                     listener.onFailure(e);
                 }
-            });
+            }
+        );
     }
 }

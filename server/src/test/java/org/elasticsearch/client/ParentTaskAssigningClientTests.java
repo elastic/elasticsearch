@@ -8,10 +8,10 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -21,13 +21,16 @@ import org.elasticsearch.test.client.NoOpClient;
 
 public class ParentTaskAssigningClientTests extends ESTestCase {
     public void testSetsParentId() {
-        TaskId[] parentTaskId = new TaskId[] {new TaskId(randomAlphaOfLength(3), randomLong())};
+        TaskId[] parentTaskId = new TaskId[] { new TaskId(randomAlphaOfLength(3), randomLong()) };
 
         // This mock will do nothing but verify that parentTaskId is set on all requests sent to it.
         NoOpClient mock = new NoOpClient(getTestName()) {
             @Override
-            protected <Request extends ActionRequest, Response extends ActionResponse>
-            void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
                 assertEquals(parentTaskId[0], request.getParentTask());
                 super.doExecute(action, request, listener);
             }

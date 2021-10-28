@@ -14,9 +14,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
@@ -38,6 +35,9 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -426,8 +426,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
         if (stats.shards != null) {
             if (shards == null) {
                 shards = stats.shards;
-            }
-            else {
+            } else {
                 shards = shards.add(stats.shards);
             }
         }
@@ -536,8 +535,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
             size += this.getQueryCache().getMemorySizeInBytes();
         }
         if (this.getSegments() != null) {
-            size += this.getSegments().getIndexWriterMemoryInBytes() +
-                    this.getSegments().getVersionMapMemoryInBytes();
+            size += this.getSegments().getIndexWriterMemoryInBytes() + this.getSegments().getVersionMapMemoryInBytes();
         }
 
         return new ByteSizeValue(size);
@@ -546,11 +544,28 @@ public class CommonStats implements Writeable, ToXContentFragment {
     // note, requires a wrapping object
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        final Stream<ToXContent> stream = Arrays.stream(new ToXContent[] {
-            docs, shards, store, indexing, get, search, merge, refresh, flush, warmer, queryCache,
-            fieldData, completion, segments, translog, requestCache, recoveryStats, bulk})
-            .filter(Objects::nonNull);
-        for (ToXContent toXContent : ((Iterable<ToXContent>)stream::iterator)) {
+        final Stream<ToXContent> stream = Arrays.stream(
+            new ToXContent[] {
+                docs,
+                shards,
+                store,
+                indexing,
+                get,
+                search,
+                merge,
+                refresh,
+                flush,
+                warmer,
+                queryCache,
+                fieldData,
+                completion,
+                segments,
+                translog,
+                requestCache,
+                recoveryStats,
+                bulk }
+        ).filter(Objects::nonNull);
+        for (ToXContent toXContent : ((Iterable<ToXContent>) stream::iterator)) {
             toXContent.toXContent(builder, params);
         }
         return builder;

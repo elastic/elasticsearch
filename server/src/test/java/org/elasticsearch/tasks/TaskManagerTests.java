@@ -11,12 +11,12 @@ package org.elasticsearch.tasks;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.TransportTasksActionTests;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -154,7 +154,13 @@ public class TaskManagerTests extends ESTestCase {
                     } else {
                         final TaskId taskId = new TaskId("node", between(1, 100));
                         final TcpTransportChannel tcpTransportChannel = TestTransportChannels.newFakeTcpTransportChannel(
-                            "node-" + i, channel, threadPool, "action-" + i, randomIntBetween(0, 1000), Version.CURRENT);
+                            "node-" + i,
+                            channel,
+                            threadPool,
+                            "action-" + i,
+                            randomIntBetween(0, 1000),
+                            Version.CURRENT
+                        );
                         taskManager.setBan(taskId, "test", tcpTransportChannel);
                     }
                 }
@@ -176,8 +182,7 @@ public class TaskManagerTests extends ESTestCase {
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of());
         taskManager.setTaskCancellationService(new TaskCancellationService(mock(TransportService.class)) {
             @Override
-            void cancelTaskAndDescendants(CancellableTask task, String reason, boolean waitForCompletion, ActionListener<Void> listener) {
-            }
+            void cancelTaskAndDescendants(CancellableTask task, String reason, boolean waitForCompletion, ActionListener<Void> listener) {}
         });
         Map<TaskId, Set<TcpChannel>> installedBans = new HashMap<>();
         FakeTcpChannel[] channels = new FakeTcpChannel[randomIntBetween(1, 10)];
@@ -192,10 +197,21 @@ public class TaskManagerTests extends ESTestCase {
             }
             TaskId taskId = new TaskId("node-" + randomIntBetween(1, 3), randomIntBetween(1, 100));
             installedBans.computeIfAbsent(taskId, t -> new HashSet<>()).add(channel);
-            taskManager.setBan(taskId, "test", TestTransportChannels.newFakeTcpTransportChannel(
-                "node", channel, threadPool, "action", randomIntBetween(1, 10000), Version.CURRENT));
+            taskManager.setBan(
+                taskId,
+                "test",
+                TestTransportChannels.newFakeTcpTransportChannel(
+                    "node",
+                    channel,
+                    threadPool,
+                    "action",
+                    randomIntBetween(1, 10000),
+                    Version.CURRENT
+                )
+            );
         }
-        final Set<TaskId> expectedBannedTasks = installedBans.entrySet().stream()
+        final Set<TaskId> expectedBannedTasks = installedBans.entrySet()
+            .stream()
             .filter(e -> e.getValue().stream().anyMatch(CloseableChannel::isOpen))
             .map(Map.Entry::getKey)
             .collect(Collectors.toSet());

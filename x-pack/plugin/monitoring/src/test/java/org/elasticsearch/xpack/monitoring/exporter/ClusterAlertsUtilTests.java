@@ -116,8 +116,8 @@ public class ClusterAlertsUtilTests extends ESTestCase {
         );
 
         assertWarnings(
-            "[xpack.monitoring.exporters._random.cluster_alerts.management.blacklist] setting was deprecated in "
-                + "Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version."
+            "[xpack.monitoring.exporters._random.cluster_alerts.management.blacklist] setting was deprecated in Elasticsearch "
+                + "and will be removed in a future release! See the breaking changes documentation for the next major version."
         );
     }
 

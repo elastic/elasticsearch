@@ -14,10 +14,10 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -28,8 +28,8 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestClusterUpdateSettingsAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestClusterUpdateSettingsAction.class);
-    static final String TRANSIENT_SETTINGS_DEPRECATION_MESSAGE = "[transient settings removal]" +
-        " Updating cluster settings through transientSettings is deprecated. Use persistent settings instead.";
+    static final String TRANSIENT_SETTINGS_DEPRECATION_MESSAGE = "[transient settings removal]"
+        + " Updating cluster settings through transientSettings is deprecated. Use persistent settings instead.";
 
     private static final String PERSISTENT = "persistent";
     private static final String TRANSIENT = "transient";
@@ -50,7 +50,8 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
         final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = Requests.clusterUpdateSettingsRequest();
         clusterUpdateSettingsRequest.timeout(request.paramAsTime("timeout", clusterUpdateSettingsRequest.timeout()));
         clusterUpdateSettingsRequest.masterNodeTimeout(
-                request.paramAsTime("master_timeout", clusterUpdateSettingsRequest.masterNodeTimeout()));
+            request.paramAsTime("master_timeout", clusterUpdateSettingsRequest.masterNodeTimeout())
+        );
         Map<String, Object> source;
         try (XContentParser parser = request.contentParser()) {
             source = parser.map();

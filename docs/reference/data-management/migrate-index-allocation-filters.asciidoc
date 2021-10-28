@@ -23,9 +23,13 @@ indices to switch to node roles.
 [discrete]
 === Automatically migrate to node roles on {ess} or {ece}
 If you are using node attributes on {ess} or {ece}, you will be
-prompted to switch to node roles when you upgrade to version 7.10 through
-7.13, deploy a warm, cold, or frozen data tier, or enable
-autoscaling.  This action automatically updates your configuration
+prompted to switch to node roles when you:
+
+* Upgrade to {es} 7.10 or higher
+* Deploy a warm, cold, or frozen data tier
+* {cloud}/ec-autoscaling.html[Enable autoscaling]
+
+These actions automatically update your cluster configuration
 and {ilm-init} policies to use node roles. Additionally, upgrading to
 version 7.14 or higher will automatically update {ilm-init} policies
 when there is any new plan change applied to your deployment.

@@ -274,7 +274,9 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
 
         private final String modelId;
         private final long modelBytes;
+        // How many threads are used by the model during inference. Used to increase inference speed.
         private final int inferenceThreads;
+        // How many threads are used when forwarding the request to the model. Used to increase throughput.
         private final int modelThreads;
         private final int queueCapacity;
 

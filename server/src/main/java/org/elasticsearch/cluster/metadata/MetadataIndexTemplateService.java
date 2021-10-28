@@ -566,7 +566,7 @@ public class MetadataIndexTemplateService {
                 name
             );
             logger.warn(warning);
-            HeaderWarning.addWarning(DeprecationLogger.CRITICAL, warning);
+            HeaderWarning.addWarning(DeprecationLogger.DeprecationLevel.CRITICAL, "[CRITICAL] " + warning);
         }
 
         ComposableIndexTemplate finalIndexTemplate = template;
@@ -959,7 +959,7 @@ public class MetadataIndexTemplateService {
                     request.name
                 );
                 logger.warn(warning);
-                HeaderWarning.addWarning(DeprecationLogger.CRITICAL, warning);
+                HeaderWarning.addWarning(DeprecationLogger.DeprecationLevel.CRITICAL, "[CRITICAL] " + warning);
             } else {
                 // Otherwise, this is a hard error, the user should use V2 index templates instead
                 String error = String.format(

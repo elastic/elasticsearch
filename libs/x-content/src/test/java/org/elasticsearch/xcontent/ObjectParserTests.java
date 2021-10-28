@@ -233,7 +233,8 @@ public class ObjectParserTests extends ESTestCase {
         assertEquals("foo", s.test);
         assertWarnings(
             false,
-            new DeprecationWarning(DeprecationLogger.CRITICAL, "[foo][1:15] Deprecated field [old_test] used, " + "expected [test] instead")
+            new DeprecationWarning(DeprecationLogger.DeprecationLevel.CRITICAL, "[CRITICAL] [foo][1:15] Deprecated field [old_test] used," +
+                " expected [test] instead")
         );
     }
 
@@ -1168,8 +1169,8 @@ public class ObjectParserTests extends ESTestCase {
             assertWarnings(
                 false,
                 new DeprecationWarning(
-                    DeprecationLogger.CRITICAL,
-                    "[struct_with_compatible_fields][1:14] " + "Deprecated field [old_name] used, expected [new_name] instead"
+                    DeprecationLogger.DeprecationLevel.CRITICAL,
+                    "[CRITICAL] [struct_with_compatible_fields][1:14] " + "Deprecated field [old_name] used, expected [new_name] instead"
                 )
             );
 

@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.script;
 
-import org.apache.logging.log4j.Level;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.elasticsearch.cluster.ClusterName;
@@ -36,6 +35,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.logging.DeprecationLogger.DeprecationLevel.WARNING;
 import static org.elasticsearch.script.ScriptService.SCRIPT_CACHE_EXPIRE_SETTING;
 import static org.elasticsearch.script.ScriptService.SCRIPT_CACHE_SIZE_SETTING;
 import static org.elasticsearch.script.ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING;
@@ -269,7 +269,7 @@ public class ScriptServiceTests extends ESTestCase {
         scriptService.compile(script, context);
         scriptService.compile(script, context);
         assertEquals(1L, scriptService.stats().getCompilations());
-        assertWarnings(true, new DeprecationWarning(Level.WARN, USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE));
+        assertWarnings(true, new DeprecationWarning(WARNING, USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE));
     }
 
     public void testGeneralCompilationStatsOnCacheHit() throws IOException {
@@ -297,7 +297,7 @@ public class ScriptServiceTests extends ESTestCase {
         scriptService.compile(new Script(ScriptType.STORED, null, "script", Collections.emptyMap()), ctx);
         assertEquals(1L, scriptService.stats().getCompilations());
         assertEquals(1L, scriptService.cacheStats().getContextStats().get(ctx.name).getCompilations());
-        assertWarnings(true, new DeprecationWarning(Level.WARN, USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE));
+        assertWarnings(true, new DeprecationWarning(WARNING, USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE));
     }
 
     public void testCacheEvictionCountedInCacheEvictionsStats() throws IOException {
@@ -315,7 +315,7 @@ public class ScriptServiceTests extends ESTestCase {
         assertEquals(1L, scriptService.stats().getCacheEvictions());
         assertSettingDeprecationsAndWarnings(
             new Setting<?>[] { contextCacheSizeSetting },
-            new DeprecationWarning(Level.WARN, USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE)
+            new DeprecationWarning(WARNING, USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE)
         );
     }
 
@@ -401,7 +401,7 @@ public class ScriptServiceTests extends ESTestCase {
 
         assertSettingDeprecationsAndWarnings(
             new Setting<?>[] { cacheSizeA, compilationRateA, cacheSizeB, compilationRateB },
-            new DeprecationWarning(Level.WARN, USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE)
+            new DeprecationWarning(WARNING, USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE)
         );
     }
 
@@ -556,7 +556,7 @@ public class ScriptServiceTests extends ESTestCase {
         );
         assertSettingDeprecationsAndWarnings(
             new Setting<?>[] { ingestExpire, fieldSize, scoreCompilation },
-            new DeprecationWarning(Level.WARN, USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE)
+            new DeprecationWarning(WARNING, USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE)
         );
     }
 
@@ -639,7 +639,7 @@ public class ScriptServiceTests extends ESTestCase {
         assertEquals(new ScriptCache.CompilationRate(bCompilationRate), scriptService.cacheHolder.get().contextCache.get(b).get().rate);
         assertSettingDeprecationsAndWarnings(
             new Setting<?>[] { aSetting, bSetting },
-            new DeprecationWarning(Level.WARN, USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE)
+            new DeprecationWarning(WARNING, USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE)
         );
     }
 
@@ -665,7 +665,7 @@ public class ScriptServiceTests extends ESTestCase {
         );
         assertSettingDeprecationsAndWarnings(
             new Setting<?>[] { field, ingest },
-            new DeprecationWarning(Level.WARN, USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE)
+            new DeprecationWarning(WARNING, USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE)
         );
     }
 
@@ -703,7 +703,7 @@ public class ScriptServiceTests extends ESTestCase {
             new Setting<?>[] {
                 SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace("field"),
                 SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace("ingest") },
-            new DeprecationWarning(Level.WARN, USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE)
+            new DeprecationWarning(WARNING, USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE)
         );
     }
 
@@ -827,7 +827,7 @@ public class ScriptServiceTests extends ESTestCase {
 
         assertSettingDeprecationsAndWarnings(
             new Setting<?>[] { cacheSizeContextSetting, cacheExpireContextSetting, compilationRateContextSetting },
-            new DeprecationWarning(Level.WARN, USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE)
+            new DeprecationWarning(WARNING, USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE)
         );
     }
 

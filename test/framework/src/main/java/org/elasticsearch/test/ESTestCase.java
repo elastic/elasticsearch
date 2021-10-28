@@ -493,7 +493,8 @@ public abstract class ESTestCase extends LuceneTestCase {
                 setting.getKey()
             );
             return new DeprecationWarning(
-                setting.getProperties().contains(Setting.Property.Deprecated) ? DeprecationLogger.CRITICAL : Level.WARN,
+                setting.getProperties().contains(Setting.Property.Deprecated) ? DeprecationLogger.DeprecationLevel.CRITICAL :
+                    DeprecationLogger.DeprecationLevel.WARNING,
                 warningMessage
             );
         }), Arrays.stream(warnings)).toArray(DeprecationWarning[]::new));
@@ -508,7 +509,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         assertWarnings(
             true,
             Arrays.stream(expectedWarnings)
-                .map(expectedWarning -> new DeprecationWarning(DeprecationLogger.CRITICAL, expectedWarning))
+                .map(expectedWarning -> new DeprecationWarning(DeprecationLogger.DeprecationLevel.CRITICAL, expectedWarning))
                 .toArray(DeprecationWarning[]::new)
         );
     }
@@ -524,21 +525,26 @@ public abstract class ESTestCase extends LuceneTestCase {
             } else {
                 assertNotNull("no warnings, expected: " + Arrays.asList(expectedWarnings), actualWarningStrings);
                 final Set<DeprecationWarning> actualDeprecationWarnings = actualWarningStrings.stream().map(warningString -> {
-                    String warningText = HeaderWarning.extractWarningValueFromWarningHeader(warningString, stripXContentPosition);
-                    final Level level;
-                    if (warningString.startsWith(Integer.toString(DeprecationLogger.CRITICAL.intLevel()))) {
-                        level = DeprecationLogger.CRITICAL;
-                    } else if (warningString.startsWith(Integer.toString(Level.WARN.intLevel()))) {
-                        level = Level.WARN;
+                    String warningTextWithLevel = HeaderWarning.extractWarningValueFromWarningHeader(warningString, false);
+                    final DeprecationLogger.DeprecationLevel level;
+                    if (warningTextWithLevel.startsWith("[" + DeprecationLogger.DeprecationLevel.CRITICAL.toString())) {
+                        level = DeprecationLogger.DeprecationLevel.CRITICAL;
+                    } else if (warningTextWithLevel.startsWith("[" + DeprecationLogger.DeprecationLevel.WARNING.toString())) {
+                        level = DeprecationLogger.DeprecationLevel.WARNING;
                     } else {
                         throw new IllegalArgumentException("Unknown level in deprecation message " + warningString);
+                    }
+                    String warningText = HeaderWarning.extractWarningValueFromWarningHeader(warningString, stripXContentPosition);
+                    if (warningText.equals(warningTextWithLevel) == false) {
+                        warningText = "[" + level + "] " + warningText;
                     }
                     return new DeprecationWarning(level, warningText);
                 }).collect(Collectors.toSet());
                 for (DeprecationWarning expectedWarning : expectedWarnings) {
+                    String warningPrefix = "[" + expectedWarning.level + "] ";
                     DeprecationWarning escapedExpectedWarning = new DeprecationWarning(
                         expectedWarning.level,
-                        HeaderWarning.escapeAndEncode(expectedWarning.message)
+                        warningPrefix + HeaderWarning.escapeAndEncode(expectedWarning.message)
                     );
                     assertThat(actualDeprecationWarnings, hasItem(escapedExpectedWarning));
                 }
@@ -1670,10 +1676,10 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static final class DeprecationWarning {
-        private final Level level;
+        private final DeprecationLogger.DeprecationLevel level;
         private final String message;
 
-        public DeprecationWarning(Level level, String message) {
+        public DeprecationWarning(DeprecationLogger.DeprecationLevel level, String message) {
             this.level = level;
             this.message = message;
         }
@@ -1693,7 +1699,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
         @Override
         public String toString() {
-            return String.format(Locale.ROOT, "%s (%s): %s", level.name(), level.intLevel(), message);
+            return String.format(Locale.ROOT, "%s: %s", level.name(), message);
         }
     }
 }

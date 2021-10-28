@@ -85,7 +85,7 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             transportService.getRemoteClusterService(),
             DiscoveryNode.isRemoteClusterClient(settings)
                 /* transforms are BASIC so always allowed, no need to check license */
-                ? new RemoteClusterLicenseChecker(client, mode -> true)
+                ? new RemoteClusterLicenseChecker(client, null)
                 : null,
             ingestService,
             clusterService.getNodeName(),

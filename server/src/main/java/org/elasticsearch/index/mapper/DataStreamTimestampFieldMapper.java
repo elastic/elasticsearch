@@ -213,7 +213,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         }
 
         IndexMode mode = context.indexSettings().getMode();
-        if (mode == IndexMode.TIME_SERIES) {
+        if (mode != null && mode == IndexMode.TIME_SERIES) {
             long timestamp = fields[0].numericValue().longValue();
             context.indexSettings().getMode().validateTimestampRange(context, timestamp);
         }

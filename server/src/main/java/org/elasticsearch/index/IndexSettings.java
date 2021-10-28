@@ -715,8 +715,12 @@ public final class IndexSettings {
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         mode = isTimeSeriesModeEnabled() ? scopedSettings.get(MODE) : IndexMode.STANDARD;
-        timeSeriesStartTime = mode == IndexMode.TIME_SERIES ? TIME_SERIES_START_TIME.get(settings).toEpochMilli() : -1L;
-        timeSeriesEndTime = mode == IndexMode.TIME_SERIES ? TIME_SERIES_END_TIME.get(settings).toEpochMilli() : -1L;
+        timeSeriesStartTime = mode == IndexMode.TIME_SERIES
+            ? TIME_SERIES_START_TIME.get(settings).toEpochMilli()
+            : Instant.ofEpochMilli(0).toEpochMilli();
+        timeSeriesEndTime = mode == IndexMode.TIME_SERIES
+            ? TIME_SERIES_END_TIME.get(settings).toEpochMilli()
+            : DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli();
 
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);

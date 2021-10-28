@@ -71,7 +71,8 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
         Script script,
         Map<String, String> meta
     ) {
-        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta);
+        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
+            script, scriptFactory.isResultDeterministic(), meta);
     }
 
     @Override
@@ -100,7 +101,7 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
 
     @Override
     public Query existsQuery(SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return new DoubleScriptFieldExistsQuery(script, leafFactory(context), name());
     }
 
@@ -114,7 +115,7 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
         DateMathParser parser,
         SearchExecutionContext context
     ) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return NumberType.doubleRangeQuery(
             lowerTerm,
             upperTerm,
@@ -126,7 +127,7 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
 
     @Override
     public Query termQuery(Object value, SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return new DoubleScriptFieldTermQuery(script, leafFactory(context), name(), NumberType.objectToDouble(value));
     }
 
@@ -139,7 +140,7 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
         for (Object value : values) {
             terms.add(Double.doubleToLongBits(NumberType.objectToDouble(value)));
         }
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return new DoubleScriptFieldTermsQuery(script, leafFactory(context), name(), terms);
     }
 }

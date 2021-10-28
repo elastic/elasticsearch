@@ -45,6 +45,11 @@ public class BooleanFieldScriptTests extends FieldScriptTestCase<BooleanFieldScr
         return DUMMY;
     }
 
+    @Override
+    protected BooleanFieldScript.Factory fromSource() {
+        return BooleanFieldScript.PARSE_FROM_SOURCE;
+    }
+
     public void testTooManyValues() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{}"))));

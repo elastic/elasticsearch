@@ -86,9 +86,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Matchers.same;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -543,10 +543,8 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
         for (int i = 0; i < nodeCount; i++) {
             Map<String, String> attrs = Map.of(MachineLearning.MACHINE_MEMORY_NODE_ATTR, "1000000000");
-            Set<DiscoveryNodeRole> roles = new HashSet<>();
-            roles.add(DiscoveryNodeRole.DATA_ROLE);
-            roles.add(DiscoveryNodeRole.MASTER_ROLE);
-            roles.add(DiscoveryNodeRole.INGEST_ROLE);
+            Set<DiscoveryNodeRole> roles = Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE,
+                DiscoveryNodeRole.INGEST_ROLE, DiscoveryNodeRole.ML_ROLE);
             nodesBuilder.add(new DiscoveryNode("ml-feature-set-given-ml-node-" + i,
                 new TransportAddress(TransportAddress.META_ADDRESS, 9100 + i),
                 attrs,
@@ -686,7 +684,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             IntStream.range(0, pipelineNames.size()).boxed().collect(Collectors.toMap(pipelineNames::get, processorStats::get)));
         return new NodeStats(mock(DiscoveryNode.class),
             Instant.now().toEpochMilli(), null, null, null, null, null, null, null, null,
-            null, null, null, ingestStats, null, null);
+            null, null, null, ingestStats, null, null, null);
 
     }
 

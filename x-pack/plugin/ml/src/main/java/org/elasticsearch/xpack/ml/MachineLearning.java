@@ -412,7 +412,6 @@ import org.elasticsearch.xpack.ml.rest.validate.RestValidateJobConfigAction;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -467,6 +466,11 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     public static final LicensedFeature.Persistent ML_MODEL_INFERENCE_FEATURE = LicensedFeature.persistent(
         MachineLearningField.ML_FEATURE_FAMILY,
         "model-inference",
+        License.OperationMode.PLATINUM
+    );
+    public static final LicensedFeature.Persistent ML_PYTORCH_MODEL_INFERENCE_FEATURE = LicensedFeature.persistent(
+        MachineLearningField.ML_FEATURE_FAMILY,
+        "pytorch-model-inference",
         License.OperationMode.PLATINUM
     );
 
@@ -611,7 +615,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     private final SetOnce<DeploymentManager> deploymentManager = new SetOnce<>();
     private final SetOnce<TrainedModelAllocationClusterService> trainedModelAllocationClusterServiceSetOnce = new SetOnce<>();
 
-    public MachineLearning(Settings settings, Path configPath) {
+    public MachineLearning(Settings settings) {
         this.settings = settings;
         this.enabled = XPackSettings.MACHINE_LEARNING_ENABLED.get(settings);
     }
@@ -619,12 +623,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
 
     public static boolean isMlNode(DiscoveryNode node) {
-        Map<String, String> nodeAttributes = node.getAttributes();
-        try {
-            return Long.parseLong(nodeAttributes.get(MACHINE_MEMORY_NODE_ATTR)) > 0;
-        } catch (NumberFormatException e) {
-            return false;
-        }
+        logger.info("DMR node roles are " + node.getRoles());
+        return node.getRoles().contains(DiscoveryNodeRole.ML_ROLE);
     }
 
     public List<Setting<?>> getSettings() {
@@ -892,7 +892,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 clusterService, datafeedRunner, mlController, autodetectProcessManager, dataFrameAnalyticsManager, memoryTracker);
         this.mlLifeCycleService.set(mlLifeCycleService);
         MlAssignmentNotifier mlAssignmentNotifier = new MlAssignmentNotifier(anomalyDetectionAuditor, dataFrameAnalyticsAuditor, threadPool,
-            new MlConfigMigrator(settings, client, clusterService, indexNameExpressionResolver), clusterService);
+            clusterService);
 
         MlAutoUpdateService mlAutoUpdateService = new MlAutoUpdateService(threadPool,
             List.of(new DatafeedConfigAutoUpdater(datafeedConfigProvider, indexNameExpressionResolver)));

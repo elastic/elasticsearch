@@ -81,6 +81,8 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.indices.recovery.plan.SourceOnlyRecoveryPlannerService;
+import org.elasticsearch.plugins.RecoveryPlannerPlugin;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -118,7 +120,6 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
-import org.elasticsearch.indices.recovery.plan.SnapshotsRecoveryPlannerService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.MonitorService;
@@ -699,6 +700,8 @@ public class Node implements Closeable {
             final PluginShutdownService pluginShutdownService = new PluginShutdownService(shutdownAwarePlugins);
             clusterService.addListener(pluginShutdownService);
 
+            final RecoveryPlannerService recoveryPlannerService = getRecoveryPlannerService(threadPool, clusterService, repositoryService);
+
             modules.add(b -> {
                     b.bind(Node.class).toInstance(this);
                     b.bind(NodeService.class).toInstance(nodeService);
@@ -743,12 +746,6 @@ public class Node implements Closeable {
                     b.bind(Coordinator.class).toInstance(discoveryModule.getCoordinator());
                     {
                         processRecoverySettings(settingsModule.getClusterSettings(), recoverySettings);
-                        final ShardSnapshotsService shardSnapshotsService = new ShardSnapshotsService(client,
-                            repositoryService,
-                            threadPool,
-                            clusterService
-                        );
-                        final RecoveryPlannerService recoveryPlannerService = new SnapshotsRecoveryPlannerService(shardSnapshotsService);
                         final SnapshotFilesProvider snapshotFilesProvider =
                             new SnapshotFilesProvider(repositoryService);
                         b.bind(PeerRecoverySourceService.class).toInstance(new PeerRecoverySourceService(transportService,
@@ -821,6 +818,27 @@ public class Node implements Closeable {
                 IOUtils.closeWhileHandlingException(resourcesToClose);
             }
         }
+    }
+
+    private RecoveryPlannerService getRecoveryPlannerService(ThreadPool threadPool,
+                                                             ClusterService clusterService,
+                                                             RepositoriesService repositoryService) {
+        final List<RecoveryPlannerPlugin> recoveryPlannerPlugins = pluginsService.filterPlugins(RecoveryPlannerPlugin.class);
+        if (recoveryPlannerPlugins.isEmpty()) {
+            return new SourceOnlyRecoveryPlannerService();
+        }
+
+        if (recoveryPlannerPlugins.size() > 1) {
+            throw new IllegalStateException("A single RecoveryPlannerPlugin was expected but got: " + recoveryPlannerPlugins);
+        }
+
+        final ShardSnapshotsService shardSnapshotsService = new ShardSnapshotsService(client,
+            repositoryService,
+            threadPool,
+            clusterService
+        );
+        final RecoveryPlannerPlugin recoveryPlannerPlugin = recoveryPlannerPlugins.get(0);
+        return recoveryPlannerPlugin.createRecoveryPlannerService(shardSnapshotsService);
     }
 
 

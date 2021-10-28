@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.process;
 
 import com.carrotsearch.randomizedtesting.annotations.Timeout;
+
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -50,16 +51,16 @@ import static org.mockito.Mockito.when;
 public class IndexingStateProcessorTests extends ESTestCase {
 
     private static final String STATE_SAMPLE = ""
-            + "        \n"
-            + "{\"index\": {\"_index\": \"test\", \"_id\": \"1\"}}\n"
-            + "{ \"field\" : \"value1\" }\n"
-            + "\0"
-            + "{\"index\": {\"_index\": \"test\", \"_id\": \"2\"}}\n"
-            + "{ \"field\" : \"value2\" }\n"
-            + "\0"
-            + "{\"index\": {\"_index\": \"test\", \"_id\": \"3\"}}\n"
-            + "{ \"field\" : \"value3\" }\n"
-            + "\0";
+        + "        \n"
+        + "{\"index\": {\"_index\": \"test\", \"_id\": \"1\"}}\n"
+        + "{ \"field\" : \"value1\" }\n"
+        + "\0"
+        + "{\"index\": {\"_index\": \"test\", \"_id\": \"2\"}}\n"
+        + "{ \"field\" : \"value2\" }\n"
+        + "\0"
+        + "{\"index\": {\"_index\": \"test\", \"_id\": \"3\"}}\n"
+        + "{ \"field\" : \"value3\" }\n"
+        + "\0";
 
     private static final String JOB_ID = "state-processor-test-job";
 
@@ -121,8 +122,9 @@ public class IndexingStateProcessorTests extends ESTestCase {
 
     public void testStateRead_StateDocumentUpdated() throws IOException {
         testStateRead(
-            new SearchHits(new SearchHit[]{ SearchHit.createFromMap(Map.of("_index", ".ml-state-dummy")) }, null, 0.0f),
-            ".ml-state-dummy");
+            new SearchHits(new SearchHit[] { SearchHit.createFromMap(Map.of("_index", ".ml-state-dummy")) }, null, 0.0f),
+            ".ml-state-dummy"
+        );
     }
 
     public void testStateReadGivenConsecutiveZeroBytes() throws IOException {

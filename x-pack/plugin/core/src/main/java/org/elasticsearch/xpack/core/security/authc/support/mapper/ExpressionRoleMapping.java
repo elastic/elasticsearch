@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.security.authc.support.mapper;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -15,14 +14,15 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionParser;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.RoleMapperExpression;
@@ -64,8 +64,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
         PARSER.declareField(Builder::rules, ExpressionParser::parseObject, Fields.RULES, ValueType.OBJECT);
         PARSER.declareField(Builder::metadata, XContentParser::map, Fields.METADATA, ValueType.OBJECT);
         PARSER.declareBoolean(Builder::enabled, Fields.ENABLED);
-        BiConsumer<Builder, String> ignored = (b, v) -> {
-        };
+        BiConsumer<Builder, String> ignored = (b, v) -> {};
         // skip the doc_type and type fields in case we're parsing directly from the index
         PARSER.declareString(ignored, new ParseField(NativeRoleMappingStoreField.DOC_TYPE_FIELD));
         PARSER.declareString(ignored, new ParseField(UPGRADE_API_TYPE_FIELD));
@@ -74,12 +73,18 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
     private final String name;
     private final RoleMapperExpression expression;
     private final List<String> roles;
-    private final List<TemplateRoleName> roleTemplates ;
+    private final List<TemplateRoleName> roleTemplates;
     private final Map<String, Object> metadata;
     private final boolean enabled;
 
-    public ExpressionRoleMapping(String name, RoleMapperExpression expr, List<String> roles, List<TemplateRoleName> templates,
-                                 Map<String, Object> metadata, boolean enabled) {
+    public ExpressionRoleMapping(
+        String name,
+        RoleMapperExpression expr,
+        List<String> roles,
+        List<TemplateRoleName> templates,
+        Map<String, Object> metadata,
+        boolean enabled
+    ) {
         this.name = name;
         this.expression = expr;
         this.roles = roles == null ? Collections.emptyList() : roles;
@@ -169,7 +174,6 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
         return getClass().getSimpleName() + "<" + name + " ; " + roles + "/" + roleTemplates + " = " + Strings.toString(expression) + ">";
     }
 
-
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -179,12 +183,12 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
             return false;
         }
         final ExpressionRoleMapping that = (ExpressionRoleMapping) o;
-        return this.enabled == that.enabled &&
-            Objects.equals(this.name, that.name) &&
-            Objects.equals(this.expression, that.expression) &&
-            Objects.equals(this.roles, that.roles) &&
-            Objects.equals(this.roleTemplates, that.roleTemplates) &&
-            Objects.equals(this.metadata, that.metadata);
+        return this.enabled == that.enabled
+            && Objects.equals(this.name, that.name)
+            && Objects.equals(this.expression, that.expression)
+            && Objects.equals(this.roles, that.roles)
+            && Objects.equals(this.roleTemplates, that.roleTemplates)
+            && Objects.equals(this.metadata, that.metadata);
     }
 
     @Override
@@ -197,9 +201,10 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
      */
     public static ExpressionRoleMapping parse(String name, BytesReference source, XContentType xContentType) throws IOException {
         final NamedXContentRegistry registry = NamedXContentRegistry.EMPTY;
-        try (InputStream stream = source.streamInput();
-             XContentParser parser = xContentType.xContent()
-                .createParser(registry, LoggingDeprecationHandler.INSTANCE, stream)) {
+        try (
+            InputStream stream = source.streamInput();
+            XContentParser parser = xContentType.xContent().createParser(registry, LoggingDeprecationHandler.INSTANCE, stream)
+        ) {
             return parse(name, parser);
         }
     }
@@ -254,10 +259,8 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
     }
 
     public Set<String> getRoleNames(ScriptService scriptService, ExpressionModel model) {
-        return Stream.concat(this.roles.stream(),
-            this.roleTemplates.stream()
-                .flatMap(r -> r.getRoleNames(scriptService, model).stream())
-        ).collect(Collectors.toSet());
+        return Stream.concat(this.roles.stream(), this.roleTemplates.stream().flatMap(r -> r.getRoleNames(scriptService, model).stream()))
+            .collect(Collectors.toSet());
     }
 
     /**

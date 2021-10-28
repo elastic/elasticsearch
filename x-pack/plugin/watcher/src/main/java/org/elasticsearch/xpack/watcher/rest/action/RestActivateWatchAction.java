@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.watcher.rest.action;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchRequest;
@@ -36,9 +36,11 @@ public class RestActivateWatchAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             Route.builder(POST, "/_watcher/watch/{id}/_activate")
-                .replaces(POST, "/_xpack/watcher/watch/{id}/_activate", RestApiVersion.V_7).build(),
+                .replaces(POST, "/_xpack/watcher/watch/{id}/_activate", RestApiVersion.V_7)
+                .build(),
             Route.builder(PUT, "/_watcher/watch/{id}/_activate")
-                .replaces(PUT, "/_xpack/watcher/watch/{id}/_activate", RestApiVersion.V_7).build()
+                .replaces(PUT, "/_xpack/watcher/watch/{id}/_activate", RestApiVersion.V_7)
+                .build()
         );
     }
 
@@ -50,16 +52,21 @@ public class RestActivateWatchAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         String watchId = request.param("id");
-        return channel ->
-                client.execute(ActivateWatchAction.INSTANCE, new ActivateWatchRequest(watchId, true),
-                    new RestBuilderListener<ActivateWatchResponse>(channel) {
-                        @Override
-                        public RestResponse buildResponse(ActivateWatchResponse response, XContentBuilder builder) throws Exception {
-                            return new BytesRestResponse(RestStatus.OK, builder.startObject()
-                                    .field(WatchField.STATUS.getPreferredName(), response.getStatus(), WatcherParams.HIDE_SECRETS)
-                                    .endObject());
-                        }
-                    });
+        return channel -> client.execute(
+            ActivateWatchAction.INSTANCE,
+            new ActivateWatchRequest(watchId, true),
+            new RestBuilderListener<ActivateWatchResponse>(channel) {
+                @Override
+                public RestResponse buildResponse(ActivateWatchResponse response, XContentBuilder builder) throws Exception {
+                    return new BytesRestResponse(
+                        RestStatus.OK,
+                        builder.startObject()
+                            .field(WatchField.STATUS.getPreferredName(), response.getStatus(), WatcherParams.HIDE_SECRETS)
+                            .endObject()
+                    );
+                }
+            }
+        );
     }
 
     public static class DeactivateRestHandler extends BaseRestHandler {
@@ -68,9 +75,11 @@ public class RestActivateWatchAction extends BaseRestHandler {
         public List<Route> routes() {
             return List.of(
                 Route.builder(POST, "/_watcher/watch/{id}/_deactivate")
-                    .replaces(POST, "/_xpack/watcher/watch/{id}/_deactivate", RestApiVersion.V_7).build(),
+                    .replaces(POST, "/_xpack/watcher/watch/{id}/_deactivate", RestApiVersion.V_7)
+                    .build(),
                 Route.builder(PUT, "/_watcher/watch/{id}/_deactivate")
-                    .replaces(PUT, "/_xpack/watcher/watch/{id}/_deactivate", RestApiVersion.V_7).build()
+                    .replaces(PUT, "/_xpack/watcher/watch/{id}/_deactivate", RestApiVersion.V_7)
+                    .build()
             );
         }
 
@@ -82,16 +91,21 @@ public class RestActivateWatchAction extends BaseRestHandler {
         @Override
         public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
             String watchId = request.param("id");
-            return channel ->
-                    client.execute(ActivateWatchAction.INSTANCE, new ActivateWatchRequest(watchId, false),
-                        new RestBuilderListener<ActivateWatchResponse>(channel) {
-                            @Override
-                            public RestResponse buildResponse(ActivateWatchResponse response, XContentBuilder builder) throws Exception {
-                                return new BytesRestResponse(RestStatus.OK, builder.startObject()
-                                        .field(WatchField.STATUS.getPreferredName(), response.getStatus(), WatcherParams.HIDE_SECRETS)
-                                        .endObject());
-                            }
-                        });
+            return channel -> client.execute(
+                ActivateWatchAction.INSTANCE,
+                new ActivateWatchRequest(watchId, false),
+                new RestBuilderListener<ActivateWatchResponse>(channel) {
+                    @Override
+                    public RestResponse buildResponse(ActivateWatchResponse response, XContentBuilder builder) throws Exception {
+                        return new BytesRestResponse(
+                            RestStatus.OK,
+                            builder.startObject()
+                                .field(WatchField.STATUS.getPreferredName(), response.getStatus(), WatcherParams.HIDE_SECRETS)
+                                .endObject()
+                        );
+                    }
+                }
+            );
         }
     }
 

@@ -14,8 +14,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.watcher.WatcherRestTestCase;
 import org.junit.Before;
 
@@ -23,8 +23,8 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
@@ -47,7 +47,7 @@ public class SmokeTestWatcherWithSecurityIT extends WatcherRestTestCase {
         createAllowedDoc.addParameter("refresh", "true");
         adminClient().performRequest(createAllowedDoc);
 
-         // create one document in this index, so we can test that the index cannot be accessed
+        // create one document in this index, so we can test that the index cannot be accessed
         Request createNotAllowedDoc = new Request("PUT", "/index_not_allowed_to_read/_doc/1");
         createNotAllowedDoc.setJsonEntity("{\"foo\":\"bar\"}");
         adminClient().performRequest(createNotAllowedDoc);
@@ -56,32 +56,48 @@ public class SmokeTestWatcherWithSecurityIT extends WatcherRestTestCase {
     @Override
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue("watcher_manager", new SecureString("x-pack-test-password".toCharArray()));
-        return Settings.builder()
-                .put(ThreadContext.PREFIX + ".Authorization", token)
-                .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     @Override
     protected Settings restAdminSettings() {
         String token = basicAuthHeaderValue(TEST_ADMIN_USERNAME, new SecureString(TEST_ADMIN_PASSWORD.toCharArray()));
-        return Settings.builder()
-                .put(ThreadContext.PREFIX + ".Authorization", token)
-                .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
-
 
     public void testSearchInputHasPermissions() throws Exception {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
             builder.startObject("trigger").startObject("schedule").field("interval", "1s").endObject().endObject();
-            builder.startObject("input").startObject("search").startObject("request")
-                    .startArray("indices").value("my_test_index").endArray()
-                    .startObject("body").startObject("query").startObject("match_all").endObject().endObject().endObject()
-                    .endObject().endObject().endObject();
-            builder.startObject("condition").startObject("compare").startObject("ctx.payload.hits.total").field("gte", 1)
-                    .endObject().endObject().endObject();
-            builder.startObject("actions").startObject("logging").startObject("logging")
-                    .field("text", "successfully ran " + watchId + "to test for search input").endObject().endObject().endObject();
+            builder.startObject("input")
+                .startObject("search")
+                .startObject("request")
+                .startArray("indices")
+                .value("my_test_index")
+                .endArray()
+                .startObject("body")
+                .startObject("query")
+                .startObject("match_all")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
+            builder.startObject("condition")
+                .startObject("compare")
+                .startObject("ctx.payload.hits.total")
+                .field("gte", 1)
+                .endObject()
+                .endObject()
+                .endObject();
+            builder.startObject("actions")
+                .startObject("logging")
+                .startObject("logging")
+                .field("text", "successfully ran " + watchId + "to test for search input")
+                .endObject()
+                .endObject()
+                .endObject();
             builder.endObject();
 
             indexWatch(watchId, builder);
@@ -98,14 +114,35 @@ public class SmokeTestWatcherWithSecurityIT extends WatcherRestTestCase {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
             builder.startObject("trigger").startObject("schedule").field("interval", "4s").endObject().endObject();
-            builder.startObject("input").startObject("search").startObject("request")
-                    .startArray("indices").value(indexName).endArray()
-                    .startObject("body").startObject("query").startObject("match_all").endObject().endObject().endObject()
-                    .endObject().endObject().endObject();
-            builder.startObject("condition").startObject("compare").startObject("ctx.payload.hits.total").field("gte", 1)
-                    .endObject().endObject().endObject();
-            builder.startObject("actions").startObject("logging").startObject("logging")
-                    .field("text", "this should never be logged").endObject().endObject().endObject();
+            builder.startObject("input")
+                .startObject("search")
+                .startObject("request")
+                .startArray("indices")
+                .value(indexName)
+                .endArray()
+                .startObject("body")
+                .startObject("query")
+                .startObject("match_all")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
+            builder.startObject("condition")
+                .startObject("compare")
+                .startObject("ctx.payload.hits.total")
+                .field("gte", 1)
+                .endObject()
+                .endObject()
+                .endObject();
+            builder.startObject("actions")
+                .startObject("logging")
+                .startObject("logging")
+                .field("text", "this should never be logged")
+                .endObject()
+                .endObject()
+                .endObject();
             builder.endObject();
 
             indexWatch(watchId, builder);
@@ -122,14 +159,29 @@ public class SmokeTestWatcherWithSecurityIT extends WatcherRestTestCase {
             builder.startObject();
             builder.startObject("trigger").startObject("schedule").field("interval", "1s").endObject().endObject();
             builder.startObject("input").startObject("simple").field("foo", "bar").endObject().endObject();
-            builder.startObject("transform").startObject("search").startObject("request")
-                    .startArray("indices").value("my_test_index").endArray()
-                    .startObject("body").startObject("query").startObject("match_all").endObject().endObject().endObject()
-                    .endObject().endObject().endObject();
-            builder.startObject("actions").startObject("index").startObject("index")
-                    .field("index", "my_test_index")
-                    .field("doc_id", "my-id")
-                    .endObject().endObject().endObject();
+            builder.startObject("transform")
+                .startObject("search")
+                .startObject("request")
+                .startArray("indices")
+                .value("my_test_index")
+                .endArray()
+                .startObject("body")
+                .startObject("query")
+                .startObject("match_all")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
+            builder.startObject("actions")
+                .startObject("index")
+                .startObject("index")
+                .field("index", "my_test_index")
+                .field("doc_id", "my-id")
+                .endObject()
+                .endObject()
+                .endObject();
             builder.endObject();
 
             indexWatch(watchId, builder);
@@ -150,16 +202,36 @@ public class SmokeTestWatcherWithSecurityIT extends WatcherRestTestCase {
             builder.startObject();
             builder.startObject("trigger").startObject("schedule").field("interval", "1s").endObject().endObject();
             builder.startObject("input").startObject("simple").field("foo", "bar").endObject().endObject();
-            builder.startObject("transform").startObject("search").startObject("request")
-                    .startArray("indices").value("index_not_allowed_to_read").endArray()
-                    .startObject("body").startObject("query").startObject("match_all").endObject().endObject().endObject()
-                    .endObject().endObject().endObject();
-            builder.startObject("condition").startObject("compare").startObject("ctx.payload.hits.total").field("gte", 1)
-                    .endObject().endObject().endObject();
-            builder.startObject("actions").startObject("index").startObject("index")
-                    .field("index", "my_test_index")
-                    .field("doc_id", "some-id")
-                    .endObject().endObject().endObject();
+            builder.startObject("transform")
+                .startObject("search")
+                .startObject("request")
+                .startArray("indices")
+                .value("index_not_allowed_to_read")
+                .endArray()
+                .startObject("body")
+                .startObject("query")
+                .startObject("match_all")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
+            builder.startObject("condition")
+                .startObject("compare")
+                .startObject("ctx.payload.hits.total")
+                .field("gte", 1)
+                .endObject()
+                .endObject()
+                .endObject();
+            builder.startObject("actions")
+                .startObject("index")
+                .startObject("index")
+                .field("index", "my_test_index")
+                .field("doc_id", "some-id")
+                .endObject()
+                .endObject()
+                .endObject();
             builder.endObject();
 
             indexWatch(watchId, builder);
@@ -176,10 +248,14 @@ public class SmokeTestWatcherWithSecurityIT extends WatcherRestTestCase {
             builder.startObject();
             builder.startObject("trigger").startObject("schedule").field("interval", "1s").endObject().endObject();
             builder.startObject("input").startObject("simple").field("spam", "eggs").endObject().endObject();
-            builder.startObject("actions").startObject("index").startObject("index")
-                    .field("index", "my_test_index")
-                    .field("doc_id", "my-id")
-                    .endObject().endObject().endObject();
+            builder.startObject("actions")
+                .startObject("index")
+                .startObject("index")
+                .field("index", "my_test_index")
+                .field("doc_id", "my-id")
+                .endObject()
+                .endObject()
+                .endObject();
             builder.endObject();
 
             indexWatch(watchId, builder);
@@ -199,10 +275,14 @@ public class SmokeTestWatcherWithSecurityIT extends WatcherRestTestCase {
             builder.startObject();
             builder.startObject("trigger").startObject("schedule").field("interval", "1s").endObject().endObject();
             builder.startObject("input").startObject("simple").field("spam", "eggs").endObject().endObject();
-            builder.startObject("actions").startObject("index").startObject("index")
-                    .field("index", "index_not_allowed_to_read")
-                    .field("doc_id", "my-id")
-                    .endObject().endObject().endObject();
+            builder.startObject("actions")
+                .startObject("index")
+                .startObject("index")
+                .field("index", "index_not_allowed_to_read")
+                .field("doc_id", "my-id")
+                .endObject()
+                .endObject()
+                .endObject();
             builder.endObject();
 
             indexWatch(watchId, builder);
@@ -239,15 +319,30 @@ public class SmokeTestWatcherWithSecurityIT extends WatcherRestTestCase {
                 try (XContentBuilder builder = jsonBuilder()) {
                     builder.startObject();
                     builder.startObject("query").startObject("bool").startArray("must");
-                    builder.startObject().startObject("term").startObject("watch_id").field("value", watchId).endObject().endObject()
+                    builder.startObject()
+                        .startObject("term")
+                        .startObject("watch_id")
+                        .field("value", watchId)
+                        .endObject()
+                        .endObject()
                         .endObject();
                     if (Strings.isNullOrEmpty(state) == false) {
-                        builder.startObject().startObject("term").startObject("state").field("value", state).endObject().endObject()
+                        builder.startObject()
+                            .startObject("term")
+                            .startObject("state")
+                            .field("value", state)
+                            .endObject()
+                            .endObject()
                             .endObject();
                     }
                     builder.endArray().endObject().endObject();
-                    builder.startArray("sort").startObject().startObject("trigger_event.triggered_time").field("order", "desc").endObject()
-                        .endObject().endArray();
+                    builder.startArray("sort")
+                        .startObject()
+                        .startObject("trigger_event.triggered_time")
+                        .field("order", "desc")
+                        .endObject()
+                        .endObject()
+                        .endArray();
                     builder.endObject();
 
                     Request searchRequest = new Request("POST", "/.watcher-history-*/_search");

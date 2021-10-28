@@ -116,7 +116,6 @@ public class BasicFormatter implements Writeable {
         }
         sb.append('\n');
 
-
         /* Now format the results. Sadly, this means that column
          * widths are entirely determined by the first batch of
          * results. */

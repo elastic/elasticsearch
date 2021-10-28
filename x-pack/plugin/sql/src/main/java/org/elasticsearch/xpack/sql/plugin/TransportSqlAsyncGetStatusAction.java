@@ -19,18 +19,28 @@ import org.elasticsearch.xpack.ql.plugin.AbstractTransportQlAsyncGetStatusAction
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.action.SqlQueryTask;
 
-
 public class TransportSqlAsyncGetStatusAction extends AbstractTransportQlAsyncGetStatusAction<SqlQueryResponse, SqlQueryTask> {
     @Inject
-    public TransportSqlAsyncGetStatusAction(TransportService transportService,
-                                            ActionFilters actionFilters,
-                                            ClusterService clusterService,
-                                            NamedWriteableRegistry registry,
-                                            Client client,
-                                            ThreadPool threadPool,
-                                            BigArrays bigArrays) {
-        super(SqlAsyncGetStatusAction.NAME, transportService, actionFilters, clusterService, registry, client, threadPool, bigArrays,
-            SqlQueryTask.class);
+    public TransportSqlAsyncGetStatusAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ClusterService clusterService,
+        NamedWriteableRegistry registry,
+        Client client,
+        ThreadPool threadPool,
+        BigArrays bigArrays
+    ) {
+        super(
+            SqlAsyncGetStatusAction.NAME,
+            transportService,
+            actionFilters,
+            clusterService,
+            registry,
+            client,
+            threadPool,
+            bigArrays,
+            SqlQueryTask.class
+        );
     }
 
     @Override

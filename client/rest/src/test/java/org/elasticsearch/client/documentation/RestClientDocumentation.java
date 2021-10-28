@@ -48,7 +48,6 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.RestClientBuilder.HttpClientConfigCallback;
 
-import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -61,6 +60,8 @@ import java.security.cert.CertificateFactory;
 import java.util.Base64;
 import java.util.Iterator;
 import java.util.concurrent.CountDownLatch;
+
+import javax.net.ssl.SSLContext;
 
 /**
  * This class is used to generate the Java low-level REST client documentation.

@@ -7,6 +7,20 @@
  */
 package org.elasticsearch.repositories.hdfs;
 
+import org.apache.hadoop.hdfs.protocolPB.ClientNamenodeProtocolPB;
+import org.apache.hadoop.security.KerberosInfo;
+import org.apache.hadoop.security.SecurityUtil;
+import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -14,20 +28,6 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Collections;
 import java.util.Map;
-
-import org.apache.hadoop.hdfs.protocolPB.ClientNamenodeProtocolPB;
-import org.apache.hadoop.security.KerberosInfo;
-import org.apache.hadoop.security.SecurityUtil;
-import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.RepositoryPlugin;
-import org.elasticsearch.repositories.Repository;
 
 public final class HdfsPlugin extends Plugin implements RepositoryPlugin {
 
@@ -92,8 +92,9 @@ public final class HdfsPlugin extends Plugin implements RepositoryPlugin {
             KerberosInfo info = SecurityUtil.getKerberosInfo(ClientNamenodeProtocolPB.class, null);
             // Make sure that the correct class loader was installed.
             if (info == null) {
-                throw new RuntimeException("Could not initialize SecurityUtil: " +
-                    "Unable to find services for [org.apache.hadoop.security.SecurityInfo]");
+                throw new RuntimeException(
+                    "Could not initialize SecurityUtil: " + "Unable to find services for [org.apache.hadoop.security.SecurityInfo]"
+                );
             }
         } finally {
             Thread.currentThread().setContextClassLoader(oldCCL);
@@ -102,10 +103,16 @@ public final class HdfsPlugin extends Plugin implements RepositoryPlugin {
     }
 
     @Override
-    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                           ClusterService clusterService, BigArrays bigArrays,
-                                                           RecoverySettings recoverySettings) {
-        return Collections.singletonMap("hdfs", (metadata) -> new HdfsRepository(metadata, env, namedXContentRegistry, clusterService,
-            bigArrays, recoverySettings));
+    public Map<String, Repository.Factory> getRepositories(
+        Environment env,
+        NamedXContentRegistry namedXContentRegistry,
+        ClusterService clusterService,
+        BigArrays bigArrays,
+        RecoverySettings recoverySettings
+    ) {
+        return Collections.singletonMap(
+            "hdfs",
+            (metadata) -> new HdfsRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings)
+        );
     }
 }

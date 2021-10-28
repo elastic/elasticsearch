@@ -24,8 +24,7 @@ public class RestGetBasicStatus extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(GET, "/_license/basic_status")
-                .replaces(GET, "/_xpack/license/basic_status", RestApiVersion.V_7).build()
+            Route.builder(GET, "/_license/basic_status").replaces(GET, "/_xpack/license/basic_status", RestApiVersion.V_7).build()
         );
     }
 

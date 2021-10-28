@@ -25,7 +25,7 @@ public final class SamlInit {
     private static final AtomicBoolean INITIALISED = new AtomicBoolean(false);
     private static final Logger LOGGER = LogManager.getLogger();
 
-    private SamlInit() { }
+    private SamlInit() {}
 
     /**
      * This is needed in order to initialize the underlying OpenSAML library.
@@ -44,7 +44,7 @@ public final class SamlInit {
                     try (RestorableContextClassLoader ignore = new RestorableContextClassLoader(InitializationService.class)) {
                         InitializationService.initialize();
                         // Force load this now, because it has a static field that needs to run inside the doPrivileged block
-                       var ignore2 = new X509CertificateBuilder().buildObject();
+                        var ignore2 = new X509CertificateBuilder().buildObject();
                     }
                     LOGGER.debug("Initialized OpenSAML");
                     return null;

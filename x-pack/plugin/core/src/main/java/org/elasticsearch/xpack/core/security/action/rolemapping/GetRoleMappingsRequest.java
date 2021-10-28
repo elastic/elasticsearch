@@ -31,15 +31,13 @@ public class GetRoleMappingsRequest extends ActionRequest {
         names = in.readStringArray();
     }
 
-    public GetRoleMappingsRequest() {
-    }
+    public GetRoleMappingsRequest() {}
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (names == null) {
-            validationException = addValidationError("role-mapping names are missing",
-                    validationException);
+            validationException = addValidationError("role-mapping names are missing", validationException);
         }
         return validationException;
     }

@@ -86,8 +86,7 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return name.equals(request.name) &&
-                startTime == request.startTime;
+            return name.equals(request.name) && startTime == request.startTime;
         }
 
         @Override
@@ -97,7 +96,7 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public String[] indices() {
-            return new String[]{name};
+            return new String[] { name };
         }
 
         @Override

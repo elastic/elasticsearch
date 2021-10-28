@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.core.ilm.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.action.RemoveIndexLifecyclePolicyAction.Response;
 
 import java.io.IOException;
@@ -33,8 +33,10 @@ public class RemoveIndexLifecyclePolicyResponseTests extends AbstractSerializing
 
     @Override
     protected Response mutateInstance(Response instance) throws IOException {
-        List<String> failedIndices = randomValueOtherThan(instance.getFailedIndexes(),
-                () -> Arrays.asList(generateRandomStringArray(20, 20, false)));
+        List<String> failedIndices = randomValueOtherThan(
+            instance.getFailedIndexes(),
+            () -> Arrays.asList(generateRandomStringArray(20, 20, false))
+        );
         return new Response(failedIndices);
     }
 

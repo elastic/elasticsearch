@@ -50,9 +50,12 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
     }
 
     @Override
-    public TokenFilterFactory getChainAwareTokenFilterFactory(TokenizerFactory tokenizer, List<CharFilterFactory> charFilters,
-                                                              List<TokenFilterFactory> previousTokenFilters,
-                                                              Function<String, TokenFilterFactory> allFilters) {
+    public TokenFilterFactory getChainAwareTokenFilterFactory(
+        TokenizerFactory tokenizer,
+        List<CharFilterFactory> charFilters,
+        List<TokenFilterFactory> previousTokenFilters,
+        Function<String, TokenFilterFactory> allFilters
+    ) {
         List<TokenFilterFactory> filters = new ArrayList<>();
         if (preserveOriginal) {
             filters.add(IDENTITY_FILTER);

@@ -263,14 +263,14 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         if (UPGRADE_FROM_VERSION.equals(Version.CURRENT)) {
             return;
         }
-        final Request upgradeTransformRequest = new Request("POST", getTransformEndpoint() + "_upgrade");
+        final Request upgradeTransformRequest = new Request("POST", TRANSFORM_ENDPOINT + "_upgrade");
 
         Exception ex = expectThrows(Exception.class, () -> client().performRequest(upgradeTransformRequest));
         assertThat(ex.getMessage(), containsString("All nodes must be the same version"));
     }
 
     private void verifyUpgrade() throws IOException {
-        final Request upgradeTransformRequest = new Request("POST", getTransformEndpoint() + "_upgrade");
+        final Request upgradeTransformRequest = new Request("POST", TRANSFORM_ENDPOINT + "_upgrade");
         Response response = client().performRequest(upgradeTransformRequest);
         assertEquals(200, response.getStatusLine().getStatusCode());
     }

@@ -13,7 +13,9 @@
 *Details* +
 Directly accessing system indices is deprecated, and will be prevented by
 default in a future major version. System indices are reserved only for internal
-use by Elastic products and should not be accessed directly.
+use by Elastic products and should not be accessed directly. While it's still
+possible to access system indices, you should only do so with the guidance of
+Elastic Support.
 
 *Impact* +
 Accessing system indices directly results in warnings in the deprecation logs.

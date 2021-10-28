@@ -45,7 +45,7 @@ setup:
 
   - do:
       warnings:
-        - '[deprecated] query'
+        - '[CRITICAL] [deprecated] query'
       async_search.submit:
         index: test-*
         wait_for_completion_timeout: 10s
@@ -64,7 +64,7 @@ setup:
 
   - do:
       warnings:
-        - '[deprecated] query'
+        - '[CRITICAL] [deprecated] query'
       async_search.submit:
         index: test-*
         wait_for_completion_timeout: 10s
@@ -79,7 +79,7 @@ setup:
 
   - do:
       warnings:
-        - '[deprecated] query'
+        - '[CRITICAL] [deprecated] query'
       async_search.get:
         id: "$id"
 

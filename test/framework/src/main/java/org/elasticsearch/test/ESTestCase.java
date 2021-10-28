@@ -493,8 +493,9 @@ public abstract class ESTestCase extends LuceneTestCase {
                 setting.getKey()
             );
             return new DeprecationWarning(
-                setting.getProperties().contains(Setting.Property.Deprecated) ? DeprecationLogger.DeprecationLevel.CRITICAL :
-                    DeprecationLogger.DeprecationLevel.WARNING,
+                setting.getProperties().contains(Setting.Property.Deprecated)
+                    ? DeprecationLogger.DeprecationLevel.CRITICAL
+                    : DeprecationLogger.DeprecationLevel.WARNING,
                 warningMessage
             );
         }), Arrays.stream(warnings)).toArray(DeprecationWarning[]::new));

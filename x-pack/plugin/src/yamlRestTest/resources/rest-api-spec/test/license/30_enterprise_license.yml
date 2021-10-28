@@ -39,7 +39,7 @@ teardown:
   ## Check the opt-in v5 license type
   - do:
       warnings:
-        - "Including [accept_enterprise] in get license requests is deprecated. The parameter will be removed in the next major version"
+        - "[CRITICAL] Including [accept_enterprise] in get license requests is deprecated. The parameter will be removed in the next major version"
       license.get:
         accept_enterprise: true
 
@@ -52,7 +52,7 @@ teardown:
   ## Check the xpack info API as well
   - do:
       warnings:
-        - "Including [accept_enterprise] in get license requests is deprecated. The parameter will be removed in the next major version"
+        - "[CRITICAL] Including [accept_enterprise] in get license requests is deprecated. The parameter will be removed in the next major version"
       xpack.info:
         accept_enterprise: true
   - match: { license.type: "enterprise" }
@@ -62,14 +62,14 @@ teardown:
   - do:
       catch: bad_request
       warnings:
-        - "Including [accept_enterprise] in get license requests is deprecated. The parameter will be removed in the next major version"
+        - "[CRITICAL] Including [accept_enterprise] in get license requests is deprecated. The parameter will be removed in the next major version"
       license.get:
         accept_enterprise: false
 
   - do:
       catch: bad_request
       warnings:
-        - "Including [accept_enterprise] in get license requests is deprecated. The parameter will be removed in the next major version"
+        - "[CRITICAL] Including [accept_enterprise] in get license requests is deprecated. The parameter will be removed in the next major version"
       xpack.info:
         accept_enterprise: false
 

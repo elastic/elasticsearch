@@ -233,8 +233,10 @@ public class ObjectParserTests extends ESTestCase {
         assertEquals("foo", s.test);
         assertWarnings(
             false,
-            new DeprecationWarning(DeprecationLogger.DeprecationLevel.CRITICAL, "[CRITICAL] [foo][1:15] Deprecated field [old_test] used," +
-                " expected [test] instead")
+            new DeprecationWarning(
+                DeprecationLogger.DeprecationLevel.CRITICAL,
+                "[CRITICAL] [foo][1:15] Deprecated field [old_test] used, expected [test] instead"
+            )
         );
     }
 

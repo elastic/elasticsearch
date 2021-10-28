@@ -142,10 +142,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
                 + "patterns [test-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template "
                 + "[my-it] will take precedence during new index creation"
         );
-        final String testHeaderWithQuotesAndBackslashes = HeaderWarning.formatWarning(
-            CRITICAL,
-            "test \"with quotes and \\ backslashes\""
-        );
+        final String testHeaderWithQuotesAndBackslashes = HeaderWarning.formatWarning(CRITICAL, "test \"with quotes and \\ backslashes\"");
 
         // require header and it matches (basic example)
         DoSection section = new DoSection(new XContentLocation(1, 1));

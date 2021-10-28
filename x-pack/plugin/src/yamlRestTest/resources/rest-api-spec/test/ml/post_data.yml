@@ -52,7 +52,7 @@ setup:
 
   - do:
       warnings:
-        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
+        - '[CRITICAL] Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
       ml.post_data:
         job_id: post-data-job
         body:
@@ -135,7 +135,7 @@ setup:
 
   - do:
       warnings:
-        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
+        - '[CRITICAL] Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
       ml.post_data:
         job_id: post-data-job
         body:
@@ -159,7 +159,7 @@ setup:
   # Send some data that should be ignored
   - do:
       warnings:
-        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
+        - '[CRITICAL] Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
       ml.post_data:
         job_id: post-data-job
         body:
@@ -175,7 +175,7 @@ setup:
   # Send data that will create results for the bucket after the skipped one
   - do:
       warnings:
-        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
+        - '[CRITICAL] Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
       ml.post_data:
         job_id: post-data-job
         body:
@@ -212,7 +212,7 @@ setup:
 
   - do:
       warnings:
-        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
+        - '[CRITICAL] Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
       catch: missing
       ml.post_data:
         job_id: not_a_job
@@ -228,7 +228,7 @@ setup:
 
   - do:
       warnings:
-        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
+        - '[CRITICAL] Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
       catch: /parse_exception/
       ml.post_data:
         job_id: post-data-job
@@ -245,7 +245,7 @@ setup:
 
   - do:
       warnings:
-        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
+        - '[CRITICAL] Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
       catch: /parse_exception/
       ml.post_data:
         job_id: post-data-job
@@ -315,7 +315,7 @@ setup:
 
   - do:
       warnings:
-        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
+        - '[CRITICAL] Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
       catch: /status_exception/
       ml.post_data:
         job_id: post-data-closed-job

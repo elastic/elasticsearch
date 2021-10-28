@@ -21,6 +21,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -61,14 +62,11 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
         Metadata.FORMAT.toXContent(builder, latestMetadata);
         builder.endObject();
 
+        XContentParserConfiguration parserConfig = hasMissingCustoms
+            ? parserConfig().withRegistry(ElasticsearchNodeCommand.namedXContentRegistry)
+            : parserConfig();
         Metadata loadedMetadata;
-        try (
-            XContentParser parser = createParser(
-                hasMissingCustoms ? ElasticsearchNodeCommand.namedXContentRegistry : xContentRegistry(),
-                JsonXContent.jsonXContent,
-                BytesReference.bytes(builder)
-            )
-        ) {
+        try (XContentParser parser = createParser(parserConfig, JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
             loadedMetadata = Metadata.fromXContent(parser);
         }
         assertThat(loadedMetadata.clusterUUID(), not(equalTo("_na_")));

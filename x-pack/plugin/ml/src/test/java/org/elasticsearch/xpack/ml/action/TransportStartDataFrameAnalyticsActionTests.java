@@ -129,11 +129,15 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
                 ),
                 containsString(
                     "Not opening job [data_frame_id] on node [{_node_name1}{version=7.9.1}], "
-                        + "because the data frame analytics created for version [8.0.0] requires a node of version [7.10.0] or higher"
+                        + "because the data frame analytics created for version ["
+                        + Version.CURRENT
+                        + "] requires a node of version [7.10.0] or higher"
                 ),
                 containsString(
                     "Not opening job [data_frame_id] on node [{_node_name2}{version=7.9.2}], "
-                        + "because the data frame analytics created for version [8.0.0] requires a node of version [7.10.0] or higher"
+                        + "because the data frame analytics created for version ["
+                        + Version.CURRENT
+                        + "] requires a node of version [7.10.0] or higher"
                 )
             )
         );

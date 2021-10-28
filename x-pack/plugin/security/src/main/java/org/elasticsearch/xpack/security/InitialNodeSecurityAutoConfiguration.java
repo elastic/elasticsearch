@@ -64,10 +64,9 @@ public class InitialNodeSecurityAutoConfiguration {
             sslService,
             client
         );
-        final PrintStream out = BootstrapInfo.getOriginalStandardOut();
-        // Check if it has been closed, try to write something so that we trigger PrintStream#ensureOpen
-        out.println();
-        if (out.checkError()) {
+
+        final PrintStream out = getConsoleOutput();
+        if (out == null) {
             LOGGER.info(
                 "Auto-configuration will not generate a password for the elastic built-in superuser, as we cannot "
                     + " determine if there is a terminal attached to the elasticsearch process. You can use the"
@@ -161,6 +160,19 @@ public class InitialNodeSecurityAutoConfiguration {
                 });
             }
         });
+    }
+
+    private static PrintStream getConsoleOutput() {
+        final PrintStream output = BootstrapInfo.getConsoleOutput();
+        if (output == null) {
+            return null;
+        }
+        // Check if it has been closed, try to write something so that we trigger PrintStream#ensureOpen
+        output.println();
+        if (output.checkError()) {
+            return null;
+        }
+        return output;
     }
 
     private static void outputInformationToConsole(

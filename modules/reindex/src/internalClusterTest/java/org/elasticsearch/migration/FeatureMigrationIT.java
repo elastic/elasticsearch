@@ -93,10 +93,12 @@ public class FeatureMigrationIT extends ESIntegTestCase {
 
         CreateIndexRequestBuilder createRequest = prepareCreate(ASSOCIATED_INDEX_NAME);
         createRequest.setWaitForActiveShards(ActiveShardCount.ALL);
-        createRequest.setSettings(Settings.builder()
-            .put("index.version.created", NEEDS_UPGRADE_VERSION)
-            .put("index.hidden", true) // So we don't get a warning
-            .build());
+        createRequest.setSettings(
+            Settings.builder()
+                .put("index.version.created", NEEDS_UPGRADE_VERSION)
+                .put("index.hidden", true) // So we don't get a warning
+                .build()
+        );
         CreateIndexResponse response = createRequest.get();
         assertTrue(response.isShardsAcknowledged());
 
@@ -379,7 +381,8 @@ public class FeatureMigrationIT extends ESIntegTestCase {
             return Arrays.asList(INTERNAL_MANAGED, INTERNAL_UNMANAGED, EXTERNAL_MANAGED, EXTERNAL_UNMANAGED);
         }
 
-        @Override public Collection<AssociatedIndexDescriptor> getAssociatedIndexDescriptors() {
+        @Override
+        public Collection<AssociatedIndexDescriptor> getAssociatedIndexDescriptors() {
 
             return Collections.singletonList(new AssociatedIndexDescriptor(ASSOCIATED_INDEX_NAME, TestPlugin.class.getCanonicalName()));
         }

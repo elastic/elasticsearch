@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -129,6 +130,24 @@ public class MlConfigMigrationEligibilityCheckTests extends ESTestCase {
         assertFalse(check.canStartMigration(clusterState));
     }
 
+    public void testCanStartMigration_givenMlConfigIsAlias() {
+        Settings settings = newSettings(true);
+        givenClusterSettings(settings);
+
+        // index has been replaced by an alias
+        String reindexedName = ".reindexed_ml_config";
+        Metadata.Builder metadata = Metadata.builder();
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        addMlConfigIndex(reindexedName, MlConfigIndex.indexName(), metadata, routingTable);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("migratortests"))
+            .metadata(metadata)
+            .routingTable(routingTable.build())
+            .build();
+
+        MlConfigMigrationEligibilityCheck check = new MlConfigMigrationEligibilityCheck(settings, clusterService);
+        assertTrue(check.canStartMigration(clusterState));
+    }
+
     public void testCanStartMigration_givenInactiveShards() {
         Settings settings = newSettings(true);
         givenClusterSettings(settings);
@@ -137,22 +156,35 @@ public class MlConfigMigrationEligibilityCheckTests extends ESTestCase {
         Metadata.Builder metadata = Metadata.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
         addMlConfigIndex(metadata, routingTable);
-        ClusterState clusterState = ClusterState.builder(new ClusterName("migratortests")).metadata(metadata).build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("migratortests"))
+            .metadata(metadata)
+            // the difference here is that the routing table that's been created is
+            // _not_ added to the cluster state, simulating no route to the index
+            .build();
 
         MlConfigMigrationEligibilityCheck check = new MlConfigMigrationEligibilityCheck(settings, clusterService);
         assertFalse(check.canStartMigration(clusterState));
     }
 
     private void addMlConfigIndex(Metadata.Builder metadata, RoutingTable.Builder routingTable) {
-        IndexMetadata.Builder indexMetadata = IndexMetadata.builder(MlConfigIndex.indexName());
+        addMlConfigIndex(MlConfigIndex.indexName(), null, metadata, routingTable);
+    }
+
+    private void addMlConfigIndex(String indexName, String aliasName, Metadata.Builder metadata, RoutingTable.Builder routingTable) {
+        final String uuid = "_uuid";
+        IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName);
         indexMetadata.settings(
             Settings.builder()
+                .put(IndexMetadata.SETTING_INDEX_UUID, uuid)
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
         );
+        if (aliasName != null) {
+            indexMetadata.putAlias(AliasMetadata.builder(aliasName));
+        }
         metadata.put(indexMetadata);
-        Index index = new Index(MlConfigIndex.indexName(), "_uuid");
+        Index index = new Index(indexName, uuid);
         ShardId shardId = new ShardId(index, 0);
         ShardRouting shardRouting = ShardRouting.newUnassigned(
             shardId,

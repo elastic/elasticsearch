@@ -167,7 +167,7 @@ public class MlConfigMigrator {
             return;
         }
 
-        if (clusterState.metadata().hasIndex(MlConfigIndex.indexName()) == false) {
+        if (clusterState.metadata().hasIndexAbstraction(MlConfigIndex.indexName()) == false) {
             createConfigIndex(
                 ActionListener.wrap(
                     response -> { unMarkMigrationInProgress.onResponse(Boolean.FALSE); },

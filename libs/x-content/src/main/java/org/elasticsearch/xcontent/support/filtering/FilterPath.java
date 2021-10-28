@@ -103,7 +103,7 @@ public class FilterPath {
             private final Map<String, BuildNode> children;
             private final boolean isFinalNode;
 
-            public BuildNode(boolean isFinalNode) {
+            BuildNode(boolean isFinalNode) {
                 children = new HashMap<>();
                 this.isFinalNode = isFinalNode;
             }

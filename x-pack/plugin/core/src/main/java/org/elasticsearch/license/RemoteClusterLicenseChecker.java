@@ -168,7 +168,7 @@ public final class RemoteClusterLicenseChecker {
                     return;
                 }
 
-                if (isActive(licenseInfo) == false || isAllowed(licenseInfo) == false) {
+                if (isActive(feature, licenseInfo) == false || isAllowed(feature, licenseInfo) == false) {
                     listener.onResponse(LicenseCheck.failure(new RemoteClusterLicenseInfo(clusterAlias.get(), licenseInfo)));
                     return;
                 }
@@ -195,11 +195,11 @@ public final class RemoteClusterLicenseChecker {
         remoteClusterLicense(clusterAlias.get(), infoListener);
     }
 
-    private boolean isActive(XPackInfoResponse.LicenseInfo licenseInfo) {
+    private static boolean isActive(LicensedFeature feature, XPackInfoResponse.LicenseInfo licenseInfo) {
         return feature != null && feature.isNeedsActive() == false || licenseInfo.getStatus() == LicenseStatus.ACTIVE;
     }
 
-    private boolean isAllowed(XPackInfoResponse.LicenseInfo licenseInfo) {
+    private static boolean isAllowed(LicensedFeature feature, XPackInfoResponse.LicenseInfo licenseInfo) {
         License.OperationMode mode = License.OperationMode.parse(licenseInfo.getMode());
         return feature == null || isAllowedByOperationMode(mode, feature.getMinimumOperationMode());
     }
@@ -283,13 +283,10 @@ public final class RemoteClusterLicenseChecker {
      */
     public static String buildErrorMessage(final LicensedFeature feature, final RemoteClusterLicenseInfo remoteClusterLicenseInfo) {
         final StringBuilder error = new StringBuilder();
-        if ((feature == null || feature.isNeedsActive()) && remoteClusterLicenseInfo.licenseInfo().getStatus() != LicenseStatus.ACTIVE) {
+        if (isActive(feature, remoteClusterLicenseInfo.licenseInfo()) == false) {
             error.append(String.format(Locale.ROOT, "the license on cluster [%s] is not active", remoteClusterLicenseInfo.clusterAlias()));
         } else if (feature != null) {
-            assert isAllowedByOperationMode(
-                License.OperationMode.parse(remoteClusterLicenseInfo.licenseInfo().getMode()),
-                feature.getMinimumOperationMode()
-            ) == false : "license must be incompatible to build error message";
+            assert isAllowed(feature, remoteClusterLicenseInfo.licenseInfo()) == false : "license must be incompatible to build error message";
             final String message = String.format(
                 Locale.ROOT,
                 "the license mode [%s] on cluster [%s] does not enable [%s]",

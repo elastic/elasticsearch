@@ -53,6 +53,7 @@ public class DeploymentManagerTests extends ESTestCase {
 
         ListenerCounter listener = new ListenerCounter();
         DeploymentManager.InferenceAction action = new DeploymentManager.InferenceAction(
+            "test-model",
             1,
             TimeValue.MAX_VALUE,
             processContext,
@@ -72,6 +73,7 @@ public class DeploymentManagerTests extends ESTestCase {
         assertThat(listener.responseCounts, equalTo(1));
 
         action = new DeploymentManager.InferenceAction(
+            "test-model",
             1,
             TimeValue.MAX_VALUE,
             processContext,
@@ -91,6 +93,7 @@ public class DeploymentManagerTests extends ESTestCase {
         assertThat(listener.responseCounts, equalTo(1));
 
         action = new DeploymentManager.InferenceAction(
+            "test-model",
             1,
             TimeValue.MAX_VALUE,
             processContext,

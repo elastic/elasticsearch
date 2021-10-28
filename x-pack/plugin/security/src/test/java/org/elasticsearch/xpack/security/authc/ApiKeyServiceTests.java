@@ -1528,7 +1528,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 // simulate authentication with nameless API Key, see https://github.com/elastic/elasticsearch/issues/59484
                 assert authenticationResult.getStatus() == AuthenticationResult.Status.SUCCESS;
                 Map<String, Object> authenticationResultMetadata = new HashMap<>(authenticationResult.getMetadata());
-                authenticationResultMetadata.remove(AuthenticationField.API_KEY_NAME_KEY);
+                authenticationResultMetadata.put(AuthenticationField.API_KEY_NAME_KEY, null);
                 authenticationResult = AuthenticationResult.success(authenticationResult.getValue(), authenticationResultMetadata);
             }
 

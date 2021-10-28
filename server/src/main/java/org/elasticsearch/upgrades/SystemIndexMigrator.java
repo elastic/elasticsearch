@@ -333,22 +333,17 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         );
         if (migrationInfo.getFeatureName().equals(lastFeatureName) == false) {
             // And then invoke the pre-migration hook for the next one.
-            migrationInfo.prepareForIndicesMigration(
-                clusterService,
-                baseClient,
-                ActionListener.wrap(newMetadata -> {
-                    currentFeatureCallbackMetadata.set(newMetadata);
-                    updateTaskState(migrationInfo, listener, newMetadata);
-                }, this::markAsFailed)
-            );
+            migrationInfo.prepareForIndicesMigration(clusterService, baseClient, ActionListener.wrap(newMetadata -> {
+                currentFeatureCallbackMetadata.set(newMetadata);
+                updateTaskState(migrationInfo, listener, newMetadata);
+            }, this::markAsFailed));
         } else {
             // Otherwise, just re-use what we already have.
             updateTaskState(migrationInfo, listener, currentFeatureCallbackMetadata.get());
         }
     }
 
-    private void updateTaskState(
-        SystemIndexMigrationInfo migrationInfo, Consumer<ClusterState> listener, Map<String, Object> metadata) {
+    private void updateTaskState(SystemIndexMigrationInfo migrationInfo, Consumer<ClusterState> listener, Map<String, Object> metadata) {
         final SystemIndexMigrationTaskState newTaskState = new SystemIndexMigrationTaskState(
             migrationInfo.getCurrentIndexName(),
             migrationInfo.getFeatureName(),

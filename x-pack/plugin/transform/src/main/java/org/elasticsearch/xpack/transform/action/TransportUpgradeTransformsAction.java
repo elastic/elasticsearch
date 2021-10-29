@@ -66,32 +66,8 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         Client client,
         Settings settings
     ) {
-        this(
-            UpgradeTransformsAction.NAME,
-            transportService,
-            actionFilters,
-            clusterService,
-            threadPool,
-            indexNameExpressionResolver,
-            transformServices,
-            client,
-            settings
-        );
-    }
-
-    protected TransportUpgradeTransformsAction(
-        String name,
-        TransportService transportService,
-        ActionFilters actionFilters,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        TransformServices transformServices,
-        Client client,
-        Settings settings
-    ) {
         super(
-            name,
+            UpgradeTransformsAction.NAME,
             transportService,
             clusterService,
             threadPool,

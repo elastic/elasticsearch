@@ -238,7 +238,16 @@ public class DeploymentManager {
         }
 
         final long requestId = requestIdCounter.getAndIncrement();
-        InferenceAction inferenceAction = new InferenceAction(requestId, timeout, processContext, config, doc, threadPool, listener);
+        InferenceAction inferenceAction = new InferenceAction(
+            task.getModelId(),
+            requestId,
+            timeout,
+            processContext,
+            config,
+            doc,
+            threadPool,
+            listener
+        );
         try {
             processContext.executorService.execute(inferenceAction);
         } catch (Exception e) {
@@ -247,6 +256,7 @@ public class DeploymentManager {
     }
 
     static class InferenceAction extends AbstractRunnable {
+        private final String modelId;
         private final long requestId;
         private final TimeValue timeout;
         private final Scheduler.Cancellable timeoutHandler;
@@ -257,6 +267,7 @@ public class DeploymentManager {
         private final AtomicBoolean notified = new AtomicBoolean();
 
         InferenceAction(
+            String modelId,
             long requestId,
             TimeValue timeout,
             ProcessContext processContext,
@@ -265,6 +276,7 @@ public class DeploymentManager {
             ThreadPool threadPool,
             ActionListener<InferenceResults> listener
         ) {
+            this.modelId = modelId;
             this.requestId = requestId;
             this.timeout = timeout;
             this.processContext = processContext;
@@ -280,13 +292,13 @@ public class DeploymentManager {
 
         void onTimeout() {
             if (notified.compareAndSet(false, true)) {
-                processContext.getResultProcessor().requestIgnored(String.valueOf(requestId));
+                processContext.getResultProcessor().ignoreResposeWithoutNotifying(String.valueOf(requestId));
                 listener.onFailure(
                     new ElasticsearchStatusException("timeout [{}] waiting for inference result", RestStatus.TOO_MANY_REQUESTS, timeout)
                 );
                 return;
             }
-            logger.debug("request [{}] received timeout after [{}] but listener already alerted", requestId, timeout);
+            logger.debug("[{}] request [{}] received timeout after [{}] but listener already alerted", modelId, requestId, timeout);
         }
 
         void onSuccess(InferenceResults inferenceResults) {
@@ -295,21 +307,33 @@ public class DeploymentManager {
                 listener.onResponse(inferenceResults);
                 return;
             }
-            logger.debug("request [{}] received inference response but listener already notified", requestId);
+            logger.debug("[{}] request [{}] received inference response but listener already notified", modelId, requestId);
         }
 
         @Override
         public void onFailure(Exception e) {
             timeoutHandler.cancel();
             if (notified.compareAndSet(false, true)) {
+                processContext.getResultProcessor().ignoreResposeWithoutNotifying(String.valueOf(requestId));
                 listener.onFailure(e);
                 return;
             }
-            logger.debug(() -> new ParameterizedMessage("request [{}] received failure but listener already notified", requestId), e);
+            logger.debug(
+                () -> new ParameterizedMessage("[{}] request [{}] received failure but listener already notified", modelId, requestId),
+                e
+            );
         }
 
         @Override
         protected void doRun() throws Exception {
+            if (notified.get()) {
+                // Should not execute request as it has already timed out while waiting in the queue
+                logger.debug(
+                    () -> new ParameterizedMessage("[{}] skipping inference on request [{}] as it has timed out", modelId, requestId)
+                );
+                return;
+            }
+
             final String requestIdStr = String.valueOf(requestId);
             try {
                 // The request builder expect a list of inputs which are then batched.
@@ -320,63 +344,64 @@ public class DeploymentManager {
                 processor.validateInputs(text);
                 assert config instanceof NlpConfig;
                 NlpTask.Request request = processor.getRequestBuilder((NlpConfig) config).buildRequest(text, requestIdStr);
-                logger.trace(() -> "Inference Request " + request.processInput.utf8ToString());
-                PyTorchResultProcessor.PendingResult pendingResult = processContext.getResultProcessor().registerRequest(requestIdStr);
+                logger.debug(() -> "Inference Request " + request.processInput.utf8ToString());
+                if (request.tokenization.anyTruncated()) {
+                    logger.debug("[{}] [{}] input truncated", modelId, requestId);
+                }
+                processContext.getResultProcessor()
+                    .registerRequest(
+                        requestIdStr,
+                        ActionListener.wrap(
+                            pyTorchResult -> processResult(
+                                pyTorchResult,
+                                processContext,
+                                request.tokenization,
+                                processor.getResultProcessor((NlpConfig) config),
+                                ActionListener.wrap(this::onSuccess, this::onFailure)
+                            ),
+                            this::onFailure
+                        )
+                    );
                 processContext.process.get().writeInferenceRequest(request.processInput);
-                waitForResult(
-                    processContext,
-                    pendingResult,
-                    request.tokenization,
-                    requestIdStr,
-                    timeout,
-                    processor.getResultProcessor((NlpConfig) config),
-                    ActionListener.wrap(this::onSuccess, this::onFailure)
-                );
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] error writing to process", processContext.task.getModelId()), e);
                 onFailure(ExceptionsHelper.serverError("error writing to process", e));
             } catch (Exception e) {
                 onFailure(e);
-            } finally {
-                processContext.getResultProcessor().requestIgnored(String.valueOf(requestId));
             }
         }
 
-        private void waitForResult(
+        private void processResult(
+            PyTorchResult pyTorchResult,
             ProcessContext processContext,
-            PyTorchResultProcessor.PendingResult pendingResult,
             TokenizationResult tokenization,
-            String requestId,
-            TimeValue timeout,
             NlpTask.ResultProcessor inferenceResultsProcessor,
             ActionListener<InferenceResults> listener
         ) {
-            try {
-                PyTorchResult pyTorchResult = processContext.getResultProcessor()
-                    .waitForResult(processContext.process.get(), requestId, pendingResult, timeout);
-                if (pyTorchResult == null) {
-                    listener.onFailure(
-                        new ElasticsearchStatusException("timeout [{}] waiting for inference result", RestStatus.TOO_MANY_REQUESTS, timeout)
-                    );
-                    return;
-                }
-
-                if (pyTorchResult.isError()) {
-                    listener.onFailure(new ElasticsearchStatusException(pyTorchResult.getError(), RestStatus.INTERNAL_SERVER_ERROR));
-                    return;
-                }
-
-                logger.debug(
-                    () -> new ParameterizedMessage("[{}] retrieved result for request [{}]", processContext.task.getModelId(), requestId)
-                );
-                InferenceResults results = inferenceResultsProcessor.processResult(tokenization, pyTorchResult);
-                logger.debug(
-                    () -> new ParameterizedMessage("[{}] processed result for request [{}]", processContext.task.getModelId(), requestId)
-                );
-                listener.onResponse(results);
-            } catch (InterruptedException e) {
-                listener.onFailure(e);
+            if (pyTorchResult.isError()) {
+                listener.onFailure(new ElasticsearchStatusException(pyTorchResult.getError(), RestStatus.INTERNAL_SERVER_ERROR));
+                return;
             }
+
+            logger.debug(
+                () -> new ParameterizedMessage("[{}] retrieved result for request [{}]", processContext.task.getModelId(), requestId)
+            );
+            if (notified.get()) {
+                // The request has timed out. No need to spend cycles processing the result.
+                logger.debug(
+                    () -> new ParameterizedMessage(
+                        "[{}] skipping result processing for request [{}] as the request has timed out",
+                        processContext.task.getModelId(),
+                        requestId
+                    )
+                );
+                return;
+            }
+            InferenceResults results = inferenceResultsProcessor.processResult(tokenization, pyTorchResult);
+            logger.debug(
+                () -> new ParameterizedMessage("[{}] processed result for request [{}]", processContext.task.getModelId(), requestId)
+            );
+            listener.onResponse(results);
         }
     }
 

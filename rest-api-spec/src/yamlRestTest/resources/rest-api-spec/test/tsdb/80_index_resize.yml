@@ -2,6 +2,18 @@ setup:
   - skip:
       version: " - 7.99.99"
       reason: introduced in 8.0.0
+      features: "arbitrary_key"
+
+  # Force allocating all shards to a single node so that we can shrink later.
+  # In production you can move the shards to the single node after they've been
+  # built but that is very difficult during testing, especially during multi
+  # version tests.
+
+  - do:
+      nodes.info:
+        node_id: data:true
+  - set:
+      nodes._arbitrary_key_: node_id
 
   - do:
       indices.create:
@@ -13,6 +25,8 @@ setup:
                 routing_path: [metricset, k8s.pod.uid]
                 number_of_shards: 3
                 number_of_replicas: 0
+                # ensure everything is allocated on the same data node for shrink
+                routing.allocation.include._id: $node_id
             mappings:
               properties:
                 "@timestamp":
@@ -97,29 +111,8 @@ split:
 ---
 shrink:
   - skip:
-#      version: " - 7.99.99"
-#      reason: introduced in 8.0.0
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/79936"
-      features: "arbitrary_key"
-
-  - do:
-      nodes.info:
-        node_id: data:true
-  - set:
-      nodes._arbitrary_key_: node_id
-
-  - do:
-      indices.put_settings:
-        index: test
-        body:
-          index.routing.allocation.include._id: $node_id
-
-  - do:
-      cluster.health:
-        wait_for_status: green
-        wait_for_no_relocating_shards: true
-        index: test
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0
 
   - do:
       indices.shrink:

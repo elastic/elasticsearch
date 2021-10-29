@@ -78,29 +78,16 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
         TransformServices transformServices,
         Client client
     ) {
-        this(
+        super(
             StopTransformAction.NAME,
+            clusterService,
             transportService,
             actionFilters,
-            clusterService,
-            threadPool,
-            persistentTasksService,
-            transformServices,
-            client
+            Request::new,
+            Response::new,
+            Response::new,
+            ThreadPool.Names.SAME
         );
-    }
-
-    protected TransportStopTransformAction(
-        String name,
-        TransportService transportService,
-        ActionFilters actionFilters,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        PersistentTasksService persistentTasksService,
-        TransformServices transformServices,
-        Client client
-    ) {
-        super(name, clusterService, transportService, actionFilters, Request::new, Response::new, Response::new, ThreadPool.Names.SAME);
         this.threadPool = threadPool;
         this.transformConfigManager = transformServices.getConfigManager();
         this.persistentTasksService = persistentTasksService;

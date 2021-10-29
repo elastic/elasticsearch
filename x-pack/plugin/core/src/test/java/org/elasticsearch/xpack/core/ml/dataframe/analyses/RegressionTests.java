@@ -120,41 +120,9 @@ public class RegressionTests extends AbstractBWCSerializationTestCase<Regression
             instance.getRandomizeSeed(),
             instance.getLossFunction(),
             instance.getLossFunctionParameter(),
-            version.onOrAfter(Version.V_7_10_0) ? instance.getFeatureProcessors() : Collections.emptyList(),
+            instance.getFeatureProcessors(),
             instance.getEarlyStoppingEnabled()
         );
-    }
-
-    @Override
-    protected void assertOnBWCObject(Regression bwcSerializedObject, Regression testInstance, Version version) {
-        if (version.onOrAfter(Version.V_7_6_0)) {
-            super.assertOnBWCObject(bwcSerializedObject, testInstance, version);
-            return;
-        }
-
-        Regression newBwc = new Regression(
-            bwcSerializedObject.getDependentVariable(),
-            bwcSerializedObject.getBoostedTreeParams(),
-            bwcSerializedObject.getPredictionFieldName(),
-            bwcSerializedObject.getTrainingPercent(),
-            42L,
-            bwcSerializedObject.getLossFunction(),
-            bwcSerializedObject.getLossFunctionParameter(),
-            bwcSerializedObject.getFeatureProcessors(),
-            bwcSerializedObject.getEarlyStoppingEnabled()
-        );
-        Regression newInstance = new Regression(
-            testInstance.getDependentVariable(),
-            testInstance.getBoostedTreeParams(),
-            testInstance.getPredictionFieldName(),
-            testInstance.getTrainingPercent(),
-            42L,
-            testInstance.getLossFunction(),
-            testInstance.getLossFunctionParameter(),
-            testInstance.getFeatureProcessors(),
-            testInstance.getEarlyStoppingEnabled()
-        );
-        super.assertOnBWCObject(newBwc, newInstance, version);
     }
 
     @Override

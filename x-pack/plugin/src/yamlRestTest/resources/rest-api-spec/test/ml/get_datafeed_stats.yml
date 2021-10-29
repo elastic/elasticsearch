@@ -116,7 +116,7 @@ setup:
 
   - do:
       warnings:
-        - 'Deprecated field [allow_no_datafeeds] used, expected [allow_no_match] instead'
+        - '[CRITICAL] Deprecated field [allow_no_datafeeds] used, expected [allow_no_match] instead'
       ml.get_datafeed_stats:
         datafeed_id: "missing-*"
         allow_no_datafeeds: true
@@ -137,7 +137,7 @@ setup:
 
   - do:
       warnings:
-        - 'Deprecated field [allow_no_datafeeds] used, expected [allow_no_match] instead'
+        - '[CRITICAL] Deprecated field [allow_no_datafeeds] used, expected [allow_no_match] instead'
       catch: missing
       ml.get_datafeed_stats:
         datafeed_id: "missing-*"

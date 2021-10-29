@@ -425,7 +425,7 @@ public class XPackLicenseState {
     void checkExpiry() {
         String warning = status.expiryWarning;
         if (warning != null) {
-            HeaderWarning.addWarning(DeprecationLogger.DeprecationLevel.CRITICAL, warning);
+            HeaderWarning.addWarning(DeprecationLogger.DeprecationLevel.CRITICAL, "[CRITICAL] " + warning);
         }
     }
 

@@ -314,7 +314,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         throws Exception {
         final int contentLength = request.contentLength();
         final MediaTypeRegistry<? extends MediaType> mediaTypeRegistry = handler.validAcceptMediaTypes();
-        if(request.getParsedAccept() != null){
+        if (request.getParsedAccept() != null) {
             final MediaType mediaType = request.getParsedAccept().toMediaType(mediaTypeRegistry);
             if (mediaType == null) {
                 sendContentTypeErrorMessage(request, "Accept", channel);
@@ -324,17 +324,16 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
         if (contentLength > 0) {
 
-
-
             final MediaType xContentType = request.getParsedContentType().toMediaType(mediaTypeRegistry);
             if (xContentType == null) {
                 sendContentTypeErrorMessage(request, "Content-Type", channel);
                 return;
             }
             // TODO consider refactoring to handler.supportsContentStream(xContentType). It is only used with JSON and SMILE
-            if (handler.supportsContentStream() && xContentType instanceof XContentType
-                && ((XContentType)xContentType).canonical() != XContentType.JSON
-                && ((XContentType)xContentType).canonical() != XContentType.SMILE) {
+            if (handler.supportsContentStream()
+                && xContentType instanceof XContentType
+                && ((XContentType) xContentType).canonical() != XContentType.JSON
+                && ((XContentType) xContentType).canonical() != XContentType.SMILE) {
                 channel.sendResponse(
                     BytesRestResponse.createSimpleErrorResponse(
                         channel,

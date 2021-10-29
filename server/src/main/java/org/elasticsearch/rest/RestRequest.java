@@ -621,7 +621,7 @@ public class RestRequest implements ToXContent.Params {
 
         @Override
         public String getMessage() {
-            return "Invalid media-type value on header " + Arrays.toString(failedHeaderName );
+            return "Invalid media-type value on header " + Arrays.toString(failedHeaderName);
         }
     }
 

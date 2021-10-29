@@ -21,7 +21,6 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Collections;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -93,7 +92,7 @@ public abstract class AbstractRestChannel implements RestChannel {
      */
     @Override
     public XContentBuilder newBuilder(
-        @Nullable XContentType requestContentType,//leniency..
+        @Nullable XContentType requestContentType,// leniency..
         @Nullable XContentType responseContentType,// an override
         boolean useFiltering
     ) throws IOException {
@@ -109,13 +108,12 @@ public abstract class AbstractRestChannel implements RestChannel {
             }
 
             responseContentType = responseMediaType.toMediaType(XContentType.MEDIA_TYPE_REGISTRY);
-            if(responseContentType == null ) {
+            if (responseContentType == null) {
                 responseContentType = XContentType.JSON;
             }
         } else {
             responseMediaType = responseContentType.toParsedMediaType();
         }
-
 
         Set<String> includes = Collections.emptySet();
         Set<String> excludes = Collections.emptySet();

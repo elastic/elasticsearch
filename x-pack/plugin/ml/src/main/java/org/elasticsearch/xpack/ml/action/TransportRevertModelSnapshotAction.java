@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -40,7 +39,6 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
@@ -63,11 +61,9 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
     private final JobManager jobManager;
     private final JobResultsProvider jobResultsProvider;
     private final JobDataCountsPersister jobDataCountsPersister;
-    private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
 
     @Inject
     public TransportRevertModelSnapshotAction(
-        Settings settings,
         ThreadPool threadPool,
         TransportService transportService,
         ActionFilters actionFilters,
@@ -93,7 +89,6 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         this.jobManager = jobManager;
         this.jobResultsProvider = jobResultsProvider;
         this.jobDataCountsPersister = jobDataCountsPersister;
-        this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
     }
 
     @Override
@@ -105,11 +100,6 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
     ) {
         final String jobId = request.getJobId();
         final TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
-
-        if (migrationEligibilityCheck.jobIsEligibleForMigration(jobId, state)) {
-            listener.onFailure(ExceptionsHelper.configHasNotBeenMigrated("revert model snapshot", jobId));
-            return;
-        }
 
         logger.debug(
             "Received request to revert to snapshot id '{}' for job '{}', deleting intervening results: {}",

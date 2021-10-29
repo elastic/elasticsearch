@@ -20,9 +20,6 @@ class org.elasticsearch.script.DocBasedScript {
 }
 
 class org.elasticsearch.script.field.DelegateDocValuesField @dynamic_type {
-  List getValues()
-  def getValue(def)
-  def getValue(int, def)
 }
 
 class org.elasticsearch.script.field.BinaryDocValuesField @dynamic_type {

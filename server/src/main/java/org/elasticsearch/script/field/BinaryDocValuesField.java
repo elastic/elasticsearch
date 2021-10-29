@@ -9,6 +9,7 @@
 package org.elasticsearch.script.field;
 
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues.BytesRefs;
@@ -76,8 +77,8 @@ public class BinaryDocValuesField implements DocValuesField {
 
     // this method is required to support the ByteRef return values
     // for the old-style "doc" access in ScriptDocValues
-    public BytesRefBuilder[] getInternalValues() {
-        return values;
+    public BytesRef getInternalValue(int index) {
+        return values[index].toBytesRef();
     }
 
     @Override

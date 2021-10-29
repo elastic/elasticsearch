@@ -35,7 +35,7 @@ process where process.name == "svchost.exe"
 
 [discrete]
 [[eql-syntax-match-any-event-category]]
-=== Match any event category
+==== Match any event category
 
 To match events of any category, use the `any` keyword. You can also use the
 `any` keyword to search for documents without a event category field.
@@ -50,7 +50,7 @@ any where network.protocol == "http"
 
 [discrete]
 [[eql-syntax-escape-an-event-category]]
-=== Escape an event category
+==== Escape an event category
 
 Use enclosing double quotes (`"`) or three enclosing double quotes (`"""`) to
 escape event categories that:
@@ -74,7 +74,7 @@ escape event categories that:
 
 [discrete]
 [[eql-syntax-escape-a-field-name]]
-=== Escape a field name
+==== Escape a field name
 
 Use enclosing backticks (+++`+++) to escape field names that:
 
@@ -107,7 +107,7 @@ EQL operators are case-sensitive by default.
 
 [discrete]
 [[eql-syntax-comparison-operators]]
-=== Comparison operators
+==== Comparison operators
 
 [source,eql]
 ----
@@ -150,7 +150,7 @@ NOTE: `=` is not supported as an equal operator. Use `==` or `:` instead.
 
 [discrete]
 [[eql-syntax-pattern-comparison-keywords]]
-=== Pattern comparison keywords
+==== Pattern comparison keywords
 
 [source,eql]
 ----
@@ -175,7 +175,7 @@ only be used to compare strings. For case-insensitive matching, use `regex~`.
 
 [discrete]
 [[limitations-for-comparisons]]
-=== Limitations for comparisons
+===== Limitations for comparisons
 
 You cannot chain comparisons. Instead, use a
 <<eql-syntax-logical-operators,logical operator>> between comparisons. For
@@ -208,7 +208,7 @@ process where process.parent.name == "foo" and process.name == "foo"
 
 [discrete]
 [[eql-syntax-logical-operators]]
-=== Logical operators
+==== Logical operators
 
 [source,eql]
 ----
@@ -228,7 +228,7 @@ Returns `true` if the condition to the right is `false`.
 
 [discrete]
 [[eql-syntax-lookup-operators]]
-=== Lookup operators
+==== Lookup operators
 
 [source,eql]
 ----
@@ -272,7 +272,7 @@ Can only be used to compare strings. For case-insensitive matching, use
 
 [discrete]
 [[eql-syntax-math-operators]]
-=== Math operators
+==== Math operators
 
 [source,eql]
 ----
@@ -332,7 +332,7 @@ Divides the value to the left of the operator by the value to the right. Returns
 
 [discrete]
 [[eql-syntax-match-any-condition]]
-=== Match any condition
+==== Match any condition
 
 To match events solely on event category, use the `where true` condition.
 
@@ -353,7 +353,7 @@ any where true
 
 [discrete]
 [[eql-syntax-check-field-exists]]
-=== Check if a field exists
+==== Check if a field exists
 
 To match events containing any value for a field, compare the field to `null`
 using the `!=` operator:
@@ -389,7 +389,7 @@ Strings enclosed in single quotes (`'`) are not supported.
 
 [discrete]
 [[eql-syntax-escape-characters]]
-=== Escape characters in a string
+==== Escape characters in a string
 
 When used within a string, special characters, such as a carriage return or
 double quote (`"`), must be escaped with a preceding backslash (`\`).
@@ -423,7 +423,7 @@ double quote (`\"`) instead.
 
 [discrete]
 [[eql-syntax-raw-strings]]
-=== Raw strings
+==== Raw strings
 
 Raw strings treat special characters, such as backslashes (`\`), as literal
 characters. Raw strings are enclosed in three double quotes (`"""`).
@@ -443,7 +443,7 @@ use a regular string with the `\"` escape sequence.
 
 [discrete]
 [[eql-syntax-wildcards]]
-=== Wildcards
+==== Wildcards
 
 For string comparisons using the `:` operator or `like` keyword, you can use the
 `*` and `?` wildcards to match specific patterns. The `*` wildcard matches zero
@@ -517,7 +517,7 @@ sequence
 
 [discrete]
 [[eql-with-maxspan-keywords]]
-=== `with maxspan` statement
+==== `with maxspan` statement
 
 You can use `with maxspan` to constrain a sequence to a specified timespan. All
 events in a matching sequence must occur within this duration, starting at the
@@ -547,7 +547,7 @@ sequence with maxspan=15m
 
 [discrete]
 [[eql-by-keyword]]
-=== `by` keyword
+==== `by` keyword
 
 You can use the `by` keyword with sequences to only match events that share the
 same field values. If a field value should be shared across all events, you
@@ -614,7 +614,7 @@ sequence by user.name with maxspan=15m
 
 [discrete]
 [[eql-until-keyword]]
-=== `until` keyword
+==== `until` keyword
 
 You can use the `until` keyword to specify an expiration event for a sequence.
 If this expiration event occurs _between_ matching events in a sequence, the
@@ -703,7 +703,7 @@ strings, and more. For a list of supported functions, see <<eql-function-ref>>.
 
 [discrete]
 [[eql-case-insensitive-functions]]
-=== Case-insensitive functions
+==== Case-insensitive functions
 
 Most EQL functions are case-sensitive by default. To make a function
 case-insensitive, use the `~` operator after the function name:
@@ -716,7 +716,7 @@ stringContains~(process.name,".exe") // Matches ".exe", ".EXE", or ".Exe"
 
 [discrete]
 [[eql-how-functions-impact-search-performance]]
-=== How functions impact search performance
+==== How functions impact search performance
 
 Using functions in EQL queries can result in slower search speeds. If you
 often use functions to transform indexed data, you can speed up search by making

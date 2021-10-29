@@ -54,7 +54,6 @@ public class XPackLicenseState {
         messages.put(XPackField.GRAPH, new String[] { "Graph explore APIs are disabled" });
         messages.put(XPackField.MACHINE_LEARNING, new String[] { "Machine learning APIs are disabled" });
         messages.put(XPackField.LOGSTASH, new String[] { "Logstash will continue to poll centrally-managed pipelines" });
-        messages.put(XPackField.BEATS, new String[] { "Beats will continue to poll centrally-managed configuration" });
         messages.put(XPackField.DEPRECATION, new String[] { "Deprecation APIs are disabled" });
         messages.put(XPackField.UPGRADE, new String[] { "Upgrade API is disabled" });
         messages.put(XPackField.SQL, new String[] { "SQL support is disabled" });
@@ -96,7 +95,6 @@ public class XPackLicenseState {
         messages.put(XPackField.GRAPH, XPackLicenseState::graphAcknowledgementMessages);
         messages.put(XPackField.MACHINE_LEARNING, XPackLicenseState::machineLearningAcknowledgementMessages);
         messages.put(XPackField.LOGSTASH, XPackLicenseState::logstashAcknowledgementMessages);
-        messages.put(XPackField.BEATS, XPackLicenseState::beatsAcknowledgementMessages);
         messages.put(XPackField.SQL, XPackLicenseState::sqlAcknowledgementMessages);
         messages.put(XPackField.CCR, XPackLicenseState::ccrAcknowledgementMessages);
         ACKNOWLEDGMENT_MESSAGES = Collections.unmodifiableMap(messages);
@@ -232,17 +230,6 @@ public class XPackLicenseState {
             case BASIC:
                 if (isBasic(currentMode) == false) {
                     return new String[] { "Logstash will no longer poll for centrally-managed pipelines" };
-                }
-                break;
-        }
-        return Strings.EMPTY_ARRAY;
-    }
-
-    private static String[] beatsAcknowledgementMessages(OperationMode currentMode, OperationMode newMode) {
-        switch (newMode) {
-            case BASIC:
-                if (isBasic(currentMode) == false) {
-                    return new String[] { "Beats will no longer be able to use centrally-managed configuration" };
                 }
                 break;
         }

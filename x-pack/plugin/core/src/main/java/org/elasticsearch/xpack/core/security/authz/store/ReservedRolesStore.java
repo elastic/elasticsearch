@@ -179,17 +179,6 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 )
             )
             .put(
-                "beats_admin",
-                new RoleDescriptor(
-                    "beats_admin",
-                    null,
-                    new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder().indices(".management-beats").privileges("all").build() },
-                    null,
-                    MetadataUtils.DEFAULT_RESERVED_METADATA
-                )
-            )
-            .put(
                 UsernamesField.BEATS_ROLE,
                 new RoleDescriptor(
                     UsernamesField.BEATS_ROLE,
@@ -637,7 +626,6 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .allowRestrictedIndices(true)
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder().indices(".monitoring-*").privileges("read", "read_cross_cluster").build(),
-                RoleDescriptor.IndicesPrivileges.builder().indices(".management-beats").privileges("create_index", "read", "write").build(),
                 // To facilitate ML UI functionality being controlled using Kibana security privileges
                 RoleDescriptor.IndicesPrivileges.builder().indices(".ml-anomalies*", ".ml-stats-*").privileges("read").build(),
                 RoleDescriptor.IndicesPrivileges.builder()

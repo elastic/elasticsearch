@@ -61,10 +61,7 @@ public class IndicesSegmentResponse extends BroadcastResponse {
 
         final Map<String, List<ShardSegments>> segmentsByIndex = new HashMap<>();
         for (ShardSegments shard : shards) {
-            segmentsByIndex.computeIfAbsent(
-                shard.getShardRouting().getIndexName(),
-                k -> new ArrayList<>()
-            ).add(shard);
+            segmentsByIndex.computeIfAbsent(shard.getShardRouting().getIndexName(), k -> new ArrayList<>()).add(shard);
         }
         for (Map.Entry<String, List<ShardSegments>> entry : segmentsByIndex.entrySet()) {
             indicesSegments.put(entry.getKey(), new IndexSegments(entry.getKey(), entry.getValue()));

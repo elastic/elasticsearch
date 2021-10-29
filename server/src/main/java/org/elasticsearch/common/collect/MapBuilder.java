@@ -75,6 +75,6 @@ public class MapBuilder<K, V> {
      */
     public Map<K, V> immutableMap() {
         // TODO: follow the directions in the Javadoc for this method
-        return Collections.unmodifiableMap(map);
+        return Map.copyOf(map);
     }
 }

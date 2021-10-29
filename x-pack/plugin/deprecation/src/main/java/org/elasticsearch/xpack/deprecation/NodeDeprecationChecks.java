@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfigurationKeys;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -279,17 +278,23 @@ class NodeDeprecationChecks {
 
     public static DeprecationIssue checkClusterRemoteConnectSetting(final Settings settings, final PluginsAndModules pluginsAndModules,
                                                                     final ClusterState clusterState, final XPackLicenseState licenseState) {
-        return checkDeprecatedSetting(
-            settings,
-            pluginsAndModules,
-            RemoteClusterService.ENABLE_REMOTE_CLUSTERS,
-            Setting.boolSetting(
-                "node.remote_cluster_client",
-                RemoteClusterService.ENABLE_REMOTE_CLUSTERS,
-                Property.Deprecated,
-                Property.NodeScope),
-            "https://ela.st/es-deprecation-7-cluster-remote-connect-setting"
-        );
+
+        if (RemoteClusterService.ENABLE_REMOTE_CLUSTERS.exists(settings) == false) {
+            return null;
+        }
+        final String deprecatedSettingKey = RemoteClusterService.ENABLE_REMOTE_CLUSTERS.getKey();
+        final String message = String.format(
+            Locale.ROOT,
+            "Setting [%s] is deprecated",
+            deprecatedSettingKey);
+        final String details = String.format(
+            Locale.ROOT,
+            "Remove the [%s] setting. Use the [remote_cluster_client] role instead. Set [node.roles] to [data_frozen,master," +
+                "remote_cluster_client,data,data_content,data_hot,data_warm,data_cold,ingest] on eligible cross-cluster client nodes.",
+            deprecatedSettingKey);
+        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message,
+            "https://ela.st/es-deprecation-7-cluster-remote-connect-setting",
+            details, false, null);
     }
 
     public static DeprecationIssue checkNodeLocalStorageSetting(final Settings settings, final PluginsAndModules pluginsAndModules,
@@ -437,17 +442,16 @@ class NodeDeprecationChecks {
         return checkRemovedSetting(settings, removedSetting, url, additionalDetailMessage, DeprecationIssue.Level.CRITICAL);
     }
 
-    static DeprecationIssue checkDeprecatedSetting(final Settings settings, final Setting<?> deprecatedSetting, final String url,
-                                                   final String whenRemoved) {
+    static DeprecationIssue checkDeprecatedSetting(final Settings settings, final Setting<?> deprecatedSetting, final String url) {
         if (deprecatedSetting.exists(settings) == false) {
             return null;
         }
         final String deprecatedSettingKey = deprecatedSetting.getKey();
         final String value = deprecatedSetting.get(settings).toString();
         final String message =
-            String.format(Locale.ROOT, "setting [%s] is deprecated and will be removed " + whenRemoved, deprecatedSettingKey);
+            String.format(Locale.ROOT, "Setting [%s] is deprecated", deprecatedSettingKey);
         final String details =
-            String.format(Locale.ROOT, "the setting [%s] is currently set to [%s], remove this setting", deprecatedSettingKey, value);
+            String.format(Locale.ROOT, "Remove the [%s] setting.", deprecatedSettingKey, value);
         return new DeprecationIssue(DeprecationIssue.Level.WARNING, message, url, details, false, null);
     }
 
@@ -1020,8 +1024,9 @@ class NodeDeprecationChecks {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 ScriptService.USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE,
                 "https://ela.st/es-deprecation-7-script-context-cache",
-                "found deprecated script context caches in use, change setting to compilation rate or remove " +
-                    "setting to use the default",
+                "Remove the context-specific cache settings and set [script.max_compilations_rate] to configure the rate limit for the " +
+                    "general cache. If no limit is set, the rate defaults to 150 compilations per five minutes: 150/5m. Context-specific " +
+                    "caches are no longer needed to prevent system scripts from triggering rate limits.",
                 false, null);
         }
         return null;
@@ -1038,13 +1043,12 @@ class NodeDeprecationChecks {
                 c -> maxSetting.getConcreteSettingForNamespace(c).getKey()
             ).collect(Collectors.joining(","));
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                    String.format(Locale.ROOT,
-                    "Setting context-specific rate limits [%s] is deprecated."
-                            + " Use [%s] to rate limit the compilation of user scripts."
-                            + " Context-specific caches are no longer needed to prevent system scripts from triggering rate limits.",
-                        maxSettings, ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey()),
+                "Setting a context-specific rate limit is deprecated",
                 "https://ela.st/es-deprecation-7-script-context-cache",
-                String.format(Locale.ROOT, "[%s] is deprecated and will be removed in a future release", maxSettings),
+                String.format(Locale.ROOT, "Remove the context-specific rate limit settings: [%s]. Instead, set [%s] to configure the " +
+                        "rate limit for the general cache.  If no limit is set, the rate defaults to 150 compilations per five minutes: " +
+                        "150/5m. Context-specific caches are no longer needed to prevent system scripts from triggering rate limits.",
+                    maxSettings, ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey()),
                 false, null);
         }
         return null;
@@ -1062,12 +1066,12 @@ class NodeDeprecationChecks {
             ).collect(Collectors.joining(","));
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 String.format(Locale.ROOT,
-                    "Setting a context-specific cache size [%s] is deprecated."
-                    + " Use [%s] to configure the size of the general cache for scripts."
-                    + " Context-specific caches are no longer needed to prevent system scripts from triggering rate limits.",
+                    "Setting a context-specific cache size is deprecated",
                     cacheSizeSettings, ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING.getKey()),
                 "https://ela.st/es-deprecation-7-script-context-cache",
-                String.format(Locale.ROOT, "[%s] is deprecated and will be removed in a future release", cacheSizeSettings),
+                String.format(Locale.ROOT, "Remove the context-specific cache size settings: [%s]. Instead, set [script.cache_max_size] " +
+                    "to configure the size of the general cache. Context-specific caches are no longer needed to prevent system scripts " +
+                    "from triggering rate limits.", cacheSizeSettings),
                 false, null);
         }
         return null;
@@ -1085,12 +1089,12 @@ class NodeDeprecationChecks {
             ).collect(Collectors.joining(","));
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 String.format(Locale.ROOT,
-                        "Setting a context-specific cache expiration [%s] is deprecated."
-                        + " Use [%s] to configure the expiration of the general cache."
-                        + " Context-specific caches are no longer needed to prevent system scripts from triggering rate limits.",
+                        "Setting a context-specific cache expiration is deprecated",
                         cacheExpireSettings, ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.getKey()),
                 "https://ela.st/es-deprecation-7-script-context-cache",
-                String.format(Locale.ROOT, "[%s] is deprecated and will be removed in a future release", cacheExpireSettings),
+                String.format(Locale.ROOT, "Remove the context-specific cache expiration settings: [%s]. Instead, set [script.cache" +
+                    ".expire] to configure the expiration of the general cache. Context-specific caches are no longer needed to prevent " +
+                    "system scripts from triggering rate limits.", cacheExpireSettings),
                 false, null);
         }
         return null;
@@ -1153,7 +1157,7 @@ class NodeDeprecationChecks {
     private static final String MONITORING_SETTING_REMOVAL_TIME = "after 8.0";
 
     static DeprecationIssue genericMonitoringSetting(final Settings settings, final Setting<?> deprecated) {
-        return checkDeprecatedSetting(settings, deprecated, MONITORING_SETTING_DEPRECATION_LINK, MONITORING_SETTING_REMOVAL_TIME);
+        return checkDeprecatedSetting(settings, deprecated, MONITORING_SETTING_DEPRECATION_LINK);
     }
 
     static DeprecationIssue genericMonitoringAffixSetting(final Settings settings, final String deprecatedSuffix) {

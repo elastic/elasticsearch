@@ -441,12 +441,11 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "https://ela.st/es-deprecation-7-cluster-remote-connect-setting",
             String.format(
                 Locale.ROOT,
-                "Remove the [%s] setting and set [node.remote_cluster_client] to [%b].",
-                RemoteClusterService.ENABLE_REMOTE_CLUSTERS.getKey(),
-                value
+                "Remove the [%s] setting. Use the [remote_cluster_client] role instead. Set [node.roles] to [data_frozen,master," +
+                    "remote_cluster_client,data,data_content,data_hot,data_warm,data_cold,ingest] on eligible cross-cluster client nodes.",
+                RemoteClusterService.ENABLE_REMOTE_CLUSTERS.getKey()
             ), false, null);
         assertThat(issues, hasItem(expected));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[]{RemoteClusterService.ENABLE_REMOTE_CLUSTERS});
     }
 
     public void testNodeLocalStorageSetting() {
@@ -1448,10 +1447,11 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             NodeDeprecationChecks.checkScriptContextCache(settings, null, null, null),
             equalTo(
                 new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                    ScriptService.USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE,
+                    "Setting [script.max_compilations_rate] to [use-context] is deprecated",
                     "https://ela.st/es-deprecation-7-script-context-cache",
-                    "found deprecated script context caches in use, change setting to compilation rate or remove " +
-                        "setting to use the default",
+                    "Remove the context-specific cache settings and set [script.max_compilations_rate] to configure the rate limit for " +
+                        "the general cache. If no limit is set, the rate defaults to 150 compilations per five minutes: 150/5m. " +
+                        "Context-specific caches are no longer needed to prevent system scripts from triggering rate limits.",
                     false, null))
         );
     }
@@ -1468,13 +1468,12 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             NodeDeprecationChecks.checkScriptContextCompilationsRateLimitSetting(settings, null, null, null),
             equalTo(
                 new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                    "Setting context-specific rate limits"
-                        + " [script.context.field.max_compilations_rate,script.context.score.max_compilations_rate] is deprecated."
-                        + " Use [script.max_compilations_rate] to rate limit the compilation of user scripts."
-                        + " Context-specific caches are no longer needed to prevent system scripts from triggering rate limits.",
+                    "Setting a context-specific rate limit is deprecated",
                     "https://ela.st/es-deprecation-7-script-context-cache",
-                    "[script.context.field.max_compilations_rate,script.context.score.max_compilations_rate] is deprecated and"
-                            + " will be removed in a future release",
+                    "Remove the context-specific rate limit settings: [script.context.field.max_compilations_rate," +
+                        "script.context.score.max_compilations_rate]. Instead, set [script.max_compilations_rate] to configure the rate " +
+                        "limit for the general cache.  If no limit is set, the rate defaults to 150 compilations per five minutes: 150/5m" +
+                        ". Context-specific caches are no longer needed to prevent system scripts from triggering rate limits.",
                     false, null)));
 
         assertWarnings(
@@ -1496,13 +1495,11 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             NodeDeprecationChecks.checkScriptContextCacheSizeSetting(settings, null, null, null),
             equalTo(
                 new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                    "Setting a context-specific cache size"
-                        + " [script.context.filter.cache_max_size,script.context.update.cache_max_size] is deprecated."
-                        + " Use [script.cache.max_size] to configure the size of the general cache for scripts."
-                        + " Context-specific caches are no longer needed to prevent system scripts from triggering rate limits.",
+                    "Setting a context-specific cache size is deprecated",
                     "https://ela.st/es-deprecation-7-script-context-cache",
-                    "[script.context.filter.cache_max_size,script.context.update.cache_max_size] is deprecated and will be" +
-                            " removed in a future release",
+                    "Remove the context-specific cache size settings: [script.context.filter.cache_max_size,script.context.update" +
+                        ".cache_max_size]. Instead, set [script.cache_max_size] to configure the size of the general cache. " +
+                        "Context-specific caches are no longer needed to prevent system scripts from triggering rate limits.",
                     false, null)));
 
         assertWarnings("[script.context.update.cache_max_size] setting was deprecated in Elasticsearch and will be"
@@ -1523,13 +1520,12 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             NodeDeprecationChecks.checkScriptContextCacheExpirationSetting(settings, null, null, null),
             equalTo(
                 new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                        "Setting a context-specific cache expiration"
-                        + " [script.context.interval.cache_expire,script.context.moving-function.cache_expire] is deprecated."
-                        + " Use [script.cache.expire] to configure the expiration of the general cache."
-                        + " Context-specific caches are no longer needed to prevent system scripts from triggering rate limits.",
+                        "Setting a context-specific cache expiration is deprecated",
                     "https://ela.st/es-deprecation-7-script-context-cache",
-                    "[script.context.interval.cache_expire,script.context.moving-function.cache_expire] is deprecated and will be"
-                            + " removed in a future release",
+                    "Remove the context-specific cache expiration settings: [script.context.interval.cache_expire," +
+                        "script.context.moving-function.cache_expire]. Instead, set [script.cache.expire] to configure the expiration of" +
+                        " the general cache. Context-specific caches are no longer needed to prevent system scripts from triggering rate " +
+                        "limits.",
                     false, null)));
 
 
@@ -1584,9 +1580,9 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final String expectedUrl = "https://ela.st/es-deprecation-7-monitoring-settings";
         assertThat(issues, hasItem(
             new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                "setting ["+settingKey+"] is deprecated and will be removed after 8.0",
+                "Setting ["+settingKey+"] is deprecated",
                 expectedUrl,
-                "the setting ["+settingKey+"] is currently set to ["+value+"], remove this setting",
+                "Remove the ["+settingKey+"] setting.",
                 false, null)));
     }
 

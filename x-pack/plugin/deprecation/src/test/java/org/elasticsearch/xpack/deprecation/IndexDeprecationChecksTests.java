@@ -665,9 +665,10 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             -> c.apply(ClusterState.EMPTY_STATE, indexMetadata));
         assertThat(issues, contains(
             new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                "index [test] is a frozen index. The frozen indices feature is deprecated and will be removed in a future version",
+                "Freezing indices is deprecated",
                 "https://ela.st/es-deprecation-7-frozen-indices",
-                "Frozen indices no longer offer any advantages. Consider cold or frozen tiers in place of frozen indices.",
+                "Index [test] is frozen. Frozen indices no longer offer any advantages. Instead, unfreeze the index, make it read-only," +
+                    " and move it to the cold or frozen tier.",
                 false,
                 null
             )

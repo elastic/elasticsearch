@@ -454,10 +454,10 @@ public class IndexDeprecationChecks {
             String indexName = indexMetadata.getIndex().getName();
             return new DeprecationIssue(
                 DeprecationIssue.Level.WARNING,
-                "index [" + indexName +
-                    "] is a frozen index. The frozen indices feature is deprecated and will be removed in a future version",
+                "Freezing indices is deprecated",
                 "https://ela.st/es-deprecation-7-frozen-indices",
-                "Frozen indices no longer offer any advantages. Consider cold or frozen tiers in place of frozen indices.",
+                "Index [" + indexName + "] is frozen. Frozen indices no longer offer any advantages. Instead, unfreeze the index, make it" +
+                    " read-only, and move it to the cold or frozen tier.",
                 false,
                 null
             );

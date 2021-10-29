@@ -264,7 +264,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
         );
 
         Map<String, LifecycleAction> actions = new HashMap<>();
-        actions.put("forcemerge", new ForceMergeAction(5, null));
+        actions.put("forcemerge", new ForceMergeAction(5, null, false));
         actions.put("allocate", new AllocateAction(1, 20, null, null, null));
         PhaseExecutionInfo pei = new PhaseExecutionInfo("policy", new Phase("wonky", TimeValue.ZERO, actions), 1, 1);
         String phaseDef = Strings.toString(pei);

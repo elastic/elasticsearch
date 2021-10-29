@@ -247,7 +247,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         );
 
         // If a new snapshot is needed, these steps are executed
-        ForceMergeStep forceMergeStep = new ForceMergeStep(forceMergeStepKey, waitForSegmentCountKey, client, 1);
+        ForceMergeStep forceMergeStep = new ForceMergeStep(forceMergeStepKey, waitForSegmentCountKey, client, 1, false);
         SegmentCountStep segmentCountStep = new SegmentCountStep(waitForSegmentCountKey, generateSnapshotNameKey, client, 1);
         GenerateSnapshotNameStep generateSnapshotNameStep = new GenerateSnapshotNameStep(
             generateSnapshotNameKey,

@@ -34,16 +34,21 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
     public ForceMergeStep createRandomInstance() {
         Step.StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
-        int maxNumSegments = randomIntBetween(1, 10);
+        Integer maxNumSegments = null;
+        boolean onlyExpungeDeletes = randomBoolean();
+        if (onlyExpungeDeletes == false) {
+            maxNumSegments = randomIntBetween(1, 10);
+        }
 
-        return new ForceMergeStep(stepKey, nextStepKey, null, maxNumSegments);
+        return new ForceMergeStep(stepKey, nextStepKey, null, maxNumSegments, onlyExpungeDeletes);
     }
 
     @Override
     public ForceMergeStep mutateInstance(ForceMergeStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
-        int maxNumSegments = instance.getMaxNumSegments();
+        Integer maxNumSegments = instance.getMaxNumSegments();
+        boolean onlyExpungeDeletes = instance.getOnlyExpungeDeletes();
 
         switch (between(0, 2)) {
             case 0:
@@ -53,18 +58,29 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
                 nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
                 break;
             case 2:
-                maxNumSegments += 1;
+                onlyExpungeDeletes = onlyExpungeDeletes == false;
+                if (onlyExpungeDeletes) {
+                    maxNumSegments = null;
+                } else {
+                    maxNumSegments = randomIntBetween(1, 10);
+                }
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new ForceMergeStep(key, nextKey, instance.getClient(), maxNumSegments);
+        return new ForceMergeStep(key, nextKey, instance.getClient(), maxNumSegments, onlyExpungeDeletes);
     }
 
     @Override
     public ForceMergeStep copyInstance(ForceMergeStep instance) {
-        return new ForceMergeStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(), instance.getMaxNumSegments());
+        return new ForceMergeStep(
+            instance.getKey(),
+            instance.getNextStepKey(),
+            instance.getClient(),
+            instance.getMaxNumSegments(),
+            instance.getOnlyExpungeDeletes()
+        );
     }
 
     public void testPerformActionComplete() throws Exception {
@@ -75,19 +91,32 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
             .build();
         Step.StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
-        int maxNumSegments = randomIntBetween(1, 10);
+        final Integer maxNumSegments = randomIntBetween(1, 10);
+        final boolean onlyExpungeDeletes = randomBoolean();
+
         ForceMergeResponse forceMergeResponse = Mockito.mock(ForceMergeResponse.class);
         Mockito.when(forceMergeResponse.getStatus()).thenReturn(RestStatus.OK);
         Mockito.doAnswer(invocationOnMock -> {
             ForceMergeRequest request = (ForceMergeRequest) invocationOnMock.getArguments()[0];
-            assertThat(request.maxNumSegments(), equalTo(maxNumSegments));
+            if (onlyExpungeDeletes) {
+                assertThat(request.onlyExpungeDeletes(), equalTo(true));
+            } else {
+                assertThat(request.maxNumSegments(), equalTo(maxNumSegments));
+            }
+
             @SuppressWarnings("unchecked")
             ActionListener<ForceMergeResponse> listener = (ActionListener<ForceMergeResponse>) invocationOnMock.getArguments()[1];
             listener.onResponse(forceMergeResponse);
             return null;
         }).when(indicesClient).forceMerge(any(), any());
 
-        ForceMergeStep step = new ForceMergeStep(stepKey, nextStepKey, client, maxNumSegments);
+        ForceMergeStep step;
+        if (onlyExpungeDeletes) {
+            step = new ForceMergeStep(stepKey, nextStepKey, client, null, true);
+        } else {
+            step = new ForceMergeStep(stepKey, nextStepKey, client, maxNumSegments, false);
+        }
+
         PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, null, null, f));
     }
 
@@ -100,21 +129,31 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
         Exception exception = new RuntimeException("error");
         Step.StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
-        int maxNumSegments = randomIntBetween(1, 10);
+        final Integer maxNumSegments = randomIntBetween(1, 10);
+        final boolean onlyExpungeDeletes = randomBoolean();
         ForceMergeResponse forceMergeResponse = Mockito.mock(ForceMergeResponse.class);
         Mockito.when(forceMergeResponse.getStatus()).thenReturn(RestStatus.OK);
         Mockito.doAnswer(invocationOnMock -> {
             ForceMergeRequest request = (ForceMergeRequest) invocationOnMock.getArguments()[0];
             assertThat(request.indices().length, equalTo(1));
             assertThat(request.indices()[0], equalTo(indexMetadata.getIndex().getName()));
-            assertThat(request.maxNumSegments(), equalTo(maxNumSegments));
+            if (onlyExpungeDeletes) {
+                assertThat(request.onlyExpungeDeletes(), equalTo(true));
+            } else {
+                assertThat(request.maxNumSegments(), equalTo(maxNumSegments));
+            }
             @SuppressWarnings("unchecked")
             ActionListener<ForceMergeResponse> listener = (ActionListener<ForceMergeResponse>) invocationOnMock.getArguments()[1];
             listener.onFailure(exception);
             return null;
         }).when(indicesClient).forceMerge(any(), any());
 
-        ForceMergeStep step = new ForceMergeStep(stepKey, nextStepKey, client, maxNumSegments);
+        ForceMergeStep step;
+        if (onlyExpungeDeletes) {
+            step = new ForceMergeStep(stepKey, nextStepKey, client, null, true);
+        } else {
+            step = new ForceMergeStep(stepKey, nextStepKey, client, maxNumSegments, false);
+        }
         assertSame(
             exception,
             expectThrows(
@@ -159,7 +198,7 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(indexMetadata, true).build())
             .build();
-        ForceMergeStep step = new ForceMergeStep(stepKey, nextStepKey, client, 1);
+        ForceMergeStep step = new ForceMergeStep(stepKey, nextStepKey, client, 1, false);
         step.performAction(indexMetadata, state, null, new ActionListener<>() {
             @Override
             public void onResponse(Void aBoolean) {

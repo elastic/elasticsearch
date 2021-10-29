@@ -7,19 +7,13 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.EngineConfig;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -40,7 +34,12 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
     }
 
     static ForceMergeAction randomInstance() {
-        return new ForceMergeAction(randomIntBetween(1, 100), createRandomCompressionSettings());
+        Integer maxNumSegments = null;
+        boolean onlyExpungeDeletes = randomBoolean();
+        if (onlyExpungeDeletes == false) {
+            maxNumSegments = randomIntBetween(1, 100);
+        }
+        return new ForceMergeAction(maxNumSegments, createRandomCompressionSettings(), onlyExpungeDeletes);
     }
 
     static String createRandomCompressionSettings() {
@@ -52,9 +51,12 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
 
     @Override
     protected ForceMergeAction mutateInstance(ForceMergeAction instance) {
-        int maxNumSegments = instance.getMaxNumSegments();
-        maxNumSegments = maxNumSegments + randomIntBetween(1, 10);
-        return new ForceMergeAction(maxNumSegments, createRandomCompressionSettings());
+        Integer maxNumSegments = null;
+        boolean onlyExpungeDeletes = instance.getOnlyExpungeDeletes() == false;
+        if (onlyExpungeDeletes == false) {
+            maxNumSegments = randomIntBetween(1, 100);
+        }
+        return new ForceMergeAction(maxNumSegments, createRandomCompressionSettings(), onlyExpungeDeletes);
     }
 
     @Override
@@ -134,29 +136,31 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
         assertThat(fifthStep.getSettings().get(EngineConfig.INDEX_CODEC_SETTING.getKey()), equalTo(CodecService.BEST_COMPRESSION_CODEC));
     }
 
-    public void testMissingMaxNumSegments() throws IOException {
-        BytesReference emptyObject = BytesReference.bytes(JsonXContent.contentBuilder().startObject().endObject());
-        XContentParser parser = XContentHelper.createParser(
-            null,
-            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-            emptyObject,
-            XContentType.JSON
-        );
-        Exception e = expectThrows(IllegalArgumentException.class, () -> ForceMergeAction.parse(parser));
-        assertThat(e.getMessage(), equalTo("Required [max_num_segments]"));
-    }
-
     public void testInvalidNegativeSegmentNumber() {
-        Exception r = expectThrows(IllegalArgumentException.class, () -> new ForceMergeAction(randomIntBetween(-10, 0), null));
+        Exception r = expectThrows(IllegalArgumentException.class, () -> new ForceMergeAction(randomIntBetween(-10, 0), null, false));
         assertThat(r.getMessage(), equalTo("[max_num_segments] must be a positive integer"));
     }
 
     public void testInvalidCodec() {
         Exception r = expectThrows(
             IllegalArgumentException.class,
-            () -> new ForceMergeAction(randomIntBetween(1, 10), "DummyCompressingStoredFields")
+            () -> new ForceMergeAction(randomIntBetween(1, 10), "DummyCompressingStoredFields", false)
         );
         assertThat(r.getMessage(), equalTo("unknown index codec: [DummyCompressingStoredFields]"));
+    }
+
+    public void testInvalidOnyExpungeDeletes() {
+        Exception exception = expectThrows(IllegalArgumentException.class, () -> new ForceMergeAction(randomIntBetween(1, 10), null, true));
+        assertThat(
+            exception.getMessage(),
+            equalTo(
+                "cannot set [max_num_segments] and [only_expunge_deletes] at the same time,"
+                    + " those two parameters are mutually exclusive"
+            )
+        );
+
+        exception = expectThrows(IllegalArgumentException.class, () -> new ForceMergeAction(null, null, false));
+        assertThat(exception.getMessage(), equalTo("Either [max_num_segments] or [only_expunge_deletes] must be set"));
     }
 
     public void testToSteps() {

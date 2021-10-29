@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -44,28 +45,41 @@ public class ForceMergeAction implements LifecycleAction {
     public static final String NAME = "forcemerge";
     public static final ParseField MAX_NUM_SEGMENTS_FIELD = new ParseField("max_num_segments");
     public static final ParseField CODEC = new ParseField("index_codec");
+    public static final ParseField ONLY_EXPUNGE_DELETES = new ParseField("only_expunge_deletes");
     public static final String CONDITIONAL_SKIP_FORCE_MERGE_STEP = BranchingStep.NAME + "-forcemerge-check-prerequisites";
 
     private static final ConstructingObjectParser<ForceMergeAction, Void> PARSER = new ConstructingObjectParser<>(NAME, false, a -> {
-        int maxNumSegments = (int) a[0];
+        Integer maxNumSegments = (Integer) a[0];
         String codec = a[1] != null ? (String) a[1] : null;
-        return new ForceMergeAction(maxNumSegments, codec);
+        boolean onlyExpungeDeletes = a[2] != null && (boolean) a[2];
+        return new ForceMergeAction(maxNumSegments, codec, onlyExpungeDeletes);
     });
 
     static {
-        PARSER.declareInt(ConstructingObjectParser.constructorArg(), MAX_NUM_SEGMENTS_FIELD);
+        PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), MAX_NUM_SEGMENTS_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), CODEC);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ONLY_EXPUNGE_DELETES);
     }
 
-    private final int maxNumSegments;
+    private final Integer maxNumSegments;
     private final String codec;
+    private final boolean onlyExpungeDeletes;
 
     public static ForceMergeAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public ForceMergeAction(int maxNumSegments, @Nullable String codec) {
-        if (maxNumSegments <= 0) {
+    public ForceMergeAction(@Nullable Integer maxNumSegments, @Nullable String codec, boolean onlyExpungeDeletes) {
+        if (maxNumSegments != null && onlyExpungeDeletes) {
+            throw new IllegalArgumentException(
+                "cannot set [max_num_segments] and [only_expunge_deletes] at the same time,"
+                    + " those two parameters are mutually exclusive"
+            );
+        }
+        if (maxNumSegments == null && onlyExpungeDeletes == false) {
+            throw new IllegalArgumentException("Either [max_num_segments] or [only_expunge_deletes] must be set");
+        }
+        if (maxNumSegments != null && maxNumSegments <= 0) {
             throw new IllegalArgumentException("[" + MAX_NUM_SEGMENTS_FIELD.getPreferredName() + "] must be a positive integer");
         }
         this.maxNumSegments = maxNumSegments;
@@ -73,14 +87,24 @@ public class ForceMergeAction implements LifecycleAction {
             throw new IllegalArgumentException("unknown index codec: [" + codec + "]");
         }
         this.codec = codec;
+        this.onlyExpungeDeletes = onlyExpungeDeletes;
     }
 
     public ForceMergeAction(StreamInput in) throws IOException {
-        this.maxNumSegments = in.readVInt();
+        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
+            this.maxNumSegments = in.readOptionalVInt();
+        } else {
+            this.maxNumSegments = in.readVInt();
+        }
         this.codec = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
+            this.onlyExpungeDeletes = in.readBoolean();
+        } else {
+            this.onlyExpungeDeletes = false;
+        }
     }
 
-    public int getMaxNumSegments() {
+    public Integer getMaxNumSegments() {
         return maxNumSegments;
     }
 
@@ -88,10 +112,22 @@ public class ForceMergeAction implements LifecycleAction {
         return this.codec;
     }
 
+    public Boolean getOnlyExpungeDeletes() {
+        return this.onlyExpungeDeletes;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(maxNumSegments);
+        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
+            out.writeOptionalVInt(maxNumSegments);
+        } else {
+            out.writeVInt(maxNumSegments);
+        }
+
         out.writeOptionalString(codec);
+        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
+            out.writeBoolean(onlyExpungeDeletes);
+        }
     }
 
     @Override
@@ -107,10 +143,13 @@ public class ForceMergeAction implements LifecycleAction {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(MAX_NUM_SEGMENTS_FIELD.getPreferredName(), maxNumSegments);
+        if (maxNumSegments != null) {
+            builder.field(MAX_NUM_SEGMENTS_FIELD.getPreferredName(), maxNumSegments);
+        }
         if (codec != null) {
             builder.field(CODEC.getPreferredName(), codec);
         }
+        builder.field(ONLY_EXPUNGE_DELETES.getPreferredName(), onlyExpungeDeletes);
         builder.endObject();
         return builder;
     }
@@ -174,8 +213,11 @@ public class ForceMergeAction implements LifecycleAction {
             ClusterHealthStatus.GREEN
         );
 
-        ForceMergeStep forceMergeStep = new ForceMergeStep(forceMergeKey, countKey, client, maxNumSegments);
-        SegmentCountStep segmentCountStep = new SegmentCountStep(countKey, nextStepKey, client, maxNumSegments);
+        StepKey forceMergeNextKey = nextStepKey;
+        if (maxNumSegments != null) {
+            forceMergeNextKey = countKey;
+        }
+        ForceMergeStep forceMergeStep = new ForceMergeStep(forceMergeKey, forceMergeNextKey, client, maxNumSegments, onlyExpungeDeletes);
 
         List<Step> mergeSteps = new ArrayList<>();
         mergeSteps.add(conditionalSkipShrinkStep);
@@ -190,13 +232,18 @@ public class ForceMergeAction implements LifecycleAction {
         }
 
         mergeSteps.add(forceMergeStep);
-        mergeSteps.add(segmentCountStep);
+
+        if (maxNumSegments != null) {
+            SegmentCountStep segmentCountStep = new SegmentCountStep(countKey, nextStepKey, client, maxNumSegments);
+            mergeSteps.add(segmentCountStep);
+        }
+
         return mergeSteps;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(maxNumSegments, codec);
+        return Objects.hash(maxNumSegments, codec, onlyExpungeDeletes);
     }
 
     @Override
@@ -208,7 +255,9 @@ public class ForceMergeAction implements LifecycleAction {
             return false;
         }
         ForceMergeAction other = (ForceMergeAction) obj;
-        return Objects.equals(this.maxNumSegments, other.maxNumSegments) && Objects.equals(this.codec, other.codec);
+        return Objects.equals(this.maxNumSegments, other.maxNumSegments)
+            && Objects.equals(this.codec, other.codec)
+            && Objects.equals(this.onlyExpungeDeletes, other.onlyExpungeDeletes);
     }
 
     @Override

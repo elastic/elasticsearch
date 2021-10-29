@@ -4,13 +4,13 @@
 
 Phases allowed: hot, warm.
 
-<<indices-forcemerge,Force merges>> the index into 
+<<indices-forcemerge,Force merges>> the index into
 the specified maximum number of <<indices-segments,segments>>.
 
 This action makes the index <<dynamic-index-settings,read-only>>.
 
 To use the `forcemerge` action in the `hot` phase, the `rollover` action *must* be present.
-If no rollover action is configured, {ilm-init} will reject the policy. 
+If no rollover action is configured, {ilm-init} will reject the policy.
 
 [NOTE]
 The `forcemerge` action is best effort. It might happen that some of the
@@ -20,8 +20,19 @@ shards are relocating, in which case they will not be merged.
 ==== Options
 
 `max_num_segments`::
-(Required, integer) 
-Number of segments to merge to. To fully merge the index, set to `1`.
+(Optional, integer)
+Number of segments to merge to. To fully merge the index, set to `1`. This parameter conflicts with
+`only_expunge_deletes`, cannot be set if `only_expunge_deletes` is set to `true`.
+
+`only_expunge_deletes`::
++
+--
+(Optional, boolean)
+If `true`,
+expunge all segments containing more than `index.merge.policy.expunge_deletes_allowed`
+(default to 10) percents of deleted documents. Defaults to `false`. This parameter conflicts with
+`max_num_segments`, cannot be set to `true` if `max_num_segments` has been set.
+--
 
 `index_codec`::
 (Optional, string)

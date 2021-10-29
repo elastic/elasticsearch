@@ -281,7 +281,10 @@ public class CompositeRolesStore {
             return;
         }
 
-        if (user == authentication.getUser().authenticatedUser()) {
+        if (user.isRunAs()) {
+            // The runas user currently must be from a realm and have regular roles
+            getRolesForUser(user, roleActionListener);
+        } else {
             if (authentication.isServiceAccount()) {
                 getRolesForServiceAccount(authentication, roleActionListener);
             } else if (ApiKeyService.isApiKeyAuthentication(authentication)) {
@@ -290,9 +293,6 @@ public class CompositeRolesStore {
             } else {
                 getRolesForUser(user, roleActionListener);
             }
-        } else {
-            assert user.isRunAs() && user == authentication.getUser() : "must be run as user";
-            getRolesForUser(user, roleActionListener);
         }
     }
 

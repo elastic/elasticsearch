@@ -258,6 +258,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         patternLayout = null;
     }
 
+    // Test settings assertion flow: init() => new LoggingAuditTrail.EntryCommonFields() => commonFields => test*() => assertMsg()
     @Before
     public void init() throws Exception {
         includeRequestBody = randomBoolean();
@@ -313,7 +314,14 @@ public class LoggingAuditTrailTests extends ESTestCase {
             )
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-        commonFields = new LoggingAuditTrail.EntryCommonFields(settings, localNode, clusterService).commonFields;
+        // This constructor call is a filter. It uses emit settings to use (or ignore) common fields for all audit logs.
+        final LoggingAuditTrail.EntryCommonFields entryCommonFields = new LoggingAuditTrail.EntryCommonFields(
+            settings,
+            localNode,
+            clusterService
+        );
+        // This filtered map contains audit log assertions to be used by all tests during calls to assertMsg(). Null values assert absence.
+        commonFields = entryCommonFields.commonFields;
         threadContext = new ThreadContext(Settings.EMPTY);
         if (randomBoolean()) {
             threadContext.putHeader(Task.X_OPAQUE_ID, randomAlphaOfLengthBetween(1, 4));

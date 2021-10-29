@@ -15,15 +15,17 @@ PUT _cluster/settings
 // TEST[warning:[transient settings removal] Updating cluster settings through transientSettings is deprecated. Use persistent settings instead.]
 ////
 
-Transient cluster settings are deprecated. Transient settings don't survive full
-cluster restarts. A cluster restart can occur unexpectedly if enough
-master-eligible nodes fail, resulting in an unwanted cluster configuration.
+Transient cluster settings are deprecated. Previously, you could use transient
+settings to make temporary configuration changes to a cluster. However,
+transient settings don't survive full cluster restarts. A cluster restart can
+occur forcibly if enough master-eligible nodes fail. This can clear transient
+settings unexpectedly, leading to a potentially undesired cluster configuration.
 
-You can convert any transient setting you'd like to keep to a persistent
-setting, which persists across cluster restarts. You can then reset your
-configured transient settings to avoid deprecation warnings.
+To avoid deprecation warnings, reset any transient settings on your cluster.
+Convert any transient setting you'd like to keep to a persistent setting, which
+persists across cluster restarts.
 
-To migrate from transient settings:
+To reset and convert transient settings:
 
 . Get a list of any configured transient settings using the
 <<cluster-get-settings,cluster get settings API>>.
@@ -34,23 +36,28 @@ GET _cluster/settings?flat_settings=true&filter_path=transient
 ----
 // TEST[continued]
 +
-The API returns:
+The API returns transient settings in the `transient` object. If this object is
+empty, your cluster has no transient settings, and you can skip the remaining
+steps.
 +
 [source,console-result]
 ----
 {
+  "persistent": { ... },
   "transient": {
     "cluster.indices.close.enable": "false",
     "indices.recovery.max_bytes_per_sec": "50mb"
   }
 }
 ----
+// TESTRESPONSE[s/"persistent": \{ \.\.\. \},//]
 
-. Copy any settings you'd like to convert into the `persistent` object of a
-<<cluster-update-settings,cluster update settings API>> request. Reset all
-transient settings in the same request.
+. Copy any transient setting you'd like to convert to a persistent setting into
+the `persistent` object of a <<cluster-update-settings,cluster update settings
+API>> request. In the same request, reset all transient settings by assigning
+them a `null` value.
 +
-NOTE: The request will trigger a deprecation warning.
+NOTE: Resetting transient settings will emit a deprecation warning.
 +
 [source,console]
 ----
@@ -69,7 +76,7 @@ PUT _cluster/settings
 // TEST[warning:[transient settings removal] Updating cluster settings through transientSettings is deprecated. Use persistent settings instead.]
 
 . Use the <<cluster-get-settings,cluster get settings API>> to confirm your
-cluster has no transient settings.
+cluster has no remaining transient settings.
 +
 [source,console]
 ----
@@ -77,20 +84,22 @@ GET _cluster/settings?flat_settings=true
 ----
 // TEST[continued]
 +
-If there are no transient settings, the response's `transient` property is
-empty:
+If the `transient` object is empty, your cluster has no transient settings.
 +
 [source,console-result]
 ----
 {
   "persistent": {
     "cluster.indices.close.enable": "false",
-    "indices.recovery.max_bytes_per_sec": "50mb"
+    "indices.recovery.max_bytes_per_sec": "50mb",
+    ...
   },
   "transient": {
   }
 }
 ----
+// TESTRESPONSE[s/"50mb",/"50mb"/]
+// TESTRESPONSE[s/\.\.\.//]
 
 ////
 [source,console]

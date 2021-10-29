@@ -789,7 +789,6 @@ public class MachineLearning extends Plugin
         this.datafeedConfigProvider.set(datafeedConfigProvider);
         UpdateJobProcessNotifier notifier = new UpdateJobProcessNotifier(client, clusterService, threadPool);
         JobManager jobManager = new JobManager(
-            environment,
             settings,
             jobResultsProvider,
             jobResultsPersister,
@@ -805,7 +804,6 @@ public class MachineLearning extends Plugin
             datafeedConfigProvider,
             jobConfigProvider,
             xContentRegistry,
-            clusterService,
             settings,
             client
         );

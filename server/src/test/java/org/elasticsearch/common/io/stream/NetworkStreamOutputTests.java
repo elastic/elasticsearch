@@ -707,7 +707,8 @@ public class NetworkStreamOutputTests extends ESTestCase {
 
         assertNotEquals(mapKeys, reverseMapKeys);
 
-        try (NetworkStreamOutput output = new NetworkStreamOutput(recycler); NetworkStreamOutput reverseMapOutput = new NetworkStreamOutput(recycler)) {
+        try (NetworkStreamOutput output = new NetworkStreamOutput(recycler);
+             NetworkStreamOutput reverseMapOutput = new NetworkStreamOutput(recycler)) {
             output.writeMapWithConsistentOrder(map);
             reverseMapOutput.writeMapWithConsistentOrder(reverseMap);
 

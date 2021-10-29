@@ -14,6 +14,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -38,7 +40,11 @@ public class NetworkStreamOutput extends BytesStream {
     private int currentCapacity = 0;
     private int currentPageOffset;
 
-    protected NetworkStreamOutput(Recycler<BytesRef> recycler) {
+    public NetworkStreamOutput() {
+        this(new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE));
+    }
+
+    public NetworkStreamOutput(Recycler<BytesRef> recycler) {
         this.recycler = recycler;
         try (Recycler.V<BytesRef> obtain = recycler.obtain()) {
             pageSize = obtain.v().length;

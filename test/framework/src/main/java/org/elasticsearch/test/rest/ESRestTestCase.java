@@ -874,6 +874,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 }
                 // Always check for legacy templates:
                 Request getLegacyTemplatesRequest = new Request("GET", "_template");
+                getLegacyTemplatesRequest.setOptions(allowTypesRemovalWarnings());
                 Map<String, Object> legacyTemplates = XContentHelper.convertToMap(
                     JsonXContent.jsonXContent,
                     EntityUtils.toString(adminClient().performRequest(getLegacyTemplatesRequest).getEntity()),

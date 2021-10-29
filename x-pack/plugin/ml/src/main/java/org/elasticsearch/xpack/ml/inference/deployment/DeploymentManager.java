@@ -298,7 +298,7 @@ public class DeploymentManager {
                 );
                 return;
             }
-            logger.debug("request [{}] received timeout after [{}] but listener already alerted", requestId, timeout);
+            logger.debug("[{}] request [{}] received timeout after [{}] but listener already alerted", modelId, requestId, timeout);
         }
 
         void onSuccess(InferenceResults inferenceResults) {
@@ -307,7 +307,7 @@ public class DeploymentManager {
                 listener.onResponse(inferenceResults);
                 return;
             }
-            logger.debug("request [{}] received inference response but listener already notified", requestId);
+            logger.debug("[{}] request [{}] received inference response but listener already notified", modelId, requestId);
         }
 
         @Override
@@ -318,7 +318,10 @@ public class DeploymentManager {
                 listener.onFailure(e);
                 return;
             }
-            logger.debug(() -> new ParameterizedMessage("request [{}] received failure but listener already notified", requestId), e);
+            logger.debug(
+                () -> new ParameterizedMessage("[{}] request [{}] received failure but listener already notified", modelId, requestId),
+                e
+            );
         }
 
         @Override

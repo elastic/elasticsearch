@@ -108,8 +108,9 @@ License::
 * Enforce Transport TLS check on all licenses {es-pull}79602[#79602] (issue: {es-issue}75292[#75292])
 
 Machine Learning::
-* Add Inference time configuration overrides {es-pull}78441[#78441] (issue: {es-issue}77799[#77799])
-* [ML] optimize source extraction for `categorize_text` aggregation {es-pull}79099[#79099]
+* Add inference time configuration overrides {es-pull}78441[#78441] (issue: {es-issue}77799[#77799])
+* Optimize source extraction for `categorize_text` aggregation {es-pull}79099[#79099]
+* The Linux build platform for the {ml} C++ code is now CentOS 7 running gcc 10.3. {ml-pull}2028[#2028]
 
 Mapping::
 * Add support for configuring HNSW parameters {es-pull}79193[#79193] (issue: {es-issue}78473[#78473])
@@ -164,7 +165,7 @@ Infra/Settings::
 * Set Auto expand replica on deprecation log data stream {es-pull}79226[#79226] (issue: {es-issue}78991[#78991])
 
 Machine Learning::
-* Add timeout parameter for DELETE `trained_models` API {es-pull}79739[#79739] (issue: {es-issue}77070[#77070])
+* Add timeout parameter for delete trained models API {es-pull}79739[#79739] (issue: {es-issue}77070[#77070])
 * Tone down ML unassigned job notifications {es-pull}79578[#79578] (issue: {es-issue}79270[#79270])
 * Use a new annotations index for future annotations {es-pull}79006[#79006] (issue: {es-issue}78439[#78439])
 

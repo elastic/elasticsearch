@@ -68,7 +68,7 @@ Snapshots are automatically deduplicated to save storage space and reduce networ
 transfer costs. To back up an index, a snapshot makes a copy of the index's
 <<near-real-time,segments>> and stores them in the snapshot repository. Since
 segments are immutable, the snapshot only needs to copy any new segments created
-since the last snapshot.
+since the repository's last snapshot.
 
 Each snapshot is also logically independent. When you delete a snapshot, {es}
 only deletes the segments used exclusively by that snapshot. {es} doesn't delete
@@ -146,7 +146,7 @@ endif::[]
 A cluster is only compatible with indices created in the previous major version
 of {es}. Any data stream or index you restore from a snapshot must be compatible
 with the current cluster's version. If you try to restore an index created in an
-incompatible version, the restore attempt will fail.
+incompatible version, the attempt will fail.
 
 A snapshot can contain indices created in a previous major version. For example,
 a snapshot of a 6.x cluster can contain an index created in 5.x. If you try to

@@ -45,7 +45,8 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
 
         public static final ParseField TIMEOUT = new ParseField("timeout");
         public static final ParseField FORCE = new ParseField("force");
-        public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match", DEPRECATED_ALLOW_NO_DATAFEEDS_PARAM)
+        public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match").forRestApiVersion(equalTo(RestApiVersion.V_8));
+        public static final ParseField ALLOW_NO_MATCH_V7 = new ParseField("allow_no_match", DEPRECATED_ALLOW_NO_DATAFEEDS_PARAM)
             .forRestApiVersion(equalTo(RestApiVersion.V_7));
 
         public static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
@@ -57,6 +58,7 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
             );
             PARSER.declareBoolean(Request::setForce, FORCE);
             PARSER.declareBoolean(Request::setAllowNoMatch, ALLOW_NO_MATCH);
+            PARSER.declareBoolean(Request::setAllowNoMatch, ALLOW_NO_MATCH_V7);
         }
 
         public static Request fromXContent(XContentParser parser) {

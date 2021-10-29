@@ -37,7 +37,6 @@ public class NetworkStreamOutput extends BytesStream {
     private int pageIndex = -1;
     private int currentCapacity = 0;
     private int currentPageOffset;
-    private int position = 0;
 
     protected NetworkStreamOutput(Recycler<BytesRef> recycler) {
         this.recycler = recycler;
@@ -49,7 +48,7 @@ public class NetworkStreamOutput extends BytesStream {
 
     @Override
     public long position() {
-        return position;
+        return ((long) pageSize * pageIndex) + currentPageOffset;
     }
 
     @Override
@@ -57,7 +56,6 @@ public class NetworkStreamOutput extends BytesStream {
         ensureCapacity(1);
         BytesRef currentPage = pages.get(pageIndex).v();
         currentPage.bytes[currentPage.offset + currentPageOffset] = b;
-        position++;
         currentPageOffset++;
     }
 
@@ -97,7 +95,6 @@ public class NetworkStreamOutput extends BytesStream {
 
         // advance
         pageIndex += j;
-        position += length;
     }
 
     @Override
@@ -108,7 +105,6 @@ public class NetworkStreamOutput extends BytesStream {
             BytesRef currentPage = pages.get(pageIndex).v();
             VH_BE_INT.set(currentPage.bytes, currentPage.offset + currentPageOffset, i);
             currentPageOffset += 4;
-            position += 4;
         }
     }
 
@@ -120,7 +116,6 @@ public class NetworkStreamOutput extends BytesStream {
             BytesRef currentPage = pages.get(pageIndex).v();
             VH_BE_LONG.set(currentPage.bytes, currentPage.offset + currentPageOffset, i);
             currentPageOffset += 8;
-            position += 8;
         }
     }
 
@@ -130,8 +125,8 @@ public class NetworkStreamOutput extends BytesStream {
             page.close();
         }
         pages.clear();
-        position = 0;
-        currentPageOffset = 0;
+        pageIndex = -1;
+        currentPageOffset = pageSize;
     }
 
     @Override
@@ -142,13 +137,12 @@ public class NetworkStreamOutput extends BytesStream {
     @Override
     public void seek(long position) {
         ensureCapacityFromPosition(position);
-        this.position = (int) position;
-        // TODO: Fix pageIndex
-        this.pageIndex = this.position / pageSize;
+        this.pageIndex = (int) position / pageSize;
+        this.currentPageOffset = (int) position % pageSize;
     }
 
     public void skip(int length) {
-        seek(((long) position) + length);
+        seek(position() + length);
     }
 
     @Override
@@ -167,11 +161,12 @@ public class NetworkStreamOutput extends BytesStream {
      * @see ByteArrayOutputStream#size()
      */
     public int size() {
-        return position;
+        return (int) position();
     }
 
     @Override
     public BytesReference bytes() {
+        int position = (int) position();
         if (position == 0) {
             return BytesArray.EMPTY;
         } else {
@@ -202,8 +197,9 @@ public class NetworkStreamOutput extends BytesStream {
     }
 
     protected void ensureCapacity(int bytesNeeded) {
-        long offset = ((long) position) + bytesNeeded;
-        ensureCapacityFromPosition(offset);
+        if (pageSize - currentPageOffset >= bytesNeeded == false) {
+            ensureCapacityFromPosition(position() + bytesNeeded);
+        }
     }
 
     protected void ensureCapacityFromPosition(long newPosition) {

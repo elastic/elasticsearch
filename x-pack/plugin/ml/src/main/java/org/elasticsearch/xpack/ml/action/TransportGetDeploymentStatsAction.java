@@ -189,7 +189,9 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
                 GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forStartedState(
                     clusterService.localNode(),
                     stats.get().getTimingStats().getCount(),
-                    stats.get().getTimingStats().getAverage(),
+                    // avoid reporting the average as 0 if count < 1
+                    (stats.get().getTimingStats().getCount() > 0) ? stats.get().getTimingStats().getAverage() : null,
+                    stats.get().getQueueSize(),
                     stats.get().getLastUsed()
                 )
             );

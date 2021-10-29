@@ -103,7 +103,8 @@ public class DeploymentManager {
             .map(
                 processContext -> new ModelStats(
                     processContext.getResultProcessor().getTimingStats(),
-                    processContext.getResultProcessor().getLastUsed()
+                    processContext.getResultProcessor().getLastUsed(),
+                    processContext.executorService.queueSize()
                 )
             );
     }

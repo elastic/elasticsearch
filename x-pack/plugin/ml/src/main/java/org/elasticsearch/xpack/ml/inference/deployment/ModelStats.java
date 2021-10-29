@@ -14,10 +14,12 @@ public class ModelStats {
 
     private final LongSummaryStatistics timingStats;
     private final Instant lastUsed;
+    private final int queueSize;
 
-    ModelStats(LongSummaryStatistics timingStats, Instant lastUsed) {
+    ModelStats(LongSummaryStatistics timingStats, Instant lastUsed, int queueSize) {
         this.timingStats = timingStats;
         this.lastUsed = lastUsed;
+        this.queueSize = queueSize;
     }
 
     public LongSummaryStatistics getTimingStats() {
@@ -26,5 +28,9 @@ public class ModelStats {
 
     public Instant getLastUsed() {
         return lastUsed;
+    }
+
+    public int getQueueSize() {
+        return queueSize;
     }
 }

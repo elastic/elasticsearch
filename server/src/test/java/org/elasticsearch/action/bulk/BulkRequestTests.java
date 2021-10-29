@@ -444,4 +444,15 @@ public class BulkRequestTests extends ESTestCase {
                 + "but will be rejected in a future version."
         );
     }
+
+    public void testUnsupportedAction() throws Exception {
+        String bulkAction = "{ \"get\":{\"_index\":\"test\",\"_id\":\"1\"} }\n";
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
+
+        assertWarnings(
+            "Unsupported action: `get`. Supported values are `create`, `delete`, `index`, and `update`. "
+                + "Unsupported actions are currently accepted but will be rejected in a future version."
+        );
+    }
 }

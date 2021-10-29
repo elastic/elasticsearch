@@ -188,7 +188,7 @@ public final class BulkRequestParser {
                         "bulk_request_strict_action_parsing",
                         "Unsupported action: `"
                             + action
-                            + "`. Possible values are `create`, `delete`, `index`, and `update`. "
+                            + "`. Supported values are `create`, `delete`, `index`, and `update`. "
                             + "Unsupported actions are currently accepted but will be rejected in a future version."
                     );
                 }

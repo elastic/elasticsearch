@@ -419,9 +419,9 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
         );
 
         // add another old one, but not with an existing id
-        transformId = "transform_oldindex";
-        docId = TransformConfig.documentId(transformId);
-        transformConfig = TransformConfigTests.randomTransformConfig(transformId);
+        final String oldTransformId = "transform_oldindex";
+        docId = TransformConfig.documentId(oldTransformId);
+        transformConfig = TransformConfigTests.randomTransformConfig(oldTransformId);
 
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = transformConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
@@ -431,18 +431,29 @@ public class TransformConfigManagerTests extends TransformSingleNodeTestCase {
             client().index(request).actionGet();
         }
 
-        transformIds.add(transformId);
+        // add a new checkpoint doc for the old transform to check id expansion ignores other documents, see gh#80073
+        assertAsync(
+            listener -> transformConfigManager.putTransformCheckpoint(
+                TransformCheckpointTests.randomTransformCheckpoint(oldTransformId),
+                listener
+            ),
+            true,
+            null,
+            null
+        );
+
+        transformIds.add(oldTransformId);
         assertAsync(listener -> transformConfigManager.getAllTransformIds(listener), transformIds, null, null);
         assertAsync(
             listener -> transformConfigManager.getAllOutdatedTransformIds(listener),
-            tuple(Long.valueOf(numberOfTransformsToGenerate + 1), Collections.singleton(transformId)),
+            tuple(Long.valueOf(numberOfTransformsToGenerate + 1), Collections.singleton(oldTransformId)),
             null,
             null
         );
 
         assertAsync(
             listener -> transformConfigManager.expandAllTransformIds(true, 10, listener),
-            tuple(Long.valueOf(numberOfTransformsToGenerate + 1), Collections.singleton(transformId)),
+            tuple(Long.valueOf(numberOfTransformsToGenerate + 1), Collections.singleton(oldTransformId)),
             null,
             null
         );

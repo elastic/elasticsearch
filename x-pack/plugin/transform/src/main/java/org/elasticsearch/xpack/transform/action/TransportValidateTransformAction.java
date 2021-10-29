@@ -56,29 +56,7 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
         Settings settings,
         IngestService ingestService
     ) {
-        this(
-            ValidateTransformAction.NAME,
-            transportService,
-            actionFilters,
-            client,
-            indexNameExpressionResolver,
-            clusterService,
-            settings,
-            ingestService
-        );
-    }
-
-    protected TransportValidateTransformAction(
-        String name,
-        TransportService transportService,
-        ActionFilters actionFilters,
-        Client client,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        ClusterService clusterService,
-        Settings settings,
-        IngestService ingestService
-    ) {
-        super(name, transportService, actionFilters, Request::new);
+        super(ValidateTransformAction.NAME, transportService, actionFilters, Request::new);
         this.client = client;
         this.clusterService = clusterService;
         this.transportService = transportService;
@@ -88,7 +66,7 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             transportService.getRemoteClusterService(),
             DiscoveryNode.isRemoteClusterClient(settings)
                 /* transforms are BASIC so always allowed, no need to check license */
-                ? new RemoteClusterLicenseChecker(client, mode -> true)
+                ? new RemoteClusterLicenseChecker(client, null)
                 : null,
             ingestService,
             clusterService.getNodeName(),

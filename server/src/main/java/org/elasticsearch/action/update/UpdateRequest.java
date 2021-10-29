@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequest;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -828,6 +829,11 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     @Override
     public boolean isRequireAlias() {
         return requireAlias;
+    }
+
+    @Override
+    public int route(IndexRouting indexRouting) {
+        return indexRouting.updateShard(id, routing);
     }
 
     public UpdateRequest setRequireAlias(boolean requireAlias) {

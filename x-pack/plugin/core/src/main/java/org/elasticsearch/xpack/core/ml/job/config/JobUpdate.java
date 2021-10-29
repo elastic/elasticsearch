@@ -193,11 +193,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         allowLazyOpen = in.readOptionalBoolean();
         blocked = in.readOptionalWriteable(Blocked::new);
 
-        if (in.getVersion().onOrAfter(Version.V_7_15_0)) {
-            modelPruneWindow = in.readOptionalTimeValue();
-        } else {
-            modelPruneWindow = null;
-        }
+        modelPruneWindow = in.readOptionalTimeValue();
     }
 
     @Override
@@ -240,9 +236,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         out.writeOptionalBoolean(allowLazyOpen);
         out.writeOptionalWriteable(blocked);
 
-        if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
-            out.writeOptionalTimeValue(modelPruneWindow);
-        }
+        out.writeOptionalTimeValue(modelPruneWindow);
     }
 
     public String getJobId() {

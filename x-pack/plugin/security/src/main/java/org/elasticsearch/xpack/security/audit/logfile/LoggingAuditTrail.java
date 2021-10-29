@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledAction;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
@@ -1472,12 +1473,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getUser().principal());
             logEntry.with(AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
             if (Authentication.AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
-                logEntry.with(API_KEY_ID_FIELD_NAME, (String) authentication.getMetadata().get(ApiKeyService.API_KEY_ID_KEY));
-                String apiKeyName = (String) authentication.getMetadata().get(ApiKeyService.API_KEY_NAME_KEY);
+                logEntry.with(API_KEY_ID_FIELD_NAME, (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY));
+                String apiKeyName = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_NAME_KEY);
                 if (apiKeyName != null) {
                     logEntry.with(API_KEY_NAME_FIELD_NAME, apiKeyName);
                 }
-                String creatorRealmName = (String) authentication.getMetadata().get(ApiKeyService.API_KEY_CREATOR_REALM_NAME);
+                String creatorRealmName = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_CREATOR_REALM_NAME);
                 if (creatorRealmName != null) {
                     // can be null for API keys created before version 7.7
                     logEntry.with(PRINCIPAL_REALM_FIELD_NAME, creatorRealmName);

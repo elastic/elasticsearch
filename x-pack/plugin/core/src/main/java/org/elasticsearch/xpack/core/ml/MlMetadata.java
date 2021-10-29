@@ -37,10 +37,7 @@ public class MlMetadata implements Metadata.Custom {
     public static final ParseField UPGRADE_MODE = new ParseField("upgrade_mode");
     public static final ParseField RESET_MODE = new ParseField("reset_mode");
 
-    public static final MlMetadata EMPTY_METADATA = new MlMetadata(
-        false,
-        false
-    );
+    public static final MlMetadata EMPTY_METADATA = new MlMetadata(false, false);
     // This parser follows the pattern that metadata is parsed leniently (to allow for enhancements)
     public static final ObjectParser<Builder, Void> LENIENT_PARSER = new ObjectParser<>("ml_metadata", true, Builder::new);
 
@@ -192,8 +189,7 @@ public class MlMetadata implements Metadata.Custom {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         MlMetadata that = (MlMetadata) o;
-        return upgradeMode == that.upgradeMode
-            && resetMode == that.resetMode;
+        return upgradeMode == that.upgradeMode && resetMode == that.resetMode;
     }
 
     @Override
@@ -215,8 +211,7 @@ public class MlMetadata implements Metadata.Custom {
             return new Builder(previous);
         }
 
-        public Builder() {
-        }
+        public Builder() {}
 
         public Builder(@Nullable MlMetadata previous) {
             if (previous != null) {

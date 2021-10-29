@@ -5,10 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.slm.history;
+package org.elasticsearch.xpack.slm.history;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
+import org.elasticsearch.xpack.ilm.IndexLifecycle;
 
 import java.util.Collections;
 import java.util.List;
@@ -52,18 +54,6 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
         return true;
     }
 
-    public static final IndexTemplateConfig TEMPLATE_SLM_HISTORY = new IndexTemplateConfig(
-        SLM_TEMPLATE_NAME,
-        "/slm-history.json",
-        INDEX_TEMPLATE_VERSION,
-        SLM_TEMPLATE_VERSION_VARIABLE
-    );
-
-    public static final LifecyclePolicyConfig SLM_HISTORY_POLICY = new LifecyclePolicyConfig(
-        SLM_POLICY_NAME,
-        "/slm-history-ilm-policy.json"
-    );
-
     private final boolean slmHistoryEnabled;
 
     public SnapshotLifecycleTemplateRegistry(
@@ -77,20 +67,30 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
         slmHistoryEnabled = SLM_HISTORY_INDEX_ENABLED_SETTING.get(nodeSettings);
     }
 
-    @Override
-    protected List<IndexTemplateConfig> getComposableTemplateConfigs() {
-        if (slmHistoryEnabled == false) {
-            return Collections.emptyList();
-        }
-        return Collections.singletonList(TEMPLATE_SLM_HISTORY);
-    }
+    public static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(
+        new IndexTemplateConfig(SLM_TEMPLATE_NAME, "/slm-history.json", INDEX_TEMPLATE_VERSION, SLM_TEMPLATE_VERSION_VARIABLE)
+    );
 
     @Override
-    protected List<LifecyclePolicyConfig> getPolicyConfigs() {
+    protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
+        if (slmHistoryEnabled == false) {
+            return Map.of();
+        }
+        return COMPOSABLE_INDEX_TEMPLATE_CONFIGS;
+    }
+
+    private static final List<LifecyclePolicy> LIFECYCLE_POLICIES = List.of(
+        new LifecyclePolicyConfig(SLM_POLICY_NAME, "/slm-history-ilm-policy.json").load(
+            new NamedXContentRegistry(IndexLifecycle.NAMED_X_CONTENT_ENTRIES)
+        )
+    );
+
+    @Override
+    protected List<LifecyclePolicy> getPolicyConfigs() {
         if (slmHistoryEnabled == false) {
             return Collections.emptyList();
         }
-        return Collections.singletonList(SLM_HISTORY_POLICY);
+        return LIFECYCLE_POLICIES;
     }
 
     @Override
@@ -99,14 +99,14 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
     }
 
     public boolean validate(ClusterState state) {
-        boolean allTemplatesPresent = getComposableTemplateConfigs().stream()
-            .map(IndexTemplateConfig::getTemplateName)
+        boolean allTemplatesPresent = getComposableTemplateConfigs().keySet()
+            .stream()
             .allMatch(name -> state.metadata().templatesV2().containsKey(name));
 
         Optional<Map<String, LifecyclePolicy>> maybePolicies = Optional.<IndexLifecycleMetadata>ofNullable(
             state.metadata().custom(IndexLifecycleMetadata.TYPE)
         ).map(IndexLifecycleMetadata::getPolicies);
-        Set<String> policyNames = getPolicyConfigs().stream().map(LifecyclePolicyConfig::getPolicyName).collect(Collectors.toSet());
+        Set<String> policyNames = getPolicyConfigs().stream().map(LifecyclePolicy::getName).collect(Collectors.toSet());
 
         boolean allPoliciesPresent = maybePolicies.map(policies -> policies.keySet().containsAll(policyNames)).orElse(false);
         return allTemplatesPresent && allPoliciesPresent;

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.slm.history;
+package org.elasticsearch.xpack.slm.history;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -14,7 +14,6 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -23,22 +22,18 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
+import org.elasticsearch.xpack.core.slm.history.SnapshotHistoryItem;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.core.ilm.GenerateSnapshotNameStep.generateSnapshotName;
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING;
-import static org.elasticsearch.xpack.core.slm.history.SnapshotHistoryStore.SLM_HISTORY_DATA_STREAM;
-import static org.elasticsearch.xpack.core.slm.history.SnapshotLifecycleTemplateRegistry.TEMPLATE_SLM_HISTORY;
+import static org.elasticsearch.xpack.slm.history.SnapshotHistoryStore.SLM_HISTORY_DATA_STREAM;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.IsEqual.equalTo;
@@ -51,20 +46,13 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
     private ClusterService clusterService;
 
     @Before
-    public void setup() throws IOException {
+    public void setup() {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new SnapshotLifecycleTemplateRegistryTests.VerifyingClient(threadPool);
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        ComposableIndexTemplate template = ComposableIndexTemplate.parse(
-            JsonXContent.jsonXContent.createParser(
-                NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                TEMPLATE_SLM_HISTORY.loadBytes()
-            )
-        );
         ClusterState state = clusterService.state();
         Metadata.Builder metadataBuilder = Metadata.builder(state.getMetadata())
-            .indexTemplates(Map.of(TEMPLATE_SLM_HISTORY.getTemplateName(), template));
+            .indexTemplates(SnapshotLifecycleTemplateRegistry.COMPOSABLE_INDEX_TEMPLATE_CONFIGS);
         ClusterServiceUtils.setState(clusterService, ClusterState.builder(state).metadata(metadataBuilder).build());
         historyStore = new SnapshotHistoryStore(Settings.EMPTY, client, clusterService);
         clusterService.stop();

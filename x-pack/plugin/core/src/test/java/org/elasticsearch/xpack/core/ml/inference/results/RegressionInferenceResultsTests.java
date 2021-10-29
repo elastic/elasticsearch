@@ -24,35 +24,36 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-
 public class RegressionInferenceResultsTests extends InferenceResultsTestCase<RegressionInferenceResults> {
 
     public static RegressionInferenceResults createRandomResults() {
-        return new RegressionInferenceResults(randomDouble(),
+        return new RegressionInferenceResults(
+            randomDouble(),
             RegressionConfigTests.randomRegressionConfig(),
-            randomBoolean() ? Collections.emptyList() :
-                Stream.generate(RegressionFeatureImportanceTests::createRandomInstance)
+            randomBoolean()
+                ? Collections.emptyList()
+                : Stream.generate(RegressionFeatureImportanceTests::createRandomInstance)
                     .limit(randomIntBetween(1, 10))
-                    .collect(Collectors.toList()));
+                    .collect(Collectors.toList())
+        );
     }
 
     public void testWriteResultsWithImportance() {
         List<RegressionFeatureImportance> importanceList = Stream.generate(RegressionFeatureImportanceTests::createRandomInstance)
             .limit(5)
             .collect(Collectors.toList());
-        RegressionInferenceResults result = new RegressionInferenceResults(0.3,
-            new RegressionConfig("predicted_value", 3),
-            importanceList);
+        RegressionInferenceResults result = new RegressionInferenceResults(0.3, new RegressionConfig("predicted_value", 3), importanceList);
         IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
         writeResult(result, document, "result_field", "test");
 
         assertThat(document.getFieldValue("result_field.predicted_value", Double.class), equalTo(0.3));
         @SuppressWarnings("unchecked")
-        List<Map<String, Object>> writtenImportance = (List<Map<String, Object>>)document.getFieldValue(
+        List<Map<String, Object>> writtenImportance = (List<Map<String, Object>>) document.getFieldValue(
             "result_field.feature_importance",
-            List.class);
+            List.class
+        );
         assertThat(writtenImportance, hasSize(3));
-        importanceList.sort((l, r)-> Double.compare(Math.abs(r.getImportance()), Math.abs(l.getImportance())));
+        importanceList.sort((l, r) -> Double.compare(Math.abs(r.getImportance()), Math.abs(l.getImportance())));
         for (int i = 0; i < 3; i++) {
             Map<String, Object> objectMap = writtenImportance.get(i);
             RegressionFeatureImportance importance = importanceList.get(i);

@@ -60,25 +60,29 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
 
-        IndexMetadata.Builder indexMetadataBuilder =
-            IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5));
 
         IndexMetadata indexMetadata = indexMetadataBuilder.build();
 
-        ClusterState clusterState =
-            ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
+        ClusterState clusterState = ClusterState.builder(emptyClusterState())
+            .metadata(Metadata.builder().put(indexMetadata, true).build())
+            .build();
 
         CleanupShrinkIndexStep cleanupShrinkIndexStep = createRandomInstance();
         cleanupShrinkIndexStep.performAction(indexMetadata, clusterState, null, new ActionListener<>() {
             @Override
-            public void onResponse(Void unused) {
-            }
+            public void onResponse(Void unused) {}
 
             @Override
             public void onFailure(Exception e) {
-                fail("expecting the step to not report any failure if there isn't any shrink index name stored in the ILM execution " +
-                    "state but got:" + e.getMessage());
+                fail(
+                    "expecting the step to not report any failure if there isn't any shrink index name stored in the ILM execution "
+                        + "state but got:"
+                        + e.getMessage()
+                );
             }
         });
     }
@@ -89,25 +93,25 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
         String shrinkIndexName = generateValidIndexName("shrink-", indexName);
         Map<String, String> ilmCustom = Map.of("shrink_index_name", shrinkIndexName);
 
-        IndexMetadata.Builder indexMetadataBuilder =
-            IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
-                .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5));
         IndexMetadata indexMetadata = indexMetadataBuilder.build();
 
-        ClusterState clusterState =
-            ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
+        ClusterState clusterState = ClusterState.builder(emptyClusterState())
+            .metadata(Metadata.builder().put(indexMetadata, true).build())
+            .build();
 
         try (NoOpClient client = getDeleteIndexRequestAssertingClient(shrinkIndexName)) {
             CleanupShrinkIndexStep step = new CleanupShrinkIndexStep(randomStepKey(), randomStepKey(), client);
             step.performAction(indexMetadata, clusterState, null, new ActionListener<>() {
                 @Override
-                public void onResponse(Void complete) {
-                }
+                public void onResponse(Void complete) {}
 
                 @Override
-                public void onFailure(Exception e) {
-                }
+                public void onFailure(Exception e) {}
             });
         }
     }
@@ -120,23 +124,23 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
 
         IndexMetadata.Builder shrunkIndexMetadataBuilder = IndexMetadata.builder(shrinkIndexName)
             .settings(
-                settings(Version.CURRENT)
-                    .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
+                settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName)
                     .put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY, sourceIndex)
             )
             .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5));
         IndexMetadata shrunkIndexMetadata = shrunkIndexMetadataBuilder.build();
 
-        ClusterState clusterState =
-            ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(shrunkIndexMetadata, true).build()).build();
+        ClusterState clusterState = ClusterState.builder(emptyClusterState())
+            .metadata(Metadata.builder().put(shrunkIndexMetadata, true).build())
+            .build();
 
         try (NoOpClient client = getFailingIfCalledClient()) {
             CleanupShrinkIndexStep step = new CleanupShrinkIndexStep(randomStepKey(), randomStepKey(), client);
             step.performAction(shrunkIndexMetadata, clusterState, null, new ActionListener<>() {
                 @Override
-                public void onResponse(Void complete) {
-                }
+                public void onResponse(Void complete) {}
 
                 @Override
                 public void onFailure(Exception e) {
@@ -149,9 +153,11 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
     private NoOpClient getDeleteIndexRequestAssertingClient(String shrinkIndexName) {
         return new NoOpClient(getTestName()) {
             @Override
-            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(ActionType<Response> action,
-                                                                                                      Request request,
-                                                                                                      ActionListener<Response> listener) {
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
                 assertThat(action.name(), is(DeleteIndexAction.NAME));
                 assertTrue(request instanceof DeleteIndexRequest);
                 assertThat(((DeleteIndexRequest) request).indices(), arrayContaining(shrinkIndexName));
@@ -162,11 +168,14 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
     private NoOpClient getFailingIfCalledClient() {
         return new NoOpClient(getTestName()) {
             @Override
-            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(ActionType<Response> action,
-                                                                                                      Request request,
-                                                                                                      ActionListener<Response> listener) {
-                throw new IllegalStateException("not expecting client to be called, but received request [" + request + "] for action ["
-                    + action + "]");
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                throw new IllegalStateException(
+                    "not expecting client to be called, but received request [" + request + "] for action [" + action + "]"
+                );
             }
         };
     }

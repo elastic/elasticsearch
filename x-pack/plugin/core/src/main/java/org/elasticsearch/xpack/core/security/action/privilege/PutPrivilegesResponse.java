@@ -53,4 +53,4 @@ public final class PutPrivilegesResponse extends ActionResponse implements ToXCo
         out.writeMap(created, StreamOutput::writeString, StreamOutput::writeStringCollection);
     }
 
-    }
+}

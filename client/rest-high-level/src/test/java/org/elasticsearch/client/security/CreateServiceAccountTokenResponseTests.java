@@ -17,17 +17,20 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class CreateServiceAccountTokenResponseTests
-    extends AbstractResponseTestCase<org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse,
+public class CreateServiceAccountTokenResponseTests extends AbstractResponseTestCase<
+    org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse,
     CreateServiceAccountTokenResponse> {
 
     @Override
     protected org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse createServerTestInstance(
-        XContentType xContentType) {
+        XContentType xContentType
+    ) {
         final String tokenName = randomAlphaOfLengthBetween(3, 8);
         final String value = randomAlphaOfLength(22);
         return org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse.created(
-            tokenName, new SecureString(value.toCharArray()));
+            tokenName,
+            new SecureString(value.toCharArray())
+        );
     }
 
     @Override
@@ -38,7 +41,8 @@ public class CreateServiceAccountTokenResponseTests
     @Override
     protected void assertInstances(
         org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse serverTestInstance,
-        CreateServiceAccountTokenResponse clientInstance) {
+        CreateServiceAccountTokenResponse clientInstance
+    ) {
         assertThat(serverTestInstance.getName(), equalTo(clientInstance.getName()));
         assertThat(serverTestInstance.getValue(), equalTo(clientInstance.getValue()));
     }

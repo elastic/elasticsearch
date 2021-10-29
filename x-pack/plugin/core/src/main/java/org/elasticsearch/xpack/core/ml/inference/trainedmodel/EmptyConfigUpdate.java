@@ -21,11 +21,9 @@ public class EmptyConfigUpdate implements InferenceConfigUpdate {
         return Version.V_7_9_0;
     }
 
-    public EmptyConfigUpdate() {
-    }
+    public EmptyConfigUpdate() {}
 
-    public EmptyConfigUpdate(StreamInput in) {
-    }
+    public EmptyConfigUpdate(StreamInput in) {}
 
     @Override
     public String getResultsField() {
@@ -35,11 +33,6 @@ public class EmptyConfigUpdate implements InferenceConfigUpdate {
     @Override
     public InferenceConfig apply(InferenceConfig originalConfig) {
         return originalConfig;
-    }
-
-    @Override
-    public InferenceConfig toConfig() {
-        throw new UnsupportedOperationException("the empty config update cannot be rewritten");
     }
 
     @Override

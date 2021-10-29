@@ -39,19 +39,18 @@ public class CcrMultiClusterLicenseIT extends ESCCRRestTestCase {
     private static void assertNonCompliantLicense(final Request request, final String fetch) {
         final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
         final String expected = String.format(
-                Locale.ROOT,
-                "can not fetch %s as the remote cluster [%s] is not licensed for [ccr]; " +
-                        "the license mode [BASIC] on cluster [%2$s] does not enable [ccr]",
-                fetch,
-                "leader_cluster");
+            Locale.ROOT,
+            "can not fetch %s as the remote cluster [%s] is not licensed for [ccr]; "
+                + "the license mode [BASIC] on cluster [%2$s] does not enable [ccr]",
+            fetch,
+            "leader_cluster"
+        );
         assertThat(e, hasToString(containsString(expected)));
     }
 
     @Override
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 }

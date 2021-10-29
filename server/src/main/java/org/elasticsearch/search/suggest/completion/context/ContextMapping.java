@@ -11,16 +11,16 @@ package org.elasticsearch.search.suggest.completion.context;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.mapper.CompletionFieldMapper;
+import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.LuceneDocument;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.index.mapper.CompletionFieldMapper;
-import org.elasticsearch.index.mapper.DocumentParserContext;
-import org.elasticsearch.index.mapper.LuceneDocument;
-import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,7 +43,8 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
     protected final String name;
 
     public enum Type {
-        CATEGORY, GEO;
+        CATEGORY,
+        GEO;
 
         public static Type fromString(String type) {
             if (type.equalsIgnoreCase("category")) {
@@ -84,8 +85,8 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
     /**
      * Parses a set of index-time contexts.
      */
-    public abstract Set<String> parseContext(DocumentParserContext documentParserContext, XContentParser parser)
-            throws IOException, ElasticsearchParseException;
+    public abstract Set<String> parseContext(DocumentParserContext documentParserContext, XContentParser parser) throws IOException,
+        ElasticsearchParseException;
 
     /**
      * Retrieves a set of context from a <code>document</code> at index-time.
@@ -198,11 +199,7 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
 
         @Override
         public String toString() {
-            return "QueryContext{" +
-                    "context='" + context + '\'' +
-                    ", boost=" + boost +
-                    ", isPrefix=" + isPrefix +
-                    '}';
+            return "QueryContext{" + "context='" + context + '\'' + ", boost=" + boost + ", isPrefix=" + isPrefix + '}';
         }
     }
 }

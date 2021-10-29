@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationNod
 import java.util.Map;
 import java.util.Optional;
 
-
 public class TrainedModelDeploymentTask extends CancellableTask implements StartTrainedModelDeploymentAction.TaskMatcher {
 
     private static final Logger logger = LogManager.getLogger(TrainedModelDeploymentTask.class);

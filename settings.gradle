@@ -57,6 +57,7 @@ List projects = [
   'distribution:tools:plugin-cli',
   'distribution:tools:keystore-cli',
   'distribution:tools:geoip-cli',
+  'distribution:tools:ansi-console',
   'server',
   'server:cli',
   'test:framework',

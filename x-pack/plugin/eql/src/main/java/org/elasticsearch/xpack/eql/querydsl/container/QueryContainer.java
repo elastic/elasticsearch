@@ -54,13 +54,15 @@ public class QueryContainer {
         this(null, emptyList(), AttributeMap.emptyAttributeMap(), emptyMap(), false, false, null);
     }
 
-    private QueryContainer(Query query,
-                           List<Tuple<FieldExtraction, String>> fields,
-                           AttributeMap<Expression> attributes,
-                           Map<String, Sort> sort,
-                           boolean trackHits,
-                           boolean includeFrozen,
-                           Limit limit) {
+    private QueryContainer(
+        Query query,
+        List<Tuple<FieldExtraction, String>> fields,
+        AttributeMap<Expression> attributes,
+        Map<String, Sort> sort,
+        boolean trackHits,
+        boolean includeFrozen,
+        Limit limit
+    ) {
         this.query = query;
         this.fields = fields;
         this.sort = sort;
@@ -163,11 +165,11 @@ public class QueryContainer {
 
         QueryContainer other = (QueryContainer) obj;
         return Objects.equals(query, other.query)
-                && Objects.equals(attributes, other.attributes)
-                && Objects.equals(fields, other.fields)
-                && trackHits == other.trackHits
-                && includeFrozen == other.includeFrozen
-                && Objects.equals(limit, other.limit);
+            && Objects.equals(attributes, other.attributes)
+            && Objects.equals(fields, other.fields)
+            && trackHits == other.trackHits
+            && includeFrozen == other.includeFrozen
+            && Objects.equals(limit, other.limit);
     }
 
     @Override

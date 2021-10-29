@@ -13,14 +13,14 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -65,8 +65,11 @@ public class MlMetadata implements Metadata.Custom {
 
     static {
         LENIENT_PARSER.declareObjectArray(Builder::putJobs, (p, c) -> Job.LENIENT_PARSER.apply(p, c).build(), JOBS_FIELD);
-        LENIENT_PARSER.declareObjectArray(Builder::putDatafeeds,
-                (p, c) -> DatafeedConfig.LENIENT_PARSER.apply(p, c).build(), DATAFEEDS_FIELD);
+        LENIENT_PARSER.declareObjectArray(
+            Builder::putDatafeeds,
+            (p, c) -> DatafeedConfig.LENIENT_PARSER.apply(p, c).build(),
+            DATAFEEDS_FIELD
+        );
         LENIENT_PARSER.declareBoolean(Builder::isUpgradeMode, UPGRADE_MODE);
         LENIENT_PARSER.declareBoolean(Builder::isResetMode, RESET_MODE);
     }
@@ -113,8 +116,7 @@ public class MlMetadata implements Metadata.Custom {
     }
 
     public Set<String> expandDatafeedIds(String expression, boolean allowNoMatch) {
-        return NameResolver.newUnaliased(datafeeds.keySet(), ExceptionsHelper::missingDatafeedException)
-                .expand(expression, allowNoMatch);
+        return NameResolver.newUnaliased(datafeeds.keySet(), ExceptionsHelper::missingDatafeedException).expand(expression, allowNoMatch);
     }
 
     public boolean isUpgradeMode() {
@@ -160,11 +162,7 @@ public class MlMetadata implements Metadata.Custom {
         this.datafeeds = datafeeds;
         this.groupOrJobLookup = new GroupOrJobLookup(jobs.values());
         this.upgradeMode = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            this.resetMode = in.readBoolean();
-        } else {
-            this.resetMode = false;
-        }
+        this.resetMode = in.readBoolean();
     }
 
     @Override
@@ -172,9 +170,7 @@ public class MlMetadata implements Metadata.Custom {
         writeMap(jobs, out);
         writeMap(datafeeds, out);
         out.writeBoolean(upgradeMode);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeBoolean(resetMode);
-        }
+        out.writeBoolean(resetMode);
     }
 
     private static <T extends Writeable> void writeMap(Map<String, T> map, StreamOutput out) throws IOException {
@@ -187,8 +183,10 @@ public class MlMetadata implements Metadata.Custom {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        DelegatingMapParams extendedParams =
-                new DelegatingMapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"), params);
+        DelegatingMapParams extendedParams = new DelegatingMapParams(
+            Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"),
+            params
+        );
         mapValuesToXContent(JOBS_FIELD, jobs, builder, extendedParams);
         mapValuesToXContent(DATAFEEDS_FIELD, datafeeds, builder, extendedParams);
         builder.field(UPGRADE_MODE.getPreferredName(), upgradeMode);
@@ -196,8 +194,12 @@ public class MlMetadata implements Metadata.Custom {
         return builder;
     }
 
-    private static <T extends ToXContent> void mapValuesToXContent(ParseField field, Map<String, T> map, XContentBuilder builder,
-                                                                   Params params) throws IOException {
+    private static <T extends ToXContent> void mapValuesToXContent(
+        ParseField field,
+        Map<String, T> map,
+        XContentBuilder builder,
+        Params params
+    ) throws IOException {
         if (map.isEmpty()) {
             return;
         }
@@ -224,16 +226,15 @@ public class MlMetadata implements Metadata.Custom {
         }
 
         public MlMetadataDiff(StreamInput in) throws IOException {
-            this.jobs = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), Job::new,
-                    MlMetadataDiff::readJobDiffFrom);
-            this.datafeeds = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), DatafeedConfig::new,
-                    MlMetadataDiff::readDatafeedDiffFrom);
+            this.jobs = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), Job::new, MlMetadataDiff::readJobDiffFrom);
+            this.datafeeds = DiffableUtils.readJdkMapDiff(
+                in,
+                DiffableUtils.getStringKeySerializer(),
+                DatafeedConfig::new,
+                MlMetadataDiff::readDatafeedDiffFrom
+            );
             upgradeMode = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                resetMode = in.readBoolean();
-            } else {
-                resetMode = false;
-            }
+            resetMode = in.readBoolean();
         }
 
         /**
@@ -253,9 +254,7 @@ public class MlMetadata implements Metadata.Custom {
             jobs.writeTo(out);
             datafeeds.writeTo(out);
             out.writeBoolean(upgradeMode);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                out.writeBoolean(resetMode);
-            }
+            out.writeBoolean(resetMode);
         }
 
         @Override
@@ -274,15 +273,13 @@ public class MlMetadata implements Metadata.Custom {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         MlMetadata that = (MlMetadata) o;
-        return Objects.equals(jobs, that.jobs) &&
-                Objects.equals(datafeeds, that.datafeeds) &&
-                upgradeMode == that.upgradeMode &&
-                resetMode == that.resetMode;
+        return Objects.equals(jobs, that.jobs)
+            && Objects.equals(datafeeds, that.datafeeds)
+            && upgradeMode == that.upgradeMode
+            && resetMode == that.resetMode;
     }
 
     @Override
@@ -350,9 +347,7 @@ public class MlMetadata implements Metadata.Custom {
 
             if (headers.isEmpty() == false) {
                 // Adjust the request, adding security headers from the current thread context
-                datafeedConfig = new DatafeedConfig.Builder(datafeedConfig)
-                    .setHeaders(filterSecurityHeaders(headers))
-                    .build();
+                datafeedConfig = new DatafeedConfig.Builder(datafeedConfig).setHeaders(filterSecurityHeaders(headers)).build();
             }
 
             datafeeds.put(datafeedConfig.getId(), datafeedConfig);
@@ -366,8 +361,9 @@ public class MlMetadata implements Metadata.Custom {
             }
             Optional<DatafeedConfig> existingDatafeed = getDatafeedByJobId(jobId);
             if (existingDatafeed.isPresent()) {
-                throw ExceptionsHelper.conflictStatusException("A datafeed [" + existingDatafeed.get().getId()
-                        + "] already exists for job [" + jobId + "]");
+                throw ExceptionsHelper.conflictStatusException(
+                    "A datafeed [" + existingDatafeed.get().getId() + "] already exists for job [" + jobId + "]"
+                );
             }
         }
 

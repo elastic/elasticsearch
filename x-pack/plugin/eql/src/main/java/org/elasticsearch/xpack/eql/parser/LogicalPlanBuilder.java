@@ -65,8 +65,15 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
     static final String FILTER_PIPE = "filter", HEAD_PIPE = "head", TAIL_PIPE = "tail", RUNS = "runs";
 
-    static final Set<String> SUPPORTED_PIPES = Sets.newHashSet("count", FILTER_PIPE, HEAD_PIPE, "sort", TAIL_PIPE, "unique",
-            "unique_count");
+    static final Set<String> SUPPORTED_PIPES = Sets.newHashSet(
+        "count",
+        FILTER_PIPE,
+        HEAD_PIPE,
+        "sort",
+        TAIL_PIPE,
+        "unique",
+        "unique_count"
+    );
 
     private final UnresolvedRelation RELATION = new UnresolvedRelation(synthetic("<relation>"), null, "", false, "");
     private final EmptyAttribute UNSPECIFIED_FIELD = new EmptyAttribute(synthetic("<unspecified>"));
@@ -80,8 +87,9 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     private Attribute fieldTiebreaker() {
-        return params.fieldTiebreaker() != null ?
-                new UnresolvedAttribute(synthetic("<tiebreaker>"), params.fieldTiebreaker()) : UNSPECIFIED_FIELD;
+        return params.fieldTiebreaker() != null
+            ? new UnresolvedAttribute(synthetic("<tiebreaker>"), params.fieldTiebreaker())
+            : UNSPECIFIED_FIELD;
     }
 
     private OrderDirection resultPosition() {
@@ -192,8 +200,12 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
                     Source src = source(joinTermCtx.by != null ? joinTermCtx.by : joinTermCtx);
                     int expected = numberOfKeys - parentJoinKeys.size();
                     int found = keySize - parentJoinKeys.size();
-                    throw new ParsingException(src, "Inconsistent number of join keys specified; expected [{}] but found [{}]", expected,
-                            found);
+                    throw new ParsingException(
+                        src,
+                        "Inconsistent number of join keys specified; expected [{}] but found [{}]",
+                        expected,
+                        found
+                    );
                 }
             }
             queries.add(joinTerm);
@@ -250,8 +262,12 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
                     Source src = source(sequenceTermCtx.by != null ? sequenceTermCtx.by : sequenceTermCtx);
                     int expected = numberOfKeys - parentJoinKeys.size();
                     int found = keySize - parentJoinKeys.size();
-                    throw new ParsingException(src, "Inconsistent number of join keys specified; expected [{}] but found [{}]", expected,
-                            found);
+                    throw new ParsingException(
+                        src,
+                        "Inconsistent number of join keys specified; expected [{}] but found [{}]",
+                        expected,
+                        found
+                    );
                 }
             }
             // check runs
@@ -327,8 +343,11 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
             String timeString = text(ctx.timeUnit().IDENTIFIER());
 
             if (timeString == null) {
-                throw new ParsingException(source(ctx.timeUnit()), "No time unit specified, did you mean [s] as in [{}s]?", text(ctx
-                        .timeUnit()));
+                throw new ParsingException(
+                    source(ctx.timeUnit()),
+                    "No time unit specified, did you mean [s] as in [{}s]?",
+                    text(ctx.timeUnit())
+                );
             }
 
             TimeUnit timeUnit = null;
@@ -349,16 +368,22 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
                     timeUnit = TimeUnit.DAYS;
                     break;
                 default:
-                    throw new ParsingException(source(ctx.timeUnit().IDENTIFIER()),
-                            "Unrecognized time unit [{}] in [{}], please specify one of [ms, s, m, h, d]",
-                            timeString, text(ctx.timeUnit()));
+                    throw new ParsingException(
+                        source(ctx.timeUnit().IDENTIFIER()),
+                        "Unrecognized time unit [{}] in [{}], please specify one of [ms, s, m, h, d]",
+                        timeString,
+                        text(ctx.timeUnit())
+                    );
             }
 
             return new TimeValue(value, timeUnit);
 
         } else {
-            throw new ParsingException(source(numberCtx), "Decimal time interval [{}] not supported; please use an positive integer",
-                    text(numberCtx));
+            throw new ParsingException(
+                source(numberCtx),
+                "Decimal time interval [{}] not supported; please use an positive integer",
+                text(numberCtx)
+            );
         }
     }
 
@@ -371,9 +396,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
             String msg = "Unrecognized pipe [{}]";
             if (potentialMatches.isEmpty() == false) {
                 String matchString = potentialMatches.toString();
-                msg += ", did you mean " + (potentialMatches.size() == 1
-                        ? matchString
-                        : "any of " + matchString) + "?";
+                msg += ", did you mean " + (potentialMatches.size() == 1 ? matchString : "any of " + matchString) + "?";
             }
             throw new ParsingException(source(ctx.IDENTIFIER()), msg, name);
         }
@@ -405,8 +428,12 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         Expression expression = onlyOnePipeArgument(source, pipeName, exps);
 
         if (expression.dataType().isInteger() == false || expression.foldable() == false || (int) expression.fold() < 0) {
-            throw new ParsingException(expression.source(), "Pipe [{}] expects a positive integer but found [{}]", pipeName, expression
-                    .sourceText());
+            throw new ParsingException(
+                expression.source(),
+                "Pipe [{}] expects a positive integer but found [{}]",
+                pipeName,
+                expression.sourceText()
+            );
         }
 
         return expression;

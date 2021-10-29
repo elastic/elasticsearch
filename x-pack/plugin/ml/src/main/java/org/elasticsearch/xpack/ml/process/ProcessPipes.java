@@ -76,15 +76,25 @@ public class ProcessPipes {
      * @param jobId The job ID of the process to which pipes are to be opened, if the process is associated with a specific job.
      *              May be null or empty for processes not associated with a specific job.
      */
-    public ProcessPipes(Environment env, NamedPipeHelper namedPipeHelper, Duration timeout, String processName, String jobId,
-                        Long uniqueId, boolean wantCommandPipe, boolean wantProcessInPipe, boolean wantProcessOutPipe,
-                        boolean wantRestorePipe, boolean wantPersistPipe) {
+    public ProcessPipes(
+        Environment env,
+        NamedPipeHelper namedPipeHelper,
+        Duration timeout,
+        String processName,
+        String jobId,
+        Long uniqueId,
+        boolean wantCommandPipe,
+        boolean wantProcessInPipe,
+        boolean wantProcessOutPipe,
+        boolean wantRestorePipe,
+        boolean wantPersistPipe
+    ) {
         this.namedPipeHelper = namedPipeHelper;
         this.jobId = jobId;
         this.timeout = timeout;
 
         // The way the pipe names are formed MUST match what is done in the controller main()
-        // function, as it does not get any command line arguments when started as a daemon.  If
+        // function, as it does not get any command line arguments when started as a daemon. If
         // you change the code here then you MUST also change the C++ code in controller's
         // main() function.
         StringBuilder prefixBuilder = new StringBuilder();
@@ -152,8 +162,8 @@ public class ProcessPipes {
         if (logStreamHandler == null) {
             throw new NullPointerException("Must connect log stream before other streams");
         }
-        // The order here is important.  It must match the order that the C++ process tries to connect to the pipes, otherwise
-        // a timeout is guaranteed.  Also change api::CIoManager in the C++ code if changing the order here.
+        // The order here is important. It must match the order that the C++ process tries to connect to the pipes, otherwise
+        // a timeout is guaranteed. Also change api::CIoManager in the C++ code if changing the order here.
         try {
             if (commandPipeName != null) {
                 commandStream = namedPipeHelper.openNamedPipeOutputStream(commandPipeName, timeout);

@@ -35,27 +35,38 @@ public class WildcardExpressionResolverTests extends ESTestCase {
 
     public void testConvertWildcardsJustIndicesTests() {
         Metadata.Builder mdBuilder = Metadata.builder()
-                .put(indexBuilder("testXXX"))
-                .put(indexBuilder("testXYY"))
-                .put(indexBuilder("testYYY"))
-                .put(indexBuilder("kuku"));
+            .put(indexBuilder("testXXX"))
+            .put(indexBuilder("testXYY"))
+            .put(indexBuilder("testYYY"))
+            .put(indexBuilder("kuku"));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
         IndexNameExpressionResolver.WildcardExpressionResolver resolver = new IndexNameExpressionResolver.WildcardExpressionResolver();
 
-        IndexNameExpressionResolver.Context context =
-            new IndexNameExpressionResolver.Context(state, IndicesOptions.lenientExpandOpen(), SystemIndexAccessLevel.NONE);
+        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
+            state,
+            IndicesOptions.lenientExpandOpen(),
+            SystemIndexAccessLevel.NONE
+        );
         assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("testXXX"))), equalTo(newHashSet("testXXX")));
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testXXX", "testYYY"))), equalTo(newHashSet("testXXX", "testYYY")));
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testXXX", "ku*"))), equalTo(newHashSet("testXXX", "kuku")));
-        assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("test*"))),
-            equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
+        assertThat(
+            newHashSet(resolver.resolve(context, Collections.singletonList("test*"))),
+            equalTo(newHashSet("testXXX", "testXYY", "testYYY"))
+        );
         assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("testX*"))), equalTo(newHashSet("testXXX", "testXYY")));
-        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testX*", "kuku"))),
-            equalTo(newHashSet("testXXX", "testXYY", "kuku")));
-        assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("*"))),
-            equalTo(newHashSet("testXXX", "testXYY", "testYYY", "kuku")));
-        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("*", "-kuku"))),
-            equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
+        assertThat(
+            newHashSet(resolver.resolve(context, Arrays.asList("testX*", "kuku"))),
+            equalTo(newHashSet("testXXX", "testXYY", "kuku"))
+        );
+        assertThat(
+            newHashSet(resolver.resolve(context, Collections.singletonList("*"))),
+            equalTo(newHashSet("testXXX", "testXYY", "testYYY", "kuku"))
+        );
+        assertThat(
+            newHashSet(resolver.resolve(context, Arrays.asList("*", "-kuku"))),
+            equalTo(newHashSet("testXXX", "testXYY", "testYYY"))
+        );
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testXXX", "testYYY"))), equalTo(newHashSet("testXXX", "testYYY")));
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testXXX", "-testXXX"))), equalTo(newHashSet("testXXX", "-testXXX")));
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testXXX", "testY*"))), equalTo(newHashSet("testXXX", "testYYY")));
@@ -64,69 +75,96 @@ public class WildcardExpressionResolverTests extends ESTestCase {
 
     public void testConvertWildcardsTests() {
         Metadata.Builder mdBuilder = Metadata.builder()
-                .put(indexBuilder("testXXX").putAlias(AliasMetadata.builder("alias1")).putAlias(AliasMetadata.builder("alias2")))
-                .put(indexBuilder("testXYY").putAlias(AliasMetadata.builder("alias2")))
-                .put(indexBuilder("testYYY").putAlias(AliasMetadata.builder("alias3")))
-                .put(indexBuilder("kuku"));
+            .put(indexBuilder("testXXX").putAlias(AliasMetadata.builder("alias1")).putAlias(AliasMetadata.builder("alias2")))
+            .put(indexBuilder("testXYY").putAlias(AliasMetadata.builder("alias2")))
+            .put(indexBuilder("testYYY").putAlias(AliasMetadata.builder("alias3")))
+            .put(indexBuilder("kuku"));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
         IndexNameExpressionResolver.WildcardExpressionResolver resolver = new IndexNameExpressionResolver.WildcardExpressionResolver();
 
-        IndexNameExpressionResolver.Context context =
-            new IndexNameExpressionResolver.Context(state, IndicesOptions.lenientExpandOpen(), SystemIndexAccessLevel.NONE);
-        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testYY*", "alias*"))),
-            equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
+        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
+            state,
+            IndicesOptions.lenientExpandOpen(),
+            SystemIndexAccessLevel.NONE
+        );
+        assertThat(
+            newHashSet(resolver.resolve(context, Arrays.asList("testYY*", "alias*"))),
+            equalTo(newHashSet("testXXX", "testXYY", "testYYY"))
+        );
         assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("-kuku"))), equalTo(newHashSet("-kuku")));
         assertThat(newHashSet(resolver.resolve(context, Arrays.asList("test*", "-testYYY"))), equalTo(newHashSet("testXXX", "testXYY")));
-        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testX*", "testYYY")))
-            , equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
-        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testYYY", "testX*"))),
-            equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
+        assertThat(
+            newHashSet(resolver.resolve(context, Arrays.asList("testX*", "testYYY"))),
+            equalTo(newHashSet("testXXX", "testXYY", "testYYY"))
+        );
+        assertThat(
+            newHashSet(resolver.resolve(context, Arrays.asList("testYYY", "testX*"))),
+            equalTo(newHashSet("testXXX", "testXYY", "testYYY"))
+        );
     }
 
     public void testConvertWildcardsOpenClosedIndicesTests() {
         Metadata.Builder mdBuilder = Metadata.builder()
-                .put(indexBuilder("testXXX").state(IndexMetadata.State.OPEN))
-                .put(indexBuilder("testXXY").state(IndexMetadata.State.OPEN))
-                .put(indexBuilder("testXYY").state(IndexMetadata.State.CLOSE))
-                .put(indexBuilder("testYYY").state(IndexMetadata.State.OPEN))
-                .put(indexBuilder("testYYX").state(IndexMetadata.State.CLOSE))
-                .put(indexBuilder("kuku").state(IndexMetadata.State.OPEN));
+            .put(indexBuilder("testXXX").state(IndexMetadata.State.OPEN))
+            .put(indexBuilder("testXXY").state(IndexMetadata.State.OPEN))
+            .put(indexBuilder("testXYY").state(IndexMetadata.State.CLOSE))
+            .put(indexBuilder("testYYY").state(IndexMetadata.State.OPEN))
+            .put(indexBuilder("testYYX").state(IndexMetadata.State.CLOSE))
+            .put(indexBuilder("kuku").state(IndexMetadata.State.OPEN));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
         IndexNameExpressionResolver.WildcardExpressionResolver resolver = new IndexNameExpressionResolver.WildcardExpressionResolver();
 
-        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state,
-            IndicesOptions.fromOptions(true, true, true, true), SystemIndexAccessLevel.NONE);
-        assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("testX*"))),
-            equalTo(newHashSet("testXXX", "testXXY", "testXYY")));
-        context = new IndexNameExpressionResolver.Context(state, IndicesOptions.fromOptions(true, true, false, true),
-            SystemIndexAccessLevel.NONE);
+        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
+            state,
+            IndicesOptions.fromOptions(true, true, true, true),
+            SystemIndexAccessLevel.NONE
+        );
+        assertThat(
+            newHashSet(resolver.resolve(context, Collections.singletonList("testX*"))),
+            equalTo(newHashSet("testXXX", "testXXY", "testXYY"))
+        );
+        context = new IndexNameExpressionResolver.Context(
+            state,
+            IndicesOptions.fromOptions(true, true, false, true),
+            SystemIndexAccessLevel.NONE
+        );
         assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("testX*"))), equalTo(newHashSet("testXYY")));
-        context = new IndexNameExpressionResolver.Context(state, IndicesOptions.fromOptions(true, true, true, false),
-            SystemIndexAccessLevel.NONE);
+        context = new IndexNameExpressionResolver.Context(
+            state,
+            IndicesOptions.fromOptions(true, true, true, false),
+            SystemIndexAccessLevel.NONE
+        );
         assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("testX*"))), equalTo(newHashSet("testXXX", "testXXY")));
     }
 
     // issue #13334
     public void testMultipleWildcards() {
         Metadata.Builder mdBuilder = Metadata.builder()
-                .put(indexBuilder("testXXX"))
-                .put(indexBuilder("testXXY"))
-                .put(indexBuilder("testXYY"))
-                .put(indexBuilder("testYYY"))
-                .put(indexBuilder("kuku"))
-                .put(indexBuilder("kukuYYY"));
+            .put(indexBuilder("testXXX"))
+            .put(indexBuilder("testXXY"))
+            .put(indexBuilder("testXYY"))
+            .put(indexBuilder("testYYY"))
+            .put(indexBuilder("kuku"))
+            .put(indexBuilder("kukuYYY"));
 
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
         IndexNameExpressionResolver.WildcardExpressionResolver resolver = new IndexNameExpressionResolver.WildcardExpressionResolver();
 
-        IndexNameExpressionResolver.Context context =
-            new IndexNameExpressionResolver.Context(state, IndicesOptions.lenientExpandOpen(), SystemIndexAccessLevel.NONE);
-        assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("test*X*"))),
-            equalTo(newHashSet("testXXX", "testXXY", "testXYY")));
+        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
+            state,
+            IndicesOptions.lenientExpandOpen(),
+            SystemIndexAccessLevel.NONE
+        );
+        assertThat(
+            newHashSet(resolver.resolve(context, Collections.singletonList("test*X*"))),
+            equalTo(newHashSet("testXXX", "testXXY", "testXYY"))
+        );
         assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("test*X*Y"))), equalTo(newHashSet("testXXY", "testXYY")));
         assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("kuku*Y*"))), equalTo(newHashSet("kukuYYY")));
-        assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("*Y*"))),
-            equalTo(newHashSet("testXXY", "testXYY", "testYYY", "kukuYYY")));
+        assertThat(
+            newHashSet(resolver.resolve(context, Collections.singletonList("*Y*"))),
+            equalTo(newHashSet("testXXY", "testXYY", "testYYY", "kukuYYY"))
+        );
         assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("test*Y*X"))).size(), equalTo(0));
         assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("*Y*X"))).size(), equalTo(0));
     }
@@ -139,34 +177,56 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
         IndexNameExpressionResolver.WildcardExpressionResolver resolver = new IndexNameExpressionResolver.WildcardExpressionResolver();
 
-        IndexNameExpressionResolver.Context context =
-            new IndexNameExpressionResolver.Context(state, IndicesOptions.lenientExpandOpen(), SystemIndexAccessLevel.NONE);
-        assertThat(newHashSet(resolver.resolve(context, Collections.singletonList("_all"))),
-            equalTo(newHashSet("testXXX", "testXYY", "testYYY")));
+        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
+            state,
+            IndicesOptions.lenientExpandOpen(),
+            SystemIndexAccessLevel.NONE
+        );
+        assertThat(
+            newHashSet(resolver.resolve(context, Collections.singletonList("_all"))),
+            equalTo(newHashSet("testXXX", "testXYY", "testYYY"))
+        );
     }
 
     public void testResolveAliases() {
         Metadata.Builder mdBuilder = Metadata.builder()
-                .put(indexBuilder("foo_foo").state(State.OPEN))
-                .put(indexBuilder("bar_bar").state(State.OPEN))
-                .put(indexBuilder("foo_index").state(State.OPEN).putAlias(AliasMetadata.builder("foo_alias")))
-                .put(indexBuilder("bar_index").state(State.OPEN).putAlias(AliasMetadata.builder("foo_alias")));
+            .put(indexBuilder("foo_foo").state(State.OPEN))
+            .put(indexBuilder("bar_bar").state(State.OPEN))
+            .put(indexBuilder("foo_index").state(State.OPEN).putAlias(AliasMetadata.builder("foo_alias")))
+            .put(indexBuilder("bar_index").state(State.OPEN).putAlias(AliasMetadata.builder("foo_alias")));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
         IndexNameExpressionResolver.WildcardExpressionResolver resolver = new IndexNameExpressionResolver.WildcardExpressionResolver();
         // when ignoreAliases option is not set, WildcardExpressionResolver resolves the provided
         // expressions against the defined indices and aliases
-        IndicesOptions indicesAndAliasesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, false, true, false,
-            false, false);
-        IndexNameExpressionResolver.Context indicesAndAliasesContext =
-            new IndexNameExpressionResolver.Context(state, indicesAndAliasesOptions, SystemIndexAccessLevel.NONE);
+        IndicesOptions indicesAndAliasesOptions = IndicesOptions.fromOptions(
+            randomBoolean(),
+            randomBoolean(),
+            true,
+            false,
+            true,
+            false,
+            false,
+            false
+        );
+        IndexNameExpressionResolver.Context indicesAndAliasesContext = new IndexNameExpressionResolver.Context(
+            state,
+            indicesAndAliasesOptions,
+            SystemIndexAccessLevel.NONE
+        );
         // ignoreAliases option is set, WildcardExpressionResolver throws error when
         IndicesOptions skipAliasesIndicesOptions = IndicesOptions.fromOptions(true, true, true, false, true, false, true, false);
-        IndexNameExpressionResolver.Context skipAliasesLenientContext =
-            new IndexNameExpressionResolver.Context(state, skipAliasesIndicesOptions, SystemIndexAccessLevel.NONE);
+        IndexNameExpressionResolver.Context skipAliasesLenientContext = new IndexNameExpressionResolver.Context(
+            state,
+            skipAliasesIndicesOptions,
+            SystemIndexAccessLevel.NONE
+        );
         // ignoreAliases option is set, WildcardExpressionResolver resolves the provided expressions only against the defined indices
         IndicesOptions errorOnAliasIndicesOptions = IndicesOptions.fromOptions(false, false, true, false, true, false, true, false);
-        IndexNameExpressionResolver.Context skipAliasesStrictContext =
-            new IndexNameExpressionResolver.Context(state, errorOnAliasIndicesOptions, SystemIndexAccessLevel.NONE);
+        IndexNameExpressionResolver.Context skipAliasesStrictContext = new IndexNameExpressionResolver.Context(
+            state,
+            errorOnAliasIndicesOptions,
+            SystemIndexAccessLevel.NONE
+        );
 
         {
             List<String> indices = resolver.resolve(indicesAndAliasesContext, Collections.singletonList("foo_a*"));
@@ -177,8 +237,10 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             assertEquals(0, indices.size());
         }
         {
-            IndexNotFoundException infe = expectThrows(IndexNotFoundException.class,
-                    () -> resolver.resolve(skipAliasesStrictContext, Collections.singletonList("foo_a*")));
+            IndexNotFoundException infe = expectThrows(
+                IndexNotFoundException.class,
+                () -> resolver.resolve(skipAliasesStrictContext, Collections.singletonList("foo_a*"))
+            );
             assertEquals("foo_a*", infe.getIndex().getName());
         }
         {
@@ -202,10 +264,14 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             assertThat(indices, containsInAnyOrder("foo_alias"));
         }
         {
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
-                    () -> resolver.resolve(skipAliasesStrictContext, Collections.singletonList("foo_alias")));
-            assertEquals("The provided expression [foo_alias] matches an alias, " +
-                    "specify the corresponding concrete indices instead.", iae.getMessage());
+            IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> resolver.resolve(skipAliasesStrictContext, Collections.singletonList("foo_alias"))
+            );
+            assertEquals(
+                "The provided expression [foo_alias] matches an alias, " + "specify the corresponding concrete indices instead.",
+                iae.getMessage()
+            );
         }
     }
 
@@ -222,18 +288,34 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             .put(indexBuilder("bar_index").state(State.OPEN).putAlias(AliasMetadata.builder("foo_alias")))
             .put(firstBackingIndexMetadata, true)
             .put(secondBackingIndexMetadata, true)
-            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
-                List.of(firstBackingIndexMetadata.getIndex(), secondBackingIndexMetadata.getIndex())));
+            .put(
+                new DataStream(
+                    dataStreamName,
+                    createTimestampField("@timestamp"),
+                    List.of(firstBackingIndexMetadata.getIndex(), secondBackingIndexMetadata.getIndex())
+                )
+            );
 
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
         IndexNameExpressionResolver.WildcardExpressionResolver resolver = new IndexNameExpressionResolver.WildcardExpressionResolver();
 
         {
-            IndicesOptions indicesAndAliasesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, false, true, false,
-                false, false);
-            IndexNameExpressionResolver.Context indicesAndAliasesContext =
-                new IndexNameExpressionResolver.Context(state, indicesAndAliasesOptions, SystemIndexAccessLevel.NONE);
+            IndicesOptions indicesAndAliasesOptions = IndicesOptions.fromOptions(
+                randomBoolean(),
+                randomBoolean(),
+                true,
+                false,
+                true,
+                false,
+                false,
+                false
+            );
+            IndexNameExpressionResolver.Context indicesAndAliasesContext = new IndexNameExpressionResolver.Context(
+                state,
+                indicesAndAliasesOptions,
+                SystemIndexAccessLevel.NONE
+            );
 
             // data streams are not included but expression matches the data stream
             List<String> indices = resolver.resolve(indicesAndAliasesContext, Collections.singletonList("foo_*"));
@@ -245,98 +327,187 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         }
 
         {
-            IndicesOptions indicesAndAliasesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, false, true, false,
-                false, false);
-            IndexNameExpressionResolver.Context indicesAliasesAndDataStreamsContext = new IndexNameExpressionResolver.Context(state,
-                indicesAndAliasesOptions, false, false, true, SystemIndexAccessLevel.NONE, NONE, NONE);
+            IndicesOptions indicesAndAliasesOptions = IndicesOptions.fromOptions(
+                randomBoolean(),
+                randomBoolean(),
+                true,
+                false,
+                true,
+                false,
+                false,
+                false
+            );
+            IndexNameExpressionResolver.Context indicesAliasesAndDataStreamsContext = new IndexNameExpressionResolver.Context(
+                state,
+                indicesAndAliasesOptions,
+                false,
+                false,
+                true,
+                SystemIndexAccessLevel.NONE,
+                NONE,
+                NONE
+            );
 
             // data stream's corresponding backing indices are resolved
             List<String> indices = resolver.resolve(indicesAliasesAndDataStreamsContext, Collections.singletonList("foo_*"));
-            assertThat(indices, containsInAnyOrder("foo_index", "bar_index", "foo_foo",
-                DataStream.getDefaultBackingIndexName("foo_logs", 1, epochMillis),
-                DataStream.getDefaultBackingIndexName("foo_logs", 2, epochMillis)));
+            assertThat(
+                indices,
+                containsInAnyOrder(
+                    "foo_index",
+                    "bar_index",
+                    "foo_foo",
+                    DataStream.getDefaultBackingIndexName("foo_logs", 1, epochMillis),
+                    DataStream.getDefaultBackingIndexName("foo_logs", 2, epochMillis)
+                )
+            );
 
             // include all wildcard adds the data stream's backing indices
             indices = resolver.resolve(indicesAliasesAndDataStreamsContext, Collections.singletonList("*"));
-            assertThat(indices, containsInAnyOrder("foo_index", "bar_index", "foo_foo", "bar_bar",
-                DataStream.getDefaultBackingIndexName("foo_logs", 1, epochMillis),
-                DataStream.getDefaultBackingIndexName("foo_logs", 2, epochMillis)));
+            assertThat(
+                indices,
+                containsInAnyOrder(
+                    "foo_index",
+                    "bar_index",
+                    "foo_foo",
+                    "bar_bar",
+                    DataStream.getDefaultBackingIndexName("foo_logs", 1, epochMillis),
+                    DataStream.getDefaultBackingIndexName("foo_logs", 2, epochMillis)
+                )
+            );
         }
 
         {
-            IndicesOptions indicesAliasesAndExpandHiddenOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, false,
-                true, true, false, false, false);
-            IndexNameExpressionResolver.Context indicesAliasesDataStreamsAndHiddenIndices = new IndexNameExpressionResolver.Context(state,
-                indicesAliasesAndExpandHiddenOptions, false, false, true, SystemIndexAccessLevel.NONE, NONE, NONE);
+            IndicesOptions indicesAliasesAndExpandHiddenOptions = IndicesOptions.fromOptions(
+                randomBoolean(),
+                randomBoolean(),
+                true,
+                false,
+                true,
+                true,
+                false,
+                false,
+                false
+            );
+            IndexNameExpressionResolver.Context indicesAliasesDataStreamsAndHiddenIndices = new IndexNameExpressionResolver.Context(
+                state,
+                indicesAliasesAndExpandHiddenOptions,
+                false,
+                false,
+                true,
+                SystemIndexAccessLevel.NONE,
+                NONE,
+                NONE
+            );
 
             // data stream's corresponding backing indices are resolved
             List<String> indices = resolver.resolve(indicesAliasesDataStreamsAndHiddenIndices, Collections.singletonList("foo_*"));
-            assertThat(indices, containsInAnyOrder("foo_index", "bar_index", "foo_foo",
-                DataStream.getDefaultBackingIndexName("foo_logs", 1, epochMillis),
-                DataStream.getDefaultBackingIndexName("foo_logs", 2, epochMillis)));
+            assertThat(
+                indices,
+                containsInAnyOrder(
+                    "foo_index",
+                    "bar_index",
+                    "foo_foo",
+                    DataStream.getDefaultBackingIndexName("foo_logs", 1, epochMillis),
+                    DataStream.getDefaultBackingIndexName("foo_logs", 2, epochMillis)
+                )
+            );
 
             // include all wildcard adds the data stream's backing indices
             indices = resolver.resolve(indicesAliasesDataStreamsAndHiddenIndices, Collections.singletonList("*"));
-            assertThat(indices, containsInAnyOrder("foo_index", "bar_index", "foo_foo", "bar_bar",
-                DataStream.getDefaultBackingIndexName("foo_logs", 1, epochMillis),
-                DataStream.getDefaultBackingIndexName("foo_logs", 2, epochMillis)));
+            assertThat(
+                indices,
+                containsInAnyOrder(
+                    "foo_index",
+                    "bar_index",
+                    "foo_foo",
+                    "bar_bar",
+                    DataStream.getDefaultBackingIndexName("foo_logs", 1, epochMillis),
+                    DataStream.getDefaultBackingIndexName("foo_logs", 2, epochMillis)
+                )
+            );
         }
     }
 
     public void testMatchesConcreteIndicesWildcardAndAliases() {
         Metadata.Builder mdBuilder = Metadata.builder()
-                .put(indexBuilder("foo_foo").state(State.OPEN))
-                .put(indexBuilder("bar_bar").state(State.OPEN))
-                .put(indexBuilder("foo_index").state(State.OPEN).putAlias(AliasMetadata.builder("foo_alias")))
-                .put(indexBuilder("bar_index").state(State.OPEN).putAlias(AliasMetadata.builder("foo_alias")));
+            .put(indexBuilder("foo_foo").state(State.OPEN))
+            .put(indexBuilder("bar_bar").state(State.OPEN))
+            .put(indexBuilder("foo_index").state(State.OPEN).putAlias(AliasMetadata.builder("foo_alias")))
+            .put(indexBuilder("bar_index").state(State.OPEN).putAlias(AliasMetadata.builder("foo_alias")));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
         // when ignoreAliases option is not set, WildcardExpressionResolver resolves the provided
         // expressions against the defined indices and aliases
         IndicesOptions indicesAndAliasesOptions = IndicesOptions.fromOptions(false, false, true, false, true, false, false, false);
-        IndexNameExpressionResolver.Context indicesAndAliasesContext =
-            new IndexNameExpressionResolver.Context(state, indicesAndAliasesOptions, SystemIndexAccessLevel.NONE);
+        IndexNameExpressionResolver.Context indicesAndAliasesContext = new IndexNameExpressionResolver.Context(
+            state,
+            indicesAndAliasesOptions,
+            SystemIndexAccessLevel.NONE
+        );
 
         // ignoreAliases option is set, WildcardExpressionResolver resolves the provided expressions
         // only against the defined indices
         IndicesOptions onlyIndicesOptions = IndicesOptions.fromOptions(false, false, true, false, true, false, true, false);
-        IndexNameExpressionResolver.Context onlyIndicesContext =
-            new IndexNameExpressionResolver.Context(state, onlyIndicesOptions, SystemIndexAccessLevel.NONE);
+        IndexNameExpressionResolver.Context onlyIndicesContext = new IndexNameExpressionResolver.Context(
+            state,
+            onlyIndicesOptions,
+            SystemIndexAccessLevel.NONE
+        );
 
         {
-            Set<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matches(indicesAndAliasesContext,
-                    state.getMetadata(), "*").keySet();
+            Set<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matches(
+                indicesAndAliasesContext,
+                state.getMetadata(),
+                "*"
+            ).keySet();
             assertEquals(newHashSet("bar_bar", "foo_foo", "foo_index", "bar_index", "foo_alias"), matches);
         }
         {
-            Set<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matches(onlyIndicesContext,
-                    state.getMetadata(), "*").keySet();
+            Set<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matches(
+                onlyIndicesContext,
+                state.getMetadata(),
+                "*"
+            ).keySet();
             assertEquals(newHashSet("bar_bar", "foo_foo", "foo_index", "bar_index"), matches);
         }
         {
-            Set<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matches(indicesAndAliasesContext,
-                    state.getMetadata(), "foo*").keySet();
+            Set<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matches(
+                indicesAndAliasesContext,
+                state.getMetadata(),
+                "foo*"
+            ).keySet();
             assertEquals(newHashSet("foo_foo", "foo_index", "foo_alias"), matches);
         }
         {
-            Set<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matches(onlyIndicesContext,
-                    state.getMetadata(), "foo*").keySet();
+            Set<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matches(
+                onlyIndicesContext,
+                state.getMetadata(),
+                "foo*"
+            ).keySet();
             assertEquals(newHashSet("foo_foo", "foo_index"), matches);
         }
         {
-            Set<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matches(indicesAndAliasesContext,
-                    state.getMetadata(), "foo_alias").keySet();
+            Set<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matches(
+                indicesAndAliasesContext,
+                state.getMetadata(),
+                "foo_alias"
+            ).keySet();
             assertEquals(newHashSet("foo_alias"), matches);
         }
         {
-            Set<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matches(onlyIndicesContext,
-                    state.getMetadata(), "foo_alias").keySet();
+            Set<String> matches = IndexNameExpressionResolver.WildcardExpressionResolver.matches(
+                onlyIndicesContext,
+                state.getMetadata(),
+                "foo_alias"
+            ).keySet();
             assertEquals(newHashSet(), matches);
         }
     }
 
     private static IndexMetadata.Builder indexBuilder(String index) {
-        return IndexMetadata.builder(index).settings(settings(Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
+        return IndexMetadata.builder(index)
+            .settings(
+                settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            );
     }
 }

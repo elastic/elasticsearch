@@ -22,8 +22,18 @@ public class WordPieceTokenizerTests extends ESTestCase {
     public static final String UNKNOWN_TOKEN = "[UNK]";
 
     public void testTokenize() {
-        Map<String, Integer> vocabMap =
-            createVocabMap(UNKNOWN_TOKEN, "[CLS]", "[SEP]", "want", "##want", "##ed", "wa", "un", "runn", "##ing");
+        Map<String, Integer> vocabMap = createVocabMap(
+            UNKNOWN_TOKEN,
+            "[CLS]",
+            "[SEP]",
+            "want",
+            "##want",
+            "##ed",
+            "wa",
+            "un",
+            "runn",
+            "##ing"
+        );
         WordPieceTokenizer tokenizer = new WordPieceTokenizer(vocabMap, UNKNOWN_TOKEN, 100);
 
         List<WordPieceTokenizer.TokenAndId> tokenAndIds = tokenizer.tokenize("");
@@ -47,9 +57,9 @@ public class WordPieceTokenizerTests extends ESTestCase {
         assertThat(tokens, contains("Some", "UNK", "will", "UNK", "UNK"));
     }
 
-    static Map<String, Integer> createVocabMap(String ... words) {
+    static Map<String, Integer> createVocabMap(String... words) {
         Map<String, Integer> vocabMap = new HashMap<>();
-        for (int i=0; i<words.length; i++) {
+        for (int i = 0; i < words.length; i++) {
             vocabMap.put(words[i], i);
         }
         return vocabMap;

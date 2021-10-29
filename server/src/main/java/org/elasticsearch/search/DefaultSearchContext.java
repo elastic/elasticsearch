@@ -17,8 +17,8 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -127,13 +127,15 @@ final class DefaultSearchContext extends SearchContext {
     private final SearchExecutionContext searchExecutionContext;
     private final FetchPhase fetchPhase;
 
-    DefaultSearchContext(ReaderContext readerContext,
-                         ShardSearchRequest request,
-                         SearchShardTarget shardTarget,
-                         LongSupplier relativeTimeSupplier,
-                         TimeValue timeout,
-                         FetchPhase fetchPhase,
-                         boolean lowLevelCancellation) throws IOException {
+    DefaultSearchContext(
+        ReaderContext readerContext,
+        ShardSearchRequest request,
+        SearchShardTarget shardTarget,
+        LongSupplier relativeTimeSupplier,
+        TimeValue timeout,
+        FetchPhase fetchPhase,
+        boolean lowLevelCancellation
+    ) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
         this.fetchPhase = fetchPhase;
@@ -146,8 +148,13 @@ final class DefaultSearchContext extends SearchContext {
         this.indexShard = readerContext.indexShard();
 
         Engine.Searcher engineSearcher = readerContext.acquireSearcher("search");
-        this.searcher = new ContextIndexSearcher(engineSearcher.getIndexReader(), engineSearcher.getSimilarity(),
-            engineSearcher.getQueryCache(), engineSearcher.getQueryCachingPolicy(), lowLevelCancellation);
+        this.searcher = new ContextIndexSearcher(
+            engineSearcher.getIndexReader(),
+            engineSearcher.getSimilarity(),
+            engineSearcher.getQueryCache(),
+            engineSearcher.getQueryCachingPolicy(),
+            lowLevelCancellation
+        );
         releasables.addAll(List.of(engineSearcher, searcher));
 
         this.relativeTimeSupplier = relativeTimeSupplier;
@@ -169,7 +176,7 @@ final class DefaultSearchContext extends SearchContext {
      */
     @Override
     public void preProcess() {
-        if (hasOnlySuggest() ) {
+        if (hasOnlySuggest()) {
             return;
         }
         long from = from() == -1 ? 0 : from();
@@ -180,27 +187,44 @@ final class DefaultSearchContext extends SearchContext {
         if (resultWindow > maxResultWindow) {
             if (scrollContext() == null) {
                 throw new IllegalArgumentException(
-                        "Result window is too large, from + size must be less than or equal to: [" + maxResultWindow + "] but was ["
-                                + resultWindow + "]. See the scroll api for a more efficient way to request large data sets. "
-                                + "This limit can be set by changing the [" + IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey()
-                                + "] index level setting.");
+                    "Result window is too large, from + size must be less than or equal to: ["
+                        + maxResultWindow
+                        + "] but was ["
+                        + resultWindow
+                        + "]. See the scroll api for a more efficient way to request large data sets. "
+                        + "This limit can be set by changing the ["
+                        + IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey()
+                        + "] index level setting."
+                );
             }
             throw new IllegalArgumentException(
-                    "Batch size is too large, size must be less than or equal to: [" + maxResultWindow + "] but was [" + resultWindow
-                            + "]. Scroll batch sizes cost as much memory as result windows so they are controlled by the ["
-                            + IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey() + "] index level setting.");
+                "Batch size is too large, size must be less than or equal to: ["
+                    + maxResultWindow
+                    + "] but was ["
+                    + resultWindow
+                    + "]. Scroll batch sizes cost as much memory as result windows so they are controlled by the ["
+                    + IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey()
+                    + "] index level setting."
+            );
         }
         if (rescore != null) {
             if (sort != null) {
                 throw new IllegalArgumentException("Cannot use [sort] option in conjunction with [rescore].");
             }
             int maxWindow = indexService.getIndexSettings().getMaxRescoreWindow();
-            for (RescoreContext rescoreContext: rescore()) {
+            for (RescoreContext rescoreContext : rescore()) {
                 if (rescoreContext.getWindowSize() > maxWindow) {
-                    throw new IllegalArgumentException("Rescore window [" + rescoreContext.getWindowSize() + "] is too large. "
-                            + "It must be less than [" + maxWindow + "]. This prevents allocating massive heaps for storing the results "
-                            + "to be rescored. This limit can be set by changing the [" + IndexSettings.MAX_RESCORE_WINDOW_SETTING.getKey()
-                            + "] index level setting.");
+                    throw new IllegalArgumentException(
+                        "Rescore window ["
+                            + rescoreContext.getWindowSize()
+                            + "] is too large. "
+                            + "It must be less than ["
+                            + maxWindow
+                            + "]. This prevents allocating massive heaps for storing the results "
+                            + "to be rescored. This limit can be set by changing the ["
+                            + IndexSettings.MAX_RESCORE_WINDOW_SETTING.getKey()
+                            + "] index level setting."
+                    );
                 }
             }
         }
@@ -209,9 +233,16 @@ final class DefaultSearchContext extends SearchContext {
             int sliceLimit = indexService.getIndexSettings().getMaxSlicesPerScroll();
             int numSlices = sliceBuilder.getMax();
             if (numSlices > sliceLimit) {
-                throw new IllegalArgumentException("The number of slices [" + numSlices + "] is too large. It must "
-                    + "be less than [" + sliceLimit + "]. This limit can be set by changing the [" +
-                    IndexSettings.MAX_SLICES_PER_SCROLL.getKey() + "] index level setting.");
+                throw new IllegalArgumentException(
+                    "The number of slices ["
+                        + numSlices
+                        + "] is too large. It must "
+                        + "be less than ["
+                        + sliceLimit
+                        + "]. This limit can be set by changing the ["
+                        + IndexSettings.MAX_SLICES_PER_SCROLL.getKey()
+                        + "] index level setting."
+                );
             }
         }
 
@@ -245,8 +276,8 @@ final class DefaultSearchContext extends SearchContext {
         List<Query> filters = new ArrayList<>();
         NestedHelper nestedHelper = new NestedHelper(searchExecutionContext::getObjectMapper, searchExecutionContext::isFieldMapped);
         if (searchExecutionContext.hasNested()
-                && nestedHelper.mightMatchNestedDocs(query)
-                && (aliasFilter == null || nestedHelper.mightMatchNestedDocs(aliasFilter))) {
+            && nestedHelper.mightMatchNestedDocs(query)
+            && (aliasFilter == null || nestedHelper.mightMatchNestedDocs(aliasFilter))) {
             filters.add(Queries.newNonNestedFilter());
         }
 
@@ -323,8 +354,8 @@ final class DefaultSearchContext extends SearchContext {
 
     @Override
     public void addSearchExt(SearchExtBuilder searchExtBuilder) {
-        //it's ok to use the writeable name here given that we enforce it to be the same as the name of the element that gets
-        //parsed by the corresponding parser. There is one single name and one single way to retrieve the parsed object from the context.
+        // it's ok to use the writeable name here given that we enforce it to be the same as the name of the element that gets
+        // parsed by the corresponding parser. There is one single name and one single way to retrieve the parsed object from the context.
         searchExtBuilders.put(searchExtBuilder.getWriteableName(), searchExtBuilder);
     }
 

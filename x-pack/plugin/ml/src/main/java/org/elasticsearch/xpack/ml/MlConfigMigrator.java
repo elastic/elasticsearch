@@ -30,12 +30,12 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -113,8 +113,12 @@ public class MlConfigMigrator {
     private final AtomicBoolean migrationInProgress;
     private final AtomicBoolean tookConfigSnapshot;
 
-    public MlConfigMigrator(Settings settings, Client client, ClusterService clusterService,
-                            IndexNameExpressionResolver expressionResolver) {
+    public MlConfigMigrator(
+        Settings settings,
+        Client client,
+        ClusterService clusterService,
+        IndexNameExpressionResolver expressionResolver
+    ) {
         this.client = Objects.requireNonNull(client);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.expressionResolver = Objects.requireNonNull(expressionResolver);
@@ -146,16 +150,13 @@ public class MlConfigMigrator {
             return;
         }
 
-        ActionListener<Boolean> unMarkMigrationInProgress = ActionListener.wrap(
-                response -> {
-                    migrationInProgress.set(false);
-                    listener.onResponse(response);
-                },
-                e -> {
-                    migrationInProgress.set(false);
-                    listener.onFailure(e);
-                }
-        );
+        ActionListener<Boolean> unMarkMigrationInProgress = ActionListener.wrap(response -> {
+            migrationInProgress.set(false);
+            listener.onResponse(response);
+        }, e -> {
+            migrationInProgress.set(false);
+            listener.onFailure(e);
+        });
 
         List<JobsAndDatafeeds> batches = splitInBatches(clusterState);
         if (batches.isEmpty()) {
@@ -163,13 +164,13 @@ public class MlConfigMigrator {
             return;
         }
 
-        if (clusterState.metadata().hasIndex(MlConfigIndex.indexName()) == false) {
-            createConfigIndex(ActionListener.wrap(
-                    response -> {
-                        unMarkMigrationInProgress.onResponse(Boolean.FALSE);
-                    },
+        if (clusterState.metadata().hasIndexAbstraction(MlConfigIndex.indexName()) == false) {
+            createConfigIndex(
+                ActionListener.wrap(
+                    response -> { unMarkMigrationInProgress.onResponse(Boolean.FALSE); },
                     unMarkMigrationInProgress::onFailure
-            ));
+                )
+            );
             return;
         }
 
@@ -178,75 +179,78 @@ public class MlConfigMigrator {
             return;
         }
 
-        snapshotMlMeta(MlMetadata.getMlMetadata(clusterState), ActionListener.wrap(
-                response -> {
-                    // We have successfully snapshotted the ML configs so we don't need to try again
-                    tookConfigSnapshot.set(true);
-                    migrateBatches(batches, unMarkMigrationInProgress);
-                },
-                unMarkMigrationInProgress::onFailure
-        ));
+        snapshotMlMeta(MlMetadata.getMlMetadata(clusterState), ActionListener.wrap(response -> {
+            // We have successfully snapshotted the ML configs so we don't need to try again
+            tookConfigSnapshot.set(true);
+            migrateBatches(batches, unMarkMigrationInProgress);
+        }, unMarkMigrationInProgress::onFailure));
     }
 
     private void migrateBatches(List<JobsAndDatafeeds> batches, ActionListener<Boolean> listener) {
         VoidChainTaskExecutor voidChainTaskExecutor = new VoidChainTaskExecutor(EsExecutors.DIRECT_EXECUTOR_SERVICE, true);
         for (JobsAndDatafeeds batch : batches) {
-            voidChainTaskExecutor.add(chainedListener -> writeConfigToIndex(batch.datafeedConfigs, batch.jobs, ActionListener.wrap(
-                failedDocumentIds -> {
+            voidChainTaskExecutor.add(
+                chainedListener -> writeConfigToIndex(batch.datafeedConfigs, batch.jobs, ActionListener.wrap(failedDocumentIds -> {
                     List<Job> successfulJobWrites = filterFailedJobConfigWrites(failedDocumentIds, batch.jobs);
-                    List<DatafeedConfig> successfulDatafeedWrites =
-                        filterFailedDatafeedConfigWrites(failedDocumentIds, batch.datafeedConfigs);
+                    List<DatafeedConfig> successfulDatafeedWrites = filterFailedDatafeedConfigWrites(
+                        failedDocumentIds,
+                        batch.datafeedConfigs
+                    );
                     removeFromClusterState(successfulJobWrites, successfulDatafeedWrites, chainedListener);
-                },
-                chainedListener::onFailure
-            )));
+                }, chainedListener::onFailure))
+            );
         }
         voidChainTaskExecutor.execute(ActionListener.wrap(aVoids -> listener.onResponse(true), listener::onFailure));
     }
 
     // Exposed for testing
-    public void writeConfigToIndex(Collection<DatafeedConfig> datafeedsToMigrate,
-                                   Collection<Job> jobsToMigrate,
-                                   ActionListener<Set<String>> listener) {
+    public void writeConfigToIndex(
+        Collection<DatafeedConfig> datafeedsToMigrate,
+        Collection<Job> jobsToMigrate,
+        ActionListener<Set<String>> listener
+    ) {
 
         BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
         addJobIndexRequests(jobsToMigrate, bulkRequestBuilder);
         addDatafeedIndexRequests(datafeedsToMigrate, bulkRequestBuilder);
         bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, bulkRequestBuilder.request(),
-                ActionListener.<BulkResponse>wrap(
-                        bulkResponse -> {
-                            Set<String> failedDocumentIds = documentsNotWritten(bulkResponse);
-                            listener.onResponse(failedDocumentIds);
-                        },
-                        listener::onFailure),
-                client::bulk
+        executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
+            ML_ORIGIN,
+            bulkRequestBuilder.request(),
+            ActionListener.<BulkResponse>wrap(bulkResponse -> {
+                Set<String> failedDocumentIds = documentsNotWritten(bulkResponse);
+                listener.onResponse(failedDocumentIds);
+            }, listener::onFailure),
+            client::bulk
         );
     }
 
-    private void removeFromClusterState(List<Job> jobsToRemove, List<DatafeedConfig> datafeedsToRemove,
-                                        ActionListener<Void> listener) {
+    private void removeFromClusterState(List<Job> jobsToRemove, List<DatafeedConfig> datafeedsToRemove, ActionListener<Void> listener) {
         if (jobsToRemove.isEmpty() && datafeedsToRemove.isEmpty()) {
             listener.onResponse(null);
             return;
         }
 
         Map<String, Job> jobsMap = jobsToRemove.stream().collect(Collectors.toMap(Job::getId, Function.identity()));
-        Map<String, DatafeedConfig> datafeedMap =
-                datafeedsToRemove.stream().collect(Collectors.toMap(DatafeedConfig::getId, Function.identity()));
+        Map<String, DatafeedConfig> datafeedMap = datafeedsToRemove.stream()
+            .collect(Collectors.toMap(DatafeedConfig::getId, Function.identity()));
 
         AtomicReference<RemovalResult> removedConfigs = new AtomicReference<>();
 
         clusterService.submitStateUpdateTask("remove-migrated-ml-configs", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                RemovalResult removed = removeJobsAndDatafeeds(jobsToRemove, datafeedsToRemove,
-                        MlMetadata.getMlMetadata(currentState));
+                RemovalResult removed = removeJobsAndDatafeeds(jobsToRemove, datafeedsToRemove, MlMetadata.getMlMetadata(currentState));
                 removedConfigs.set(removed);
 
-                PersistentTasksCustomMetadata updatedTasks = rewritePersistentTaskParams(jobsMap, datafeedMap,
-                        currentState.metadata().custom(PersistentTasksCustomMetadata.TYPE), currentState.nodes());
+                PersistentTasksCustomMetadata updatedTasks = rewritePersistentTaskParams(
+                    jobsMap,
+                    datafeedMap,
+                    currentState.metadata().custom(PersistentTasksCustomMetadata.TYPE),
+                    currentState.nodes()
+                );
 
                 ClusterState.Builder newState = ClusterState.builder(currentState);
                 Metadata.Builder metadataBuilder = Metadata.builder(currentState.getMetadata())
@@ -294,13 +298,18 @@ public class MlConfigMigrator {
      * @param nodes         The nodes in the cluster
      * @return  The updated tasks
      */
-    public static PersistentTasksCustomMetadata rewritePersistentTaskParams(Map<String, Job> jobs, Map<String, DatafeedConfig> datafeeds,
-                                                                            PersistentTasksCustomMetadata currentTasks,
-                                                                            DiscoveryNodes nodes) {
+    public static PersistentTasksCustomMetadata rewritePersistentTaskParams(
+        Map<String, Job> jobs,
+        Map<String, DatafeedConfig> datafeeds,
+        PersistentTasksCustomMetadata currentTasks,
+        DiscoveryNodes nodes
+    ) {
 
         Collection<PersistentTasksCustomMetadata.PersistentTask<?>> unallocatedJobTasks = MlTasks.unassignedJobTasks(currentTasks, nodes);
-        Collection<PersistentTasksCustomMetadata.PersistentTask<?>> unallocatedDatafeedsTasks =
-                MlTasks.unassignedDatafeedTasks(currentTasks, nodes);
+        Collection<PersistentTasksCustomMetadata.PersistentTask<?>> unallocatedDatafeedsTasks = MlTasks.unassignedDatafeedTasks(
+            currentTasks,
+            nodes
+        );
 
         if (unallocatedJobTasks.isEmpty() && unallocatedDatafeedsTasks.isEmpty()) {
             return currentTasks;
@@ -337,8 +346,10 @@ public class MlConfigMigrator {
                 if (datafeedConfig != null) {
                     logger.debug("Updating persistent task params for datafeed [{}]", originalParams.getDatafeedId());
 
-                    StartDatafeedAction.DatafeedParams updatedParams =
-                            new StartDatafeedAction.DatafeedParams(originalParams.getDatafeedId(), originalParams.getStartTime());
+                    StartDatafeedAction.DatafeedParams updatedParams = new StartDatafeedAction.DatafeedParams(
+                        originalParams.getDatafeedId(),
+                        originalParams.getStartTime()
+                    );
                     updatedParams.setTimeout(originalParams.getTimeout());
                     updatedParams.setEndTime(originalParams.getEndTime());
                     updatedParams.setJobId(datafeedConfig.getJobId());
@@ -398,8 +409,7 @@ public class MlConfigMigrator {
         }
 
         MlMetadata.Builder builder = new MlMetadata.Builder();
-        builder.putJobs(currentJobs.values())
-                .putDatafeeds(currentDatafeeds.values());
+        builder.putJobs(currentJobs.values()).putDatafeeds(currentDatafeeds.values());
 
         return new RemovalResult(builder.build(), removedJobIds, removedDatafeedIds);
     }
@@ -446,10 +456,9 @@ public class MlConfigMigrator {
 
         logger.debug("taking a snapshot of ml_metadata");
         String documentId = "ml-config";
-        IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.jobStateIndexWriteAlias())
-                .id(documentId)
-                .setRequireAlias(true)
-                .opType(DocWriteRequest.OpType.CREATE);
+        IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.jobStateIndexWriteAlias()).id(documentId)
+            .setRequireAlias(true)
+            .opType(DocWriteRequest.OpType.CREATE);
 
         ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"));
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
@@ -464,15 +473,18 @@ public class MlConfigMigrator {
             return;
         }
 
-        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterService.state(), expressionResolver,
+        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(
+            client,
+            clusterService.state(),
+            expressionResolver,
             MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,
-            ActionListener.wrap(
-            r -> {
-                executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, indexRequest,
+            ActionListener.wrap(r -> {
+                executeAsyncWithOrigin(
+                    client.threadPool().getThreadContext(),
+                    ML_ORIGIN,
+                    indexRequest,
                     ActionListener.<IndexResponse>wrap(
-                        indexResponse -> {
-                            listener.onResponse(indexResponse.getResult() == DocWriteResponse.Result.CREATED);
-                        },
+                        indexResponse -> { listener.onResponse(indexResponse.getResult() == DocWriteResponse.Result.CREATED); },
                         e -> {
                             if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
                                 // the snapshot already exists
@@ -480,19 +492,18 @@ public class MlConfigMigrator {
                             } else {
                                 listener.onFailure(e);
                             }
-                        }),
+                        }
+                    ),
                     client::index
                 );
-            },
-            listener::onFailure
-        ));
+            }, listener::onFailure)
+        );
     }
 
     private void createConfigIndex(ActionListener<Boolean> listener) {
         logger.info("creating the .ml-config index");
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(MlConfigIndex.indexName());
-        try
-        {
+        try {
             createIndexRequest.settings(MlConfigIndex.settings());
             createIndexRequest.mapping(MlConfigIndex.mapping());
             createIndexRequest.origin(ML_ORIGIN);
@@ -502,11 +513,13 @@ public class MlConfigMigrator {
             return;
         }
 
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, createIndexRequest,
-                ActionListener.<CreateIndexResponse>wrap(
-                        r -> listener.onResponse(r.isAcknowledged()),
-                        listener::onFailure
-                ), client.admin().indices()::create);
+        executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
+            ML_ORIGIN,
+            createIndexRequest,
+            ActionListener.<CreateIndexResponse>wrap(r -> listener.onResponse(r.isAcknowledged()), listener::onFailure),
+            client.admin().indices()::create
+        );
     }
 
     public static Job updateJobForMigration(Job job) {
@@ -534,9 +547,7 @@ public class MlConfigMigrator {
      * @return Jobs not marked as deleting
      */
     public static List<Job> nonDeletingJobs(List<Job> jobs) {
-        return jobs.stream()
-                .filter(job -> job.isDeleting() == false)
-                .collect(Collectors.toList());
+        return jobs.stream().filter(job -> job.isDeleting() == false).collect(Collectors.toList());
     }
 
     /**
@@ -554,9 +565,7 @@ public class MlConfigMigrator {
         openJobIds.removeAll(MlTasks.unassignedJobIds(persistentTasks, clusterState.nodes()));
 
         MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
-        return mlMetadata.getJobs().values().stream()
-                .filter(job -> openJobIds.contains(job.getId()) == false)
-                .collect(Collectors.toList());
+        return mlMetadata.getJobs().values().stream().filter(job -> openJobIds.contains(job.getId()) == false).collect(Collectors.toList());
     }
 
     /**
@@ -574,12 +583,14 @@ public class MlConfigMigrator {
         startedDatafeedIds.removeAll(MlTasks.unassignedDatafeedIds(persistentTasks, clusterState.nodes()));
 
         MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
-        return mlMetadata.getDatafeeds().values().stream()
-                .filter(datafeedConfig-> startedDatafeedIds.contains(datafeedConfig.getId()) == false)
-                .collect(Collectors.toList());
+        return mlMetadata.getDatafeeds()
+            .values()
+            .stream()
+            .filter(datafeedConfig -> startedDatafeedIds.contains(datafeedConfig.getId()) == false)
+            .collect(Collectors.toList());
     }
 
-    public static class JobsAndDatafeeds  {
+    public static class JobsAndDatafeeds {
         List<Job> jobs;
         List<DatafeedConfig> datafeedConfigs;
 
@@ -668,8 +679,12 @@ public class MlConfigMigrator {
             if (itemResponse.isFailed()) {
                 BulkItemResponse.Failure failure = itemResponse.getFailure();
                 failedDocumentIds.add(itemResponse.getFailure().getId());
-                logger.info("failed to index ml configuration [" + itemResponse.getFailure().getId() + "], " +
-                        itemResponse.getFailure().getMessage());
+                logger.info(
+                    "failed to index ml configuration ["
+                        + itemResponse.getFailure().getId()
+                        + "], "
+                        + itemResponse.getFailure().getMessage()
+                );
             } else {
                 logger.info("ml configuration [" + itemResponse.getId() + "] indexed");
             }
@@ -678,14 +693,12 @@ public class MlConfigMigrator {
     }
 
     static List<Job> filterFailedJobConfigWrites(Set<String> failedDocumentIds, List<Job> jobs) {
-        return jobs.stream()
-                .filter(job -> failedDocumentIds.contains(Job.documentId(job.getId())) == false)
-                .collect(Collectors.toList());
+        return jobs.stream().filter(job -> failedDocumentIds.contains(Job.documentId(job.getId())) == false).collect(Collectors.toList());
     }
 
     static List<DatafeedConfig> filterFailedDatafeedConfigWrites(Set<String> failedDocumentIds, Collection<DatafeedConfig> datafeeds) {
         return datafeeds.stream()
-                .filter(datafeed -> failedDocumentIds.contains(DatafeedConfig.documentId(datafeed.getId())) == false)
-                .collect(Collectors.toList());
+            .filter(datafeed -> failedDocumentIds.contains(DatafeedConfig.documentId(datafeed.getId())) == false)
+            .collect(Collectors.toList());
     }
 }

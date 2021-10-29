@@ -14,8 +14,6 @@ import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.AntFixture
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
-import org.elasticsearch.gradle.transform.UnzipTransform
-import org.gradle.api.internal.artifacts.ArtifactAttributes
 
 apply plugin: 'elasticsearch.jdk-download'
 apply plugin: 'elasticsearch.internal-testclusters'
@@ -41,18 +39,11 @@ jdks {
 
 if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   logger.warn("Disabling repository-old-versions tests because we can't get the pid file on windows")
+  tasks.named("testingConventions").configure { enabled = false }
 } else {
-  /* Register a gradle artifact transformation to unpack resolved elasticsearch distributions. We only resolve
-   * zip files here. Using artifact transforms allow a better caching of the downloaded distros as the
-   * transformed (unpacked) distro will be cached by gradle resulting in less unpacking
-   *
+  /* Set up tasks to unzip and run the old versions of ES before running the integration tests.
    * To avoid testing against too many old versions, always pick first and last version per major
    */
-  project.getDependencies().registerTransform(UnzipTransform.class, transformSpec -> {
-    transformSpec.getFrom().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.ZIP_TYPE);
-    transformSpec.getTo().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
-  });
-
   for (String versionString : ['5.0.0', '5.6.16', '6.0.0', '6.8.20']) {
     Version version = Version.fromString(versionString)
     String packageName = 'org.elasticsearch.distribution.zip'
@@ -60,11 +51,24 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
     String versionNoDots = version.toString().replace('.', '_')
     String configName = "es${versionNoDots}"
 
-    def config = configurations.create(configName)
-    config.getAttributes().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
+    configurations.create(configName)
+
     dependencies.add(configName, artifact)
 
+    // TODO Rene: we should be able to replace these unzip tasks with gradle artifact transforms
+    TaskProvider<Sync> unzip = tasks.register("unzipEs${versionNoDots}", Sync) {
+      Configuration oldEsDependency = configurations[configName]
+      dependsOn oldEsDependency
+      /* Use a closure here to delay resolution of the dependency until we need
+       * it */
+      from {
+        oldEsDependency.collect { zipTree(it) }
+      }
+      into temporaryDir
+    }
+
     String repoLocation = "${buildDir}/cluster/shared/repo/${versionNoDots}"
+
     String clusterName = versionNoDots
 
     def testClusterProvider = testClusters.register(clusterName) {
@@ -73,7 +77,8 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
     }
 
     TaskProvider<AntFixture> fixture = tasks.register("oldES${versionNoDots}Fixture", AntFixture) {
-      dependsOn project.configurations.oldesFixture, jdks.legacy, config
+      dependsOn project.configurations.oldesFixture, jdks.legacy
+      dependsOn unzip
       executable = "${BuildParams.runtimeJavaHome}/bin/java"
       env 'CLASSPATH', "${-> project.configurations.oldesFixture.asPath}"
       // old versions of Elasticsearch need JAVA_HOME
@@ -84,7 +89,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
       }
       args 'oldes.OldElasticsearch',
         baseDir,
-        "${ -> config.getSingleFile().toPath()}",
+        unzip.get().temporaryDir,
         false,
         "path.repo: ${repoLocation}"
       maxWaitInSeconds 60

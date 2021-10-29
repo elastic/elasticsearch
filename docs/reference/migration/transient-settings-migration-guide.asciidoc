@@ -23,12 +23,12 @@ settings unexpectedly, leading to a potentially undesired cluster configuration.
 
 To avoid deprecation warnings, reset any transient settings you've configured on
 your cluster. Convert any transient setting you'd like to keep to a persistent
-setting, which persists across cluster restarts.
+setting, which persists across cluster restarts. You should also update any
+custom workflows and applications to use persistent settings instead of
+transient settings.
 
 IMPORTANT: Some Elastic products may use transient settings. These settings
-should not be changed. However, you should update your workflows and
-applications to discontinue use of transient settings and use persistent
-settings instead.
+should not be changed.
 
 To reset and convert transient settings:
 

@@ -13,7 +13,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
-import org.elasticsearch.license.XPackLicenseState;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
@@ -45,12 +44,6 @@ public final class MachineLearningField {
         License.OperationMode.PLATINUM
     );
 
-    public static final LicensedFeature.Momentary ML_MODEL_INFERENCE_PLATINUM_FEATURE = LicensedFeature.momentary(
-        MachineLearningField.ML_FEATURE_FAMILY,
-        "model-inference-platinum-check",
-        License.OperationMode.PLATINUM
-    );
-
     private MachineLearningField() {}
 
     public static String valuesToId(String... values) {
@@ -63,10 +56,4 @@ public final class MachineLearningField {
         return new BigInteger(hashedBytes) + "_" + combined.length();
     }
 
-    public static boolean featureCheckForMode(License.OperationMode mode, XPackLicenseState licenseState) {
-        if (mode.equals(License.OperationMode.PLATINUM)) {
-            return ML_MODEL_INFERENCE_PLATINUM_FEATURE.check(licenseState);
-        }
-        return true;
-    }
 }

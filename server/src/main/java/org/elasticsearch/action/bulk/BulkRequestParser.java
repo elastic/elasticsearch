@@ -32,6 +32,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -186,10 +187,12 @@ public final class BulkRequestParser {
                 if (!ACTIONS.contains(action)) {
                     deprecationLogger.compatibleCritical(
                         "bulk_request_strict_action_parsing",
-                        "Unsupported action: `"
-                            + action
-                            + "`. Supported values are `create`, `delete`, `index`, and `update`. "
-                            + "Unsupported actions are currently accepted but will be rejected in a future version."
+                        String.format(
+                            Locale.ROOT,
+                            "Unsupported action: `%s`. Supported values are `create`, `delete`, `index`, and `update`. "
+                                + "Unsupported actions are currently accepted but will be rejected in a future version.",
+                            action
+                        )
                     );
                 }
 
@@ -427,24 +430,24 @@ public final class BulkRequestParser {
         } catch (JsonEOFException ignore) {
             deprecationLogger.compatibleCritical(
                 "bulk_request_strict_action_parsing",
-                "A bulk action wasn't closed properly with a curly brace. Malformed objects are currently accepted but "
-                    + "will be rejected in a future version."
+                "A bulk action wasn't closed properly with a curly brace. Malformed objects are currently accepted but will be "
+                    + "rejected in a future version."
             );
             return;
         }
         if (token != XContentParser.Token.END_OBJECT) {
             deprecationLogger.compatibleCritical(
                 "bulk_request_strict_action_parsing",
-                "A bulk action object contained multiple keys. Additional keys are currently ignored but will be rejected in "
-                    + "a future version."
+                "A bulk action object contained multiple keys. Additional keys are currently ignored but will be rejected in a "
+                    + "future version."
             );
             return;
         }
         if (parser.nextToken() != null) {
             deprecationLogger.compatibleCritical(
                 "bulk_request_strict_action_parsing",
-                "A bulk action contains trailing junk after the closing brace. It is currently ignored "
-                    + "but will be rejected in a future version."
+                "A bulk action contains trailing junk after the closing brace. It is currently ignored but will be rejected in a "
+                    + "future version."
             );
         }
     }

@@ -57,12 +57,14 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     private final Predicate<String> metadataFieldPred;
 
     @Inject
-    public TransportFieldCapabilitiesAction(TransportService transportService,
-                                            ClusterService clusterService,
-                                            ThreadPool threadPool,
-                                            ActionFilters actionFilters,
-                                            IndicesService indicesService,
-                                            IndexNameExpressionResolver indexNameExpressionResolver) {
+    public TransportFieldCapabilitiesAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndicesService indicesService,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
         super(FieldCapabilitiesAction.NAME, transportService, actionFilters, FieldCapabilitiesRequest::new);
         this.threadPool = threadPool;
         this.transportService = transportService;
@@ -71,8 +73,12 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         this.fieldCapabilitiesFetcher = new FieldCapabilitiesFetcher(indicesService);
         final Set<String> metadataFields = indicesService.getAllMetadataFields();
         this.metadataFieldPred = metadataFields::contains;
-        transportService.registerRequestHandler(ACTION_NODE_NAME, ThreadPool.Names.SEARCH_COORDINATION,
-            FieldCapabilitiesNodeRequest::new, new NodeTransportHandler());
+        transportService.registerRequestHandler(
+            ACTION_NODE_NAME,
+            ThreadPool.Names.SEARCH_COORDINATION,
+            FieldCapabilitiesNodeRequest::new,
+            new NodeTransportHandler()
+        );
     }
 
     @Override
@@ -80,8 +86,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         // retrieve the initial timestamp in case the action is a cross cluster search
         long nowInMillis = request.nowInMillis() == null ? System.currentTimeMillis() : request.nowInMillis();
         final ClusterState clusterState = clusterService.state();
-        final Map<String, OriginalIndices> remoteClusterIndices =
-            transportService.getRemoteClusterService().groupIndices(request.indicesOptions(), request.indices());
+        final Map<String, OriginalIndices> remoteClusterIndices = transportService.getRemoteClusterService()
+            .groupIndices(request.indicesOptions(), request.indices());
         final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
         final String[] concreteIndices;
         if (localIndices == null) {
@@ -128,8 +134,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             remoteClusterClient.fieldCaps(remoteRequest, ActionListener.wrap(response -> {
                 for (FieldCapabilitiesIndexResponse resp : response.getIndexResponses()) {
                     String indexName = RemoteClusterAware.buildRemoteIndexName(clusterAlias, resp.getIndexName());
-                    indexResponses.putIfAbsent(indexName,
-                        new FieldCapabilitiesIndexResponse(indexName, resp.get(), resp.canMatch()));
+                    indexResponses.putIfAbsent(indexName, new FieldCapabilitiesIndexResponse(indexName, resp.get(), resp.canMatch()));
                 }
                 for (FieldCapabilitiesFailure failure : response.getFailures()) {
                     Exception ex = failure.getException();
@@ -139,8 +144,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             }, ex -> {
                 indexFailures.collectRemoteException(ex, clusterAlias, originalIndices.indices());
                 countDown.run();
-                }
-            ));
+            }));
         }
     }
 
@@ -151,11 +155,13 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         }
     }
 
-    private Runnable createResponseMerger(FieldCapabilitiesRequest request,
-                                          CountDown completionCounter,
-                                          Map<String, FieldCapabilitiesIndexResponse> indexResponses,
-                                          FailureCollector indexFailures,
-                                          ActionListener<FieldCapabilitiesResponse> listener) {
+    private Runnable createResponseMerger(
+        FieldCapabilitiesRequest request,
+        CountDown completionCounter,
+        Map<String, FieldCapabilitiesIndexResponse> indexResponses,
+        FailureCollector indexFailures,
+        ActionListener<FieldCapabilitiesResponse> listener
+    ) {
         return () -> {
             if (completionCounter.countDown()) {
                 List<FieldCapabilitiesFailure> failures = indexFailures.build(indexResponses.keySet());
@@ -163,15 +169,17 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     if (request.isMergeResults()) {
                         // fork off to the management pool for merging the responses as the operation can run for longer than is acceptable
                         // on a transport thread in case of large numbers of indices and/or fields
-                        threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION).submit(
-                            ActionRunnable.supply(
-                                listener,
-                                () -> merge(indexResponses, request.includeUnmapped(), new ArrayList<>(failures)))
-                        );
+                        threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION)
+                            .submit(
+                                ActionRunnable.supply(
+                                    listener,
+                                    () -> merge(indexResponses, request.includeUnmapped(), new ArrayList<>(failures))
+                                )
+                            );
                     } else {
-                        listener.onResponse(new FieldCapabilitiesResponse(
-                            new ArrayList<>(indexResponses.values()),
-                            new ArrayList<>(failures)));
+                        listener.onResponse(
+                            new FieldCapabilitiesResponse(new ArrayList<>(indexResponses.values()), new ArrayList<>(failures))
+                        );
                     }
                 } else {
                     // we have no responses at all, maybe because of errors
@@ -186,9 +194,11 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         };
     }
 
-    private static FieldCapabilitiesRequest prepareRemoteRequest(FieldCapabilitiesRequest request,
-                                                                 OriginalIndices originalIndices,
-                                                                 long nowInMillis) {
+    private static FieldCapabilitiesRequest prepareRemoteRequest(
+        FieldCapabilitiesRequest request,
+        OriginalIndices originalIndices,
+        long nowInMillis
+    ) {
         FieldCapabilitiesRequest remoteRequest = new FieldCapabilitiesRequest();
         remoteRequest.setMergeResults(false); // we need to merge on this node
         remoteRequest.indicesOptions(originalIndices.indicesOptions());
@@ -238,17 +248,22 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         }
     }
 
-    private void innerMerge(Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder,
-                            FieldCapabilitiesIndexResponse response) {
+    private void innerMerge(
+        Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder,
+        FieldCapabilitiesIndexResponse response
+    ) {
         for (Map.Entry<String, IndexFieldCapabilities> entry : response.get().entrySet()) {
             final String field = entry.getKey();
             // best effort to detect metadata field coming from older nodes
-            final boolean isMetadataField = response.getOriginVersion().onOrAfter(Version.V_7_13_0) ?
-                entry.getValue().isMetadatafield() : metadataFieldPred.test(field);
+            final boolean isMetadataField = response.getOriginVersion().onOrAfter(Version.V_7_13_0)
+                ? entry.getValue().isMetadatafield()
+                : metadataFieldPred.test(field);
             final IndexFieldCapabilities fieldCap = entry.getValue();
             Map<String, FieldCapabilities.Builder> typeMap = responseMapBuilder.computeIfAbsent(field, f -> new HashMap<>());
-            FieldCapabilities.Builder builder = typeMap.computeIfAbsent(fieldCap.getType(),
-                key -> new FieldCapabilities.Builder(field, key));
+            FieldCapabilities.Builder builder = typeMap.computeIfAbsent(
+                fieldCap.getType(),
+                key -> new FieldCapabilities.Builder(field, key)
+            );
             builder.add(
                 response.getIndexName(),
                 isMetadataField,
@@ -281,8 +296,10 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     // we unwrap the cause to e.g. group RemoteTransportExceptions coming from different nodes if the cause is the same
                     Throwable cause = ExceptionsHelper.unwrapCause(e);
                     Tuple<String, String> groupingKey = new Tuple<>(cause.getMessage(), cause.getClass().getName());
-                    indexFailures.compute(groupingKey,
-                        (k, v) -> v == null ? new FieldCapabilitiesFailure(new String[]{index}, e) : v.addIndex(index));
+                    indexFailures.compute(
+                        groupingKey,
+                        (k, v) -> v == null ? new FieldCapabilitiesFailure(new String[] { index }, e) : v.addIndex(index)
+                    );
                 }
             }
             return new ArrayList<>(indexFailures.values());
@@ -313,7 +330,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 final Set<ShardId> allUnmatchedShardIds = new HashSet<>();
                 // If the request has an index filter, it may contain several shards belonging to the same
                 // index. We make sure to skip over a shard if we already found a match for that index.
-                final Map<String, List<ShardId>> groupedShardIds = request.shardIds().stream()
+                final Map<String, List<ShardId>> groupedShardIds = request.shardIds()
+                    .stream()
                     .collect(Collectors.groupingBy(ShardId::getIndexName));
                 for (List<ShardId> shardIds : groupedShardIds.values()) {
                     final Map<ShardId, Exception> failures = new HashMap<>();
@@ -321,7 +339,12 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     for (ShardId shardId : shardIds) {
                         try {
                             final FieldCapabilitiesIndexResponse response = fieldCapabilitiesFetcher.fetch(
-                                shardId, request.fields(), request.indexFilter(), request.nowInMillis(), request.runtimeFields());
+                                shardId,
+                                request.fields(),
+                                request.indexFilter(),
+                                request.nowInMillis(),
+                                request.runtimeFields()
+                            );
                             if (response.canMatch()) {
                                 unmatched.clear();
                                 failures.clear();

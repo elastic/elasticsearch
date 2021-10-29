@@ -8,8 +8,8 @@
 
 package org.elasticsearch.client.security;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -31,8 +31,11 @@ public final class DeleteRoleResponse {
         return this.found;
     }
 
-    private static final ConstructingObjectParser<DeleteRoleResponse, Void> PARSER = new ConstructingObjectParser<>("delete_role_response",
-        true, args -> new DeleteRoleResponse((boolean) args[0]));
+    private static final ConstructingObjectParser<DeleteRoleResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "delete_role_response",
+        true,
+        args -> new DeleteRoleResponse((boolean) args[0])
+    );
 
     static {
         PARSER.declareBoolean(constructorArg(), new ParseField("found"));

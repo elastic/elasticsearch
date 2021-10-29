@@ -13,11 +13,12 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
-import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
+import org.elasticsearch.script.field.DelegateDocValuesField;
+import org.elasticsearch.script.field.DocValuesField;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -37,8 +38,7 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
     private final String key;
     private final LeafOrdinalsFieldData delegate;
 
-    KeyedFlattenedLeafFieldData(String key,
-                                LeafOrdinalsFieldData delegate) {
+    KeyedFlattenedLeafFieldData(String key, LeafOrdinalsFieldData delegate) {
         this.key = key;
         this.delegate = delegate;
     }
@@ -79,9 +79,8 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
     }
 
     @Override
-    public ScriptDocValues<?> getScriptValues() {
-        return AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION
-            .apply(getOrdinalsValues());
+    public DocValuesField getScriptField(String name) {
+        return new DelegateDocValuesField(AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION.apply(getOrdinalsValues()), name);
     }
 
     @Override
@@ -163,10 +162,7 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
          */
         private long cachedNextOrd;
 
-        private KeyedFlattenedDocValues(BytesRef key,
-                                        SortedSetDocValues delegate,
-                                        long minOrd,
-                                        long maxOrd) {
+        private KeyedFlattenedDocValues(BytesRef key, SortedSetDocValues delegate, long minOrd, long maxOrd) {
             assert minOrd >= 0 && maxOrd >= 0;
             this.key = key;
             this.delegate = delegate;

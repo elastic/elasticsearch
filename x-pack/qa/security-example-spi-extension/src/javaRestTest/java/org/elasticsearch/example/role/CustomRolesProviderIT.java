@@ -34,6 +34,7 @@ import static org.hamcrest.Matchers.is;
 /**
  * Integration test for custom roles providers.
  */
+@SuppressWarnings("removal")
 public class CustomRolesProviderIT extends ESRestTestCase {
     private static final String TEST_USER = "test_user";
     private static final String TEST_PWD = "test-user-password";
@@ -41,8 +42,10 @@ public class CustomRolesProviderIT extends ESRestTestCase {
     private static final RequestOptions AUTH_OPTIONS;
     static {
         RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
-        options.addHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                UsernamePasswordToken.basicAuthHeaderValue(TEST_USER, new SecureString(TEST_PWD.toCharArray())));
+        options.addHeader(
+            UsernamePasswordToken.BASIC_AUTH_HEADER,
+            UsernamePasswordToken.basicAuthHeaderValue(TEST_USER, new SecureString(TEST_PWD.toCharArray()))
+        );
         AUTH_OPTIONS = options.build();
     }
 
@@ -55,9 +58,11 @@ public class CustomRolesProviderIT extends ESRestTestCase {
     }
 
     public void setupTestUser(String role) throws IOException {
-        new TestRestHighLevelClient().security().putUser(
-            PutUserRequest.withPassword(new User(TEST_USER, List.of(role)), TEST_PWD.toCharArray(), true, RefreshPolicy.IMMEDIATE),
-            RequestOptions.DEFAULT);
+        new TestRestHighLevelClient().security()
+            .putUser(
+                PutUserRequest.withPassword(new User(TEST_USER, List.of(role)), TEST_PWD.toCharArray(), true, RefreshPolicy.IMMEDIATE),
+                RequestOptions.DEFAULT
+            );
     }
 
     public void testAuthorizedCustomRoleSucceeds() throws Exception {

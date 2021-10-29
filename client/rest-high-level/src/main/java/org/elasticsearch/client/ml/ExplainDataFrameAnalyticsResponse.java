@@ -9,8 +9,8 @@ package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.ml.dataframe.explain.FieldSelection;
 import org.elasticsearch.client.ml.dataframe.explain.MemoryEstimation;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -31,10 +31,11 @@ public class ExplainDataFrameAnalyticsResponse implements ToXContentObject {
     }
 
     @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<ExplainDataFrameAnalyticsResponse, Void> PARSER =
-        new ConstructingObjectParser<>(
-            TYPE.getPreferredName(), true,
-            args -> new ExplainDataFrameAnalyticsResponse((List<FieldSelection>) args[0], (MemoryEstimation) args[1]));
+    static final ConstructingObjectParser<ExplainDataFrameAnalyticsResponse, Void> PARSER = new ConstructingObjectParser<>(
+        TYPE.getPreferredName(),
+        true,
+        args -> new ExplainDataFrameAnalyticsResponse((List<FieldSelection>) args[0], (MemoryEstimation) args[1])
+    );
 
     static {
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), FieldSelection.PARSER, FIELD_SELECTION);
@@ -64,8 +65,7 @@ public class ExplainDataFrameAnalyticsResponse implements ToXContentObject {
         if (other == null || getClass() != other.getClass()) return false;
 
         ExplainDataFrameAnalyticsResponse that = (ExplainDataFrameAnalyticsResponse) other;
-        return Objects.equals(fieldSelection, that.fieldSelection)
-            && Objects.equals(memoryEstimation, that.memoryEstimation);
+        return Objects.equals(fieldSelection, that.fieldSelection) && Objects.equals(memoryEstimation, that.memoryEstimation);
     }
 
     @Override

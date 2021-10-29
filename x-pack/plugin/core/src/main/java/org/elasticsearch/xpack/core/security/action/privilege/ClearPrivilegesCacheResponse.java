@@ -20,8 +20,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.List;
 
-public class ClearPrivilegesCacheResponse extends BaseNodesResponse<ClearPrivilegesCacheResponse.Node>
-    implements ToXContentFragment {
+public class ClearPrivilegesCacheResponse extends BaseNodesResponse<ClearPrivilegesCacheResponse.Node> implements ToXContentFragment {
 
     public ClearPrivilegesCacheResponse(StreamInput in) throws IOException {
         super(in);

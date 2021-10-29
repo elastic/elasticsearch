@@ -8,7 +8,6 @@
 
 package org.elasticsearch.painless;
 
-
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -22,7 +21,6 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.painless.action.PainlessContextAction;
@@ -44,6 +42,7 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -75,11 +74,11 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         "java.util.txt",
         "java.util.function.txt",
         "java.util.regex.txt",
-        "java.util.stream.txt"
-    };
-    public static final List<Whitelist> BASE_WHITELISTS =
-            Collections.singletonList(WhitelistLoader.loadFromResourceFiles(
-                    PainlessPlugin.class, WhitelistAnnotationParser.BASE_ANNOTATION_PARSERS, BASE_WHITELIST_FILES));
+        "java.util.stream.txt",
+        "java.nio.txt" };
+    public static final List<Whitelist> BASE_WHITELISTS = Collections.singletonList(
+        WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, WhitelistAnnotationParser.BASE_ANNOTATION_PARSERS, BASE_WHITELIST_FILES)
+    );
 
     /*
      * Contexts from Core that need custom whitelists can add them to the map below.
@@ -93,8 +92,10 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
             List<Whitelist> contextWhitelists = new ArrayList<>();
             if (PainlessPlugin.class.getResourceAsStream("org.elasticsearch.script." + context.name.replace('-', '_') + ".txt") != null) {
                 contextWhitelists.add(
-                        WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class,
-                                "org.elasticsearch.script." + context.name.replace('-', '_') + ".txt")
+                    WhitelistLoader.loadFromResourceFiles(
+                        PainlessPlugin.class,
+                        "org.elasticsearch.script." + context.name.replace('-', '_') + ".txt"
+                    )
                 );
             }
 
@@ -131,12 +132,19 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
     }
 
     @Override
-    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-                                               ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                               NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               IndexNameExpressionResolver expressionResolver,
-                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver expressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
+    ) {
         // this is a hack to bind the painless script engine in guice (all components are added to guice), so that
         // the painless context api. this is a temporary measure until transport actions do no require guice
         return Collections.singletonList(painlessScriptEngine.get());
@@ -149,7 +157,8 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
 
     @Override
     public void loadExtensions(ExtensionLoader loader) {
-        loader.loadExtensions(PainlessExtension.class).stream()
+        loader.loadExtensions(PainlessExtension.class)
+            .stream()
             .flatMap(extension -> extension.getContextWhitelists().entrySet().stream())
             .forEach(entry -> {
                 List<Whitelist> existing = whitelists.computeIfAbsent(entry.getKey(), c -> new ArrayList<>());
@@ -171,10 +180,15 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
     }
 
     @Override
-    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-                                             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
-                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                             Supplier<DiscoveryNodes> nodesInCluster) {
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
         List<RestHandler> handlers = new ArrayList<>();
         handlers.add(new PainlessExecuteAction.RestAction());
         handlers.add(new PainlessContextAction.RestAction());

@@ -7,17 +7,16 @@
 package org.elasticsearch.xpack.idp.saml.rest.action;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
-
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.idp.action.SamlInitiateSingleSignOnAction;
 import org.elasticsearch.xpack.idp.action.SamlInitiateSingleSignOnRequest;
 import org.elasticsearch.xpack.idp.action.SamlInitiateSingleSignOnResponse;
@@ -30,14 +29,19 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestSamlInitiateSingleSignOnAction extends IdpBaseRestHandler {
-    static final ObjectParser<SamlInitiateSingleSignOnRequest, Void> PARSER = new ObjectParser<>("idp_init_sso",
-        SamlInitiateSingleSignOnRequest::new);
+    static final ObjectParser<SamlInitiateSingleSignOnRequest, Void> PARSER = new ObjectParser<>(
+        "idp_init_sso",
+        SamlInitiateSingleSignOnRequest::new
+    );
 
     static {
         PARSER.declareString(SamlInitiateSingleSignOnRequest::setSpEntityId, new ParseField("entity_id"));
         PARSER.declareString(SamlInitiateSingleSignOnRequest::setAssertionConsumerService, new ParseField("acs"));
-        PARSER.declareObject(SamlInitiateSingleSignOnRequest::setSamlAuthenticationState, (p, c) -> SamlAuthenticationState.fromXContent(p),
-            new ParseField("authn_state"));
+        PARSER.declareObject(
+            SamlInitiateSingleSignOnRequest::setSamlAuthenticationState,
+            (p, c) -> SamlAuthenticationState.fromXContent(p),
+            new ParseField("authn_state")
+        );
     }
 
     public RestSamlInitiateSingleSignOnAction(XPackLicenseState licenseState) {
@@ -46,9 +50,7 @@ public class RestSamlInitiateSingleSignOnAction extends IdpBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.singletonList(
-            new Route(POST, "/_idp/saml/init")
-        );
+        return Collections.singletonList(new Route(POST, "/_idp/saml/init"));
     }
 
     @Override
@@ -60,7 +62,9 @@ public class RestSamlInitiateSingleSignOnAction extends IdpBaseRestHandler {
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
             final SamlInitiateSingleSignOnRequest initRequest = PARSER.parse(parser, null);
-            return channel -> client.execute(SamlInitiateSingleSignOnAction.INSTANCE, initRequest,
+            return channel -> client.execute(
+                SamlInitiateSingleSignOnAction.INSTANCE,
+                initRequest,
                 new RestBuilderListener<SamlInitiateSingleSignOnResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(SamlInitiateSingleSignOnResponse response, XContentBuilder builder) throws Exception {
@@ -75,7 +79,8 @@ public class RestSamlInitiateSingleSignOnAction extends IdpBaseRestHandler {
                         builder.endObject();
                         return new BytesRestResponse(RestStatus.OK, builder);
                     }
-                });
+                }
+            );
         }
     }
 }

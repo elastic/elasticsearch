@@ -19,10 +19,10 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
@@ -72,19 +72,16 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
         Client client,
         Settings settings
     ) {
-        this(GetTransformStatsAction.NAME, transportService, actionFilters, clusterService, transformServices, client, settings);
-    }
-
-    protected TransportGetTransformStatsAction(
-        String name,
-        TransportService transportService,
-        ActionFilters actionFilters,
-        ClusterService clusterService,
-        TransformServices transformServices,
-        Client client,
-        Settings settings
-    ) {
-        super(name, clusterService, transportService, actionFilters, Request::new, Response::new, Response::new, ThreadPool.Names.SAME);
+        super(
+            GetTransformStatsAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            Request::new,
+            Response::new,
+            Response::new,
+            ThreadPool.Names.SAME
+        );
         this.transformConfigManager = transformServices.getConfigManager();
         this.transformCheckpointService = transformServices.getCheckpointService();
         this.client = client;
@@ -149,14 +146,25 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
             ActionListener.wrap(hitsAndIds -> {
                 boolean hasAnyTransformNode = TransformNodes.hasAnyTransformNode(clusterState.getNodes());
                 boolean requiresRemote = hitsAndIds.v2().v2().stream().anyMatch(config -> config.getSource().requiresRemoteCluster());
-                if (hasAnyTransformNode && TransformNodes.redirectToAnotherNodeIfNeeded(
-                        clusterState, nodeSettings, requiresRemote, transportService, actionName, request, Response::new, finalListener)) {
+                if (hasAnyTransformNode
+                    && TransformNodes.redirectToAnotherNodeIfNeeded(
+                        clusterState,
+                        nodeSettings,
+                        requiresRemote,
+                        transportService,
+                        actionName,
+                        request,
+                        Response::new,
+                        finalListener
+                    )) {
                     return;
                 }
 
                 request.setExpandedIds(hitsAndIds.v2().v1());
-                final TransformNodeAssignments transformNodeAssignments =
-                    TransformNodes.transformTaskNodes(hitsAndIds.v2().v1(), clusterState);
+                final TransformNodeAssignments transformNodeAssignments = TransformNodes.transformTaskNodes(
+                    hitsAndIds.v2().v1(),
+                    clusterState
+                );
 
                 ActionListener<Response> doExecuteListener = ActionListener.wrap(response -> {
                     PersistentTasksCustomMetadata tasksInProgress = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
@@ -189,16 +197,14 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
                 } else {
                     doExecuteListener.onResponse(new Response(Collections.emptyList(), 0L));
                 }
-            },
-                e -> {
-                    // If the index to search, or the individual config is not there, just return empty
-                    if (e instanceof ResourceNotFoundException) {
-                        finalListener.onResponse(new Response(Collections.emptyList(), 0L));
-                    } else {
-                        finalListener.onFailure(e);
-                    }
+            }, e -> {
+                // If the index to search, or the individual config is not there, just return empty
+                if (e instanceof ResourceNotFoundException) {
+                    finalListener.onResponse(new Response(Collections.emptyList(), 0L));
+                } else {
+                    finalListener.onFailure(e);
                 }
-            )
+            })
         );
     }
 

@@ -7,19 +7,19 @@
 package org.elasticsearch.xpack.security.rest.action.oauth2;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenResponse;
@@ -35,26 +35,25 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
  */
 public final class RestInvalidateTokenAction extends TokenBaseRestHandler implements RestRequestFilter {
 
-    static final ConstructingObjectParser<InvalidateTokenRequest, Void> PARSER =
-        new ConstructingObjectParser<>("invalidate_token", a -> {
-            final String token = (String) a[0];
-            final String refreshToken = (String) a[1];
-            final String tokenString;
-            final String tokenType;
-            if (Strings.hasLength(token) && Strings.hasLength(refreshToken)) {
-                throw new IllegalArgumentException("only one of [token, refresh_token] may be sent per request");
-            } else if (Strings.hasLength(token)) {
-                tokenString = token;
-                tokenType = InvalidateTokenRequest.Type.ACCESS_TOKEN.getValue();
-            } else if (Strings.hasLength(refreshToken)) {
-                tokenString = refreshToken;
-                tokenType = InvalidateTokenRequest.Type.REFRESH_TOKEN.getValue();
-            } else {
-                tokenString = null;
-                tokenType = null;
-            }
-            return new InvalidateTokenRequest(tokenString, tokenType, (String) a[2], (String) a[3]);
-        });
+    static final ConstructingObjectParser<InvalidateTokenRequest, Void> PARSER = new ConstructingObjectParser<>("invalidate_token", a -> {
+        final String token = (String) a[0];
+        final String refreshToken = (String) a[1];
+        final String tokenString;
+        final String tokenType;
+        if (Strings.hasLength(token) && Strings.hasLength(refreshToken)) {
+            throw new IllegalArgumentException("only one of [token, refresh_token] may be sent per request");
+        } else if (Strings.hasLength(token)) {
+            tokenString = token;
+            tokenType = InvalidateTokenRequest.Type.ACCESS_TOKEN.getValue();
+        } else if (Strings.hasLength(refreshToken)) {
+            tokenString = refreshToken;
+            tokenType = InvalidateTokenRequest.Type.REFRESH_TOKEN.getValue();
+        } else {
+            tokenString = null;
+            tokenType = null;
+        }
+        return new InvalidateTokenRequest(tokenString, tokenType, (String) a[2], (String) a[3]);
+    });
 
     static {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("token"));
@@ -70,8 +69,7 @@ public final class RestInvalidateTokenAction extends TokenBaseRestHandler implem
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(DELETE, "/_security/oauth2/token")
-                .replaces(DELETE, "/_xpack/security/oauth2/token", RestApiVersion.V_7).build()
+            Route.builder(DELETE, "/_security/oauth2/token").replaces(DELETE, "/_xpack/security/oauth2/token", RestApiVersion.V_7).build()
         );
     }
 
@@ -84,15 +82,17 @@ public final class RestInvalidateTokenAction extends TokenBaseRestHandler implem
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
             final InvalidateTokenRequest invalidateTokenRequest = PARSER.parse(parser, null);
-            return channel -> client.execute(InvalidateTokenAction.INSTANCE, invalidateTokenRequest,
+            return channel -> client.execute(
+                InvalidateTokenAction.INSTANCE,
+                invalidateTokenRequest,
                 new RestBuilderListener<InvalidateTokenResponse>(channel) {
                     @Override
-                    public RestResponse buildResponse(InvalidateTokenResponse invalidateResp,
-                                                      XContentBuilder builder) throws Exception {
+                    public RestResponse buildResponse(InvalidateTokenResponse invalidateResp, XContentBuilder builder) throws Exception {
                         invalidateResp.toXContent(builder, channel.request());
                         return new BytesRestResponse(invalidateResp.getResult().getRestStatus(), builder);
                     }
-                });
+                }
+            );
         }
     }
 

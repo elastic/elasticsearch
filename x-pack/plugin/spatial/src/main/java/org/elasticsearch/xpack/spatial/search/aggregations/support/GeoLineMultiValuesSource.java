@@ -24,10 +24,10 @@ public class GeoLineMultiValuesSource extends MultiValuesSource<ValuesSource> {
         values = new HashMap<>(valuesSourceConfigs.size());
         for (Map.Entry<String, ValuesSourceConfig> entry : valuesSourceConfigs.entrySet()) {
             final ValuesSource valuesSource = entry.getValue().getValuesSource();
-            if (valuesSource instanceof ValuesSource.Numeric == false
-                && valuesSource instanceof ValuesSource.GeoPoint == false) {
-                throw new AggregationExecutionException("ValuesSource type " + valuesSource.toString() +
-                    "is not supported for multi-valued aggregation");
+            if (valuesSource instanceof ValuesSource.Numeric == false && valuesSource instanceof ValuesSource.GeoPoint == false) {
+                throw new AggregationExecutionException(
+                    "ValuesSource type " + valuesSource.toString() + "is not supported for multi-valued aggregation"
+                );
             }
             values.put(entry.getKey(), valuesSource);
         }

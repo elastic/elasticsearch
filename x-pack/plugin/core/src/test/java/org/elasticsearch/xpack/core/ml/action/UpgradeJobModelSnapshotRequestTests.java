@@ -7,18 +7,20 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction.Request;
 
 public class UpgradeJobModelSnapshotRequestTests extends AbstractSerializingTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomAlphaOfLength(10),
+        return new Request(
+            randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             randomBoolean() ? null : randomTimeValue(),
-            randomBoolean() ? null : randomBoolean());
+            randomBoolean() ? null : randomBoolean()
+        );
     }
 
     @Override

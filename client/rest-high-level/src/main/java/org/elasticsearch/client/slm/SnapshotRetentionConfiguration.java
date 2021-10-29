@@ -8,11 +8,11 @@
 
 package org.elasticsearch.client.slm;
 
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -28,13 +28,16 @@ public class SnapshotRetentionConfiguration implements ToXContentObject {
     private static final ParseField MINIMUM_SNAPSHOT_COUNT = new ParseField("min_count");
     private static final ParseField MAXIMUM_SNAPSHOT_COUNT = new ParseField("max_count");
 
-    private static final ConstructingObjectParser<SnapshotRetentionConfiguration, Void> PARSER =
-        new ConstructingObjectParser<>("snapshot_retention", true, a -> {
+    private static final ConstructingObjectParser<SnapshotRetentionConfiguration, Void> PARSER = new ConstructingObjectParser<>(
+        "snapshot_retention",
+        true,
+        a -> {
             TimeValue expireAfter = a[0] == null ? null : TimeValue.parseTimeValue((String) a[0], EXPIRE_AFTER.getPreferredName());
             Integer minCount = (Integer) a[1];
             Integer maxCount = (Integer) a[2];
             return new SnapshotRetentionConfiguration(expireAfter, minCount, maxCount);
-        });
+        }
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), EXPIRE_AFTER);
@@ -46,9 +49,11 @@ public class SnapshotRetentionConfiguration implements ToXContentObject {
     private final Integer minimumSnapshotCount;
     private final Integer maximumSnapshotCount;
 
-    public SnapshotRetentionConfiguration(@Nullable TimeValue expireAfter,
-                                          @Nullable Integer minimumSnapshotCount,
-                                          @Nullable Integer maximumSnapshotCount) {
+    public SnapshotRetentionConfiguration(
+        @Nullable TimeValue expireAfter,
+        @Nullable Integer minimumSnapshotCount,
+        @Nullable Integer maximumSnapshotCount
+    ) {
         this.expireAfter = expireAfter;
         this.minimumSnapshotCount = minimumSnapshotCount;
         this.maximumSnapshotCount = maximumSnapshotCount;
@@ -59,8 +64,12 @@ public class SnapshotRetentionConfiguration implements ToXContentObject {
             throw new IllegalArgumentException("maximum snapshot count must be at least 1, but was: " + this.maximumSnapshotCount);
         }
         if ((maximumSnapshotCount != null && minimumSnapshotCount != null) && this.minimumSnapshotCount > this.maximumSnapshotCount) {
-            throw new IllegalArgumentException("minimum snapshot count " + this.minimumSnapshotCount +
-                " cannot be larger than maximum snapshot count " + this.maximumSnapshotCount);
+            throw new IllegalArgumentException(
+                "minimum snapshot count "
+                    + this.minimumSnapshotCount
+                    + " cannot be larger than maximum snapshot count "
+                    + this.maximumSnapshotCount
+            );
         }
     }
 
@@ -110,9 +119,9 @@ public class SnapshotRetentionConfiguration implements ToXContentObject {
             return false;
         }
         SnapshotRetentionConfiguration other = (SnapshotRetentionConfiguration) obj;
-        return Objects.equals(this.expireAfter, other.expireAfter) &&
-            Objects.equals(minimumSnapshotCount, other.minimumSnapshotCount) &&
-            Objects.equals(maximumSnapshotCount, other.maximumSnapshotCount);
+        return Objects.equals(this.expireAfter, other.expireAfter)
+            && Objects.equals(minimumSnapshotCount, other.minimumSnapshotCount)
+            && Objects.equals(maximumSnapshotCount, other.maximumSnapshotCount);
     }
 
     @Override

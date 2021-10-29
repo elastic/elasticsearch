@@ -206,8 +206,7 @@ public final class MappingStats implements ToXContentFragment, Writeable {
             return false;
         }
         MappingStats that = (MappingStats) o;
-        return fieldTypeStats.equals(that.fieldTypeStats) &&
-            runtimeFieldStats.equals(that.runtimeFieldStats);
+        return fieldTypeStats.equals(that.fieldTypeStats) && runtimeFieldStats.equals(that.runtimeFieldStats);
     }
 
     @Override

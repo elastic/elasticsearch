@@ -8,15 +8,15 @@
 
 package org.elasticsearch.client.ml.inference;
 
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -42,13 +42,19 @@ public final class InferenceToXContentCompressor {
         return deflate(reference);
     }
 
-    public static <T> T inflate(String compressedString,
-                         CheckedFunction<XContentParser, T, IOException> parserFunction,
-                         NamedXContentRegistry xContentRegistry) throws IOException {
-        try(XContentParser parser = XContentHelper.createParser(xContentRegistry,
-            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-            inflate(compressedString, MAX_INFLATED_BYTES),
-            XContentType.JSON)) {
+    public static <T> T inflate(
+        String compressedString,
+        CheckedFunction<XContentParser, T, IOException> parserFunction,
+        NamedXContentRegistry xContentRegistry
+    ) throws IOException {
+        try (
+            XContentParser parser = XContentHelper.createParser(
+                xContentRegistry,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                inflate(compressedString, MAX_INFLATED_BYTES),
+                XContentType.JSON
+            )
+        ) {
             return parserFunction.apply(parser);
         }
     }

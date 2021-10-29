@@ -17,7 +17,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 
-
 public class EdgeNGramTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final int minGram;
@@ -39,10 +38,13 @@ public class EdgeNGramTokenFilterFactory extends AbstractTokenFilterFactory {
     }
 
     static int parseSide(String side) {
-        switch(side) {
-            case "front": return SIDE_FRONT;
-            case "back": return SIDE_BACK;
-            default: throw new IllegalArgumentException("invalid side: " + side);
+        switch (side) {
+            case "front":
+                return SIDE_FRONT;
+            case "back":
+                return SIDE_BACK;
+            default:
+                throw new IllegalArgumentException("invalid side: " + side);
         }
     }
 

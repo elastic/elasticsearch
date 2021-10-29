@@ -81,21 +81,27 @@ class JNANatives {
         }
 
         // mlockall failed for some reason
-        logger.warn("Unable to lock JVM Memory: error={}, reason={}", errno , errMsg);
+        logger.warn("Unable to lock JVM Memory: error={}, reason={}", errno, errMsg);
         logger.warn("This can result in part of the JVM being swapped out.");
         if (errno == JNACLibrary.ENOMEM) {
             if (rlimitSuccess) {
-                logger.warn("Increase RLIMIT_MEMLOCK, soft limit: {}, hard limit: {}", rlimitToString(softLimit),
-                    rlimitToString(hardLimit));
+                logger.warn(
+                    "Increase RLIMIT_MEMLOCK, soft limit: {}, hard limit: {}",
+                    rlimitToString(softLimit),
+                    rlimitToString(hardLimit)
+                );
                 if (Constants.LINUX) {
                     // give specific instructions for the linux case to make it easy
                     String user = System.getProperty("user.name");
-                    logger.warn("These can be adjusted by modifying /etc/security/limits.conf, for example: \n" +
-                                "\t# allow user '{}' mlockall\n" +
-                                "\t{} soft memlock unlimited\n" +
-                                "\t{} hard memlock unlimited",
-                                user, user, user
-                                );
+                    logger.warn(
+                        "These can be adjusted by modifying /etc/security/limits.conf, for example: \n"
+                            + "\t# allow user '{}' mlockall\n"
+                            + "\t{} soft memlock unlimited\n"
+                            + "\t{} hard memlock unlimited",
+                        user,
+                        user,
+                        user
+                    );
                     logger.warn("If you are logged in interactively, you will have to re-login for the new limits to take effect.");
                 }
             } else {
@@ -181,8 +187,8 @@ class JNANatives {
                 long address = 0;
                 while (kernel.VirtualQueryEx(process, new Pointer(address), memInfo, memInfo.size()) != 0) {
                     boolean lockable = memInfo.State.longValue() == JNAKernel32Library.MEM_COMMIT
-                            && (memInfo.Protect.longValue() & JNAKernel32Library.PAGE_NOACCESS) != JNAKernel32Library.PAGE_NOACCESS
-                            && (memInfo.Protect.longValue() & JNAKernel32Library.PAGE_GUARD) != JNAKernel32Library.PAGE_GUARD;
+                        && (memInfo.Protect.longValue() & JNAKernel32Library.PAGE_NOACCESS) != JNAKernel32Library.PAGE_NOACCESS
+                        && (memInfo.Protect.longValue() & JNAKernel32Library.PAGE_GUARD) != JNAKernel32Library.PAGE_GUARD;
                     if (lockable) {
                         kernel.VirtualLock(memInfo.BaseAddress, new SizeT(memInfo.RegionSize.longValue()));
                     }

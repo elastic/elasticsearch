@@ -69,16 +69,18 @@ public final class JobModelSnapshotUpgrader {
     private final JobResultsPersister jobResultsPersister;
     private final NativeStorageProvider nativeStorageProvider;
 
-    JobModelSnapshotUpgrader(SnapshotUpgradeTask task,
-                             Job job,
-                             AutodetectParams params,
-                             ThreadPool threadPool,
-                             AutodetectProcessFactory autodetectProcessFactory,
-                             JobResultsPersister jobResultsPersister,
-                             Client client,
-                             NativeStorageProvider nativeStorageProvider,
-                             Consumer<Exception> onFinish,
-                             Supplier<Boolean> continueRunning) {
+    JobModelSnapshotUpgrader(
+        SnapshotUpgradeTask task,
+        Job job,
+        AutodetectParams params,
+        ThreadPool threadPool,
+        AutodetectProcessFactory autodetectProcessFactory,
+        JobResultsPersister jobResultsPersister,
+        Client client,
+        NativeStorageProvider nativeStorageProvider,
+        Consumer<Exception> onFinish,
+        Supplier<Boolean> continueRunning
+    ) {
         this.task = Objects.requireNonNull(task);
         this.job = Objects.requireNonNull(job);
         this.params = Objects.requireNonNull(params);
@@ -97,27 +99,29 @@ public final class JobModelSnapshotUpgrader {
         // A TP with no queue, so that we fail immediately if there are no threads available
         ExecutorService autodetectExecutorService = threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME);
 
-        AutodetectProcess process = autodetectProcessFactory.createAutodetectProcess(jobId + "-" + snapshotId,
+        AutodetectProcess process = autodetectProcessFactory.createAutodetectProcess(
+            jobId + "-" + snapshotId,
             job,
             params,
             autodetectExecutorService,
             (reason) -> {
-                setTaskToFailed(reason, ActionListener.wrap(t -> {
-                }, f -> {
-                }));
+                setTaskToFailed(reason, ActionListener.wrap(t -> {}, f -> {}));
                 try {
                     nativeStorageProvider.cleanupLocalTmpStorage(task.getDescription());
                 } catch (IOException e) {
                     logger.error(
                         new ParameterizedMessage("[{}] [{}] failed to delete temporary files snapshot upgrade", jobId, snapshotId),
-                        e);
+                        e
+                    );
                 }
-            });
+            }
+        );
         JobSnapshotUpgraderResultProcessor processor = new JobSnapshotUpgraderResultProcessor(
             jobId,
             snapshotId,
             jobResultsPersister,
-            process);
+            process
+        );
         ProcessWorkerExecutorService autodetectWorkerExecutor;
         try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
             autodetectWorkerExecutor = new AutodetectWorkerExecutorService(threadPool.getThreadContext());
@@ -145,19 +149,11 @@ public final class JobModelSnapshotUpgrader {
     }
 
     void setTaskToFailed(String reason, ActionListener<PersistentTask<?>> listener) {
-        SnapshotUpgradeTaskState taskState = new SnapshotUpgradeTaskState(
-            SnapshotUpgradeState.FAILED,
-            task.getAllocationId(),
-            reason);
-        task.updatePersistentTaskState(taskState, ActionListener.wrap(
-            listener::onResponse,
-            f -> {
-                logger.warn(
-                    () -> new ParameterizedMessage("[{}] [{}] failed to set task to failed", task.getJobId(), task.getSnapshotId()),
-                    f);
-                listener.onFailure(f);
-            }
-        ));
+        SnapshotUpgradeTaskState taskState = new SnapshotUpgradeTaskState(SnapshotUpgradeState.FAILED, task.getAllocationId(), reason);
+        task.updatePersistentTaskState(taskState, ActionListener.wrap(listener::onResponse, f -> {
+            logger.warn(() -> new ParameterizedMessage("[{}] [{}] failed to set task to failed", task.getJobId(), task.getSnapshotId()), f);
+            listener.onFailure(f);
+        }));
     }
 
     private class Executor {
@@ -167,10 +163,12 @@ public final class JobModelSnapshotUpgrader {
         private final ExecutorService autodetectWorkerExecutor;
         private final AutodetectProcess process;
 
-        Executor(StateStreamer stateStreamer,
-                 JobSnapshotUpgraderResultProcessor processor,
-                 ExecutorService autodetectWorkerExecutor,
-                 AutodetectProcess process) {
+        Executor(
+            StateStreamer stateStreamer,
+            JobSnapshotUpgraderResultProcessor processor,
+            ExecutorService autodetectWorkerExecutor,
+            AutodetectProcess process
+        ) {
             this.stateStreamer = stateStreamer;
             this.processor = processor;
             this.autodetectWorkerExecutor = autodetectWorkerExecutor;
@@ -236,8 +234,10 @@ public final class JobModelSnapshotUpgrader {
                 process.restoreState(stateStreamer, params.modelSnapshot());
             } catch (Exception e) {
                 logger.error(() -> new ParameterizedMessage("[{}] [{}] failed to write old state", jobId, snapshotId), e);
-                setTaskToFailed("Failed to write old state due to: " + e.getMessage(),
-                    ActionListener.wrap(t -> shutdown(e), f -> shutdown(e)));
+                setTaskToFailed(
+                    "Failed to write old state due to: " + e.getMessage(),
+                    ActionListener.wrap(t -> shutdown(e), f -> shutdown(e))
+                );
                 return;
             }
             submitOperation(() -> {
@@ -247,24 +247,20 @@ public final class JobModelSnapshotUpgrader {
             }, (flushAcknowledgement, e) -> {
                 Runnable nextStep;
                 if (e != null) {
-                    logger.error(
-                        () -> new ParameterizedMessage(
-                            "[{}] [{}] failed to flush after writing old state",
-                            jobId,
-                            snapshotId
-                        ),
-                        e);
+                    logger.error(() -> new ParameterizedMessage("[{}] [{}] failed to flush after writing old state", jobId, snapshotId), e);
                     nextStep = () -> setTaskToFailed(
                         "Failed to flush after writing old state due to: " + e.getMessage(),
                         ActionListener.wrap(t -> shutdown(e), f -> shutdown(e))
                     );
                 } else {
-                    logger.debug(() -> new ParameterizedMessage(
-                        "[{}] [{}] flush [{}] acknowledged requesting state write",
-                        jobId,
-                        snapshotId,
-                        flushAcknowledgement.getId()
-                    ));
+                    logger.debug(
+                        () -> new ParameterizedMessage(
+                            "[{}] [{}] flush [{}] acknowledged requesting state write",
+                            jobId,
+                            snapshotId,
+                            flushAcknowledgement.getId()
+                        )
+                    );
                     nextStep = this::requestStateWrite;
                 }
                 threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(nextStep);
@@ -274,41 +270,41 @@ public final class JobModelSnapshotUpgrader {
         private void requestStateWrite() {
             task.updatePersistentTaskState(
                 new SnapshotUpgradeTaskState(SnapshotUpgradeState.SAVING_NEW_STATE, task.getAllocationId(), ""),
-                ActionListener.wrap(
-                    readingNewState -> {
-                        if (continueRunning.get() == false) {
-                            shutdown(null);
-                            return;
-                        }
-                        submitOperation(
-                            () -> {
-                                process.persistState(
-                                    params.modelSnapshot().getTimestamp().getTime(),
-                                    params.modelSnapshot().getSnapshotId(),
-                                    params.modelSnapshot().getDescription());
-                                return null;
-                            },
-                            // Execute callback in the UTILITY thread pool, as the current thread in the callback will be one in the
-                            // autodetectWorkerExecutor. Trying to run the callback in that executor will cause a dead lock as that
-                            // executor has a single processing queue.
-                            (aVoid, e) -> threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> shutdown(e)));
-                        logger.info("asked for state to be persisted");
+                ActionListener.wrap(readingNewState -> {
+                    if (continueRunning.get() == false) {
+                        shutdown(null);
+                        return;
+                    }
+                    submitOperation(() -> {
+                        process.persistState(
+                            params.modelSnapshot().getTimestamp().getTime(),
+                            params.modelSnapshot().getSnapshotId(),
+                            params.modelSnapshot().getDescription()
+                        );
+                        return null;
                     },
-                    f -> {
-                        logger.error(
-                            () -> new ParameterizedMessage(
-                                "[{}] [{}] failed to update snapshot upgrader task to started",
-                                jobId,
-                                snapshotId),
-                            f);
-                        shutdown(new ElasticsearchStatusException(
+                        // Execute callback in the UTILITY thread pool, as the current thread in the callback will be one in the
+                        // autodetectWorkerExecutor. Trying to run the callback in that executor will cause a dead lock as that
+                        // executor has a single processing queue.
+                        (aVoid, e) -> threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> shutdown(e))
+                    );
+                    logger.info("asked for state to be persisted");
+                }, f -> {
+                    logger.error(
+                        () -> new ParameterizedMessage("[{}] [{}] failed to update snapshot upgrader task to started", jobId, snapshotId),
+                        f
+                    );
+                    shutdown(
+                        new ElasticsearchStatusException(
                             "Failed to start snapshot upgrade [{}] for job [{}]",
                             RestStatus.INTERNAL_SERVER_ERROR,
                             f,
                             snapshotId,
-                            jobId));
-                    }
-                ));
+                            jobId
+                        )
+                    );
+                })
+            );
         }
 
         private <T> void submitOperation(CheckedSupplier<T, Exception> operation, BiConsumer<T, Exception> handler) {
@@ -316,8 +312,13 @@ public final class JobModelSnapshotUpgrader {
                 @Override
                 public void onFailure(Exception e) {
                     if (continueRunning.get() == false) {
-                        handler.accept(null, ExceptionsHelper.conflictStatusException(
-                            "[{}] Could not submit operation to process as it has been killed", job.getId()));
+                        handler.accept(
+                            null,
+                            ExceptionsHelper.conflictStatusException(
+                                "[{}] Could not submit operation to process as it has been killed",
+                                job.getId()
+                            )
+                        );
                     } else {
                         logger.error(new ParameterizedMessage("[{}] Unexpected exception writing to process", job.getId()), e);
                         handler.accept(null, e);
@@ -327,8 +328,13 @@ public final class JobModelSnapshotUpgrader {
                 @Override
                 protected void doRun() throws Exception {
                     if (continueRunning.get() == false) {
-                        handler.accept(null, ExceptionsHelper.conflictStatusException(
-                            "[{}] Could not submit operation to process as it has been killed", job.getId()));
+                        handler.accept(
+                            null,
+                            ExceptionsHelper.conflictStatusException(
+                                "[{}] Could not submit operation to process as it has been killed",
+                                job.getId()
+                            )
+                        );
                     } else {
                         checkProcessIsAlive();
                         handler.accept(operation.get(), null);

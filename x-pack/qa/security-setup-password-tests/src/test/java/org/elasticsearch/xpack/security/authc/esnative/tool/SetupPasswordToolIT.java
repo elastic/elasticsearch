@@ -51,8 +51,8 @@ public class SetupPasswordToolIT extends AbstractPasswordToolTestCase {
 
         assertEquals(7, userPasswordMap.size());
         userPasswordMap.entrySet().forEach(entry -> {
-            final String basicHeader = "Basic " +
-                    Base64.getEncoder().encodeToString((entry.getKey() + ":" + entry.getValue()).getBytes(StandardCharsets.UTF_8));
+            final String basicHeader = "Basic "
+                + Base64.getEncoder().encodeToString((entry.getKey() + ":" + entry.getValue()).getBytes(StandardCharsets.UTF_8));
             try {
                 Request request = new Request("GET", "/_security/_authenticate");
                 RequestOptions.Builder options = request.getOptions().toBuilder();

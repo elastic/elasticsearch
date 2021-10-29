@@ -63,51 +63,60 @@ public class ADLdapUserSearchSessionFactoryTests extends AbstractActiveDirectory
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userSearchBase = "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
         Settings settings = Settings.builder()
-                .put("url", ActiveDirectorySessionFactoryTests.AD_LDAP_URL)
-                .put("group_search.base_dn", groupSearchBase)
-                .put("user_search.base_dn", userSearchBase)
-                .put("bind_dn", "ironman@ad.test.elasticsearch.com")
-                .put("bind_password", ActiveDirectorySessionFactoryTests.PASSWORD)
-                .put("user_search.filter", "(cn={0})")
-                .put("user_search.pool.enabled", randomBoolean())
-                .put("follow_referrals", ActiveDirectorySessionFactoryTests.FOLLOW_REFERRALS)
-                .put("order", 0)
-                .build();
-        Settings.Builder builder = Settings.builder()
-                .put(globalSettings);
-        settings.keySet().forEach(k -> {
-            builder.copy("xpack.security.authc.realms.ldap.ad-as-ldap-test." + k, k, settings);
-        });
+            .put("url", ActiveDirectorySessionFactoryTests.AD_LDAP_URL)
+            .put("group_search.base_dn", groupSearchBase)
+            .put("user_search.base_dn", userSearchBase)
+            .put("bind_dn", "ironman@ad.test.elasticsearch.com")
+            .put("bind_password", ActiveDirectorySessionFactoryTests.PASSWORD)
+            .put("user_search.filter", "(cn={0})")
+            .put("user_search.pool.enabled", randomBoolean())
+            .put("follow_referrals", ActiveDirectorySessionFactoryTests.FOLLOW_REFERRALS)
+            .put("order", 0)
+            .build();
+        Settings.Builder builder = Settings.builder().put(globalSettings);
+        settings.keySet().forEach(k -> { builder.copy("xpack.security.authc.realms.ldap.ad-as-ldap-test." + k, k, settings); });
         Settings fullSettings = builder.build();
         sslService = new SSLService(TestEnvironment.newEnvironment(fullSettings));
-        RealmConfig config = new RealmConfig(realmIdentifier, fullSettings,
-                TestEnvironment.newEnvironment(fullSettings), new ThreadContext(fullSettings));
+        RealmConfig config = new RealmConfig(
+            realmIdentifier,
+            fullSettings,
+            TestEnvironment.newEnvironment(fullSettings),
+            new ThreadContext(fullSettings)
+        );
         LdapUserSearchSessionFactory sessionFactory = getLdapUserSearchSessionFactory(config, sslService, threadPool);
 
         String user = "Bruce Banner";
         try {
-            //auth
+            // auth
             try (LdapSession ldap = session(sessionFactory, user, new SecureString(ActiveDirectorySessionFactoryTests.PASSWORD))) {
                 assertConnectionCanReconnect(ldap.getConnection());
                 List<String> groups = groups(ldap);
 
-                assertThat(groups, containsInAnyOrder(
+                assertThat(
+                    groups,
+                    containsInAnyOrder(
                         containsString("Avengers"),
                         containsString("SHIELD"),
                         containsString("Geniuses"),
-                        containsString("Philanthropists")));
+                        containsString("Philanthropists")
+                    )
+                );
             }
 
-            //lookup
+            // lookup
             try (LdapSession ldap = unauthenticatedSession(sessionFactory, user)) {
                 assertConnectionCanReconnect(ldap.getConnection());
                 List<String> groups = groups(ldap);
 
-                assertThat(groups, containsInAnyOrder(
+                assertThat(
+                    groups,
+                    containsInAnyOrder(
                         containsString("Avengers"),
                         containsString("SHIELD"),
                         containsString("Geniuses"),
-                        containsString("Philanthropists")));
+                        containsString("Philanthropists")
+                    )
+                );
             }
         } finally {
             sessionFactory.close();

@@ -9,9 +9,9 @@ package org.elasticsearch.client.ml.job.results;
 
 import org.elasticsearch.client.common.TimeUtil;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -45,13 +45,20 @@ public class Bucket implements ToXContentObject {
     public static final String RESULT_TYPE_VALUE = "bucket";
     public static final ParseField RESULT_TYPE_FIELD = new ParseField(RESULT_TYPE_VALUE);
 
-    public static final ConstructingObjectParser<Bucket, Void> PARSER =
-        new ConstructingObjectParser<>(RESULT_TYPE_VALUE, true, a -> new Bucket((String) a[0], (Date) a[1], (long) a[2]));
+    public static final ConstructingObjectParser<Bucket, Void> PARSER = new ConstructingObjectParser<>(
+        RESULT_TYPE_VALUE,
+        true,
+        a -> new Bucket((String) a[0], (Date) a[1], (long) a[2])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
-        PARSER.declareField(ConstructingObjectParser.constructorArg(),
-                (p) -> TimeUtil.parseTimeField(p, Result.TIMESTAMP.getPreferredName()), Result.TIMESTAMP, ValueType.VALUE);
+        PARSER.declareField(
+            ConstructingObjectParser.constructorArg(),
+            (p) -> TimeUtil.parseTimeField(p, Result.TIMESTAMP.getPreferredName()),
+            Result.TIMESTAMP,
+            ValueType.VALUE
+        );
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
         PARSER.declareDouble(Bucket::setAnomalyScore, ANOMALY_SCORE);
         PARSER.declareDouble(Bucket::setInitialAnomalyScore, INITIAL_ANOMALY_SCORE);
@@ -197,8 +204,19 @@ public class Bucket implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, timestamp, eventCount, initialAnomalyScore, anomalyScore, records,
-                isInterim, bucketSpan, bucketInfluencers, processingTimeMs, scheduledEvents);
+        return Objects.hash(
+            jobId,
+            timestamp,
+            eventCount,
+            initialAnomalyScore,
+            anomalyScore,
+            records,
+            isInterim,
+            bucketSpan,
+            bucketInfluencers,
+            processingTimeMs,
+            scheduledEvents
+        );
     }
 
     /**
@@ -216,12 +234,16 @@ public class Bucket implements ToXContentObject {
 
         Bucket that = (Bucket) other;
 
-        return Objects.equals(this.jobId, that.jobId) && Objects.equals(this.timestamp, that.timestamp)
-                && (this.eventCount == that.eventCount) && (this.bucketSpan == that.bucketSpan)
-                && (this.anomalyScore == that.anomalyScore) && (this.initialAnomalyScore == that.initialAnomalyScore)
-                && Objects.equals(this.records, that.records) && Objects.equals(this.isInterim, that.isInterim)
-                && Objects.equals(this.bucketInfluencers, that.bucketInfluencers)
-                && (this.processingTimeMs == that.processingTimeMs)
-                && Objects.equals(this.scheduledEvents, that.scheduledEvents);
+        return Objects.equals(this.jobId, that.jobId)
+            && Objects.equals(this.timestamp, that.timestamp)
+            && (this.eventCount == that.eventCount)
+            && (this.bucketSpan == that.bucketSpan)
+            && (this.anomalyScore == that.anomalyScore)
+            && (this.initialAnomalyScore == that.initialAnomalyScore)
+            && Objects.equals(this.records, that.records)
+            && Objects.equals(this.isInterim, that.isInterim)
+            && Objects.equals(this.bucketInfluencers, that.bucketInfluencers)
+            && (this.processingTimeMs == that.processingTimeMs)
+            && Objects.equals(this.scheduledEvents, that.scheduledEvents);
     }
 }

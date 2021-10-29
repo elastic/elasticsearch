@@ -58,8 +58,7 @@ public class MappingCharFilterFactory extends AbstractCharFilterFactory implemen
             }
             String lhs = parseString(m.group(1).trim());
             String rhs = parseString(m.group(2).trim());
-            if (lhs == null || rhs == null)
-                throw new RuntimeException("Invalid Mapping Rule : [" + rule + "]. Illegal mapping.");
+            if (lhs == null || rhs == null) throw new RuntimeException("Invalid Mapping Rule : [" + rule + "]. Illegal mapping.");
             map.add(lhs, rhs);
         }
     }
@@ -73,8 +72,7 @@ public class MappingCharFilterFactory extends AbstractCharFilterFactory implemen
         while (readPos < len) {
             char c = s.charAt(readPos++);
             if (c == '\\') {
-                if (readPos >= len)
-                    throw new RuntimeException("Invalid escaped char in [" + s + "]");
+                if (readPos >= len) throw new RuntimeException("Invalid escaped char in [" + s + "]");
                 c = s.charAt(readPos++);
                 switch (c) {
                     case '\\':
@@ -96,8 +94,7 @@ public class MappingCharFilterFactory extends AbstractCharFilterFactory implemen
                         c = '\f';
                         break;
                     case 'u':
-                        if (readPos + 3 >= len)
-                            throw new RuntimeException("Invalid escaped char in [" + s + "]");
+                        if (readPos + 3 >= len) throw new RuntimeException("Invalid escaped char in [" + s + "]");
                         c = (char) Integer.parseInt(s.substring(readPos, readPos + 4), 16);
                         readPos += 4;
                         break;

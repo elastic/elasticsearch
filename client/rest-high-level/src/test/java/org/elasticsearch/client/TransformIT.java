@@ -74,6 +74,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
+@SuppressWarnings("removal")
 public class TransformIT extends ESRestHighLevelClientTestCase {
 
     private List<String> transformsToClean = new ArrayList<>();

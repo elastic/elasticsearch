@@ -49,12 +49,24 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
      * balance.*/
     public void testRandomDecisions() {
         RandomAllocationDecider randomAllocationDecider = new RandomAllocationDecider(random());
-        AllocationService strategy = new AllocationService(new AllocationDeciders(
-                new HashSet<>(Arrays.asList(new SameShardAllocationDecider(Settings.EMPTY,
-                        new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
-                    new ReplicaAfterPrimaryActiveAllocationDecider(), randomAllocationDecider))),
-            new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE,
-            EmptySnapshotsInfoService.INSTANCE);
+        AllocationService strategy = new AllocationService(
+            new AllocationDeciders(
+                new HashSet<>(
+                    Arrays.asList(
+                        new SameShardAllocationDecider(
+                            Settings.EMPTY,
+                            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                        ),
+                        new ReplicaAfterPrimaryActiveAllocationDecider(),
+                        randomAllocationDecider
+                    )
+                )
+            ),
+            new TestGatewayAllocator(),
+            new BalancedShardsAllocator(Settings.EMPTY),
+            EmptyClusterInfoService.INSTANCE,
+            EmptySnapshotsInfoService.INSTANCE
+        );
         int indices = scaledRandomIntBetween(1, 20);
         Builder metaBuilder = Metadata.builder();
         int maxNumReplicas = 1;
@@ -64,8 +76,9 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
             maxNumReplicas = Math.max(maxNumReplicas, replicas + 1);
             int numShards = scaledRandomIntBetween(1, 20);
             totalNumShards += numShards * (replicas + 1);
-            metaBuilder.put(IndexMetadata.builder("INDEX_" + i).settings(settings(Version.CURRENT))
-                .numberOfShards(numShards).numberOfReplicas(replicas));
+            metaBuilder.put(
+                IndexMetadata.builder("INDEX_" + i).settings(settings(Version.CURRENT)).numberOfShards(numShards).numberOfReplicas(replicas)
+            );
 
         }
         Metadata metadata = metaBuilder.build();
@@ -75,8 +88,9 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
         }
 
         RoutingTable initialRoutingTable = routingTableBuilder.build();
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(
+            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
+        ).metadata(metadata).routingTable(initialRoutingTable).build();
         int numIters = scaledRandomIntBetween(5, 15);
         int nodeIdCounter = 0;
         int atMostNodes = scaledRandomIntBetween(Math.max(1, maxNumReplicas), 15);
@@ -86,8 +100,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
             ClusterState.Builder stateBuilder = ClusterState.builder(clusterState);
             DiscoveryNodes.Builder newNodesBuilder = DiscoveryNodes.builder(clusterState.nodes());
 
-            if (clusterState.nodes().getSize() <= atMostNodes &&
-                    (nodeIdCounter == 0 || (frequentNodes ? frequently() : rarely()))) {
+            if (clusterState.nodes().getSize() <= atMostNodes && (nodeIdCounter == 0 || (frequentNodes ? frequently() : rarely()))) {
                 int numNodes = scaledRandomIntBetween(1, 3);
                 for (int j = 0; j < numNodes; j++) {
                     logger.info("adding node [{}]", nodeIdCounter);
@@ -101,7 +114,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
                 final String node = "NODE_" + nodeId;
                 boolean safeToRemove = true;
                 RoutingNode routingNode = clusterState.getRoutingNodes().node(node);
-                for (ShardRouting shard: routingNode != null ? routingNode : Collections.<ShardRouting>emptyList()) {
+                for (ShardRouting shard : routingNode != null ? routingNode : Collections.<ShardRouting>emptyList()) {
                     if (shard.active() && shard.primary()) {
                         // make sure there is an active replica to prevent from going red
                         if (clusterState.routingTable().shardRoutingTable(shard.shardId()).activeShards().size() <= 1) {
@@ -142,7 +155,6 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
             clusterState = stateBuilder.build();
         }
 
-
         randomAllocationDecider.alwaysSayYes = true;
         logger.info("now say YES to everything");
         int iterations = 0;
@@ -153,8 +165,8 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
                 clusterState = startInitializingShardsAndReroute(strategy, clusterState);
             }
 
-        } while (shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING).size() != 0 ||
-            shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.UNASSIGNED).size() != 0 && iterations < 200);
+        } while (shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING).size() != 0
+            || shardsWithState(clusterState.getRoutingNodes(), ShardRoutingState.UNASSIGNED).size() != 0 && iterations < 200);
         logger.info("Done Balancing after [{}] iterations. State:\n{}", iterations, clusterState);
         // we stop after 200 iterations if it didn't stabelize by then something is likely to be wrong
         assertThat("max num iteration exceeded", iterations, Matchers.lessThan(200));
@@ -169,10 +181,13 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
             if (clusterState.getRoutingNodes().node("NODE_" + i) == null) {
                 continue;
             }
-            assertThat(clusterState.getRoutingNodes().node("NODE_" + i).size(), Matchers.anyOf(
-                    Matchers.anyOf(equalTo((shards / numNodes) + 1),
-                        equalTo((shards / numNodes) - 1), equalTo((shards / numNodes))),
-                    Matchers.allOf(Matchers.greaterThanOrEqualTo(lowerBound), Matchers.lessThanOrEqualTo(upperBound))));
+            assertThat(
+                clusterState.getRoutingNodes().node("NODE_" + i).size(),
+                Matchers.anyOf(
+                    Matchers.anyOf(equalTo((shards / numNodes) + 1), equalTo((shards / numNodes) - 1), equalTo((shards / numNodes))),
+                    Matchers.allOf(Matchers.greaterThanOrEqualTo(lowerBound), Matchers.lessThanOrEqualTo(upperBound))
+                )
+            );
         }
     }
 

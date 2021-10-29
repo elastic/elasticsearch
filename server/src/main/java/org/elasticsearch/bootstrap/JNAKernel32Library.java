@@ -28,7 +28,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-
 /**
  * Library for Windows/Kernel32
  */
@@ -256,21 +255,30 @@ final class JNAKernel32Library {
      * https://msdn.microsoft.com/en-us/library/windows/desktop/ms684147%28v=vs.85%29.aspx
      */
     public static class JOBOBJECT_BASIC_LIMIT_INFORMATION extends Structure implements Structure.ByReference {
-      public long PerProcessUserTimeLimit;
-      public long PerJobUserTimeLimit;
-      public int LimitFlags;
-      public SizeT MinimumWorkingSetSize;
-      public SizeT MaximumWorkingSetSize;
-      public int ActiveProcessLimit;
-      public Pointer Affinity;
-      public int PriorityClass;
-      public int SchedulingClass;
+        public long PerProcessUserTimeLimit;
+        public long PerJobUserTimeLimit;
+        public int LimitFlags;
+        public SizeT MinimumWorkingSetSize;
+        public SizeT MaximumWorkingSetSize;
+        public int ActiveProcessLimit;
+        public Pointer Affinity;
+        public int PriorityClass;
+        public int SchedulingClass;
 
-      @Override
-      protected List<String> getFieldOrder() {
-          return Arrays.asList("PerProcessUserTimeLimit", "PerJobUserTimeLimit", "LimitFlags", "MinimumWorkingSetSize",
-              "MaximumWorkingSetSize", "ActiveProcessLimit", "Affinity", "PriorityClass", "SchedulingClass");
-      }
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList(
+                "PerProcessUserTimeLimit",
+                "PerJobUserTimeLimit",
+                "LimitFlags",
+                "MinimumWorkingSetSize",
+                "MaximumWorkingSetSize",
+                "ActiveProcessLimit",
+                "Affinity",
+                "PriorityClass",
+                "SchedulingClass"
+            );
+        }
     }
 
     /**

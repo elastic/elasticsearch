@@ -94,7 +94,12 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
         // not matching case
         expectThrows(
             IllegalArgumentException.class,
-            () -> withAggregationContext(mapperService, List.of(source(b -> b.field("field", 42))), context -> ValuesSourceConfig.resolve(context, ValueType.IP, "field", null, null, null, null, CoreValuesSourceType.KEYWORD)));
+            () -> withAggregationContext(
+                mapperService,
+                List.of(source(b -> b.field("field", 42))),
+                context -> ValuesSourceConfig.resolve(context, ValueType.IP, "field", null, null, null, null, CoreValuesSourceType.KEYWORD)
+            )
+        );
 
         // matching case
         withAggregationContext(mapperService, List.of(source(b -> b.field("field", 42))), context -> {

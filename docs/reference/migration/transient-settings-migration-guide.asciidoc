@@ -1,0 +1,107 @@
+[[transient-settings-migration-guide]]
+=== Transient settings migration guide
+
+////
+[source,console]
+----
+PUT _cluster/settings
+{
+  "transient": {
+    "cluster.indices.close.enable": false,
+    "indices.recovery.max_bytes_per_sec": "50mb"
+  }
+}
+----
+// TEST[warning:[transient settings removal] Updating cluster settings through transientSettings is deprecated. Use persistent settings instead.]
+////
+
+Transient cluster settings are deprecated. Transient settings don't survive full
+cluster restarts. A cluster restart can occur unexpectedly if enough
+master-eligible nodes fail, resulting in an unwanted cluster configuration.
+
+You can convert any transient setting you'd like to keep to a persistent
+setting, which persists across cluster restarts. You can then reset your
+configured transient settings to avoid deprecation warnings.
+
+To migrate from transient settings:
+
+. Get a list of any configured transient settings using the
+<<cluster-get-settings,cluster get settings API>>.
++
+[source,console]
+----
+GET _cluster/settings?flat_settings=true&filter_path=transient
+----
+// TEST[continued]
++
+The API returns:
++
+[source,console-result]
+----
+{
+  "transient": {
+    "cluster.indices.close.enable": "false",
+    "indices.recovery.max_bytes_per_sec": "50mb"
+  }
+}
+----
+
+. Copy any settings you'd like to convert into the `persistent` object of a
+<<cluster-update-settings,cluster update settings API>> request. Reset all
+transient settings in the same request.
++
+NOTE: The equest will trigger a deprecation warning.
++
+[source,console]
+----
+PUT _cluster/settings
+{
+  "persistent": {
+    "cluster.indices.close.enable": false,
+    "indices.recovery.max_bytes_per_sec": "50mb"
+  },
+  "transient": {
+    "*": null
+  }
+}
+----
+// TEST[continued]
+// TEST[warning:[transient settings removal] Updating cluster settings through transientSettings is deprecated. Use persistent settings instead.]
+
+. Use the <<cluster-get-settings,cluster get settings API>> to confirm your
+cluster has no transient settings.
++
+[source,console]
+----
+GET _cluster/settings?flat_settings=true
+----
+// TEST[continued]
++
+If there are no transient settings, the response's `transient` property is
+empty:
++
+[source,console-result]
+----
+{
+  "persistent": {
+    "cluster.indices.close.enable": "false",
+    "indices.recovery.max_bytes_per_sec": "50mb"
+  },
+  "transient": {
+  }
+}
+----
+
+////
+[source,console]
+----
+PUT _cluster/settings
+{
+  "persistent" : {
+    "cluster.indices.close.enable": null,
+    "indices.recovery.max_bytes_per_sec": null
+  }
+}
+----
+// TEST[continued]
+////

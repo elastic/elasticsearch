@@ -292,8 +292,10 @@ unexpectedly, leading to a potentially undesired cluster configuration.
 
 *Impact* +
 To avoid deprecation warnings, discontinue use of transient settings when modifying
-your cluster settings through the `PUT _cluster/settings` REST API. When modifying cluster settings
-use only persistent settings.
+your cluster settings through the `PUT _cluster/settings` REST API. Use persistent
+settings instead. See the
+{ref}/transient-settings-migration-guide.html[Transient settings migration
+guide]. 
 ====
 
 [discrete]
@@ -348,3 +350,5 @@ To override the defaults, configure the `script.cache.max_size`,
 `script.max_compilations_rate`, and `script.cache.expire` settings.
 ====
 // end::notable-breaking-changes[]
+
+include::transient-settings-migration-guide.asciidoc[]

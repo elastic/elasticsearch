@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.enrich;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 public final class ExecutePolicyResponse {

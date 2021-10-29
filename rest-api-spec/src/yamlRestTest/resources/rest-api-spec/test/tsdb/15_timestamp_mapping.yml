@@ -1,0 +1,179 @@
+
+---
+date:
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.16.0
+
+  - do:
+      indices.create:
+          index: test
+          body:
+            settings:
+              index:
+                mode: time_series
+                routing_path: [metricset]
+                number_of_replicas: 0
+                number_of_shards: 2
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                metricset:
+                  type: keyword
+                  time_series_dimension: true
+
+  - do:
+      indices.get_mapping:
+        index: test
+  - match: { "test.mappings.properties.@timestamp.type": date }
+  - match: { 'test.mappings._data_stream_timestamp.enabled': true }
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_index
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod"}'
+
+  - do:
+      search:
+        index: test_index
+        body:
+          docvalue_fields: [ '@timestamp' ]
+  - match: {hits.total.value: 1}
+  - match: { "hits.hits.0.fields.@timestamp": ["2021-04-28T18:50:04.467Z"] }
+
+---
+date_nanos:
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.16.0
+
+  - do:
+      indices.create:
+          index: test
+          body:
+            settings:
+              index:
+                mode: time_series
+                routing_path: [metricset]
+                number_of_replicas: 0
+                number_of_shards: 2
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date_nanos
+                metricset:
+                  type: keyword
+                  time_series_dimension: true
+
+  - do:
+      indices.get_mapping:
+        index: test
+  - match: { "test.mappings.properties.@timestamp.type": date_nanos }
+  - match: { 'test.mappings._data_stream_timestamp.enabled': true }
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_index
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod"}'
+
+  - do:
+      search:
+        index: test_index
+        body:
+          docvalue_fields: [ '@timestamp' ]
+  - match: {hits.total.value: 1}
+  - match: { "hits.hits.0.fields.@timestamp": ["2021-04-28T18:50:04.467Z"] }
+
+---
+automatically add with date:
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.16.0
+
+  - do:
+      indices.create:
+          index: test
+          body:
+            settings:
+              index:
+                mode: time_series
+                routing_path: [metricset]
+                number_of_replicas: 0
+                number_of_shards: 2
+            mappings:
+              properties:
+                metricset:
+                  type: keyword
+                  time_series_dimension: true
+
+  - do:
+      indices.get_mapping:
+        index: test
+  - match: { 'test.mappings.properties.@timestamp': { "type": date } }
+  - match: { 'test.mappings._data_stream_timestamp.enabled': true }
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_index
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod"}'
+
+  - do:
+      search:
+        index: test_index
+        body:
+          docvalue_fields: [ '@timestamp' ]
+  - match: {hits.total.value: 1}
+  - match: { "hits.hits.0.fields.@timestamp": ["2021-04-28T18:50:04.467Z"] }
+
+---
+reject @timestamp with wrong type:
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.16.0
+
+  - do:
+      catch: /data stream timestamp field \[@timestamp\] is of type \[keyword\], but \[date,date_nanos\] is expected/
+      indices.create:
+          index: test
+          body:
+            settings:
+              index:
+                mode: time_series
+                routing_path: [metricset]
+                number_of_replicas: 0
+                number_of_shards: 2
+            mappings:
+              properties:
+                "@timestamp":
+                  type: keyword
+
+---
+reject timestamp meta field with wrong type:
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.16.0
+
+  - do:
+      catch: /.* time series index \[_data_stream_timestamp\] meta field must be enabled/
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [metricset]
+              number_of_replicas: 0
+              number_of_shards: 2
+          mappings:
+            _data_stream_timestamp:
+              enabled: false

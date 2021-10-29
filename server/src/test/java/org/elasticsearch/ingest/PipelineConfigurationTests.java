@@ -12,15 +12,15 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -31,8 +31,11 @@ import static org.hamcrest.Matchers.equalTo;
 public class PipelineConfigurationTests extends AbstractXContentTestCase<PipelineConfiguration> {
 
     public void testSerialization() throws IOException {
-        PipelineConfiguration configuration = new PipelineConfiguration("1",
-            new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
+        PipelineConfiguration configuration = new PipelineConfiguration(
+            "1",
+            new BytesArray("{}".getBytes(StandardCharsets.UTF_8)),
+            XContentType.JSON
+        );
         assertEquals(XContentType.JSON, configuration.getXContentType());
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -45,8 +48,11 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
 
     public void testMetaSerialization() throws IOException {
         String configJson = "{\"description\": \"blah\", \"_meta\" : {\"foo\": \"bar\"}}";
-        PipelineConfiguration configuration = new PipelineConfiguration("1",
-            new BytesArray(configJson.getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
+        PipelineConfiguration configuration = new PipelineConfiguration(
+            "1",
+            new BytesArray(configJson.getBytes(StandardCharsets.UTF_8)),
+            XContentType.JSON
+        );
         assertEquals(XContentType.JSON, configuration.getXContentType());
         BytesStreamOutput out = new BytesStreamOutput();
         configuration.writeTo(out);
@@ -61,8 +67,10 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
         XContentType xContentType = randomFrom(XContentType.values());
         final BytesReference bytes;
         try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
-            new PipelineConfiguration("1", new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), XContentType.JSON)
-                .toXContent(builder, ToXContent.EMPTY_PARAMS);
+            new PipelineConfiguration("1", new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), XContentType.JSON).toXContent(
+                builder,
+                ToXContent.EMPTY_PARAMS
+            );
             bytes = BytesReference.bytes(builder);
         }
 
@@ -78,16 +86,22 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
         {
             // missing version
             String configJson = "{\"description\": \"blah\", \"_meta\" : {\"foo\": \"bar\"}}";
-            PipelineConfiguration configuration = new PipelineConfiguration("1",
-                new BytesArray(configJson.getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
+            PipelineConfiguration configuration = new PipelineConfiguration(
+                "1",
+                new BytesArray(configJson.getBytes(StandardCharsets.UTF_8)),
+                XContentType.JSON
+            );
             assertNull(configuration.getVersion());
         }
         {
             // null version
             int version = randomInt();
             String configJson = "{\"version\": " + version + ", \"description\": \"blah\", \"_meta\" : {\"foo\": \"bar\"}}";
-            PipelineConfiguration configuration = new PipelineConfiguration("1",
-                new BytesArray(configJson.getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
+            PipelineConfiguration configuration = new PipelineConfiguration(
+                "1",
+                new BytesArray(configJson.getBytes(StandardCharsets.UTF_8)),
+                XContentType.JSON
+            );
             assertThat(configuration.getVersion(), equalTo(version));
         }
     }

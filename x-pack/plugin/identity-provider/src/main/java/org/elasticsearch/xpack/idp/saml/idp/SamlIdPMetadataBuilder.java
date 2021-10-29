@@ -65,7 +65,6 @@ public class SamlIdPMetadataBuilder {
     private SamlIdentityProvider.OrganizationInfo organization;
     private final List<SamlIdentityProvider.ContactInfo> contacts;
 
-
     public SamlIdPMetadataBuilder(String entityId) {
         this.entityId = entityId;
         this.locale = Locale.getDefault();
@@ -93,7 +92,7 @@ public class SamlIdPMetadataBuilder {
     }
 
     public SamlIdPMetadataBuilder withSingleSignOnServiceUrl(String binding, URL url) {
-        if ( null != url) {
+        if (null != url) {
             this.singleSignOnServiceUrls.put(binding, url);
         }
         return this;
@@ -114,7 +113,7 @@ public class SamlIdPMetadataBuilder {
     }
 
     public SamlIdPMetadataBuilder withSigningCertificate(X509Certificate signingCertificate) {
-        if ( null != signingCertificate ) {
+        if (null != signingCertificate) {
             return withSigningCertificates(Collections.singletonList(signingCertificate));
         }
         return this;

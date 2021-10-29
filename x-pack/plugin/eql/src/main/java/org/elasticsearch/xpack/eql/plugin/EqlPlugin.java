@@ -20,7 +20,6 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.breaker.BreakerSettings;
@@ -35,6 +34,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.eql.execution.PlanExecutor;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.index.RemoteClusterResolver;
 import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -53,7 +54,7 @@ import java.util.function.Supplier;
 public class EqlPlugin extends Plugin implements ActionPlugin, CircuitBreakerPlugin {
 
     private static final String CIRCUIT_BREAKER_NAME = "eql_sequence";
-    private static final long CIRCUIT_BREAKER_LIMIT = (long)((0.50) * JvmInfo.jvmInfo().getMem().getHeapMax().getBytes());
+    private static final long CIRCUIT_BREAKER_LIMIT = (long) ((0.50) * JvmInfo.jvmInfo().getMem().getHeapMax().getBytes());
     private static final double CIRCUIT_BREAKER_OVERHEAD = 1.0D;
     private final SetOnce<CircuitBreaker> circuitBreaker = new SetOnce<>();
 
@@ -64,21 +65,33 @@ public class EqlPlugin extends Plugin implements ActionPlugin, CircuitBreakerPlu
         Setting.Property.Deprecated
     );
 
-    public EqlPlugin() {
-    }
+    public EqlPlugin() {}
 
     @Override
-    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-            ResourceWatcherService resourceWatcherService, ScriptService scriptService, NamedXContentRegistry xContentRegistry,
-            Environment environment, NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-            IndexNameExpressionResolver expressionResolver, Supplier<RepositoriesService> repositoriesServiceSupplier) {
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver expressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
+    ) {
         return createComponents(client, environment.settings(), clusterService);
     }
 
     private Collection<Object> createComponents(Client client, Settings settings, ClusterService clusterService) {
         RemoteClusterResolver remoteClusterResolver = new RemoteClusterResolver(settings, clusterService.getClusterSettings());
-        IndexResolver indexResolver = new IndexResolver(client, clusterService.getClusterName().value(), DefaultDataTypeRegistry.INSTANCE,
-            remoteClusterResolver::remoteClusters);
+        IndexResolver indexResolver = new IndexResolver(
+            client,
+            clusterService.getClusterName().value(),
+            DefaultDataTypeRegistry.INSTANCE,
+            remoteClusterResolver::remoteClusters
+        );
         PlanExecutor planExecutor = new PlanExecutor(client, indexResolver, circuitBreaker.get());
         return Collections.singletonList(planExecutor);
     }
@@ -106,13 +119,15 @@ public class EqlPlugin extends Plugin implements ActionPlugin, CircuitBreakerPlu
     }
 
     @Override
-    public List<RestHandler> getRestHandlers(Settings settings,
-                                             RestController restController,
-                                             ClusterSettings clusterSettings,
-                                             IndexScopedSettings indexScopedSettings,
-                                             SettingsFilter settingsFilter,
-                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                             Supplier<DiscoveryNodes> nodesInCluster) {
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
 
         return List.of(
             new RestEqlSearchAction(),
@@ -131,14 +146,15 @@ public class EqlPlugin extends Plugin implements ActionPlugin, CircuitBreakerPlu
     @Override
     public BreakerSettings getCircuitBreaker(Settings settings) {
         return BreakerSettings.updateFromSettings(
-                new BreakerSettings(
-                        CIRCUIT_BREAKER_NAME,
-                        CIRCUIT_BREAKER_LIMIT,
-                        CIRCUIT_BREAKER_OVERHEAD,
-                        CircuitBreaker.Type.MEMORY,
-                        CircuitBreaker.Durability.TRANSIENT
-                ),
-                settings);
+            new BreakerSettings(
+                CIRCUIT_BREAKER_NAME,
+                CIRCUIT_BREAKER_LIMIT,
+                CIRCUIT_BREAKER_OVERHEAD,
+                CircuitBreaker.Type.MEMORY,
+                CircuitBreaker.Durability.TRANSIENT
+            ),
+            settings
+        );
     }
 
     @Override

@@ -70,7 +70,6 @@ public abstract class SecurityBaseRestHandler extends BaseRestHandler {
         }
     }
 
-
     /**
      * Implementers should implement this method as they normally would for
      * {@link BaseRestHandler#prepareRequest(RestRequest, NodeClient)} and ensure that all request

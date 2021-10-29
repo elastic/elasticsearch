@@ -40,17 +40,30 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastAction<
-    AnalyzeIndexDiskUsageRequest, AnalyzeIndexDiskUsageResponse,
-    AnalyzeDiskUsageShardRequest, AnalyzeDiskUsageShardResponse> {
+    AnalyzeIndexDiskUsageRequest,
+    AnalyzeIndexDiskUsageResponse,
+    AnalyzeDiskUsageShardRequest,
+    AnalyzeDiskUsageShardResponse> {
     private final IndicesService indicesService;
 
     @Inject
-    public TransportAnalyzeIndexDiskUsageAction(ClusterService clusterService,
-                                                TransportService transportService,
-                                                IndicesService indexServices, ActionFilters actionFilters,
-                                                IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(AnalyzeIndexDiskUsageAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-            AnalyzeIndexDiskUsageRequest::new, AnalyzeDiskUsageShardRequest::new, ThreadPool.Names.ANALYZE);
+    public TransportAnalyzeIndexDiskUsageAction(
+        ClusterService clusterService,
+        TransportService transportService,
+        IndicesService indexServices,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            AnalyzeIndexDiskUsageAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            indexNameExpressionResolver,
+            AnalyzeIndexDiskUsageRequest::new,
+            AnalyzeDiskUsageShardRequest::new,
+            ThreadPool.Names.ANALYZE
+        );
         this.indicesService = indexServices;
     }
 
@@ -83,9 +96,11 @@ public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastActi
     }
 
     @Override
-    protected AnalyzeIndexDiskUsageResponse newResponse(AnalyzeIndexDiskUsageRequest request,
-                                                        AtomicReferenceArray<?> shardsResponses,
-                                                        ClusterState clusterState) {
+    protected AnalyzeIndexDiskUsageResponse newResponse(
+        AnalyzeIndexDiskUsageRequest request,
+        AtomicReferenceArray<?> shardsResponses,
+        ClusterState clusterState
+    ) {
         int successfulShards = 0;
         final List<DefaultShardOperationFailedException> shardFailures = new ArrayList<>();
         final Map<String, IndexDiskUsageStats> combined = new HashMap<>();
@@ -102,20 +117,16 @@ public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastActi
                 throw new IllegalStateException("unknown response [" + r + "]");
             }
         }
-        return new AnalyzeIndexDiskUsageResponse(
-            shardsResponses.length(),
-            successfulShards,
-            shardFailures.size(),
-            shardFailures,
-            combined);
+        return new AnalyzeIndexDiskUsageResponse(shardsResponses.length(), successfulShards, shardFailures.size(), shardFailures, combined);
     }
 
     @Override
-    protected GroupShardsIterator<ShardIterator> shards(ClusterState clusterState,
-                                                        AnalyzeIndexDiskUsageRequest request,
-                                                        String[] concreteIndices) {
-        final GroupShardsIterator<ShardIterator> groups = clusterService
-            .operationRouting()
+    protected GroupShardsIterator<ShardIterator> shards(
+        ClusterState clusterState,
+        AnalyzeIndexDiskUsageRequest request,
+        String[] concreteIndices
+    ) {
+        final GroupShardsIterator<ShardIterator> groups = clusterService.operationRouting()
             .searchShards(clusterState, concreteIndices, null, null);
         for (ShardIterator group : groups) {
             // fails fast if any non-active groups
@@ -132,8 +143,7 @@ public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastActi
     }
 
     @Override
-    protected ClusterBlockException checkRequestBlock(ClusterState state, AnalyzeIndexDiskUsageRequest request,
-                                                      String[] concreteIndices) {
+    protected ClusterBlockException checkRequestBlock(ClusterState state, AnalyzeIndexDiskUsageRequest request, String[] concreteIndices) {
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, concreteIndices);
     }
 }

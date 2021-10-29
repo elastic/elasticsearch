@@ -34,7 +34,7 @@ public class BootstrapUtil {
     public static SecureString readPassphrase(InputStream stream, int maxLength) throws IOException {
         SecureString passphrase;
 
-        try(InputStreamReader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
+        try (InputStreamReader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
             passphrase = new SecureString(Terminal.readLineToCharArray(reader, maxLength));
         } catch (RuntimeException e) {
             if (e.getMessage().startsWith("Input exceeded maximum length")) {

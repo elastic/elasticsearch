@@ -69,11 +69,14 @@ public final class XContentBuilder implements Closeable, Flushable {
      * @throws IOException if an {@link IOException} occurs while building the content
      */
     public static XContentBuilder builder(XContent xContent, RestApiVersion restApiVersion) throws IOException {
-        return new XContentBuilder(xContent, new ByteArrayOutputStream(),
+        return new XContentBuilder(
+            xContent,
+            new ByteArrayOutputStream(),
             Collections.emptySet(),
             Collections.emptySet(),
             xContent.type().toParsedMediaType(),
-            restApiVersion);
+            restApiVersion
+        );
     }
 
     /**
@@ -89,8 +92,14 @@ public final class XContentBuilder implements Closeable, Flushable {
      * @throws IOException if an {@link IOException} occurs while building the content
      */
     public static XContentBuilder builder(XContentType xContentType, Set<String> includes, Set<String> excludes) throws IOException {
-        return new XContentBuilder(xContentType.xContent(), new ByteArrayOutputStream(), includes, excludes,
-            xContentType.toParsedMediaType(), RestApiVersion.current());
+        return new XContentBuilder(
+            xContentType.xContent(),
+            new ByteArrayOutputStream(),
+            includes,
+            excludes,
+            xContentType.toParsedMediaType(),
+            RestApiVersion.current()
+        );
     }
 
     private static final Map<Class<?>, Writer> WRITERS;
@@ -135,12 +144,13 @@ public final class XContentBuilder implements Closeable, Flushable {
             Map<Class<?>, HumanReadableTransformer> addlTransformers = service.getXContentHumanReadableTransformers();
             Map<Class<?>, Function<Object, Object>> addlDateTransformers = service.getDateTransformers();
 
-            addlWriters.forEach((key, value) -> Objects.requireNonNull(value,
-                "invalid null xcontent writer for class " + key));
-            addlTransformers.forEach((key, value) -> Objects.requireNonNull(value,
-                "invalid null xcontent transformer for human readable class " + key));
-            dateTransformers.forEach((key, value) -> Objects.requireNonNull(value,
-                "invalid null xcontent date transformer for class " + key));
+            addlWriters.forEach((key, value) -> Objects.requireNonNull(value, "invalid null xcontent writer for class " + key));
+            addlTransformers.forEach(
+                (key, value) -> Objects.requireNonNull(value, "invalid null xcontent transformer for human readable class " + key)
+            );
+            dateTransformers.forEach(
+                (key, value) -> Objects.requireNonNull(value, "invalid null xcontent date transformer for class " + key)
+            );
 
             writers.putAll(addlWriters);
             humanReadableTransformer.putAll(addlTransformers);
@@ -184,8 +194,6 @@ public final class XContentBuilder implements Closeable, Flushable {
      */
     private boolean humanReadable = false;
 
-
-
     /**
      * Constructs a new builder using the provided XContent and an OutputStream. Make sure
      * to call {@link #close()} when the builder is done with.
@@ -193,6 +201,7 @@ public final class XContentBuilder implements Closeable, Flushable {
     public XContentBuilder(XContent xContent, OutputStream bos) throws IOException {
         this(xContent, bos, Collections.emptySet(), Collections.emptySet(), xContent.type().toParsedMediaType(), RestApiVersion.current());
     }
+
     /**
      * Constructs a new builder using the provided XContent, an OutputStream and
      * some filters. If filters are specified, only those values matching a
@@ -214,8 +223,13 @@ public final class XContentBuilder implements Closeable, Flushable {
      * @param excludes the exclusive filters: only fields and objects that don't match the exclusive filters will be written to the output.
      * @param responseContentType  a content-type header value to be send back on a response
      */
-    public XContentBuilder(XContent xContent, OutputStream os, Set<String> includes, Set<String> excludes,
-                           ParsedMediaType responseContentType) throws IOException {
+    public XContentBuilder(
+        XContent xContent,
+        OutputStream os,
+        Set<String> includes,
+        Set<String> excludes,
+        ParsedMediaType responseContentType
+    ) throws IOException {
         this(xContent, os, includes, excludes, responseContentType, RestApiVersion.current());
     }
 
@@ -233,8 +247,14 @@ public final class XContentBuilder implements Closeable, Flushable {
      * @param responseContentType  a content-type header value to be send back on a response
      * @param restApiVersion a rest api version indicating with which version the XContent is compatible with.
      */
-    public XContentBuilder(XContent xContent, OutputStream os, Set<String> includes, Set<String> excludes,
-                           ParsedMediaType responseContentType, RestApiVersion restApiVersion) throws IOException {
+    public XContentBuilder(
+        XContent xContent,
+        OutputStream os,
+        Set<String> includes,
+        Set<String> excludes,
+        ParsedMediaType responseContentType,
+        RestApiVersion restApiVersion
+    ) throws IOException {
         this.bos = os;
         assert responseContentType != null : "generated response cannot be null";
         this.responseContentType = responseContentType;
@@ -645,7 +665,6 @@ public final class XContentBuilder implements Closeable, Flushable {
         return this;
     }
 
-
     ////////////////////////////////////////////////////////////////////////////
     // BigDecimal
     //////////////////////////////////
@@ -763,7 +782,6 @@ public final class XContentBuilder implements Closeable, Flushable {
         return this;
     }
 
-
     ////////////////////////////////////////////////////////////////////////////
     // Date
     //////////////////////////////////
@@ -784,8 +802,7 @@ public final class XContentBuilder implements Closeable, Flushable {
      * {@link Long} class.
      */
     public XContentBuilder timeField(String name, String readableName, long value) throws IOException {
-        assert name.equals(readableName) == false :
-            "expected raw and readable field names to differ, but they were both: " + name;
+        assert name.equals(readableName) == false : "expected raw and readable field names to differ, but they were both: " + name;
         if (humanReadable) {
             Function<Object, Object> longTransformer = DATE_TRANSFORMERS.get(Long.class);
             if (longTransformer == null) {
@@ -875,7 +892,7 @@ public final class XContentBuilder implements Closeable, Flushable {
         if (writer != null) {
             writer.write(this, value);
         } else if (value instanceof Path) {
-            //Path implements Iterable<Path> and causes endless recursion and a StackOverFlow if treated as an Iterable here
+            // Path implements Iterable<Path> and causes endless recursion and a StackOverFlow if treated as an Iterable here
             value((Path) value);
         } else if (value instanceof Map) {
             @SuppressWarnings("unchecked")
@@ -1049,7 +1066,7 @@ public final class XContentBuilder implements Closeable, Flushable {
         }
 
         if (values instanceof Path) {
-            //treat as single value
+            // treat as single value
             value((Path) values);
         } else {
             // checks that the iterable does not contain references to itself because
@@ -1076,8 +1093,8 @@ public final class XContentBuilder implements Closeable, Flushable {
     //////////////////////////////////
 
     public XContentBuilder humanReadableField(String rawFieldName, String readableFieldName, Object value) throws IOException {
-        assert rawFieldName.equals(readableFieldName) == false :
-            "expected raw and readable field names to differ, but they were both: " + rawFieldName;
+        assert rawFieldName.equals(readableFieldName) == false
+            : "expected raw and readable field names to differ, but they were both: " + rawFieldName;
         if (humanReadable) {
             field(readableFieldName, Objects.toString(value));
         }
@@ -1095,10 +1112,9 @@ public final class XContentBuilder implements Closeable, Flushable {
     // Misc.
     //////////////////////////////////
 
-
     public XContentBuilder percentageField(String rawFieldName, String readableFieldName, double percentage) throws IOException {
-        assert rawFieldName.equals(readableFieldName) == false :
-            "expected raw and readable field names to differ, but they were both: " + rawFieldName;
+        assert rawFieldName.equals(readableFieldName) == false
+            : "expected raw and readable field names to differ, but they were both: " + rawFieldName;
         if (humanReadable) {
             field(readableFieldName, String.format(Locale.ROOT, "%1.1f%%", percentage));
         }
@@ -1221,7 +1237,7 @@ public final class XContentBuilder implements Closeable, Flushable {
             return null;
         }
         if (value instanceof Map) {
-            return ((Map<?,?>) value).values();
+            return ((Map<?, ?>) value).values();
         } else if ((value instanceof Iterable) && (value instanceof Path == false)) {
             return (Iterable<?>) value;
         } else if (value instanceof Object[]) {

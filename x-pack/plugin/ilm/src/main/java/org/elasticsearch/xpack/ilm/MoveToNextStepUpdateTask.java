@@ -30,9 +30,15 @@ public class MoveToNextStepUpdateTask extends IndexLifecycleClusterStateUpdateTa
     private final PolicyStepsRegistry stepRegistry;
     private final Consumer<ClusterState> stateChangeConsumer;
 
-    public MoveToNextStepUpdateTask(Index index, String policy, Step.StepKey currentStepKey, Step.StepKey nextStepKey,
-                                    LongSupplier nowSupplier, PolicyStepsRegistry stepRegistry,
-                                    Consumer<ClusterState> stateChangeConsumer) {
+    public MoveToNextStepUpdateTask(
+        Index index,
+        String policy,
+        Step.StepKey currentStepKey,
+        Step.StepKey nextStepKey,
+        LongSupplier nowSupplier,
+        PolicyStepsRegistry stepRegistry,
+        Consumer<ClusterState> stateChangeConsumer
+    ) {
         super(index, currentStepKey);
         this.policy = policy;
         this.nextStepKey = nextStepKey;
@@ -88,7 +94,10 @@ public class MoveToNextStepUpdateTask extends IndexLifecycleClusterStateUpdateTa
         logger.warn(
             new ParameterizedMessage(
                 "policy [{}] for index [{}] failed trying to move from step [{}] to step [{}].",
-                policy, index, currentStepKey, nextStepKey
+                policy,
+                index,
+                currentStepKey,
+                nextStepKey
             ),
             e
         );

@@ -8,13 +8,13 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.ingest.IngestStats;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesRequest;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -75,9 +75,11 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
             private final InferenceStats inferenceStats;
             private final int pipelineCount;
 
-            private static final IngestStats EMPTY_INGEST_STATS = new IngestStats(new IngestStats.Stats(0, 0, 0, 0),
+            private static final IngestStats EMPTY_INGEST_STATS = new IngestStats(
+                new IngestStats.Stats(0, 0, 0, 0),
                 Collections.emptyList(),
-                Collections.emptyMap());
+                Collections.emptyMap()
+            );
 
             public TrainedModelStats(String modelId, IngestStats ingestStats, int pipelineCount, InferenceStats inferenceStats) {
                 this.modelId = Objects.requireNonNull(modelId);
@@ -204,13 +206,14 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 expandedIdsWithAliases.keySet().forEach(id -> {
                     IngestStats ingestStats = ingestStatsMap.get(id);
                     InferenceStats inferenceStats = inferenceStatsMap.get(id);
-                    trainedModelStats.add(new TrainedModelStats(
-                        id,
-                        ingestStats,
-                        ingestStats == null ?
-                            0 :
-                            ingestStats.getPipelineStats().size(),
-                        inferenceStats));
+                    trainedModelStats.add(
+                        new TrainedModelStats(
+                            id,
+                            ingestStats,
+                            ingestStats == null ? 0 : ingestStats.getPipelineStats().size(),
+                            inferenceStats
+                        )
+                    );
                 });
                 trainedModelStats.sort(Comparator.comparing(TrainedModelStats::getModelId));
                 return new Response(new QueryPage<>(trainedModelStats, totalModelCount, RESULTS_FIELD));

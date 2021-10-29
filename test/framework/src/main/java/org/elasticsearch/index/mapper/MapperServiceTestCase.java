@@ -560,10 +560,9 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         withLuceneIndex(mapperService, writer -> {
             for (SourceToParse doc : docs) {
                 writer.addDocuments(mapperService.documentMapper().parse(doc).docs());
-            }
-        },
-            reader -> test.accept(aggregationContext(valuesSourceRegistry, mapperService, new IndexSearcher(reader), query, lookupSupplier))
-        );
+
+        }
+        }, reader -> test.accept(aggregationContext(valuesSourceRegistry, mapperService, new IndexSearcher(reader), query, lookupSupplier)));
     }
 
     protected SearchExecutionContext createSearchExecutionContext(MapperService mapperService) {

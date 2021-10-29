@@ -30,8 +30,7 @@ import static java.nio.file.StandardOpenOption.WRITE;
 
 public class SecurityFiles {
 
-    private SecurityFiles() {
-    }
+    private SecurityFiles() {}
 
     /**
      * Atomically writes to the specified file a line per entry in the specified map using the specified transform to convert each entry to
@@ -58,8 +57,7 @@ public class SecurityFiles {
             }
             // get original permissions
             if (Files.exists(path)) {
-                boolean supportsPosixAttributes =
-                        Environment.getFileStore(path).supportsFileAttributeView(PosixFileAttributeView.class);
+                boolean supportsPosixAttributes = Environment.getFileStore(path).supportsFileAttributeView(PosixFileAttributeView.class);
                 if (supportsPosixAttributes) {
                     setPosixAttributesOnTempFile(path, tempFile);
                 }
@@ -88,12 +86,10 @@ public class SecurityFiles {
         // will be notified by the FileAttributeChecker that the ownership has changed and needs to be corrected
         try {
             tempFileView.setOwner(attributes.owner());
-        } catch (Exception e) {
-        }
+        } catch (Exception e) {}
 
         try {
             tempFileView.setGroup(attributes.group());
-        } catch (Exception e) {
-        }
+        } catch (Exception e) {}
     }
 }

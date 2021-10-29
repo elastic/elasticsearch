@@ -10,13 +10,13 @@ package org.elasticsearch.client.indices;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.AbstractMap;
@@ -27,25 +27,28 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class IndexTemplateMetadata  {
+public class IndexTemplateMetadata {
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<IndexTemplateMetadata, String> PARSER = new ConstructingObjectParser<>(
-        "IndexTemplateMetadata", true, (a, name) -> {
-        List<Map.Entry<String, AliasMetadata>> alias = (List<Map.Entry<String, AliasMetadata>>) a[5];
-        ImmutableOpenMap<String, AliasMetadata> aliasMap =
-            new ImmutableOpenMap.Builder<String, AliasMetadata>()
-                .putAll(alias.stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
-                .build();
-        return new IndexTemplateMetadata(
-            name,
-            (Integer) a[0],
-            (Integer) a[1],
-            (List<String>) a[2],
-            (Settings) a[3],
-            (MappingMetadata) a[4],
-            aliasMap);
-    });
+        "IndexTemplateMetadata",
+        true,
+        (a, name) -> {
+            List<Map.Entry<String, AliasMetadata>> alias = (List<Map.Entry<String, AliasMetadata>>) a[5];
+            ImmutableOpenMap<String, AliasMetadata> aliasMap = new ImmutableOpenMap.Builder<String, AliasMetadata>().putAll(
+                alias.stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+            ).build();
+            return new IndexTemplateMetadata(
+                name,
+                (Integer) a[0],
+                (Integer) a[1],
+                (List<String>) a[2],
+                (Settings) a[3],
+                (MappingMetadata) a[4],
+                aliasMap
+            );
+        }
+    );
 
     static {
         PARSER.declareInt(optionalConstructorArg(), new ParseField("order"));
@@ -64,8 +67,11 @@ public class IndexTemplateMetadata  {
             }
             return new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, mapping);
         }, new ParseField("mappings"));
-        PARSER.declareNamedObjects(optionalConstructorArg(),
-            (p, c, name) -> new AbstractMap.SimpleEntry<>(name, AliasMetadata.Builder.fromXContent(p)), new ParseField("aliases"));
+        PARSER.declareNamedObjects(
+            optionalConstructorArg(),
+            (p, c, name) -> new AbstractMap.SimpleEntry<>(name, AliasMetadata.Builder.fromXContent(p)),
+            new ParseField("aliases")
+        );
     }
 
     private final String name;
@@ -100,17 +106,22 @@ public class IndexTemplateMetadata  {
 
     private final ImmutableOpenMap<String, AliasMetadata> aliases;
 
-    public IndexTemplateMetadata(String name, int order, Integer version,
-                                 List<String> patterns, Settings settings,
-                                 MappingMetadata mappings,
-                                 ImmutableOpenMap<String, AliasMetadata> aliases) {
+    public IndexTemplateMetadata(
+        String name,
+        int order,
+        Integer version,
+        List<String> patterns,
+        Settings settings,
+        MappingMetadata mappings,
+        ImmutableOpenMap<String, AliasMetadata> aliases
+    ) {
         if (patterns == null || patterns.isEmpty()) {
             throw new IllegalArgumentException("Index patterns must not be null or empty; got " + patterns);
         }
         this.name = name;
         this.order = order;
         this.version = version;
-        this.patterns= patterns;
+        this.patterns = patterns;
         this.settings = settings;
         this.mappings = mappings;
         this.aliases = aliases;
@@ -154,13 +165,13 @@ public class IndexTemplateMetadata  {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         IndexTemplateMetadata that = (IndexTemplateMetadata) o;
-        return order == that.order &&
-            Objects.equals(name, that.name) &&
-            Objects.equals(version, that.version) &&
-            Objects.equals(patterns, that.patterns) &&
-            Objects.equals(settings, that.settings) &&
-            Objects.equals(mappings, that.mappings) &&
-            Objects.equals(aliases, that.aliases);
+        return order == that.order
+            && Objects.equals(name, that.name)
+            && Objects.equals(version, that.version)
+            && Objects.equals(patterns, that.patterns)
+            && Objects.equals(settings, that.settings)
+            && Objects.equals(mappings, that.mappings)
+            && Objects.equals(aliases, that.aliases);
     }
 
     @Override
@@ -244,7 +255,6 @@ public class IndexTemplateMetadata  {
         public IndexTemplateMetadata build() {
             return new IndexTemplateMetadata(name, order, version, indexPatterns, settings, mappings, aliases.build());
         }
-
 
         public static IndexTemplateMetadata fromXContent(XContentParser parser, String templateName) throws IOException {
             return PARSER.parse(parser, templateName);

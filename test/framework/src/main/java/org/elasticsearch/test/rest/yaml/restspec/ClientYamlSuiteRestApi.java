@@ -28,7 +28,7 @@ public class ClientYamlSuiteRestApi {
 
     private final String location;
     private final String name;
-    private Set<Path>  paths = new LinkedHashSet<>();
+    private Set<Path> paths = new LinkedHashSet<>();
     private Map<String, Boolean> params = new HashMap<>();
     private Body body = Body.NOT_SUPPORTED;
     private Stability stability;
@@ -38,15 +38,21 @@ public class ClientYamlSuiteRestApi {
     private List<String> requestMimeTypes;
 
     public enum Stability {
-        EXPERIMENTAL, BETA, STABLE
+        EXPERIMENTAL,
+        BETA,
+        STABLE
     }
 
     public enum Visibility {
-        PRIVATE, FEATURE_FLAG, PUBLIC
+        PRIVATE,
+        FEATURE_FLAG,
+        PUBLIC
     }
 
     public enum Body {
-        NOT_SUPPORTED, OPTIONAL, REQUIRED
+        NOT_SUPPORTED,
+        OPTIONAL,
+        REQUIRED
     }
 
     ClientYamlSuiteRestApi(String location, String name) {
@@ -116,31 +122,41 @@ public class ClientYamlSuiteRestApi {
         this.stability = Stability.valueOf(stability.toUpperCase(Locale.ROOT));
     }
 
-    public Stability getStability() { return this.stability; }
+    public Stability getStability() {
+        return this.stability;
+    }
 
     public void setVisibility(String visibility) {
         this.visibility = Visibility.valueOf(visibility.toUpperCase(Locale.ROOT));
     }
 
-    public Visibility getVisibility() { return this.visibility; }
+    public Visibility getVisibility() {
+        return this.visibility;
+    }
 
     public void setFeatureFlag(String featureFlag) {
         this.featureFlag = featureFlag;
     }
 
-    public String getFeatureFlag() { return this.featureFlag; }
+    public String getFeatureFlag() {
+        return this.featureFlag;
+    }
+
     public void setResponseMimeTypes(List<String> mimeTypes) {
         this.responseMimeTypes = mimeTypes;
     }
 
-    public List<String> getResponseMimeTypes() { return this.responseMimeTypes; }
+    public List<String> getResponseMimeTypes() {
+        return this.responseMimeTypes;
+    }
 
     public void setRequestMimeTypes(List<String> mimeTypes) {
         this.requestMimeTypes = mimeTypes;
     }
 
-    public List<String> getRequestMimeTypes() { return this.requestMimeTypes; }
-
+    public List<String> getRequestMimeTypes() {
+        return this.requestMimeTypes;
+    }
 
     /**
      * Returns the best matching paths based on the provided parameters, which may include either path parts or query_string parameters.

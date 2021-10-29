@@ -275,6 +275,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public static final ChecksumBlobStoreFormat<IndexMetadata> INDEX_METADATA_FORMAT = new ChecksumBlobStoreFormat<>(
         "index-metadata",
         METADATA_NAME_FORMAT,
+        (repoName, parser) -> IndexMetadata.Builder.legacyFromXContent(parser),
         (repoName, parser) -> IndexMetadata.fromXContent(parser)
     );
 

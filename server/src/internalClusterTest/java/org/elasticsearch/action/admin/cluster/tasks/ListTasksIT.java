@@ -27,10 +27,7 @@ public class ListTasksIT extends ESIntegTestCase {
         );
 
         // The list tasks action itself is kept via this description filter which matches everything
-        assertThat(
-            client().admin().cluster().prepareListTasks().setDetailed(true).setDescriptions("*").get().getTasks(),
-            is(not(empty()))
-        );
+        assertThat(client().admin().cluster().prepareListTasks().setDetailed(true).setDescriptions("*").get().getTasks(), is(not(empty())));
 
     }
 

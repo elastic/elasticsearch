@@ -252,10 +252,13 @@ preference setting], `index.routing.allocation.include._tier_preference` should
 be used. The removed settings are:
 
 Cluster level settings:
+
 - `cluster.routing.allocation.include._tier`
 - `cluster.routing.allocation.exclude._tier`
 - `cluster.routing.allocation.require._tier`
+
 Index settings:
+
 - `index.routing.allocation.include._tier`
 - `index.routing.allocation.exclude._tier`
 - `index.routing.allocation.require._tier`

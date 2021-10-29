@@ -77,11 +77,16 @@ public class RecoverySettingsTests extends ESTestCase {
             .put(INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(), 10)
             .put(INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS_PER_NODE.getKey(), 5)
             .build();
-        IllegalArgumentException exception =
-            expectThrows(IllegalArgumentException.class, () -> new RecoverySettings(settings, clusterSettings));
-        assertThat(exception.getMessage(),
-            containsString("[indices.recovery.max_concurrent_snapshot_file_downloads_per_node]=5 " +
-                "is less than [indices.recovery.max_concurrent_snapshot_file_downloads]=10")
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new RecoverySettings(settings, clusterSettings)
+        );
+        assertThat(
+            exception.getMessage(),
+            containsString(
+                "[indices.recovery.max_concurrent_snapshot_file_downloads_per_node]=5 "
+                    + "is less than [indices.recovery.max_concurrent_snapshot_file_downloads]=10"
+            )
         );
     }
 }

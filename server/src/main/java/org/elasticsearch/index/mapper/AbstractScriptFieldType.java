@@ -194,6 +194,18 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
         return leafFactory(context.lookup().forkAndTrackFieldReferences(name()));
     }
 
+    @Override
+    public void validateMatchedRoutingPath() {
+        throw new IllegalArgumentException(
+            "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                + "and without the [script] parameter. ["
+                + name()
+                + "] was a runtime ["
+                + typeName()
+                + "]."
+        );
+    }
+
     // Placeholder Script for source-only fields
     // TODO rework things so that we don't need this
     protected static final Script DEFAULT_SCRIPT = new Script("");
@@ -228,12 +240,15 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
         }
 
         @Override
-        protected final RuntimeField createChildRuntimeField(MappingParserContext parserContext,
-                                                        String parent,
-                                                        Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+        protected final RuntimeField createChildRuntimeField(
+            MappingParserContext parserContext,
+            String parent,
+            Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory
+        ) {
             if (script.isConfigured()) {
-                throw new IllegalArgumentException("Cannot use [script] parameter on sub-field [" + name +
-                    "] of composite field [" + parent + "]");
+                throw new IllegalArgumentException(
+                    "Cannot use [script] parameter on sub-field [" + name + "] of composite field [" + parent + "]"
+                );
             }
             String fullName = parent + "." + name;
             return new LeafRuntimeField(

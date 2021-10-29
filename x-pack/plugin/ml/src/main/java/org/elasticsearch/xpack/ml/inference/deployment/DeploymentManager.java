@@ -292,7 +292,7 @@ public class DeploymentManager {
 
         void onTimeout() {
             if (notified.compareAndSet(false, true)) {
-                processContext.getResultProcessor().requestIgnored(String.valueOf(requestId));
+                processContext.getResultProcessor().ignoreResposeWithoutNotifying(String.valueOf(requestId));
                 listener.onFailure(
                     new ElasticsearchStatusException("timeout [{}] waiting for inference result", RestStatus.TOO_MANY_REQUESTS, timeout)
                 );
@@ -314,7 +314,7 @@ public class DeploymentManager {
         public void onFailure(Exception e) {
             timeoutHandler.cancel();
             if (notified.compareAndSet(false, true)) {
-                processContext.getResultProcessor().requestIgnored(String.valueOf(requestId));
+                processContext.getResultProcessor().ignoreResposeWithoutNotifying(String.valueOf(requestId));
                 listener.onFailure(e);
                 return;
             }

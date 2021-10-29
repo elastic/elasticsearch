@@ -42,10 +42,11 @@ public class PyTorchResultProcessor {
 
     /**
      * Call this method when the caller is no longer waiting on the request response.
+     * Note that the pending result listener will not be notified.
      *
      * @param requestId The request ID that is no longer being waited on
      */
-    public void requestIgnored(String requestId) {
+    public void ignoreResposeWithoutNotifying(String requestId) {
         pendingResults.remove(requestId);
     }
 

@@ -404,8 +404,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             hasItem(
                 new DeprecationIssue(
                     DeprecationIssue.Level.WARNING,
-                    "The [xpack.monitoring.exporters.test.index.pipeline.master_timeout] " +
-                            "settings are deprecated and will be removed after 8.0",
+                    "The [xpack.monitoring.exporters.test.index.pipeline.master_timeout] "
+                        + "settings are deprecated and will be removed after 8.0",
                     expectedUrl,
                     "Remove the following settings from elasticsearch.yml: [xpack.monitoring.exporters.test.index.pipeline.master_timeout]",
                     false,

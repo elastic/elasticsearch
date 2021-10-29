@@ -35,7 +35,7 @@ public class IndicesSegmentResponse extends BroadcastResponse {
 
     private final ShardSegments[] shards;
 
-    private Map<String, IndexSegments> indicesSegments;
+    private volatile Map<String, IndexSegments> indicesSegments;
 
     IndicesSegmentResponse(StreamInput in) throws IOException {
         super(in);
@@ -59,15 +59,14 @@ public class IndicesSegmentResponse extends BroadcastResponse {
         }
         Map<String, IndexSegments> indicesSegments = new HashMap<>();
 
-        Map<String, List<ShardSegments>> tmpIndicesSegment = new HashMap<>();
+        final Map<String, List<ShardSegments>> segmentsByIndex = new HashMap<>();
         for (ShardSegments shard : shards) {
-            List<ShardSegments> indexSegments = tmpIndicesSegment.computeIfAbsent(
+            segmentsByIndex.computeIfAbsent(
                 shard.getShardRouting().getIndexName(),
                 k -> new ArrayList<>()
-            );
-            indexSegments.add(shard);
+            ).add(shard);
         }
-        for (Map.Entry<String, List<ShardSegments>> entry : tmpIndicesSegment.entrySet()) {
+        for (Map.Entry<String, List<ShardSegments>> entry : segmentsByIndex.entrySet()) {
             indicesSegments.put(entry.getKey(), new IndexSegments(entry.getKey(), entry.getValue()));
         }
         this.indicesSegments = indicesSegments;

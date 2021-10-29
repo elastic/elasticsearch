@@ -50,7 +50,7 @@ The API returns:
 <<cluster-update-settings,cluster update settings API>> request. Reset all
 transient settings in the same request.
 +
-NOTE: The equest will trigger a deprecation warning.
+NOTE: The request will trigger a deprecation warning.
 +
 [source,console]
 ----

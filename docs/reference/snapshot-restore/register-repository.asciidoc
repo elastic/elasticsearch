@@ -82,12 +82,12 @@ Supported snapshot repository types vary based on your deployment type.
 {ess} deployments automatically register the
 {cloud}/ec-snapshot-restore.html[`found-snapshots`] repository. {ess} uses this
 repository and the `cloud-snapshot-policy` to take periodic snapshots of your
-cluster. You can also use the `found-snapshots` repository for your own snapshot
-policies or to store searchable snapshots.
+cluster. You can also use the `found-snapshots` repository for your own
+<<automate-snapshots-slm,{slm-init} policies>> or to store searchable snapshots.
 
-The `found-snapshots` repository is specific to each deployment. You can restore
-snapshots from another deployment's `found-snapshots` repository if the
-deployments are under the same account and in the same region. See
+The `found-snapshots` repository is specific to each deployment. However, you
+can restore snapshots from another deployment's `found-snapshots` repository if
+the deployments are under the same account and in the same region. See
 {cloud}/ec_share_a_repository_across_clusters.html[Share a repository across
 clusters].
 

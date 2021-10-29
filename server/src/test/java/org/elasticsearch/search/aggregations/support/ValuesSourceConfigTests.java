@@ -21,7 +21,6 @@ import org.mockito.Mockito;
 
 import java.util.List;
 
-// TODO: This whole set of tests needs to be rethought.
 public class ValuesSourceConfigTests extends MapperServiceTestCase {
 
     @Override
@@ -148,6 +147,60 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
                 CoreValuesSourceType.KEYWORD
             );
             assertEquals(CoreValuesSourceType.IP, config.valueSourceType());
+        }, () -> null);
+    }
+
+    /**
+     * If there's a script and the user didn't tell us what type it produces, use the field if possible, otherwise the default
+     */
+    public void testScriptNoHint() throws Exception {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "long")));
+        // With field
+        withAggregationContext(mapperService, List.of(source(b -> b.field("field", 42))), context -> {
+            ValuesSourceConfig config;
+            config = ValuesSourceConfig.resolve(
+                context,
+                null,
+                "field",
+                mockScript("mockscript"),
+                null,
+                null,
+                null,
+                CoreValuesSourceType.KEYWORD
+            );
+            assertEquals(CoreValuesSourceType.NUMERIC, config.valueSourceType());
+        }, () -> null);
+
+        // With unmapped field
+        withAggregationContext(mapperService, List.of(source(b -> b.field("field", 42))), context -> {
+            ValuesSourceConfig config;
+            config = ValuesSourceConfig.resolve(
+                context,
+                null,
+                "unmappedField",
+                mockScript("mockscript"),
+                null,
+                null,
+                null,
+                CoreValuesSourceType.KEYWORD
+            );
+            assertEquals(CoreValuesSourceType.KEYWORD, config.valueSourceType());
+        }, () -> null);
+
+        // Without field
+        withAggregationContext(mapperService, List.of(source(b -> b.field("field", 42))), context -> {
+            ValuesSourceConfig config;
+            config = ValuesSourceConfig.resolve(
+                context,
+                null,
+                null,
+                mockScript("mockscript"),
+                null,
+                null,
+                null,
+                CoreValuesSourceType.KEYWORD
+            );
+            assertEquals(CoreValuesSourceType.KEYWORD, config.valueSourceType());
         }, () -> null);
     }
 

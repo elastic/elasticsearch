@@ -171,10 +171,6 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return mapperService;
     }
 
-    protected <T> T compileScript(Script script, ScriptContext<T> context) {
-        throw new UnsupportedOperationException("Cannot compile script " + Strings.toString(script));
-    }
-
     protected final MapperService createMapperService(Version version,
                                                       Settings settings,
                                                       BooleanSupplier idFieldDataEnabled) {
@@ -196,6 +192,15 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             this::compileScript
         );
     }
+    
+    /**
+     *  This is the injection point for tests that require mock scripts.  Test cases should override this to return the
+     *  mock script factory of their choice.
+     */
+    protected <T> T compileScript(Script script, ScriptContext<T> context) {
+        throw new UnsupportedOperationException("Cannot compile script " + Strings.toString(script));
+    }
+
 
     protected static IndexSettings createIndexSettings(Version version, Settings settings) {
         settings = Settings.builder()

@@ -20,20 +20,15 @@ public class IndexSegments implements Iterable<IndexShardSegments> {
 
     private final Map<Integer, IndexShardSegments> indexShards;
 
-    IndexSegments(String index, ShardSegments[] shards) {
+    IndexSegments(String index, List<ShardSegments> shards) {
         this.index = index;
 
-        Map<Integer, List<ShardSegments>> tmpIndexShards = new HashMap<>();
+        final Map<Integer, List<ShardSegments>> segmentsByShardId = new HashMap<>();
         for (ShardSegments shard : shards) {
-            List<ShardSegments> lst = tmpIndexShards.get(shard.getShardRouting().id());
-            if (lst == null) {
-                lst = new ArrayList<>();
-                tmpIndexShards.put(shard.getShardRouting().id(), lst);
-            }
-            lst.add(shard);
+            segmentsByShardId.computeIfAbsent(shard.getShardRouting().id(), k -> new ArrayList<>()).add(shard);
         }
         indexShards = new HashMap<>();
-        for (Map.Entry<Integer, List<ShardSegments>> entry : tmpIndexShards.entrySet()) {
+        for (Map.Entry<Integer, List<ShardSegments>> entry : segmentsByShardId.entrySet()) {
             indexShards.put(
                 entry.getKey(),
                 new IndexShardSegments(

@@ -326,6 +326,14 @@ public class DeploymentManager {
 
         @Override
         protected void doRun() throws Exception {
+            if (notified.get()) {
+                // Should not execute request as it has already timed out while waiting in the queue
+                logger.debug(
+                    () -> new ParameterizedMessage("[{}] skipping inference on request [{}] as it has timed out", modelId, requestId)
+                );
+                return;
+            }
+
             final String requestIdStr = String.valueOf(requestId);
             try {
                 // The request builder expect a list of inputs which are then batched.

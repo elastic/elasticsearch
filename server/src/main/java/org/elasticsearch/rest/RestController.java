@@ -29,6 +29,8 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.usage.UsageService;
+import org.elasticsearch.xcontent.MediaType;
+import org.elasticsearch.xcontent.MediaTypeRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -311,16 +313,28 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private void dispatchRequest(RestRequest request, RestChannel channel, RestHandler handler, ThreadContext threadContext)
         throws Exception {
         final int contentLength = request.contentLength();
+        final MediaTypeRegistry<? extends MediaType> mediaTypeRegistry = handler.validAcceptMediaTypes();
+        if(request.getParsedAccept() != null){
+            final MediaType mediaType = request.getParsedAccept().toMediaType(mediaTypeRegistry);
+            if (mediaType == null) {
+                sendContentTypeErrorMessage(request, "Accept", channel);
+                return;
+            }
+        }
+
         if (contentLength > 0) {
-            final XContentType xContentType = request.getXContentType();
+
+
+
+            final MediaType xContentType = request.getParsedContentType().toMediaType(mediaTypeRegistry);
             if (xContentType == null) {
-                sendContentTypeErrorMessage(request.getAllHeaderValues("Content-Type"), channel);
+                sendContentTypeErrorMessage(request, "Content-Type", channel);
                 return;
             }
             // TODO consider refactoring to handler.supportsContentStream(xContentType). It is only used with JSON and SMILE
-            if (handler.supportsContentStream()
-                && xContentType.canonical() != XContentType.JSON
-                && xContentType.canonical() != XContentType.SMILE) {
+            if (handler.supportsContentStream() && xContentType instanceof XContentType
+                && ((XContentType)xContentType).canonical() != XContentType.JSON
+                && ((XContentType)xContentType).canonical() != XContentType.SMILE) {
                 channel.sendResponse(
                     BytesRestResponse.createSimpleErrorResponse(
                         channel,
@@ -385,12 +399,13 @@ public class RestController implements HttpServerTransport.Dispatcher {
         return false;
     }
 
-    private void sendContentTypeErrorMessage(@Nullable List<String> contentTypeHeader, RestChannel channel) throws IOException {
+    private void sendContentTypeErrorMessage(RestRequest restRequest, final String headerName, RestChannel channel) throws IOException {
+        final List<String> contentTypeHeader = restRequest.getAllHeaderValues(headerName);
         final String errorMessage;
         if (contentTypeHeader == null) {
-            errorMessage = "Content-Type header is missing";
+            errorMessage = headerName + " header is missing";
         } else {
-            errorMessage = "Content-Type header [" + Strings.collectionToCommaDelimitedString(contentTypeHeader) + "] is not supported";
+            errorMessage = headerName + " header [" + Strings.collectionToCommaDelimitedString(contentTypeHeader) + "] is not supported";
         }
 
         channel.sendResponse(BytesRestResponse.createSimpleErrorResponse(channel, NOT_ACCEPTABLE, errorMessage));

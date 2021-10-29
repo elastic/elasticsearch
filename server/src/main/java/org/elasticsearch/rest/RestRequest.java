@@ -32,6 +32,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -607,20 +608,20 @@ public class RestRequest implements ToXContent.Params {
 
     public static class MediaTypeHeaderException extends RuntimeException {
 
-        private String failedHeaderName;
+        private String[] failedHeaderName;
 
-        MediaTypeHeaderException(final IllegalArgumentException cause, String failedHeaderName) {
+        MediaTypeHeaderException(final RuntimeException cause, String... failedHeaderNames) {
             super(cause);
-            this.failedHeaderName = failedHeaderName;
+            this.failedHeaderName = failedHeaderNames;
         }
 
-        public String getFailedHeaderName() {
+        public String[] getFailedHeaderNames() {
             return failedHeaderName;
         }
 
         @Override
         public String getMessage() {
-            return "Invalid media-type value on header [" + failedHeaderName + "]";
+            return "Invalid media-type value on header " + Arrays.toString(failedHeaderName );
         }
     }
 

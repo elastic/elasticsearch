@@ -144,8 +144,8 @@ public class ParsedMediaType {
             Pattern regex = registeredParams.get(paramName);
             return regex.matcher(value).matches();
         }
-        // TODO undefined parameters are allowed until https://github.com/elastic/elasticsearch/issues/63080
-        return true;
+
+        return false;
     }
 
     @Override

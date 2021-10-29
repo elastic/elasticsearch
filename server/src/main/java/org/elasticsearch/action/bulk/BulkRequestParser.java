@@ -185,7 +185,7 @@ public final class BulkRequestParser {
                     );
                 }
                 String action = parser.currentName();
-                if (!SUPPORTED_ACTIONS.contains(action)) {
+                if (SUPPORTED_ACTIONS.contains(action) == false) {
                     deprecationLogger.compatibleCritical(
                         STRICT_ACTION_PARSING_WARNING_KEY,
                         String.format(

@@ -910,7 +910,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                         + action
                         + "] is unauthorized"
                         + " for "
-                        + (isRunAs ? "user" : "service account")
+                        + "service account"
                         + " ["
                         + serviceUser.principal()
                         + "],"
@@ -918,7 +918,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             )
         );
         if (isRunAs) {
-            assertThat(securityException, throwableWithMessage(containsString("with roles [")));
+            assertThat(securityException, throwableWithMessage(containsString("run as [" + finalUser.principal() + "]with roles [")));
         }
         assertThat(securityException, throwableWithMessage(containsString("this action is granted by the index privileges [read,all]")));
         verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(Role.EMPTY.names()));

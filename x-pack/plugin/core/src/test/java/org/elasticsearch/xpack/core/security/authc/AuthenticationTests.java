@@ -126,7 +126,7 @@ public class AuthenticationTests extends ESTestCase {
         );
         final Authentication authentication = new Authentication(user, authRealm, lookupRealm);
 
-        if (authRealmIsForServiceAccount && lookupRealm == null) {
+        if (authRealmIsForServiceAccount) {
             assertThat(authentication.isServiceAccount(), is(true));
         } else {
             assertThat(authentication.isServiceAccount(), is(false));

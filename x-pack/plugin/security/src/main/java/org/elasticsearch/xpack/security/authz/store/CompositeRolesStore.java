@@ -281,26 +281,35 @@ public class CompositeRolesStore {
             return;
         }
 
-        if (authentication.isServiceAccount()) {
-            getRolesForServiceAccount(authentication, roleActionListener);
-        } else if (ApiKeyService.isApiKeyAuthentication(authentication)) {
-            getRolesForApiKey(authentication, roleActionListener);
-        } else {
-            Set<String> roleNames = new HashSet<>(Arrays.asList(user.roles()));
-            if (isAnonymousEnabled && anonymousUser.equals(user) == false) {
-                if (anonymousUser.roles().length == 0) {
-                    throw new IllegalStateException("anonymous is only enabled when the anonymous user has roles");
-                }
-                Collections.addAll(roleNames, anonymousUser.roles());
-            }
-
-            if (roleNames.isEmpty()) {
-                roleActionListener.onResponse(Role.EMPTY);
-            } else if (roleNames.contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())) {
-                roleActionListener.onResponse(superuserRole);
+        if (user == authentication.getUser().authenticatedUser()) {
+            if (authentication.isServiceAccount()) {
+                getRolesForServiceAccount(authentication, roleActionListener);
+            } else if (ApiKeyService.isApiKeyAuthentication(authentication)) {
+                getRolesForApiKey(authentication, roleActionListener);
             } else {
-                roles(roleNames, roleActionListener);
+                getRolesForUser(user, roleActionListener);
             }
+        } else {
+            assert user.isRunAs() && user == authentication.getUser() : "must be run as user";
+            getRolesForUser(user, roleActionListener);
+        }
+    }
+
+    private void getRolesForUser(User user, ActionListener<Role> roleActionListener) {
+        Set<String> roleNames = new HashSet<>(Arrays.asList(user.roles()));
+        if (isAnonymousEnabled && anonymousUser.equals(user) == false) {
+            if (anonymousUser.roles().length == 0) {
+                throw new IllegalStateException("anonymous is only enabled when the anonymous user has roles");
+            }
+            Collections.addAll(roleNames, anonymousUser.roles());
+        }
+
+        if (roleNames.isEmpty()) {
+            roleActionListener.onResponse(Role.EMPTY);
+        } else if (roleNames.contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())) {
+            roleActionListener.onResponse(superuserRole);
+        } else {
+            roles(roleNames, roleActionListener);
         }
     }
 

@@ -34,6 +34,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseStateListener;
 import org.elasticsearch.license.MockLicenseState;
@@ -1377,6 +1378,58 @@ public class CompositeRolesStoreTests extends ESTestCase {
         }
         assertThat(role.names().length, is(1));
         assertThat(role.names()[0], containsString("user_role_"));
+    }
+
+    public void testGetRolesForRunAs() {
+        final ApiKeyService apiKeyService = mock(ApiKeyService.class);
+        final ServiceAccountService serviceAccountService = mock(ServiceAccountService.class);
+        final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
+            Settings.EMPTY,
+            null,
+            null,
+            null,
+            null,
+            null,
+            apiKeyService,
+            serviceAccountService,
+            null,
+            null
+        );
+
+        // API key run as
+        final String apiKeyId = randomAlphaOfLength(20);
+
+        final User authenticatedUser1 = new User("authenticated_user");
+        final Authentication authentication1 = new Authentication(
+            new User(new User(randomAlphaOfLengthBetween(3, 8)), authenticatedUser1),
+            new RealmRef("_es_api_key", "_es_api_key", randomAlphaOfLength(8)),
+            new RealmRef(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8), randomAlphaOfLength(8)),
+            Version.CURRENT, AuthenticationType.API_KEY, Map.of());
+        when(apiKeyService.getApiKeyIdAndRoleBytes(eq(authentication1), anyBoolean()))
+                .thenReturn(new Tuple<>(apiKeyId, new BytesArray("{}")));
+        final PlainActionFuture<Role> future1 = new PlainActionFuture<>();
+        compositeRolesStore.getRoles(authenticatedUser1, authentication1, future1);
+        future1.actionGet();
+        verify(apiKeyService, times(2)).getApiKeyIdAndRoleBytes(eq(authentication1), anyBoolean());
+
+        // Service account run as
+        final User authenticatedUser2 = new User("elastic/some-service");
+        final Authentication authentication2 = new Authentication(
+            new User(new User(randomAlphaOfLengthBetween(3, 8)), authenticatedUser2),
+            new RealmRef("_service_account", "_service_account", randomAlphaOfLength(8)),
+            new RealmRef(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8), randomAlphaOfLength(8)),
+            Version.CURRENT, AuthenticationType.TOKEN, Map.of());
+        final PlainActionFuture<Role> future2 = new PlainActionFuture<>();
+        doAnswer(invocation -> {
+                @SuppressWarnings("unchecked")
+                final ActionListener<RoleDescriptor> listener = (ActionListener<RoleDescriptor>) invocation.getArguments()[1];
+                listener.onResponse(new RoleDescriptor(authenticatedUser2.principal(), null, null, null));
+                return null;
+            }).when(serviceAccountService).getRoleDescriptor(eq(authentication2), anyActionListener());
+        compositeRolesStore.getRoles(authenticatedUser2, authentication2, future2);
+        future2.actionGet();
+        verify(serviceAccountService, times(1))
+                .getRoleDescriptor(eq(authentication2), anyActionListener());
     }
 
     public void testUsageStats() {

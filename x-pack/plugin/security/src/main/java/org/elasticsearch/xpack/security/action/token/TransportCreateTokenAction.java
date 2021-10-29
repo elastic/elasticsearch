@@ -75,7 +75,7 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
                 break;
             case CLIENT_CREDENTIALS:
                 Authentication authentication = securityContext.getAuthentication();
-                if (authentication.isServiceAccount()) {
+                if (authentication.isServiceAccount() && false == authentication.getUser().isRunAs()) {
                     listener.onFailure(new ElasticsearchException("OAuth2 token creation is not supported for service accounts"));
                     return;
                 }

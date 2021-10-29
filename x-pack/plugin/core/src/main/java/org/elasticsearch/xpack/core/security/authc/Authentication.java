@@ -114,7 +114,7 @@ public class Authentication implements ToXContentObject {
     }
 
     public boolean isServiceAccount() {
-        return ServiceAccountSettings.REALM_TYPE.equals(getAuthenticatedBy().getType()) && null == getLookedUpBy();
+        return ServiceAccountSettings.REALM_TYPE.equals(getAuthenticatedBy().getType());
     }
 
     /**

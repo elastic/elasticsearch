@@ -882,7 +882,7 @@ public class AuthorizationService {
             }
         }
 
-        String userText = "user [" + authUser.principal() + "]";
+        String userText = (authentication.isServiceAccount() ? "service account" : "user") + " [" + authUser.principal() + "]";
         // check for run as
         if (authentication.getUser().isRunAs()) {
             userText = userText + " run as [" + authentication.getUser().principal() + "]";
@@ -892,9 +892,12 @@ public class AuthorizationService {
             final String apiKeyId = (String) authentication.getMetadata().get(ApiKeyService.API_KEY_ID_KEY);
             assert apiKeyId != null : "api key id must be present in the metadata";
             userText = "API key id [" + apiKeyId + "] of " + userText;
-        } else if (false == authentication.isServiceAccount()) {
-            // Don't print roles for API keys because they're not meaningful
-            // Also not printing roles for service accounts since they have no roles
+        }
+
+        // Don't print roles for API keys because they're not meaningful
+        // Also do not print roles for service accounts since they have no roles
+        if (authentication.getUser().isRunAs()
+            || (false == authentication.isServiceAccount() && AuthenticationType.API_KEY != authentication.getAuthenticationType())) {
             userText = userText + " with roles [" + Strings.arrayToCommaDelimitedString(authentication.getUser().roles()) + "]";
         }
 

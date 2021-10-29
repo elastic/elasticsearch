@@ -579,7 +579,7 @@ PUT _slm/policy/daily-snapshots
   "retention": {
     "expire_after": "30d",
     "min_count": 1,
-    "max_count": 30
+    "max_count": 31
   }
 }
 ----
@@ -601,7 +601,7 @@ PUT _slm/policy/monthly-snapshots
     "include_global_state": true
   },
   "retention": {
-    "expire_after": "365d",
+    "expire_after": "366d",
     "min_count": 1,
     "max_count": 12
   }

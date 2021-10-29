@@ -61,19 +61,19 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         null,
         null
     );
-    private static final DeleteAction TEST_DELETE_ACTION = new DeleteAction();
+    private static final DeleteAction TEST_DELETE_ACTION = DeleteAction.WITH_SNAPSHOT_DELETE;
+
     private static final WaitForSnapshotAction TEST_WAIT_FOR_SNAPSHOT_ACTION = new WaitForSnapshotAction("policy");
     private static final ForceMergeAction TEST_FORCE_MERGE_ACTION = new ForceMergeAction(1, null);
     private static final RolloverAction TEST_ROLLOVER_ACTION = new RolloverAction(new ByteSizeValue(1), null, null, null);
     private static final ShrinkAction TEST_SHRINK_ACTION = new ShrinkAction(1, null);
     private static final ReadOnlyAction TEST_READ_ONLY_ACTION = new ReadOnlyAction();
-    private static final FreezeAction TEST_FREEZE_ACTION = new FreezeAction();
     private static final SetPriorityAction TEST_PRIORITY_ACTION = new SetPriorityAction(0);
-    private static final UnfollowAction TEST_UNFOLLOW_ACTION = new UnfollowAction();
+
     private static final SearchableSnapshotAction TEST_SEARCHABLE_SNAPSHOT_ACTION = new SearchableSnapshotAction("repo");
     // keeping the migrate action disabled as otherwise it could conflict with the allocate action if both are randomly selected for the
     // same phase
-    private static final MigrateAction TEST_MIGRATE_ACTION = new MigrateAction(false);
+    private static final MigrateAction TEST_MIGRATE_ACTION = MigrateAction.DISABLED;
     private static final RollupILMAction TEST_ROLLUP_ACTION = new RollupILMAction(
         new RollupActionConfig(
             new RollupActionGroupConfig(new RollupActionDateHistogramGroupConfig.FixedInterval("field", DateHistogramInterval.DAY)),
@@ -198,7 +198,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
 
     public void testValidateConflictingDataMigrationConfigurations() {
         Map<String, LifecycleAction> actions = new HashMap<>();
-        actions.put(TEST_MIGRATE_ACTION.getWriteableName(), new MigrateAction(true));
+        actions.put(TEST_MIGRATE_ACTION.getWriteableName(), MigrateAction.ENABLED);
         actions.put(TEST_ALLOCATE_ACTION.getWriteableName(), TEST_ALLOCATE_ACTION);
         List<Phase> phases = List.of(new Phase(WARM_PHASE, TimeValue.ZERO, actions), new Phase(COLD_PHASE, TimeValue.ZERO, actions));
 
@@ -215,7 +215,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         );
 
         // disabling the migrate action makes the phases definition valid as only the allocate action will perform data migration
-        actions.put(TEST_MIGRATE_ACTION.getWriteableName(), new MigrateAction(false));
+        actions.put(TEST_MIGRATE_ACTION.getWriteableName(), MigrateAction.DISABLED);
         try {
             TimeseriesLifecycleType.INSTANCE.validate(phases);
         } catch (Exception e) {
@@ -235,7 +235,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         {
             Phase hotPhase = new Phase("hot", TimeValue.ZERO, Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo")));
             Phase warmPhase = new Phase("warm", TimeValue.ZERO, Map.of(ShrinkAction.NAME, new ShrinkAction(1, null)));
-            Phase coldPhase = new Phase("cold", TimeValue.ZERO, Map.of(FreezeAction.NAME, new FreezeAction()));
+            Phase coldPhase = new Phase("cold", TimeValue.ZERO, Map.of(FreezeAction.NAME, FreezeAction.INSTANCE));
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 () -> TimeseriesLifecycleType.validateActionsFollowingSearchableSnapshot(List.of(hotPhase, warmPhase, coldPhase))
@@ -256,7 +256,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                 TimeValue.ZERO,
                 Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo"))
             );
-            Phase frozenPhase = new Phase("frozen", TimeValue.ZERO, Map.of(FreezeAction.NAME, new FreezeAction()));
+            Phase frozenPhase = new Phase("frozen", TimeValue.ZERO, Map.of(FreezeAction.NAME, FreezeAction.INSTANCE));
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 () -> TimeseriesLifecycleType.validateActionsFollowingSearchableSnapshot(List.of(warmPhase, coldPhase, frozenPhase))
@@ -278,7 +278,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                 TimeValue.ZERO,
                 Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo"))
             );
-            Phase frozenPhase = new Phase("frozen", TimeValue.ZERO, Map.of(FreezeAction.NAME, new FreezeAction()));
+            Phase frozenPhase = new Phase("frozen", TimeValue.ZERO, Map.of(FreezeAction.NAME, FreezeAction.INSTANCE));
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 () -> TimeseriesLifecycleType.validateActionsFollowingSearchableSnapshot(
@@ -306,7 +306,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                 )
             );
             Phase warm = new Phase("warm", TimeValue.ZERO, Map.of(ForceMergeAction.NAME, new ForceMergeAction(1, null)));
-            Phase cold = new Phase("cold", TimeValue.ZERO, Map.of(FreezeAction.NAME, new FreezeAction()));
+            Phase cold = new Phase("cold", TimeValue.ZERO, Map.of(FreezeAction.NAME, FreezeAction.INSTANCE));
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 () -> TimeseriesLifecycleType.validateActionsFollowingSearchableSnapshot(List.of(warm, hot, cold))
@@ -324,7 +324,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             Phase frozenPhase = new Phase(
                 "frozen",
                 TimeValue.ZERO,
-                Map.of(FreezeAction.NAME, new FreezeAction(), SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo"))
+                Map.of(FreezeAction.NAME, FreezeAction.INSTANCE, SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo"))
             );
             try {
                 TimeseriesLifecycleType.validateActionsFollowingSearchableSnapshot(List.of(frozenPhase));
@@ -802,7 +802,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         {
             // there's a migrate action
             Map<String, LifecycleAction> actions = new HashMap<>();
-            actions.put(TEST_MIGRATE_ACTION.getWriteableName(), new MigrateAction(randomBoolean()));
+            actions.put(TEST_MIGRATE_ACTION.getWriteableName(), randomBoolean() ? MigrateAction.ENABLED : MigrateAction.DISABLED);
             Phase phase = new Phase(WARM_PHASE, TimeValue.ZERO, actions);
             assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
         }
@@ -1068,7 +1068,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                         Collections.emptyMap()
                     );
                 case DeleteAction.NAME:
-                    return new DeleteAction();
+                    return DeleteAction.WITH_SNAPSHOT_DELETE;
                 case ForceMergeAction.NAME:
                     return new ForceMergeAction(1, null);
                 case ReadOnlyAction.NAME:
@@ -1083,19 +1083,19 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                 case ShrinkAction.NAME:
                     return new ShrinkAction(1, null);
                 case FreezeAction.NAME:
-                    return new FreezeAction();
+                    return FreezeAction.INSTANCE;
                 case SetPriorityAction.NAME:
                     return new SetPriorityAction(0);
                 case UnfollowAction.NAME:
-                    return new UnfollowAction();
+                    return UnfollowAction.INSTANCE;
                 case MigrateAction.NAME:
-                    return new MigrateAction(true);
+                    return MigrateAction.ENABLED;
                 case RollupILMAction.NAME:
                     return TEST_ROLLUP_ACTION;
                 case SearchableSnapshotAction.NAME:
                     return TEST_SEARCHABLE_SNAPSHOT_ACTION;
             }
-            return new DeleteAction();
+            return DeleteAction.WITH_SNAPSHOT_DELETE;
         }).collect(Collectors.toConcurrentMap(LifecycleAction::getWriteableName, Function.identity()));
     }
 
@@ -1160,11 +1160,11 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             case ShrinkAction.NAME:
                 return TEST_SHRINK_ACTION;
             case FreezeAction.NAME:
-                return TEST_FREEZE_ACTION;
+                return FreezeAction.INSTANCE;
             case SetPriorityAction.NAME:
                 return TEST_PRIORITY_ACTION;
             case UnfollowAction.NAME:
-                return TEST_UNFOLLOW_ACTION;
+                return UnfollowAction.INSTANCE;
             case SearchableSnapshotAction.NAME:
                 return TEST_SEARCHABLE_SNAPSHOT_ACTION;
             case MigrateAction.NAME:

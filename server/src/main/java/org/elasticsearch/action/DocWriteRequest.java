@@ -12,6 +12,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -139,6 +140,11 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
      * @return boolean flag, when true specifically requires an alias
      */
     boolean isRequireAlias();
+
+    /**
+     * Pick the appropriate shard id to receive this request.
+     */
+    int route(IndexRouting indexRouting);
 
     /**
      * Requested operation type to perform on the document

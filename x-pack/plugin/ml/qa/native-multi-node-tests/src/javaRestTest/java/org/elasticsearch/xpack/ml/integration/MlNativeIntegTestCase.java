@@ -311,7 +311,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                     (in) -> TimeseriesLifecycleType.INSTANCE
                 )
             );
-            entries.add(new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new));
+            entries.add(new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::readFrom));
             entries.add(new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::new));
             entries.add(
                 new NamedWriteableRegistry.Entry(

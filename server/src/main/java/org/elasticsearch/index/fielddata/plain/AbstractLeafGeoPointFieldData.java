@@ -27,7 +27,7 @@ public abstract class AbstractLeafGeoPointFieldData implements LeafGeoPointField
     }
 
     @Override
-    public final DocValuesField getScriptField(String name) {
+    public final DocValuesField<?> getScriptField(String name) {
         return new DelegateDocValuesField(new ScriptDocValues.GeoPoints(getGeoPointValues()), name);
     }
 

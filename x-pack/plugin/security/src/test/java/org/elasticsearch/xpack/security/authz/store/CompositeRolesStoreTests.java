@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
@@ -111,10 +112,6 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
-import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON;
-import static org.elasticsearch.xpack.security.authc.ApiKeyService.API_KEY_ID_KEY;
 import static org.elasticsearch.xpack.security.authc.ApiKeyServiceTests.Utils.createApiKeyAuthentication;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -651,7 +648,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             Sets.newHashSet(flsRole, addsL1Fields),
             cache,
             null,
-            RESTRICTED_INDICES_AUTOMATON,
+            TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON,
             future
         );
         Role role = future.actionGet();
@@ -759,7 +756,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             Sets.newHashSet(role1, role2),
             cache,
             privilegeStore,
-            RESTRICTED_INDICES_AUTOMATON,
+            TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON,
             future
         );
         Role role = future.actionGet();
@@ -1529,20 +1526,18 @@ public class CompositeRolesStoreTests extends ESTestCase {
         AuditUtil.getOrGenerateRequestId(threadContext);
         final BytesArray roleBytes = new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}");
         final BytesArray limitedByRoleBytes = new BytesArray("{\"limitedBy role\": {\"cluster\": [\"all\"]}}");
+        final Map<String, Object> metadata = new HashMap<>();
+        metadata.put(AuthenticationField.API_KEY_ID_KEY, "key-id-1");
+        metadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 16));
+        metadata.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, roleBytes);
+        metadata.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, limitedByRoleBytes);
         Authentication authentication = new Authentication(
             new User("test api key user", "superuser"),
             new RealmRef("_es_api_key", "_es_api_key", "node"),
             null,
             Version.CURRENT,
             AuthenticationType.API_KEY,
-            Map.of(
-                API_KEY_ID_KEY,
-                "key-id-1",
-                API_KEY_ROLE_DESCRIPTORS_KEY,
-                roleBytes,
-                API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
-                limitedByRoleBytes
-            )
+            metadata
         );
         doCallRealMethod().when(apiKeyService).getApiKeyIdAndRoleBytes(eq(authentication), anyBoolean());
 
@@ -1555,20 +1550,18 @@ public class CompositeRolesStoreTests extends ESTestCase {
         verify(apiKeyService).parseRoleDescriptors("key-id-1", limitedByRoleBytes);
 
         // Different API key with the same roles should read from cache
+        final Map<String, Object> metadata2 = new HashMap<>();
+        metadata2.put(AuthenticationField.API_KEY_ID_KEY, "key-id-2");
+        metadata2.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 16));
+        metadata2.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, roleBytes);
+        metadata2.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, limitedByRoleBytes);
         authentication = new Authentication(
             new User("test api key user 2", "superuser"),
             new RealmRef("_es_api_key", "_es_api_key", "node"),
             null,
             Version.CURRENT,
             AuthenticationType.API_KEY,
-            Map.of(
-                API_KEY_ID_KEY,
-                "key-id-2",
-                API_KEY_ROLE_DESCRIPTORS_KEY,
-                roleBytes,
-                API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
-                limitedByRoleBytes
-            )
+            metadata2
         );
         doCallRealMethod().when(apiKeyService).getApiKeyIdAndRoleBytes(eq(authentication), anyBoolean());
         roleFuture = new PlainActionFuture<>();
@@ -1580,20 +1573,18 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         // Different API key with the same limitedBy role should read from cache, new role should be built
         final BytesArray anotherRoleBytes = new BytesArray("{\"b role\": {\"cluster\": [\"manage_security\"]}}");
+        final Map<String, Object> metadata3 = new HashMap<>();
+        metadata3.put(AuthenticationField.API_KEY_ID_KEY, "key-id-3");
+        metadata3.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 16));
+        metadata3.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, anotherRoleBytes);
+        metadata3.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, limitedByRoleBytes);
         authentication = new Authentication(
             new User("test api key user 2", "superuser"),
             new RealmRef("_es_api_key", "_es_api_key", "node"),
             null,
             Version.CURRENT,
             AuthenticationType.API_KEY,
-            Map.of(
-                API_KEY_ID_KEY,
-                "key-id-3",
-                API_KEY_ROLE_DESCRIPTORS_KEY,
-                anotherRoleBytes,
-                API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
-                limitedByRoleBytes
-            )
+            metadata3
         );
         doCallRealMethod().when(apiKeyService).getApiKeyIdAndRoleBytes(eq(authentication), anyBoolean());
         roleFuture = new PlainActionFuture<>();
@@ -1632,7 +1623,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testXPackUserCanAccessNonRestrictedIndices() {
-        CharacterRunAutomaton restrictedAutomaton = new CharacterRunAutomaton(RESTRICTED_INDICES_AUTOMATON);
+        CharacterRunAutomaton restrictedAutomaton = new CharacterRunAutomaton(TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON);
         for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
             Predicate<IndexAbstraction> predicate = getXPackUserRole().indices().allowedIndicesMatcher(action);
             IndexAbstraction index = mockIndexAbstraction(randomAlphaOfLengthBetween(3, 12));
@@ -1672,7 +1663,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testAsyncSearchUserCannotAccessNonRestrictedIndices() {
-        CharacterRunAutomaton restrictedAutomaton = new CharacterRunAutomaton(RESTRICTED_INDICES_AUTOMATON);
+        CharacterRunAutomaton restrictedAutomaton = new CharacterRunAutomaton(TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON);
         for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
             Predicate<IndexAbstraction> predicate = getAsyncSearchUserRole().indices().allowedIndicesMatcher(action);
             IndexAbstraction index = mockIndexAbstraction(randomAlphaOfLengthBetween(3, 12));

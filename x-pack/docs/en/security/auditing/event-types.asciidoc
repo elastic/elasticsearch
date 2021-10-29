@@ -11,7 +11,7 @@ setting in `elasticsearch.yml` to specify the kind of events you want to include
 in the auditing output.
 
 NOTE: Certain audit events require the `security_config_change` event type to
-specify the related event action. The description of impacted audit events
+audit the related event action. The description of impacted audit events
 indicate whether that event type is required.
 
 [[event-access-denied]]
@@ -109,8 +109,8 @@ Logged when a user successfully authenticates.
 Logged when the <<security-api-enable-user,enable user API>> is invoked to
 disable a native or a built-in user.
 +
-You must include the `security_config_change` event type to specify this event
-action.
+You must include the `security_config_change` event type to
+audit the related event action.
 +
 .Example
 [%collapsible%open]
@@ -127,8 +127,8 @@ action":"change_disable_user", "request.id":"qvLIgw_eTvyK3cgV-GaLVg",
 Logged when the <<security-api-enable-user,enable user API>> is invoked to
 enable a native or a built-in user.
 +
-You must include the `security_config_change` event type to specify this event
-action.
+You must include the `security_config_change` event type to audit the related
+event action.
 +
 .Example
 [%collapsible%open]
@@ -145,8 +145,8 @@ action":"change_enable_user", "request.id":"BO3QU3qeTb-Ei0G0rUOalQ",
 Logged when the <<security-api-change-password,change password API>> is
 invoked to change the password of a native or built-in user.
 +
-You must include the `security_config_change` event type to specify this event
-action.
+You must include the `security_config_change` event type to audit the related
+event action.
 +
 .Example
 [%collapsible%open]
@@ -164,8 +164,8 @@ action":"change_password", "request.id":"bz5a1Cc3RrebDMitMGGNCw",
 Logged when the <<security-api-create-service-token,create service account token API>> is
 invoked to create a new index-based token for a service account.
 +
-You must include the `security_config_change` event type to specify this event
-action.
+You must include the `security_config_change` event type to audit the related
+event action.
 +
 .Example
 [%collapsible%open]
@@ -213,8 +213,8 @@ Logged when the <<security-api-create-api-key,create API key>> or the
 <<security-api-grant-api-key, grant API key>> APIs are invoked to create a new
 API key.
 +
-You must include the `security_config_change` event type to specify this event
-action.
+You must include the `security_config_change` event type to audit the related
+event action.
 +
 .Example
 [%collapsible%open]
@@ -237,8 +237,8 @@ Logged when the
 <<security-api-delete-privilege,delete application privileges API>> is invoked
 to remove one or more application privileges.
 +
-You must include the `security_config_change` event type to specify this event
-action.
+You must include the `security_config_change` event type to audit the related
+event action.
 +
 .Example
 [%collapsible%open]
@@ -255,8 +255,8 @@ action":"delete_privileges", "request.id":"7wRWVxxqTzCKEspeSP7J8g",
 Logged when the <<security-api-delete-role,delete role API>> is invoked to
 delete a role.
 +
-You must include the `security_config_change` event type to specify this event
-action.
+You must include the `security_config_change` event type to audit the related
+event action.
 +
 .Example
 [%collapsible%open]
@@ -273,8 +273,8 @@ action.
 Logged when the <<security-api-delete-role-mapping,delete role mapping API>>
 is invoked to delete a role mapping.
 +
-You must include the `security_config_change` event type to specify this event
-action.
+You must include the `security_config_change` event type to audit the related
+event action.
 +
 .Example
 [%collapsible%open]
@@ -291,8 +291,8 @@ action":"delete_role_mapping", "request.id":"Stim-DuoSTCWom0S_xhf8g",
 Logged when the <<security-api-delete-service-token,delete service account token API>> is
 invoked to delete an index-based token for a service account.
 +
-You must include the `security_config_change` event type to specify this event
-action.
+You must include the `security_config_change` event type to audit the related
+event action.
 +
 .Example
 [%collapsible%open]
@@ -309,8 +309,8 @@ action":"delete_service_token", "request.id":"az9a1Db5QrebDMacQ8yGKc",
 Logged when the <<security-api-delete-user,delete user API>> is invoked to
 delete a specific native user.
 +
-You must include the `security_config_change` event type to specify this event
-action.
+You must include the `security_config_change` event type to audit the related
+event action.
 +
 .Example
 [%collapsible%open]
@@ -327,8 +327,8 @@ action.
 Logged when the <<security-api-invalidate-api-key,invalidate API key API>> is
 invoked to invalidate one or more API keys.
 +
-You must include the `security_config_change` event type to specify this event
-action.
+You must include the `security_config_change` event type to audit the related
+event action.
 +
 .Example
 [%collapsible%open]
@@ -346,8 +346,8 @@ action":"invalidate_apikeys", "request.id":"7lyIQU9QTFqSrTxD0CqnTQ",
 Logged when the <<security-api-put-privileges,create or update privileges API>> is invoked
 to add or update one or more application privileges.
 +
-You must include the `security_config_change` event type to specify this event
-action.
+You must include the `security_config_change` event type to audit the related
+event action.
 +
 .Example
 [%collapsible%open]
@@ -365,8 +365,8 @@ action.
 Logged when the <<security-api-put-role,create or update role API>> is invoked to create or
 update a role.
 +
-You must include the `security_config_change` event type to specify this event
-action.
+You must include the `security_config_change` event type to audit the related
+event action.
 +
 .Example
 [%collapsible%open]
@@ -387,8 +387,8 @@ action.
 Logged when the <<security-api-put-role-mapping,create or update role mapping API>> is
 invoked to create or update a role mapping.
 +
-You must include the `security_config_change` event type to specify this event
-action.
+You must include the `security_config_change` event type to audit the related
+event action.
 +
 .Example
 [%collapsible%open]
@@ -407,8 +407,8 @@ Logged when the <<security-api-put-user,create or update user API>> is invoked t
 update a native user. Note that user updates can also change the
 user's password.
 +
-You must include the `security_config_change` event type to specify this event
-action.
+You must include the `security_config_change` event type to audit the related
+event action.
 +
 .Example
 [%collapsible%open]

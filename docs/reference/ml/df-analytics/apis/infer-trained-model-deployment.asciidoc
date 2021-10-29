@@ -42,9 +42,11 @@ Controls the amount of time to wait for {infer} results. Defaults to 10 seconds.
 [[infer-trained-model-request-body]]
 == {api-request-body-title}
 
-`input`::
-(Required,string)
-The input text for evaluation.
+`docs`::
+(Required, array)
+An array of objects to pass to the model for inference. The objects should
+contain a field matching your configured trained model input. Typically, the field
+name is `text_field`. Currently, only a single value is allowed.
 
 ////
 [[infer-trained-model-deployment-results]]
@@ -66,24 +68,24 @@ text classification task, the response is the score. For example:
 --------------------------------------------------
 POST _ml/trained_models/model2/deployment/_infer
 {
-	"input": "The movie was awesome!!"
+	"docs": [{"text_field": "The movie was awesome!!"}]
 }
 --------------------------------------------------
 // TEST[skip:TBD]
 
-The API returns scores in this case, for example:
+The API returns the predicted label and the confidence.
 
 [source,console-result]
 ----
 {
-  "positive" : 0.9998062667902223,
-  "negative" : 1.9373320977752957E-4
+  "predicted_value" : "POSITIVE",
+  "prediction_probability" : 0.9998667964092964
 }
 ----
 // NOTCONSOLE
 
-For named entity recognition (NER) tasks, the response contains the recognized
-entities and their type. For example:
+For named entity recognition (NER) tasks, the response contains the annotated
+text output and the recognized entities.
 
 [source,console]
 --------------------------------------------------
@@ -94,21 +96,26 @@ POST _ml/trained_models/model2/deployment/_infer
 --------------------------------------------------
 // TEST[skip:TBD]
 
-The API returns scores in this case, for example:
+The API returns in this case:
 
 [source,console-result]
 ----
 {
+  "predicted_value" : "Hi my name is [Josh](PER&Josh) and I live in [Berlin](LOC&Berlin)",
   "entities" : [
     {
-      "label" : "person",
-      "score" : 0.9988716330253505,
-      "word" : "Josh"
+      "entity" : "Josh",
+      "class_name" : "PER",
+      "class_probability" : 0.9977303419824,
+      "start_pos" : 14,
+      "end_pos" : 18
     },
     {
-      "label" : "location",
-      "score" : 0.9980872542990656,
-      "word" : "Berlin"
+      "entity" : "Berlin",
+      "class_name" : "LOC",
+      "class_probability" : 0.9992474323902818,
+      "start_pos" : 33,
+      "end_pos" : 39
     }
   ]
 }

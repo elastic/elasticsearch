@@ -66,8 +66,9 @@ public class GetOverallBucketsAction extends ActionType<GetOverallBucketsAction.
         public static final ParseField EXCLUDE_INTERIM = new ParseField("exclude_interim");
         public static final ParseField START = new ParseField("start");
         public static final ParseField END = new ParseField("end");
-        public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match", DEPRECATED_ALLOW_NO_JOBS_PARAM)
-            .forRestApiVersion(equalTo(RestApiVersion.V_7));
+        public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match", DEPRECATED_ALLOW_NO_JOBS_PARAM).forRestApiVersion(
+            equalTo(RestApiVersion.V_7)
+        );
 
         private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 

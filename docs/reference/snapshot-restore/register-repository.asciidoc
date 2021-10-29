@@ -118,7 +118,7 @@ Other repository types are available through official plugins:
 * {plugins}/repository-azure.html[Microsoft Azure]
 
 You can also use alternative implementations of these repository types, such as
-Minio, as long as they're compatible. To verify a repository's compatibility,
+MinIO, as long as they're compatible. To verify a repository's compatibility,
 see <<snapshots-repository-verification>>.
 
 [discrete]

@@ -84,7 +84,7 @@ Use any of the following repository types with searchable snapshots:
 
 You can also use alternative implementations of these repository types, for
 instance
-{plugins}/repository-s3-client.html#repository-s3-compatible-services[Minio],
+{plugins}/repository-s3-client.html#repository-s3-compatible-services[MinIO],
 as long as they are fully compatible. Use the <<repo-analysis-api>> API
 to analyze your repository's suitability for use with searchable snapshots.
 // end::searchable-snapshot-repo-types[]

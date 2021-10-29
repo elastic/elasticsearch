@@ -46,7 +46,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_T
  */
 public final class BulkRequestParser {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(BulkRequestParser.class);
-    private static final Set<String> ACTIONS = Set.of("create", "index", "update", "delete");
+    private static final Set<String> SUPPORTED_ACTIONS = Set.of("create", "index", "update", "delete");
 
     private static final ParseField INDEX = new ParseField("_index");
     private static final ParseField TYPE = new ParseField("_type");
@@ -184,7 +184,7 @@ public final class BulkRequestParser {
                     );
                 }
                 String action = parser.currentName();
-                if (!ACTIONS.contains(action)) {
+                if (!SUPPORTED_ACTIONS.contains(action)) {
                     deprecationLogger.compatibleCritical(
                         "bulk_request_strict_action_parsing",
                         String.format(

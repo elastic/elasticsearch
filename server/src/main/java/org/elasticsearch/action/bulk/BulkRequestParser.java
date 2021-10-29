@@ -47,7 +47,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_T
 public final class BulkRequestParser {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(BulkRequestParser.class);
     private static final Set<String> SUPPORTED_ACTIONS = Set.of("create", "index", "update", "delete");
-    private static final String BULK_REQUEST_STRICT_ACTION_PARSING = "bulk_request_strict_action_parsing";
+    private static final String STRICT_ACTION_PARSING_WARNING_KEY = "bulk_request_strict_action_parsing";
 
     private static final ParseField INDEX = new ParseField("_index");
     private static final ParseField TYPE = new ParseField("_type");
@@ -187,7 +187,7 @@ public final class BulkRequestParser {
                 String action = parser.currentName();
                 if (!SUPPORTED_ACTIONS.contains(action)) {
                     deprecationLogger.compatibleCritical(
-                        BULK_REQUEST_STRICT_ACTION_PARSING,
+                        STRICT_ACTION_PARSING_WARNING_KEY,
                         String.format(
                             Locale.ROOT,
                             "Unsupported action: `%s`. Supported values are `create`, `delete`, `index`, and `update`. "
@@ -430,7 +430,7 @@ public final class BulkRequestParser {
             token = parser.nextToken();
         } catch (JsonEOFException ignore) {
             deprecationLogger.compatibleCritical(
-                BULK_REQUEST_STRICT_ACTION_PARSING,
+                STRICT_ACTION_PARSING_WARNING_KEY,
                 "A bulk action wasn't closed properly with a curly brace. Malformed objects are currently accepted but will be "
                     + "rejected in a future version."
             );
@@ -438,7 +438,7 @@ public final class BulkRequestParser {
         }
         if (token != XContentParser.Token.END_OBJECT) {
             deprecationLogger.compatibleCritical(
-                BULK_REQUEST_STRICT_ACTION_PARSING,
+                STRICT_ACTION_PARSING_WARNING_KEY,
                 "A bulk action object contained multiple keys. Additional keys are currently ignored but will be rejected in a "
                     + "future version."
             );
@@ -446,7 +446,7 @@ public final class BulkRequestParser {
         }
         if (parser.nextToken() != null) {
             deprecationLogger.compatibleCritical(
-                BULK_REQUEST_STRICT_ACTION_PARSING,
+                STRICT_ACTION_PARSING_WARNING_KEY,
                 "A bulk action contains trailing junk after the closing brace. It is currently ignored but will be rejected in a "
                     + "future version."
             );

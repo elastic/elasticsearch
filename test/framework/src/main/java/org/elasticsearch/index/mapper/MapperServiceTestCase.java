@@ -192,7 +192,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             this::compileScript
         );
     }
-    
+
     /**
      *  This is the injection point for tests that require mock scripts.  Test cases should override this to return the
      *  mock script factory of their choice.

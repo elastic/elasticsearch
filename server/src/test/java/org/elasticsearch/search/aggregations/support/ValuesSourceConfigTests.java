@@ -84,15 +84,23 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
     }
 
     /**
-     * The value type hint has higher priority than the field type
+     * When we have a mapped field and a hint, but no script, we should throw if the hint doesn't match the field,
+     * and use the type of both if they do match.  Note that when there is a script, we just use the user value type
+     * regardless of the field type.  This is to allow for scripts that adapt types, even though runtime fields are
+     * a better solution for that in every way.
      */
     public void testMappedFieldNoScriptWithHint() throws Exception {
-        // NOCOMMIT: This is the test case that needs to change for 72276
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "long")));
+        // not matching case
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> withAggregationContext(mapperService, List.of(source(b -> b.field("field", 42))), context -> ValuesSourceConfig.resolve(context, ValueType.IP, "field", null, null, null, null, CoreValuesSourceType.KEYWORD)));
+
+        // matching case
         withAggregationContext(mapperService, List.of(source(b -> b.field("field", 42))), context -> {
             ValuesSourceConfig config;
-            config = ValuesSourceConfig.resolve(context, ValueType.IP, "field", null, null, null, null, CoreValuesSourceType.KEYWORD);
-            assertEquals(CoreValuesSourceType.IP, config.valueSourceType());
+            config = ValuesSourceConfig.resolve(context, ValueType.NUMBER, "field", null, null, null, null, CoreValuesSourceType.KEYWORD);
+            assertEquals(CoreValuesSourceType.NUMERIC, config.valueSourceType());
         });
     }
 

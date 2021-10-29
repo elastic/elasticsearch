@@ -47,4 +47,6 @@ public class FieldContext {
         return fieldType;
     }
 
+    public String getTypeName() { return fieldType.typeName(); }
+
 }

@@ -59,6 +59,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class XPackUsageRestCancellationIT extends ESIntegTestCase {
     private static final CountDownLatch blockActionLatch = new CountDownLatch(1);
+    private static final CountDownLatch blockingXPackUsageActionExecuting = new CountDownLatch(1);
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -90,6 +91,7 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
         assertThat(future.isDone(), equalTo(false));
         awaitTaskWithPrefix(actionName);
 
+        blockingXPackUsageActionExecuting.await();
         cancellable.cancel();
         assertAllCancellableTasksAreCancelled(actionName);
 
@@ -168,6 +170,7 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
             ClusterState state,
             ActionListener<XPackUsageFeatureResponse> listener
         ) throws Exception {
+            blockingXPackUsageActionExecuting.countDown();
             blockActionLatch.await();
             listener.onResponse(new XPackUsageFeatureResponse(new XPackFeatureSet.Usage("test", false, false) {
                 @Override

@@ -21,9 +21,14 @@ transient settings don't survive full cluster restarts. A cluster restart can
 occur forcibly if enough master-eligible nodes fail. This can clear transient
 settings unexpectedly, leading to a potentially undesired cluster configuration.
 
-To avoid deprecation warnings, reset any transient settings on your cluster.
-Convert any transient setting you'd like to keep to a persistent setting, which
-persists across cluster restarts.
+To avoid deprecation warnings, reset any transient settings you've configured on
+your cluster. Convert any transient setting you'd like to keep to a persistent
+setting, which persists across cluster restarts.
+
+IMPORTANT: Some Elastic products may use transient settings. These settings
+should not be changed. However, you should update your workflows and
+applications to discontinue transient settings and use persistent settings
+instead.
 
 To reset and convert transient settings:
 
@@ -54,8 +59,8 @@ steps.
 
 . Copy any transient setting you'd like to convert to a persistent setting into
 the `persistent` object of a <<cluster-update-settings,cluster update settings
-API>> request. In the same request, reset all transient settings by assigning
-them a `null` value.
+API>> request. In the same request, reset transient settings by assigning them a
+`null` value.
 +
 NOTE: Resetting transient settings will emit a deprecation warning.
 +
@@ -68,7 +73,8 @@ PUT _cluster/settings
     "indices.recovery.max_bytes_per_sec": "50mb"
   },
   "transient": {
-    "*": null
+    "cluster.indices.close.enable": null,
+    "indices.recovery.max_bytes_per_sec": null
   }
 }
 ----

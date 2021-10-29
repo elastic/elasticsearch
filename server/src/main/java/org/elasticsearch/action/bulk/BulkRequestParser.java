@@ -33,6 +33,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -44,6 +45,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_T
  */
 public final class BulkRequestParser {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(BulkRequestParser.class);
+    private static final Set<String> ACTIONS = Set.of("create", "index", "update", "delete");
 
     private static final ParseField INDEX = new ParseField("_index");
     private static final ParseField TYPE = new ParseField("_type");
@@ -181,6 +183,15 @@ public final class BulkRequestParser {
                     );
                 }
                 String action = parser.currentName();
+                if (!ACTIONS.contains(action)) {
+                    deprecationLogger.compatibleCritical(
+                        "bulk_request_strict_action_parsing",
+                        "Unsupported action: `"
+                            + action
+                            + "`. Possible values are `create`, `delete`, `index`, and `update`. "
+                            + "Unsupported actions are currently accepted but will be rejected in a future version."
+                    );
+                }
 
                 String index = defaultIndex;
                 String type = null;

@@ -101,7 +101,12 @@ shard's data at some point between these two times.
 [[snapshot-restore-version-compatibility]]
 == Snapshot compatibility
 
-To restore a snapshot to a cluster, the snapshot and cluster versions must be
+To restore a snapshot to a cluster, the snapshot, cluster versions and the 
+index version must be compatible.
+
+[discrete]
+[[snapshot-cluster-compatibility]]
+=== Snapshot version compatibility
 compatible.
 
 [cols="6"]

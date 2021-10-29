@@ -8,11 +8,15 @@
 
 # The whitelist for the fields api
 
-# API
 class org.elasticsearch.script.field.Field @dynamic_type {
   String getName()
   boolean isEmpty()
   int size()
+}
+
+class org.elasticsearch.script.field.EmptyField @dynamic_type {
+  def get(def)
+  def get(int, def)
 }
 
 class org.elasticsearch.script.DocBasedScript {

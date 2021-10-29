@@ -37,6 +37,14 @@ public class EmptyField implements Field<Object> {
         return 0;
     }
 
+    public Object get(Object defaultValue) {
+        return get(0, defaultValue);
+    }
+
+    public Object get(int index, Object defaultValue) {
+        return defaultValue;
+    }
+
     @Override
     public Iterator<Object> iterator() {
         return new Iterator<>() {

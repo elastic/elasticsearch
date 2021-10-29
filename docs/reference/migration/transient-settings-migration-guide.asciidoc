@@ -57,10 +57,9 @@ steps.
 ----
 // TESTRESPONSE[s/"persistent": \{ \.\.\. \},//]
 
-. Copy any transient setting you'd like to convert to a persistent setting into
-the `persistent` object of a <<cluster-update-settings,cluster update settings
-API>> request. In the same request, reset transient settings by assigning them a
-`null` value.
+. Copy any settings you'd like to convert into the `persistent` object of a
+<<cluster-update-settings,cluster update settings API>> request. In the same
+request, reset transient settings by assigning them a `null` value.
 +
 NOTE: Resetting transient settings will emit a deprecation warning.
 +

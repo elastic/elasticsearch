@@ -411,4 +411,37 @@ public class BulkRequestTests extends ESTestCase {
             )
         );
     }
+
+    public void testBulkActionWithoutCurlyBrace() throws Exception {
+        String bulkAction = "{ \"index\":{\"_index\":\"test\",\"_id\":\"1\"} \n" + "{ \"field1\" : \"value1\" }\n";
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
+
+        assertWarnings(
+            "A bulk action wasn't closed properly with a curly brace. Malformed objects are currently accepted"
+                + " but will be rejected in a future version."
+        );
+    }
+
+    public void testBulkActionWithAdditionalKeys() throws Exception {
+        String bulkAction = "{ \"index\":{\"_index\":\"test\",\"_id\":\"1\"}, \"a\":\"b\"} \n" + "{ \"field1\" : \"value1\" }\n";
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
+
+        assertWarnings(
+            "A bulk action object contained multiple keys. Additional keys are currently ignored but will be "
+                + "rejected in a future version."
+        );
+    }
+
+    public void testBulkActionWithTrailingJunk() throws Exception {
+        String bulkAction = "{ \"index\":{\"_index\":\"test\",\"_id\":\"1\"} } {\"a\":\"b\"} \n" + "{ \"field1\" : \"value1\" }\n";
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
+
+        assertWarnings(
+            "A bulk action contains trailing junk after the closing brace. It is currently ignored "
+                + "but will be rejected in a future version."
+        );
+    }
 }

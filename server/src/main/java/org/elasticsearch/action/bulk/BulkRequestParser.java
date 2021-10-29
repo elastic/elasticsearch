@@ -294,29 +294,7 @@ public final class BulkRequestParser {
                             + "]"
                     );
                 }
-                try {
-                    token = parser.nextToken();
-                } catch (JsonEOFException ignore) {
-                    deprecationLogger.compatibleCritical(
-                        "bulk_request_strict_action_parsing",
-                        "A bulk action wasn't closed properly with a curly brace. Malformed objects are currently accepted but "
-                            + "will be rejected in a future version."
-                    );
-                }
-                if (token != XContentParser.Token.END_OBJECT) {
-                    deprecationLogger.compatibleCritical(
-                        "bulk_request_strict_action_parsing",
-                        "A bulk action object contained multiple keys. Additional keys are currently ignored "
-                            + "but will be rejected in a future version."
-                    );
-                }
-                if (parser.nextToken() != null) {
-                    deprecationLogger.compatibleCritical(
-                        "bulk_request_strict_action_parsing",
-                        "A bulk action contains trailing junk after the closing brace. It is currently ignored "
-                            + "but will be rejected in a future version."
-                    );
-                }
+                checkBulkActionIsProperlyClosed(parser);
 
                 if ("delete".equals(action)) {
                     if (dynamicTemplates.isEmpty() == false) {
@@ -428,6 +406,35 @@ public final class BulkRequestParser {
                     from = nextMarker + 1;
                 }
             }
+        }
+    }
+
+    private void checkBulkActionIsProperlyClosed(XContentParser parser) throws IOException {
+        XContentParser.Token token;
+        try {
+            token = parser.nextToken();
+        } catch (JsonEOFException ignore) {
+            deprecationLogger.compatibleCritical(
+                "bulk_request_strict_action_parsing",
+                "A bulk action wasn't closed properly with a curly brace. Malformed objects are currently accepted but "
+                    + "will be rejected in a future version."
+            );
+            return;
+        }
+        if (token != XContentParser.Token.END_OBJECT) {
+            deprecationLogger.compatibleCritical(
+                "bulk_request_strict_action_parsing",
+                "A bulk action object contained multiple keys. Additional keys are currently ignored but will be rejected in "
+                    + "a future version."
+            );
+            return;
+        }
+        if (parser.nextToken() != null) {
+            deprecationLogger.compatibleCritical(
+                "bulk_request_strict_action_parsing",
+                "A bulk action contains trailing junk after the closing brace. It is currently ignored "
+                    + "but will be rejected in a future version."
+            );
         }
     }
 

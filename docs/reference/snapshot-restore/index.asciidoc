@@ -146,12 +146,12 @@ endif::[]
 A cluster is only compatible with indices created in the previous major version
 of {es}. Any data stream or index you restore from a snapshot must be compatible
 with the current cluster's version. If you try to restore an index created in an
-incompatible version, the attempt will fail.
+incompatible version, the restore attempt will fail.
 
 A snapshot can contain indices created in a previous major version. For example,
 a snapshot of a 6.x cluster can contain an index created in 5.x. If you try to
-restore the 5.x index to a 7.x cluster, the attempt will fail. Keep this in mind
-if you take a snapshot before upgrading a cluster.
+restore the 5.x index to a 7.x cluster, the restore attempt will fail. Keep this
+in mind if you take a snapshot before upgrading a cluster.
 
 As a workaround, you can first restore the data stream or index to another
 cluster running the latest version of {es} that's compatible with both the index

@@ -85,8 +85,9 @@ repository and the `cloud-snapshot-policy` to take periodic snapshots of your
 cluster. You can also use the `found-snapshots` repository for your own snapshot
 policy or to store searchable snapshots.
 
-The `found-snapshots` repository is specific to each deployment. To use another
-deployment's `found-snapshots` repository, see
+The `found-snapshots` repository is specific to each deployment. You can restore
+snapshots from another deployment's `found-snapshots` repository if the
+deployments are under the same account and in the same region. See
 {cloud}/ec_share_a_repository_across_clusters.html[Share a repository across
 clusters].
 

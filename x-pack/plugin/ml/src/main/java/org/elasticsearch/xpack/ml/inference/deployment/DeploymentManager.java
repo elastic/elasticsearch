@@ -386,6 +386,17 @@ public class DeploymentManager {
             logger.debug(
                 () -> new ParameterizedMessage("[{}] retrieved result for request [{}]", processContext.task.getModelId(), requestId)
             );
+            if (notified.get()) {
+                // The request has timed out. No need to spend cycles processing the result.
+                logger.debug(
+                    () -> new ParameterizedMessage(
+                        "[{}] skipping result processing for request [{}] as the request has timed out",
+                        processContext.task.getModelId(),
+                        requestId
+                    )
+                );
+                return;
+            }
             InferenceResults results = inferenceResultsProcessor.processResult(tokenization, pyTorchResult);
             logger.debug(
                 () -> new ParameterizedMessage("[{}] processed result for request [{}]", processContext.task.getModelId(), requestId)

@@ -27,8 +27,8 @@ setting, which persists across cluster restarts.
 
 IMPORTANT: Some Elastic products may use transient settings. These settings
 should not be changed. However, you should update your workflows and
-applications to discontinue transient settings and use persistent settings
-instead.
+applications to discontinue use of transient settings and use persistent
+settings instead.
 
 To reset and convert transient settings:
 

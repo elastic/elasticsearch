@@ -55,8 +55,8 @@ import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.getTask
 public final class GeoIpProcessor extends AbstractProcessor {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(GeoIpProcessor.class);
-    static final String DEFAULT_DATABASES_DEPRECATION_MESSAGE = "the [fallback_to_default_databases] has been deprecated,"
-        + " because Elasticsearch no longer includes the default Maxmind geoip databases. This setting will be removed in Elasticsearch 9.0";
+    static final String DEFAULT_DATABASES_DEPRECATION_MESSAGE = "the [fallback_to_default_databases] has been deprecated, because "
+        + "Elasticsearch no longer includes the default Maxmind geoip databases. This setting will be removed in Elasticsearch 9.0";
 
     public static final String TYPE = "geoip";
     private static final String CITY_DB_SUFFIX = "-City";

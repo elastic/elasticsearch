@@ -10,6 +10,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
@@ -77,7 +78,7 @@ public class OperationModeUpdateTaskTests extends ESTestCase {
             );
         }
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
-        OperationModeUpdateTask task = OperationModeUpdateTask.ilmMode(requestMode);
+        OperationModeUpdateTask task = OperationModeUpdateTask.ilmMode(randomFrom(Priority.values()), requestMode);
         ClusterState newState = task.execute(state);
         if (assertSameClusterState) {
             assertSame(state, newState);

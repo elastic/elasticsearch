@@ -237,7 +237,10 @@ public class IndexLifecycleService
             }
 
             if (safeToStop && OperationMode.STOPPING == currentMode) {
-                submitOperationModeUpdate(OperationMode.STOPPED);
+                clusterService.submitStateUpdateTask(
+                    "ilm_operation_mode_update[stopped]",
+                    OperationModeUpdateTask.ilmMode(Priority.IMMEDIATE, OperationMode.STOPPED)
+                );
             }
         }
     }
@@ -437,7 +440,10 @@ public class IndexLifecycleService
         }
 
         if (safeToStop && OperationMode.STOPPING == currentMode) {
-            submitOperationModeUpdate(OperationMode.STOPPED);
+            clusterService.submitStateUpdateTask(
+                "ilm_operation_mode_update[stopped]",
+                OperationModeUpdateTask.ilmMode(Priority.IMMEDIATE, OperationMode.STOPPED)
+            );
         }
     }
 
@@ -451,16 +457,6 @@ public class IndexLifecycleService
         if (engine != null) {
             engine.stop();
         }
-    }
-
-    public void submitOperationModeUpdate(OperationMode mode) {
-        OperationModeUpdateTask ilmOperationModeUpdateTask;
-        if (mode == OperationMode.STOPPING || mode == OperationMode.STOPPED) {
-            ilmOperationModeUpdateTask = OperationModeUpdateTask.ilmMode(Priority.IMMEDIATE, mode);
-        } else {
-            ilmOperationModeUpdateTask = OperationModeUpdateTask.ilmMode(Priority.NORMAL, mode);
-        }
-        clusterService.submitStateUpdateTask("ilm_operation_mode_update {OperationMode " + mode.name() + "}", ilmOperationModeUpdateTask);
     }
 
     /**

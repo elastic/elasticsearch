@@ -226,11 +226,23 @@ class AuthenticatorChain {
             if (tuple == null) {
                 logger.debug("Cannot find run-as user [{}] for authenticated user [{}]", runAsUsername, user.principal());
                 // the user does not exist, but we still create a User object, which will later be rejected by authz
-                finalAuth = new Authentication(new User(runAsUsername, null, user), authentication.getAuthenticatedBy(), null,
-                    authentication.getVersion(), authentication.getAuthenticationType(), authentication.getMetadata());
+                finalAuth = new Authentication(
+                    new User(runAsUsername, null, user),
+                    authentication.getAuthenticatedBy(),
+                    null,
+                    authentication.getVersion(),
+                    authentication.getAuthenticationType(),
+                    authentication.getMetadata()
+                );
             } else {
-                finalAuth = new Authentication(new User(tuple.v1(), user), authentication.getAuthenticatedBy(), tuple.v2(),
-                    authentication.getVersion(), authentication.getAuthenticationType(), authentication.getMetadata());
+                finalAuth = new Authentication(
+                    new User(tuple.v1(), user),
+                    authentication.getAuthenticatedBy(),
+                    tuple.v2(),
+                    authentication.getVersion(),
+                    authentication.getAuthenticationType(),
+                    authentication.getMetadata()
+                );
             }
             finishAuthentication(context, finalAuth, listener);
         }, listener::onFailure));

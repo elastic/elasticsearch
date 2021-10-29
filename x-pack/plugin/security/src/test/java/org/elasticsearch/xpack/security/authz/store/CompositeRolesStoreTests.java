@@ -1404,9 +1404,13 @@ public class CompositeRolesStoreTests extends ESTestCase {
             new User(new User(randomAlphaOfLengthBetween(3, 8)), authenticatedUser1),
             new RealmRef("_es_api_key", "_es_api_key", randomAlphaOfLength(8)),
             new RealmRef(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8), randomAlphaOfLength(8)),
-            Version.CURRENT, AuthenticationType.API_KEY, Map.of());
-        when(apiKeyService.getApiKeyIdAndRoleBytes(eq(authentication1), anyBoolean()))
-                .thenReturn(new Tuple<>(apiKeyId, new BytesArray("{}")));
+            Version.CURRENT,
+            AuthenticationType.API_KEY,
+            Map.of()
+        );
+        when(apiKeyService.getApiKeyIdAndRoleBytes(eq(authentication1), anyBoolean())).thenReturn(
+            new Tuple<>(apiKeyId, new BytesArray("{}"))
+        );
         final PlainActionFuture<Role> future1 = new PlainActionFuture<>();
         compositeRolesStore.getRoles(authenticatedUser1, authentication1, future1);
         future1.actionGet();
@@ -1418,18 +1422,20 @@ public class CompositeRolesStoreTests extends ESTestCase {
             new User(new User(randomAlphaOfLengthBetween(3, 8)), authenticatedUser2),
             new RealmRef("_service_account", "_service_account", randomAlphaOfLength(8)),
             new RealmRef(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8), randomAlphaOfLength(8)),
-            Version.CURRENT, AuthenticationType.TOKEN, Map.of());
+            Version.CURRENT,
+            AuthenticationType.TOKEN,
+            Map.of()
+        );
         final PlainActionFuture<Role> future2 = new PlainActionFuture<>();
         doAnswer(invocation -> {
-                @SuppressWarnings("unchecked")
-                final ActionListener<RoleDescriptor> listener = (ActionListener<RoleDescriptor>) invocation.getArguments()[1];
-                listener.onResponse(new RoleDescriptor(authenticatedUser2.principal(), null, null, null));
-                return null;
-            }).when(serviceAccountService).getRoleDescriptor(eq(authentication2), anyActionListener());
+            @SuppressWarnings("unchecked")
+            final ActionListener<RoleDescriptor> listener = (ActionListener<RoleDescriptor>) invocation.getArguments()[1];
+            listener.onResponse(new RoleDescriptor(authenticatedUser2.principal(), null, null, null));
+            return null;
+        }).when(serviceAccountService).getRoleDescriptor(eq(authentication2), anyActionListener());
         compositeRolesStore.getRoles(authenticatedUser2, authentication2, future2);
         future2.actionGet();
-        verify(serviceAccountService, times(1))
-                .getRoleDescriptor(eq(authentication2), anyActionListener());
+        verify(serviceAccountService, times(1)).getRoleDescriptor(eq(authentication2), anyActionListener());
     }
 
     public void testUsageStats() {

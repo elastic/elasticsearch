@@ -285,6 +285,7 @@ public class CompositeRolesStore {
             if (authentication.isServiceAccount()) {
                 getRolesForServiceAccount(authentication, roleActionListener);
             } else if (ApiKeyService.isApiKeyAuthentication(authentication)) {
+                // API key role descriptors are stored in the authentication metadata
                 getRolesForApiKey(authentication, roleActionListener);
             } else {
                 getRolesForUser(user, roleActionListener);

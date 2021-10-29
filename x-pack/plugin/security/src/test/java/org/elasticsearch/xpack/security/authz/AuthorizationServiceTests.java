@@ -904,8 +904,18 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
         assertThat(
             securityException,
-            throwableWithMessage(containsString("[" + action + "] is unauthorized" + " for " +
-                (isRunAs ? "user" : "service account") + " [" + serviceUser.principal() + "],"))
+            throwableWithMessage(
+                containsString(
+                    "["
+                        + action
+                        + "] is unauthorized"
+                        + " for "
+                        + (isRunAs ? "user" : "service account")
+                        + " ["
+                        + serviceUser.principal()
+                        + "],"
+                )
+            )
         );
         if (isRunAs) {
             assertThat(securityException, throwableWithMessage(containsString("with roles [")));

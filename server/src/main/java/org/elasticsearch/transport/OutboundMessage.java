@@ -8,6 +8,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.coordination.ValidateJoinRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -36,6 +37,7 @@ abstract class OutboundMessage extends NetworkMessage {
     ) {
         super(threadContext, version, status, requestId, compressionScheme);
         this.message = message;
+        assert isCompress() || (message instanceof ValidateJoinRequest == false);
     }
 
     BytesReference serialize(BytesStreamOutput bytesStream) throws IOException {

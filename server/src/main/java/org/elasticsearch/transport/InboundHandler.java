@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -131,7 +132,7 @@ public class InboundHandler {
                         if (header.isError()) {
                             handlerResponseError(streamInput, handler);
                         } else {
-                            handleResponse(remoteAddress, streamInput, handler);
+                            handleResponse(remoteAddress, message.getHeader(), streamInput, handler);
                         }
                         // Check the entire message has been read
                         final int nextByte = streamInput.read();
@@ -149,7 +150,7 @@ public class InboundHandler {
                         }
                     } else {
                         assert header.isError() == false;
-                        handleResponse(remoteAddress, EMPTY_STREAM_INPUT, handler);
+                        handleResponse(remoteAddress, message.getHeader(), EMPTY_STREAM_INPUT, handler);
                     }
                 }
             }
@@ -301,6 +302,7 @@ public class InboundHandler {
 
     private <T extends TransportResponse> void handleResponse(
         InetSocketAddress remoteAddress,
+        final Header header,
         final StreamInput stream,
         final TransportResponseHandler<T> handler
     ) {
@@ -317,6 +319,7 @@ public class InboundHandler {
             handleException(handler, serializationException);
             return;
         }
+        assert header.isCompressed() || (response instanceof ClusterStateResponse == false);
         final String executor = handler.executor();
         if (ThreadPool.Names.SAME.equals(executor)) {
             doHandleResponse(handler, response);

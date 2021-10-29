@@ -10,12 +10,13 @@ package org.elasticsearch.cluster.coordination;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.transport.AlwaysCompressedRequest;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
-public class ValidateJoinRequest extends TransportRequest {
-    private ClusterState state;
+public class ValidateJoinRequest extends TransportRequest implements AlwaysCompressedRequest {
+    private final ClusterState state;
 
     public ValidateJoinRequest(StreamInput in) throws IOException {
         super(in);

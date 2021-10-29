@@ -266,6 +266,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             // is enabled and the request is a RawIndexingDataTransportRequest which indicates it should be
             // compressed.
             final boolean shouldCompress = compress == Compression.Enabled.TRUE
+                || (request instanceof AlwaysCompressedRequest)
                 || (compress == Compression.Enabled.INDEXING_DATA
                     && request instanceof RawIndexingDataTransportRequest
                     && ((RawIndexingDataTransportRequest) request).isRawIndexingData());

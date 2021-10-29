@@ -19,12 +19,16 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.AlwaysCompressedRequest;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
-public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateRequest> implements IndicesRequest.Replaceable {
+public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateRequest>
+    implements
+        IndicesRequest.Replaceable,
+        AlwaysCompressedRequest {
 
     public static final TimeValue DEFAULT_WAIT_FOR_NODE_TIMEOUT = TimeValue.timeValueMinutes(1);
 

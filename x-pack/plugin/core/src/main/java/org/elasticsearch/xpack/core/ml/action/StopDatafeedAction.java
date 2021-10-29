@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.core.RestApiVersion.equalTo;
 import static org.elasticsearch.xpack.core.ml.MachineLearningField.DEPRECATED_ALLOW_NO_DATAFEEDS_PARAM;
 
 public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> {
@@ -44,7 +45,8 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
 
         public static final ParseField TIMEOUT = new ParseField("timeout");
         public static final ParseField FORCE = new ParseField("force");
-        public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match", DEPRECATED_ALLOW_NO_DATAFEEDS_PARAM);
+        public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match", DEPRECATED_ALLOW_NO_DATAFEEDS_PARAM)
+            .forRestApiVersion(equalTo(RestApiVersion.V_7));
 
         public static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
         static {

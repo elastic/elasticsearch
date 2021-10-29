@@ -201,8 +201,8 @@ Alternative manual steps for IntelliJ.
 
    1. Open **File > Settings/Preferences > Code Style > Java**
    2. Gear icon > Import Scheme > Eclipse XML Profile
-   4. Navigate to the file `build-conventions/formatterConfig.xml`
-   6. Click "OK"
+   3. Navigate to the file `build-conventions/formatterConfig.xml`
+   4. Click "OK"
 
 Note that only some sub-projects in the Elasticsearch project are currently
 fully-formatted. You can see a list of project that **are not**

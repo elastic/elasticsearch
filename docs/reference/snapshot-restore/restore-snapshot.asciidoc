@@ -609,8 +609,9 @@ clusters].
 
 Snapshots aren't tied to a particular cluster or a cluster name. You can create
 a snapshot in one cluster and restore it in another
-<<snapshot-restore-version-compatibility,compatible cluster>>. The topology of
-the clusters doesn't need to match.
+<<snapshot-restore-version-compatibility,compatible cluster>>. Any data stream
+or index you restore from a snapshot must also be compatible with the current
+cluster’s version. The topology of the clusters doesn't need to match.
 
 To restore a snapshot, its repository must be
 <<snapshots-register-repository,registered>> and available to the new cluster.

@@ -162,11 +162,7 @@ public class MlMetadata implements Metadata.Custom {
         this.datafeeds = datafeeds;
         this.groupOrJobLookup = new GroupOrJobLookup(jobs.values());
         this.upgradeMode = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            this.resetMode = in.readBoolean();
-        } else {
-            this.resetMode = false;
-        }
+        this.resetMode = in.readBoolean();
     }
 
     @Override
@@ -174,9 +170,7 @@ public class MlMetadata implements Metadata.Custom {
         writeMap(jobs, out);
         writeMap(datafeeds, out);
         out.writeBoolean(upgradeMode);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeBoolean(resetMode);
-        }
+        out.writeBoolean(resetMode);
     }
 
     private static <T extends Writeable> void writeMap(Map<String, T> map, StreamOutput out) throws IOException {
@@ -240,11 +234,7 @@ public class MlMetadata implements Metadata.Custom {
                 MlMetadataDiff::readDatafeedDiffFrom
             );
             upgradeMode = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                resetMode = in.readBoolean();
-            } else {
-                resetMode = false;
-            }
+            resetMode = in.readBoolean();
         }
 
         /**
@@ -264,9 +254,7 @@ public class MlMetadata implements Metadata.Custom {
             jobs.writeTo(out);
             datafeeds.writeTo(out);
             out.writeBoolean(upgradeMode);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                out.writeBoolean(resetMode);
-            }
+            out.writeBoolean(resetMode);
         }
 
         @Override

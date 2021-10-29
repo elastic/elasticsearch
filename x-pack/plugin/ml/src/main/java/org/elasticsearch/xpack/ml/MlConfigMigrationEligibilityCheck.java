@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
@@ -57,15 +58,13 @@ public class MlConfigMigrationEligibilityCheck {
     }
 
     static boolean mlConfigIndexIsAllocated(ClusterState clusterState) {
-        if (clusterState.metadata().hasIndex(MlConfigIndex.indexName()) == false) {
+        IndexAbstraction configIndexOrAlias = clusterState.metadata().getIndicesLookup().get(MlConfigIndex.indexName());
+        if (configIndexOrAlias == null) {
             return false;
         }
 
-        IndexRoutingTable routingTable = clusterState.getRoutingTable().index(MlConfigIndex.indexName());
-        if (routingTable == null || routingTable.allPrimaryShardsActive() == false) {
-            return false;
-        }
-        return true;
+        IndexRoutingTable routingTable = clusterState.getRoutingTable().index(configIndexOrAlias.getWriteIndex());
+        return routingTable != null && routingTable.allPrimaryShardsActive();
     }
 
     /**

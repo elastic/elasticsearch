@@ -351,7 +351,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     }
 
     // TODO if we ever support anything other than "basic" and platinum, we need to adjust our feature tracking logic
-    // Additionally, see `MachineLearningField. featureCheckForMode` for handling modes
+    // and we need to adjust our license checks to validate more than "is basic" or not
     public License.OperationMode getLicenseLevel() {
         return licenseLevel;
     }
@@ -886,7 +886,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         }
 
         public static LazyModelDefinition fromStreamInput(StreamInput input) throws IOException {
-            if (input.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO adjust on backport
+            if (input.getVersion().onOrAfter(Version.V_8_0_0)) {
                 return new LazyModelDefinition(input.readBytesReference(), null);
             } else {
                 return fromBase64String(input.readString());
@@ -950,7 +950,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO adjust on backport
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
                 out.writeBytesReference(getCompressedDefinition());
             } else {
                 out.writeString(getBase64CompressedDefinition());

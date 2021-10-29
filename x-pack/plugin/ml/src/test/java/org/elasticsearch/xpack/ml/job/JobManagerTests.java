@@ -93,7 +93,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -470,15 +469,17 @@ public class JobManagerTests extends ESTestCase {
         Metadata.Builder metadata = Metadata.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
 
+        final String uuid = "_uuid";
         IndexMetadata.Builder indexMetadata = IndexMetadata.builder(MlConfigIndex.indexName());
         indexMetadata.settings(
             Settings.builder()
+                .put(IndexMetadata.SETTING_INDEX_UUID, uuid)
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
         );
         metadata.put(indexMetadata);
-        Index index = new Index(MlConfigIndex.indexName(), "_uuid");
+        Index index = new Index(MlConfigIndex.indexName(), uuid);
         ShardId shardId = new ShardId(index, 0);
         ShardRouting shardRouting = ShardRouting.newUnassigned(
             shardId,
@@ -503,7 +504,7 @@ public class JobManagerTests extends ESTestCase {
             new UpdateJobAction.Request("closed-job-not-migrated", null),
             ActionListener.wrap(
                 response -> fail("response not expected: " + response),
-                exception -> { assertThat(exception, instanceOf(ElasticsearchStatusException.class)); }
+                exception -> assertThat(exception, instanceOf(ElasticsearchStatusException.class))
             )
         );
 
@@ -627,17 +628,6 @@ public class JobManagerTests extends ESTestCase {
             job.getAnalysisConfig().getCategorizationAnalyzerConfig(),
             equalTo(CategorizationAnalyzerConfig.buildStandardCategorizationAnalyzer(categorizationFilters))
         );
-    }
-
-    // TODO: This test can be deleted from branches that would never have to talk to a 7.13 node
-    public void testSetDefaultCategorizationAnalyzer_GivenOldNodeInCluster() throws IOException {
-
-        List<String> categorizationFilters = randomBoolean() ? Collections.singletonList("query: .*") : null;
-        Job.Builder jobBuilder = createCategorizationJob(null, categorizationFilters);
-        JobManager.validateCategorizationAnalyzerOrSetDefault(jobBuilder, analysisRegistry, Version.V_7_13_0);
-
-        Job job = jobBuilder.build(new Date());
-        assertThat(job.getAnalysisConfig().getCategorizationAnalyzerConfig(), nullValue());
     }
 
     private Job.Builder createCategorizationJob(

@@ -448,10 +448,8 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
     @Override
     public void shutdown() {
         logger.debug("[{}] shutdown of transform requested", transform.getId());
-        synchronized (context) {
-            deregisterSchedulerJob();
-            markAsCompleted();
-        }
+        deregisterSchedulerJob();
+        markAsCompleted();
     }
 
     void persistStateToClusterState(TransformState state, ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener) {

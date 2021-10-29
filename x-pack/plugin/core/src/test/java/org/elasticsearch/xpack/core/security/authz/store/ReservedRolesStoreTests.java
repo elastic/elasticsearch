@@ -189,14 +189,6 @@ import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
-import org.elasticsearch.xpack.core.transform.action.compat.DeleteTransformActionDeprecated;
-import org.elasticsearch.xpack.core.transform.action.compat.GetTransformActionDeprecated;
-import org.elasticsearch.xpack.core.transform.action.compat.GetTransformStatsActionDeprecated;
-import org.elasticsearch.xpack.core.transform.action.compat.PreviewTransformActionDeprecated;
-import org.elasticsearch.xpack.core.transform.action.compat.PutTransformActionDeprecated;
-import org.elasticsearch.xpack.core.transform.action.compat.StartTransformActionDeprecated;
-import org.elasticsearch.xpack.core.transform.action.compat.StopTransformActionDeprecated;
-import org.elasticsearch.xpack.core.transform.action.compat.UpdateTransformActionDeprecated;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.core.watcher.execution.TriggeredWatchStoreField;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
@@ -731,14 +723,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
             StopTransformAction.NAME,
             UpdateTransformAction.NAME,
             ValidateTransformAction.NAME,
-            DeleteTransformActionDeprecated.NAME,
-            GetTransformActionDeprecated.NAME,
-            GetTransformStatsActionDeprecated.NAME,
-            PreviewTransformActionDeprecated.NAME,
-            PutTransformActionDeprecated.NAME,
-            StartTransformActionDeprecated.NAME,
-            StopTransformActionDeprecated.NAME,
-            UpdateTransformActionDeprecated.NAME,
             "cluster:admin/data_frame/" + randomAlphaOfLengthBetween(3, 8),
             "cluster:monitor/data_frame/" + randomAlphaOfLengthBetween(3, 8),
             "cluster:admin/transform/" + randomAlphaOfLengthBetween(3, 8),

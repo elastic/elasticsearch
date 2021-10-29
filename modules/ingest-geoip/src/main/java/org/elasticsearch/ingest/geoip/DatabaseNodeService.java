@@ -324,10 +324,11 @@ public final class DatabaseNodeService implements Closeable {
                 Predicate<GeoIpProcessor.DatabaseUnavailableProcessor> predicate = p -> databaseFileName.equals(p.getDatabaseName());
                 var ids = ingestService.getPipelineWithProcessorType(GeoIpProcessor.DatabaseUnavailableProcessor.class, predicate);
                 if (ids.isEmpty() == false) {
+                    LOGGER.debug("pipelines [{}] found to reload", ids);
                     for (var id : ids) {
                         try {
                             ingestService.reloadPipeline(id);
-                            LOGGER.debug(
+                            LOGGER.trace(
                                 "successfully reloaded pipeline [{}] after downloading of database [{}] for the first time",
                                 id,
                                 databaseFileName
@@ -343,6 +344,8 @@ public final class DatabaseNodeService implements Closeable {
                             );
                         }
                     }
+                } else {
+                    LOGGER.debug("no pipelines found to reload");
                 }
             }
             LOGGER.info("successfully reloaded changed geoip database file [{}]", file);

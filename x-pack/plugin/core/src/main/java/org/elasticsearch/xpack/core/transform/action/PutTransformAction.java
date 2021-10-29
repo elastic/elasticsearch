@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -53,11 +52,7 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.config = new TransformConfig(in);
-            if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
-                this.deferValidation = in.readBoolean();
-            } else {
-                this.deferValidation = false;
-            }
+            this.deferValidation = in.readBoolean();
         }
 
         public static Request fromXContent(
@@ -122,9 +117,7 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             this.config.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
-                out.writeBoolean(this.deferValidation);
-            }
+            out.writeBoolean(this.deferValidation);
         }
 
         @Override

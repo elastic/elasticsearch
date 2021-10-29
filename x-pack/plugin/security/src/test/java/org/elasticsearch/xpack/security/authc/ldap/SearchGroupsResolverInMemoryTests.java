@@ -47,7 +47,7 @@ public class SearchGroupsResolverInMemoryTests extends LdapTestCase {
     @After
     public void closeConnection() {
         if (connection != null) {
-            connection.close();
+            connection.closeWithoutUnbind();
         }
     }
 

@@ -29,8 +29,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.core.security.authz.privilege.ManageOwnApiKeyClusterPrivilege.API_KEY_ID_KEY;
-
 // TODO(hub-cap) Clean this up after moving User over - This class can re-inherit its field AUTHENTICATION_KEY in AuthenticationField.
 // That interface can be removed
 public class Authentication implements ToXContentObject {
@@ -42,7 +40,7 @@ public class Authentication implements ToXContentObject {
     private final RealmRef lookedUpBy;
     private final Version version;
     private final AuthenticationType type;
-    private final Map<String, Object> metadata;
+    private final Map<String, Object> metadata; // authentication contains metadata, includes api_key details (including api_key metadata)
 
     public Authentication(User user, RealmRef authenticatedBy, RealmRef lookedUpBy) {
         this(user, authenticatedBy, lookedUpBy, Version.CURRENT);
@@ -66,6 +64,7 @@ public class Authentication implements ToXContentObject {
         this.version = version;
         this.type = type;
         this.metadata = metadata;
+        this.assertApiKeyMetadata();
     }
 
     public Authentication(StreamInput in) throws IOException {
@@ -79,6 +78,7 @@ public class Authentication implements ToXContentObject {
         this.version = in.getVersion();
         type = AuthenticationType.values()[in.readVInt()];
         metadata = in.readMap();
+        this.assertApiKeyMetadata();
     }
 
     public User getUser() {
@@ -115,6 +115,10 @@ public class Authentication implements ToXContentObject {
 
     public boolean isServiceAccount() {
         return ServiceAccountSettings.REALM_TYPE.equals(getAuthenticatedBy().getType()) && null == getLookedUpBy();
+    }
+
+    public boolean isApiKey() {
+        return AuthenticationType.API_KEY.equals(getAuthenticationType());
     }
 
     /**
@@ -163,7 +167,8 @@ public class Authentication implements ToXContentObject {
      */
     public boolean canAccessResourcesOf(Authentication other) {
         if (AuthenticationType.API_KEY == getAuthenticationType() && AuthenticationType.API_KEY == other.getAuthenticationType()) {
-            final boolean sameKeyId = getMetadata().get(API_KEY_ID_KEY).equals(other.getMetadata().get(API_KEY_ID_KEY));
+            final boolean sameKeyId = getMetadata().get(AuthenticationField.API_KEY_ID_KEY)
+                .equals(other.getMetadata().get(AuthenticationField.API_KEY_ID_KEY));
             if (sameKeyId) {
                 assert getUser().principal().equals(other.getUser().principal())
                     : "The same API key ID cannot be attributed to two different usernames";
@@ -256,6 +261,23 @@ public class Authentication implements ToXContentObject {
         }
         builder.endObject();
         builder.field(User.Fields.AUTHENTICATION_TYPE.getPreferredName(), getAuthenticationType().name().toLowerCase(Locale.ROOT));
+        if (isApiKey()) {
+            this.assertApiKeyMetadata();
+            final String apiKeyId = (String) this.metadata.get(AuthenticationField.API_KEY_ID_KEY);
+            final String apiKeyName = (String) this.metadata.get(AuthenticationField.API_KEY_NAME_KEY);
+            if (apiKeyName == null) {
+                builder.field("api_key", Map.of("id", apiKeyId));
+            } else {
+                builder.field("api_key", Map.of("id", apiKeyId, "name", apiKeyName));
+            }
+        }
+    }
+
+    private void assertApiKeyMetadata() {
+        assert (AuthenticationType.API_KEY.equals(this.type) == false) || (this.metadata.get(AuthenticationField.API_KEY_ID_KEY) != null)
+            : "API KEY authentication requires metadata to contain API KEY id, and the value must be non-null.";
+        assert (AuthenticationType.API_KEY.equals(this.type) == false) || (this.metadata.containsKey(AuthenticationField.API_KEY_NAME_KEY))
+            : "API KEY authentication requires metadata to contain API KEY name; the value may be null for older keys.";
     }
 
     @Override

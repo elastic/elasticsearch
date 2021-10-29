@@ -161,11 +161,6 @@ public class RegressionConfigUpdate implements InferenceConfigUpdate, NamedXCont
     }
 
     @Override
-    public InferenceConfig toConfig() {
-        return apply(RegressionConfig.EMPTY_PARAMS);
-    }
-
-    @Override
     public boolean isSupported(InferenceConfig inferenceConfig) {
         return inferenceConfig instanceof RegressionConfig;
     }

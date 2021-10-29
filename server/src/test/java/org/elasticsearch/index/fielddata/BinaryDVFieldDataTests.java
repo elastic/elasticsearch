@@ -124,7 +124,7 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
             binaryDocValuesField.setNextDocId(i);
             retValues[i] = new ByteBuffer[binaryDocValuesField.size()];
             for (int j = 0; j < retValues[i].length; j++) {
-                retValues[i][j] = binaryDocValuesField.getValue(j, null);
+                retValues[i][j] = binaryDocValuesField.get(j, null);
             }
         }
         assertEquals(2, retValues[0].length);

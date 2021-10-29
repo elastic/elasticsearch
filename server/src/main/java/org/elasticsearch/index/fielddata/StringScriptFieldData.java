@@ -44,7 +44,7 @@ public class StringScriptFieldData extends BinaryScriptFieldData {
         StringFieldScript script = leafFactory.newInstance(context);
         return new BinaryScriptLeafFieldData() {
             @Override
-            public DocValuesField getScriptField(String name) {
+            public DocValuesField<?> getScriptField(String name) {
                 return new DelegateDocValuesField(new ScriptDocValues.Strings(getBytesValues()), name);
             }
 

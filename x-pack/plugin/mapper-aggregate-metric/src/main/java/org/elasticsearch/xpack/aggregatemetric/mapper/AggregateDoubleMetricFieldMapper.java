@@ -421,7 +421,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                         }
 
                         @Override
-                        public DocValuesField getScriptField(String name) {
+                        public DocValuesField<?> getScriptField(String name) {
                             // getAggregateMetricValues returns all metric as doubles, including `value_count`
                             return new DelegateDocValuesField(new ScriptDocValues.Doubles(getAggregateMetricValues(defaultMetric)), name);
                         }

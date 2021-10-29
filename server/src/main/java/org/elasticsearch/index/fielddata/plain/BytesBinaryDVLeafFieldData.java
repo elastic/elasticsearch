@@ -18,7 +18,7 @@ final class BytesBinaryDVLeafFieldData extends AbstractBinaryDVLeafFieldData {
     }
 
     @Override
-    public DocValuesField getScriptField(String name) {
+    public DocValuesField<?> getScriptField(String name) {
         return new BinaryDocValuesField(getBytesValues(), name);
     }
 }

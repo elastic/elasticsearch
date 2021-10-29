@@ -17,11 +17,10 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
 
-public class BinaryDocValuesField implements DocValuesField {
+public class BinaryDocValuesField implements DocValuesField<ByteBuffer> {
 
     private final SortedBinaryDocValues input;
     private final String name;
@@ -77,7 +76,7 @@ public class BinaryDocValuesField implements DocValuesField {
 
     // this method is required to support the ByteRef return values
     // for the old-style "doc" access in ScriptDocValues
-    public BytesRef getInternalValue(int index) {
+    public BytesRef getInternal(int index) {
         return values[index].toBytesRef();
     }
 
@@ -96,29 +95,40 @@ public class BinaryDocValuesField implements DocValuesField {
         return count;
     }
 
-    public List<ByteBuffer> getValues() {
-        if (isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        List<ByteBuffer> values = new ArrayList<>(count);
-
-        for (int index = 0; index < count; ++index) {
-            values.add(ByteBuffer.wrap(this.values[index].toBytesRef().bytes));
-        }
-
-        return values;
+    protected ByteBuffer toWrapped(int index) {
+        return ByteBuffer.wrap(values[index].toBytesRef().bytes);
     }
 
-    public ByteBuffer getValue(ByteBuffer defaultValue) {
-        return getValue(0, defaultValue);
+    public ByteBuffer get(ByteBuffer defaultValue) {
+        return get(0, defaultValue);
     }
 
-    public ByteBuffer getValue(int index, ByteBuffer defaultValue) {
+    public ByteBuffer get(int index, ByteBuffer defaultValue) {
         if (isEmpty() || index < 0 || index >= count) {
             return defaultValue;
         }
 
-        return ByteBuffer.wrap(values[index].toBytesRef().bytes);
+        return toWrapped(index);
+    }
+
+    @Override
+    public Iterator<ByteBuffer> iterator() {
+        return new Iterator<ByteBuffer>() {
+            private int index = 0;
+
+            @Override
+            public boolean hasNext() {
+                return index < count;
+            }
+
+            @Override
+            public ByteBuffer next() {
+                if (hasNext() == false) {
+                    throw new NoSuchElementException();
+                }
+
+                return toWrapped(index++);
+            }
+        };
     }
 }

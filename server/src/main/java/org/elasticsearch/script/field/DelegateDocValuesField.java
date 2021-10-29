@@ -11,12 +11,13 @@ package org.elasticsearch.script.field;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 
 import java.io.IOException;
+import java.util.Iterator;
 
 /**
  * A default {@link Field} to provide {@code ScriptDocValues} for fields
  * that are not supported by the script fields api.
  */
-public class DelegateDocValuesField implements DocValuesField {
+public class DelegateDocValuesField implements DocValuesField<Object> {
 
     private final ScriptDocValues<?> scriptDocValues;
     private final String name;
@@ -48,6 +49,11 @@ public class DelegateDocValuesField implements DocValuesField {
 
     @Override
     public int size() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Iterator<Object> iterator() {
         throw new UnsupportedOperationException();
     }
 }

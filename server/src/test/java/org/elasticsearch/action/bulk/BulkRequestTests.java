@@ -418,7 +418,7 @@ public class BulkRequestTests extends ESTestCase {
         bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
 
         assertWarnings(
-            "A bulk action wasn't closed properly with a curly brace. Malformed objects are currently accepted"
+            "A bulk action wasn't closed properly with the closing brace. Malformed objects are currently accepted"
                 + " but will be rejected in a future version."
         );
     }

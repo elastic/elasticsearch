@@ -431,7 +431,7 @@ public final class BulkRequestParser {
         } catch (JsonEOFException ignore) {
             deprecationLogger.compatibleCritical(
                 STRICT_ACTION_PARSING_WARNING_KEY,
-                "A bulk action wasn't closed properly with a curly brace. Malformed objects are currently accepted but will be "
+                "A bulk action wasn't closed properly with the closing brace. Malformed objects are currently accepted but will be "
                     + "rejected in a future version."
             );
             return;

@@ -147,7 +147,7 @@ public class InboundPipelineTests extends ESTestCase {
 
                     expected.add(new Tuple<>(messageData, expectedExceptionClass));
                     final BytesReference reference = message.serialize(new NetworkStreamOutput());
-                    Streams.copy(reference.streamInput(), streamOutput);
+                    Streams.copy(reference.streamInput(), streamOutput, false);
                 }
 
                 final BytesReference networkBytes = streamOutput.bytes();

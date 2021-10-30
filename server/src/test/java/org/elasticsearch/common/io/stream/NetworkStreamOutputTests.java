@@ -17,8 +17,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -58,7 +56,7 @@ import static org.hamcrest.Matchers.sameInstance;
  */
 public class NetworkStreamOutputTests extends ESTestCase {
 
-    private final Recycler<BytesRef> recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
+    private final Recycler<BytesRef> recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
 
     public void testEmpty() throws Exception {
         NetworkStreamOutput out = new NetworkStreamOutput(recycler);

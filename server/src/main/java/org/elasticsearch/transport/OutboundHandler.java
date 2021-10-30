@@ -22,7 +22,6 @@ import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -50,14 +49,6 @@ final class OutboundHandler {
         this.statsTracker = statsTracker;
         this.threadPool = threadPool;
         this.recycler = recycler;
-    }
-
-    OutboundHandler(String nodeName, Version version, StatsTracker statsTracker, ThreadPool threadPool, BigArrays bigArrays) {
-        this.nodeName = nodeName;
-        this.version = version;
-        this.statsTracker = statsTracker;
-        this.threadPool = threadPool;
-        this.recycler = null;
     }
 
     void setSlowLogThreshold(TimeValue slowLogThreshold) {

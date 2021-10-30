@@ -281,8 +281,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             // compressed.
             final boolean shouldCompress = compress == Compression.Enabled.TRUE
                 || (compress == Compression.Enabled.INDEXING_DATA
-                && request instanceof RawIndexingDataTransportRequest
-                && ((RawIndexingDataTransportRequest) request).isRawIndexingData());
+                    && request instanceof RawIndexingDataTransportRequest
+                    && ((RawIndexingDataTransportRequest) request).isRawIndexingData());
             return shouldCompress ? compressionScheme : null;
         }
 

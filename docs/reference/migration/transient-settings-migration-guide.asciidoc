@@ -59,7 +59,7 @@ steps.
 
 . Copy any settings you'd like to convert into the `persistent` object of a
 <<cluster-update-settings,cluster update settings API>> request. In the same
-request, reset transient settings by assigning them a `null` value.
+request, reset any transient settings by assigning them a `null` value.
 +
 NOTE: Resetting transient settings will emit a deprecation warning.
 +
@@ -72,8 +72,7 @@ PUT _cluster/settings
     "indices.recovery.max_bytes_per_sec": "50mb"
   },
   "transient": {
-    "cluster.indices.close.enable": null,
-    "indices.recovery.max_bytes_per_sec": null
+    "*": null
   }
 }
 ----

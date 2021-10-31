@@ -42,6 +42,8 @@ import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
+import org.elasticsearch.script.LongQueryableExpression;
+import org.elasticsearch.script.QueryableExpression;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.field.DelegateDocValuesField;
@@ -888,17 +890,31 @@ public class NumberFieldMapper extends FieldMapper {
                 boolean hasDocValues,
                 SearchExecutionContext context
             ) {
-                return longRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, (l, u) -> {
-                    Query query = LongPoint.newRangeQuery(field, l, u);
-                    if (hasDocValues) {
-                        Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(field, l, u);
-                        query = new IndexOrDocValuesQuery(query, dvQuery);
-                        if (context.indexSortedOnField(field)) {
-                            query = new IndexSortSortedNumericDocValuesRangeQuery(field, l, u, query);
-                        }
+                return longRangeQuery(
+                    lowerTerm,
+                    upperTerm,
+                    includeLower,
+                    includeUpper,
+                    (l, u) -> rangeQueryWithKnownBounds(field, l, u, hasDocValues, context)
+                );
+            }
+
+            private Query rangeQueryWithKnownBounds(
+                String field,
+                long lower,
+                long upper,
+                boolean hasDocValues,
+                SearchExecutionContext context
+            ) {
+                Query query = LongPoint.newRangeQuery(field, lower, upper);
+                if (hasDocValues) {
+                    Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(field, lower, upper);
+                    query = new IndexOrDocValuesQuery(query, dvQuery);
+                    if (context.indexSortedOnField(field)) {
+                        query = new IndexSortSortedNumericDocValuesRangeQuery(field, lower, upper, query);
                     }
-                    return query;
-                });
+                }
+                return query;
             }
 
             @Override
@@ -923,6 +939,21 @@ public class NumberFieldMapper extends FieldMapper {
                     numericType(),
                     (dv, n) -> new DelegateDocValuesField(new Longs(dv), n)
                 );
+            }
+
+            @Override
+            public QueryableExpression asQueryableExpression(String field, boolean hasDocValues) {
+                return new LongQueryableExpression.Field() {
+                    @Override
+                    public Query termQuery(long term, SearchExecutionContext context) {
+                        return LongPoint.newExactQuery(field, term);
+                    }
+
+                    @Override
+                    public Query rangeQuery(long lower, long upper, SearchExecutionContext context) {
+                        return rangeQueryWithKnownBounds(field, lower, upper, hasDocValues, context);
+                    }
+                };
             }
         };
 
@@ -979,6 +1010,10 @@ public class NumberFieldMapper extends FieldMapper {
 
         Number valueForSearch(Number value) {
             return value;
+        }
+
+        public QueryableExpression asQueryableExpression(String field, boolean hasDocValues) {
+            return QueryableExpression.UNQUERYABLE;
         }
 
         /**
@@ -1295,6 +1330,14 @@ public class NumberFieldMapper extends FieldMapper {
          */
         public MetricType getMetricType() {
             return metricType;
+        }
+
+        @Override
+        public QueryableExpression asQueryableExpression() {
+            if (false == isSearchable()) {
+                return QueryableExpression.UNQUERYABLE;
+            }
+            return type.asQueryableExpression(name(), hasDocValues());
         }
     }
 

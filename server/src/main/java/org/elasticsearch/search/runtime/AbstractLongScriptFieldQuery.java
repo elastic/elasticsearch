@@ -9,6 +9,7 @@
 package org.elasticsearch.search.runtime;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.script.AbstractLongFieldScript;
 import org.elasticsearch.script.Script;
@@ -19,6 +20,15 @@ import java.util.function.Function;
  * Abstract base class for building queries based on {@link AbstractLongFieldScript}.
  */
 abstract class AbstractLongScriptFieldQuery extends AbstractScriptFieldQuery<AbstractLongFieldScript> {
+
+    AbstractLongScriptFieldQuery(
+        Script script,
+        String fieldName,
+        Query approximation,
+        Function<LeafReaderContext, AbstractLongFieldScript> scriptContextFunction
+    ) {
+        super(script, fieldName, approximation, scriptContextFunction);
+    }
 
     AbstractLongScriptFieldQuery(
         Script script,

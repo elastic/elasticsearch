@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.runtime;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESTestCase;
 
@@ -23,21 +24,29 @@ public class LongScriptFieldRangeQueryTests extends AbstractLongScriptFieldQuery
             lower = upper;
             upper = tmp;
         }
-        return new LongScriptFieldRangeQuery(randomScript(), leafFactory, randomAlphaOfLength(5), lower, upper);
+        return new LongScriptFieldRangeQuery(randomScript(), randomAlphaOfLength(5), randomApproximation(), leafFactory, lower, upper);
     }
 
     @Override
     protected LongScriptFieldRangeQuery copy(LongScriptFieldRangeQuery orig) {
-        return new LongScriptFieldRangeQuery(orig.script(), leafFactory, orig.fieldName(), orig.lowerValue(), orig.upperValue());
+        return new LongScriptFieldRangeQuery(
+            orig.script(),
+            orig.fieldName(),
+            orig.approximation(),
+            leafFactory,
+            orig.lowerValue(),
+            orig.upperValue()
+        );
     }
 
     @Override
     protected LongScriptFieldRangeQuery mutate(LongScriptFieldRangeQuery orig) {
         Script script = orig.script();
         String fieldName = orig.fieldName();
+        Query approximation = orig.approximation();
         long lower = orig.lowerValue();
         long upper = orig.upperValue();
-        switch (randomInt(3)) {
+        switch (randomInt(4)) {
             case 0:
                 script = randomValueOtherThan(script, this::randomScript);
                 break;
@@ -45,13 +54,16 @@ public class LongScriptFieldRangeQueryTests extends AbstractLongScriptFieldQuery
                 fieldName += "modified";
                 break;
             case 2:
+                approximation = randomValueOtherThan(approximation, this::randomApproximation);
+                break;
+            case 3:
                 if (lower == Long.MIN_VALUE) {
                     fieldName += "modified_instead_of_lower";
                 } else {
                     lower -= 1;
                 }
                 break;
-            case 3:
+            case 4:
                 if (upper == Long.MAX_VALUE) {
                     fieldName += "modified_instead_of_upper";
                 } else {
@@ -61,12 +73,12 @@ public class LongScriptFieldRangeQueryTests extends AbstractLongScriptFieldQuery
             default:
                 fail();
         }
-        return new LongScriptFieldRangeQuery(script, leafFactory, fieldName, lower, upper);
+        return new LongScriptFieldRangeQuery(script, fieldName, approximation, leafFactory, lower, upper);
     }
 
     @Override
     public void testMatches() {
-        LongScriptFieldRangeQuery query = new LongScriptFieldRangeQuery(randomScript(), leafFactory, "test", 1, 3);
+        LongScriptFieldRangeQuery query = new LongScriptFieldRangeQuery(randomScript(), "test", randomApproximation(), leafFactory, 1, 3);
         assertTrue(query.matches(new long[] { 1 }, 1));
         assertTrue(query.matches(new long[] { 2 }, 1));
         assertTrue(query.matches(new long[] { 3 }, 1));
@@ -78,6 +90,9 @@ public class LongScriptFieldRangeQueryTests extends AbstractLongScriptFieldQuery
 
     @Override
     protected void assertToString(LongScriptFieldRangeQuery query) {
-        assertThat(query.toString(query.fieldName()), equalTo("[" + query.lowerValue() + " TO " + query.upperValue() + "]"));
+        assertThat(
+            query.toString(query.fieldName()),
+            equalTo("[" + query.lowerValue() + " TO " + query.upperValue() + "] approximated by " + query.approximation())
+        );
     }
 }

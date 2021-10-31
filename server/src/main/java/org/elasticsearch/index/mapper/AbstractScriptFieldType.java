@@ -19,6 +19,7 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.CompositeFieldScript;
+import org.elasticsearch.script.QueryableExpression;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -38,14 +39,22 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
  * Abstract base {@linkplain MappedFieldType} for runtime fields based on a script.
  */
 abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
+    @FunctionalInterface
+    interface Factory<LeafFactory> {
+        LeafFactory leafFactory(SearchLookup lookup);
+
+        default QueryableExpression queryableExpression(Function<String, QueryableExpression> lookup) {
+            return QueryableExpression.UNQUERYABLE;
+        }
+    }
 
     protected final Script script;
-    private final Function<SearchLookup, LeafFactory> factory;
+    private final Factory<LeafFactory> factory;
     private final boolean isResultDeterministic;
 
     AbstractScriptFieldType(
         String name,
-        Function<SearchLookup, LeafFactory> factory,
+        Factory<LeafFactory> factory,
         Script script,
         boolean isResultDeterministic,
         Map<String, String> meta
@@ -179,7 +188,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
      * Create a script leaf factory.
      */
     protected final LeafFactory leafFactory(SearchLookup searchLookup) {
-        return factory.apply(searchLookup);
+        return factory.leafFactory(searchLookup);
     }
 
     /**
@@ -192,6 +201,13 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
          * We're not, but running the query is close enough.
          */
         return leafFactory(context.lookup().forkAndTrackFieldReferences(name()));
+    }
+
+    protected final QueryableExpression queryableExpression(SearchExecutionContext context) {
+        return factory.queryableExpression(key -> {
+            MappedFieldType ft = context.getFieldType(key);
+            return ft == null ? QueryableExpression.UNQUERYABLE : ft.asQueryableExpression();
+        });
     }
 
     @Override
@@ -210,8 +226,8 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
     // TODO rework things so that we don't need this
     protected static final Script DEFAULT_SCRIPT = new Script("");
 
-    abstract static class Builder<Factory> extends RuntimeField.Builder {
-        private final ScriptContext<Factory> scriptContext;
+    abstract static class Builder<ScriptFactory> extends RuntimeField.Builder {
+        private final ScriptContext<ScriptFactory> scriptContext;
 
         final FieldMapper.Parameter<Script> script = new FieldMapper.Parameter<>(
             "script",
@@ -221,21 +237,21 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             RuntimeField.initializerNotSupported()
         ).setSerializerCheck((id, ic, v) -> ic);
 
-        Builder(String name, ScriptContext<Factory> scriptContext) {
+        Builder(String name, ScriptContext<ScriptFactory> scriptContext) {
             super(name);
             this.scriptContext = scriptContext;
         }
 
-        abstract Factory getParseFromSourceFactory();
+        abstract ScriptFactory getParseFromSourceFactory();
 
-        abstract Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory);
+        abstract ScriptFactory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory);
 
         @Override
         protected final RuntimeField createRuntimeField(MappingParserContext parserContext) {
             if (script.get() == null) {
                 return createRuntimeField(getParseFromSourceFactory());
             }
-            Factory factory = parserContext.scriptCompiler().compile(script.getValue(), scriptContext);
+            ScriptFactory factory = parserContext.scriptCompiler().compile(script.getValue(), scriptContext);
             return createRuntimeField(factory);
         }
 
@@ -258,12 +274,12 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             );
         }
 
-        final RuntimeField createRuntimeField(Factory scriptFactory) {
+        final RuntimeField createRuntimeField(ScriptFactory scriptFactory) {
             AbstractScriptFieldType<?> fieldType = createFieldType(name, scriptFactory, getScript(), meta());
             return new LeafRuntimeField(name, fieldType, getParameters());
         }
 
-        abstract AbstractScriptFieldType<?> createFieldType(String name, Factory factory, Script script, Map<String, String> meta);
+        abstract AbstractScriptFieldType<?> createFieldType(String name, ScriptFactory factory, Script script, Map<String, String> meta);
 
         @Override
         protected List<FieldMapper.Parameter<?>> getParameters() {

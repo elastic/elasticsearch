@@ -8,10 +8,13 @@
 
 package org.elasticsearch.search.runtime;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.script.AbstractLongFieldScript;
 import org.elasticsearch.script.Script;
 
+import java.io.IOException;
 import java.util.Objects;
 import java.util.function.Function;
 
@@ -21,15 +24,26 @@ public class LongScriptFieldRangeQuery extends AbstractLongScriptFieldQuery {
 
     public LongScriptFieldRangeQuery(
         Script script,
-        Function<LeafReaderContext, AbstractLongFieldScript> leafFactory,
         String fieldName,
+        Query approximation,
+        Function<LeafReaderContext, AbstractLongFieldScript> leafFactory,
         long lowerValue,
         long upperValue
     ) {
-        super(script, leafFactory, fieldName);
+        super(script, fieldName, approximation, leafFactory);
         this.lowerValue = lowerValue;
         this.upperValue = upperValue;
         assert lowerValue <= upperValue;
+    }
+
+    @Override
+    public Query rewrite(IndexReader reader) throws IOException {
+        Query newApprox = approximation().rewrite(reader);
+        if (newApprox == approximation()) {
+            return this;
+        }
+        // TODO move rewrite up
+        return new LongScriptFieldRangeQuery(script(), fieldName(), newApprox, scriptContextFunction(), lowerValue, upperValue);
     }
 
     @Override
@@ -49,7 +63,7 @@ public class LongScriptFieldRangeQuery extends AbstractLongScriptFieldQuery {
             b.append(fieldName()).append(':');
         }
         b.append('[').append(lowerValue).append(" TO ").append(upperValue).append(']');
-        return b.toString();
+        return b.toString() + " approximated by " + approximation();  // TODO move the toString enhancement into the superclass
     }
 
     @Override

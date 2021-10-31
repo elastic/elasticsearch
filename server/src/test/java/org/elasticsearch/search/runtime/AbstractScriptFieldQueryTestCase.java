@@ -8,7 +8,10 @@
 
 package org.elasticsearch.search.runtime;
 
+import org.apache.lucene.document.DoublePoint;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
@@ -32,6 +35,14 @@ public abstract class AbstractScriptFieldQueryTestCase<T extends AbstractScriptF
 
     protected final Script randomScript() {
         return new Script(randomAlphaOfLength(10));
+    }
+
+    protected final Query randomApproximation() {
+        List<Supplier<Query>> options = new ArrayList<>();
+        options.add(MatchAllDocsQuery::new);
+        options.add(() -> LongPoint.newExactQuery(randomAlphaOfLength(2), randomLong()));
+        options.add(() -> DoublePoint.newRangeQuery(randomAlphaOfLength(3), randomDouble(), randomDouble()));
+        return randomFrom(options).get();
     }
 
     public final void testEqualsAndHashCode() {

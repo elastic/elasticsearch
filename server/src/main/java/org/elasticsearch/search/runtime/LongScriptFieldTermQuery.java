@@ -8,10 +8,13 @@
 
 package org.elasticsearch.search.runtime;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.script.AbstractLongFieldScript;
 import org.elasticsearch.script.Script;
 
+import java.io.IOException;
 import java.util.Objects;
 import java.util.function.Function;
 
@@ -20,12 +23,23 @@ public class LongScriptFieldTermQuery extends AbstractLongScriptFieldQuery {
 
     public LongScriptFieldTermQuery(
         Script script,
-        Function<LeafReaderContext, AbstractLongFieldScript> leafFactory,
         String fieldName,
+        Query approximation,
+        Function<LeafReaderContext, AbstractLongFieldScript> leafFactory,
         long term
     ) {
-        super(script, leafFactory, fieldName);
+        super(script, fieldName, approximation, leafFactory);
         this.term = term;
+    }
+
+    @Override
+    public Query rewrite(IndexReader reader) throws IOException {
+        Query newApprox = approximation().rewrite(reader);
+        if (newApprox == approximation()) {
+            return this;
+        }
+        // TODO move rewrite up
+        return new LongScriptFieldTermQuery(script(), fieldName(), newApprox, scriptContextFunction(), term);
     }
 
     @Override
@@ -41,9 +55,9 @@ public class LongScriptFieldTermQuery extends AbstractLongScriptFieldQuery {
     @Override
     public final String toString(String field) {
         if (fieldName().contentEquals(field)) {
-            return Long.toString(term);
+            return Long.toString(term) + " approximated by " + approximation();  // TODO move the toString enhancement into the superclass
         }
-        return fieldName() + ":" + term;
+        return fieldName() + ":" + term + " approximated by " + approximation();  // TODO move the toString enhancement into the superclass
     }
 
     @Override

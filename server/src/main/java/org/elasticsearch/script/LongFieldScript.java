@@ -60,6 +60,10 @@ public abstract class LongFieldScript extends AbstractLongFieldScript {
 
     public interface Factory extends ScriptFactory {
         LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup);
+
+        default QueryableExpression emitExpression(Function<String, QueryableExpression> lookup, Map<String, Object> params) {
+            return QueryableExpression.UNQUERYABLE;
+        }
     }
 
     public interface LeafFactory {

@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
 
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatter;
@@ -211,7 +212,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
             parser,
             context,
             DateFieldMapper.Resolution.MILLISECONDS,
-            (l, u) -> new LongScriptFieldRangeQuery(script, leafFactory(context)::newInstance, name(), l, u)
+            (l, u) -> new LongScriptFieldRangeQuery(script, name(), new MatchAllDocsQuery(), leafFactory(context)::newInstance, l, u)
         );
     }
 
@@ -220,7 +221,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         return DateFieldType.handleNow(context, now -> {
             long l = DateFieldType.parseToLong(value, false, null, this.dateMathParser, now, DateFieldMapper.Resolution.MILLISECONDS);
             applyScriptContext(context);
-            return new LongScriptFieldTermQuery(script, leafFactory(context)::newInstance, name(), l);
+            return new LongScriptFieldTermQuery(script, name(), new MatchAllDocsQuery(), leafFactory(context)::newInstance, l);
         });
     }
 

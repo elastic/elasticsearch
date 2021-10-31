@@ -14,6 +14,7 @@ import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
@@ -39,12 +40,18 @@ public abstract class AbstractScriptFieldQuery<S extends AbstractFieldScript> ex
 
     private final Script script;
     private final String fieldName;
+    private final Query approximation;
     private final Function<LeafReaderContext, S> scriptContextFunction;
 
-    AbstractScriptFieldQuery(Script script, String fieldName, Function<LeafReaderContext, S> scriptContextFunction) {
+    AbstractScriptFieldQuery(Script script, String fieldName, Query approximation, Function<LeafReaderContext, S> scriptContextFunction) {
         this.script = Objects.requireNonNull(script);
         this.fieldName = Objects.requireNonNull(fieldName);
+        this.approximation = Objects.requireNonNull(approximation);
         this.scriptContextFunction = scriptContextFunction;
+    }
+
+    AbstractScriptFieldQuery(Script script, String fieldName, Function<LeafReaderContext, S> scriptContextFunction) {
+        this(script, fieldName, new MatchAllDocsQuery(), scriptContextFunction);
     }
 
     final Function<LeafReaderContext, S> scriptContextFunction() {
@@ -59,18 +66,29 @@ public abstract class AbstractScriptFieldQuery<S extends AbstractFieldScript> ex
         return fieldName;
     }
 
+    public final Query approximation() {
+        return approximation;
+    }
+
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
         return new ConstantScoreWeight(this, boost) {
+            private final Weight approximationWeight = searcher.createWeight(approximation, scoreMode, boost);
+
             @Override
             public boolean isCacheable(LeafReaderContext ctx) {
                 return false; // scripts aren't really cacheable at this point
             }
 
             @Override
-            public Scorer scorer(LeafReaderContext ctx) {
+            public Scorer scorer(LeafReaderContext ctx) throws IOException {
                 S scriptContext = scriptContextFunction.apply(ctx);
-                DocIdSetIterator approximation = DocIdSetIterator.all(ctx.reader().maxDoc());
+                Scorer approximationScorer = approximationWeight.scorer(ctx);
+                if (approximationScorer == null) {
+                    // Approximation is match none
+                    return null;
+                }
+                DocIdSetIterator approximation = approximationScorer.iterator();
                 TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
                     @Override
                     public boolean matches() {
@@ -100,7 +118,7 @@ public abstract class AbstractScriptFieldQuery<S extends AbstractFieldScript> ex
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), script, fieldName);
+        return Objects.hash(classHash(), script, fieldName, approximation);
     }
 
     @Override
@@ -109,7 +127,7 @@ public abstract class AbstractScriptFieldQuery<S extends AbstractFieldScript> ex
             return false;
         }
         AbstractScriptFieldQuery<?> other = (AbstractScriptFieldQuery<?>) obj;
-        return script.equals(other.script) && fieldName.equals(other.fieldName);
+        return script.equals(other.script) && fieldName.equals(other.fieldName) && approximation.equals(other.approximation);
     }
 
     @Override

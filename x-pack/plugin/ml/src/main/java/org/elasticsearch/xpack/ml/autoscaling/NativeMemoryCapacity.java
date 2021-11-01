@@ -18,7 +18,7 @@ import static org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator.dynamicall
 
 // Used for storing native memory capacity and then transforming it into an autoscaling capacity
 // which takes into account the whole node size
-public class NativeMemoryCapacity  {
+public class NativeMemoryCapacity {
 
     static final NativeMemoryCapacity ZERO = new NativeMemoryCapacity(0L, 0L);
 
@@ -54,9 +54,9 @@ public class NativeMemoryCapacity  {
 
     public AutoscalingCapacity autoscalingCapacity(int maxMemoryPercent, boolean useAuto) {
         // We calculate the JVM size here first to ensure it stays the same given the rest of the calculations
-        final Long jvmSize = useAuto ?
-            Optional.ofNullable(this.jvmSize).orElse(dynamicallyCalculateJvmSizeFromNativeMemorySize(node)) :
-            null;
+        final Long jvmSize = useAuto
+            ? Optional.ofNullable(this.jvmSize).orElse(dynamicallyCalculateJvmSizeFromNativeMemorySize(node))
+            : null;
         // We first need to calculate the actual node size given the current native memory size.
         // This way we can accurately determine the required node size AND what the overall memory percentage will be
         long actualNodeSize = NativeMemoryCalculator.calculateApproxNecessaryNodeSize(node, jvmSize, maxMemoryPercent, useAuto);
@@ -64,12 +64,7 @@ public class NativeMemoryCapacity  {
         // This simplifies calculating the tier as it means that each node in the tier
         // will have the same dynamic memory calculation. And thus the tier is simply the sum of the memory necessary
         // times that scaling factor.
-        double memoryPercentForMl = NativeMemoryCalculator.modelMemoryPercent(
-            actualNodeSize,
-            jvmSize,
-            maxMemoryPercent,
-            useAuto
-        );
+        double memoryPercentForMl = NativeMemoryCalculator.modelMemoryPercent(actualNodeSize, jvmSize, maxMemoryPercent, useAuto);
         double inverseScale = memoryPercentForMl <= 0 ? 0 : 100.0 / memoryPercentForMl;
         long actualTier = Math.round(tier * inverseScale);
         return new AutoscalingCapacity(
@@ -94,10 +89,12 @@ public class NativeMemoryCapacity  {
 
     @Override
     public String toString() {
-        return "NativeMemoryCapacity{" +
-            "total bytes=" + ByteSizeValue.ofBytes(tier) +
-            ", largest node bytes=" + ByteSizeValue.ofBytes(node) +
-            '}';
+        return "NativeMemoryCapacity{"
+            + "total bytes="
+            + ByteSizeValue.ofBytes(tier)
+            + ", largest node bytes="
+            + ByteSizeValue.ofBytes(node)
+            + '}';
     }
 
     @Override

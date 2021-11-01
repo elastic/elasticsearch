@@ -30,10 +30,7 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(POST, "/_async_search"),
-            new Route(POST, "/{index}/_async_search")
-        );
+        return List.of(new Route(POST, "/_async_search"), new Route(POST, "/{index}/_async_search"));
     }
 
     @Override
@@ -45,11 +42,12 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         SubmitAsyncSearchRequest submit = new SubmitAsyncSearchRequest();
         IntConsumer setSize = size -> submit.getSearchRequest().source().size(size);
-        //for simplicity, we share parsing with ordinary search. That means a couple of unsupported parameters, like scroll,
+        // for simplicity, we share parsing with ordinary search. That means a couple of unsupported parameters, like scroll,
         // pre_filter_shard_size and ccs_minimize_roundtrips get set to the search request although the REST spec don't list
-        //them as supported. We rely on SubmitAsyncSearchRequest#validate to fail in case they are set.
-        request.withContentOrSourceParamParserOrNull(parser ->
-            parseSearchRequest(submit.getSearchRequest(), request, parser, client.getNamedWriteableRegistry(), setSize));
+        // them as supported. We rely on SubmitAsyncSearchRequest#validate to fail in case they are set.
+        request.withContentOrSourceParamParserOrNull(
+            parser -> parseSearchRequest(submit.getSearchRequest(), request, parser, client.getNamedWriteableRegistry(), setSize)
+        );
 
         if (request.hasParam("wait_for_completion_timeout")) {
             submit.setWaitForCompletionTimeout(request.paramAsTime("wait_for_completion_timeout", submit.getWaitForCompletionTimeout()));

@@ -6,17 +6,17 @@
  */
 package org.elasticsearch.xpack.enrich;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
-
-import java.io.IOException;
-import java.util.Map;
-
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.enrich.CommonEnrichRestTestCase;
+
+import java.io.IOException;
+import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class EnrichAdvancedSecurityIT extends CommonEnrichRestTestCase {
 

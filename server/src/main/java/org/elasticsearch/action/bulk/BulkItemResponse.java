@@ -16,29 +16,29 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Represents a single item response for an action executed as part of the bulk API. Holds the index/type/id
@@ -171,15 +171,11 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
         private final long term;
         private final boolean aborted;
 
-        public static final ConstructingObjectParser<Failure, Void> PARSER =
-            new ConstructingObjectParser<>(
-                "bulk_failures",
-                true,
-                a ->
-                    new Failure(
-                        (String)a[0], (String)a[1], (Exception)a[2], RestStatus.fromCode((int)a[3])
-                    )
-            );
+        public static final ConstructingObjectParser<Failure, Void> PARSER = new ConstructingObjectParser<>(
+            "bulk_failures",
+            true,
+            a -> new Failure((String) a[0], (String) a[1], (Exception) a[2], RestStatus.fromCode((int) a[3]))
+        );
         static {
             PARSER.declareString(constructorArg(), new ParseField(INDEX_FIELD));
             PARSER.declareString(optionalConstructorArg(), new ParseField(ID_FIELD));
@@ -194,13 +190,27 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
          * to record operation sequence no with failure
          */
         public Failure(String index, String id, Exception cause) {
-            this(index, id, cause, ExceptionsHelper.status(cause), SequenceNumbers.UNASSIGNED_SEQ_NO,
-                SequenceNumbers.UNASSIGNED_PRIMARY_TERM, false);
+            this(
+                index,
+                id,
+                cause,
+                ExceptionsHelper.status(cause),
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
+                false
+            );
         }
 
         public Failure(String index, String id, Exception cause, boolean aborted) {
-            this(index, id, cause, ExceptionsHelper.status(cause), SequenceNumbers.UNASSIGNED_SEQ_NO,
-                SequenceNumbers.UNASSIGNED_PRIMARY_TERM, aborted);
+            this(
+                index,
+                id,
+                cause,
+                ExceptionsHelper.status(cause),
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
+                aborted
+            );
         }
 
         public Failure(String index, String id, Exception cause, RestStatus status) {

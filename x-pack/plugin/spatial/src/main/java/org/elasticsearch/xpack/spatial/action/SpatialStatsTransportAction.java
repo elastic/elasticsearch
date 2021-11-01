@@ -22,23 +22,41 @@ import org.elasticsearch.xpack.spatial.SpatialUsage;
 import java.io.IOException;
 import java.util.List;
 
-public class SpatialStatsTransportAction extends TransportNodesAction<SpatialStatsAction.Request, SpatialStatsAction.Response,
-        SpatialStatsAction.NodeRequest, SpatialStatsAction.NodeResponse> {
+public class SpatialStatsTransportAction extends TransportNodesAction<
+    SpatialStatsAction.Request,
+    SpatialStatsAction.Response,
+    SpatialStatsAction.NodeRequest,
+    SpatialStatsAction.NodeResponse> {
     private final SpatialUsage usage;
 
     @Inject
-    public SpatialStatsTransportAction(TransportService transportService, ClusterService clusterService,
-                                       ThreadPool threadPool, ActionFilters actionFilters, SpatialUsage usage) {
-        super(SpatialStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
-            SpatialStatsAction.Request::new, SpatialStatsAction.NodeRequest::new, ThreadPool.Names.MANAGEMENT,
-            SpatialStatsAction.NodeResponse.class);
+    public SpatialStatsTransportAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        SpatialUsage usage
+    ) {
+        super(
+            SpatialStatsAction.NAME,
+            threadPool,
+            clusterService,
+            transportService,
+            actionFilters,
+            SpatialStatsAction.Request::new,
+            SpatialStatsAction.NodeRequest::new,
+            ThreadPool.Names.MANAGEMENT,
+            SpatialStatsAction.NodeResponse.class
+        );
         this.usage = usage;
     }
 
     @Override
-    protected SpatialStatsAction.Response newResponse(SpatialStatsAction.Request request,
-                                                        List<SpatialStatsAction.NodeResponse> nodes,
-                                                        List<FailedNodeException> failures) {
+    protected SpatialStatsAction.Response newResponse(
+        SpatialStatsAction.Request request,
+        List<SpatialStatsAction.NodeResponse> nodes,
+        List<FailedNodeException> failures
+    ) {
         return new SpatialStatsAction.Response(clusterService.getClusterName(), nodes, failures);
     }
 

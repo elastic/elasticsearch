@@ -47,7 +47,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -356,8 +356,7 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
                                 )
                                 .addNewAllocation(
                                     modelTwo,
-                                    TrainedModelAllocation.Builder
-                                        .empty(newParams(modelTwo))
+                                    TrainedModelAllocation.Builder.empty(newParams(modelTwo))
                                         .addNewRoutingEntry(NODE_ID)
                                         .updateExistingRoutingEntry(
                                             NODE_ID,
@@ -366,10 +365,10 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
                                                 randomAlphaOfLength(10)
                                             )
                                         )
-                                ).addNewAllocation(
+                                )
+                                .addNewAllocation(
                                     previouslyUsedModel,
-                                    TrainedModelAllocation.Builder
-                                        .empty(newParams(modelTwo))
+                                    TrainedModelAllocation.Builder.empty(newParams(modelTwo))
                                         .addNewRoutingEntry(NODE_ID)
                                         .updateExistingRoutingEntry(
                                             NODE_ID,

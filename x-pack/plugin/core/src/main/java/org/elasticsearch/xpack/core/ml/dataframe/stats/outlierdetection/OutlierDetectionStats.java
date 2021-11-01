@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.AnalysisStats;
@@ -33,19 +33,30 @@ public class OutlierDetectionStats implements AnalysisStats {
     public static final ConstructingObjectParser<OutlierDetectionStats, Void> LENIENT_PARSER = createParser(true);
 
     private static ConstructingObjectParser<OutlierDetectionStats, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<OutlierDetectionStats, Void> parser = new ConstructingObjectParser<>(TYPE_VALUE, ignoreUnknownFields,
-            a -> new OutlierDetectionStats((String) a[0], (Instant) a[1], (Parameters) a[2], (TimingStats) a[3]));
+        ConstructingObjectParser<OutlierDetectionStats, Void> parser = new ConstructingObjectParser<>(
+            TYPE_VALUE,
+            ignoreUnknownFields,
+            a -> new OutlierDetectionStats((String) a[0], (Instant) a[1], (Parameters) a[2], (TimingStats) a[3])
+        );
 
         parser.declareString((bucket, s) -> {}, Fields.TYPE);
         parser.declareString(ConstructingObjectParser.constructorArg(), Fields.JOB_ID);
-        parser.declareField(ConstructingObjectParser.constructorArg(),
+        parser.declareField(
+            ConstructingObjectParser.constructorArg(),
             p -> TimeUtils.parseTimeFieldToInstant(p, Fields.TIMESTAMP.getPreferredName()),
             Fields.TIMESTAMP,
-            ObjectParser.ValueType.VALUE);
-        parser.declareObject(ConstructingObjectParser.constructorArg(),
-            (p, c) -> Parameters.fromXContent(p, ignoreUnknownFields), PARAMETERS);
-        parser.declareObject(ConstructingObjectParser.constructorArg(),
-            (p, c) -> TimingStats.fromXContent(p, ignoreUnknownFields), TIMING_STATS);
+            ObjectParser.ValueType.VALUE
+        );
+        parser.declareObject(
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> Parameters.fromXContent(p, ignoreUnknownFields),
+            PARAMETERS
+        );
+        parser.declareObject(
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> TimingStats.fromXContent(p, ignoreUnknownFields),
+            TIMING_STATS
+        );
         return parser;
     }
 

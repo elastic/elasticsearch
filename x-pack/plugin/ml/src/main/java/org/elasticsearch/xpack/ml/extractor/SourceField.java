@@ -42,7 +42,7 @@ public class SourceField extends AbstractField {
                     List<Object> asList = (List<Object>) values;
                     return asList.toArray(new Object[0]);
                 } else {
-                    return new Object[]{values};
+                    return new Object[] { values };
                 }
             }
         }

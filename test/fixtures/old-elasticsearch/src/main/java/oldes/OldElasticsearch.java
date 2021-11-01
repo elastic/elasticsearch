@@ -40,16 +40,16 @@ public class OldElasticsearch {
         // 0.90 must be explicitly foregrounded
         boolean explicitlyForeground;
         switch (args[2]) {
-        case "true":
-            explicitlyForeground = true;
-            break;
-        case "false":
-            explicitlyForeground = false;
-            break;
-        default:
-            System.err.println("the third argument must be true or false");
-            System.exit(1);
-            return;
+            case "true":
+                explicitlyForeground = true;
+                break;
+            case "false":
+                explicitlyForeground = false;
+                break;
+            default:
+                System.err.println("the third argument must be true or false");
+                System.exit(1);
+                return;
         }
 
         Iterator<Path> children = Files.list(unzipDir).iterator();
@@ -59,8 +59,13 @@ public class OldElasticsearch {
         }
         Path esDir = children.next();
         if (children.hasNext()) {
-            System.err.println("expected the es directory to contains a single child directory but contained [" + esDir + "] and ["
-                    + children.next() + "].");
+            System.err.println(
+                "expected the es directory to contains a single child directory but contained ["
+                    + esDir
+                    + "] and ["
+                    + children.next()
+                    + "]."
+            );
             System.exit(1);
         }
         if (false == Files.isDirectory(esDir)) {
@@ -87,7 +92,7 @@ public class OldElasticsearch {
             command.add("-f");
         }
         command.add("-p");
-        command.add(baseDir.resolve("pid").toString());
+        command.add(baseDir.resolve("pid").toString().replaceAll("&", "\\&"));
         ProcessBuilder subprocess = new ProcessBuilder(command);
         Process process = subprocess.start();
         System.out.println("Running " + command);
@@ -97,7 +102,8 @@ public class OldElasticsearch {
 
         Pattern pidPattern = Pattern.compile("pid\\[(\\d+)\\]");
         Pattern httpPortPattern = Pattern.compile(
-            "(\\[http\\s+\\]|Netty4HttpServerTransport|HttpServer).+bound_address.+127\\.0\\.0\\.1:(\\d+)");
+            "(\\[http\\s+\\]|Netty4HttpServerTransport|HttpServer).+bound_address.+127\\.0\\.0\\.1:(\\d+)"
+        );
         try (BufferedReader stdout = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
             String line;
             while ((line = stdout.readLine()) != null && (pid == 0 || port == 0)) {

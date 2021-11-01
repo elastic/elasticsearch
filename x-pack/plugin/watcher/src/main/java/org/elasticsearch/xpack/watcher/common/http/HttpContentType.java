@@ -48,9 +48,12 @@ public enum HttpContentType {
 
     public static HttpContentType resolve(String id) {
         switch (id.toLowerCase(Locale.ROOT)) {
-            case "json" : return JSON;
-            case "yaml":  return YAML;
-            case "text":  return TEXT;
+            case "json":
+                return JSON;
+            case "yaml":
+                return YAML;
+            case "text":
+                return TEXT;
             default:
                 throw illegalArgument("unknown http content type [{}]", id);
         }

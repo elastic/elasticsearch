@@ -111,7 +111,6 @@ public class CentroidCalculator {
             throw new IllegalArgumentException("invalid shape type found [LinearRing] while calculating centroid");
         }
 
-
         @Override
         public Void visit(MultiLine multiLine) {
             if (dimensionalShapeType != DimensionalShapeType.POLYGON) {
@@ -155,11 +154,27 @@ public class CentroidCalculator {
             double[] centroidX = new double[1 + polygon.getNumberOfHoles()];
             double[] centroidY = new double[1 + polygon.getNumberOfHoles()];
             double[] weight = new double[1 + polygon.getNumberOfHoles()];
-            visitLinearRing(polygon.getPolygon().length(), polygon.getPolygon()::getX, polygon.getPolygon()::getY, false,
-                centroidX, centroidY, weight, 0);
+            visitLinearRing(
+                polygon.getPolygon().length(),
+                polygon.getPolygon()::getX,
+                polygon.getPolygon()::getY,
+                false,
+                centroidX,
+                centroidY,
+                weight,
+                0
+            );
             for (int i = 0; i < polygon.getNumberOfHoles(); i++) {
-                visitLinearRing(polygon.getHole(i).length(), polygon.getHole(i)::getX, polygon.getHole(i)::getY, true,
-                    centroidX, centroidY, weight, i + 1);
+                visitLinearRing(
+                    polygon.getHole(i).length(),
+                    polygon.getHole(i)::getX,
+                    polygon.getHole(i)::getY,
+                    true,
+                    centroidX,
+                    centroidY,
+                    weight,
+                    i + 1
+                );
             }
 
             double sumWeight = 0;
@@ -189,8 +204,10 @@ public class CentroidCalculator {
                 addCoordinate(sumX / 2, sumY / 2, rectWeight, DimensionalShapeType.POLYGON);
             } else {
                 // degenerated rectangle, transform to Line
-                Line line = new Line(new double[]{rectangle.getMinX(), rectangle.getMaxX()},
-                    new double[]{rectangle.getMinY(), rectangle.getMaxY()});
+                Line line = new Line(
+                    new double[] { rectangle.getMinX(), rectangle.getMaxX() },
+                    new double[] { rectangle.getMinY(), rectangle.getMaxY() }
+                );
                 visit(line);
             }
             return null;
@@ -218,8 +235,16 @@ public class CentroidCalculator {
             }
         }
 
-        private void visitLinearRing(int length, CoordinateSupplier x, CoordinateSupplier y, boolean isHole,
-                                       double[] centroidX, double[] centroidY, double[] weight, int idx) {
+        private void visitLinearRing(
+            int length,
+            CoordinateSupplier x,
+            CoordinateSupplier y,
+            boolean isHole,
+            double[] centroidX,
+            double[] centroidY,
+            double[] weight,
+            int idx
+        ) {
             // implementation of calculation defined in
             // https://www.seas.upenn.edu/~sys502/extra_materials/Polygon%20Area%20and%20Centroid.pdf
             //

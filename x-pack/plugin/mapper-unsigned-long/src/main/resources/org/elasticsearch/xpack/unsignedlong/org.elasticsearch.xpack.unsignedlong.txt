@@ -15,9 +15,9 @@ class org.elasticsearch.xpack.unsignedlong.UnsignedLongField @dynamic_type {
   long getValue(long)
   long getValue(int, long)
   List getValues()
-  BigInteger getBigInteger(BigInteger)
-  BigInteger getBigInteger(int, BigInteger)
-  List getBigIntegers()
+  BigInteger asBigInteger(BigInteger)
+  BigInteger asBigInteger(int, BigInteger)
+  List asBigIntegers()
 }
 
 class org.elasticsearch.xpack.unsignedlong.UnsignedLongDocValuesField @dynamic_type {

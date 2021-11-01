@@ -17,8 +17,7 @@ import org.elasticsearch.client.ElasticsearchClient;
  * Java API support for changing the throttle on reindex tasks while they are running.
  */
 public class RethrottleRequestBuilder extends TasksRequestBuilder<RethrottleRequest, ListTasksResponse, RethrottleRequestBuilder> {
-    public RethrottleRequestBuilder(ElasticsearchClient client,
-            ActionType<ListTasksResponse> action) {
+    public RethrottleRequestBuilder(ElasticsearchClient client, ActionType<ListTasksResponse> action) {
         super(client, action, new RethrottleRequest());
     }
 

@@ -117,16 +117,20 @@ public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContain
                     little = (SpanQueryBuilder) query;
                     checkNoBoost(NAME, currentFieldName, parser, little);
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "[span_containing] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[span_containing] query does not support [" + currentFieldName + "]"
+                    );
                 }
             } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                 boost = parser.floatValue();
             } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                 queryName = parser.text();
             } else {
-                throw new ParsingException(parser.getTokenLocation(),
-                        "[span_containing] query does not support [" + currentFieldName + "]");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "[span_containing] query does not support [" + currentFieldName + "]"
+                );
             }
         }
 
@@ -151,8 +155,7 @@ public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContain
 
     @Override
     protected boolean doEquals(SpanContainingQueryBuilder other) {
-        return Objects.equals(big, other.big) &&
-               Objects.equals(little, other.little);
+        return Objects.equals(big, other.big) && Objects.equals(little, other.little);
     }
 
     @Override

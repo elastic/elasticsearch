@@ -9,9 +9,9 @@ package org.elasticsearch.client.textstructure;
 
 import org.elasticsearch.client.textstructure.structurefinder.TextStructure;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -19,14 +19,18 @@ import java.util.Arrays;
 
 public class FindStructureRequestTests extends AbstractXContentTestCase<FindStructureRequest> {
 
-    private static final ObjectParser<FindStructureRequest, Void> PARSER =
-        new ObjectParser<>("find_file_structure_request", FindStructureRequest::new);
+    private static final ObjectParser<FindStructureRequest, Void> PARSER = new ObjectParser<>(
+        "find_file_structure_request",
+        FindStructureRequest::new
+    );
 
     static {
         PARSER.declareInt(FindStructureRequest::setLinesToSample, FindStructureRequest.LINES_TO_SAMPLE);
         PARSER.declareInt(FindStructureRequest::setLineMergeSizeLimit, FindStructureRequest.LINE_MERGE_SIZE_LIMIT);
-        PARSER.declareString((p, c) -> p.setTimeout(TimeValue.parseTimeValue(c, FindStructureRequest.TIMEOUT.getPreferredName())),
-            FindStructureRequest.TIMEOUT);
+        PARSER.declareString(
+            (p, c) -> p.setTimeout(TimeValue.parseTimeValue(c, FindStructureRequest.TIMEOUT.getPreferredName())),
+            FindStructureRequest.TIMEOUT
+        );
         PARSER.declareString(FindStructureRequest::setCharset, FindStructureRequest.CHARSET);
         PARSER.declareString(FindStructureRequest::setFormat, FindStructureRequest.FORMAT);
         PARSER.declareStringArray(FindStructureRequest::setColumnNames, FindStructureRequest.COLUMN_NAMES);

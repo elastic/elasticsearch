@@ -139,7 +139,6 @@ public final class TransformIndex {
      * @param mappings A Map of the form {"fieldName": "fieldType"}
      */
     static Map<String, Object> createMappingsFromStringMap(Map<String, String> mappings) {
-        return mappings.entrySet().stream()
-            .collect(toMap(e -> e.getKey(), e -> singletonMap("type", e.getValue())));
+        return mappings.entrySet().stream().collect(toMap(e -> e.getKey(), e -> singletonMap("type", e.getValue())));
     }
 }

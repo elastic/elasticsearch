@@ -9,10 +9,10 @@ package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -35,12 +35,17 @@ public class GetDatafeedStatsRequest implements Validatable, ToXContentObject {
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<GetDatafeedStatsRequest, Void> PARSER = new ConstructingObjectParser<>(
-        "get_datafeed_stats_request", a -> new GetDatafeedStatsRequest((List<String>) a[0]));
+        "get_datafeed_stats_request",
+        a -> new GetDatafeedStatsRequest((List<String>) a[0])
+    );
 
     static {
-        PARSER.declareField(ConstructingObjectParser.constructorArg(),
+        PARSER.declareField(
+            ConstructingObjectParser.constructorArg(),
             p -> Arrays.asList(Strings.commaDelimitedListToStringArray(p.text())),
-            DatafeedConfig.ID, ObjectParser.ValueType.STRING_ARRAY);
+            DatafeedConfig.ID,
+            ObjectParser.ValueType.STRING_ARRAY
+        );
         PARSER.declareBoolean(GetDatafeedStatsRequest::setAllowNoMatch, ALLOW_NO_MATCH);
     }
 
@@ -54,7 +59,7 @@ public class GetDatafeedStatsRequest implements Validatable, ToXContentObject {
      *
      * @return a {@link GetDatafeedStatsRequest} for all existing datafeeds
      */
-    public static GetDatafeedStatsRequest getAllDatafeedStatsRequest(){
+    public static GetDatafeedStatsRequest getAllDatafeedStatsRequest() {
         return new GetDatafeedStatsRequest(ALL_DATAFEEDS);
     }
 
@@ -112,8 +117,7 @@ public class GetDatafeedStatsRequest implements Validatable, ToXContentObject {
         }
 
         GetDatafeedStatsRequest that = (GetDatafeedStatsRequest) other;
-        return Objects.equals(datafeedIds, that.datafeedIds) &&
-            Objects.equals(allowNoMatch, that.allowNoMatch);
+        return Objects.equals(datafeedIds, that.datafeedIds) && Objects.equals(allowNoMatch, that.allowNoMatch);
     }
 
     @Override

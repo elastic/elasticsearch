@@ -12,18 +12,18 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diffable;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.xpack.core.scheduler.Cron;
 
 import java.io.IOException;
@@ -42,7 +42,10 @@ import static org.elasticsearch.xpack.core.ilm.GenerateSnapshotNameStep.validate
  * to, and the configuration for the snapshot itself.
  */
 public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecyclePolicy>
-    implements Writeable, Diffable<SnapshotLifecyclePolicy>, ToXContentObject {
+    implements
+        Writeable,
+        Diffable<SnapshotLifecyclePolicy>,
+        ToXContentObject {
 
     private final String id;
     private final String name;
@@ -59,16 +62,18 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
     private static final String METADATA_FIELD_NAME = "metadata";
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<SnapshotLifecyclePolicy, String> PARSER =
-        new ConstructingObjectParser<>("snapshot_lifecycle", true,
-            (a, id) -> {
-                String name = (String) a[0];
-                String schedule = (String) a[1];
-                String repo = (String) a[2];
-                Map<String, Object> config = (Map<String, Object>) a[3];
-                SnapshotRetentionConfiguration retention = (SnapshotRetentionConfiguration) a[4];
-                return new SnapshotLifecyclePolicy(id, name, schedule, repo, config, retention);
-            });
+    private static final ConstructingObjectParser<SnapshotLifecyclePolicy, String> PARSER = new ConstructingObjectParser<>(
+        "snapshot_lifecycle",
+        true,
+        (a, id) -> {
+            String name = (String) a[0];
+            String schedule = (String) a[1];
+            String repo = (String) a[2];
+            Map<String, Object> config = (Map<String, Object>) a[3];
+            SnapshotRetentionConfiguration retention = (SnapshotRetentionConfiguration) a[4];
+            return new SnapshotLifecyclePolicy(id, name, schedule, repo, config, retention);
+        }
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);
@@ -78,9 +83,14 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), SnapshotRetentionConfiguration::parse, RETENTION);
     }
 
-    public SnapshotLifecyclePolicy(final String id, final String name, final String schedule,
-                                   final String repository, @Nullable final Map<String, Object> configuration,
-                                   @Nullable final SnapshotRetentionConfiguration retentionPolicy) {
+    public SnapshotLifecyclePolicy(
+        final String id,
+        final String name,
+        final String schedule,
+        final String repository,
+        @Nullable final Map<String, Object> configuration,
+        @Nullable final SnapshotRetentionConfiguration retentionPolicy
+    ) {
         this.id = Objects.requireNonNull(id, "policy id is required");
         this.name = Objects.requireNonNull(name, "policy snapshot name is required");
         this.schedule = Objects.requireNonNull(schedule, "policy schedule is required");
@@ -154,23 +164,25 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
 
         // ID validation
         if (Strings.validFileName(id) == false) {
-            err.addValidationError("invalid policy id [" + id + "]: must not contain the following characters " +
-                Strings.INVALID_FILENAME_CHARS);
+            err.addValidationError(
+                "invalid policy id [" + id + "]: must not contain the following characters " + Strings.INVALID_FILENAME_CHARS
+            );
         }
         if (id.charAt(0) == '_') {
             err.addValidationError("invalid policy id [" + id + "]: must not start with '_'");
         }
         int byteCount = id.getBytes(StandardCharsets.UTF_8).length;
         if (byteCount > MAX_INDEX_NAME_BYTES) {
-            err.addValidationError("invalid policy id [" + id + "]: name is too long, (" + byteCount + " > " +
-                MAX_INDEX_NAME_BYTES + " bytes)");
+            err.addValidationError(
+                "invalid policy id [" + id + "]: name is too long, (" + byteCount + " > " + MAX_INDEX_NAME_BYTES + " bytes)"
+            );
         }
 
         // Snapshot name validation
         // We generate a snapshot name here to make sure it validates after applying date math
         final String snapshotName = generateSnapshotName(this.name);
         ActionRequestValidationException nameValidationErrors = validateGeneratedSnapshotName(name, snapshotName);
-        if(nameValidationErrors != null) {
+        if (nameValidationErrors != null) {
             err.addValidationErrors(nameValidationErrors.validationErrors());
         }
 
@@ -181,30 +193,45 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
             try {
                 new Cron(schedule);
             } catch (IllegalArgumentException e) {
-                err.addValidationError("invalid schedule: " +
-                    ExceptionsHelper.unwrapCause(e).getMessage());
+                err.addValidationError("invalid schedule: " + ExceptionsHelper.unwrapCause(e).getMessage());
             }
         }
 
         if (configuration != null && configuration.containsKey(METADATA_FIELD_NAME)) {
             if (configuration.get(METADATA_FIELD_NAME) instanceof Map == false) {
-                err.addValidationError("invalid configuration." + METADATA_FIELD_NAME + " [" + configuration.get(METADATA_FIELD_NAME) +
-                    "]: must be an object if present");
+                err.addValidationError(
+                    "invalid configuration."
+                        + METADATA_FIELD_NAME
+                        + " ["
+                        + configuration.get(METADATA_FIELD_NAME)
+                        + "]: must be an object if present"
+                );
             } else {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> metadata = (Map<String, Object>) configuration.get(METADATA_FIELD_NAME);
                 if (metadata.containsKey(SnapshotsService.POLICY_ID_METADATA_FIELD)) {
-                    err.addValidationError("invalid configuration." + METADATA_FIELD_NAME + ": field name ["
-                        + SnapshotsService.POLICY_ID_METADATA_FIELD + "] is reserved and will be added automatically");
+                    err.addValidationError(
+                        "invalid configuration."
+                            + METADATA_FIELD_NAME
+                            + ": field name ["
+                            + SnapshotsService.POLICY_ID_METADATA_FIELD
+                            + "] is reserved and will be added automatically"
+                    );
                 } else {
                     Map<String, Object> metadataWithPolicyField = addPolicyNameToMetadata(metadata);
                     int serializedSizeOriginal = CreateSnapshotRequest.metadataSize(metadata);
                     int serializedSizeWithMetadata = CreateSnapshotRequest.metadataSize(metadataWithPolicyField);
                     int policyNameAddedBytes = serializedSizeWithMetadata - serializedSizeOriginal;
                     if (serializedSizeWithMetadata > CreateSnapshotRequest.MAXIMUM_METADATA_BYTES) {
-                        err.addValidationError("invalid configuration." + METADATA_FIELD_NAME + ": must be smaller than [" +
-                            (CreateSnapshotRequest.MAXIMUM_METADATA_BYTES - policyNameAddedBytes) +
-                            "] bytes, but is [" + serializedSizeOriginal + "] bytes");
+                        err.addValidationError(
+                            "invalid configuration."
+                                + METADATA_FIELD_NAME
+                                + ": must be smaller than ["
+                                + (CreateSnapshotRequest.MAXIMUM_METADATA_BYTES - policyNameAddedBytes)
+                                + "] bytes, but is ["
+                                + serializedSizeOriginal
+                                + "] bytes"
+                        );
                     }
                 }
             }
@@ -291,12 +318,12 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
             return false;
         }
         SnapshotLifecyclePolicy other = (SnapshotLifecyclePolicy) obj;
-        return Objects.equals(id, other.id) &&
-            Objects.equals(name, other.name) &&
-            Objects.equals(schedule, other.schedule) &&
-            Objects.equals(repository, other.repository) &&
-            Objects.equals(configuration, other.configuration) &&
-            Objects.equals(retentionPolicy, other.retentionPolicy);
+        return Objects.equals(id, other.id)
+            && Objects.equals(name, other.name)
+            && Objects.equals(schedule, other.schedule)
+            && Objects.equals(repository, other.repository)
+            && Objects.equals(configuration, other.configuration)
+            && Objects.equals(retentionPolicy, other.retentionPolicy);
     }
 
     @Override

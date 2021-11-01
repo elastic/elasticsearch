@@ -46,9 +46,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
 
     public void testFielddataBuilder() {
         DenseVectorFieldType ft = createFieldType();
-        assertNotNull(ft.fielddataBuilder("index", () -> {
-            throw new UnsupportedOperationException();
-        }));
+        assertNotNull(ft.fielddataBuilder("index", () -> { throw new UnsupportedOperationException(); }));
     }
 
     public void testDocValueFormat() {
@@ -63,16 +61,29 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testCreateKnnQuery() {
-        DenseVectorFieldType unindexedField = new DenseVectorFieldType("f", Version.CURRENT,
-            3, false, VectorSimilarity.cosine, Collections.emptyMap());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unindexedField.createKnnQuery(
-            new float[]{0.3f, 0.1f, 1.0f}, 10));
+        DenseVectorFieldType unindexedField = new DenseVectorFieldType(
+            "f",
+            Version.CURRENT,
+            3,
+            false,
+            VectorSimilarity.cosine,
+            Collections.emptyMap()
+        );
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> unindexedField.createKnnQuery(new float[] { 0.3f, 0.1f, 1.0f }, 10)
+        );
         assertThat(e.getMessage(), containsString("[knn] queries are not supported if [index] is disabled"));
 
-        DenseVectorFieldType dotProductField = new DenseVectorFieldType("f", Version.CURRENT,
-            3, true, VectorSimilarity.dot_product, Collections.emptyMap());
-        e = expectThrows(IllegalArgumentException.class, () -> dotProductField.createKnnQuery(
-            new float[]{0.3f, 0.1f, 1.0f}, 10));
+        DenseVectorFieldType dotProductField = new DenseVectorFieldType(
+            "f",
+            Version.CURRENT,
+            3,
+            true,
+            VectorSimilarity.dot_product,
+            Collections.emptyMap()
+        );
+        e = expectThrows(IllegalArgumentException.class, () -> dotProductField.createKnnQuery(new float[] { 0.3f, 0.1f, 1.0f }, 10));
         assertThat(e.getMessage(), containsString("The [dot_product] similarity can only be used with unit-length vectors."));
     }
 }

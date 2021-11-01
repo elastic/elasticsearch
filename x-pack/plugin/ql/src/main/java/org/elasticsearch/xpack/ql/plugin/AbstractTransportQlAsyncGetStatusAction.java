@@ -32,8 +32,8 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 
-
-public abstract class AbstractTransportQlAsyncGetStatusAction<Response extends ActionResponse & QlStatusResponse.AsyncStatus,
+public abstract class AbstractTransportQlAsyncGetStatusAction<
+    Response extends ActionResponse & QlStatusResponse.AsyncStatus,
     AsyncTask extends StoredAsyncTask<Response>> extends HandledTransportAction<GetAsyncStatusRequest, QlStatusResponse> {
     private final String actionName;
     private final TransportService transportService;
@@ -41,23 +41,33 @@ public abstract class AbstractTransportQlAsyncGetStatusAction<Response extends A
     private final Class<? extends AsyncTask> asyncTaskClass;
     private final AsyncTaskIndexService<StoredAsyncResponse<Response>> store;
 
-    public AbstractTransportQlAsyncGetStatusAction(String actionName,
-                                                   TransportService transportService,
-                                                   ActionFilters actionFilters,
-                                                   ClusterService clusterService,
-                                                   NamedWriteableRegistry registry,
-                                                   Client client,
-                                                   ThreadPool threadPool,
-                                                   BigArrays bigArrays,
-                                                   Class<? extends AsyncTask> asyncTaskClass) {
+    public AbstractTransportQlAsyncGetStatusAction(
+        String actionName,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ClusterService clusterService,
+        NamedWriteableRegistry registry,
+        Client client,
+        ThreadPool threadPool,
+        BigArrays bigArrays,
+        Class<? extends AsyncTask> asyncTaskClass
+    ) {
         super(actionName, transportService, actionFilters, GetAsyncStatusRequest::new);
         this.actionName = actionName;
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.asyncTaskClass = asyncTaskClass;
         Writeable.Reader<StoredAsyncResponse<Response>> reader = in -> new StoredAsyncResponse<>(responseReader(), in);
-        this.store = new AsyncTaskIndexService<>(XPackPlugin.ASYNC_RESULTS_INDEX, clusterService,
-            threadPool.getThreadContext(), client, ASYNC_SEARCH_ORIGIN, reader, registry, bigArrays);
+        this.store = new AsyncTaskIndexService<>(
+            XPackPlugin.ASYNC_RESULTS_INDEX,
+            clusterService,
+            threadPool.getThreadContext(),
+            client,
+            ASYNC_SEARCH_ORIGIN,
+            reader,
+            registry,
+            bigArrays
+        );
     }
 
     @Override
@@ -75,8 +85,12 @@ public abstract class AbstractTransportQlAsyncGetStatusAction<Response extends A
                 listener
             );
         } else {
-            transportService.sendRequest(node, actionName, request,
-                new ActionListenerResponseHandler<>(listener, QlStatusResponse::new, ThreadPool.Names.SAME));
+            transportService.sendRequest(
+                node,
+                actionName,
+                request,
+                new ActionListenerResponseHandler<>(listener, QlStatusResponse::new, ThreadPool.Names.SAME)
+            );
         }
     }
 

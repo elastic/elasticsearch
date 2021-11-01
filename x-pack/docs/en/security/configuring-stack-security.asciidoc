@@ -75,7 +75,7 @@ user when prompted:
 +
 [source,shell]
 ----
-curl --cacert config/tls_auto_config_initial_node_<timestamp>/http_ca.crt \
+curl --cacert config/tls_auto_config_<timestamp>/http_ca.crt \
 -u elastic https://localhost:9200 <1>
 ----
 // NOTCONSOLE

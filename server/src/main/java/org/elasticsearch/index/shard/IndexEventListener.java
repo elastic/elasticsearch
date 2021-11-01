@@ -8,8 +8,8 @@
 package org.elasticsearch.index.shard;
 
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -70,8 +70,12 @@ public interface IndexEventListener {
      * @param currentState the new shard state
      * @param reason the reason for the state change if there is one, null otherwise
      */
-    default void indexShardStateChanged(IndexShard indexShard, @Nullable IndexShardState previousState,
-                                            IndexShardState currentState, @Nullable String reason) {}
+    default void indexShardStateChanged(
+        IndexShard indexShard,
+        @Nullable IndexShardState previousState,
+        IndexShardState currentState,
+        @Nullable String reason
+    ) {}
 
     /**
      * Called before the index gets created. Note that this is also called
@@ -113,8 +117,7 @@ public interface IndexEventListener {
      * @param routing the routing entry that caused the shard to be created.
      * @param indexSettings the shards index settings
      */
-    default void beforeIndexShardCreated(ShardRouting routing, Settings indexSettings) {
-    }
+    default void beforeIndexShardCreated(ShardRouting routing, Settings indexSettings) {}
 
     /**
      * Called before the index shard gets deleted from disk
@@ -123,8 +126,7 @@ public interface IndexEventListener {
      * @param shardId The shard id
      * @param indexSettings the shards index settings
      */
-    default void beforeIndexShardDeleted(ShardId shardId, Settings indexSettings) {
-    }
+    default void beforeIndexShardDeleted(ShardId shardId, Settings indexSettings) {}
 
     /**
      * Called after the index shard has been deleted from disk.
@@ -134,15 +136,13 @@ public interface IndexEventListener {
      * @param shardId The shard id
      * @param indexSettings the shards index settings
      */
-    default void afterIndexShardDeleted(ShardId shardId, Settings indexSettings) {
-    }
+    default void afterIndexShardDeleted(ShardId shardId, Settings indexSettings) {}
 
     /**
      * Called on the Master node only before the {@link IndexService} instances is created to simulate an index creation.
      * This happens right before the index and it's metadata is registered in the cluster state
      */
-    default void beforeIndexAddedToCluster(Index index, Settings indexSettings) {
-    }
+    default void beforeIndexAddedToCluster(Index index, Settings indexSettings) {}
 
     /**
      * Called when the given shards store is created. The shard store is created before the shard is created.
@@ -167,6 +167,5 @@ public interface IndexEventListener {
      * @param indexShard    the shard that is about to recover
      * @param indexSettings the shard's index settings
      */
-    default void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings) {
-    }
+    default void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings) {}
 }

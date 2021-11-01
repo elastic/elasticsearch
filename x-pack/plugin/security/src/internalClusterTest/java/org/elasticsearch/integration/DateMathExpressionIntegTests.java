@@ -39,24 +39,22 @@ public class DateMathExpressionIntegTests extends SecurityIntegTestCase {
     protected String configUsers() {
         final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(USERS_PASSWD));
 
-        return super.configUsers() +
-            "user1:" + usersPasswdHashed + "\n";
+        return super.configUsers() + "user1:" + usersPasswdHashed + "\n";
     }
 
     @Override
     protected String configUsersRoles() {
-        return super.configUsersRoles() +
-                "role1:user1\n";
+        return super.configUsersRoles() + "role1:user1\n";
     }
 
     @Override
     protected String configRoles() {
-        return super.configRoles() +
-                "\nrole1:\n" +
-                "  cluster: [ none ]\n" +
-                "  indices:\n" +
-                "    - names: 'datemath-*'\n" +
-                "      privileges: [ ALL ]\n";
+        return super.configRoles()
+            + "\nrole1:\n"
+            + "  cluster: [ none ]\n"
+            + "  indices:\n"
+            + "    - names: 'datemath-*'\n"
+            + "      privileges: [ ALL ]\n";
     }
 
     public void testDateMathExpressionsCanBeAuthorized() throws Exception {
@@ -69,8 +67,10 @@ public class DateMathExpressionIntegTests extends SecurityIntegTestCase {
             CreateIndexResponse response = client.admin().indices().prepareCreate(expression).get();
             assertThat(response.isAcknowledged(), is(true));
         }
-        IndexResponse response = client.prepareIndex(expression).setSource("foo", "bar")
-                .setRefreshPolicy(refeshOnOperation ? IMMEDIATE : NONE).get();
+        IndexResponse response = client.prepareIndex(expression)
+            .setSource("foo", "bar")
+            .setRefreshPolicy(refeshOnOperation ? IMMEDIATE : NONE)
+            .get();
 
         assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
         assertThat(response.getIndex(), containsString(expectedIndexName));
@@ -78,20 +78,18 @@ public class DateMathExpressionIntegTests extends SecurityIntegTestCase {
         if (refeshOnOperation == false) {
             client.admin().indices().prepareRefresh(expression).get();
         }
-        SearchResponse searchResponse = client.prepareSearch(expression)
-                .setQuery(QueryBuilders.matchAllQuery())
-                .get();
+        SearchResponse searchResponse = client.prepareSearch(expression).setQuery(QueryBuilders.matchAllQuery()).get();
         assertThat(searchResponse.getHits().getTotalHits().value, is(1L));
 
         MultiSearchResponse multiSearchResponse = client.prepareMultiSearch()
-                .add(client.prepareSearch(expression).setQuery(QueryBuilders.matchAllQuery()).request())
-                .get();
+            .add(client.prepareSearch(expression).setQuery(QueryBuilders.matchAllQuery()).request())
+            .get();
         assertThat(multiSearchResponse.getResponses()[0].getResponse().getHits().getTotalHits().value, is(1L));
 
         UpdateResponse updateResponse = client.prepareUpdate(expression, response.getId())
-                .setDoc(Requests.INDEX_CONTENT_TYPE, "new", "field")
-                .setRefreshPolicy(refeshOnOperation ? IMMEDIATE : NONE)
-                .get();
+            .setDoc(Requests.INDEX_CONTENT_TYPE, "new", "field")
+            .setRefreshPolicy(refeshOnOperation ? IMMEDIATE : NONE)
+            .get();
         assertEquals(DocWriteResponse.Result.UPDATED, updateResponse.getResult());
 
         if (refeshOnOperation == false) {
@@ -104,13 +102,10 @@ public class DateMathExpressionIntegTests extends SecurityIntegTestCase {
         assertThat(getResponse.getSourceAsMap().get("new").toString(), is("field"));
 
         // multi get doesn't support expressions - this is probably a bug
-        MultiGetResponse multiGetResponse = client.prepareMultiGet()
-                .add(expression, response.getId())
-                .get();
+        MultiGetResponse multiGetResponse = client.prepareMultiGet().add(expression, response.getId()).get();
         assertFalse(multiGetResponse.getResponses()[0].isFailed());
         assertTrue(multiGetResponse.getResponses()[0].getResponse().isExists());
         assertEquals(expectedIndexName, multiGetResponse.getResponses()[0].getResponse().getIndex());
-
 
         AcknowledgedResponse deleteIndexResponse = client.admin().indices().prepareDelete(expression).get();
         assertThat(deleteIndexResponse.isAcknowledged(), is(true));

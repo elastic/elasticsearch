@@ -71,10 +71,18 @@ public class DataFrameAnalyticsManager {
     /** Indicates whether the node is shutting down. */
     private final AtomicBoolean nodeShuttingDown = new AtomicBoolean();
 
-    public DataFrameAnalyticsManager(Settings settings, NodeClient client, ThreadPool threadPool, ClusterService clusterService,
-                                     DataFrameAnalyticsConfigProvider configProvider, AnalyticsProcessManager processManager,
-                                     DataFrameAnalyticsAuditor auditor, IndexNameExpressionResolver expressionResolver,
-                                     ResultsPersisterService resultsPersisterService, ModelLoadingService modelLoadingService) {
+    public DataFrameAnalyticsManager(
+        Settings settings,
+        NodeClient client,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        DataFrameAnalyticsConfigProvider configProvider,
+        AnalyticsProcessManager processManager,
+        DataFrameAnalyticsAuditor auditor,
+        IndexNameExpressionResolver expressionResolver,
+        ResultsPersisterService resultsPersisterService,
+        ModelLoadingService modelLoadingService
+    ) {
         this.settings = Objects.requireNonNull(settings);
         this.client = Objects.requireNonNull(client);
         this.threadPool = Objects.requireNonNull(threadPool);
@@ -89,33 +97,33 @@ public class DataFrameAnalyticsManager {
 
     public void execute(DataFrameAnalyticsTask task, ClusterState clusterState, TimeValue masterNodeTimeout) {
         // With config in hand, determine action to take
-        ActionListener<DataFrameAnalyticsConfig> configListener = ActionListener.wrap(
-            config -> {
-                // Check if existing destination index is incompatible.
-                // If it is, we delete it and start from reindexing.
-                IndexMetadata destIndex = clusterState.getMetadata().index(config.getDest().getIndex());
-                if (destIndex != null) {
-                    MappingMetadata destIndexMapping = clusterState.getMetadata().index(config.getDest().getIndex()).mapping();
-                    DestinationIndex.Metadata metadata = DestinationIndex.readMetadata(config.getId(), destIndexMapping);
-                    if (metadata.hasMetadata() && (metadata.isCompatible() == false)) {
-                        LOGGER.info("[{}] Destination index was created in version [{}] but minimum supported version is [{}]. " +
-                            "Deleting index and starting from scratch.", config.getId(), metadata.getVersion(),
-                            DestinationIndex.MIN_COMPATIBLE_VERSION);
-                        task.getStatsHolder().resetProgressTracker(config.getAnalysis().getProgressPhases(),
-                            config.getAnalysis().supportsInference());
-                        executeJobInMiddleOfReindexing(task, config);
-                        return;
-                    }
+        ActionListener<DataFrameAnalyticsConfig> configListener = ActionListener.wrap(config -> {
+            // Check if existing destination index is incompatible.
+            // If it is, we delete it and start from reindexing.
+            IndexMetadata destIndex = clusterState.getMetadata().index(config.getDest().getIndex());
+            if (destIndex != null) {
+                MappingMetadata destIndexMapping = clusterState.getMetadata().index(config.getDest().getIndex()).mapping();
+                DestinationIndex.Metadata metadata = DestinationIndex.readMetadata(config.getId(), destIndexMapping);
+                if (metadata.hasMetadata() && (metadata.isCompatible() == false)) {
+                    LOGGER.info(
+                        "[{}] Destination index was created in version [{}] but minimum supported version is [{}]. "
+                            + "Deleting index and starting from scratch.",
+                        config.getId(),
+                        metadata.getVersion(),
+                        DestinationIndex.MIN_COMPATIBLE_VERSION
+                    );
+                    task.getStatsHolder()
+                        .resetProgressTracker(config.getAnalysis().getProgressPhases(), config.getAnalysis().supportsInference());
+                    executeJobInMiddleOfReindexing(task, config);
+                    return;
                 }
+            }
 
-                task.getStatsHolder().adjustProgressTracker(config.getAnalysis().getProgressPhases(),
-                    config.getAnalysis().supportsInference());
+            task.getStatsHolder().adjustProgressTracker(config.getAnalysis().getProgressPhases(), config.getAnalysis().supportsInference());
 
-                determineProgressAndResume(task, config);
+            determineProgressAndResume(task, config);
 
-            },
-            task::setFailed
-        );
+        }, task::setFailed);
 
         // Retrieve configuration
         ActionListener<Boolean> statsIndexListener = ActionListener.wrap(
@@ -125,8 +133,13 @@ public class DataFrameAnalyticsManager {
 
         // Make sure the stats index and alias exist
         ActionListener<Boolean> stateAliasListener = ActionListener.wrap(
-            aBoolean -> createStatsIndexAndUpdateMappingsIfNecessary(new ParentTaskAssigningClient(client, task.getParentTaskId()),
-                    clusterState, masterNodeTimeout, statsIndexListener), configListener::onFailure
+            aBoolean -> createStatsIndexAndUpdateMappingsIfNecessary(
+                new ParentTaskAssigningClient(client, task.getParentTaskId()),
+                clusterState,
+                masterNodeTimeout,
+                statsIndexListener
+            ),
+            configListener::onFailure
         );
 
         // Make sure the state index and alias exist
@@ -139,17 +152,22 @@ public class DataFrameAnalyticsManager {
         );
     }
 
-    private void createStatsIndexAndUpdateMappingsIfNecessary(Client client, ClusterState clusterState, TimeValue masterNodeTimeout,
-                                                              ActionListener<Boolean> listener) {
+    private void createStatsIndexAndUpdateMappingsIfNecessary(
+        Client client,
+        ClusterState clusterState,
+        TimeValue masterNodeTimeout,
+        ActionListener<Boolean> listener
+    ) {
         ActionListener<Boolean> createIndexListener = ActionListener.wrap(
             aBoolean -> ElasticsearchMappings.addDocMappingIfMissing(
-                    MlStatsIndex.writeAlias(),
-                    MlStatsIndex::wrappedMapping,
-                    client,
-                    clusterState,
-                    masterNodeTimeout,
-                    listener)
-            , listener::onFailure
+                MlStatsIndex.writeAlias(),
+                MlStatsIndex::wrappedMapping,
+                client,
+                clusterState,
+                masterNodeTimeout,
+                listener
+            ),
+            listener::onFailure
         );
 
         MlStatsIndex.createStatsIndexAndAliasIfNecessary(client, clusterState, expressionResolver, masterNodeTimeout, createIndexListener);
@@ -170,10 +188,11 @@ public class DataFrameAnalyticsManager {
                 executeStep(task, config, new AnalysisStep(client, task, auditor, config, processManager));
                 break;
             case RESUMING_INFERENCE:
-                buildInferenceStep(task, config, ActionListener.wrap(
-                    inferenceStep -> executeStep(task, config, inferenceStep),
-                    task::setFailed
-                ));
+                buildInferenceStep(
+                    task,
+                    config,
+                    ActionListener.wrap(inferenceStep -> executeStep(task, config, inferenceStep), task::setFailed)
+                );
                 break;
             case FINISHED:
             default:
@@ -184,36 +203,34 @@ public class DataFrameAnalyticsManager {
     private void executeStep(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config, DataFrameAnalyticsStep step) {
         task.setStep(step);
 
-        ActionListener<StepResponse> stepListener = ActionListener.wrap(
-            stepResponse -> {
-                if (stepResponse.isTaskComplete()) {
-                    // We always want to perform the final step as it tidies things up
+        ActionListener<StepResponse> stepListener = ActionListener.wrap(stepResponse -> {
+            if (stepResponse.isTaskComplete()) {
+                // We always want to perform the final step as it tidies things up
+                executeStep(task, config, new FinalStep(client, task, auditor, config));
+                return;
+            }
+            switch (step.name()) {
+                case REINDEXING:
+                    executeStep(task, config, new AnalysisStep(client, task, auditor, config, processManager));
+                    break;
+                case ANALYSIS:
+                    buildInferenceStep(
+                        task,
+                        config,
+                        ActionListener.wrap(inferenceStep -> executeStep(task, config, inferenceStep), task::setFailed)
+                    );
+                    break;
+                case INFERENCE:
                     executeStep(task, config, new FinalStep(client, task, auditor, config));
-                    return;
-                }
-                switch (step.name()) {
-                    case REINDEXING:
-                        executeStep(task, config, new AnalysisStep(client, task, auditor, config, processManager));
-                        break;
-                    case ANALYSIS:
-                        buildInferenceStep(task, config, ActionListener.wrap(
-                            inferenceStep -> executeStep(task, config, inferenceStep),
-                            task::setFailed
-                        ));
-                        break;
-                    case INFERENCE:
-                        executeStep(task, config, new FinalStep(client, task, auditor, config));
-                        break;
-                    case FINAL:
-                        LOGGER.info("[{}] Marking task completed", config.getId());
-                        task.markAsCompleted();
-                        break;
-                    default:
-                        task.markAsFailed(ExceptionsHelper.serverError("Unknown step [{}]", step));
-                }
-            },
-            task::setFailed
-        );
+                    break;
+                case FINAL:
+                    LOGGER.info("[{}] Marking task completed", config.getId());
+                    task.markAsCompleted();
+                    break;
+                default:
+                    task.markAsFailed(ExceptionsHelper.serverError("Unknown step [{}]", step));
+            }
+        }, task::setFailed);
 
         step.execute(stepListener);
     }
@@ -224,37 +241,41 @@ public class DataFrameAnalyticsManager {
             task.markAsCompleted();
             return;
         }
-        ClientHelper.executeAsyncWithOrigin(new ParentTaskAssigningClient(client, task.getParentTaskId()),
+        ClientHelper.executeAsyncWithOrigin(
+            new ParentTaskAssigningClient(client, task.getParentTaskId()),
             ML_ORIGIN,
             DeleteIndexAction.INSTANCE,
             new DeleteIndexRequest(config.getDest().getIndex()),
-            ActionListener.wrap(
-                r-> executeStep(task, config, new ReindexingStep(clusterService, client, task, auditor, config)),
-                e -> {
-                    Throwable cause = ExceptionsHelper.unwrapCause(e);
-                    if (cause instanceof IndexNotFoundException) {
-                        executeStep(task, config, new ReindexingStep(clusterService, client, task, auditor, config));
-                    } else {
-                        task.setFailed(e);
-                    }
+            ActionListener.wrap(r -> executeStep(task, config, new ReindexingStep(clusterService, client, task, auditor, config)), e -> {
+                Throwable cause = ExceptionsHelper.unwrapCause(e);
+                if (cause instanceof IndexNotFoundException) {
+                    executeStep(task, config, new ReindexingStep(clusterService, client, task, auditor, config));
+                } else {
+                    task.setFailed(e);
                 }
-            ));
+            })
+        );
     }
 
     private void buildInferenceStep(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config, ActionListener<InferenceStep> listener) {
         ParentTaskAssigningClient parentTaskClient = new ParentTaskAssigningClient(client, task.getParentTaskId());
 
-        ActionListener<ExtractedFieldsDetector> extractedFieldsDetectorListener = ActionListener.wrap(
-            extractedFieldsDetector -> {
-                ExtractedFields extractedFields = extractedFieldsDetector.detect().v1();
-                InferenceRunner inferenceRunner = new InferenceRunner(settings, parentTaskClient, modelLoadingService,
-                    resultsPersisterService, task.getParentTaskId(), config, extractedFields, task.getStatsHolder().getProgressTracker(),
-                    task.getStatsHolder().getDataCountsTracker());
-                InferenceStep inferenceStep = new InferenceStep(client, task, auditor, config, threadPool, inferenceRunner);
-                listener.onResponse(inferenceStep);
-            },
-            listener::onFailure
-        );
+        ActionListener<ExtractedFieldsDetector> extractedFieldsDetectorListener = ActionListener.wrap(extractedFieldsDetector -> {
+            ExtractedFields extractedFields = extractedFieldsDetector.detect().v1();
+            InferenceRunner inferenceRunner = new InferenceRunner(
+                settings,
+                parentTaskClient,
+                modelLoadingService,
+                resultsPersisterService,
+                task.getParentTaskId(),
+                config,
+                extractedFields,
+                task.getStatsHolder().getProgressTracker(),
+                task.getStatsHolder().getDataCountsTracker()
+            );
+            InferenceStep inferenceStep = new InferenceStep(client, task, auditor, config, threadPool, inferenceRunner);
+            listener.onResponse(inferenceStep);
+        }, listener::onFailure);
 
         new ExtractedFieldsDetectorFactory(parentTaskClient).createFromDest(config, extractedFieldsDetectorListener);
     }

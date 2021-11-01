@@ -10,13 +10,13 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -110,9 +110,7 @@ public class StopTrainedModelDeploymentAction extends ActionType<StopTrainedMode
             if (o == null || getClass() != o.getClass()) return false;
 
             Request that = (Request) o;
-            return Objects.equals(id, that.id) &&
-                allowNoMatch == that.allowNoMatch &&
-                force == that.force;
+            return Objects.equals(id, that.id) && allowNoMatch == that.allowNoMatch && force == that.force;
         }
     }
 

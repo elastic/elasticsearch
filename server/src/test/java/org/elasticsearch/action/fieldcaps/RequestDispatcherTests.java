@@ -135,7 +135,8 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 transportService.threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
                 responseCollector::addIndexResponse,
                 responseCollector::addIndexFailure,
-                responseCollector::onComplete);
+                responseCollector::onComplete
+            );
             final RequestTracker requestTracker = new RequestTracker(dispatcher, clusterState.routingTable(), withFilter);
             transportService.requestTracker.set(requestTracker);
             dispatcher.execute();
@@ -144,7 +145,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             assertThat(responseCollector.failures, anEmptyMap());
             assertThat("Happy case should complete after one round", dispatcher.executionRound(), equalTo(1));
             for (NodeRequest nodeRequest : requestTracker.sentNodeRequests) {
-                assertThat("All requests occur in round 0",nodeRequest.round, equalTo(0));
+                assertThat("All requests occur in round 0", nodeRequest.round, equalTo(0));
             }
             for (String index : indices) {
                 final List<NodeRequest> nodeRequests = requestTracker.nodeRequests(index);
@@ -155,9 +156,13 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                             assertTrue(requestedShardIds.add(shardId));
                         }
                     }
-                    final Set<ShardId> assignedShardIds = clusterState.routingTable().index(index).randomAllActiveShardsIt()
-                        .getShardRoutings().stream()
-                        .map(ShardRouting::shardId).collect(Collectors.toSet());
+                    final Set<ShardId> assignedShardIds = clusterState.routingTable()
+                        .index(index)
+                        .randomAllActiveShardsIt()
+                        .getShardRoutings()
+                        .stream()
+                        .map(ShardRouting::shardId)
+                        .collect(Collectors.toSet());
                     assertThat(requestedShardIds, equalTo(assignedShardIds));
                 } else {
                     assertThat("index " + index + " wasn't requested one time", nodeRequests, hasSize(1));
@@ -214,17 +219,22 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             final AtomicInteger failedTimes = new AtomicInteger();
             transportService.setTransportInterceptor(new TransportInterceptor.AsyncSender() {
                 @Override
-                public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action,
-                                                                      TransportRequest request, TransportRequestOptions options,
-                                                                      TransportResponseHandler<T> handler) {
+                public <T extends TransportResponse> void sendRequest(
+                    Transport.Connection connection,
+                    String action,
+                    TransportRequest request,
+                    TransportRequestOptions options,
+                    TransportResponseHandler<T> handler
+                ) {
                     final int currentRound = dispatcher.executionRound();
                     FieldCapabilitiesNodeRequest nodeRequest = (FieldCapabilitiesNodeRequest) request;
-                    Set<String> requestedIndices = nodeRequest.shardIds().stream()
-                        .map(ShardId::getIndexName)
-                        .collect(Collectors.toSet());
+                    Set<String> requestedIndices = nodeRequest.shardIds().stream().map(ShardId::getIndexName).collect(Collectors.toSet());
                     if (currentRound > 0) {
-                        assertThat("Only failed indices are retried after the first found",
-                            requestedIndices, everyItem(in(maxFailedRounds.keySet())));
+                        assertThat(
+                            "Only failed indices are retried after the first found",
+                            requestedIndices,
+                            everyItem(in(maxFailedRounds.keySet()))
+                        );
                     }
                     Set<String> successIndices = new HashSet<>();
                     List<ShardId> failedShards = new ArrayList<>();
@@ -237,8 +247,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                             failedTimes.incrementAndGet();
                         }
                     }
-                    transportService.sendResponse(handler,
-                        randomNodeResponse(successIndices, failedShards, Collections.emptySet()));
+                    transportService.sendResponse(handler, randomNodeResponse(successIndices, failedShards, Collections.emptySet()));
                 }
             });
 
@@ -319,7 +328,8 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 transportService.threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
                 responseCollector::addIndexResponse,
                 responseCollector::addIndexFailure,
-                responseCollector::onComplete);
+                responseCollector::onComplete
+            );
             final RequestTracker requestTracker = new RequestTracker(dispatcher, clusterState.routingTable(), withFilter);
             transportService.requestTracker.set(requestTracker);
 
@@ -328,15 +338,18 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             final AtomicInteger failedTimes = new AtomicInteger();
             transportService.setTransportInterceptor(new TransportInterceptor.AsyncSender() {
                 @Override
-                public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action,
-                                                                      TransportRequest request, TransportRequestOptions options,
-                                                                      TransportResponseHandler<T> handler) {
+                public <T extends TransportResponse> void sendRequest(
+                    Transport.Connection connection,
+                    String action,
+                    TransportRequest request,
+                    TransportRequestOptions options,
+                    TransportResponseHandler<T> handler
+                ) {
                     final int currentRound = dispatcher.executionRound();
                     FieldCapabilitiesNodeRequest nodeRequest = (FieldCapabilitiesNodeRequest) request;
                     if (currentRound > 0) {
                         for (ShardId shardId : nodeRequest.shardIds()) {
-                            assertThat("Only failed indices are retried after the first found",
-                                shardId.getIndexName(), in(failedIndices));
+                            assertThat("Only failed indices are retried after the first found", shardId.getIndexName(), in(failedIndices));
                         }
                     }
                     Set<String> toRespondIndices = new HashSet<>();
@@ -356,8 +369,10 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             dispatcher.execute();
             responseCollector.awaitCompletion();
             assertThat(failedTimes.get(), greaterThan(0));
-            assertThat(responseCollector.responses.keySet(),
-                equalTo(indices.stream().filter(i -> failedIndices.contains(i) == false).collect(Collectors.toSet())));
+            assertThat(
+                responseCollector.responses.keySet(),
+                equalTo(indices.stream().filter(i -> failedIndices.contains(i) == false).collect(Collectors.toSet()))
+            );
             assertThat(responseCollector.failures.keySet(), equalTo(Sets.newHashSet(failedIndices)));
 
             int maxRound = failedIndices.stream().mapToInt(index -> maxPossibleRounds(clusterState, index, withFilter)).max().getAsInt();
@@ -437,7 +452,8 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 transportService.threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
                 responseCollector::addIndexResponse,
                 responseCollector::addIndexFailure,
-                responseCollector::onComplete);
+                responseCollector::onComplete
+            );
             final RequestTracker requestTracker = new RequestTracker(dispatcher, clusterState.routingTable(), withFilter);
             transportService.requestTracker.set(requestTracker);
             final AtomicInteger failedTimes = new AtomicInteger();
@@ -452,9 +468,13 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             }
             transportService.setTransportInterceptor(new TransportInterceptor.AsyncSender() {
                 @Override
-                public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action,
-                                                                      TransportRequest request, TransportRequestOptions options,
-                                                                      TransportResponseHandler<T> handler) {
+                public <T extends TransportResponse> void sendRequest(
+                    Transport.Connection connection,
+                    String action,
+                    TransportRequest request,
+                    TransportRequestOptions options,
+                    TransportResponseHandler<T> handler
+                ) {
                     FieldCapabilitiesNodeRequest nodeRequest = (FieldCapabilitiesNodeRequest) request;
                     Set<String> toRespondIndices = new HashSet<>();
                     Set<ShardId> unmatchedShardIds = new HashSet<>();
@@ -465,8 +485,10 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                             toRespondIndices.add(shardId.getIndexName());
                         }
                     }
-                    transportService.sendResponse(handler,
-                        randomNodeResponse(toRespondIndices, Collections.emptyList(), unmatchedShardIds));
+                    transportService.sendResponse(
+                        handler,
+                        randomNodeResponse(toRespondIndices, Collections.emptyList(), unmatchedShardIds)
+                    );
                 }
             });
             dispatcher.execute();
@@ -482,9 +504,13 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                         assertTrue(requestedShardIds.add(shardId));
                     }
                 }
-                final Set<ShardId> assignedShardIds = clusterState.routingTable().index(index).randomAllActiveShardsIt()
-                    .getShardRoutings().stream()
-                    .map(ShardRouting::shardId).collect(Collectors.toSet());
+                final Set<ShardId> assignedShardIds = clusterState.routingTable()
+                    .index(index)
+                    .randomAllActiveShardsIt()
+                    .getShardRoutings()
+                    .stream()
+                    .map(ShardRouting::shardId)
+                    .collect(Collectors.toSet());
                 assertThat(requestedShardIds, equalTo(assignedShardIds));
             }
         }
@@ -534,9 +560,13 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             final List<String> unmatchedIndices = randomSubsetOf(between(1, indices.size()), indices);
             transportService.setTransportInterceptor(new TransportInterceptor.AsyncSender() {
                 @Override
-                public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action,
-                                                                      TransportRequest request, TransportRequestOptions options,
-                                                                      TransportResponseHandler<T> handler) {
+                public <T extends TransportResponse> void sendRequest(
+                    Transport.Connection connection,
+                    String action,
+                    TransportRequest request,
+                    TransportRequestOptions options,
+                    TransportResponseHandler<T> handler
+                ) {
                     FieldCapabilitiesNodeRequest nodeRequest = (FieldCapabilitiesNodeRequest) request;
                     Set<String> toRespondIndices = new HashSet<>();
                     Set<ShardId> unmatchedShardIds = new HashSet<>();
@@ -547,14 +577,18 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                             toRespondIndices.add(shardId.getIndexName());
                         }
                     }
-                    transportService.sendResponse(handler,
-                        randomNodeResponse(toRespondIndices, Collections.emptyList(), unmatchedShardIds));
+                    transportService.sendResponse(
+                        handler,
+                        randomNodeResponse(toRespondIndices, Collections.emptyList(), unmatchedShardIds)
+                    );
                 }
             });
             dispatcher.execute();
             responseCollector.awaitCompletion();
-            assertThat(responseCollector.responses.keySet(),
-                equalTo(indices.stream().filter(index -> unmatchedIndices.contains(index) == false).collect(Collectors.toSet())));
+            assertThat(
+                responseCollector.responses.keySet(),
+                equalTo(indices.stream().filter(index -> unmatchedIndices.contains(index) == false).collect(Collectors.toSet()))
+            );
             assertThat(responseCollector.failures, anEmptyMap());
             assertThat(dispatcher.executionRound(), equalTo(1));
             for (String index : indices) {
@@ -565,9 +599,13 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                         assertTrue(requestedShardIds.add(shardId));
                     }
                 }
-                final Set<ShardId> assignedShardIds = clusterState.routingTable().index(index).randomAllActiveShardsIt()
-                    .getShardRoutings().stream()
-                    .map(ShardRouting::shardId).collect(Collectors.toSet());
+                final Set<ShardId> assignedShardIds = clusterState.routingTable()
+                    .index(index)
+                    .randomAllActiveShardsIt()
+                    .getShardRoutings()
+                    .stream()
+                    .map(ShardRouting::shardId)
+                    .collect(Collectors.toSet());
                 assertThat(requestedShardIds, equalTo(assignedShardIds));
             }
         }
@@ -628,8 +666,11 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                     .filter(r -> r.round == round)
                     .collect(Collectors.groupingBy(r -> r.node));
                 for (Map.Entry<DiscoveryNode, List<NodeRequest>> e : requestsPerNode.entrySet()) {
-                    assertThat("node " + e.getKey().getName() + " receives more than 1 requests in round " + currentRound,
-                        e.getValue(), hasSize(1));
+                    assertThat(
+                        "node " + e.getKey().getName() + " receives more than 1 requests in round " + currentRound,
+                        e.getValue(),
+                        hasSize(1)
+                    );
                 }
                 // No shardId is requested more than once in a round
                 Set<ShardId> requestedShards = new HashSet<>();
@@ -668,8 +709,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
         }
 
         List<NodeRequest> nodeRequests(String index, int round) {
-            return sentNodeRequests.stream().filter(r -> r.round == round && r.indices().contains(index))
-                .collect(Collectors.toList());
+            return sentNodeRequests.stream().filter(r -> r.round == round && r.indices().contains(index)).collect(Collectors.toList());
         }
 
         List<NodeRequest> nodeRequests(String index) {
@@ -677,7 +717,7 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
         }
     }
 
-    private static  class TestTransportService extends TransportService {
+    private static class TestTransportService extends TransportService {
         final SetOnce<RequestTracker> requestTracker = new SetOnce<>();
 
         final ThreadPool threadPool;
@@ -702,15 +742,25 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
 
         static TestTransportService newTestTransportService() {
             final TestThreadPool threadPool = new TestThreadPool("test");
-            MockNioTransport mockTransport = new MockNioTransport(Settings.EMPTY, Version.CURRENT, threadPool,
-                new NetworkService(Collections.emptyList()), PageCacheRecycler.NON_RECYCLING_INSTANCE,
-                new NamedWriteableRegistry(Collections.emptyList()), new NoneCircuitBreakerService());
+            MockNioTransport mockTransport = new MockNioTransport(
+                Settings.EMPTY,
+                Version.CURRENT,
+                threadPool,
+                new NetworkService(Collections.emptyList()),
+                PageCacheRecycler.NON_RECYCLING_INSTANCE,
+                new NamedWriteableRegistry(Collections.emptyList()),
+                new NoneCircuitBreakerService()
+            );
             SetOnce<TransportInterceptor.AsyncSender> asyncSenderHolder = new SetOnce<>();
             TestTransportService transportService = new TestTransportService(mockTransport, new TransportInterceptor.AsyncSender() {
                 @Override
-                public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action,
-                                                                      TransportRequest request, TransportRequestOptions options,
-                                                                      TransportResponseHandler<T> handler) {
+                public <T extends TransportResponse> void sendRequest(
+                    Transport.Connection connection,
+                    String action,
+                    TransportRequest request,
+                    TransportRequestOptions options,
+                    TransportResponseHandler<T> handler
+                ) {
                     final TransportInterceptor.AsyncSender asyncSender = asyncSenderHolder.get();
                     assertNotNull(asyncSender);
                     asyncSender.sendRequest(connection, action, request, options, handler);
@@ -718,9 +768,13 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             }, threadPool);
             asyncSenderHolder.set(new TransportInterceptor.AsyncSender() {
                 @Override
-                public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action,
-                                                                      TransportRequest request, TransportRequestOptions options,
-                                                                      TransportResponseHandler<T> handler) {
+                public <T extends TransportResponse> void sendRequest(
+                    Transport.Connection connection,
+                    String action,
+                    TransportRequest request,
+                    TransportRequestOptions options,
+                    TransportResponseHandler<T> handler
+                ) {
                     final RequestTracker requestTracker = transportService.requestTracker.get();
                     assertNotNull("Request tracker wasn't set", requestTracker);
                     requestTracker.verifyAndTrackRequest(connection, action, request);
@@ -730,8 +784,10 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                     } else {
                         FieldCapabilitiesNodeRequest nodeRequest = (FieldCapabilitiesNodeRequest) request;
                         Set<String> indices = nodeRequest.shardIds().stream().map(ShardId::getIndexName).collect(Collectors.toSet());
-                        transportService.sendResponse(handler,
-                            randomNodeResponse(indices, Collections.emptyList(), Collections.emptySet()));
+                        transportService.sendResponse(
+                            handler,
+                            randomNodeResponse(indices, Collections.emptyList(), Collections.emptySet())
+                        );
                     }
                 }
             });
@@ -771,14 +827,18 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
         return new FieldCapabilitiesRequest().fields("*").indexFilter(filter);
     }
 
-    static FieldCapabilitiesNodeResponse randomNodeResponse(Collection<String> successIndices,
-                                                            Collection<ShardId> failedShards, Set<ShardId> unmatchedShards) {
+    static FieldCapabilitiesNodeResponse randomNodeResponse(
+        Collection<String> successIndices,
+        Collection<ShardId> failedShards,
+        Set<ShardId> unmatchedShards
+    ) {
         final Map<ShardId, Exception> failures = new HashMap<>();
         for (ShardId shardId : failedShards) {
             failures.put(shardId, new IllegalStateException(randomAlphaOfLength(10)));
         }
         final List<FieldCapabilitiesIndexResponse> indexResponses = successIndices.stream()
-            .map(index -> randomIndexResponse(index, true)).collect(Collectors.toList());
+            .map(index -> randomIndexResponse(index, true))
+            .collect(Collectors.toList());
         return new FieldCapabilitiesNodeResponse(indexResponses, failures, unmatchedShards);
     }
 
@@ -841,9 +901,13 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
         deciders.add(new SameShardAllocationDecider(settings, clusterSettings));
         deciders.add(new ReplicaAfterPrimaryActiveAllocationDecider());
         Collections.shuffle(deciders, random());
-        final MockAllocationService allocationService = new MockAllocationService(new AllocationDeciders(deciders),
-            new TestGatewayAllocator(), new BalancedShardsAllocator(settings), EmptyClusterInfoService.INSTANCE,
-            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES);
+        final MockAllocationService allocationService = new MockAllocationService(
+            new AllocationDeciders(deciders),
+            new TestGatewayAllocator(),
+            new BalancedShardsAllocator(settings),
+            EmptyClusterInfoService.INSTANCE,
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
+        );
         return applyStartedShardsUntilNoChange(clusterState, allocationService);
     }
 

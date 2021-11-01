@@ -35,8 +35,7 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
         retryFailed = in.readBoolean();
     }
 
-    public ClusterRerouteRequest() {
-    }
+    public ClusterRerouteRequest() {}
 
     /**
      * Adds allocation commands to be applied to the cluster. Note, can be empty, in which case
@@ -97,7 +96,6 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
         return this.retryFailed;
     }
 
-
     /**
      * Set the allocation commands to execute.
      */
@@ -134,12 +132,12 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
         }
         ClusterRerouteRequest other = (ClusterRerouteRequest) obj;
         // Override equals and hashCode for testing
-        return Objects.equals(commands, other.commands) &&
-                Objects.equals(dryRun, other.dryRun) &&
-                Objects.equals(explain, other.explain) &&
-                Objects.equals(timeout, other.timeout) &&
-                Objects.equals(retryFailed, other.retryFailed) &&
-                Objects.equals(masterNodeTimeout, other.masterNodeTimeout);
+        return Objects.equals(commands, other.commands)
+            && Objects.equals(dryRun, other.dryRun)
+            && Objects.equals(explain, other.explain)
+            && Objects.equals(timeout, other.timeout)
+            && Objects.equals(retryFailed, other.retryFailed)
+            && Objects.equals(masterNodeTimeout, other.masterNodeTimeout);
     }
 
     @Override

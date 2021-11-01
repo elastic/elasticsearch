@@ -36,8 +36,7 @@ public interface ClusterStateTaskExecutor<T> {
      *
      * @param clusterStatePublicationEvent the change event for this cluster state publication, containing both old and new states
      */
-    default void clusterStatePublished(ClusterStatePublicationEvent clusterStatePublicationEvent) {
-    }
+    default void clusterStatePublished(ClusterStatePublicationEvent clusterStatePublicationEvent) {}
 
     /**
      * Builds a concise description of a list of tasks (to be used in logging etc.).
@@ -50,7 +49,11 @@ public interface ClusterStateTaskExecutor<T> {
         final StringBuilder output = new StringBuilder();
         Strings.collectionToDelimitedStringWithLimit(
             (Iterable<String>) () -> tasks.stream().map(Object::toString).filter(s -> s.isEmpty() == false).iterator(),
-            ", ", "", "", 1024, output
+            ", ",
+            "",
+            "",
+            1024,
+            output
         );
         return output.toString();
     }
@@ -114,8 +117,7 @@ public interface ClusterStateTaskExecutor<T> {
             }
 
             ClusterTasksResult<T> build(ClusterTasksResult<T> result, ClusterState previousState) {
-                return new ClusterTasksResult<>(result.resultingState == null ? previousState : result.resultingState,
-                    executionResults);
+                return new ClusterTasksResult<>(result.resultingState == null ? previousState : result.resultingState, executionResults);
             }
         }
     }

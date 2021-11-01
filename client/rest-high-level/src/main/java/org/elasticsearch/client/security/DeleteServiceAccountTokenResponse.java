@@ -21,8 +21,11 @@ public final class DeleteServiceAccountTokenResponse extends AcknowledgedRespons
 
     private static final String PARSE_FIELD_NAME = "found";
 
-    private static final ConstructingObjectParser<DeleteServiceAccountTokenResponse, Void> PARSER = AcknowledgedResponse
-        .generateParser("delete_service_account_token_response", DeleteServiceAccountTokenResponse::new, PARSE_FIELD_NAME);
+    private static final ConstructingObjectParser<DeleteServiceAccountTokenResponse, Void> PARSER = AcknowledgedResponse.generateParser(
+        "delete_service_account_token_response",
+        DeleteServiceAccountTokenResponse::new,
+        PARSE_FIELD_NAME
+    );
 
     public DeleteServiceAccountTokenResponse(boolean acknowledged) {
         super(acknowledged);

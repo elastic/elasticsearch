@@ -27,21 +27,22 @@ public abstract class FieldScript extends DocBasedScript {
     public static final String[] PARAMETERS = {};
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
-    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of(
-            "doc", value -> {
-                deprecationLogger.critical(DeprecationCategory.SCRIPTING, "field-script_doc",
-                        "Accessing variable [doc] via [params.doc] from within an field-script "
-                                + "is deprecated in favor of directly accessing [doc].");
-                return value;
-            },
-            "_doc", value -> {
-                deprecationLogger.critical(DeprecationCategory.SCRIPTING, "field-script__doc",
-                        "Accessing variable [doc] via [params._doc] from within an field-script "
-                                + "is deprecated in favor of directly accessing [doc].");
-                return value;
-            },
-            "_source", value -> ((SourceLookup)value).source()
-    );
+    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of("doc", value -> {
+        deprecationLogger.critical(
+            DeprecationCategory.SCRIPTING,
+            "field-script_doc",
+            "Accessing variable [doc] via [params.doc] from within an field-script " + "is deprecated in favor of directly accessing [doc]."
+        );
+        return value;
+    }, "_doc", value -> {
+        deprecationLogger.critical(
+            DeprecationCategory.SCRIPTING,
+            "field-script__doc",
+            "Accessing variable [doc] via [params._doc] from within an field-script "
+                + "is deprecated in favor of directly accessing [doc]."
+        );
+        return value;
+    }, "_source", value -> ((SourceLookup) value).source());
 
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;

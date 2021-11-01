@@ -73,9 +73,7 @@ public class DeleteDataFrameAnalyticsRequest implements Validatable {
         if (o == null || getClass() != o.getClass()) return false;
 
         DeleteDataFrameAnalyticsRequest other = (DeleteDataFrameAnalyticsRequest) o;
-        return Objects.equals(id, other.id)
-            && Objects.equals(force, other.force)
-            && Objects.equals(timeout, other.timeout);
+        return Objects.equals(id, other.id) && Objects.equals(force, other.force) && Objects.equals(timeout, other.timeout);
     }
 
     @Override

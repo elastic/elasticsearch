@@ -319,11 +319,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         );
 
         // <1> Check the latest internal index (IMPORTANT: according to _this_ node, which might be newer than master) is installed
-        TransformInternalIndex.createLatestVersionedIndexIfRequired(
-            clusterService,
-            buildTask.getParentTaskClient(),
-            templateCheckListener
-        );
+        TransformInternalIndex.createLatestVersionedIndexIfRequired(clusterService, buildTask.getParentTaskClient(), templateCheckListener);
     }
 
     private static IndexerState currentIndexerState(TransformState previousState) {

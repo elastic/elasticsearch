@@ -75,10 +75,13 @@ public final class AnomalyDetectorsIndex {
      * Creates the .ml-state-000001 index (if necessary)
      * Creates the .ml-state-write alias for the .ml-state-000001 index (if necessary)
      */
-    public static void createStateIndexAndAliasIfNecessary(Client client, ClusterState state,
-                                                           IndexNameExpressionResolver resolver,
-                                                           TimeValue masterNodeTimeout,
-                                                           final ActionListener<Boolean> finalListener) {
+    public static void createStateIndexAndAliasIfNecessary(
+        Client client,
+        ClusterState state,
+        IndexNameExpressionResolver resolver,
+        TimeValue masterNodeTimeout,
+        final ActionListener<Boolean> finalListener
+    ) {
         MlIndexAndAlias.createIndexAndAliasIfNecessary(
             client,
             state,
@@ -86,14 +89,17 @@ public final class AnomalyDetectorsIndex {
             AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
             AnomalyDetectorsIndex.jobStateIndexWriteAlias(),
             masterNodeTimeout,
-            finalListener);
+            finalListener
+        );
     }
 
-    public static void createStateIndexAndAliasIfNecessaryAndWaitForYellow(Client client,
-                                                                           ClusterState state,
-                                                                           IndexNameExpressionResolver resolver,
-                                                                           TimeValue masterNodeTimeout,
-                                                                           final ActionListener<Boolean> finalListener) {
+    public static void createStateIndexAndAliasIfNecessaryAndWaitForYellow(
+        Client client,
+        ClusterState state,
+        IndexNameExpressionResolver resolver,
+        TimeValue masterNodeTimeout,
+        final ActionListener<Boolean> finalListener
+    ) {
         final ActionListener<Boolean> stateIndexAndAliasCreated = ActionListener.wrap(success -> {
             final ClusterHealthRequest request = Requests.clusterHealthRequest(AnomalyDetectorsIndex.jobStateIndexWriteAlias())
                 .waitForYellowStatus()
@@ -123,7 +129,10 @@ public final class AnomalyDetectorsIndex {
     }
 
     public static String resultsMapping() {
-        return TemplateUtils.loadTemplate(RESOURCE_PATH + "results_index_mappings.json",
-            Version.CURRENT.toString(), RESULTS_MAPPINGS_VERSION_VARIABLE);
+        return TemplateUtils.loadTemplate(
+            RESOURCE_PATH + "results_index_mappings.json",
+            Version.CURRENT.toString(),
+            RESULTS_MAPPINGS_VERSION_VARIABLE
+        );
     }
 }

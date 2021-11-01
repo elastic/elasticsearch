@@ -29,7 +29,6 @@ public class CCSPointInTimeIT extends AbstractMultiClustersTestCase {
         return List.of("remote_cluster");
     }
 
-
     void indexDocs(Client client, String index, int numDocs) {
         for (int i = 0; i < numDocs; i++) {
             String id = Integer.toString(i);
@@ -51,7 +50,7 @@ public class CCSPointInTimeIT extends AbstractMultiClustersTestCase {
         boolean includeLocalIndex = randomBoolean();
         List<String> indices = new ArrayList<>();
         if (includeLocalIndex) {
-            indices.add( randomFrom("*", "local_*", "local_test"));
+            indices.add(randomFrom("*", "local_*", "local_test"));
         }
         indices.add(randomFrom("*:*", "remote_cluster:*", "remote_cluster:remote_test"));
         String pitId = openPointInTime(indices.toArray(new String[0]), TimeValue.timeValueMinutes(2));

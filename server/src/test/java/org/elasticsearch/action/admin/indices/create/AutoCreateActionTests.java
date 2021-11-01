@@ -27,21 +27,31 @@ public class AutoCreateActionTests extends ESTestCase {
             Metadata.Builder mdBuilder = new Metadata.Builder();
             DataStreamTemplate dataStreamTemplate = new DataStreamTemplate();
             mdBuilder.put("1", new ComposableIndexTemplate.Builder().indexPatterns(List.of("legacy-logs-*")).priority(10L).build());
-            mdBuilder.put("2", new ComposableIndexTemplate.Builder().indexPatterns(List.of("logs-*")).priority(20L)
-              .dataStreamTemplate(dataStreamTemplate).build());
-            mdBuilder.put("3", new ComposableIndexTemplate.Builder().indexPatterns(List.of("logs-*")).priority(30L)
-              .dataStreamTemplate(dataStreamTemplate).build());
+            mdBuilder.put(
+                "2",
+                new ComposableIndexTemplate.Builder().indexPatterns(List.of("logs-*"))
+                    .priority(20L)
+                    .dataStreamTemplate(dataStreamTemplate)
+                    .build()
+            );
+            mdBuilder.put(
+                "3",
+                new ComposableIndexTemplate.Builder().indexPatterns(List.of("logs-*"))
+                    .priority(30L)
+                    .dataStreamTemplate(dataStreamTemplate)
+                    .build()
+            );
             metadata = mdBuilder.build();
         }
 
         CreateIndexRequest request = new CreateIndexRequest("logs-foobar");
-        ComposableIndexTemplate result  = AutoCreateAction.resolveTemplate(request, metadata);
+        ComposableIndexTemplate result = AutoCreateAction.resolveTemplate(request, metadata);
         assertThat(result, notNullValue());
         assertThat(result.getDataStreamTemplate(), notNullValue());
         assertThat(result.getDataStreamTemplate().getTimestampField(), equalTo("@timestamp"));
 
         request = new CreateIndexRequest("logs-barbaz");
-        result  = AutoCreateAction.resolveTemplate(request, metadata);
+        result = AutoCreateAction.resolveTemplate(request, metadata);
         assertThat(result, notNullValue());
         assertThat(result.getDataStreamTemplate(), notNullValue());
         assertThat(result.getDataStreamTemplate().getTimestampField(), equalTo("@timestamp"));

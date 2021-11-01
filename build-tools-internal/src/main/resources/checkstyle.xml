@@ -12,6 +12,16 @@
 
   <module name="SuppressWarningsFilter" />
 
+  <module name="RegexpMultiline">
+    <property name="id" value="MultipleHeaderJavadoc" />
+    <property name="format" value="^\s*\/\*\n(\s\*[A-Za-z0-9 \.\/\;\,\.\-\(\)\\\x{22}\/\:\@\=\'\]\[\_\x{3E}\x{3C}]*\n)+(\s\*\/)\s+package" />
+    <property name="fileExtensions" value="java" />
+    <property name="minimum" value="1" />
+    <property name="maximum" value="1" />
+    <property name="matchAcrossLines" value="true" />
+    <property name="message" value="Duplicate header javadocs are forbidden" />
+  </module>
+
   <!-- Checks Java files and forbids empty Javadoc comments. -->
   <!-- Although you can use the "JavadocStyle" rule for this, it considers Javadoc -->
   <!-- that only contains a "@return" line to be empty. -->

@@ -12,17 +12,16 @@ import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
-
 
 public class RestPutPipelineAction extends BaseRestHandler {
 
@@ -44,11 +43,9 @@ public class RestPutPipelineAction extends BaseRestHandler {
             try {
                 ifVersion = Integer.parseInt(versionString);
             } catch (NumberFormatException e) {
-                throw new IllegalArgumentException(String.format(
-                    Locale.ROOT,
-                    "invalid value [%s] specified for [if_version]. must be an integer value",
-                    versionString
-                ));
+                throw new IllegalArgumentException(
+                    String.format(Locale.ROOT, "invalid value [%s] specified for [if_version]. must be an integer value", versionString)
+                );
             }
         }
 

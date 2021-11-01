@@ -36,7 +36,6 @@ import static org.hamcrest.Matchers.not;
 
 public class SettingsUpdaterTests extends ESTestCase {
 
-
     public void testUpdateSetting() {
         AtomicReference<Float> index = new AtomicReference<>();
         AtomicReference<Float> shard = new AtomicReference<>();
@@ -46,39 +45,51 @@ public class SettingsUpdaterTests extends ESTestCase {
         settingsService.addSettingsUpdateConsumer(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING, shard::set);
         SettingsUpdater updater = new SettingsUpdater(settingsService);
         Metadata.Builder metadata = Metadata.builder()
-            .persistentSettings(Settings.builder().put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 1.5)
-                .put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), 2.5).build())
-            .transientSettings(Settings.builder().put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 3.5)
-                .put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), 4.5).build());
+            .persistentSettings(
+                Settings.builder()
+                    .put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 1.5)
+                    .put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), 2.5)
+                    .build()
+            )
+            .transientSettings(
+                Settings.builder()
+                    .put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 3.5)
+                    .put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), 4.5)
+                    .build()
+            );
         ClusterState build = builder.metadata(metadata).build();
-        ClusterState clusterState = updater.updateSettings(build,
-            Settings.builder()
-                .put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 0.5)
-                .build(),
-            Settings.builder()
-                .put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 0.4)
-                .build(),
-            logger);
+        ClusterState clusterState = updater.updateSettings(
+            build,
+            Settings.builder().put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 0.5).build(),
+            Settings.builder().put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 0.4).build(),
+            logger
+        );
         assertNotSame(clusterState, build);
         assertEquals(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.get(clusterState.metadata().persistentSettings()), 0.4, 0.1);
         assertEquals(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.get(clusterState.metadata().persistentSettings()), 2.5, 0.1);
         assertEquals(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.get(clusterState.metadata().transientSettings()), 0.5, 0.1);
         assertEquals(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.get(clusterState.metadata().transientSettings()), 4.5, 0.1);
 
-        clusterState = updater.updateSettings(clusterState, Settings.builder().putNull("cluster.routing.*").build(),
-            Settings.EMPTY, logger);
+        clusterState = updater.updateSettings(
+            clusterState,
+            Settings.builder().putNull("cluster.routing.*").build(),
+            Settings.EMPTY,
+            logger
+        );
         assertEquals(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.get(clusterState.metadata().persistentSettings()), 0.4, 0.1);
         assertEquals(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.get(clusterState.metadata().persistentSettings()), 2.5, 0.1);
         assertFalse(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.exists(clusterState.metadata().transientSettings()));
         assertFalse(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.exists(clusterState.metadata().transientSettings()));
 
-        clusterState = updater.updateSettings(clusterState,
+        clusterState = updater.updateSettings(
+            clusterState,
             Settings.EMPTY,
             Settings.builder()
                 .putNull("cluster.routing.*")
                 .put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 10.0)
                 .build(),
-            logger);
+            logger
+        );
 
         assertEquals(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.get(clusterState.metadata().persistentSettings()), 10.0, 0.1);
         assertFalse(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.exists(clusterState.metadata().persistentSettings()));
@@ -97,22 +108,30 @@ public class SettingsUpdaterTests extends ESTestCase {
         settingsService.addSettingsUpdateConsumer(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING, shard::set);
         SettingsUpdater updater = new SettingsUpdater(settingsService);
         Metadata.Builder metadata = Metadata.builder()
-            .persistentSettings(Settings.builder().put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 1.5)
-                .put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), 2.5).build())
-            .transientSettings(Settings.builder().put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 3.5)
-                .put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), 4.5).build());
+            .persistentSettings(
+                Settings.builder()
+                    .put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 1.5)
+                    .put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), 2.5)
+                    .build()
+            )
+            .transientSettings(
+                Settings.builder()
+                    .put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 3.5)
+                    .put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), 4.5)
+                    .build()
+            );
         ClusterState build = builder.metadata(metadata).build();
 
         try {
-            updater.updateSettings(build,
-                Settings.builder()
-                    .put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), "not a float")
-                    .build(),
+            updater.updateSettings(
+                build,
+                Settings.builder().put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), "not a float").build(),
                 Settings.builder()
                     .put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), "not a float")
                     .put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), 1.0f)
                     .build(),
-                logger);
+                logger
+            );
             fail("all or nothing");
         } catch (IllegalArgumentException ex) {
             logger.info("", ex);
@@ -145,51 +164,63 @@ public class SettingsUpdaterTests extends ESTestCase {
             );
         ClusterState build = builder.metadata(metadata).build();
 
-        ClusterState clusterState = updater.updateSettings(build,
-            Settings.builder()
-                .put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), true)
-                .build(),
+        ClusterState clusterState = updater.updateSettings(
+            build,
+            Settings.builder().put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), true).build(),
             Settings.builder()
                 .put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 1.6)
                 .put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), 1.0f)
                 .build(),
-            logger);
+            logger
+        );
         assertEquals(clusterState.blocks().global().size(), 1);
         assertEquals(clusterState.blocks().global().iterator().next(), Metadata.CLUSTER_READ_ONLY_BLOCK);
 
-        clusterState = updater.updateSettings(build, Settings.EMPTY,
-            Settings.builder().put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), false).build(), logger);
+        clusterState = updater.updateSettings(
+            build,
+            Settings.EMPTY,
+            Settings.builder().put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), false).build(),
+            logger
+        );
         assertEquals(clusterState.blocks().global().size(), 0);
 
-
-        clusterState = updater.updateSettings(build,
-            Settings.builder()
-                .put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true)
-                .build(),
+        clusterState = updater.updateSettings(
+            build,
+            Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true).build(),
             Settings.builder()
                 .put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 1.6)
                 .put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), 1.0f)
                 .build(),
-            logger);
+            logger
+        );
         assertEquals(clusterState.blocks().global().size(), 1);
         assertEquals(clusterState.blocks().global().iterator().next(), Metadata.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
-        clusterState = updater.updateSettings(build, Settings.EMPTY,
-            Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), false).build(), logger);
+        clusterState = updater.updateSettings(
+            build,
+            Settings.EMPTY,
+            Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), false).build(),
+            logger
+        );
         assertEquals(clusterState.blocks().global().size(), 0);
 
     }
 
     public void testDeprecationLogging() {
-        Setting<String> deprecatedSetting =
-                Setting.simpleString("deprecated.setting", Property.Dynamic, Property.NodeScope, Property.Deprecated);
+        Setting<String> deprecatedSetting = Setting.simpleString(
+            "deprecated.setting",
+            Property.Dynamic,
+            Property.NodeScope,
+            Property.Deprecated
+        );
         final Settings settings = Settings.builder().put("deprecated.setting", "foo").build();
-        final Set<Setting<?>> settingsSet =
-                Stream.concat(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(), Stream.of(deprecatedSetting)).collect(Collectors.toSet());
+        final Set<Setting<?>> settingsSet = Stream.concat(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(), Stream.of(deprecatedSetting))
+            .collect(Collectors.toSet());
         final ClusterSettings clusterSettings = new ClusterSettings(settings, settingsSet);
         clusterSettings.addSettingsUpdateConsumer(deprecatedSetting, s -> {});
         final SettingsUpdater settingsUpdater = new SettingsUpdater(clusterSettings);
-        final ClusterState clusterState =
-                ClusterState.builder(new ClusterName("foo")).metadata(Metadata.builder().persistentSettings(settings).build()).build();
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("foo"))
+            .metadata(Metadata.builder().persistentSettings(settings).build())
+            .build();
 
         final Settings toApplyDebug = Settings.builder().put("logger.org.elasticsearch", "debug").build();
         final ClusterState afterDebug = settingsUpdater.updateSettings(clusterState, toApplyDebug, Settings.EMPTY, logger);
@@ -254,20 +285,18 @@ public class SettingsUpdaterTests extends ESTestCase {
         }
 
         // register all the known settings (note that we do not register the unknown settings)
-        final Set<Setting<?>> knownSettings =
-                Stream.concat(
-                        ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(),
-                        Stream.concat(dynamicSettings.stream(), invalidSettings.stream()))
-                        .collect(Collectors.toSet());
+        final Set<Setting<?>> knownSettings = Stream.concat(
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(),
+            Stream.concat(dynamicSettings.stream(), invalidSettings.stream())
+        ).collect(Collectors.toSet());
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, knownSettings);
         for (final Setting<String> dynamicSetting : dynamicSettings) {
             clusterSettings.addSettingsUpdateConsumer(dynamicSetting, s -> {});
         }
         final SettingsUpdater settingsUpdater = new SettingsUpdater(clusterSettings);
-        final Metadata.Builder metadataBuilder =
-                Metadata.builder()
-                        .persistentSettings(existingPersistentSettings.build())
-                        .transientSettings(existingTransientSettings.build());
+        final Metadata.Builder metadataBuilder = Metadata.builder()
+            .persistentSettings(existingPersistentSettings.build())
+            .transientSettings(existingTransientSettings.build());
         final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster")).metadata(metadataBuilder).build();
 
         // prepare the dynamic settings update
@@ -295,45 +324,45 @@ public class SettingsUpdaterTests extends ESTestCase {
             }
         }
 
-        final ClusterState clusterStateAfterUpdate =
-                settingsUpdater.updateSettings(clusterState, transientToApply.build(), persistentToApply.build(), logger);
+        final ClusterState clusterStateAfterUpdate = settingsUpdater.updateSettings(
+            clusterState,
+            transientToApply.build(),
+            persistentToApply.build(),
+            logger
+        );
 
         // the invalid settings should be archived and not present in non-archived form
         for (final Setting<String> invalidSetting : invalidSettings) {
             if (existingPersistentSettings.keys().contains(invalidSetting.getKey())) {
                 assertThat(
-                        clusterStateAfterUpdate.metadata().persistentSettings().keySet(),
-                        hasItem(ARCHIVED_SETTINGS_PREFIX + invalidSetting.getKey()));
+                    clusterStateAfterUpdate.metadata().persistentSettings().keySet(),
+                    hasItem(ARCHIVED_SETTINGS_PREFIX + invalidSetting.getKey())
+                );
             } else {
                 assertThat(
-                        clusterStateAfterUpdate.metadata().transientSettings().keySet(),
-                        hasItem(ARCHIVED_SETTINGS_PREFIX + invalidSetting.getKey()));
-            }
-            assertThat(
-                    clusterStateAfterUpdate.metadata().persistentSettings().keySet(),
-                    not(hasItem(invalidSetting.getKey())));
-            assertThat(
                     clusterStateAfterUpdate.metadata().transientSettings().keySet(),
-                    not(hasItem(invalidSetting.getKey())));
+                    hasItem(ARCHIVED_SETTINGS_PREFIX + invalidSetting.getKey())
+                );
+            }
+            assertThat(clusterStateAfterUpdate.metadata().persistentSettings().keySet(), not(hasItem(invalidSetting.getKey())));
+            assertThat(clusterStateAfterUpdate.metadata().transientSettings().keySet(), not(hasItem(invalidSetting.getKey())));
         }
 
         // the unknown settings should be archived and not present in non-archived form
         for (final Setting<String> unknownSetting : unknownSettings) {
             if (existingPersistentSettings.keys().contains(unknownSetting.getKey())) {
                 assertThat(
-                        clusterStateAfterUpdate.metadata().persistentSettings().keySet(),
-                        hasItem(ARCHIVED_SETTINGS_PREFIX + unknownSetting.getKey()));
+                    clusterStateAfterUpdate.metadata().persistentSettings().keySet(),
+                    hasItem(ARCHIVED_SETTINGS_PREFIX + unknownSetting.getKey())
+                );
             } else {
                 assertThat(
-                        clusterStateAfterUpdate.metadata().transientSettings().keySet(),
-                        hasItem(ARCHIVED_SETTINGS_PREFIX + unknownSetting.getKey()));
-            }
-            assertThat(
-                    clusterStateAfterUpdate.metadata().persistentSettings().keySet(),
-                    not(hasItem(unknownSetting.getKey())));
-            assertThat(
                     clusterStateAfterUpdate.metadata().transientSettings().keySet(),
-                    not(hasItem(unknownSetting.getKey())));
+                    hasItem(ARCHIVED_SETTINGS_PREFIX + unknownSetting.getKey())
+                );
+            }
+            assertThat(clusterStateAfterUpdate.metadata().persistentSettings().keySet(), not(hasItem(unknownSetting.getKey())));
+            assertThat(clusterStateAfterUpdate.metadata().transientSettings().keySet(), not(hasItem(unknownSetting.getKey())));
         }
 
         // the dynamic settings should be applied
@@ -348,13 +377,15 @@ public class SettingsUpdaterTests extends ESTestCase {
                 if (existingPersistentSettings.keys().contains(dynamicSetting.getKey())) {
                     assertThat(clusterStateAfterUpdate.metadata().persistentSettings().keySet(), hasItem(dynamicSetting.getKey()));
                     assertThat(
-                            clusterStateAfterUpdate.metadata().persistentSettings().get(dynamicSetting.getKey()),
-                            equalTo("existing_value"));
+                        clusterStateAfterUpdate.metadata().persistentSettings().get(dynamicSetting.getKey()),
+                        equalTo("existing_value")
+                    );
                 } else if (existingTransientSettings.keys().contains(dynamicSetting.getKey())) {
                     assertThat(clusterStateAfterUpdate.metadata().transientSettings().keySet(), hasItem(dynamicSetting.getKey()));
                     assertThat(
-                            clusterStateAfterUpdate.metadata().transientSettings().get(dynamicSetting.getKey()),
-                            equalTo("existing_value"));
+                        clusterStateAfterUpdate.metadata().transientSettings().get(dynamicSetting.getKey()),
+                        equalTo("existing_value")
+                    );
                 } else {
                     assertThat(clusterStateAfterUpdate.metadata().persistentSettings().keySet(), not(hasItem(dynamicSetting.getKey())));
                     assertThat(clusterStateAfterUpdate.metadata().transientSettings().keySet(), not(hasItem(dynamicSetting.getKey())));
@@ -408,35 +439,39 @@ public class SettingsUpdaterTests extends ESTestCase {
         }
 
         // register all the known settings (not that we do not register the unknown settings)
-        final Set<Setting<?>> knownSettings =
-                Stream.concat(
-                        ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(),
-                        Stream.concat(archivedSettings.stream(), invalidSettings.stream()))
-                        .collect(Collectors.toSet());
+        final Set<Setting<?>> knownSettings = Stream.concat(
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(),
+            Stream.concat(archivedSettings.stream(), invalidSettings.stream())
+        ).collect(Collectors.toSet());
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, knownSettings);
         final SettingsUpdater settingsUpdater = new SettingsUpdater(clusterSettings);
-        final Metadata.Builder metadataBuilder =
-                Metadata.builder()
-                        .persistentSettings(existingPersistentSettings.build())
-                        .transientSettings(existingTransientSettings.build());
+        final Metadata.Builder metadataBuilder = Metadata.builder()
+            .persistentSettings(existingPersistentSettings.build())
+            .transientSettings(existingTransientSettings.build());
         final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster")).metadata(metadataBuilder).build();
 
-        final Settings.Builder persistentToApply = Settings.builder().put("archived.*", (String)null);
-        final Settings.Builder transientToApply = Settings.builder().put("archived.*", (String)null);
+        final Settings.Builder persistentToApply = Settings.builder().put("archived.*", (String) null);
+        final Settings.Builder transientToApply = Settings.builder().put("archived.*", (String) null);
 
-        final ClusterState clusterStateAfterUpdate =
-                settingsUpdater.updateSettings(clusterState, transientToApply.build(), persistentToApply.build(), logger);
+        final ClusterState clusterStateAfterUpdate = settingsUpdater.updateSettings(
+            clusterState,
+            transientToApply.build(),
+            persistentToApply.build(),
+            logger
+        );
 
         // existing archived settings are removed
         for (final Setting<String> archivedSetting : archivedSettings) {
             if (existingPersistentSettings.keys().contains(ARCHIVED_SETTINGS_PREFIX + archivedSetting.getKey())) {
                 assertThat(
-                        clusterStateAfterUpdate.metadata().persistentSettings().keySet(),
-                        not(hasItem(ARCHIVED_SETTINGS_PREFIX + archivedSetting.getKey())));
+                    clusterStateAfterUpdate.metadata().persistentSettings().keySet(),
+                    not(hasItem(ARCHIVED_SETTINGS_PREFIX + archivedSetting.getKey()))
+                );
             } else {
                 assertThat(
-                        clusterStateAfterUpdate.metadata().transientSettings().keySet(),
-                        not(hasItem(ARCHIVED_SETTINGS_PREFIX + archivedSetting.getKey())));
+                    clusterStateAfterUpdate.metadata().transientSettings().keySet(),
+                    not(hasItem(ARCHIVED_SETTINGS_PREFIX + archivedSetting.getKey()))
+                );
             }
         }
 
@@ -444,38 +479,34 @@ public class SettingsUpdaterTests extends ESTestCase {
         for (final Setting<String> invalidSetting : invalidSettings) {
             if (existingPersistentSettings.keys().contains(invalidSetting.getKey())) {
                 assertThat(
-                        clusterStateAfterUpdate.metadata().persistentSettings().keySet(),
-                        hasItem(ARCHIVED_SETTINGS_PREFIX + invalidSetting.getKey()));
+                    clusterStateAfterUpdate.metadata().persistentSettings().keySet(),
+                    hasItem(ARCHIVED_SETTINGS_PREFIX + invalidSetting.getKey())
+                );
             } else {
                 assertThat(
-                        clusterStateAfterUpdate.metadata().transientSettings().keySet(),
-                        hasItem(ARCHIVED_SETTINGS_PREFIX + invalidSetting.getKey()));
-            }
-            assertThat(
-                    clusterStateAfterUpdate.metadata().persistentSettings().keySet(),
-                    not(hasItem(invalidSetting.getKey())));
-            assertThat(
                     clusterStateAfterUpdate.metadata().transientSettings().keySet(),
-                    not(hasItem(invalidSetting.getKey())));
+                    hasItem(ARCHIVED_SETTINGS_PREFIX + invalidSetting.getKey())
+                );
+            }
+            assertThat(clusterStateAfterUpdate.metadata().persistentSettings().keySet(), not(hasItem(invalidSetting.getKey())));
+            assertThat(clusterStateAfterUpdate.metadata().transientSettings().keySet(), not(hasItem(invalidSetting.getKey())));
         }
 
         // the unknown settings should be archived and not present in non-archived form
         for (final Setting<String> unknownSetting : unknownSettings) {
             if (existingPersistentSettings.keys().contains(unknownSetting.getKey())) {
                 assertThat(
-                        clusterStateAfterUpdate.metadata().persistentSettings().keySet(),
-                        hasItem(ARCHIVED_SETTINGS_PREFIX + unknownSetting.getKey()));
+                    clusterStateAfterUpdate.metadata().persistentSettings().keySet(),
+                    hasItem(ARCHIVED_SETTINGS_PREFIX + unknownSetting.getKey())
+                );
             } else {
                 assertThat(
-                        clusterStateAfterUpdate.metadata().transientSettings().keySet(),
-                        hasItem(ARCHIVED_SETTINGS_PREFIX + unknownSetting.getKey()));
-            }
-            assertThat(
-                    clusterStateAfterUpdate.metadata().persistentSettings().keySet(),
-                    not(hasItem(unknownSetting.getKey())));
-            assertThat(
                     clusterStateAfterUpdate.metadata().transientSettings().keySet(),
-                    not(hasItem(unknownSetting.getKey())));
+                    hasItem(ARCHIVED_SETTINGS_PREFIX + unknownSetting.getKey())
+                );
+            }
+            assertThat(clusterStateAfterUpdate.metadata().persistentSettings().keySet(), not(hasItem(unknownSetting.getKey())));
+            assertThat(clusterStateAfterUpdate.metadata().transientSettings().keySet(), not(hasItem(unknownSetting.getKey())));
         }
     }
 
@@ -496,45 +527,39 @@ public class SettingsUpdaterTests extends ESTestCase {
     }
 
     private static Setting<String> invalidInIsolationSetting(int index) {
-        return Setting.simpleString("invalid.setting" + index,
-            new Setting.Validator<>() {
+        return Setting.simpleString("invalid.setting" + index, new Setting.Validator<>() {
 
-                @Override
-                public void validate(final String value) {
-                    throw new IllegalArgumentException("Invalid in isolation setting");
-                }
+            @Override
+            public void validate(final String value) {
+                throw new IllegalArgumentException("Invalid in isolation setting");
+            }
 
-                @Override
-                public void validate(final String value, final Map<Setting<?>, Object> settings) {
+            @Override
+            public void validate(final String value, final Map<Setting<?>, Object> settings) {
 
-                }
+            }
 
-            },
-            Property.NodeScope);
+        }, Property.NodeScope);
     }
 
     private static Setting<String> invalidWithDependenciesSetting(int index) {
-        return Setting.simpleString("invalid.setting" + index,
-            new Setting.Validator<>() {
+        return Setting.simpleString("invalid.setting" + index, new Setting.Validator<>() {
 
-                @Override
-                public void validate(final String value) {
-                }
+            @Override
+            public void validate(final String value) {}
 
-                @Override
-                public void validate(final String value, final Map<Setting<?>, Object> settings) {
-                    throw new IllegalArgumentException("Invalid with dependencies setting");
-                }
+            @Override
+            public void validate(final String value, final Map<Setting<?>, Object> settings) {
+                throw new IllegalArgumentException("Invalid with dependencies setting");
+            }
 
-            },
-            Property.NodeScope);
+        }, Property.NodeScope);
     }
 
     private static class FooLowSettingValidator implements Setting.Validator<Integer> {
 
         @Override
-        public void validate(final Integer value) {
-        }
+        public void validate(final Integer value) {}
 
         @Override
         public void validate(final Integer low, final Map<Setting<?>, Object> settings) {
@@ -573,10 +598,22 @@ public class SettingsUpdaterTests extends ESTestCase {
 
     }
 
-    private static final Setting<Integer> SETTING_FOO_LOW = new Setting<>("foo.low", "10",
-        Integer::valueOf, new FooLowSettingValidator(), Property.Dynamic, Setting.Property.NodeScope);
-    private static final Setting<Integer> SETTING_FOO_HIGH = new Setting<>("foo.high", "100",
-        Integer::valueOf, new FooHighSettingValidator(), Property.Dynamic, Setting.Property.NodeScope);
+    private static final Setting<Integer> SETTING_FOO_LOW = new Setting<>(
+        "foo.low",
+        "10",
+        Integer::valueOf,
+        new FooLowSettingValidator(),
+        Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+    private static final Setting<Integer> SETTING_FOO_HIGH = new Setting<>(
+        "foo.high",
+        "100",
+        Integer::valueOf,
+        new FooHighSettingValidator(),
+        Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     public void testUpdateOfValidationDependentSettings() {
         final ClusterSettings settings = new ClusterSettings(Settings.EMPTY, new HashSet<>(asList(SETTING_FOO_LOW, SETTING_FOO_HIGH)));
@@ -601,11 +638,15 @@ public class SettingsUpdaterTests extends ESTestCase {
         assertThat(cluster.getMetadata().settings().get(SETTING_FOO_HIGH.getKey()), equalTo("8"));
 
         final ClusterState finalCluster = cluster;
-        Exception exception = expectThrows(IllegalArgumentException.class, () ->
-            updater.updateSettings(finalCluster, Settings.builder().put(SETTING_FOO_HIGH.getKey(), 2).build(), Settings.EMPTY, logger));
+        Exception exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> updater.updateSettings(finalCluster, Settings.builder().put(SETTING_FOO_HIGH.getKey(), 2).build(), Settings.EMPTY, logger)
+        );
 
-        assertThat(exception.getMessage(),
-            either(equalTo("[high]=2 is lower than [low]=5")).or(equalTo("[low]=5 is higher than [high]=2")));
+        assertThat(
+            exception.getMessage(),
+            either(equalTo("[high]=2 is lower than [low]=5")).or(equalTo("[low]=5 is higher than [high]=2"))
+        );
     }
 
 }

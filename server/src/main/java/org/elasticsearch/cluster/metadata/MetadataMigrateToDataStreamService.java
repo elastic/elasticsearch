@@ -22,8 +22,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -39,7 +39,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.createDataStream;
 
 public class MetadataMigrateToDataStreamService {
@@ -52,10 +51,12 @@ public class MetadataMigrateToDataStreamService {
     private final ThreadContext threadContext;
     private final MetadataCreateIndexService metadataCreateIndexService;
 
-    public MetadataMigrateToDataStreamService(ThreadPool threadPool,
-                                              ClusterService clusterService,
-                                              IndicesService indexServices,
-                                              MetadataCreateIndexService metadataCreateIndexService) {
+    public MetadataMigrateToDataStreamService(
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        IndicesService indexServices,
+        MetadataCreateIndexService metadataCreateIndexService
+    ) {
         this.clusterService = clusterService;
         this.indexServices = indexServices;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
@@ -63,55 +64,53 @@ public class MetadataMigrateToDataStreamService {
         this.metadataCreateIndexService = metadataCreateIndexService;
     }
 
-    public void migrateToDataStream(MigrateToDataStreamClusterStateUpdateRequest request,
-                                    ActionListener<AcknowledgedResponse> finalListener) {
+    public void migrateToDataStream(
+        MigrateToDataStreamClusterStateUpdateRequest request,
+        ActionListener<AcknowledgedResponse> finalListener
+    ) {
         metadataCreateIndexService.getSystemIndices().validateDataStreamAccess(request.aliasName, threadContext);
         AtomicReference<String> writeIndexRef = new AtomicReference<>();
-        ActionListener<AcknowledgedResponse> listener = ActionListener.wrap(
-            response -> {
-                if (response.isAcknowledged()) {
-                    String writeIndexName = writeIndexRef.get();
-                    assert writeIndexName != null;
-                    activeShardsObserver.waitForActiveShards(
-                        new String[]{writeIndexName},
-                        ActiveShardCount.DEFAULT,
-                        request.masterNodeTimeout(),
-                        shardsAcked -> {
-                            finalListener.onResponse(AcknowledgedResponse.TRUE);
-                        },
-                        finalListener::onFailure);
-                } else {
-                    finalListener.onResponse(AcknowledgedResponse.FALSE);
-                }
-            },
-            finalListener::onFailure
-        );
-        clusterService.submitStateUpdateTask("migrate-to-data-stream [" + request.aliasName + "]",
+        ActionListener<AcknowledgedResponse> listener = ActionListener.wrap(response -> {
+            if (response.isAcknowledged()) {
+                String writeIndexName = writeIndexRef.get();
+                assert writeIndexName != null;
+                activeShardsObserver.waitForActiveShards(
+                    new String[] { writeIndexName },
+                    ActiveShardCount.DEFAULT,
+                    request.masterNodeTimeout(),
+                    shardsAcked -> { finalListener.onResponse(AcknowledgedResponse.TRUE); },
+                    finalListener::onFailure
+                );
+            } else {
+                finalListener.onResponse(AcknowledgedResponse.FALSE);
+            }
+        }, finalListener::onFailure);
+        clusterService.submitStateUpdateTask(
+            "migrate-to-data-stream [" + request.aliasName + "]",
             new AckedClusterStateUpdateTask(Priority.HIGH, request, listener) {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    ClusterState clusterState = migrateToDataStream(
-                        currentState,
-                        indexMetadata -> {
-                            try {
-                                return indexServices.createIndexMapperService(indexMetadata);
-                            } catch (IOException e) {
-                                throw new IllegalStateException(e);
-                            }
-                        },
-                        request,
-                        metadataCreateIndexService);
+                    ClusterState clusterState = migrateToDataStream(currentState, indexMetadata -> {
+                        try {
+                            return indexServices.createIndexMapperService(indexMetadata);
+                        } catch (IOException e) {
+                            throw new IllegalStateException(e);
+                        }
+                    }, request, metadataCreateIndexService);
                     writeIndexRef.set(clusterState.metadata().dataStreams().get(request.aliasName).getWriteIndex().getName());
                     return clusterState;
                 }
-            });
+            }
+        );
     }
 
-    static ClusterState migrateToDataStream(ClusterState currentState,
-                                            Function<IndexMetadata, MapperService> mapperSupplier,
-                                            MigrateToDataStreamClusterStateUpdateRequest request,
-                                            MetadataCreateIndexService metadataCreateIndexService) throws Exception {
+    static ClusterState migrateToDataStream(
+        ClusterState currentState,
+        Function<IndexMetadata, MapperService> mapperSupplier,
+        MigrateToDataStreamClusterStateUpdateRequest request,
+        MetadataCreateIndexService metadataCreateIndexService
+    ) throws Exception {
         validateRequest(currentState, request);
         IndexAbstraction.Alias alias = (IndexAbstraction.Alias) currentState.metadata().getIndicesLookup().get(request.aliasName);
 
@@ -161,7 +160,8 @@ public class MetadataMigrateToDataStreamService {
         IndexMetadata im,
         String dataStreamName,
         Function<IndexMetadata, MapperService> mapperSupplier,
-        boolean removeAlias) throws IOException {
+        boolean removeAlias
+    ) throws IOException {
         MappingMetadata mm = im.mapping();
         if (mm == null) {
             throw new IllegalArgumentException("backing index [" + im.getIndex().getName() + "] must have mappings for a timestamp field");
@@ -169,8 +169,11 @@ public class MetadataMigrateToDataStreamService {
 
         MapperService mapperService = mapperSupplier.apply(im);
         mapperService.merge(im, MapperService.MergeReason.MAPPING_RECOVERY);
-        mapperService.merge("_doc", Map.of(DataStreamTimestampFieldMapper.NAME, Map.of("enabled", true)),
-            MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge(
+            "_doc",
+            Map.of(DataStreamTimestampFieldMapper.NAME, Map.of("enabled", true)),
+            MapperService.MergeReason.MAPPING_UPDATE
+        );
         DocumentMapper mapper = mapperService.documentMapper();
 
         var imb = IndexMetadata.builder(im);
@@ -178,11 +181,12 @@ public class MetadataMigrateToDataStreamService {
             imb.removeAlias(dataStreamName);
         }
 
-        b.put(imb
-            .settings(Settings.builder().put(im.getSettings()).put("index.hidden", "true").build())
-            .settingsVersion(im.getSettingsVersion() + 1)
-            .mappingVersion(im.getMappingVersion() + 1)
-            .putMapping(new MappingMetadata(mapper)));
+        b.put(
+            imb.settings(Settings.builder().put(im.getSettings()).put("index.hidden", "true").build())
+                .settingsVersion(im.getSettingsVersion() + 1)
+                .mappingVersion(im.getMappingVersion() + 1)
+                .putMapping(new MappingMetadata(mapper))
+        );
     }
 
     // package-visible for testing
@@ -202,8 +206,11 @@ public class MetadataMigrateToDataStreamService {
             }
         }
         if (indicesWithOtherAliases.size() > 0) {
-            throw new IllegalArgumentException("other aliases referencing indices [" +
-                Strings.collectionToCommaDelimitedString(indicesWithOtherAliases) + "] must be removed before migrating to a data stream");
+            throw new IllegalArgumentException(
+                "other aliases referencing indices ["
+                    + Strings.collectionToCommaDelimitedString(indicesWithOtherAliases)
+                    + "] must be removed before migrating to a data stream"
+            );
         }
     }
 
@@ -212,9 +219,7 @@ public class MetadataMigrateToDataStreamService {
 
         private final String aliasName;
 
-        public MigrateToDataStreamClusterStateUpdateRequest(String aliasName,
-                                                            TimeValue masterNodeTimeout,
-                                                            TimeValue timeout) {
+        public MigrateToDataStreamClusterStateUpdateRequest(String aliasName, TimeValue masterNodeTimeout, TimeValue timeout) {
             this.aliasName = aliasName;
             masterNodeTimeout(masterNodeTimeout);
             ackTimeout(timeout);

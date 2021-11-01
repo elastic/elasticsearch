@@ -16,15 +16,15 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.coordination.PeersResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -48,21 +48,30 @@ public abstract class PeerFinder {
     public static final String REQUEST_PEERS_ACTION_NAME = "internal:discovery/request_peers";
 
     // the time between attempts to find all peers
-    public static final Setting<TimeValue> DISCOVERY_FIND_PEERS_INTERVAL_SETTING =
-        Setting.timeSetting("discovery.find_peers_interval",
-            TimeValue.timeValueMillis(1000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
+    public static final Setting<TimeValue> DISCOVERY_FIND_PEERS_INTERVAL_SETTING = Setting.timeSetting(
+        "discovery.find_peers_interval",
+        TimeValue.timeValueMillis(1000),
+        TimeValue.timeValueMillis(1),
+        Setting.Property.NodeScope
+    );
 
-    public static final Setting<TimeValue> DISCOVERY_REQUEST_PEERS_TIMEOUT_SETTING =
-        Setting.timeSetting("discovery.request_peers_timeout",
-            TimeValue.timeValueMillis(3000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
+    public static final Setting<TimeValue> DISCOVERY_REQUEST_PEERS_TIMEOUT_SETTING = Setting.timeSetting(
+        "discovery.request_peers_timeout",
+        TimeValue.timeValueMillis(3000),
+        TimeValue.timeValueMillis(1),
+        Setting.Property.NodeScope
+    );
 
     // We do not log connection failures immediately: some failures are expected, especially if the hosts list isn't perfectly up-to-date
     // or contains some unnecessary junk. However if the node cannot find a master for an extended period of time then it is helpful to
     // users to describe in more detail why we cannot connect to the remote nodes. This setting defines how long we wait without discovering
     // the master before we start to emit more verbose logs.
-    public static final Setting<TimeValue> VERBOSITY_INCREASE_TIMEOUT_SETTING =
-        Setting.timeSetting("discovery.find_peers_warning_timeout",
-            TimeValue.timeValueMinutes(5), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
+    public static final Setting<TimeValue> VERBOSITY_INCREASE_TIMEOUT_SETTING = Setting.timeSetting(
+        "discovery.find_peers_warning_timeout",
+        TimeValue.timeValueMinutes(5),
+        TimeValue.timeValueMillis(1),
+        Setting.Property.NodeScope
+    );
 
     private final TimeValue findPeersInterval;
     private final TimeValue requestPeersTimeout;
@@ -81,8 +90,12 @@ public abstract class PeerFinder {
     private Optional<DiscoveryNode> leader = Optional.empty();
     private volatile List<TransportAddress> lastResolvedAddresses = emptyList();
 
-    public PeerFinder(Settings settings, TransportService transportService, TransportAddressConnector transportAddressConnector,
-                      ConfiguredHostsResolver configuredHostsResolver) {
+    public PeerFinder(
+        Settings settings,
+        TransportService transportService,
+        TransportAddressConnector transportAddressConnector,
+        ConfiguredHostsResolver configuredHostsResolver
+    ) {
         findPeersInterval = DISCOVERY_FIND_PEERS_INTERVAL_SETTING.get(settings);
         requestPeersTimeout = DISCOVERY_REQUEST_PEERS_TIMEOUT_SETTING.get(settings);
         verbosityIncreaseTimeout = VERBOSITY_INCREASE_TIMEOUT_SETTING.get(settings);
@@ -90,9 +103,14 @@ public abstract class PeerFinder {
         this.transportAddressConnector = transportAddressConnector;
         this.configuredHostsResolver = configuredHostsResolver;
 
-        transportService.registerRequestHandler(REQUEST_PEERS_ACTION_NAME, Names.GENERIC, false, false,
+        transportService.registerRequestHandler(
+            REQUEST_PEERS_ACTION_NAME,
+            Names.GENERIC,
+            false,
+            false,
             PeersRequest::new,
-            (request, channel, task) -> channel.sendResponse(handlePeersRequest(request)));
+            (request, channel, task) -> channel.sendResponse(handlePeersRequest(request))
+        );
     }
 
     public void activate(final DiscoveryNodes lastAcceptedNodes) {
@@ -224,8 +242,12 @@ public abstract class PeerFinder {
 
     private List<DiscoveryNode> getFoundPeersUnderLock() {
         assert holdsLock() : "PeerFinder mutex not held";
-        return peersByAddress.values().stream()
-            .map(Peer::getDiscoveryNode).filter(Objects::nonNull).distinct().collect(Collectors.toList());
+        return peersByAddress.values()
+            .stream()
+            .map(Peer::getDiscoveryNode)
+            .filter(Objects::nonNull)
+            .distinct()
+            .collect(Collectors.toList());
     }
 
     /**
@@ -351,8 +373,8 @@ public abstract class PeerFinder {
             assert getDiscoveryNode() == null : "unexpectedly connected to " + getDiscoveryNode();
             assert isActive();
 
-            final boolean verboseFailureLogging
-                    = transportService.getThreadPool().relativeTimeInMillis() - activatedAtMillis > verbosityIncreaseTimeout.millis();
+            final boolean verboseFailureLogging = transportService.getThreadPool().relativeTimeInMillis()
+                - activatedAtMillis > verbosityIncreaseTimeout.millis();
 
             logger.trace("{} attempting connection", this);
             transportAddressConnector.connectToRemoteMasterNode(transportAddress, new ActionListener<ProbeConnectionResult>() {
@@ -369,8 +391,8 @@ public abstract class PeerFinder {
                                 return;
                             }
 
-                            assert probeConnectionResult.get() == null :
-                                "connection result unexpectedly already set to " + probeConnectionResult.get();
+                            assert probeConnectionResult.get() == null
+                                : "connection result unexpectedly already set to " + probeConnectionResult.get();
                             probeConnectionResult.set(connectResult);
 
                             requestPeers();
@@ -400,8 +422,8 @@ public abstract class PeerFinder {
                                 cause = cause.getCause();
                             }
                             final String message = messageBuilder.length() < 1024
-                                    ? messageBuilder.toString()
-                                    : (messageBuilder.substring(0, 1023) + "...");
+                                ? messageBuilder.toString()
+                                : (messageBuilder.substring(0, 1023) + "...");
                             logger.warn("{} connection failed{}", Peer.this, message);
                         }
                     } else {
@@ -410,7 +432,9 @@ public abstract class PeerFinder {
                     synchronized (mutex) {
                         assert probeConnectionResult.get() == null
                             : "discoveryNode unexpectedly already set to " + probeConnectionResult.get();
-                        peersByAddress.remove(transportAddress);
+                        if (isActive()) {
+                            peersByAddress.remove(transportAddress);
+                        } // else this Peer has been superseded by a different instance which should be left in place
                     }
                 }
             });
@@ -473,10 +497,13 @@ public abstract class PeerFinder {
                     return Names.GENERIC;
                 }
             };
-            transportService.sendRequest(discoveryNode, REQUEST_PEERS_ACTION_NAME,
+            transportService.sendRequest(
+                discoveryNode,
+                REQUEST_PEERS_ACTION_NAME,
                 new PeersRequest(getLocalNode(), knownNodes),
                 TransportRequestOptions.timeout(requestPeersTimeout),
-                peersResponseHandler);
+                peersResponseHandler
+            );
         }
 
         @Nullable

@@ -35,8 +35,10 @@ public class ScheduleRegistry {
             } else if (type != null) {
                 schedule = parse(context, type, parser);
             } else {
-                throw new ElasticsearchParseException("could not parse schedule. expected a schedule type field, but found [{}] instead",
-                        token);
+                throw new ElasticsearchParseException(
+                    "could not parse schedule. expected a schedule type field, but found [{}] instead",
+                    token
+                );
             }
         }
         if (schedule == null) {

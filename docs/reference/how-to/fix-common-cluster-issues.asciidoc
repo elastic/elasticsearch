@@ -504,7 +504,7 @@ GET _cluster/settings?flat_settings=true&include_defaults=true
 // TEST[s/^/PUT my-index\n/]
 
 You can change the settings using the <<indices-update-settings,update index
-settings>> and <<cluster-update-settings,update cluster settings>> APIs.
+settings>> and <<cluster-update-settings,cluster update settings>> APIs.
 
 **Allocate or reduce replicas**
 

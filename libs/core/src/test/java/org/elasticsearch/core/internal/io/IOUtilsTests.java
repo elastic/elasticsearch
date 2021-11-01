@@ -1,4 +1,5 @@
-/* @notice
+/*
+ * @notice
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
@@ -84,8 +85,8 @@ public class IOUtilsTests extends ESTestCase {
         runTestCloseWithIOExceptions((Function<Closeable[], List<Closeable>>) Arrays::asList, IOUtils::close);
     }
 
-    private <T> void runTestCloseWithIOExceptions(
-            final Function<Closeable[], T> function, final CheckedConsumer<T, IOException> close) throws IOException {
+    private <T> void runTestCloseWithIOExceptions(final Function<Closeable[], T> function, final CheckedConsumer<T, IOException> close)
+        throws IOException {
         final int numberOfCloseables = randomIntBetween(1, 8);
         final Closeable[] closeables = new Closeable[numberOfCloseables];
         final List<Integer> indexesThatThrow = new ArrayList<>(numberOfCloseables);
@@ -124,7 +125,9 @@ public class IOUtilsTests extends ESTestCase {
     }
 
     private <T> void runDeleteFilesIgnoringExceptionsTest(
-            final Function<Path[], T> function, CheckedConsumer<T, IOException> deleteFilesIgnoringExceptions) throws IOException {
+        final Function<Path[], T> function,
+        CheckedConsumer<T, IOException> deleteFilesIgnoringExceptions
+    ) throws IOException {
         final int numberOfFiles = randomIntBetween(0, 7);
         final Path[] files = new Path[numberOfFiles];
         for (int i = 0; i < numberOfFiles; i++) {
@@ -157,8 +160,9 @@ public class IOUtilsTests extends ESTestCase {
         for (int i = 0; i < numberOfLocations; i++) {
             if (exception && randomBoolean()) {
                 final Path location = createTempDir();
-                final FileSystem fs =
-                        new AccessDeniedWhileDeletingFileSystem(location.getFileSystem()).getFileSystem(URI.create("file:///"));
+                final FileSystem fs = new AccessDeniedWhileDeletingFileSystem(location.getFileSystem()).getFileSystem(
+                    URI.create("file:///")
+                );
                 final Path wrapped = new FilterPath(location, fs);
                 locations[i] = wrapped.resolve(randomAlphaOfLength(8));
                 Files.createDirectory(locations[i]);
@@ -232,10 +236,8 @@ public class IOUtilsTests extends ESTestCase {
         }
 
         @Override
-        public FileChannel newFileChannel(
-                final Path path,
-                final Set<? extends OpenOption> options,
-                final FileAttribute<?>... attrs) throws IOException {
+        public FileChannel newFileChannel(final Path path, final Set<? extends OpenOption> options, final FileAttribute<?>... attrs)
+            throws IOException {
             if (Files.isDirectory(path)) {
                 throw new AccessDeniedException(path.toString());
             }

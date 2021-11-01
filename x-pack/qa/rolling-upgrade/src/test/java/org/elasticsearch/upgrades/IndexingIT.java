@@ -26,25 +26,25 @@ import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_A
 public class IndexingIT extends AbstractUpgradeTestCase {
     public void testIndexing() throws IOException {
         switch (CLUSTER_TYPE) {
-        case OLD:
-            break;
-        case MIXED:
-            ensureHealth((request -> {
-                request.addParameter("timeout", "70s");
-                request.addParameter("wait_for_nodes", "3");
-                request.addParameter("wait_for_status", "yellow");
-            }));
-            break;
-        case UPGRADED:
-            ensureHealth("test_index,index_with_replicas,empty_index", (request -> {
-                request.addParameter("wait_for_nodes", "3");
-                request.addParameter("wait_for_status", "green");
-                request.addParameter("timeout", "70s");
-                request.addParameter("level", "shards");
-            }));
-            break;
-        default:
-            throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+            case OLD:
+                break;
+            case MIXED:
+                ensureHealth((request -> {
+                    request.addParameter("timeout", "70s");
+                    request.addParameter("wait_for_nodes", "3");
+                    request.addParameter("wait_for_status", "yellow");
+                }));
+                break;
+            case UPGRADED:
+                ensureHealth("test_index,index_with_replicas,empty_index", (request -> {
+                    request.addParameter("wait_for_nodes", "3");
+                    request.addParameter("wait_for_status", "green");
+                    request.addParameter("timeout", "70s");
+                    request.addParameter("level", "shards");
+                }));
+                break;
+            default:
+                throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
 
         if (CLUSTER_TYPE == ClusterType.OLD) {
@@ -69,21 +69,21 @@ public class IndexingIT extends AbstractUpgradeTestCase {
 
         int expectedCount;
         switch (CLUSTER_TYPE) {
-        case OLD:
-            expectedCount = 5;
-            break;
-        case MIXED:
-            if (Booleans.parseBoolean(System.getProperty("tests.first_round"))) {
+            case OLD:
                 expectedCount = 5;
-            } else {
-                expectedCount = 10;
-            }
-            break;
-        case UPGRADED:
-            expectedCount = 15;
-            break;
-        default:
-            throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+                break;
+            case MIXED:
+                if (Booleans.parseBoolean(System.getProperty("tests.first_round"))) {
+                    expectedCount = 5;
+                } else {
+                    expectedCount = 10;
+                }
+                break;
+            case UPGRADED:
+                expectedCount = 15;
+                break;
+            default:
+                throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
 
         assertCount("test_index", expectedCount);
@@ -123,7 +123,9 @@ public class IndexingIT extends AbstractUpgradeTestCase {
         searchTestIndexRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
         searchTestIndexRequest.addParameter("filter_path", "hits.total");
         Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
-        assertEquals("{\"hits\":{\"total\":" + count + "}}",
-                EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8));
+        assertEquals(
+            "{\"hits\":{\"total\":" + count + "}}",
+            EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8)
+        );
     }
 }

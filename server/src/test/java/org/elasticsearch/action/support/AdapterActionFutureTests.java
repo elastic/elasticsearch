@@ -9,8 +9,8 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteTransportException;
 
@@ -24,13 +24,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class AdapterActionFutureTests extends ESTestCase {
 
     public void testInterruption() throws Exception {
-        final AdapterActionFuture<String, Integer> adapter =
-                new AdapterActionFuture<String, Integer>() {
-                    @Override
-                    protected String convert(final Integer listenerResponse) {
-                        return Objects.toString(listenerResponse);
-                    }
-                };
+        final AdapterActionFuture<String, Integer> adapter = new AdapterActionFuture<String, Integer>() {
+            @Override
+            protected String convert(final Integer listenerResponse) {
+                return Objects.toString(listenerResponse);
+            }
+        };
 
         // test all possible methods that can be interrupted
         final Runnable runnable = () -> {
@@ -85,14 +84,16 @@ public class AdapterActionFutureTests extends ESTestCase {
 
     public void testUnwrapException() {
         checkUnwrap(new RemoteTransportException("test", new RuntimeException()), RuntimeException.class, RemoteTransportException.class);
-        checkUnwrap(new RemoteTransportException("test", new Exception()),
-            UncategorizedExecutionException.class, RemoteTransportException.class);
+        checkUnwrap(
+            new RemoteTransportException("test", new Exception()),
+            UncategorizedExecutionException.class,
+            RemoteTransportException.class
+        );
         checkUnwrap(new Exception(), UncategorizedExecutionException.class, Exception.class);
         checkUnwrap(new ElasticsearchException("test", new Exception()), ElasticsearchException.class, ElasticsearchException.class);
     }
 
-    private void checkUnwrap(Exception exception, Class<? extends Exception> actionGetException,
-                             Class<? extends Exception> getException) {
+    private void checkUnwrap(Exception exception, Class<? extends Exception> actionGetException, Class<? extends Exception> getException) {
         final AdapterActionFuture<Void, Void> adapter = new AdapterActionFuture<Void, Void>() {
             @Override
             protected Void convert(Void listenerResponse) {

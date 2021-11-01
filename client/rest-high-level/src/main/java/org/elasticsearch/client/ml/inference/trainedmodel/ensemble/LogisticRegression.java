@@ -7,16 +7,14 @@
  */
 package org.elasticsearch.client.ml.inference.trainedmodel.ensemble;
 
-
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-
 
 public class LogisticRegression implements OutputAggregator {
 
@@ -27,7 +25,8 @@ public class LogisticRegression implements OutputAggregator {
     private static final ConstructingObjectParser<LogisticRegression, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         true,
-        a -> new LogisticRegression((List<Double>)a[0]));
+        a -> new LogisticRegression((List<Double>) a[0])
+    );
     static {
         PARSER.declareDoubleArray(ConstructingObjectParser.optionalConstructorArg(), WEIGHTS);
     }

@@ -5,14 +5,15 @@ setlocal enableextensions
 
 SET params='%*'
 SET checkpassword=Y
+SET enrolltocluster=N
 SET attemptautoconfig=Y
 
 :loop
 FOR /F "usebackq tokens=1* delims= " %%A IN (!params!) DO (
+    SET previous=!current!
     SET current=%%A
     SET params='%%B'
 	SET silent=N
-
 	IF "!current!" == "-s" (
 		SET silent=Y
 	)
@@ -38,14 +39,33 @@ FOR /F "usebackq tokens=1* delims= " %%A IN (!params!) DO (
 		SET attemptautoconfig=N
 	)
 
+	IF "!current!" == "--enrollment-token" (
+	    IF "!enrolltocluster!" == "Y" (
+	        ECHO "Multiple --enrollment-token parameters are not allowed" 1>&2
+	        goto exitwithone
+	    )
+		SET enrolltocluster=Y
+		SET attemptautoconfig=N
+	)
+
+	IF "!previous!" == "--enrollment-token" (
+		SET enrollmenttoken="!current!"
+	)
+
 	IF "!silent!" == "Y" (
 		SET nopauseonerror=Y
 	) ELSE (
-	    IF "x!newparams!" NEQ "x" (
-	        SET newparams=!newparams! !current!
-        ) ELSE (
-            SET newparams=!current!
-        )
+	    SET SHOULD_SKIP=false
+		IF "!previous!" == "--enrollment-token" SET SHOULD_SKIP=true
+		IF "!current!" == "--enrollment-token" SET SHOULD_SKIP=true
+		IF "!SHOULD_SKIP!" == "false" (
+			IF "x!newparams!" NEQ "x" (
+				SET newparams=!newparams! !current!
+			) ELSE (
+				SET newparams=!current!
+			)
+		)
+
 	)
 
     IF "x!params!" NEQ "x" (
@@ -73,13 +93,21 @@ IF "%checkpassword%"=="Y" (
   )
 )
 
+rem windows batch pipe will choke on special characters in strings
+SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^^=^^^^!
+SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^&=^^^&!
+SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^|=^^^|!
+SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^<=^^^<!
+SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^>=^^^>!
+SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^\=^^^\!
+
 IF "%attemptautoconfig%"=="Y" (
     ECHO.!KEYSTORE_PASSWORD!| %JAVA% %ES_JAVA_OPTS% ^
       -Des.path.home="%ES_HOME%" ^
       -Des.path.conf="%ES_PATH_CONF%" ^
       -Des.distribution.flavor="%ES_DISTRIBUTION_FLAVOR%" ^
       -Des.distribution.type="%ES_DISTRIBUTION_TYPE%" ^
-      -cp "!ES_CLASSPATH!;!ES_HOME!/lib/tools/security-cli/*;!ES_HOME!/modules/x-pack-core/*;!ES_HOME!/modules/x-pack-security/*" "org.elasticsearch.xpack.security.cli.ConfigInitialNode" !newparams!
+      -cp "!ES_CLASSPATH!;!ES_HOME!/lib/tools/security-cli/*;!ES_HOME!/modules/x-pack-core/*;!ES_HOME!/modules/x-pack-security/*" "org.elasticsearch.xpack.security.cli.AutoConfigureNode" !newparams!
     SET SHOULDEXIT=Y
     IF !ERRORLEVEL! EQU 0 SET SHOULDEXIT=N
     IF !ERRORLEVEL! EQU 73 SET SHOULDEXIT=N
@@ -88,6 +116,19 @@ IF "%attemptautoconfig%"=="Y" (
     IF "!SHOULDEXIT!"=="Y" (
         exit /b !ERRORLEVEL!
     )
+)
+
+IF "!enrolltocluster!"=="Y" (
+    ECHO.!KEYSTORE_PASSWORD!| %JAVA% %ES_JAVA_OPTS% ^
+      -Des.path.home="%ES_HOME%" ^
+      -Des.path.conf="%ES_PATH_CONF%" ^
+      -Des.distribution.flavor="%ES_DISTRIBUTION_FLAVOR%" ^
+      -Des.distribution.type="%ES_DISTRIBUTION_TYPE%" ^
+      -cp "!ES_CLASSPATH!;!ES_HOME!/lib/tools/security-cli/*;!ES_HOME!/modules/x-pack-core/*;!ES_HOME!/modules/x-pack-security/*" "org.elasticsearch.xpack.security.cli.AutoConfigureNode" ^
+      !newparams! --enrollment-token %enrollmenttoken%
+	IF !ERRORLEVEL! NEQ 0 (
+	    exit /b !ERRORLEVEL!
+	)
 )
 
 if not defined ES_TMPDIR (
@@ -111,14 +152,6 @@ if "%MAYBE_JVM_OPTIONS_PARSER_FAILED%" == "jvm_options_parser_failed" (
   exit /b 1
 )
 
-rem windows batch pipe will choke on special characters in strings
-SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^^=^^^^!
-SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^&=^^^&!
-SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^|=^^^|!
-SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^<=^^^<!
-SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^>=^^^>!
-SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^\=^^^\!
-
 ECHO.!KEYSTORE_PASSWORD!| %JAVA% %ES_JAVA_OPTS% -Delasticsearch ^
   -Des.path.home="%ES_HOME%" -Des.path.conf="%ES_PATH_CONF%" ^
   -Des.distribution.flavor="%ES_DISTRIBUTION_FLAVOR%" ^
@@ -129,3 +162,8 @@ ECHO.!KEYSTORE_PASSWORD!| %JAVA% %ES_JAVA_OPTS% -Delasticsearch ^
 endlocal
 endlocal
 exit /b %ERRORLEVEL%
+
+rem this hack is ugly but necessary because we can't exit with /b X from within the argument parsing loop.
+rem exit 1 (without /b) would work for powershell but it will terminate the cmd process when run in cmd
+:exitwithone
+    exit /b 1

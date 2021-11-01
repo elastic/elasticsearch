@@ -8,9 +8,6 @@
 
 package org.elasticsearch.xcontent;
 
-import org.elasticsearch.xcontent.support.filtering.FilterPath;
-import org.elasticsearch.core.RestApiVersion;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -50,54 +47,67 @@ public interface XContent {
     /**
      * Creates a parser over the provided string content.
      */
-    XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, String content)
-        throws IOException;
+    XContentParser createParser(XContentParserConfiguration config, String content) throws IOException;
+
+    /**
+     * Creates a parser over the provided string content.
+     * @deprecated Use {@link #createParser(XContentParserConfiguration, InputStream)}
+     */
+    @Deprecated
+    default XContentParser createParser(NamedXContentRegistry registry, DeprecationHandler deprecationHandler, String content)
+        throws IOException {
+        return createParser(XContentParserConfiguration.EMPTY.withRegistry(registry).withDeprecationHandler(deprecationHandler), content);
+    }
 
     /**
      * Creates a parser over the provided input stream.
      */
-    XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, InputStream is)
-        throws IOException;
+    XContentParser createParser(XContentParserConfiguration config, InputStream is) throws IOException;
 
     /**
      * Creates a parser over the provided input stream.
+     * @deprecated Use {@link #createParser(XContentParserConfiguration, InputStream)}
      */
-    XContentParser createParser(
-        NamedXContentRegistry xContentRegistry,
-        DeprecationHandler deprecationHandler,
-        InputStream is,
-        FilterPath[] includes,
-        FilterPath[] excludes
-    ) throws IOException;
+    @Deprecated
+    default XContentParser createParser(NamedXContentRegistry registry, DeprecationHandler deprecationHandler, InputStream is)
+        throws IOException {
+        return createParser(XContentParserConfiguration.EMPTY.withRegistry(registry).withDeprecationHandler(deprecationHandler), is);
+    }
 
     /**
      * Creates a parser over the provided bytes.
      */
-    XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, byte[] data)
-        throws IOException;
+    default XContentParser createParser(XContentParserConfiguration config, byte[] data) throws IOException {
+        return createParser(config, data, 0, data.length);
+    }
+
+    /**
+     * Creates a parser over the provided bytes.
+     * @deprecated Use {@link #createParser(XContentParserConfiguration, byte[])}
+     */
+    @Deprecated
+    default XContentParser createParser(NamedXContentRegistry registry, DeprecationHandler deprecationHandler, byte[] data)
+        throws IOException {
+        return createParser(XContentParserConfiguration.EMPTY.withRegistry(registry).withDeprecationHandler(deprecationHandler), data);
+    }
 
     /**
      * Creates a parser over the provided bytes.
      */
-    XContentParser createParser(NamedXContentRegistry xContentRegistry,
-                                DeprecationHandler deprecationHandler, byte[] data, int offset, int length) throws IOException;
+    XContentParser createParser(XContentParserConfiguration config, byte[] data, int offset, int length) throws IOException;
 
     /**
      * Creates a parser over the provided reader.
      */
-    XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, Reader reader)
-        throws IOException;
+    XContentParser createParser(XContentParserConfiguration config, Reader reader) throws IOException;
 
     /**
-     * Creates a parser over the provided input stream and with the indication that a request is using REST compatible API.
-     *
-     * @param restApiVersion - indicates if the N-1 or N compatible XContent parsing logic will be used.
+     * Creates a parser over the provided reader.
+     * @deprecated Use {@link #createParser(XContentParserConfiguration, Reader)}
      */
-    XContentParser createParserForCompatibility(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler,
-                                                InputStream is, RestApiVersion restApiVersion) throws IOException;
-
-    XContentParser createParserForCompatibility(NamedXContentRegistry xContentRegistry,
-                                DeprecationHandler deprecationHandler, byte[] data, int offset, int length,
-                                                RestApiVersion restApiVersion) throws IOException;
-
+    @Deprecated
+    default XContentParser createParser(NamedXContentRegistry registry, DeprecationHandler deprecationHandler, Reader reader)
+        throws IOException {
+        return createParser(XContentParserConfiguration.EMPTY.withRegistry(registry).withDeprecationHandler(deprecationHandler), reader);
+    }
 }

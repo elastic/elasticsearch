@@ -16,8 +16,8 @@ import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.RemovalListener;
 import org.elasticsearch.common.cache.RemovalNotification;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 
 import java.util.Map;
 import java.util.Objects;
@@ -44,12 +44,7 @@ public class ScriptCache {
     private final double compilesAllowedPerNano;
     private final String contextRateSetting;
 
-    ScriptCache(
-            int cacheMaxSize,
-            TimeValue cacheExpire,
-            CompilationRate maxCompilationRate,
-            String contextRateSetting
-    ) {
+    ScriptCache(int cacheMaxSize, TimeValue cacheExpire, CompilationRate maxCompilationRate, String contextRateSetting) {
         this.cacheSize = cacheMaxSize;
         this.cacheExpire = cacheExpire;
         this.contextRateSetting = contextRateSetting;
@@ -91,11 +86,18 @@ public class ScriptCache {
                 // but give the script engine the chance to be better, give it separate name + source code
                 // for the inline case, then its anonymous: null.
                 if (logger.isTraceEnabled()) {
-                    logger.trace("context [{}]: compiling script, type: [{}], lang: [{}], options: [{}]", context.name, type,
-                        lang, options);
+                    logger.trace(
+                        "context [{}]: compiling script, type: [{}], lang: [{}], options: [{}]",
+                        context.name,
+                        type,
+                        lang,
+                        options
+                    );
                 }
-                // Check whether too many compilations have happened
-                checkCompilationLimit();
+                if (context.compilationRateLimited) {
+                    // Check whether too many compilations have happened
+                    checkCompilationLimit();
+                }
                 Object compiledScript = scriptEngine.compile(id, idOrCode, context, options);
                 // Since the cache key is the script content itself we don't need to
                 // invalidate/check the cache if an indexed script changes.
@@ -119,6 +121,10 @@ public class ScriptCache {
     @SuppressWarnings("unchecked")
     static <T extends Throwable> void rethrow(Throwable t) throws T {
         throw (T) t;
+    }
+
+    public ScriptStats stats() {
+        return scriptMetrics.stats();
     }
 
     public ScriptContextStats stats(String context) {
@@ -161,10 +167,15 @@ public class ScriptCache {
         if (tokenBucketState.tokenSuccessfullyTaken == false) {
             scriptMetrics.onCompilationLimit();
             // Otherwise reject the request
-            throw new CircuitBreakingException("[script] Too many dynamic script compilations within, max: [" +
-                rate + "]; please use indexed, or scripts with parameters instead; " +
-                "this limit can be changed by the [" + contextRateSetting + "] setting",
-                CircuitBreaker.Durability.TRANSIENT);
+            throw new CircuitBreakingException(
+                "[script] Too many dynamic script compilations within, max: ["
+                    + rate
+                    + "]; please use indexed, or scripts with parameters instead; "
+                    + "this limit can be changed by the ["
+                    + contextRateSetting
+                    + "] setting",
+                CircuitBreaker.Durability.TRANSIENT
+            );
         }
     }
 
@@ -177,11 +188,7 @@ public class ScriptCache {
         @Override
         public void onRemoval(RemovalNotification<CacheKey, Object> notification) {
             if (logger.isDebugEnabled()) {
-                logger.debug(
-                    "removed [{}] from cache, reason: [{}]",
-                    notification.getValue(),
-                    notification.getRemovalReason()
-                );
+                logger.debug("removed [{}] from cache, reason: [{}]", notification.getValue(), notification.getRemovalReason());
             }
             scriptMetrics.onCacheEviction();
         }
@@ -205,10 +212,10 @@ public class ScriptCache {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             CacheKey cacheKey = (CacheKey) o;
-            return Objects.equals(lang, cacheKey.lang) &&
-                Objects.equals(idOrCode, cacheKey.idOrCode) &&
-                Objects.equals(context, cacheKey.context) &&
-                Objects.equals(options, cacheKey.options);
+            return Objects.equals(lang, cacheKey.lang)
+                && Objects.equals(idOrCode, cacheKey.idOrCode)
+                && Objects.equals(context, cacheKey.context)
+                && Objects.equals(options, cacheKey.options);
         }
 
         @Override
@@ -244,7 +251,7 @@ public class ScriptCache {
             this.source = null;
         }
 
-        public CompilationRate(Tuple<Integer,TimeValue> rate) {
+        public CompilationRate(Tuple<Integer, TimeValue> rate) {
             this(rate.v1(), rate.v2());
         }
 
@@ -253,8 +260,9 @@ public class ScriptCache {
          */
         public CompilationRate(String value) {
             if (value.contains("/") == false || value.startsWith("/") || value.endsWith("/")) {
-                throw new IllegalArgumentException("parameter must contain a positive integer and a timevalue, i.e. 10/1m, but was [" +
-                    value + "]");
+                throw new IllegalArgumentException(
+                    "parameter must contain a positive integer and a timevalue, i.e. 10/1m, but was [" + value + "]"
+                );
             }
             int idx = value.indexOf("/");
             String count = value.substring(0, idx);
@@ -281,7 +289,7 @@ public class ScriptCache {
             }
         }
 
-        public Tuple<Integer,TimeValue> asTuple() {
+        public Tuple<Integer, TimeValue> asTuple() {
             return new Tuple<>(this.count, this.time);
         }
 
@@ -295,8 +303,7 @@ public class ScriptCache {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             CompilationRate that = (CompilationRate) o;
-            return count == that.count &&
-                Objects.equals(time, that.time);
+            return count == that.count && Objects.equals(time, that.time);
         }
 
         @Override

@@ -16,14 +16,14 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.sql.client.ConnectionConfiguration;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -74,12 +74,15 @@ public class JdbcHttpClientRequestTests extends ESTestCase {
         Properties props = new Properties();
         props.setProperty(ConnectionConfiguration.BINARY_COMMUNICATION, Boolean.toString(isBinary));
 
-        JdbcHttpClient httpClient = new JdbcHttpClient(JdbcConfiguration.create(url, props, 0), false);
+        JdbcHttpClient httpClient = new JdbcHttpClient(new JdbcConnection(JdbcConfiguration.create(url, props, 0), false), false);
 
         prepareMockResponse();
         try {
-            httpClient.query(randomAlphaOfLength(256), null,
-                             new RequestMeta(randomIntBetween(1, 100), randomNonNegativeLong(), randomNonNegativeLong()));
+            httpClient.query(
+                randomAlphaOfLength(256),
+                null,
+                new RequestMeta(randomIntBetween(1, 100), randomNonNegativeLong(), randomNonNegativeLong())
+            );
         } catch (SQLException e) {
             logger.info("Ignored SQLException", e);
         }
@@ -108,10 +111,9 @@ public class JdbcHttpClientRequestTests extends ESTestCase {
     }
 
     private void prepareMockResponse() {
-        webServer.enqueue(new Response()
-                          .setResponseCode(200)
-                          .addHeader("Content-Type", "application/json")
-                          .setBody("{\"rows\":[],\"columns\":[]}"));
+        webServer.enqueue(
+            new Response().setResponseCode(200).addHeader("Content-Type", "application/json").setBody("{\"rows\":[],\"columns\":[]}")
+        );
     }
 
     @SuppressForbidden(reason = "use http server")
@@ -122,8 +124,7 @@ public class JdbcHttpClientRequestTests extends ESTestCase {
         private String hostname;
         private int port;
 
-        RawRequestMockWebServer() {
-        }
+        RawRequestMockWebServer() {}
 
         void start() throws IOException {
             InetSocketAddress address = new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0);
@@ -152,8 +153,14 @@ public class JdbcHttpClientRequestTests extends ESTestCase {
                         }
                     }
                 } catch (Exception e) {
-                    logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to respond to request [{} {}]",
-                            s.getRequestMethod(), s.getRequestURI()), e);
+                    logger.error(
+                        (Supplier<?>) () -> new ParameterizedMessage(
+                            "failed to respond to request [{} {}]",
+                            s.getRequestMethod(),
+                            s.getRequestURI()
+                        ),
+                        e
+                    );
                 } finally {
                     s.close();
                 }

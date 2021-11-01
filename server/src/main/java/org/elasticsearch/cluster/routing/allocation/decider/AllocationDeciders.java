@@ -63,8 +63,12 @@ public class AllocationDeciders extends AllocationDecider {
             // short track if a NO is returned.
             if (decision.type() == Decision.Type.NO) {
                 if (logger.isTraceEnabled()) {
-                    logger.trace("Can not allocate [{}] on node [{}] due to [{}]",
-                        shardRouting, node.node(), allocationDecider.getClass().getSimpleName());
+                    logger.trace(
+                        "Can not allocate [{}] on node [{}] due to [{}]",
+                        shardRouting,
+                        node.node(),
+                        allocationDecider.getClass().getSimpleName()
+                    );
                 }
                 // short circuit only if debugging is not enabled
                 if (allocation.debugDecision() == false) {
@@ -93,8 +97,12 @@ public class AllocationDeciders extends AllocationDecider {
             // short track if a NO is returned.
             if (decision.type() == Decision.Type.NO) {
                 if (logger.isTraceEnabled()) {
-                    logger.trace("Shard [{}] can not remain on node [{}] due to [{}]",
-                        shardRouting, node.nodeId(), allocationDecider.getClass().getSimpleName());
+                    logger.trace(
+                        "Shard [{}] can not remain on node [{}] due to [{}]",
+                        shardRouting,
+                        node.nodeId(),
+                        allocationDecider.getClass().getSimpleName()
+                    );
                 }
                 if (allocation.debugDecision() == false) {
                     return Decision.NO;
@@ -197,8 +205,12 @@ public class AllocationDeciders extends AllocationDecider {
             // short track if a NO is returned.
             if (decision.type() == Decision.Type.NO) {
                 if (logger.isTraceEnabled()) {
-                    logger.trace("Shard [{}] can not be forcefully allocated to node [{}] due to [{}].",
-                        shardRouting.shardId(), node.nodeId(), decider.getClass().getSimpleName());
+                    logger.trace(
+                        "Shard [{}] can not be forcefully allocated to node [{}] due to [{}].",
+                        shardRouting.shardId(),
+                        node.nodeId(),
+                        decider.getClass().getSimpleName()
+                    );
                 }
                 if (allocation.debugDecision() == false) {
                     return Decision.NO;

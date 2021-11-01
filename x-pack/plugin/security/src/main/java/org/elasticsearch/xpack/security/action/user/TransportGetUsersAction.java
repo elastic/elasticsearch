@@ -36,8 +36,13 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
     private final ReservedRealm reservedRealm;
 
     @Inject
-    public TransportGetUsersAction(Settings settings, ActionFilters actionFilters,
-                                   NativeUsersStore usersStore, TransportService transportService, ReservedRealm reservedRealm) {
+    public TransportGetUsersAction(
+        Settings settings,
+        ActionFilters actionFilters,
+        NativeUsersStore usersStore,
+        TransportService transportService,
+        ReservedRealm reservedRealm
+    ) {
         super(GetUsersAction.NAME, transportService, actionFilters, GetUsersRequest::new);
         this.settings = settings;
         this.usersStore = usersStore;
@@ -65,11 +70,10 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
         }
 
         final ActionListener<Collection<Collection<User>>> sendingListener = ActionListener.wrap((userLists) -> {
-                users.addAll(userLists.stream().flatMap(Collection::stream).filter(Objects::nonNull).collect(Collectors.toList()));
-                listener.onResponse(new GetUsersResponse(users));
-            }, listener::onFailure);
-        final GroupedActionListener<Collection<User>> groupListener =
-                new GroupedActionListener<>(sendingListener, 2);
+            users.addAll(userLists.stream().flatMap(Collection::stream).filter(Objects::nonNull).collect(Collectors.toList()));
+            listener.onResponse(new GetUsersResponse(users));
+        }, listener::onFailure);
+        final GroupedActionListener<Collection<User>> groupListener = new GroupedActionListener<>(sendingListener, 2);
         // We have two sources for the users object, the reservedRealm and the usersStore, we query both at the same time with a
         // GroupedActionListener
         if (realmLookup.isEmpty()) {

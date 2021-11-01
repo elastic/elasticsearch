@@ -40,7 +40,8 @@ public class NodeRoles {
             .put(settings)
             .putList(
                 NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
-                roles.stream().map(DiscoveryNodeRole::roleName).collect(Collectors.toUnmodifiableList()))
+                roles.stream().map(DiscoveryNodeRole::roleName).collect(Collectors.toUnmodifiableList())
+            )
             .build();
     }
 
@@ -106,8 +107,10 @@ public class NodeRoles {
     }
 
     public static Settings nonDataNode(final Settings settings) {
-        final Set<DiscoveryNodeRole> dataRoles =
-            DiscoveryNodeRole.roles().stream().filter(DiscoveryNodeRole::canContainData).collect(Collectors.toUnmodifiableSet());
+        final Set<DiscoveryNodeRole> dataRoles = DiscoveryNodeRole.roles()
+            .stream()
+            .filter(DiscoveryNodeRole::canContainData)
+            .collect(Collectors.toUnmodifiableSet());
         return removeRoles(settings, dataRoles);
     }
 

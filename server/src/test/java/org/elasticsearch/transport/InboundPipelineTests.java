@@ -16,13 +16,13 @@ import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.test.ESTestCase;
 
@@ -42,6 +42,7 @@ public class InboundPipelineTests extends ESTestCase {
 
     private static final int BYTE_THRESHOLD = 128 * 1024;
     private final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+    private final BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
 
     public void testPipelineHandling() throws IOException {
         final List<Tuple<MessageData, Exception>> expected = new ArrayList<>();
@@ -77,7 +78,7 @@ public class InboundPipelineTests extends ESTestCase {
 
         final StatsTracker statsTracker = new StatsTracker();
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
-        final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
+        final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, recycler);
         final String breakThisAction = "break_this_action";
         final String actionName = "actionName";
         final Predicate<String> canTripBreaker = breakThisAction::equals;
@@ -110,18 +111,38 @@ public class InboundPipelineTests extends ESTestCase {
                     if (isRequest) {
                         if (rarely()) {
                             messageData = new MessageData(version, requestId, true, compressionScheme, breakThisAction, null);
-                            message = new OutboundMessage.Request(threadContext, new TestRequest(value),
-                                version, breakThisAction, requestId, false, compressionScheme);
+                            message = new OutboundMessage.Request(
+                                threadContext,
+                                new TestRequest(value),
+                                version,
+                                breakThisAction,
+                                requestId,
+                                false,
+                                compressionScheme
+                            );
                             expectedExceptionClass = new CircuitBreakingException("", CircuitBreaker.Durability.PERMANENT);
                         } else {
                             messageData = new MessageData(version, requestId, true, compressionScheme, actionName, value);
-                            message = new OutboundMessage.Request(threadContext, new TestRequest(value),
-                                version, actionName, requestId, false, compressionScheme);
+                            message = new OutboundMessage.Request(
+                                threadContext,
+                                new TestRequest(value),
+                                version,
+                                actionName,
+                                requestId,
+                                false,
+                                compressionScheme
+                            );
                         }
                     } else {
                         messageData = new MessageData(version, requestId, false, compressionScheme, null, value);
-                        message = new OutboundMessage.Response(threadContext, new TestResponse(value),
-                            version, requestId, false, compressionScheme);
+                        message = new OutboundMessage.Response(
+                            threadContext,
+                            new TestResponse(value),
+                            version,
+                            requestId,
+                            false,
+                            compressionScheme
+                        );
                     }
 
                     expected.add(new Tuple<>(messageData, expectedExceptionClass));
@@ -186,7 +207,7 @@ public class InboundPipelineTests extends ESTestCase {
         BiConsumer<TcpChannel, InboundMessage> messageHandler = (c, m) -> {};
         final StatsTracker statsTracker = new StatsTracker();
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
-        final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
+        final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, recycler);
         final Supplier<CircuitBreaker> breaker = () -> new NoopCircuitBreaker("test");
         final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) action -> true);
         final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler);
@@ -200,11 +221,17 @@ public class InboundPipelineTests extends ESTestCase {
 
             OutboundMessage message;
             if (isRequest) {
-                message = new OutboundMessage.Request(threadContext, new TestRequest(value),
-                    invalidVersion, actionName, requestId, false, null);
+                message = new OutboundMessage.Request(
+                    threadContext,
+                    new TestRequest(value),
+                    invalidVersion,
+                    actionName,
+                    requestId,
+                    false,
+                    null
+                );
             } else {
-                message = new OutboundMessage.Response(threadContext, new TestResponse(value),
-                    invalidVersion, requestId, false, null);
+                message = new OutboundMessage.Response(threadContext, new TestResponse(value), invalidVersion, requestId, false, null);
             }
 
             final BytesReference reference = message.serialize(streamOutput);
@@ -213,8 +240,10 @@ public class InboundPipelineTests extends ESTestCase {
             }
 
             // Pipeline cannot be reused after uncaught exception
-            final IllegalStateException ise = expectThrows(IllegalStateException.class,
-                () -> pipeline.handleBytes(new FakeTcpChannel(), ReleasableBytesReference.wrap(BytesArray.EMPTY)));
+            final IllegalStateException ise = expectThrows(
+                IllegalStateException.class,
+                () -> pipeline.handleBytes(new FakeTcpChannel(), ReleasableBytesReference.wrap(BytesArray.EMPTY))
+            );
             assertEquals("Pipeline state corrupted by uncaught exception", ise.getMessage());
         }
     }
@@ -223,7 +252,7 @@ public class InboundPipelineTests extends ESTestCase {
         BiConsumer<TcpChannel, InboundMessage> messageHandler = (c, m) -> {};
         final StatsTracker statsTracker = new StatsTracker();
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
-        final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
+        final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, recycler);
         final Supplier<CircuitBreaker> breaker = () -> new NoopCircuitBreaker("test");
         final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) action -> true);
         final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler);
@@ -237,11 +266,9 @@ public class InboundPipelineTests extends ESTestCase {
 
             OutboundMessage message;
             if (isRequest) {
-                message = new OutboundMessage.Request(threadContext, new TestRequest(value),
-                    version, actionName, requestId, false, null);
+                message = new OutboundMessage.Request(threadContext, new TestRequest(value), version, actionName, requestId, false, null);
             } else {
-                message = new OutboundMessage.Response(threadContext, new TestResponse(value),
-                    version, requestId, false, null);
+                message = new OutboundMessage.Response(threadContext, new TestResponse(value), version, requestId, false, null);
             }
 
             final BytesReference reference = message.serialize(streamOutput);
@@ -278,8 +305,14 @@ public class InboundPipelineTests extends ESTestCase {
         private final String value;
         private final String actionName;
 
-        private MessageData(Version version, long requestId, boolean isRequest, Compression.Scheme compressionScheme, String actionName,
-                            String value) {
+        private MessageData(
+            Version version,
+            long requestId,
+            boolean isRequest,
+            Compression.Scheme compressionScheme,
+            String actionName,
+            String value
+        ) {
             this.version = version;
             this.requestId = requestId;
             this.isRequest = isRequest;
@@ -288,18 +321,17 @@ public class InboundPipelineTests extends ESTestCase {
             this.value = value;
         }
 
-
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             MessageData that = (MessageData) o;
-            return requestId == that.requestId &&
-                isRequest == that.isRequest &&
-                Objects.equals(compressionScheme, that.compressionScheme) &&
-                Objects.equals(version, that.version) &&
-                Objects.equals(value, that.value) &&
-                Objects.equals(actionName, that.actionName);
+            return requestId == that.requestId
+                && isRequest == that.isRequest
+                && Objects.equals(compressionScheme, that.compressionScheme)
+                && Objects.equals(version, that.version)
+                && Objects.equals(value, that.value)
+                && Objects.equals(actionName, that.actionName);
         }
 
         @Override

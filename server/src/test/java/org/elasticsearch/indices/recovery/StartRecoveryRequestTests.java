@@ -32,20 +32,24 @@ public class StartRecoveryRequestTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
         final Version targetNodeVersion = randomVersion(random());
-        Store.MetadataSnapshot metadataSnapshot = randomBoolean() ? Store.MetadataSnapshot.EMPTY :
-            new Store.MetadataSnapshot(Collections.emptyMap(),
-                Collections.singletonMap(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID()), randomIntBetween(0, 100));
+        Store.MetadataSnapshot metadataSnapshot = randomBoolean()
+            ? Store.MetadataSnapshot.EMPTY
+            : new Store.MetadataSnapshot(
+                Collections.emptyMap(),
+                Collections.singletonMap(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID()),
+                randomIntBetween(0, 100)
+            );
         final StartRecoveryRequest outRequest = new StartRecoveryRequest(
-                new ShardId("test", "_na_", 0),
-                UUIDs.randomBase64UUID(),
-                new DiscoveryNode("a", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
-                new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
-                metadataSnapshot,
-                randomBoolean(),
-                randomNonNegativeLong(),
-                randomBoolean() || metadataSnapshot.getHistoryUUID() == null ?
-                    SequenceNumbers.UNASSIGNED_SEQ_NO : randomNonNegativeLong(),
-                randomBoolean());
+            new ShardId("test", "_na_", 0),
+            UUIDs.randomBase64UUID(),
+            new DiscoveryNode("a", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
+            new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), targetNodeVersion),
+            metadataSnapshot,
+            randomBoolean(),
+            randomNonNegativeLong(),
+            randomBoolean() || metadataSnapshot.getHistoryUUID() == null ? SequenceNumbers.UNASSIGNED_SEQ_NO : randomNonNegativeLong(),
+            randomBoolean()
+        );
 
         final ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         final OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);

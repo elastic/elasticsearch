@@ -359,8 +359,10 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             .getAllNodes()
             .stream()
             // TODO: Change when we update `mayAllocateToNode`
-            .filter(node -> shuttingDownNodes.contains(node.getId()) == false
-                && StartTrainedModelDeploymentAction.TaskParams.mayAllocateToNode(node))
+            .filter(
+                node -> shuttingDownNodes.contains(node.getId()) == false
+                    && StartTrainedModelDeploymentAction.TaskParams.mayAllocateToNode(node)
+            )
             .collect(Collectors.toMap(DiscoveryNode::getId, Function.identity()));
         // TODO: make more efficient, we iterate every entry, sorting by nodes routed (fewest to most)
         previousState.modelAllocations()
@@ -374,9 +376,9 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
                 for (DiscoveryNode node : currentEligibleNodes.values()) {
                     if (modelAllocationEntry.getValue().isRoutedToNode(node.getId()) == false) {
                         Optional<String> failure = builder.isChanged() ?
-                            // We use the builder only if we have changed, there is no point in creating a new object if we haven't changed
-                            nodeHasCapacity(currentState, builder, modelAllocationEntry.getValue().getTaskParams(), node) :
-                            nodeHasCapacity(currentState, modelAllocationEntry.getValue().getTaskParams(), node);
+                        // We use the builder only if we have changed, there is no point in creating a new object if we haven't changed
+                        nodeHasCapacity(currentState, builder, modelAllocationEntry.getValue().getTaskParams(), node)
+                            : nodeHasCapacity(currentState, modelAllocationEntry.getValue().getTaskParams(), node);
                         if (failure.isPresent()) {
                             nodeToReason.put(node.getName(), failure.get());
                         } else {
@@ -444,7 +446,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
     }
 
     Optional<String> nodeHasCapacity(ClusterState state, StartTrainedModelDeploymentAction.TaskParams params, DiscoveryNode node) {
-        NodeLoad load = nodeLoadDetector.detectNodeLoad(state, true, node, maxOpenJobs, maxMemoryPercentage, useAuto);
+        NodeLoad load = nodeLoadDetector.detectNodeLoad(state, node, maxOpenJobs, maxMemoryPercentage, useAuto);
         return handleNodeLoad(load, node.getId(), params);
     }
 
@@ -457,15 +459,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
         StartTrainedModelDeploymentAction.TaskParams params,
         DiscoveryNode node
     ) {
-        NodeLoad load = nodeLoadDetector.detectNodeLoad(
-            state,
-            builder.build(),
-            true,
-            node,
-            maxOpenJobs,
-            maxMemoryPercentage,
-            useAuto
-        );
+        NodeLoad load = nodeLoadDetector.detectNodeLoad(state, builder.build(), node, maxOpenJobs, maxMemoryPercentage, useAuto);
         return handleNodeLoad(load, node.getId(), params);
     }
 
@@ -478,11 +472,7 @@ public class TrainedModelAllocationClusterService implements ClusterStateListene
             return Optional.of(
                 ParameterizedMessage.format(
                     "This node is full. Number of opened jobs and allocated native inference processes [{}], {} [{}].",
-                    new Object[] {
-                        load.getNumAssignedJobs(),
-                        MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(),
-                        maxOpenJobs
-                    }
+                    new Object[] { load.getNumAssignedJobs(), MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), maxOpenJobs }
                 )
             );
         }

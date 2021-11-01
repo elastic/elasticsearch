@@ -61,7 +61,8 @@ public class JobDataCountsPersister {
     public void persistDataCounts(String jobId, DataCounts counts) {
         counts.setLogTime(Instant.now());
         try {
-            resultsPersisterService.indexWithRetry(jobId,
+            resultsPersisterService.indexWithRetry(
+                jobId,
                 AnomalyDetectorsIndex.resultsWriteAlias(jobId),
                 counts,
                 ToXContent.EMPTY_PARAMS,
@@ -69,7 +70,8 @@ public class JobDataCountsPersister {
                 DataCounts.documentId(jobId),
                 true,
                 () -> true,
-                retryMessage -> logger.debug("[{}] Job data_counts {}", jobId, retryMessage));
+                retryMessage -> logger.debug("[{}] Job data_counts {}", jobId, retryMessage)
+            );
         } catch (IOException ioe) {
             logger.error(() -> new ParameterizedMessage("[{}] Failed writing data_counts stats", jobId), ioe);
         } catch (Exception ex) {
@@ -91,13 +93,17 @@ public class JobDataCountsPersister {
     public void persistDataCountsAsync(String jobId, DataCounts counts, ActionListener<Boolean> listener) {
         counts.setLogTime(Instant.now());
         try (XContentBuilder content = serialiseCounts(counts)) {
-            final IndexRequest request = new IndexRequest(AnomalyDetectorsIndex.resultsWriteAlias(jobId))
-                .id(DataCounts.documentId(jobId))
+            final IndexRequest request = new IndexRequest(AnomalyDetectorsIndex.resultsWriteAlias(jobId)).id(DataCounts.documentId(jobId))
                 .setRequireAlias(true)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .source(content);
-            executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, request,
-                    listener.delegateFailure((l, r) -> l.onResponse(true)));
+            executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                IndexAction.INSTANCE,
+                request,
+                listener.delegateFailure((l, r) -> l.onResponse(true))
+            );
         } catch (IOException ioe) {
             String msg = new ParameterizedMessage("[{}] Failed writing data_counts stats", jobId).getFormattedMessage();
             logger.error(msg, ioe);

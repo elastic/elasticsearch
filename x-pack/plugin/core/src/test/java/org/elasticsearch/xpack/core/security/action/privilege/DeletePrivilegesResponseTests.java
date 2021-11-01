@@ -19,7 +19,8 @@ public class DeletePrivilegesResponseTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         final DeletePrivilegesResponse original = new DeletePrivilegesResponse(
-            Arrays.asList(generateRandomStringArray(5, randomIntBetween(3, 8), false, true)));
+            Arrays.asList(generateRandomStringArray(5, randomIntBetween(3, 8), false, true))
+        );
 
         final BytesStreamOutput output = new BytesStreamOutput();
         original.writeTo(output);

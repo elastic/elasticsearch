@@ -48,9 +48,14 @@ public class WhitelistClassBinding {
     public final Map<Class<?>, Object> painlessAnnotations;
 
     /** Standard constructor. All values must be not {@code null}. */
-    public WhitelistClassBinding(String origin, String targetJavaClassName,
-            String methodName, String returnCanonicalTypeName, List<String> canonicalTypeNameParameters,
-            List<Object> painlessAnnotations) {
+    public WhitelistClassBinding(
+        String origin,
+        String targetJavaClassName,
+        String methodName,
+        String returnCanonicalTypeName,
+        List<String> canonicalTypeNameParameters,
+        List<Object> painlessAnnotations
+    ) {
 
         this.origin = Objects.requireNonNull(origin);
         this.targetJavaClassName = Objects.requireNonNull(targetJavaClassName);
@@ -62,9 +67,12 @@ public class WhitelistClassBinding {
         if (painlessAnnotations.isEmpty()) {
             this.painlessAnnotations = Collections.emptyMap();
         } else {
-            this.painlessAnnotations = Collections.unmodifiableMap(Objects.requireNonNull(painlessAnnotations).stream()
+            this.painlessAnnotations = Collections.unmodifiableMap(
+                Objects.requireNonNull(painlessAnnotations)
+                    .stream()
                     .map(painlessAnnotation -> new AbstractMap.SimpleEntry<>(painlessAnnotation.getClass(), painlessAnnotation))
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+            );
         }
     }
 }

@@ -32,7 +32,8 @@ public class RestSnapshotsStatusAction extends BaseRestHandler {
         return List.of(
             new Route(GET, "/_snapshot/{repository}/{snapshot}/_status"),
             new Route(GET, "/_snapshot/{repository}/_status"),
-            new Route(GET, "/_snapshot/_status"));
+            new Route(GET, "/_snapshot/_status")
+        );
     }
 
     @Override
@@ -51,7 +52,8 @@ public class RestSnapshotsStatusAction extends BaseRestHandler {
         snapshotsStatusRequest.ignoreUnavailable(request.paramAsBoolean("ignore_unavailable", snapshotsStatusRequest.ignoreUnavailable()));
 
         snapshotsStatusRequest.masterNodeTimeout(request.paramAsTime("master_timeout", snapshotsStatusRequest.masterNodeTimeout()));
-        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel())
-            .admin().cluster().snapshotsStatus(snapshotsStatusRequest, new RestToXContentListener<>(channel));
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
+            .cluster()
+            .snapshotsStatus(snapshotsStatusRequest, new RestToXContentListener<>(channel));
     }
 }

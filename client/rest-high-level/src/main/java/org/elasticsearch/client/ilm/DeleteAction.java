@@ -25,8 +25,7 @@ public class DeleteAction implements LifecycleAction, ToXContentObject {
         return PARSER.apply(parser, null);
     }
 
-    public DeleteAction() {
-    }
+    public DeleteAction() {}
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {

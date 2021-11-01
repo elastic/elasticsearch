@@ -24,7 +24,7 @@ public class ImplicitTiebreakerHitExtractor implements HitExtractor {
     private ImplicitTiebreakerHitExtractor() {}
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException { }
+    public void writeTo(StreamOutput out) throws IOException {}
 
     @Override
     public String getWriteableName() {

@@ -42,14 +42,17 @@ public class IndexRecoveryCollector extends Collector {
     /**
      * Flag to indicate if only active recoveries should be collected (default to false: all recoveries are collected)
      */
-    public static final Setting<Boolean> INDEX_RECOVERY_ACTIVE_ONLY =
-            boolSetting(collectionSetting("index.recovery.active_only"), false, Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<Boolean> INDEX_RECOVERY_ACTIVE_ONLY = boolSetting(
+        collectionSetting("index.recovery.active_only"),
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated
+    );
 
     private final Client client;
 
-    public IndexRecoveryCollector(final ClusterService clusterService,
-                                  final XPackLicenseState licenseState,
-                                  final Client client) {
+    public IndexRecoveryCollector(final ClusterService clusterService, final XPackLicenseState licenseState, final Client client) {
         super(IndexRecoveryMonitoringDoc.TYPE, clusterService, INDEX_RECOVERY_TIMEOUT, licenseState);
         this.client = Objects.requireNonNull(client);
     }
@@ -64,16 +67,16 @@ public class IndexRecoveryCollector extends Collector {
     }
 
     @Override
-    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node,
-                                                  final long interval,
-                                                  final ClusterState clusterState) {
+    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node, final long interval, final ClusterState clusterState) {
         List<MonitoringDoc> results = new ArrayList<>(1);
-        RecoveryResponse recoveryResponse = client.admin().indices().prepareRecoveries()
-                .setIndices(getCollectionIndices())
-                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .setActiveOnly(getActiveRecoveriesOnly())
-                .setTimeout(getCollectionTimeout())
-                .get();
+        RecoveryResponse recoveryResponse = client.admin()
+            .indices()
+            .prepareRecoveries()
+            .setIndices(getCollectionIndices())
+            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .setActiveOnly(getActiveRecoveriesOnly())
+            .setTimeout(getCollectionTimeout())
+            .get();
 
         ensureNoTimeouts(getCollectionTimeout(), recoveryResponse);
 

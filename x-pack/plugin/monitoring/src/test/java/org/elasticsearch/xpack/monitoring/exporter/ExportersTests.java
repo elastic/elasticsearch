@@ -19,11 +19,11 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -102,21 +102,28 @@ public class ExportersTests extends ESTestCase {
         sslService = mock(SSLService.class);
 
         // we always need to have the local exporter as it serves as the default one
-        factories.put(LocalExporter.TYPE, config -> new LocalExporter(config, client, new MonitoringMigrationCoordinator(),
-            mock(CleanerService.class)));
+        factories.put(
+            LocalExporter.TYPE,
+            config -> new LocalExporter(config, client, new MonitoringMigrationCoordinator(), mock(CleanerService.class))
+        );
 
         exporters = new Exporters(Settings.EMPTY, factories, clusterService, licenseState, threadContext, sslService);
     }
 
     public void testHostsMustBeSetIfTypeIsHttp() {
         final String prefix = "xpack.monitoring.exporters.example";
-        final Settings settings  = Settings.builder().put(prefix + ".type", "http").build();
+        final Settings settings = Settings.builder().put(prefix + ".type", "http").build();
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> HttpExporter.TYPE_SETTING.getConcreteSetting(prefix + ".type").get(settings));
+            () -> HttpExporter.TYPE_SETTING.getConcreteSetting(prefix + ".type").get(settings)
+        );
         assertThat(e, hasToString(containsString("Failed to parse value [http] for setting [" + prefix + ".type]")));
         assertThat(e.getCause(), instanceOf(SettingsException.class));
         assertThat(e.getCause(), hasToString(containsString("host list for [" + prefix + ".host] is empty")));
+        assertWarnings(
+            "[xpack.monitoring.exporters.example.type] setting was deprecated in Elasticsearch and will be removed in a "
+                + "future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testIndexNameTimeFormatMustBeValid() {
@@ -126,10 +133,15 @@ public class ExportersTests extends ESTestCase {
         final Settings settings = Settings.builder().put(prefix + setting, value).build();
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> Exporter.INDEX_NAME_TIME_FORMAT_SETTING.getConcreteSetting(prefix + setting).get(settings));
+            () -> Exporter.INDEX_NAME_TIME_FORMAT_SETTING.getConcreteSetting(prefix + setting).get(settings)
+        );
         assertThat(e, hasToString(containsString("Invalid format: [" + value + "]: Unknown pattern letter: j")));
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(e.getCause(), hasToString(containsString("Unknown pattern letter: j")));
+        assertWarnings(
+            "[xpack.monitoring.exporters.example.index.name.time_format] setting was deprecated in Elasticsearch and will "
+                + "be removed in a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testExporterIndexPattern() {
@@ -159,9 +171,9 @@ public class ExportersTests extends ESTestCase {
 
     public void testInitExportersSingle() throws Exception {
         factories.put("local", TestExporter::new);
-        Map<String, Exporter> internalExporters = exporters.initExporters(Settings.builder()
-                .put("xpack.monitoring.exporters._name.type", "local")
-                .build()).enabledExporters;
+        Map<String, Exporter> internalExporters = exporters.initExporters(
+            Settings.builder().put("xpack.monitoring.exporters._name.type", "local").build()
+        ).enabledExporters;
 
         assertThat(internalExporters, notNullValue());
         assertThat(internalExporters.size(), is(1));
@@ -172,36 +184,48 @@ public class ExportersTests extends ESTestCase {
 
     public void testInitExportersSingleDisabled() throws Exception {
         factories.put("local", TestExporter::new);
-        Map<String, Exporter> internalExporters = exporters.initExporters(Settings.builder()
+        Map<String, Exporter> internalExporters = exporters.initExporters(
+            Settings.builder()
                 .put("xpack.monitoring.exporters._name.type", "local")
                 .put("xpack.monitoring.exporters._name.enabled", false)
-                .build()).enabledExporters;
+                .build()
+        ).enabledExporters;
 
         assertThat(internalExporters, notNullValue());
 
         // the only configured exporter is disabled... yet we intentionally don't fallback on the default
         assertThat(internalExporters.size(), is(0));
+
+        assertWarnings(
+            "[xpack.monitoring.exporters._name.enabled] setting was deprecated in Elasticsearch and will be removed in a "
+                + "future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testInitExportersSingleUnknownType() throws Exception {
-        SettingsException e = expectThrows(SettingsException.class, () -> exporters.initExporters(Settings.builder()
-                .put("xpack.monitoring.exporters._name.type", "unknown_type")
-                .build()));
+        SettingsException e = expectThrows(
+            SettingsException.class,
+            () -> exporters.initExporters(Settings.builder().put("xpack.monitoring.exporters._name.type", "unknown_type").build())
+        );
         assertThat(e.getMessage(), containsString("unknown exporter type [unknown_type]"));
     }
 
     public void testInitExportersSingleMissingExporterType() throws Exception {
-        SettingsException e = expectThrows(SettingsException.class, () -> exporters.initExporters(
-                Settings.builder().put("xpack.monitoring.exporters._name.foo", "bar").build()));
+        SettingsException e = expectThrows(
+            SettingsException.class,
+            () -> exporters.initExporters(Settings.builder().put("xpack.monitoring.exporters._name.foo", "bar").build())
+        );
         assertThat(e.getMessage(), containsString("missing exporter type for [_name]"));
     }
 
     public void testInitExportersMultipleSameType() throws Exception {
         factories.put("_type", TestExporter::new);
-        Map<String, Exporter> internalExporters = exporters.initExporters(Settings.builder()
+        Map<String, Exporter> internalExporters = exporters.initExporters(
+            Settings.builder()
                 .put("xpack.monitoring.exporters._name0.type", "_type")
                 .put("xpack.monitoring.exporters._name1.type", "_type")
-                .build()).enabledExporters;
+                .build()
+        ).enabledExporters;
 
         assertThat(internalExporters, notNullValue());
         assertThat(internalExporters.size(), is(2));
@@ -215,11 +239,14 @@ public class ExportersTests extends ESTestCase {
 
     public void testInitExportersMultipleSameTypeSingletons() throws Exception {
         factories.put("local", TestSingletonExporter::new);
-        SettingsException e = expectThrows(SettingsException.class, () ->
-            exporters.initExporters(Settings.builder()
+        SettingsException e = expectThrows(
+            SettingsException.class,
+            () -> exporters.initExporters(
+                Settings.builder()
                     .put("xpack.monitoring.exporters._name0.type", "local")
                     .put("xpack.monitoring.exporters._name1.type", "local")
-                    .build())
+                    .build()
+            )
         );
         assertThat(e.getMessage(), containsString("multiple [local] exporters are configured. there can only be one"));
     }
@@ -231,9 +258,9 @@ public class ExportersTests extends ESTestCase {
         final AtomicReference<Settings> settingsHolder = new AtomicReference<>();
 
         Settings nodeSettings = Settings.builder()
-                .put("xpack.monitoring.exporters._name0.type", "local")
-                .put("xpack.monitoring.exporters._name1.type", "http")
-                .build();
+            .put("xpack.monitoring.exporters._name0.type", "local")
+            .put("xpack.monitoring.exporters._name1.type", "http")
+            .build();
         clusterSettings = new ClusterSettings(nodeSettings, new HashSet<>(Exporters.getSettings()));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
@@ -253,9 +280,9 @@ public class ExportersTests extends ESTestCase {
         assertEquals(settings.get("xpack.monitoring.exporters._name1.type"), "http");
 
         Settings update = Settings.builder()
-                .put("xpack.monitoring.exporters._name0.cluster_alerts.management.blacklist", true)
-                .put("xpack.monitoring.exporters._name1.cluster_alerts.management.blacklist", false)
-                .build();
+            .put("xpack.monitoring.exporters._name0.cluster_alerts.management.blacklist", true)
+            .put("xpack.monitoring.exporters._name1.cluster_alerts.management.blacklist", false)
+            .build();
         clusterSettings.applySettings(update);
         assertThat(settingsHolder.get(), notNullValue());
         settings = settingsHolder.get();
@@ -265,6 +292,17 @@ public class ExportersTests extends ESTestCase {
         assertEquals(settings.get("xpack.monitoring.exporters._name0.cluster_alerts.management.blacklist"), "true");
         assertEquals(settings.get("xpack.monitoring.exporters._name1.type"), "http");
         assertEquals(settings.get("xpack.monitoring.exporters._name1.cluster_alerts.management.blacklist"), "false");
+
+        assertWarnings(
+            "[xpack.monitoring.exporters._name1.type] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                + "See the breaking changes documentation for the next major version.",
+            "[xpack.monitoring.exporters._name0.type] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                + "See the breaking changes documentation for the next major version.",
+            "[xpack.monitoring.exporters._name0.cluster_alerts.management.blacklist] setting was deprecated in Elasticsearch and will "
+                + "be removed in a future release! See the breaking changes documentation for the next major version.",
+            "[xpack.monitoring.exporters._name1.cluster_alerts.management.blacklist] setting was deprecated in Elasticsearch and will "
+                + "be removed in a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testExporterBlocksOnClusterState() {
@@ -286,10 +324,7 @@ public class ExportersTests extends ESTestCase {
         final Exporters exporters = new Exporters(settings.build(), factories, clusterService, licenseState, threadContext, sslService);
 
         // synchronously checks the cluster state
-        exporters.wrapExportBulk(ActionListener.wrap(
-            bulk -> assertThat(bulk, is(nullValue())),
-            e -> fail(e.getMessage())
-        ));
+        exporters.wrapExportBulk(ActionListener.wrap(bulk -> assertThat(bulk, is(nullValue())), e -> fail(e.getMessage())));
 
         verify(state).blocks();
     }
@@ -298,10 +333,9 @@ public class ExportersTests extends ESTestCase {
      * Verifies that, when no exporters are enabled, the {@code Exporters} will still return as expected.
      */
     public void testNoExporters() throws Exception {
-        Settings.Builder settings =
-            Settings.builder()
-                    .put("xpack.monitoring.exporters.explicitly_disabled.type", "local")
-                    .put("xpack.monitoring.exporters.explicitly_disabled.enabled", false);
+        Settings.Builder settings = Settings.builder()
+            .put("xpack.monitoring.exporters.explicitly_disabled.type", "local")
+            .put("xpack.monitoring.exporters.explicitly_disabled.enabled", false);
 
         Exporters exporters = new Exporters(settings.build(), factories, clusterService, licenseState, threadContext, sslService);
         exporters.start();
@@ -311,6 +345,11 @@ public class ExportersTests extends ESTestCase {
         assertExporters(exporters);
 
         exporters.close();
+
+        assertWarnings(
+            "[xpack.monitoring.exporters.explicitly_disabled.enabled] setting was deprecated in Elasticsearch and will be "
+                + "removed in a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     /**
@@ -347,10 +386,19 @@ public class ExportersTests extends ESTestCase {
      */
     public void testSettingsDependency() {
         List<Setting.AffixSetting<?>> settings = Exporters.getSettings().stream().filter(Setting::isDynamic).collect(Collectors.toList());
-        settings.stream().filter(s -> s.getKey().equals("xpack.monitoring.exporters.*.type") == false)
-            .forEach(setting -> assertThat(setting.getKey() + " does not have a dependency on type",
-                setting.getDependencies().stream().map(Setting.AffixSettingDependency::getSetting).distinct().collect(Collectors.toList()),
-                contains(Exporter.TYPE_SETTING)));
+        settings.stream()
+            .filter(s -> s.getKey().equals("xpack.monitoring.exporters.*.type") == false)
+            .forEach(
+                setting -> assertThat(
+                    setting.getKey() + " does not have a dependency on type",
+                    setting.getDependencies()
+                        .stream()
+                        .map(Setting.AffixSettingDependency::getSetting)
+                        .distinct()
+                        .collect(Collectors.toList()),
+                    contains(Exporter.TYPE_SETTING)
+                )
+            );
     }
 
     /**
@@ -359,30 +407,28 @@ public class ExportersTests extends ESTestCase {
      * then any associated settings are extraneous and thus invalid (and can cause validation issues on cluster state application).
      */
     public void testRemoveType() {
-        //run the update for all dynamic settings and ensure that they correctly throw an exception
+        // run the update for all dynamic settings and ensure that they correctly throw an exception
         List<Setting.AffixSetting<?>> settings = Exporters.getSettings().stream().filter(Setting::isDynamic).collect(Collectors.toList());
-        settings.stream().filter(s -> s.getKey().equals("xpack.monitoring.exporters.*.type") == false)
-            .forEach(setting -> {
-                String fullSettingName = setting.getKey().replace("*", "foobar");
-                Settings nodeSettings = Settings.builder()
-                    .put("xpack.monitoring.exporters.foobar.type", randomFrom("local, http")) //actual type should not matter
-                    .put(fullSettingName, "")
-                    .build();
+        settings.stream().filter(s -> s.getKey().equals("xpack.monitoring.exporters.*.type") == false).forEach(setting -> {
+            String fullSettingName = setting.getKey().replace("*", "foobar");
+            Settings nodeSettings = Settings.builder()
+                .put("xpack.monitoring.exporters.foobar.type", randomFrom("local, http")) // actual type should not matter
+                .put(fullSettingName, "")
+                .build();
 
-                clusterSettings = new ClusterSettings(nodeSettings, new HashSet<>(Exporters.getSettings()));
-                when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+            clusterSettings = new ClusterSettings(nodeSettings, new HashSet<>(Exporters.getSettings()));
+            when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
-                Settings update = Settings.builder()
-                    .put("xpack.monitoring.exporters.foobar.type", (String) null)
-                    .build();
+            Settings update = Settings.builder().put("xpack.monitoring.exporters.foobar.type", (String) null).build();
 
-                Settings.Builder target = Settings.builder().put(nodeSettings);
-                clusterSettings.updateDynamicSettings(update, target, Settings.builder(), "persistent");
-                IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                    () -> clusterSettings.validate(target.build(), true));
-                assertThat(e.getMessage(),
-                    containsString("missing required setting [xpack.monitoring.exporters.foobar.type] for setting [" + fullSettingName));
-            });
+            Settings.Builder target = Settings.builder().put(nodeSettings);
+            clusterSettings.updateDynamicSettings(update, target, Settings.builder(), "persistent");
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.validate(target.build(), true));
+            assertThat(
+                e.getMessage(),
+                containsString("missing required setting [xpack.monitoring.exporters.foobar.type] for setting [" + fullSettingName)
+            );
+        });
     }
 
     /**
@@ -415,19 +461,26 @@ public class ExportersTests extends ESTestCase {
                 protected void doRun() throws Exception {
                     final List<MonitoringDoc> docs = new ArrayList<>();
                     for (int n = 0; n < threadDocs; n++) {
-                        docs.add(new TestMonitoringDoc(randomAlphaOfLength(5), randomNonNegativeLong(), randomNonNegativeLong(),
-                                                       null, MonitoredSystem.ES, randomAlphaOfLength(5), null, String.valueOf(n)));
+                        docs.add(
+                            new TestMonitoringDoc(
+                                randomAlphaOfLength(5),
+                                randomNonNegativeLong(),
+                                randomNonNegativeLong(),
+                                null,
+                                MonitoredSystem.ES,
+                                randomAlphaOfLength(5),
+                                null,
+                                String.valueOf(n)
+                            )
+                        );
                     }
-                    exporters.export(docs, ActionListener.wrap(
-                        r -> {
-                            counter.decrementAndGet();
-                            logger.debug("--> thread [{}] successfully exported {} documents", threadNum, threadDocs);
-                        },
-                        e -> {
-                            exceptions.add(e);
-                            logger.debug("--> thread [{}] failed to export {} documents", threadNum, threadDocs);
-                        })
-                    );
+                    exporters.export(docs, ActionListener.wrap(r -> {
+                        counter.decrementAndGet();
+                        logger.debug("--> thread [{}] successfully exported {} documents", threadNum, threadDocs);
+                    }, e -> {
+                        exceptions.add(e);
+                        logger.debug("--> thread [{}] failed to export {} documents", threadNum, threadDocs);
+                    }));
                     barrier.await(10, TimeUnit.SECONDS);
                 }
             }, "export_thread_" + i);
@@ -451,8 +504,7 @@ public class ExportersTests extends ESTestCase {
         }
 
         @Override
-        public void removeAlerts(Consumer<ExporterResourceStatus> listener) {
-        }
+        public void removeAlerts(Consumer<ExporterResourceStatus> listener) {}
 
         @Override
         public void openBulk(final ActionListener<ExportBulk> listener) {
@@ -460,8 +512,7 @@ public class ExportersTests extends ESTestCase {
         }
 
         @Override
-        public void doClose() {
-        }
+        public void doClose() {}
     }
 
     static class TestSingletonExporter extends TestExporter {
@@ -487,8 +538,7 @@ public class ExportersTests extends ESTestCase {
         }
 
         @Override
-        public void removeAlerts(Consumer<ExporterResourceStatus> listener) {
-        }
+        public void removeAlerts(Consumer<ExporterResourceStatus> listener) {}
 
         @Override
         public void openBulk(final ActionListener<ExportBulk> listener) {
@@ -499,8 +549,7 @@ public class ExportersTests extends ESTestCase {
         }
 
         @Override
-        public void doClose() {
-        }
+        public void doClose() {}
 
         public int getExportedCount() {
             int exported = 0;
@@ -538,8 +587,16 @@ public class ExportersTests extends ESTestCase {
 
         private final String value;
 
-        TestMonitoringDoc(String cluster, long timestamp, long interval,
-                          Node node, MonitoredSystem system, String type, String id, String value) {
+        TestMonitoringDoc(
+            String cluster,
+            long timestamp,
+            long interval,
+            Node node,
+            MonitoredSystem system,
+            String type,
+            String id,
+            String value
+        ) {
             super(cluster, timestamp, interval, node, system, type, id);
             this.value = value;
         }

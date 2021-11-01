@@ -11,12 +11,12 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -78,8 +78,10 @@ public class ShrunkShardsAllocatedStep extends ClusterStateWaitStep {
         static final ParseField SHRUNK_INDEX_EXISTS = new ParseField("shrunk_index_exists");
         static final ParseField ALL_SHARDS_ACTIVE = new ParseField("all_shards_active");
         static final ParseField MESSAGE = new ParseField("message");
-        static final ConstructingObjectParser<Info, Void> PARSER = new ConstructingObjectParser<>("shrunk_shards_allocated_step_info",
-                a -> new Info((boolean) a[0], (int) a[1], (boolean) a[2]));
+        static final ConstructingObjectParser<Info, Void> PARSER = new ConstructingObjectParser<>(
+            "shrunk_shards_allocated_step_info",
+            a -> new Info((boolean) a[0], (int) a[1], (boolean) a[2])
+        );
         static {
             PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), SHRUNK_INDEX_EXISTS);
             PARSER.declareInt(ConstructingObjectParser.constructorArg(), ACTUAL_SHARDS);
@@ -137,9 +139,9 @@ public class ShrunkShardsAllocatedStep extends ClusterStateWaitStep {
                 return false;
             }
             Info other = (Info) obj;
-            return Objects.equals(shrunkIndexExists, other.shrunkIndexExists) &&
-                    Objects.equals(actualShards, other.actualShards) &&
-                    Objects.equals(allShardsActive, other.allShardsActive);
+            return Objects.equals(shrunkIndexExists, other.shrunkIndexExists)
+                && Objects.equals(actualShards, other.actualShards)
+                && Objects.equals(allShardsActive, other.allShardsActive);
         }
 
         @Override

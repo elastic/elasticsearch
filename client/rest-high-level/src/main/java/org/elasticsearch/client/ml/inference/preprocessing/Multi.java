@@ -8,17 +8,16 @@
 
 package org.elasticsearch.client.ml.inference.preprocessing;
 
+import org.elasticsearch.client.ml.inference.NamedXContentObjectHelper;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-
-import org.elasticsearch.client.ml.inference.NamedXContentObjectHelper;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 /**
  * Multi-PreProcessor for chaining together multiple processors
@@ -33,12 +32,15 @@ public class Multi implements PreProcessor {
     public static final ConstructingObjectParser<Multi, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         true,
-        a -> new Multi((List<PreProcessor>)a[0], (Boolean)a[1]));
+        a -> new Multi((List<PreProcessor>) a[0], (Boolean) a[1])
+    );
     static {
-        PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(),
+        PARSER.declareNamedObjects(
+            ConstructingObjectParser.constructorArg(),
             (p, c, n) -> p.namedObject(PreProcessor.class, n, null),
             (_unused) -> {/* Does not matter client side*/ },
-            PROCESSORS);
+            PROCESSORS
+        );
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), CUSTOM);
     }
 

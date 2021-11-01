@@ -127,12 +127,14 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                 private final Long inferenceCount;
                 private final Double avgInferenceTime;
                 private final Instant lastAccess;
+                private final Integer pendingCount;
                 private final RoutingStateAndReason routingState;
 
                 public static NodeStats forStartedState(
                     DiscoveryNode node,
                     long inferenceCount,
-                    double avgInferenceTime,
+                    Double avgInferenceTime,
+                    int pendingCount,
                     Instant lastAccess
                 ) {
                     return new NodeStats(
@@ -140,12 +142,13 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                         inferenceCount,
                         avgInferenceTime,
                         lastAccess,
+                        pendingCount,
                         new RoutingStateAndReason(RoutingState.STARTED, null)
                     );
                 }
 
                 public static NodeStats forNotStartedState(DiscoveryNode node, RoutingState state, String reason) {
-                    return new NodeStats(node, null, null, null, new RoutingStateAndReason(state, reason));
+                    return new NodeStats(node, null, null, null, null, new RoutingStateAndReason(state, reason));
                 }
 
                 private NodeStats(
@@ -153,12 +156,14 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                     Long inferenceCount,
                     Double avgInferenceTime,
                     Instant lastAccess,
+                    Integer pendingCount,
                     RoutingStateAndReason routingState
                 ) {
                     this.node = node;
                     this.inferenceCount = inferenceCount;
                     this.avgInferenceTime = avgInferenceTime;
                     this.lastAccess = lastAccess;
+                    this.pendingCount = pendingCount;
                     this.routingState = routingState;
 
                     // if lastAccess time is null there have been no inferences
@@ -170,6 +175,7 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                     this.inferenceCount = in.readOptionalLong();
                     this.avgInferenceTime = in.readOptionalDouble();
                     this.lastAccess = in.readOptionalInstant();
+                    this.pendingCount = in.readOptionalVInt();
                     this.routingState = in.readOptionalWriteable(RoutingStateAndReason::new);
                 }
 
@@ -199,6 +205,9 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                     if (lastAccess != null) {
                         builder.timeField("last_access", "last_access_string", lastAccess.toEpochMilli());
                     }
+                    if (pendingCount != null) {
+                        builder.field("number_of_pending_requests", pendingCount);
+                    }
                     builder.endObject();
                     return builder;
                 }
@@ -209,6 +218,7 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                     out.writeOptionalLong(inferenceCount);
                     out.writeOptionalDouble(avgInferenceTime);
                     out.writeOptionalInstant(lastAccess);
+                    out.writeOptionalVInt(pendingCount);
                     out.writeOptionalWriteable(routingState);
                 }
 
@@ -221,12 +231,13 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                         && Objects.equals(that.avgInferenceTime, avgInferenceTime)
                         && Objects.equals(node, that.node)
                         && Objects.equals(lastAccess, that.lastAccess)
+                        && Objects.equals(pendingCount, that.pendingCount)
                         && Objects.equals(routingState, that.routingState);
                 }
 
                 @Override
                 public int hashCode() {
-                    return Objects.hash(node, inferenceCount, avgInferenceTime, lastAccess, routingState);
+                    return Objects.hash(node, inferenceCount, avgInferenceTime, lastAccess, pendingCount, routingState);
                 }
             }
 

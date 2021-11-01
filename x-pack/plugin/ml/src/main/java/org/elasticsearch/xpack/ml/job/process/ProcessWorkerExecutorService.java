@@ -55,6 +55,10 @@ public class ProcessWorkerExecutorService extends AbstractExecutorService {
         this.queue = new LinkedBlockingQueue<>(queueCapacity);
     }
 
+    public int queueSize() {
+        return queue.size();
+    }
+
     @Override
     public void shutdown() {
         running = false;

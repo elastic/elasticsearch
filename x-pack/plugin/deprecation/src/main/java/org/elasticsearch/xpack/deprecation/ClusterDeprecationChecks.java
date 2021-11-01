@@ -17,7 +17,9 @@ public class ClusterDeprecationChecks {
                 DeprecationIssue.Level.WARNING,
                 "Transient cluster settings are deprecated",
                 "https://ela.st/es-deprecation-7-transient-cluster-settings",
-                "Use persistent settings to configure your cluster.",
+                "Use of transient settings is deprecated. Some Elastic products " +
+                    "may make use of transient settings and those should not be changed. " +
+                    "Any custom use of transient settings should be replaced by persistent settings.",
                 false,
                 null
             );

@@ -7,7 +7,7 @@
 
   - do:
       warnings:
-        - "[transient settings removal] Updating cluster settings through transientSettings is deprecated. Use persistent settings instead."
+        - "[transient settings removal] Updating cluster settings through transient settings is deprecated. Some Elastic products may make use of transient settings and those should not be changed. Any custom use of transient settings should be replaced by persistent settings."
       cluster.put_settings:
         body:
           transient:
@@ -24,7 +24,7 @@
 
   - do:
       warnings:
-        - "[transient settings removal] Updating cluster settings through transientSettings is deprecated. Use persistent settings instead."
+        - "[transient settings removal] Updating cluster settings through transient settings is deprecated. Some Elastic products may make use of transient settings and those should not be changed. Any custom use of transient settings should be replaced by persistent settings."
       cluster.put_settings:
         body:
           transient:

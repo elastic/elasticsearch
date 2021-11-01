@@ -60,7 +60,7 @@ PUT /_cluster/settings?flat_settings=true
   }
 }
 --------------------------------------------------
-// TEST[warning:[transient settings removal] Updating cluster settings through transientSettings is deprecated. Use persistent settings instead.]
+// TEST[warning:[transient settings removal] Updating cluster settings through transient settings is deprecated. Some Elastic products may make use of transient settings and those should not be changed. Any custom use of transient settings should be replaced by persistent settings.]
 
 The response to an update returns the changed setting, as in this response to
 the transient example:
@@ -89,7 +89,7 @@ PUT /_cluster/settings
   }
 }
 --------------------------------------------------
-// TEST[warning:[transient settings removal] Updating cluster settings through transientSettings is deprecated. Use persistent settings instead.]
+// TEST[warning:[transient settings removal] Updating cluster settings through transient settings is deprecated. Some Elastic products may make use of transient settings and those should not be changed. Any custom use of transient settings should be replaced by persistent settings.]
 
 
 The response does not include settings that have been reset:
@@ -117,4 +117,4 @@ PUT /_cluster/settings
   }
 }
 --------------------------------------------------
-// TEST[warning:[transient settings removal] Updating cluster settings through transientSettings is deprecated. Use persistent settings instead.]
+// TEST[warning:[transient settings removal] Updating cluster settings through transient settings is deprecated. Some Elastic products may make use of transient settings and those should not be changed. Any custom use of transient settings should be replaced by persistent settings.]

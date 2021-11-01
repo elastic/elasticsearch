@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ml.rest.results;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -22,8 +21,10 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.DEPRECATED_ALLOW_NO_JOBS_PARAM;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
+import static org.elasticsearch.xpack.ml.rest.RestCompatibilityChecker.checkAndSetDeprecatedParam;
 
 public class RestGetOverallBucketsAction extends BaseRestHandler {
 
@@ -65,19 +66,13 @@ public class RestGetOverallBucketsAction extends BaseRestHandler {
             if (restRequest.hasParam(Request.END.getPreferredName())) {
                 request.setEnd(restRequest.param(Request.END.getPreferredName()));
             }
-            if (restRequest.hasParam(Request.ALLOW_NO_JOBS)) {
-                LoggingDeprecationHandler.INSTANCE.logRenamedField(
-                    null,
-                    () -> null,
-                    Request.ALLOW_NO_JOBS,
-                    Request.ALLOW_NO_MATCH.getPreferredName()
-                );
-            }
-            request.setAllowNoMatch(
-                restRequest.paramAsBoolean(
-                    Request.ALLOW_NO_MATCH.getPreferredName(),
-                    restRequest.paramAsBoolean(Request.ALLOW_NO_JOBS, request.allowNoMatch())
-                )
+            checkAndSetDeprecatedParam(
+                DEPRECATED_ALLOW_NO_JOBS_PARAM,
+                Request.ALLOW_NO_MATCH.getPreferredName(),
+                RestApiVersion.V_7,
+                restRequest,
+                (r, s) -> r.paramAsBoolean(s, request.allowNoMatch()),
+                request::setAllowNoMatch
             );
         }
 

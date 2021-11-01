@@ -278,7 +278,7 @@ public class PyTorchModelIT extends ESRestTestCase {
         assertThat(nodes, hasSize(2));
         int inferenceCount = sumInferenceCountOnNodes(nodes);
         for (var node : nodes) {
-            assertThat(node.get("number_of_requests_in_queue"), notNullValue());
+            assertThat(node.get("number_of_pending_requests"), notNullValue());
             // last_access and average_inference_time_ms may be null if inference wasn't performed on this node
         }
         assertThat(inferenceCount, equalTo(2));

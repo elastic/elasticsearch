@@ -10,7 +10,6 @@ operation.
 ////
 [source,console]
 ----
-
 PUT /_index_template/template
 {
   "index_patterns": ["my-logs*"],
@@ -30,7 +29,6 @@ POST index-to-add/_doc/
     "description" : "this is the index to be added to a data stream",
     "@timestamp": "2021-01-01"
 }
-
 ----
 ////
 

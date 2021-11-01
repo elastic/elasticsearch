@@ -104,7 +104,7 @@ public class DeploymentManager {
                 processContext -> new ModelStats(
                     processContext.getResultProcessor().getTimingStats(),
                     processContext.getResultProcessor().getLastUsed(),
-                    processContext.executorService.queueSize()
+                    processContext.executorService.queueSize() + processContext.getResultProcessor().numberOfPendingResults()
                 )
             );
     }

@@ -407,6 +407,11 @@ public class PyTorchModelIT extends ESRestTestCase {
         assertThat(stats, empty());
     }
 
+    public void testInferWithMissingModel() {
+        Exception ex = expectThrows(Exception.class, () -> infer("foo", "missing_model"));
+        assertThat(ex.getMessage(), containsString("Could not find trained model [missing_model]"));
+    }
+
     public void testInferencePipelineAgainstUnallocatedModel() throws IOException {
         String model = "not-deployed";
         createTrainedModel(model);

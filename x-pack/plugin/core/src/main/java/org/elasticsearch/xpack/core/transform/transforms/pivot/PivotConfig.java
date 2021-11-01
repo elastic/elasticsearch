@@ -185,9 +185,12 @@ public class PivotConfig implements Writeable, ToXContentObject {
                 // max_page_search_size got deprecated in 7.8, still accepted for 8.x, to be removed in 9.x
                 new DeprecationIssue(
                     Level.WARNING,
-                    "Transform [" + id + "] uses deprecated max_page_search_size",
-                    TransformDeprecations.MAX_PAGE_SEARCH_SIZE_BREAKING_CHANGES_URL,
-                    TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED,
+                    "Setting [max_page_search_size] in a pivot is deprecated",
+                    "https://ela.st/es-deprecation-7-transform-max-page-search-size",
+                    "Remove [max_page_search_size] from the pivot in ["
+                        + id
+                        + "]. Configure [max_page_search_size]  in the "
+                        + "transform settings.",
                     false,
                     null
                 )

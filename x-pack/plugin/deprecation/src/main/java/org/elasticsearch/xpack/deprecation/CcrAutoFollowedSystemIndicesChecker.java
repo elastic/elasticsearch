@@ -40,11 +40,13 @@ public class CcrAutoFollowedSystemIndicesChecker implements DeprecationChecker {
     private DeprecationIssue createDeprecationIssue(String localIndexName) {
         return new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
-            "An auto followed index follows a remote system index",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/migrating-7.14.html#breaking_714_ccr_changes",
-            "Auto followed index ["
+            "Automatically following system indices is deprecated",
+            "https://ela.st/es-deprecation-7-auto-follow-system-index",
+            "Index ["
                 + localIndexName
-                + "] follows a remote system index and this behaviour will change in the next major version.",
+                + "] follows a remote system index. In 8.0.0, follower indices will not be created for remote "
+                + "system indices "
+                + "that match an auto-follow pattern.",
             false,
             null
         );

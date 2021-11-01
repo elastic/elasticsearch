@@ -362,7 +362,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, () -> tokenResponseFuture.actionGet());
         assertThat(e.getMessage(), containsString("could not decode base64 kerberos ticket"));
         // The code flow should stop after above failure and never reach authenticationService
-        Mockito.verifyZeroInteractions(authenticationService);
+        Mockito.verifyNoMoreInteractions(authenticationService);
     }
 
     public void testServiceAccountCannotCreateOAuthToken() throws Exception {

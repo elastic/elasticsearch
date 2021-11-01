@@ -39,6 +39,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.ml.integration.InferenceIngestIT.putPipeline;
+import static org.elasticsearch.xpack.ml.integration.InferenceIngestIT.simulateRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -137,7 +139,7 @@ public class PyTorchModelIT extends ESRestTestCase {
             ""
                 + "{"
                 + "\"persistent\" : {\n"
-                + "        \"logger.org.elasticsearch.xpack.ml.inference.allocation\" :null,\n"
+                + "        \"logger.org.elasticsearch.xpack.ml.inference.allocation\": null,\n"
                 + "        \"logger.org.elasticsearch.xpack.ml.inference.deployment\" : null,\n"
                 + "        \"logger.org.elasticsearch.xpack.ml.process.logging\" : null\n"
                 + "    }"
@@ -403,6 +405,66 @@ public class PyTorchModelIT extends ESRestTestCase {
         map = entityAsMap(response);
         stats = (List<Map<String, Object>>) map.get("deployment_stats");
         assertThat(stats, empty());
+    }
+
+    public void testInferWithMissingModel() {
+        Exception ex = expectThrows(Exception.class, () -> infer("foo", "missing_model"));
+        assertThat(ex.getMessage(), containsString("Could not find trained model [missing_model]"));
+    }
+
+    public void testInferencePipelineAgainstUnallocatedModel() throws IOException {
+        String model = "not-deployed";
+        createTrainedModel(model);
+        putVocabulary(List.of("once", "twice"), model);
+        putModelDefinition(model);
+
+        String source = "{\n"
+            + "  \"pipeline\": {\n"
+            + "    \"processors\": [\n"
+            + "      {\n"
+            + "        \"inference\": {\n"
+            + "          \"model_id\": \"not-deployed\"\n"
+            + "        }\n"
+            + "      }\n"
+            + "    ]\n"
+            + "  },\n"
+            + "  \"docs\": [\n"
+            + "    {\n"
+            + "      \"_source\": {\n"
+            + "        \"input\": \"my words\"\n"
+            + "      }\n"
+            + "    }\n"
+            + "  ]\n"
+            + "}";
+
+        String response = EntityUtils.toString(client().performRequest(simulateRequest(source)).getEntity());
+        assertThat(
+            response,
+            containsString("model [not-deployed] must be deployed to use. Please deploy with the start trained model deployment API.")
+        );
+
+        client().performRequest(
+            putPipeline(
+                "my_pipeline",
+                "{"
+                    + "\"processors\": [\n"
+                    + "      {\n"
+                    + "        \"inference\": {\n"
+                    + "          \"model_id\": \"not-deployed\"\n"
+                    + "        }\n"
+                    + "      }\n"
+                    + "    ]\n"
+                    + "}"
+            )
+        );
+
+        Request request = new Request("PUT", "undeployed_model_index/_doc/1?pipeline=my_pipeline&refresh=true");
+        request.setJsonEntity("{\n" + "        \"input\": \"my words\"\n" + "      }\n");
+        Exception ex = expectThrows(Exception.class, () -> client().performRequest(request));
+        assertThat(
+            ex.getMessage(),
+            containsString("model [not-deployed] must be deployed to use. Please deploy with the start trained model deployment API.")
+        );
     }
 
     private int sumInferenceCountOnNodes(List<Map<String, Object>> nodes) {

@@ -68,12 +68,11 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.core.Is.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyObject;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class WatcherIndexingListenerTests extends ESTestCase {
@@ -104,7 +103,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
         Engine.Index index = listener.preIndex(shardId, operation);
         assertThat(index, is(operation));
-        verifyZeroInteractions(parser);
+        verifyNoMoreInteractions(parser);
     }
 
     public void testPreIndexCheckActive() throws Exception {
@@ -113,7 +112,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
         Engine.Index index = listener.preIndex(shardId, operation);
         assertThat(index, is(operation));
-        verifyZeroInteractions(parser);
+        verifyNoMoreInteractions(parser);
     }
 
     public void testPostIndex() throws Exception {
@@ -127,11 +126,11 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         boolean watchActive = randomBoolean();
         boolean isNewWatch = randomBoolean();
         Watch watch = mockWatch("_id", watchActive, isNewWatch);
-        when(parser.parseWithSecrets(anyObject(), eq(true), anyObject(), anyObject(), anyObject(), anyLong(), anyLong())).thenReturn(watch);
+        when(parser.parseWithSecrets(any(), eq(true), any(), any(), any(), anyLong(), anyLong())).thenReturn(watch);
 
         listener.postIndex(shardId, operation, result);
         ZonedDateTime now = DateUtils.nowWithMillisResolution(clock);
-        verify(parser).parseWithSecrets(eq(operation.id()), eq(true), eq(BytesArray.EMPTY), eq(now), anyObject(), anyLong(), anyLong());
+        verify(parser).parseWithSecrets(eq(operation.id()), eq(true), eq(BytesArray.EMPTY), eq(now), any(), anyLong(), anyLong());
 
         if (isNewWatch) {
             if (watchActive) {
@@ -157,12 +156,12 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         boolean watchActive = randomBoolean();
         boolean isNewWatch = randomBoolean();
         Watch watch = mockWatch("_id", watchActive, isNewWatch);
-        when(parser.parseWithSecrets(anyObject(), eq(true), anyObject(), anyObject(), anyObject(), anyLong(), anyLong())).thenReturn(watch);
+        when(parser.parseWithSecrets(any(), eq(true), any(), any(), any(), anyLong(), anyLong())).thenReturn(watch);
 
         listener.postIndex(shardId, operation, result);
         ZonedDateTime now = DateUtils.nowWithMillisResolution(clock);
-        verify(parser).parseWithSecrets(eq(operation.id()), eq(true), eq(BytesArray.EMPTY), eq(now), anyObject(), anyLong(), anyLong());
-        verifyZeroInteractions(triggerService);
+        verify(parser).parseWithSecrets(eq(operation.id()), eq(true), eq(BytesArray.EMPTY), eq(now), any(), anyLong(), anyLong());
+        verifyNoMoreInteractions(triggerService);
     }
 
     // this test emulates an index with 10 shards, and ensures that triggering only happens on a
@@ -176,7 +175,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         when(result.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
 
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
-        when(parser.parseWithSecrets(anyObject(), eq(true), anyObject(), anyObject(), anyObject(), anyLong(), anyLong())).thenReturn(watch);
+        when(parser.parseWithSecrets(any(), eq(true), any(), any(), any(), anyLong(), anyLong())).thenReturn(watch);
 
         for (int idx = 0; idx < totalShardCount; idx++) {
             final Map<ShardId, ShardAllocationConfiguration> localShards = new HashMap<>();
@@ -220,9 +219,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         when(operation.id()).thenReturn(id);
         when(operation.source()).thenReturn(BytesArray.EMPTY);
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
-        when(parser.parseWithSecrets(anyObject(), eq(true), anyObject(), anyObject(), anyObject(), anyLong(), anyLong())).thenThrow(
-            new IOException("self thrown")
-        );
+        when(parser.parseWithSecrets(any(), eq(true), any(), any(), any(), anyLong(), anyLong())).thenThrow(new IOException("self thrown"));
         when(result.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
 
         ElasticsearchParseException exc = expectThrows(
@@ -240,7 +237,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
 
         listener.postIndex(shardId, operation, result);
-        verifyZeroInteractions(triggerService);
+        verifyNoMoreInteractions(triggerService);
     }
 
     public void testPostIndexRemoveTriggerOnDocumentRelatedException_ignoreNonWatcherDocument() throws Exception {
@@ -250,7 +247,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         when(shardId.getIndexName()).thenReturn(randomAlphaOfLength(4));
 
         listener.postIndex(shardId, operation, result);
-        verifyZeroInteractions(triggerService);
+        verifyNoMoreInteractions(triggerService);
     }
 
     public void testPostIndexRemoveTriggerOnEngineLevelException() throws Exception {
@@ -258,7 +255,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
 
         listener.postIndex(shardId, operation, new ElasticsearchParseException("whatever"));
-        verifyZeroInteractions(triggerService);
+        verifyNoMoreInteractions(triggerService);
     }
 
     public void testPostIndexRemoveTriggerOnEngineLevelException_ignoreNonWatcherDocument() throws Exception {
@@ -267,14 +264,14 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         when(result.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
 
         listener.postIndex(shardId, operation, new ElasticsearchParseException("whatever"));
-        verifyZeroInteractions(triggerService);
+        verifyNoMoreInteractions(triggerService);
     }
 
     public void testPreDeleteCheckActive() throws Exception {
         listener.setConfiguration(INACTIVE);
         listener.preDelete(shardId, delete);
 
-        verifyZeroInteractions(triggerService);
+        verifyNoMoreInteractions(triggerService);
     }
 
     public void testPreDeleteCheckIndex() throws Exception {
@@ -282,7 +279,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
         listener.preDelete(shardId, delete);
 
-        verifyZeroInteractions(triggerService);
+        verifyNoMoreInteractions(triggerService);
     }
 
     public void testPreDelete() throws Exception {

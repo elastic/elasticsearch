@@ -47,10 +47,6 @@ import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIG
 public abstract class AbstractJobPersistentTasksExecutor<Params extends PersistentTaskParams> extends PersistentTasksExecutor<Params> {
 
     private static final Logger logger = LogManager.getLogger(AbstractJobPersistentTasksExecutor.class);
-    public static final PersistentTasksCustomMetadata.Assignment AWAITING_MIGRATION = new PersistentTasksCustomMetadata.Assignment(
-        null,
-        "job cannot be assigned until it has been migrated."
-    );
 
     public static List<String> verifyIndicesPrimaryShardsAreActive(
         ClusterState clusterState,

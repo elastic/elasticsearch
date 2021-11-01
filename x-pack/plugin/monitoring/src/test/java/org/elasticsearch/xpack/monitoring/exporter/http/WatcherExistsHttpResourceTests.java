@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -46,7 +46,7 @@ public class WatcherExistsHttpResourceTests extends AbstractPublishableHttpResou
         resource.doCheck(client, wrapMockListener(checkListener));
 
         verify(checkListener).onResponse(true);
-        verifyZeroInteractions(client);
+        verifyNoMoreInteractions(client);
     }
 
     public void testDoCheckExistsFor404() {

@@ -118,11 +118,15 @@ By default, the `terms` aggregation returns the top ten terms with the most
 documents. Use the `size` parameter to return more terms, up to the
 <<search-settings-max-buckets,search.max_buckets>> limit.
 
-If your data doesn't contain many unique terms, you can increase the `size` of
-the `terms` aggregation to return them all. If your data has a lot of unique
-terms and you need them all, use the
+If your data contains 100 or 1000 unique terms, you can increase the `size` of
+the `terms` aggregation to return them all. If you have more unique terms and
+you need them all, use the
 <<search-aggregations-bucket-composite-aggregation,composite aggregation>>
 instead.
+
+Larger values of `size` use more memory to compute and, push the whole
+aggregation close to the `max_buckets` limit. You'll know you've gone too large
+if the request fails with a message about `max_buckets`.
 
 [[search-aggregations-bucket-terms-aggregation-shard-size]]
 ==== Shard Size

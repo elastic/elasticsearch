@@ -3,11 +3,12 @@
   - skip:
       version: " - 7.15.99"
       reason:  "transient settings deprecation"
-      features: "warnings"
+      features: "allowed_warnings"
 
   - do:
-      warnings:
+      allowed_warnings:
         - "[transient settings removal] Updating cluster settings through transient settings is deprecated. Some Elastic products may make use of transient settings and those should not be changed. Any custom use of transient settings should be replaced by persistent settings."
+        - "[transient settings removal] Updating cluster settings through transientSettings is deprecated. Use persistent settings instead."
       cluster.put_settings:
         body:
           transient:
@@ -23,8 +24,9 @@
   - match: {transient: {cluster.routing.allocation.enable: "none"}}
 
   - do:
-      warnings:
+      allowed_warnings:
         - "[transient settings removal] Updating cluster settings through transient settings is deprecated. Some Elastic products may make use of transient settings and those should not be changed. Any custom use of transient settings should be replaced by persistent settings."
+        - "[transient settings removal] Updating cluster settings through transientSettings is deprecated. Use persistent settings instead."
       cluster.put_settings:
         body:
           transient:

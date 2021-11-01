@@ -285,8 +285,8 @@ as it will no longer be recognized in the next major release.
 ====
 *Details* +
 Transient cluster settings are now deprecated and will be removed in a future release. This is because transient
-cluster settings have an unpredictable lifecycle. Transient cluster settings do not survive full cluster restarts,
-which can forcibly happen if enough master-eligible nodes fail. In such an event, the cluster state will be recovered
+cluster settings have an unpredictable lifecycle. Transient cluster settings do not survive full cluster restarts or
+cluster instability. In these cases, {es} recovers the cluster state
 from persistent storage, effectively erasing the transient settings. The loss of transient settings can happen
 unexpectedly, leading to a potentially undesired cluster configuration.
 

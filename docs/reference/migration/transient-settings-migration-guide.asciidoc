@@ -16,19 +16,19 @@ PUT _cluster/settings
 ////
 
 Transient cluster settings are deprecated. Previously, you could use transient
-settings to make temporary configuration changes to a cluster. However,
-transient settings don't survive full cluster restarts. A cluster restart can
-occur forcibly if enough master-eligible nodes fail. This can clear transient
-settings unexpectedly, leading to a potentially undesired cluster configuration.
+settings to make temporary configuration changes to a cluster. However, a
+cluster restart or cluster instability can unexpectedly clear these settings,
+leading to a potentially undesired cluster configuration.
 
 To avoid deprecation warnings, reset any transient settings you've configured on
 your cluster. Convert any transient setting you'd like to keep to a persistent
-setting, which persists across cluster restarts. You should also update any
-custom workflows and applications to use persistent settings instead of
-transient settings.
+setting, which persists across cluster restarts and cluster instability. You
+should also update any custom workflows and applications to use persistent
+settings instead of transient settings.
 
-IMPORTANT: Some Elastic products may use transient settings. These settings
-should not be changed.
+IMPORTANT: Some Elastic products may use transient settings when performing
+specific operations. Only reset transient settings configured by you, your
+users, or your custom workflows and applications.
 
 To reset and convert transient settings:
 

@@ -177,19 +177,27 @@ public class MlInitializationService implements ClusterStateListener {
             IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
             for (ObjectObjectCursor<String, List<AliasMetadata>> entry : getAliasesResponse.getAliases()) {
                 String index = entry.key;
-                String[] nonHiddenAliases = entry.value.stream()
-                    .filter(metadata -> metadata.isHidden() == null || metadata.isHidden() == false)
-                    .map(AliasMetadata::alias)
-                    .toArray(String[]::new);
-                if (nonHiddenAliases.length == 0) {
-                    continue;
-                }
-                indicesAliasesRequest.addAliasAction(
-                    IndicesAliasesRequest.AliasActions.add()
+                for (AliasMetadata existingAliasMetadata : entry.value) {
+                    if (existingAliasMetadata.isHidden() == null || existingAliasMetadata.isHidden() == false) {
+                        continue;
+                    }
+                    IndicesAliasesRequest.AliasActions addReplacementAliasAction = IndicesAliasesRequest.AliasActions.add()
                         .index(index)
-                        .aliases(entry.value.stream().map(AliasMetadata::alias).toArray(String[]::new))
-                        .isHidden(true)
-                );
+                        .aliases(existingAliasMetadata.getAlias())
+                        .writeIndex(existingAliasMetadata.writeIndex())
+                        .isHidden(true);
+                    // Be sure to preserve all attributes apart from is_hidden
+                    if (existingAliasMetadata.filteringRequired()) {
+                        addReplacementAliasAction.filter(existingAliasMetadata.getFilter().string());
+                    }
+                    if (existingAliasMetadata.indexRouting() != null) {
+                        addReplacementAliasAction.indexRouting(existingAliasMetadata.indexRouting());
+                    }
+                    if (existingAliasMetadata.searchRouting() != null) {
+                        addReplacementAliasAction.searchRouting(existingAliasMetadata.searchRouting());
+                    }
+                    indicesAliasesRequest.addAliasAction(addReplacementAliasAction);
+                }
             }
             if (indicesAliasesRequest.getAliasActions().isEmpty()) {
                 logger.debug("There are no ML internal aliases that need to be made hidden, [{}]", getAliasesResponse.getAliases());

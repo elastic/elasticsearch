@@ -22,7 +22,7 @@ import java.util.Set;
  */
 public abstract class SecureSetting<T> extends Setting<T> {
 
-    private static final Set<Property> ALLOWED_PROPERTIES = EnumSet.of(Property.Deprecated, Property.Consistent);
+    private static final Set<Property> ALLOWED_PROPERTIES = EnumSet.of(Property.DeprecatedWarning, Property.Consistent);
 
     private static final Property[] FIXED_PROPERTIES = { Property.NodeScope };
 

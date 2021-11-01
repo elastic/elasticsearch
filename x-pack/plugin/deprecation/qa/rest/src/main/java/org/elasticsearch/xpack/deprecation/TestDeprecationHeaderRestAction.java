@@ -40,14 +40,14 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
         "test.setting.deprecated.true1",
         true,
         Setting.Property.NodeScope,
-        Setting.Property.Deprecated,
+        Setting.Property.DeprecatedWarning,
         Setting.Property.Dynamic
     );
     public static final Setting<Boolean> TEST_DEPRECATED_SETTING_TRUE2 = Setting.boolSetting(
         "test.setting.deprecated.true2",
         true,
         Setting.Property.NodeScope,
-        Setting.Property.Deprecated,
+        Setting.Property.DeprecatedWarning,
         Setting.Property.Dynamic
     );
     public static final Setting<Boolean> TEST_NOT_DEPRECATED_SETTING = Setting.boolSetting(

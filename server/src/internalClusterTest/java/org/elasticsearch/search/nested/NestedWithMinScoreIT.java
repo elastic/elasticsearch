@@ -87,7 +87,7 @@ public class NestedWithMinScoreIT extends ESIntegTestCase {
         XContentBuilder doc = XContentFactory.jsonBuilder();
         doc.startObject();
         doc.startArray("toolTracks");
-        double[] confidence = new double[]{0.3, 0.92, 0.7, 0.85, 0.2, 0.3, 0.75, 0.82, 0.1, 0.6, 0.3, 0.7};
+        double[] confidence = new double[] { 0.3, 0.92, 0.7, 0.85, 0.2, 0.3, 0.75, 0.82, 0.1, 0.6, 0.3, 0.7 };
         for (double v : confidence) {
             doc.startObject();
             doc.field("confidence", v);
@@ -98,13 +98,14 @@ public class NestedWithMinScoreIT extends ESIntegTestCase {
         doc.endObject();
 
         client().prepareIndex("test").setId("d1").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).setSource(doc).get();
-        final BoolQueryBuilder childQuery = new BoolQueryBuilder()
-            .filter(new MatchPhraseQueryBuilder("toolTracks.data", "cash dispenser, automated teller machine, automatic teller machine"))
-            .filter(new RangeQueryBuilder("toolTracks.confidence").from(0.8));
+        final BoolQueryBuilder childQuery = new BoolQueryBuilder().filter(
+            new MatchPhraseQueryBuilder("toolTracks.data", "cash dispenser, automated teller machine, automatic teller machine")
+        ).filter(new RangeQueryBuilder("toolTracks.confidence").from(0.8));
 
         final ScriptScoreQueryBuilder scriptScoreQuery = new ScriptScoreQueryBuilder(
             new NestedQueryBuilder("toolTracks", new ConstantScoreQueryBuilder(childQuery), ScoreMode.Total),
-            new Script(ScriptType.INLINE, MockScriptPlugin.NAME, "score_script", Map.of()));
+            new Script(ScriptType.INLINE, MockScriptPlugin.NAME, "score_script", Map.of())
+        );
         scriptScoreQuery.setMinScore(1.0f);
         SearchSourceBuilder source = new SearchSourceBuilder();
         source.query(scriptScoreQuery);

@@ -5,6 +5,12 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
+package org.elasticsearch.lz4;
+
+import net.jpountz.lz4.LZ4Exception;
+import net.jpountz.lz4.LZ4FastDecompressor;
+
+import java.nio.ByteBuffer;
 
 /*
  * This file is forked from https://github.com/lz4/lz4-java, which is licensed under Apache-2 and Copyright
@@ -14,13 +20,6 @@
  * It modifies the original implementation to use custom LZ4SafeUtils and SafeUtils implementations which
  * include performance improvements.
  */
-package org.elasticsearch.lz4;
-
-import net.jpountz.lz4.LZ4Exception;
-import net.jpountz.lz4.LZ4FastDecompressor;
-
-import java.nio.ByteBuffer;
-
 public class ESLZ4Decompressor extends LZ4FastDecompressor {
     public static final LZ4FastDecompressor INSTANCE = new ESLZ4Decompressor();
 

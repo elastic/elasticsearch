@@ -5,15 +5,6 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-
-/*
- * This file is forked from https://github.com/lz4/lz4-java, which is licensed under Apache-2 and Copyright
- * 2020 Adrien Grand and the lz4-java contributors. In particular, it forks the following file
- * net.jpountz.lz4.LZ4SafeUtils.
- *
- * It modifies the original implementation to use Java9 array mismatch method and varhandle performance
- * improvements. Comments are included to mark the changes.
- */
 package org.elasticsearch.lz4;
 
 import net.jpountz.lz4.LZ4Exception;
@@ -28,6 +19,14 @@ import static org.elasticsearch.lz4.LZ4Constants.ML_BITS;
 import static org.elasticsearch.lz4.LZ4Constants.ML_MASK;
 import static org.elasticsearch.lz4.LZ4Constants.RUN_MASK;
 
+/*
+ * This file is forked from https://github.com/lz4/lz4-java, which is licensed under Apache-2 and Copyright
+ * 2020 Adrien Grand and the lz4-java contributors. In particular, it forks the following file
+ * net.jpountz.lz4.LZ4SafeUtils.
+ *
+ * It modifies the original implementation to use Java9 array mismatch method and varhandle performance
+ * improvements. Comments are included to mark the changes.
+ */
 enum LZ4SafeUtils {
     ;
 

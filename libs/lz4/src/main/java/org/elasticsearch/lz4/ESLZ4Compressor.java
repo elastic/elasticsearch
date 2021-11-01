@@ -5,6 +5,13 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
+package org.elasticsearch.lz4;
+
+import net.jpountz.lz4.LZ4Compressor;
+import net.jpountz.lz4.LZ4Exception;
+
+import java.nio.ByteBuffer;
+import java.util.Arrays;
 
 /*
  * This file is forked from https://github.com/lz4/lz4-java, which is licensed under Apache-2 and Copyright
@@ -15,14 +22,6 @@
  * include performance improvements. Additionally, instead of allocating a new hashtable for each compress
  * call, it reuses thread-local hashtables. Comments are included to mark the changes.
  */
-package org.elasticsearch.lz4;
-
-import net.jpountz.lz4.LZ4Compressor;
-import net.jpountz.lz4.LZ4Exception;
-
-import java.nio.ByteBuffer;
-import java.util.Arrays;
-
 public class ESLZ4Compressor extends LZ4Compressor {
 
     // Modified to add thread-local hash tables

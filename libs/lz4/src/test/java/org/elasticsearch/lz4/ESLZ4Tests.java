@@ -5,17 +5,6 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-
-/*
- * This file is forked from https://github.com/lz4/lz4-java, which is licensed under Apache-2 and Copyright
- * 2020 Adrien Grand and the lz4-java contributors. In particular, it forks the following file
- * net.jpountz.lz4.LZ4Test.
- *
- * It modifies the test case to remove unneeded tests (safe decompressor, native libs, etc). Additionally,
- * we only test our compressor/decompressor and the pure java "safe" lz4-java compressor/decompressor.
- * Finally, on any "round-trip" tests we compress data using the safe lz4-java instance and compare that the
- * compression is the same as the compressor instance we are testing.
- */
 package org.elasticsearch.lz4;
 
 import net.jpountz.lz4.LZ4Compressor;
@@ -29,6 +18,16 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
+/*
+ * This file is forked from https://github.com/lz4/lz4-java, which is licensed under Apache-2 and Copyright
+ * 2020 Adrien Grand and the lz4-java contributors. In particular, it forks the following file
+ * net.jpountz.lz4.LZ4Test.
+ *
+ * It modifies the test case to remove unneeded tests (safe decompressor, native libs, etc). Additionally,
+ * we only test our compressor/decompressor and the pure java "safe" lz4-java compressor/decompressor.
+ * Finally, on any "round-trip" tests we compress data using the safe lz4-java instance and compare that the
+ * compression is the same as the compressor instance we are testing.
+ */
 public class ESLZ4Tests extends AbstractLZ4TestCase {
 
     // Modified to only test ES decompressor instances

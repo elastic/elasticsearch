@@ -5,15 +5,6 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-
-/*
- * This file is forked from https://github.com/lz4/lz4-java, which is licensed under Apache-2 and Copyright
- * 020 Adrien Grand and the lz4-java contributors. In particular, it forks the following file
- * net.jpountz.lz4.AbstractLZ4Test.
- *
- * It modifies the abstract test case to only test byte arrays and byte array backed byte buffers. These are
- * the only bytes we support.
- */
 package org.elasticsearch.lz4;
 
 import net.jpountz.lz4.LZ4Compressor;
@@ -31,6 +22,14 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 
+/*
+ * This file is forked from https://github.com/lz4/lz4-java, which is licensed under Apache-2 and Copyright
+ * 020 Adrien Grand and the lz4-java contributors. In particular, it forks the following file
+ * net.jpountz.lz4.AbstractLZ4Test.
+ *
+ * It modifies the abstract test case to only test byte arrays and byte array backed byte buffers. These are
+ * the only bytes we support.
+ */
 abstract class AbstractLZ4TestCase extends ESTestCase {
 
     public interface TesterBase<T> {

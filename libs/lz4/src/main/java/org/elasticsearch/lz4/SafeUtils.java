@@ -5,6 +5,13 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
+package org.elasticsearch.lz4;
+
+import net.jpountz.util.Utils;
+
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
+import java.nio.ByteOrder;
 
 /*
  * This file is forked from https://github.com/lz4/lz4-java, which is licensed under Apache-2 and Copyright
@@ -14,14 +21,6 @@
  * It modifies the original implementation to use Java9 varhandle performance improvements. Comments
  * are included to mark the changes.
  */
-package org.elasticsearch.lz4;
-
-import net.jpountz.util.Utils;
-
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.VarHandle;
-import java.nio.ByteOrder;
-
 public enum SafeUtils {
     ;
 

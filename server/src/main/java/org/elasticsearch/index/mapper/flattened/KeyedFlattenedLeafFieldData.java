@@ -79,7 +79,7 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
     }
 
     @Override
-    public DocValuesField getScriptField(String name) {
+    public DocValuesField<?> getScriptField(String name) {
         return new DelegateDocValuesField(AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION.apply(getOrdinalsValues()), name);
     }
 

@@ -52,7 +52,7 @@ public class IpScriptFieldData extends BinaryScriptFieldData {
         IpFieldScript script = leafFactory.newInstance(context);
         return new BinaryScriptLeafFieldData() {
             @Override
-            public DocValuesField getScriptField(String name) {
+            public DocValuesField<?> getScriptField(String name) {
                 return new DelegateDocValuesField(new IpScriptDocValues(getBytesValues()), name);
             }
 

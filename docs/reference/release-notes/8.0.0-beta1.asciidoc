@@ -11,7 +11,7 @@ Also see <<breaking-changes-8.0,Breaking changes in 8.0>>.
 === Known issues
 
 * If you are using {ml}, it is not safe to perform a rolling upgrade from 7.16.x 
-  to 8.0.0-beta1. It may lead cluster state propagation issues in the mixed 
+  to 8.0.0-beta1. It may lead to cluster state propagation issues in the mixed 
   version cluster. It is recommended waiting for 8.0.0-rc1 before testing a 
   rolling upgrade from 7.16.x. Wait for GA before attempting to upgrade any 
   production cluster to version 8.

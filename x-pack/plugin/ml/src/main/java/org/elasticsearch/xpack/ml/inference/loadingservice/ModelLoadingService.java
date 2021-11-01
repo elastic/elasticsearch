@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.MessageSupplier;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -60,6 +61,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.xpack.ml.MachineLearning.ML_MODEL_INFERENCE_FEATURE;
 
 /**
@@ -430,14 +432,18 @@ public class ModelLoadingService implements ClusterStateListener {
                 // Failure getting the definition, remove the initial estimation value
                 e -> {
                     trainedModelCircuitBreaker.addWithoutBreaking(-trainedModelConfig.getEstimatedHeapMemory());
-                    modelActionListener.onFailure(
-                        new ElasticsearchStatusException(
-                            "failed to load model [{}] definition",
-                            RestStatus.INTERNAL_SERVER_ERROR,
-                            modelId,
-                            e
-                        )
-                    );
+                    if (unwrapCause(e) instanceof ResourceNotFoundException) {
+                        modelActionListener.onFailure(e);
+                    } else {
+                        modelActionListener.onFailure(
+                            new ElasticsearchStatusException(
+                                "failed to load model [{}] definition",
+                                RestStatus.INTERNAL_SERVER_ERROR,
+                                modelId,
+                                e
+                            )
+                        );
+                    }
                 }
             ));
         }, modelActionListener::onFailure));

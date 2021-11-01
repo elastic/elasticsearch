@@ -432,6 +432,12 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
         testFilter(expected, sample, singleton("photosCount"), emptySet());
     }
 
+    public void testFilterNothingInObject() throws IOException {
+        final Builder sample = builder -> builder.startObject().field("bar", "test1").field("foo", "test2").endObject();
+        Builder expected = builder -> builder.startObject().field("bar", "test1").field("foo", "test2").endObject();
+        testFilter(expected, sample, emptySet(), singleton("bar.xxx"));
+    }
+
     public void testManyFilters() throws IOException, URISyntaxException {
         Builder deep = builder -> builder.startObject()
             .startObject("system")

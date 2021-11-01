@@ -36,6 +36,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.search.SearchPhaseController.getTopDocsSize;
 import static org.elasticsearch.action.search.SearchPhaseController.mergeTopDocs;
@@ -249,7 +250,9 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
         @Override
         public synchronized void close() {
-            assert hasPendingMerges() == false : "cannot close with partial reduce in-flight";
+            if (hasPendingMerges()) {
+                throw new IllegalStateException("Attempted to close with partial reduce in-flight");
+            }
             if (hasFailure()) {
                 assert circuitBreakerBytes == 0;
                 return;
@@ -257,6 +260,9 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             assert circuitBreakerBytes >= 0;
             circuitBreaker.addWithoutBreaking(-circuitBreakerBytes);
             circuitBreakerBytes = 0;
+            Releasables.close(
+                buffer.stream().filter(b -> b.aggregations() != null).map(b -> b.aggregations()).collect(Collectors.toList())
+            );
         }
 
         synchronized Exception getFailure() {

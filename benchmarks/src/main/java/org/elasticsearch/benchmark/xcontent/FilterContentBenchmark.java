@@ -58,6 +58,7 @@ public class FilterContentBenchmark {
 
     private BytesReference source;
     private XContentParserConfiguration parserConfig;
+    private Set<String> filters;
 
     @Setup
     public void setup() throws IOException {
@@ -79,7 +80,6 @@ public class FilterContentBenchmark {
 
         Map<String, Object> flattenMap = Maps.flatten(XContentHelper.convertToMap(source, true, XContentType.JSON).v2(), false, true);
         Set<String> keys = flattenMap.keySet();
-        Set<String> filters;
         switch (fieldCount) {
             case "10_field": {
                 AtomicInteger count = new AtomicInteger();
@@ -141,10 +141,33 @@ public class FilterContentBenchmark {
     }
 
     @Benchmark
-    public BytesReference benchmark() throws IOException {
+    public BytesReference filterWithParserConfigCreated() throws IOException {
         try (BytesStreamOutput os = new BytesStreamOutput()) {
             XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), os);
             try (XContentParser parser = XContentType.JSON.xContent().createParser(parserConfig, source.streamInput())) {
+                builder.copyCurrentStructure(parser);
+                return BytesReference.bytes(builder);
+            } catch (Exception e) {
+                return new BytesArray("");
+            }
+        }
+    }
+
+    @Benchmark
+    public BytesReference filterWithoutParserConfigCreated() throws IOException {
+        try (BytesStreamOutput os = new BytesStreamOutput()) {
+            XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), os);
+            Set<String> includes;
+            Set<String> excludes;
+            if (inclusive) {
+                includes = filters;
+                excludes = null;
+            } else {
+                includes = null;
+                excludes = filters;
+            }
+            XContentParserConfiguration contentParserConfiguration = XContentParserConfiguration.EMPTY.withFiltering(includes, excludes);
+            try (XContentParser parser = XContentType.JSON.xContent().createParser(contentParserConfiguration, source.streamInput())) {
                 builder.copyCurrentStructure(parser);
                 return BytesReference.bytes(builder);
             } catch (Exception e) {

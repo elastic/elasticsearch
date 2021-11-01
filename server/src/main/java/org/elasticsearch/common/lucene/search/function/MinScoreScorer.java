@@ -91,10 +91,10 @@ final class MinScoreScorer extends Scorer {
     public TwoPhaseIterator twoPhaseIterator() {
         final TwoPhaseIterator inTwoPhase = this.in.twoPhaseIterator();
         DocIdSetIterator approximation = inTwoPhase != null ? inTwoPhase.approximation() : in.iterator();
-        // If the approximation is a wrapper of TwoPhaseIterator, then ConjunctionScorer can add it the list of TwoPhaseIterator
-        // after the TwoPhaseIterator of MinScoreScorer. Then, the `matches()` method of the approximation can be called twice:
-        // one before `score()` and one after `score()`. This doesn't work well with ToParentBlockJoinQuery with which `matches()`
-        // can't be called after `score()`. Here we wrap the approximation to prevent it from unwrapping as a TwoPhaseIterator.
+        // A ConjunctionScorer can add the approximation of the TwoPhaseIterator of a MinScoreScorer to its TwoPhaseIterator list after
+        // the main TwoPhaseIterator. This can lead to an undesired state where the `matches()` method is called after the `score()` method.
+        // For example, if the `matches()` method of ToParentBlockJoinQuery is called after the `score()` method, then we return a wrong
+        // result or over-read DocValues. Here, we wrap the approximation to prevent it from unwrapping as a TwoPhaseIterator.
         if (inTwoPhase == null && TwoPhaseIterator.unwrap(approximation) != null) {
             approximation = new DocIdSetIteratorWrapper(approximation);
         }

@@ -15,7 +15,13 @@ Also see <<breaking-changes-8.0,Breaking changes in 8.0>>.
   version cluster. It is recommended waiting for 8.0.0-rc1 before testing a 
   rolling upgrade from 7.16.x. Wait for GA before attempting to upgrade any 
   production cluster to version 8.
-
+* If you are using {ml}, it is not safe to upgrade to 8.0.0-beta1
+  if the cluster you are upgrading was first used prior to 7.7.0.
+  If you attempt such an upgrade the filtered aliases against
+  the {ml} results indices will lose their filters causing {ml}
+  anomaly detection results for different jobs to be mixed up.
+  Wait for 8.0.0-rc1 before attempting to upgrade any cluster
+  where {ml} was used prior to version 7.7.0 to version 8.
 
 [[breaking-8.0.0-beta1]]
 [float]

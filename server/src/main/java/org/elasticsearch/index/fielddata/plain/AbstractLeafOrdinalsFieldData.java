@@ -35,7 +35,7 @@ public abstract class AbstractLeafOrdinalsFieldData implements LeafOrdinalsField
     }
 
     @Override
-    public final DocValuesField getScriptField(String name) {
+    public final DocValuesField<?> getScriptField(String name) {
         return new DelegateDocValuesField(scriptFunction.apply(getOrdinalsValues()), name);
     }
 

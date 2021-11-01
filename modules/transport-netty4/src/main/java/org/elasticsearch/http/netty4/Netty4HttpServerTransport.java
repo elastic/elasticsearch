@@ -127,10 +127,6 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         Property.NodeScope
     );
 
-    private final ByteSizeValue maxInitialLineLength;
-    private final ByteSizeValue maxHeaderSize;
-    private final ByteSizeValue maxChunkSize;
-
     private final int pipeliningMaxEvents;
 
     private final SharedGroupFactory sharedGroupFactory;
@@ -157,9 +153,6 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         NettyAllocator.logAllocatorDescriptionIfNeeded();
         this.sharedGroupFactory = sharedGroupFactory;
 
-        this.maxChunkSize = SETTING_HTTP_MAX_CHUNK_SIZE.get(settings);
-        this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
-        this.maxInitialLineLength = SETTING_HTTP_MAX_INITIAL_LINE_LENGTH.get(settings);
         this.pipeliningMaxEvents = SETTING_PIPELINING_MAX_EVENTS.get(settings);
 
         this.maxCompositeBufferComponents = SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS.get(settings);
@@ -172,9 +165,9 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         logger.debug(
             "using max_chunk_size[{}], max_header_size[{}], max_initial_line_length[{}], max_content_length[{}], "
                 + "receive_predictor[{}], max_composite_buffer_components[{}], pipelining_max_events[{}]",
-            maxChunkSize,
-            maxHeaderSize,
-            maxInitialLineLength,
+            SETTING_HTTP_MAX_CHUNK_SIZE.get(settings),
+            SETTING_HTTP_MAX_HEADER_SIZE.get(settings),
+            SETTING_HTTP_MAX_INITIAL_LINE_LENGTH.get(settings),
             maxContentLength,
             receivePredictor,
             maxCompositeBufferComponents,
@@ -297,17 +290,13 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     protected static class HttpChannelHandler extends ChannelInitializer<Channel> {
 
         private final Netty4HttpServerTransport transport;
-        private final Netty4HttpRequestCreator requestCreator;
         private final Netty4HttpRequestHandler requestHandler;
-        private final Netty4HttpResponseCreator responseCreator;
         private final HttpHandlingSettings handlingSettings;
 
         protected HttpChannelHandler(final Netty4HttpServerTransport transport, final HttpHandlingSettings handlingSettings) {
             this.transport = transport;
             this.handlingSettings = handlingSettings;
-            this.requestCreator = new Netty4HttpRequestCreator();
             this.requestHandler = new Netty4HttpRequestHandler(transport);
-            this.responseCreator = new Netty4HttpResponseCreator();
         }
 
         @Override
@@ -331,8 +320,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             if (handlingSettings.isCompression()) {
                 ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.getCompressionLevel()));
             }
-            ch.pipeline().addLast("request_creator", requestCreator);
-            ch.pipeline().addLast("response_creator", responseCreator);
+            ch.pipeline().addLast("request_creator", Netty4HttpRequestCreator.INSTANCE);
+            ch.pipeline().addLast("response_creator", Netty4HttpResponseCreator.INSTANCE);
             ch.pipeline().addLast("pipelining", new Netty4HttpPipeliningHandler(logger, transport.pipeliningMaxEvents));
             ch.pipeline().addLast("handler", requestHandler);
             transport.serverAcceptedChannel(nettyHttpChannel);

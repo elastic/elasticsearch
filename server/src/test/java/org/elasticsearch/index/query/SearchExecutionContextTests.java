@@ -498,7 +498,7 @@ public class SearchExecutionContextTests extends ESTestCase {
                     public LeafFieldData load(LeafReaderContext context) {
                         return new LeafFieldData() {
                             @Override
-                            public DocValuesField getScriptField(String name) {
+                            public DocValuesField<?> getScriptField(String name) {
                                 return new DelegateDocValuesField(new ScriptDocValues<String>() {
                                     String value;
 

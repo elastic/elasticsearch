@@ -102,7 +102,7 @@ status code when the request is attempting to modify an existing repository that
 Update client code that handles creation and deletion of repositories to reflect this change.
 ====
 
-. The `allow_no_datafeeds` property has been removed from {ml} APIs.
+.The `allow_no_datafeeds` property has been removed from {ml} APIs.
 [%collapsible]
 ====
 *Details* +
@@ -116,7 +116,7 @@ The `allow_no_datafeeds` property was deprecated in the
 Use `allow_no_match` instead.
 ====
 
-. The `allow_no_jobs` property has been removed from {ml} APIs.
+.The `allow_no_jobs` property has been removed from {ml} APIs.
 [%collapsible]
 ====
 *Details* +

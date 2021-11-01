@@ -139,6 +139,7 @@ your Docker container. Enter the password for the `elastic` user when prompted.
 curl --cacert <local-directory>/http_ca.crt \
 -u elastic https://localhost:9200
 ----
+// NOTCONSOLE
 
 [[docker-compose-file]]
 ==== Start a multi-node cluster with Docker Compose

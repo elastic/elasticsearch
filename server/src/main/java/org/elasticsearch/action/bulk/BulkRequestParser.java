@@ -188,12 +188,9 @@ public final class BulkRequestParser {
                 if (SUPPORTED_ACTIONS.contains(action) == false) {
                     deprecationLogger.compatibleCritical(
                         STRICT_ACTION_PARSING_WARNING_KEY,
-                        String.format(
-                            Locale.ROOT,
-                            "Unsupported action: `%s`. Supported values are `create`, `delete`, `index`, and `update`. "
+                            "Unsupported action: [{}]. Supported values are [create], [delete], [index], and [update]. "
                                 + "Unsupported actions are currently accepted but will be rejected in a future version.",
                             action
-                        )
                     );
                 }
 

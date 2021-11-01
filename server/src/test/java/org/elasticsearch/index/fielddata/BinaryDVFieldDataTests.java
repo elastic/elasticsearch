@@ -17,10 +17,12 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.script.field.BinaryDocValuesField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -114,29 +116,29 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
         assertEquals(bytesList2.get(0), bytesValues.nextValue());
         assertEquals(bytesList2.get(1), bytesValues.nextValue());
 
-        // Test whether ScriptDocValues.BytesRefs makes a deepcopy
+        // Test whether BinaryDocValuesField makes a deepcopy
         fieldData = indexFieldData.load(reader);
-        ScriptDocValues<?> scriptValues = fieldData.getScriptField("test").getScriptDocValues();
-        Object[][] retValues = new BytesRef[4][0];
+        BinaryDocValuesField binaryDocValuesField = (BinaryDocValuesField) fieldData.getScriptField("test");
+        ByteBuffer[][] retValues = new ByteBuffer[4][];
         for (int i = 0; i < 4; i++) {
-            scriptValues.setNextDocId(i);
-            retValues[i] = new BytesRef[scriptValues.size()];
+            binaryDocValuesField.setNextDocId(i);
+            retValues[i] = new ByteBuffer[binaryDocValuesField.size()];
             for (int j = 0; j < retValues[i].length; j++) {
-                retValues[i][j] = scriptValues.get(j);
+                retValues[i][j] = binaryDocValuesField.get(j, null);
             }
         }
         assertEquals(2, retValues[0].length);
-        assertEquals(bytesList1.get(0), retValues[0][0]);
-        assertEquals(bytesList1.get(1), retValues[0][1]);
+        assertArrayEquals(bytesList1.get(0).bytes, retValues[0][0].array());
+        assertArrayEquals(bytesList1.get(1).bytes, retValues[0][1].array());
 
         assertEquals(1, retValues[1].length);
-        assertEquals(bytes1, retValues[1][0]);
+        assertArrayEquals(bytes1.bytes, retValues[1][0].array());
 
         assertEquals(0, retValues[2].length);
 
         assertEquals(2, retValues[3].length);
-        assertEquals(bytesList2.get(0), retValues[3][0]);
-        assertEquals(bytesList2.get(1), retValues[3][1]);
+        assertArrayEquals(bytesList2.get(0).bytes, retValues[3][0].array());
+        assertArrayEquals(bytesList2.get(1).bytes, retValues[3][1].array());
     }
 
     private static BytesRef randomBytes() {

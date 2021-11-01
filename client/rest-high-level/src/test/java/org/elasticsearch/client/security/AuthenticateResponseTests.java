@@ -77,13 +77,23 @@ public class AuthenticateResponseTests extends ESTestCase {
 
         final String authenticationType = randomFrom("realm", "api_key", "token", "anonymous", "internal");
 
+        final AuthenticateResponse.ApiKeyInfo apiKeyInfo;
+        if ("api_key".equals(authenticationType)) {
+            final String apiKeyId = randomAlphaOfLength(16);                            // mandatory
+            final String apiKeyName = randomBoolean() ? randomAlphaOfLength(20) : null; // optional
+            apiKeyInfo = new AuthenticateResponse.ApiKeyInfo(apiKeyId, apiKeyName);
+        } else {
+            apiKeyInfo = null;
+        }
+
         return new AuthenticateResponse(
             new User(username, roles, metadata, fullName, email),
             enabled,
             authenticationRealm,
             lookupRealm,
             authenticationType,
-            tokenInfo
+            tokenInfo,
+            apiKeyInfo
         );
     }
 
@@ -106,13 +116,15 @@ public class AuthenticateResponseTests extends ESTestCase {
             response.getAuthenticationRealm(),
             response.getLookupRealm(),
             response.getAuthenticationType(),
-            Map.copyOf(response.getToken())
+            Map.copyOf(response.getToken()),
+            response.getApiKeyInfo()
         );
     }
 
     private AuthenticateResponse mutate(AuthenticateResponse response) {
         final User originalUser = response.getUser();
-        switch (randomIntBetween(1, 10)) {
+        int randomSwitchCase = randomIntBetween(1, 11); // range is inclusive
+        switch (randomSwitchCase) {
             case 1:
                 return new AuthenticateResponse(
                     new User(
@@ -126,7 +138,8 @@ public class AuthenticateResponseTests extends ESTestCase {
                     response.getAuthenticationRealm(),
                     response.getLookupRealm(),
                     response.getAuthenticationType(),
-                    response.getToken()
+                    response.getToken(),
+                    response.getApiKeyInfo()
                 );
             case 2:
                 final List<String> wrongRoles = new ArrayList<>(originalUser.getRoles());
@@ -143,7 +156,8 @@ public class AuthenticateResponseTests extends ESTestCase {
                     response.getAuthenticationRealm(),
                     response.getLookupRealm(),
                     response.getAuthenticationType(),
-                    response.getToken()
+                    response.getToken(),
+                    response.getApiKeyInfo()
                 );
             case 3:
                 final Map<String, Object> wrongMetadata = new HashMap<>(originalUser.getMetadata());
@@ -160,7 +174,8 @@ public class AuthenticateResponseTests extends ESTestCase {
                     response.getAuthenticationRealm(),
                     response.getLookupRealm(),
                     response.getAuthenticationType(),
-                    response.getToken()
+                    response.getToken(),
+                    response.getApiKeyInfo()
                 );
             case 4:
                 return new AuthenticateResponse(
@@ -174,7 +189,9 @@ public class AuthenticateResponseTests extends ESTestCase {
                     response.enabled(),
                     response.getAuthenticationRealm(),
                     response.getLookupRealm(),
-                    response.getAuthenticationType()
+                    response.getAuthenticationType(),
+                    response.getToken(),
+                    response.getApiKeyInfo()
                 );
             case 5:
                 return new AuthenticateResponse(
@@ -189,7 +206,8 @@ public class AuthenticateResponseTests extends ESTestCase {
                     response.getAuthenticationRealm(),
                     response.getLookupRealm(),
                     response.getAuthenticationType(),
-                    response.getToken()
+                    response.getToken(),
+                    response.getApiKeyInfo()
                 );
             case 6:
                 return new AuthenticateResponse(
@@ -204,7 +222,8 @@ public class AuthenticateResponseTests extends ESTestCase {
                     response.getAuthenticationRealm(),
                     response.getLookupRealm(),
                     response.getAuthenticationType(),
-                    response.getToken()
+                    response.getToken(),
+                    response.getApiKeyInfo()
                 );
             case 7:
                 return new AuthenticateResponse(
@@ -219,7 +238,8 @@ public class AuthenticateResponseTests extends ESTestCase {
                     response.getAuthenticationRealm(),
                     new AuthenticateResponse.RealmInfo(randomAlphaOfLength(5), randomAlphaOfLength(5)),
                     response.getAuthenticationType(),
-                    response.getToken()
+                    response.getToken(),
+                    response.getApiKeyInfo()
                 );
             case 8:
                 return new AuthenticateResponse(
@@ -234,7 +254,8 @@ public class AuthenticateResponseTests extends ESTestCase {
                     new AuthenticateResponse.RealmInfo(randomAlphaOfLength(5), randomAlphaOfLength(5)),
                     response.getLookupRealm(),
                     response.getAuthenticationType(),
-                    response.getToken()
+                    response.getToken(),
+                    response.getApiKeyInfo()
                 );
             case 9:
                 return new AuthenticateResponse(
@@ -252,9 +273,10 @@ public class AuthenticateResponseTests extends ESTestCase {
                         response.getAuthenticationType(),
                         () -> randomFrom("realm", "api_key", "token", "anonymous", "internal")
                     ),
-                    response.getToken()
+                    response.getToken(),
+                    response.getApiKeyInfo()
                 );
-            default:
+            case 10:
                 return new AuthenticateResponse(
                     new User(
                         originalUser.getUsername(),
@@ -277,9 +299,33 @@ public class AuthenticateResponseTests extends ESTestCase {
                                 randomValueOtherThan(response.getToken().get("type"), () -> randomAlphaOfLengthBetween(3, 8))
                             ),
                             null
-                        )
+                        ),
+                    response.getApiKeyInfo()
                 );
-
+            case 11:
+                return new AuthenticateResponse(
+                    new User(
+                        originalUser.getUsername(),
+                        originalUser.getRoles(),
+                        originalUser.getMetadata(),
+                        originalUser.getFullName(),
+                        originalUser.getEmail()
+                    ),
+                    response.enabled(),
+                    response.getAuthenticationRealm(),
+                    response.getLookupRealm(),
+                    response.getAuthenticationType(),
+                    response.getToken(),
+                    response.getApiKeyInfo() == null
+                        ? new AuthenticateResponse.ApiKeyInfo(
+                            randomAlphaOfLength(16),                         // mandatory
+                            randomBoolean() ? randomAlphaOfLength(20) : null // optional
+                        )
+                        : null
+                );
+            default:
+                fail("Random number " + randomSwitchCase + " did not match any switch cases");
+                return null;
         }
     }
 }

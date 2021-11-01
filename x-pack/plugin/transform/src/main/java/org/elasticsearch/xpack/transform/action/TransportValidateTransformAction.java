@@ -56,29 +56,7 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
         Settings settings,
         IngestService ingestService
     ) {
-        this(
-            ValidateTransformAction.NAME,
-            transportService,
-            actionFilters,
-            client,
-            indexNameExpressionResolver,
-            clusterService,
-            settings,
-            ingestService
-        );
-    }
-
-    protected TransportValidateTransformAction(
-        String name,
-        TransportService transportService,
-        ActionFilters actionFilters,
-        Client client,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        ClusterService clusterService,
-        Settings settings,
-        IngestService ingestService
-    ) {
-        super(name, transportService, actionFilters, Request::new);
+        super(ValidateTransformAction.NAME, transportService, actionFilters, Request::new);
         this.client = client;
         this.clusterService = clusterService;
         this.transportService = transportService;

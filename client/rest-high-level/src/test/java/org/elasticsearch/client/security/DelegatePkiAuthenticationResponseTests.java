@@ -14,6 +14,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
@@ -82,6 +83,10 @@ public class DelegatePkiAuthenticationResponseTests extends AbstractResponseTest
         final String lookupRealmType = randomFrom("file", "native", "ldap", "active_directory", "saml", "kerberos");
         final String nodeName = randomAlphaOfLengthBetween(1, 10);
         final Authentication.AuthenticationType authenticationType = randomFrom(Authentication.AuthenticationType.values());
+        if (Authentication.AuthenticationType.API_KEY.equals(authenticationType)) {
+            metadata.put(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLengthBetween(1, 10));
+            metadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 10));
+        }
         return new Authentication(
             new User(username, roles, fullName, email, metadata, true),
             new Authentication.RealmRef(authenticationRealmName, authenticationRealmType, nodeName),
@@ -113,12 +118,22 @@ public class DelegatePkiAuthenticationResponseTests extends AbstractResponseTest
                 ? authentication.getAuthenticatedBy().getType()
                 : authentication.getLookedUpBy().getType()
         );
+        final AuthenticateResponse.ApiKeyInfo apiKeyInfo;
+        if (Authentication.AuthenticationType.API_KEY.equals(authentication.getAuthenticationType())) {
+            final String apiKeyId = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);   // mandatory
+            final String apiKeyName = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_NAME_KEY); // optional
+            apiKeyInfo = new AuthenticateResponse.ApiKeyInfo(apiKeyId, apiKeyName);
+        } else {
+            apiKeyInfo = null;
+        }
         return new AuthenticateResponse(
             cUser,
             user.enabled(),
             authenticatedBy,
             lookedUpBy,
-            authentication.getAuthenticationType().toString().toLowerCase(Locale.ROOT)
+            authentication.getAuthenticationType().toString().toLowerCase(Locale.ROOT),
+            null,
+            apiKeyInfo
         );
     }
 }

@@ -43,21 +43,13 @@ public class AndTests extends ScriptTestCase {
     }
 
     public void testIllegal() throws Exception {
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("float x = (float)4; int y = 1; return x & y");
-        });
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("double x = (double)4; int y = 1; return x & y");
-        });
+        expectScriptThrows(ClassCastException.class, () -> { exec("float x = (float)4; int y = 1; return x & y"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("double x = (double)4; int y = 1; return x & y"); });
     }
 
     public void testDef() {
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("def x = (float)4; def y = (byte)1; return x & y");
-        });
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("def x = (double)4; def y = (byte)1; return x & y");
-        });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = (float)4; def y = (byte)1; return x & y"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = (double)4; def y = (byte)1; return x & y"); });
         assertEquals(0, exec("def x = (byte)4; def y = (byte)1; return x & y"));
         assertEquals(0, exec("def x = (short)4; def y = (byte)1; return x & y"));
         assertEquals(0, exec("def x = (char)4; def y = (byte)1; return x & y"));
@@ -94,19 +86,15 @@ public class AndTests extends ScriptTestCase {
         assertEquals(0, exec("def x = (int)4; def y = (int)1; return x & y"));
         assertEquals(0L, exec("def x = (long)4; def y = (long)1; return x & y"));
 
-        assertEquals(true,  exec("def x = true;  def y = true; return x & y"));
+        assertEquals(true, exec("def x = true;  def y = true; return x & y"));
         assertEquals(false, exec("def x = true;  def y = false; return x & y"));
         assertEquals(false, exec("def x = false; def y = true; return x & y"));
         assertEquals(false, exec("def x = false; def y = false; return x & y"));
     }
 
     public void testDefTypedLHS() {
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("float x = (float)4; def y = (byte)1; return x & y");
-        });
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("double x = (double)4; def y = (byte)1; return x & y");
-        });
+        expectScriptThrows(ClassCastException.class, () -> { exec("float x = (float)4; def y = (byte)1; return x & y"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("double x = (double)4; def y = (byte)1; return x & y"); });
         assertEquals(0, exec("byte x = (byte)4; def y = (byte)1; return x & y"));
         assertEquals(0, exec("short x = (short)4; def y = (byte)1; return x & y"));
         assertEquals(0, exec("char x = (char)4; def y = (byte)1; return x & y"));
@@ -143,19 +131,15 @@ public class AndTests extends ScriptTestCase {
         assertEquals(0, exec("int x = (int)4; def y = (int)1; return x & y"));
         assertEquals(0L, exec("long x = (long)4; def y = (long)1; return x & y"));
 
-        assertEquals(true,  exec("boolean x = true;  def y = true; return x & y"));
+        assertEquals(true, exec("boolean x = true;  def y = true; return x & y"));
         assertEquals(false, exec("boolean x = true;  def y = false; return x & y"));
         assertEquals(false, exec("boolean x = false; def y = true; return x & y"));
         assertEquals(false, exec("boolean x = false; def y = false; return x & y"));
     }
 
     public void testDefTypedRHS() {
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("def x = (float)4; byte y = (byte)1; return x & y");
-        });
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("def x = (double)4; byte y = (byte)1; return x & y");
-        });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = (float)4; byte y = (byte)1; return x & y"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = (double)4; byte y = (byte)1; return x & y"); });
         assertEquals(0, exec("def x = (byte)4; byte y = (byte)1; return x & y"));
         assertEquals(0, exec("def x = (short)4; byte y = (byte)1; return x & y"));
         assertEquals(0, exec("def x = (char)4; byte y = (byte)1; return x & y"));
@@ -192,7 +176,7 @@ public class AndTests extends ScriptTestCase {
         assertEquals(0, exec("def x = (int)4; int y = (int)1; return x & y"));
         assertEquals(0L, exec("def x = (long)4; long y = (long)1; return x & y"));
 
-        assertEquals(true,  exec("def x = true;  boolean y = true; return x & y"));
+        assertEquals(true, exec("def x = true;  boolean y = true; return x & y"));
         assertEquals(false, exec("def x = true;  boolean y = false; return x & y"));
         assertEquals(false, exec("def x = false; boolean y = true; return x & y"));
         assertEquals(false, exec("def x = false; boolean y = false; return x & y"));
@@ -222,18 +206,10 @@ public class AndTests extends ScriptTestCase {
     }
 
     public void testBogusCompoundAssignment() {
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("float x = 4; int y = 1; x &= y");
-        });
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("double x = 4; int y = 1; x &= y");
-        });
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("int x = 4; float y = 1; x &= y");
-        });
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("int x = 4; double y = 1; x &= y");
-        });
+        expectScriptThrows(ClassCastException.class, () -> { exec("float x = 4; int y = 1; x &= y"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("double x = 4; int y = 1; x &= y"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("int x = 4; float y = 1; x &= y"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("int x = 4; double y = 1; x &= y"); });
     }
 
     public void testDefCompoundAssignment() {
@@ -260,17 +236,9 @@ public class AndTests extends ScriptTestCase {
     }
 
     public void testDefBogusCompoundAssignment() {
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("def x = 4F; int y = 1; x &= y");
-        });
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("def x = 4D; int y = 1; x &= y");
-        });
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("int x = 4; def y = 1F; x &= y");
-        });
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("int x = 4; def y = 1D; x &= y");
-        });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 4F; int y = 1; x &= y"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 4D; int y = 1; x &= y"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("int x = 4; def y = 1F; x &= y"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("int x = 4; def y = 1D; x &= y"); });
     }
 }

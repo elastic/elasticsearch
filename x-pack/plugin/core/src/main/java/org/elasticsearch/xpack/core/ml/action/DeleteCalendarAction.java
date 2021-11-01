@@ -29,7 +29,6 @@ public class DeleteCalendarAction extends ActionType<AcknowledgedResponse> {
 
     public static class Request extends AcknowledgedRequest<Request> {
 
-
         private String calendarId;
 
         public Request(StreamInput in) throws IOException {

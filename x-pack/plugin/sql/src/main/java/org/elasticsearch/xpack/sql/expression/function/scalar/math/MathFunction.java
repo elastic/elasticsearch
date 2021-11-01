@@ -43,8 +43,7 @@ public abstract class MathFunction extends UnaryScalarFunction {
 
     @Override
     public String processScript(String template) {
-        return super.processScript(format(
-            Locale.ROOT, "{sql}.%s(%s)", getClass().getSimpleName().toLowerCase(Locale.ROOT), template));
+        return super.processScript(format(Locale.ROOT, "{sql}.%s(%s)", getClass().getSimpleName().toLowerCase(Locale.ROOT), template));
     }
 
     @Override

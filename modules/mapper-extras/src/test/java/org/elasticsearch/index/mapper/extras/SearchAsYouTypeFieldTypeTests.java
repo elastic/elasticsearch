@@ -21,7 +21,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.index.mapper.extras.SearchAsYouTypeFieldMapper;
 import org.elasticsearch.index.mapper.extras.SearchAsYouTypeFieldMapper.Defaults;
 import org.elasticsearch.index.mapper.extras.SearchAsYouTypeFieldMapper.PrefixFieldType;
 import org.elasticsearch.index.mapper.extras.SearchAsYouTypeFieldMapper.SearchAsYouTypeFieldType;
@@ -51,12 +50,16 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
     }
 
     private static SearchAsYouTypeFieldType createFieldType() {
-        final SearchAsYouTypeFieldType fieldType = new SearchAsYouTypeFieldType(NAME, SEARCHABLE, null,
-            Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER, Collections.emptyMap());
+        final SearchAsYouTypeFieldType fieldType = new SearchAsYouTypeFieldType(
+            NAME,
+            SEARCHABLE,
+            null,
+            Lucene.STANDARD_ANALYZER,
+            Lucene.STANDARD_ANALYZER,
+            Collections.emptyMap()
+        );
         fieldType.setPrefixField(new PrefixFieldType(NAME, TextSearchInfo.SIMPLE_MATCH_ONLY, Defaults.MIN_GRAM, Defaults.MAX_GRAM));
-        fieldType.setShingleFields(new ShingleFieldType[] {
-            new ShingleFieldType(fieldType.name(), 2, TextSearchInfo.SIMPLE_MATCH_ONLY)
-        });
+        fieldType.setShingleFields(new ShingleFieldType[] { new ShingleFieldType(fieldType.name(), 2, TextSearchInfo.SIMPLE_MATCH_ONLY) });
         return fieldType;
     }
 
@@ -65,8 +68,14 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
 
         assertThat(fieldType.termQuery("foo", null), equalTo(new TermQuery(new Term(NAME, "foo"))));
 
-        SearchAsYouTypeFieldType unsearchable = new SearchAsYouTypeFieldType(NAME, UNSEARCHABLE, null,
-            Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER, Collections.emptyMap());
+        SearchAsYouTypeFieldType unsearchable = new SearchAsYouTypeFieldType(
+            NAME,
+            UNSEARCHABLE,
+            null,
+            Lucene.STANDARD_ANALYZER,
+            Lucene.STANDARD_ANALYZER,
+            Collections.emptyMap()
+        );
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("foo", null));
         assertThat(e.getMessage(), equalTo("Cannot search on field [" + NAME + "] since it is not indexed."));
     }
@@ -74,13 +83,23 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
     public void testTermsQuery() {
         final MappedFieldType fieldType = createFieldType();
 
-        assertThat(fieldType.termsQuery(asList("foo", "bar"), null),
-            equalTo(new TermInSetQuery(NAME, asList(new BytesRef("foo"), new BytesRef("bar")))));
+        assertThat(
+            fieldType.termsQuery(asList("foo", "bar"), null),
+            equalTo(new TermInSetQuery(NAME, asList(new BytesRef("foo"), new BytesRef("bar"))))
+        );
 
-        SearchAsYouTypeFieldType unsearchable = new SearchAsYouTypeFieldType(NAME, UNSEARCHABLE, null,
-            Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER, Collections.emptyMap());
-        final IllegalArgumentException e =
-            expectThrows(IllegalArgumentException.class, () -> unsearchable.termsQuery(asList("foo", "bar"), null));
+        SearchAsYouTypeFieldType unsearchable = new SearchAsYouTypeFieldType(
+            NAME,
+            UNSEARCHABLE,
+            null,
+            Lucene.STANDARD_ANALYZER,
+            Lucene.STANDARD_ANALYZER,
+            Collections.emptyMap()
+        );
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> unsearchable.termsQuery(asList("foo", "bar"), null)
+        );
         assertThat(e.getMessage(), equalTo("Cannot search on field [" + NAME + "] since it is not indexed."));
     }
 
@@ -89,20 +108,29 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
 
         // this term should be a length that can be rewriteable to a term query on the prefix field
         final String withinBoundsTerm = "foo";
-        assertThat(fieldType.prefixQuery(withinBoundsTerm, CONSTANT_SCORE_REWRITE, randomMockContext()),
-            equalTo(new ConstantScoreQuery(new TermQuery(new Term(NAME + "._index_prefix", withinBoundsTerm)))));
+        assertThat(
+            fieldType.prefixQuery(withinBoundsTerm, CONSTANT_SCORE_REWRITE, randomMockContext()),
+            equalTo(new ConstantScoreQuery(new TermQuery(new Term(NAME + "._index_prefix", withinBoundsTerm))))
+        );
 
         // our defaults don't allow a situation where a term can be too small
 
         // this term should be too long to be rewriteable to a term query on the prefix field
         final String longTerm = "toolongforourprefixfieldthistermis";
-        assertThat(fieldType.prefixQuery(longTerm, CONSTANT_SCORE_REWRITE, MOCK_CONTEXT),
-            equalTo(new PrefixQuery(new Term(NAME, longTerm))));
+        assertThat(
+            fieldType.prefixQuery(longTerm, CONSTANT_SCORE_REWRITE, MOCK_CONTEXT),
+            equalTo(new PrefixQuery(new Term(NAME, longTerm)))
+        );
 
-        ElasticsearchException ee = expectThrows(ElasticsearchException.class,
-                () -> fieldType.prefixQuery(longTerm, CONSTANT_SCORE_REWRITE, MOCK_CONTEXT_DISALLOW_EXPENSIVE));
-        assertEquals("[prefix] queries cannot be executed when 'search.allow_expensive_queries' is set to false. " +
-                "For optimised prefix queries on text fields please enable [index_prefixes].", ee.getMessage());
+        ElasticsearchException ee = expectThrows(
+            ElasticsearchException.class,
+            () -> fieldType.prefixQuery(longTerm, CONSTANT_SCORE_REWRITE, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+        );
+        assertEquals(
+            "[prefix] queries cannot be executed when 'search.allow_expensive_queries' is set to false. "
+                + "For optimised prefix queries on text fields please enable [index_prefixes].",
+            ee.getMessage()
+        );
     }
 
     public void testFetchSourceValue() throws IOException {
@@ -113,13 +141,20 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
         assertEquals(List.of("true"), fetchSourceValue(fieldType, true));
 
         SearchAsYouTypeFieldMapper.PrefixFieldType prefixFieldType = new SearchAsYouTypeFieldMapper.PrefixFieldType(
-            fieldType.name(), fieldType.getTextSearchInfo(), 2, 10);
+            fieldType.name(),
+            fieldType.getTextSearchInfo(),
+            2,
+            10
+        );
         assertEquals(List.of("value"), fetchSourceValue(prefixFieldType, "value"));
         assertEquals(List.of("42"), fetchSourceValue(prefixFieldType, 42L));
         assertEquals(List.of("true"), fetchSourceValue(prefixFieldType, true));
 
         SearchAsYouTypeFieldMapper.ShingleFieldType shingleFieldType = new SearchAsYouTypeFieldMapper.ShingleFieldType(
-            fieldType.name(), 5, fieldType.getTextSearchInfo());
+            fieldType.name(),
+            5,
+            fieldType.getTextSearchInfo()
+        );
         assertEquals(List.of("value"), fetchSourceValue(shingleFieldType, "value"));
         assertEquals(List.of("42"), fetchSourceValue(shingleFieldType, 42L));
         assertEquals(List.of("true"), fetchSourceValue(shingleFieldType, true));

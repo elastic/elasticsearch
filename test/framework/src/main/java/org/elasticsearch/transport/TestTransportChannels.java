@@ -14,10 +14,23 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 public class TestTransportChannels {
 
-    public static TcpTransportChannel newFakeTcpTransportChannel(String nodeName, TcpChannel channel, ThreadPool threadPool,
-                                                                 String action, long requestId, Version version) {
+    public static TcpTransportChannel newFakeTcpTransportChannel(
+        String nodeName,
+        TcpChannel channel,
+        ThreadPool threadPool,
+        String action,
+        long requestId,
+        Version version
+    ) {
         return new TcpTransportChannel(
             new OutboundHandler(nodeName, version, new StatsTracker(), threadPool, BigArrays.NON_RECYCLING_INSTANCE),
-            channel, action, requestId, version, null, false, () -> {});
+            channel,
+            action,
+            requestId,
+            version,
+            null,
+            false,
+            () -> {}
+        );
     }
 }

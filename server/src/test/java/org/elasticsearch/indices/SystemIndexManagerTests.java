@@ -30,12 +30,12 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SystemIndexManager.UpgradeStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -99,9 +99,14 @@ public class SystemIndexManagerTests extends ESTestCase {
             .setOrigin("FAKE_ORIGIN")
             .build();
 
-        SystemIndices systemIndices = new SystemIndices(Map.of(
-            "index 1", new SystemIndices.Feature("index 1", "index 1 feature", List.of(d1)),
-            "index 2", new SystemIndices.Feature("index 2", "index 2 feature", List.of(d2))));
+        SystemIndices systemIndices = new SystemIndices(
+            Map.of(
+                "index 1",
+                new SystemIndices.Feature("index 1", "index 1 feature", List.of(d1)),
+                "index 2",
+                new SystemIndices.Feature("index 2", "index 2 feature", List.of(d2))
+            )
+        );
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         final List<SystemIndexDescriptor> eligibleDescriptors = manager.getEligibleDescriptors(
@@ -137,9 +142,15 @@ public class SystemIndexManagerTests extends ESTestCase {
             .setOrigin("FAKE_ORIGIN")
             .build();
 
-        SystemIndices systemIndices = new SystemIndices(Map.of(
-            "index 1", new SystemIndices.Feature("index 1", "index 1 feature", List.of(d1)),
-            "index 2", new SystemIndices.Feature("index 2", "index 2 feature", List.of(d2))));;
+        SystemIndices systemIndices = new SystemIndices(
+            Map.of(
+                "index 1",
+                new SystemIndices.Feature("index 1", "index 1 feature", List.of(d1)),
+                "index 2",
+                new SystemIndices.Feature("index 2", "index 2 feature", List.of(d2))
+            )
+        );
+        ;
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         final List<SystemIndexDescriptor> eligibleDescriptors = manager.getEligibleDescriptors(

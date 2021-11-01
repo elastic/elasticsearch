@@ -10,7 +10,6 @@ package org.elasticsearch.transport;
 
 import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
-
 import net.jpountz.lz4.LZ4FastDecompressor;
 
 import org.elasticsearch.Version;
@@ -30,8 +29,8 @@ public class Compression {
 
         static final Version LZ4_VERSION = Version.V_7_14_0;
         static final int HEADER_LENGTH = 4;
-        private static final byte[] DEFLATE_HEADER = new byte[]{'D', 'F', 'L', '\0'};
-        private static final byte[] LZ4_HEADER = new byte[]{'L', 'Z', '4', '\0'};
+        private static final byte[] DEFLATE_HEADER = new byte[] { 'D', 'F', 'L', '\0' };
+        private static final byte[] LZ4_HEADER = new byte[] { 'L', 'Z', '4', '\0' };
         private static final int LZ4_BLOCK_SIZE;
         private static final boolean USE_FORKED_LZ4;
 

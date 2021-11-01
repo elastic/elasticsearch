@@ -46,8 +46,13 @@ public class SamlNameId {
         if (name == null) {
             return null;
         }
-        return new SamlNameId(name.getFormat(), name.getValue(), name.getNameQualifier(),
-                name.getSPNameQualifier(), name.getSPProvidedID());
+        return new SamlNameId(
+            name.getFormat(),
+            name.getValue(),
+            name.getNameQualifier(),
+            name.getSPNameQualifier(),
+            name.getSPProvidedID()
+        );
     }
 
     static SamlNameId forSubject(Subject subject) {

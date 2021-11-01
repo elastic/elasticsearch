@@ -129,8 +129,14 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
                 // NOTE: this is not perfect as there is a small amount of time between the shutdown
                 // of the ldap server and the opening of the socket
                 logger.debug("opening mock client sockets bound to [{}]", port);
-                Runnable runnable = new PortBlockingRunnable(mockServerSocket.getInetAddress(), mockServerSocket.getLocalPort(), port,
-                    latch, closeLatch, success);
+                Runnable runnable = new PortBlockingRunnable(
+                    mockServerSocket.getInetAddress(),
+                    mockServerSocket.getLocalPort(),
+                    port,
+                    latch,
+                    closeLatch,
+                    success
+                );
                 Thread thread = new Thread(runnable);
                 thread.start();
                 listenThreads.add(thread);
@@ -140,9 +146,11 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
 
             latch.await();
 
-            assumeTrue("Failed to open sockets on all addresses with the port that an LDAP server was bound to. Some operating systems " +
-                "allow binding to an address and port combination even if an application is bound to the port on a wildcard address",
-                success.get());
+            assumeTrue(
+                "Failed to open sockets on all addresses with the port that an LDAP server was bound to. Some operating systems "
+                    + "allow binding to an address and port combination even if an application is bound to the port on a wildcard address",
+                success.get()
+            );
             final int numberOfIterations = randomIntBetween(1, 5);
             logger.debug("list of all open ports {}", ports);
             // go one iteration through and attempt a bind
@@ -221,7 +229,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
 
     @SuppressForbidden(reason = "Allow opening socket for test")
     private MockSocket openMockSocket(InetAddress remoteAddress, int remotePort, InetAddress localAddress, int localPort)
-            throws IOException {
+        throws IOException {
         final MockSocket socket = new MockSocket();
         socket.setReuseAddress(true); // allow binding even if the previous socket is in timed wait state.
         socket.setSoLinger(true, 0); // close immediately as we are not writing anything here.
@@ -273,8 +281,14 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
             // NOTE: this is not perfect as there is a small amount of time between the shutdown
             // of the ldap server and the opening of the socket
             logger.debug("opening mock server socket listening on [{}]", port);
-            Runnable runnable = new PortBlockingRunnable(mockServerSocket.getInetAddress(), mockServerSocket.getLocalPort(), port,
-                latch, closeLatch, success);
+            Runnable runnable = new PortBlockingRunnable(
+                mockServerSocket.getInetAddress(),
+                mockServerSocket.getLocalPort(),
+                port,
+                latch,
+                closeLatch,
+                success
+            );
             Thread thread = new Thread(runnable);
             thread.start();
             listenThreads.add(thread);
@@ -285,9 +299,11 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
         try {
             latch.await();
 
-            assumeTrue("Failed to open sockets on all addresses with the port that an LDAP server was bound to. Some operating systems " +
-                    "allow binding to an address and port combination even if an application is bound to the port on a wildcard address",
-                success.get());
+            assumeTrue(
+                "Failed to open sockets on all addresses with the port that an LDAP server was bound to. Some operating systems "
+                    + "allow binding to an address and port combination even if an application is bound to the port on a wildcard address",
+                success.get()
+            );
             int firstNonStoppedPort = -1;
             // now we find the first that isn't stopped
             for (int i = 0; i < numberOfLdapServers; i++) {
@@ -304,11 +320,15 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
                 LDAPConnection connection = null;
                 try {
                     do {
-                        final LDAPConnection finalConnection =
-                            LdapUtils.privilegedConnect(testSessionFactory.getServerSet()::getConnection);
+                        final LDAPConnection finalConnection = LdapUtils.privilegedConnect(
+                            testSessionFactory.getServerSet()::getConnection
+                        );
                         connection = finalConnection;
-                        logger.debug("established connection with port [{}] expected port [{}]",
-                            finalConnection.getConnectedPort(), firstNonStoppedPort);
+                        logger.debug(
+                            "established connection with port [{}] expected port [{}]",
+                            finalConnection.getConnectedPort(),
+                            firstNonStoppedPort
+                        );
                         if (finalConnection.getConnectedPort() != firstNonStoppedPort) {
                             LDAPException e = expectThrows(LDAPException.class, () -> finalConnection.bind(new SimpleBindRequest()));
                             assertThat(e.getMessage(), containsString("not connected"));
@@ -336,13 +356,21 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
     private TestSessionFactory createSessionFactory(LdapLoadBalancing loadBalancing) throws Exception {
         String groupSearchBase = "cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas";
         String userTemplate = "cn={0},ou=people,o=sevenSeas";
-        Settings settings = buildLdapSettings(ldapUrls(), new String[] { userTemplate }, groupSearchBase,
-                LdapSearchScope.SUB_TREE, loadBalancing);
+        Settings settings = buildLdapSettings(
+            ldapUrls(),
+            new String[] { userTemplate },
+            groupSearchBase,
+            LdapSearchScope.SUB_TREE,
+            loadBalancing
+        );
         Settings globalSettings = Settings.builder().put("path.home", createTempDir()).put(settings).build();
-        RealmConfig config = new RealmConfig(REALM_IDENTIFIER, globalSettings,
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
-        return new TestSessionFactory(config, new SSLService(TestEnvironment.newEnvironment(config.settings())),
-                threadPool);
+        RealmConfig config = new RealmConfig(
+            REALM_IDENTIFIER,
+            globalSettings,
+            TestEnvironment.newEnvironment(globalSettings),
+            new ThreadContext(Settings.EMPTY)
+        );
+        return new TestSessionFactory(config, new SSLService(TestEnvironment.newEnvironment(config.settings())), threadPool);
     }
 
     private class PortBlockingRunnable implements Runnable {
@@ -354,8 +382,14 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
         private final CountDownLatch closeLatch;
         private final AtomicBoolean success;
 
-        private PortBlockingRunnable(InetAddress serverAddress, int serverPort, int portToBind, CountDownLatch latch,
-                                     CountDownLatch closeLatch, AtomicBoolean success) {
+        private PortBlockingRunnable(
+            InetAddress serverAddress,
+            int serverPort,
+            int portToBind,
+            CountDownLatch latch,
+            CountDownLatch closeLatch,
+            AtomicBoolean success
+        ) {
             this.serverAddress = serverAddress;
             this.serverPort = serverPort;
             this.portToBind = portToBind;

@@ -13,9 +13,9 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collection;
@@ -51,9 +51,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
     protected abstract boolean matches(String pattern, boolean caseInsensitive, SearchExecutionContext context);
 
     private static String valueToString(Object value) {
-        return value instanceof BytesRef
-                ? ((BytesRef) value).utf8ToString()
-                : value.toString();
+        return value instanceof BytesRef ? ((BytesRef) value).utf8ToString() : value.toString();
     }
 
     @Override
@@ -89,10 +87,12 @@ public abstract class ConstantFieldType extends MappedFieldType {
     }
 
     @Override
-    public final Query prefixQuery(String prefix,
-                             @Nullable MultiTermQuery.RewriteMethod method,
-                             boolean caseInsensitive,
-                             SearchExecutionContext context) {
+    public final Query prefixQuery(
+        String prefix,
+        @Nullable MultiTermQuery.RewriteMethod method,
+        boolean caseInsensitive,
+        SearchExecutionContext context
+    ) {
         String pattern = prefix + "*";
         if (matches(pattern, caseInsensitive, context)) {
             return Queries.newMatchAllQuery();
@@ -102,10 +102,12 @@ public abstract class ConstantFieldType extends MappedFieldType {
     }
 
     @Override
-    public final Query wildcardQuery(String value,
-                               @Nullable MultiTermQuery.RewriteMethod method,
-                               boolean caseInsensitive,
-                               SearchExecutionContext context) {
+    public final Query wildcardQuery(
+        String value,
+        @Nullable MultiTermQuery.RewriteMethod method,
+        boolean caseInsensitive,
+        SearchExecutionContext context
+    ) {
         if (matches(value, caseInsensitive, context)) {
             return Queries.newMatchAllQuery();
         } else {

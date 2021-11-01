@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe;
 
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -27,8 +27,11 @@ public class DataFrameAnalyticsDest implements Writeable, ToXContentObject {
     private static final String DEFAULT_RESULTS_FIELD = "ml";
 
     public static ConstructingObjectParser<DataFrameAnalyticsDest, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<DataFrameAnalyticsDest, Void> parser = new ConstructingObjectParser<>("data_frame_analytics_dest",
-            ignoreUnknownFields, a -> new DataFrameAnalyticsDest((String) a[0], (String) a[1]));
+        ConstructingObjectParser<DataFrameAnalyticsDest, Void> parser = new ConstructingObjectParser<>(
+            "data_frame_analytics_dest",
+            ignoreUnknownFields,
+            a -> new DataFrameAnalyticsDest((String) a[0], (String) a[1])
+        );
         parser.declareString(ConstructingObjectParser.constructorArg(), INDEX);
         parser.declareString(ConstructingObjectParser.optionalConstructorArg(), RESULTS_FIELD);
         return parser;

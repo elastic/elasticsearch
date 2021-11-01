@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartActio
 
 import static org.hamcrest.Matchers.containsString;
 
-
 public class PutTrainedModelDefinitionPartActionRequestTests extends AbstractBWCWireSerializationTestCase<Request> {
 
     @Override
@@ -30,14 +29,14 @@ public class PutTrainedModelDefinitionPartActionRequestTests extends AbstractBWC
     }
 
     public void testValidate() {
-        Request badRequest = new Request(randomAlphaOfLength(10), new BytesArray(randomAlphaOfLength(10)), -1, -1 , -1);
+        Request badRequest = new Request(randomAlphaOfLength(10), new BytesArray(randomAlphaOfLength(10)), -1, -1, -1);
 
         ValidationException exception = badRequest.validate();
         assertThat(exception.getMessage(), containsString("[part] must be greater or equal to 0"));
         assertThat(exception.getMessage(), containsString("[total_parts] must be greater than 0"));
         assertThat(exception.getMessage(), containsString("[total_definition_length] must be greater than 0"));
 
-        badRequest = new Request(randomAlphaOfLength(10), new BytesArray(randomAlphaOfLength(10)), 5, 10 , 5);
+        badRequest = new Request(randomAlphaOfLength(10), new BytesArray(randomAlphaOfLength(10)), 5, 10, 5);
 
         exception = badRequest.validate();
         assertThat(exception.getMessage(), containsString("[part] must be less than total_parts"));

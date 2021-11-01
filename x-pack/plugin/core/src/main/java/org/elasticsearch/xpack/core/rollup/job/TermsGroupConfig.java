@@ -8,17 +8,17 @@ package org.elasticsearch.xpack.core.rollup.job;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.TextFieldMapper;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -49,7 +49,8 @@ public class TermsGroupConfig implements Writeable, ToXContentObject {
     private static final ConstructingObjectParser<TermsGroupConfig, Void> PARSER;
     static {
         PARSER = new ConstructingObjectParser<>(NAME, args -> {
-            @SuppressWarnings("unchecked") List<String> fields = (List<String>) args[0];
+            @SuppressWarnings("unchecked")
+            List<String> fields = (List<String>) args[0];
             return new TermsGroupConfig(fields != null ? fields.toArray(new String[fields.size()]) : null);
         });
         PARSER.declareStringArray(constructorArg(), new ParseField(FIELDS));
@@ -75,8 +76,10 @@ public class TermsGroupConfig implements Writeable, ToXContentObject {
         return fields;
     }
 
-    public void validateMappings(Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,
-                                 ActionRequestValidationException validationException) {
+    public void validateMappings(
+        Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,
+        ActionRequestValidationException validationException
+    ) {
 
         Arrays.stream(fields).forEach(field -> {
             Map<String, FieldCapabilities> fieldCaps = fieldCapsResponse.get(field);
@@ -84,27 +87,39 @@ public class TermsGroupConfig implements Writeable, ToXContentObject {
                 fieldCaps.forEach((key, value) -> {
                     if (key.equals(KeywordFieldMapper.CONTENT_TYPE) || key.equals(TextFieldMapper.CONTENT_TYPE)) {
                         if (value.isAggregatable() == false) {
-                            validationException.addValidationError("The field [" + field + "] must be aggregatable across all indices, " +
-                                    "but is not.");
+                            validationException.addValidationError(
+                                "The field [" + field + "] must be aggregatable across all indices, " + "but is not."
+                            );
                         }
                     } else if (FLOAT_TYPES.contains(key)) {
                         if (value.isAggregatable() == false) {
-                            validationException.addValidationError("The field [" + field + "] must be aggregatable across all indices, " +
-                                    "but is not.");
+                            validationException.addValidationError(
+                                "The field [" + field + "] must be aggregatable across all indices, " + "but is not."
+                            );
                         }
                     } else if (NATURAL_TYPES.contains(key)) {
                         if (value.isAggregatable() == false) {
-                            validationException.addValidationError("The field [" + field + "] must be aggregatable across all indices, " +
-                                    "but is not.");
+                            validationException.addValidationError(
+                                "The field [" + field + "] must be aggregatable across all indices, " + "but is not."
+                            );
                         }
                     } else {
-                        validationException.addValidationError("The field referenced by a terms group must be a [numeric] or " +
-                                "[keyword/text] type, but found " + fieldCaps.keySet().toString() + " for field [" + field + "]");
+                        validationException.addValidationError(
+                            "The field referenced by a terms group must be a [numeric] or "
+                                + "[keyword/text] type, but found "
+                                + fieldCaps.keySet().toString()
+                                + " for field ["
+                                + field
+                                + "]"
+                        );
                     }
                 });
             } else {
-                validationException.addValidationError("Could not find a [numeric] or [keyword/text] field with name [" + field
-                        + "] in any of the indices matching the index pattern.");
+                validationException.addValidationError(
+                    "Could not find a [numeric] or [keyword/text] field with name ["
+                        + field
+                        + "] in any of the indices matching the index pattern."
+                );
             }
         });
     }

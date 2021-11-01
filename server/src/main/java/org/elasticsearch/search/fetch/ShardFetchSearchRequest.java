@@ -9,6 +9,7 @@
 package org.elasticsearch.search.fetch;
 
 import com.carrotsearch.hppc.IntArrayList;
+
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.IndicesRequest;
@@ -16,9 +17,9 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.dfs.AggregatedDfs;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 
 import java.io.IOException;
@@ -34,8 +35,15 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
     private final RescoreDocIds rescoreDocIds;
     private final AggregatedDfs aggregatedDfs;
 
-    public ShardFetchSearchRequest(OriginalIndices originalIndices, ShardSearchContextId id, ShardSearchRequest shardSearchRequest,
-                                   IntArrayList list, ScoreDoc lastEmittedDoc, RescoreDocIds rescoreDocIds, AggregatedDfs aggregatedDfs) {
+    public ShardFetchSearchRequest(
+        OriginalIndices originalIndices,
+        ShardSearchContextId id,
+        ShardSearchRequest shardSearchRequest,
+        IntArrayList list,
+        ScoreDoc lastEmittedDoc,
+        RescoreDocIds rescoreDocIds,
+        AggregatedDfs aggregatedDfs
+    ) {
         super(id, list, lastEmittedDoc);
         this.originalIndices = originalIndices;
         this.shardSearchRequest = shardSearchRequest;

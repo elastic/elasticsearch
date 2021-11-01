@@ -17,6 +17,7 @@
 package org.elasticsearch.plugin.analysis.ukrainian;
 
 import morfologik.stemming.Dictionary;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.LowerCaseFilter;
@@ -62,17 +63,17 @@ public final class XUkrainianMorfologikAnalyzer extends StopwordAnalyzerBase {
      * Atomically loads the DEFAULT_STOP_SET and DICTIONARY in a lazy fashion once the outer class
      * accesses the static final set the first time.;
      */
-    @SuppressForbidden(reason="Lucene uses IOUtils")
+    @SuppressForbidden(reason = "Lucene uses IOUtils")
     private static class DefaultSetHolder {
         static final CharArraySet DEFAULT_STOP_SET;
         static final Dictionary DICTIONARY;
 
         static {
             try {
-                DEFAULT_STOP_SET = WordlistLoader.getSnowballWordSet(IOUtils.getDecodingReader(UkrainianMorfologikAnalyzer.class,
-                    DEFAULT_STOPWORD_FILE, StandardCharsets.UTF_8));
-                DICTIONARY = Dictionary.read(
-                    UkrainianMorfologikAnalyzer.class.getClassLoader().getResource("ua/net/nlp/ukrainian.dict"));
+                DEFAULT_STOP_SET = WordlistLoader.getSnowballWordSet(
+                    IOUtils.getDecodingReader(UkrainianMorfologikAnalyzer.class, DEFAULT_STOPWORD_FILE, StandardCharsets.UTF_8)
+                );
+                DICTIONARY = Dictionary.read(UkrainianMorfologikAnalyzer.class.getClassLoader().getResource("ua/net/nlp/ukrainian.dict"));
             } catch (IOException ex) {
                 // default set should always be present as it is part of the
                 // distribution (JAR)

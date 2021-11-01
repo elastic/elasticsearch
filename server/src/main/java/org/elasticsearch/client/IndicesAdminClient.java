@@ -331,7 +331,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @param listener A listener to be notified with a result
      * @see org.elasticsearch.client.Requests#flushRequest(String...)
      */
-    void flush(FlushRequest request, ActionListener <FlushResponse> listener);
+    void flush(FlushRequest request, ActionListener<FlushResponse> listener);
 
     /**
      * Explicitly flush one or more indices (releasing memory from the node).

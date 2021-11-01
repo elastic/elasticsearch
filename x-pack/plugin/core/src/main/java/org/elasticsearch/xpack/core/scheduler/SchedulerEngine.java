@@ -76,9 +76,7 @@ public class SchedulerEngine {
 
         @Override
         public String toString() {
-            return "Event[jobName=" + jobName + "," +
-                "triggeredTime=" + triggeredTime + "," +
-                "scheduledTime=" + scheduledTime + "]";
+            return "Event[jobName=" + jobName + "," + "triggeredTime=" + triggeredTime + "," + "scheduledTime=" + scheduledTime + "]";
         }
     }
 
@@ -119,7 +117,9 @@ public class SchedulerEngine {
     SchedulerEngine(final Settings settings, final Clock clock, final Logger logger) {
         this.clock = Objects.requireNonNull(clock, "clock");
         this.scheduler = Executors.newScheduledThreadPool(
-                1,  EsExecutors.daemonThreadFactory(Objects.requireNonNull(settings, "settings"), "trigger_engine_scheduler"));
+            1,
+            EsExecutors.daemonThreadFactory(Objects.requireNonNull(settings, "settings"), "trigger_engine_scheduler")
+        );
         this.logger = Objects.requireNonNull(logger, "logger");
     }
 

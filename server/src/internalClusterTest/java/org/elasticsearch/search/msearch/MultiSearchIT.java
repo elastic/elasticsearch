@@ -10,9 +10,9 @@ package org.elasticsearch.search.msearch;
 
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentType;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -29,13 +29,13 @@ public class MultiSearchIT extends ESIntegTestCase {
         client().prepareIndex("test").setId("2").setSource("field", "yyy").get();
         refresh();
         MultiSearchResponse response = client().prepareMultiSearch()
-                .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "xxx")))
-                .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "yyy")))
-                .add(client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()))
-                .get();
+            .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "xxx")))
+            .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "yyy")))
+            .add(client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()))
+            .get();
 
         for (MultiSearchResponse.Item item : response) {
-           assertNoFailures(item.getResponse());
+            assertNoFailures(item.getResponse());
         }
         assertThat(response.getResponses().length, equalTo(3));
         assertHitCount(response.getResponses()[0].getResponse(), 1L);

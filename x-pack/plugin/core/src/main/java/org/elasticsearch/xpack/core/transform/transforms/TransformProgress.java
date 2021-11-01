@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -33,7 +33,8 @@ public class TransformProgress implements Writeable, ToXContentObject {
     public static final ConstructingObjectParser<TransformProgress, Void> PARSER = new ConstructingObjectParser<>(
         "data_frame_transform_progress",
         true,
-        a -> new TransformProgress((Long) a[0], (Long)a[1], (Long)a[2], (Long)a[3]));
+        a -> new TransformProgress((Long) a[0], (Long) a[1], (Long) a[2], (Long) a[3])
+    );
 
     static {
         PARSER.declareLong(optionalConstructorArg(), TOTAL_DOCS);
@@ -52,11 +53,11 @@ public class TransformProgress implements Writeable, ToXContentObject {
 
     // If we are reading from an old document we need to convert docsRemaining to docsProcessed
     public TransformProgress(Long totalDocs, Long docsRemaining, Long documentsProcessed, Long documentsIndexed) {
-        this(totalDocs,
-            documentsProcessed != null ?
-                documentsProcessed :
-                docsRemaining != null && totalDocs != null ? totalDocs - docsRemaining : 0L,
-            documentsIndexed);
+        this(
+            totalDocs,
+            documentsProcessed != null ? documentsProcessed : docsRemaining != null && totalDocs != null ? totalDocs - docsRemaining : 0L,
+            documentsIndexed
+        );
     }
 
     public TransformProgress(Long totalDocs, Long documentsProcessed, Long documentsIndexed) {
@@ -101,7 +102,7 @@ public class TransformProgress implements Writeable, ToXContentObject {
         if (documentsProcessed >= totalDocs) {
             return 100.0;
         }
-        return 100.0*(double)documentsProcessed/totalDocs;
+        return 100.0 * (double) documentsProcessed / totalDocs;
     }
 
     public Long getTotalDocs() {
@@ -143,7 +144,7 @@ public class TransformProgress implements Writeable, ToXContentObject {
     }
 
     @Override
-    public int hashCode(){
+    public int hashCode() {
         return Objects.hash(documentsProcessed, documentsIndexed, totalDocs);
     }
 

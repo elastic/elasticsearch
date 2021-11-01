@@ -21,9 +21,10 @@ import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 public class BinaryMathProcessorTests extends AbstractWireSerializingTestCase<BinaryMathProcessor> {
     public static BinaryMathProcessor randomProcessor() {
         return new BinaryMathProcessor(
-                new ConstantProcessor(randomLong()),
-                new ConstantProcessor(randomLong()),
-                randomFrom(BinaryMathProcessor.BinaryMathOperation.values()));
+            new ConstantProcessor(randomLong()),
+            new ConstantProcessor(randomLong()),
+            randomFrom(BinaryMathProcessor.BinaryMathOperation.values())
+        );
     }
 
     @Override
@@ -65,20 +66,25 @@ public class BinaryMathProcessorTests extends AbstractWireSerializingTestCase<Bi
     public void testRoundFunctionWithEdgeCasesInputs() {
         assertNull(new Round(EMPTY, l(null), l(3)).makePipe().asProcessor().process(null));
         assertEquals(-0.0, new Round(EMPTY, l(0), l(0)).makePipe().asProcessor().process(null));
-        assertEquals((double) Long.MAX_VALUE, new Round(EMPTY, l(Long.MAX_VALUE), l(0))
-                .makePipe().asProcessor().process(null));
+        assertEquals((double) Long.MAX_VALUE, new Round(EMPTY, l(Long.MAX_VALUE), l(0)).makePipe().asProcessor().process(null));
         assertEquals(0.0, new Round(EMPTY, l(123.456), l(Integer.MAX_VALUE)).makePipe().asProcessor().process(null));
     }
 
     public void testRoundInputValidation() {
-        SqlIllegalArgumentException siae = expectThrows(SqlIllegalArgumentException.class,
-                () -> new Round(EMPTY, l(5), l("foobarbar")).makePipe().asProcessor().process(null));
+        SqlIllegalArgumentException siae = expectThrows(
+            SqlIllegalArgumentException.class,
+            () -> new Round(EMPTY, l(5), l("foobarbar")).makePipe().asProcessor().process(null)
+        );
         assertEquals("A number is required; received [foobarbar]", siae.getMessage());
-        siae = expectThrows(SqlIllegalArgumentException.class,
-                () -> new Round(EMPTY, l("bla"), l(0)).makePipe().asProcessor().process(null));
+        siae = expectThrows(
+            SqlIllegalArgumentException.class,
+            () -> new Round(EMPTY, l("bla"), l(0)).makePipe().asProcessor().process(null)
+        );
         assertEquals("A number is required; received [bla]", siae.getMessage());
-        siae = expectThrows(SqlIllegalArgumentException.class,
-                () -> new Round(EMPTY, l(123.34), l(0.1)).makePipe().asProcessor().process(null));
+        siae = expectThrows(
+            SqlIllegalArgumentException.class,
+            () -> new Round(EMPTY, l(123.34), l(0.1)).makePipe().asProcessor().process(null)
+        );
         assertEquals("An integer number is required; received [0.1] as second parameter", siae.getMessage());
     }
 
@@ -96,21 +102,25 @@ public class BinaryMathProcessorTests extends AbstractWireSerializingTestCase<Bi
     public void testTruncateFunctionWithEdgeCasesInputs() {
         assertNull(new Truncate(EMPTY, l(null), l(3)).makePipe().asProcessor().process(null));
         assertEquals(0.0, new Truncate(EMPTY, l(0), l(0)).makePipe().asProcessor().process(null));
-        assertEquals((double) Long.MAX_VALUE, new Truncate(EMPTY, l(Long.MAX_VALUE), l(0))
-                .makePipe().asProcessor().process(null));
-        assertEquals(Double.NaN, new Truncate(EMPTY, l(123.456), l(Integer.MAX_VALUE))
-                .makePipe().asProcessor().process(null));
+        assertEquals((double) Long.MAX_VALUE, new Truncate(EMPTY, l(Long.MAX_VALUE), l(0)).makePipe().asProcessor().process(null));
+        assertEquals(Double.NaN, new Truncate(EMPTY, l(123.456), l(Integer.MAX_VALUE)).makePipe().asProcessor().process(null));
     }
 
     public void testTruncateInputValidation() {
-        SqlIllegalArgumentException siae = expectThrows(SqlIllegalArgumentException.class,
-                () -> new Truncate(EMPTY, l(5), l("foobarbar")).makePipe().asProcessor().process(null));
+        SqlIllegalArgumentException siae = expectThrows(
+            SqlIllegalArgumentException.class,
+            () -> new Truncate(EMPTY, l(5), l("foobarbar")).makePipe().asProcessor().process(null)
+        );
         assertEquals("A number is required; received [foobarbar]", siae.getMessage());
-        siae = expectThrows(SqlIllegalArgumentException.class,
-                () -> new Truncate(EMPTY, l("bla"), l(0)).makePipe().asProcessor().process(null));
+        siae = expectThrows(
+            SqlIllegalArgumentException.class,
+            () -> new Truncate(EMPTY, l("bla"), l(0)).makePipe().asProcessor().process(null)
+        );
         assertEquals("A number is required; received [bla]", siae.getMessage());
-        siae = expectThrows(SqlIllegalArgumentException.class,
-                () -> new Truncate(EMPTY, l(123.34), l(0.1)).makePipe().asProcessor().process(null));
+        siae = expectThrows(
+            SqlIllegalArgumentException.class,
+            () -> new Truncate(EMPTY, l(123.34), l(0.1)).makePipe().asProcessor().process(null)
+        );
         assertEquals("An integer number is required; received [0.1] as second parameter", siae.getMessage());
     }
 

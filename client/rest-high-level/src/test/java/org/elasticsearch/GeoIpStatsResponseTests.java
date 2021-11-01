@@ -9,8 +9,8 @@
 package org.elasticsearch;
 
 import org.elasticsearch.client.GeoIpStatsResponse;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -24,10 +24,17 @@ public class GeoIpStatsResponseTests extends AbstractXContentTestCase<GeoIpStats
         HashMap<String, GeoIpStatsResponse.NodeInfo> nodes = new HashMap<>();
         int nodeCount = randomInt(10);
         for (int i = 0; i < nodeCount; i++) {
-            List<GeoIpStatsResponse.DatabaseInfo> databases = randomList(5,
-                () -> new GeoIpStatsResponse.DatabaseInfo(randomAlphaOfLength(5)));
-            nodes.put(randomAlphaOfLength(5), new GeoIpStatsResponse.NodeInfo(randomList(5, () -> randomAlphaOfLength(5)),
-                databases.stream().collect(Collectors.toMap(GeoIpStatsResponse.DatabaseInfo::getName, d -> d))));
+            List<GeoIpStatsResponse.DatabaseInfo> databases = randomList(
+                5,
+                () -> new GeoIpStatsResponse.DatabaseInfo(randomAlphaOfLength(5))
+            );
+            nodes.put(
+                randomAlphaOfLength(5),
+                new GeoIpStatsResponse.NodeInfo(
+                    randomList(5, () -> randomAlphaOfLength(5)),
+                    databases.stream().collect(Collectors.toMap(GeoIpStatsResponse.DatabaseInfo::getName, d -> d))
+                )
+            );
         }
         return new GeoIpStatsResponse(randomInt(), randomInt(), randomNonNegativeLong(), randomInt(), randomInt(), nodes);
     }

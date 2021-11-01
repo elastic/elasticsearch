@@ -56,8 +56,7 @@ public class MetaStateWriterUtils {
         final Index index = indexMetadata.getIndex();
         logger.trace("[{}] writing state, reason [{}]", index, reason);
         try {
-            long generation = IndexMetadata.FORMAT.write(indexMetadata,
-                nodeEnv.indexPaths(indexMetadata.getIndex()));
+            long generation = IndexMetadata.FORMAT.write(indexMetadata, nodeEnv.indexPaths(indexMetadata.getIndex()));
             logger.trace("[{}] state written", index);
             return generation;
         } catch (WriteStateException ex) {

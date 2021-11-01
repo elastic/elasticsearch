@@ -7,11 +7,11 @@
  */
 package org.elasticsearch.client.ml.datafeed;
 
+import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 
@@ -29,7 +29,8 @@ public class DatafeedTimingStatsTests extends AbstractXContentTestCase<DatafeedT
             randomLong(),
             randomDouble(),
             randomBoolean() ? null : randomDouble(),
-            randomBoolean() ? null : randomDouble());
+            randomBoolean() ? null : randomDouble()
+        );
     }
 
     @Override
@@ -49,9 +50,10 @@ public class DatafeedTimingStatsTests extends AbstractXContentTestCase<DatafeedT
 
     public void testParse_OptionalFieldsAbsent() throws IOException {
         String json = "{\"job_id\": \"my-job-id\"}";
-        try (XContentParser parser =
-                 XContentFactory.xContent(XContentType.JSON).createParser(
-                     xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json)) {
+        try (
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json)
+        ) {
             DatafeedTimingStats stats = DatafeedTimingStats.PARSER.apply(parser, null);
             assertThat(stats.getJobId(), equalTo(JOB_ID));
             assertThat(stats.getSearchCount(), equalTo(0L));

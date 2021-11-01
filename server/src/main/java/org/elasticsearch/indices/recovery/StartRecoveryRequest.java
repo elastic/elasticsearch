@@ -63,15 +63,17 @@ public class StartRecoveryRequest extends TransportRequest {
      * @param startingSeqNo            the starting sequence number
      * @param canDownloadSnapshotFiles flag that indicates if the snapshot files can be downloaded
      */
-    public StartRecoveryRequest(final ShardId shardId,
-                                final String targetAllocationId,
-                                final DiscoveryNode sourceNode,
-                                final DiscoveryNode targetNode,
-                                final Store.MetadataSnapshot metadataSnapshot,
-                                final boolean primaryRelocation,
-                                final long recoveryId,
-                                final long startingSeqNo,
-                                final boolean canDownloadSnapshotFiles) {
+    public StartRecoveryRequest(
+        final ShardId shardId,
+        final String targetAllocationId,
+        final DiscoveryNode sourceNode,
+        final DiscoveryNode targetNode,
+        final Store.MetadataSnapshot metadataSnapshot,
+        final boolean primaryRelocation,
+        final long recoveryId,
+        final long startingSeqNo,
+        final boolean canDownloadSnapshotFiles
+    ) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.targetAllocationId = targetAllocationId;
@@ -81,8 +83,8 @@ public class StartRecoveryRequest extends TransportRequest {
         this.primaryRelocation = primaryRelocation;
         this.startingSeqNo = startingSeqNo;
         this.canDownloadSnapshotFiles = canDownloadSnapshotFiles;
-        assert startingSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO || metadataSnapshot.getHistoryUUID() != null :
-                        "starting seq no is set but not history uuid";
+        assert startingSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO || metadataSnapshot.getHistoryUUID() != null
+            : "starting seq no is set but not history uuid";
     }
 
     public long recoveryId() {

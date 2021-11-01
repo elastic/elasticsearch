@@ -16,18 +16,18 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.CcrIntegTestCase;
-import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -38,9 +38,9 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -103,9 +103,8 @@ public class CcrAliasesIT extends CcrIntegTestCase {
      * @param <E>            the type of checked exception the post assertions callback can throw
      * @throws Exception if a checked exception is thrown while executing the add alias test
      */
-    private <E extends Exception> void runAddAliasTest(
-            final Boolean isWriteIndex,
-            final CheckedConsumer<String, E> postAssertions) throws Exception {
+    private <E extends Exception> void runAddAliasTest(final Boolean isWriteIndex, final CheckedConsumer<String, E> postAssertions)
+        throws Exception {
         assertAcked(leaderClient().admin().indices().prepareCreate("leader"));
         final PutFollowAction.Request followRequest = putFollow("leader", "follower");
         // we set a low poll timeout so that shard changes requests are responded to quickly even without indexing
@@ -196,28 +195,28 @@ public class CcrAliasesIT extends CcrIntegTestCase {
 
     public void testUpdateExistingAlias() throws Exception {
         runAddAliasTest(
-                null,
-                /*
-                 * After the alias is added (via runAddAliasTest) we modify the alias in place, and then assert that the modification is
-                 * eventually replicated.
-                 */
-                aliasName -> {
-                    assertAcked(leaderClient().admin()
-                            .indices()
-                            .prepareAliases()
-                            .addAlias("leader", aliasName, termQuery(randomAlphaOfLength(16), randomAlphaOfLength(16))));
-                    assertAliasesExist("leader", "follower", aliasName);
-                });
+            null,
+            /*
+             * After the alias is added (via runAddAliasTest) we modify the alias in place, and then assert that the modification is
+             * eventually replicated.
+             */
+            aliasName -> {
+                assertAcked(
+                    leaderClient().admin()
+                        .indices()
+                        .prepareAliases()
+                        .addAlias("leader", aliasName, termQuery(randomAlphaOfLength(16), randomAlphaOfLength(16)))
+                );
+                assertAliasesExist("leader", "follower", aliasName);
+            }
+        );
     }
 
     public void testRemoveExistingAlias() throws Exception {
-        runAddAliasTest(
-                false,
-                aliasName -> {
-                    removeAlias(aliasName);
-                    assertAliasExistence(aliasName, false);
-                }
-        );
+        runAddAliasTest(false, aliasName -> {
+            removeAlias(aliasName);
+            assertAliasExistence(aliasName, false);
+        });
     }
 
     private void removeAlias(final String aliasName) {
@@ -316,42 +315,55 @@ public class CcrAliasesIT extends CcrIntegTestCase {
     }
 
     private <E extends Exception> void assertAliasesExist(
-            final String leaderIndex,
-            final String followerIndex,
-            final CheckedBiConsumer<String, AliasMetadata, E> aliasMetadataAssertion,
-            final String... aliases) throws Exception {
+        final String leaderIndex,
+        final String followerIndex,
+        final CheckedBiConsumer<String, AliasMetadata, E> aliasMetadataAssertion,
+        final String... aliases
+    ) throws Exception {
         // we must check serially because aliases exist will return true if any but not necessarily all of the requested aliases exist
         for (final String alias : aliases) {
             assertAliasExistence(alias, true);
         }
 
         assertBusy(() -> {
-            final GetAliasesResponse followerResponse =
-                    followerClient().admin().indices().getAliases(new GetAliasesRequest().indices(followerIndex)).get();
+            final GetAliasesResponse followerResponse = followerClient().admin()
+                .indices()
+                .getAliases(new GetAliasesRequest().indices(followerIndex))
+                .get();
             assertThat(
-                    "expected follower to have [" + aliases.length + "] aliases, but was " + followerResponse.getAliases().toString(),
-                    followerResponse.getAliases().get(followerIndex),
-                    hasSize(aliases.length));
+                "expected follower to have [" + aliases.length + "] aliases, but was " + followerResponse.getAliases().toString(),
+                followerResponse.getAliases().get(followerIndex),
+                hasSize(aliases.length)
+            );
             for (final String alias : aliases) {
                 final AliasMetadata followerAliasMetadata = getAliasMetadata(followerResponse, followerIndex, alias);
 
-                final GetAliasesResponse leaderResponse =
-                        leaderClient().admin().indices().getAliases(new GetAliasesRequest().indices(leaderIndex).aliases(alias)).get();
+                final GetAliasesResponse leaderResponse = leaderClient().admin()
+                    .indices()
+                    .getAliases(new GetAliasesRequest().indices(leaderIndex).aliases(alias))
+                    .get();
                 final AliasMetadata leaderAliasMetadata = getAliasMetadata(leaderResponse, leaderIndex, alias);
 
                 assertThat(
-                        "alias [" + alias + "] index routing did not replicate, but was " + followerAliasMetadata.toString(),
-                        followerAliasMetadata.indexRouting(), equalTo(leaderAliasMetadata.indexRouting()));
+                    "alias [" + alias + "] index routing did not replicate, but was " + followerAliasMetadata.toString(),
+                    followerAliasMetadata.indexRouting(),
+                    equalTo(leaderAliasMetadata.indexRouting())
+                );
                 assertThat(
-                        "alias [" + alias + "] search routing did not replicate, but was " + followerAliasMetadata.toString(),
-                        followerAliasMetadata.searchRoutingValues(), equalTo(leaderAliasMetadata.searchRoutingValues()));
+                    "alias [" + alias + "] search routing did not replicate, but was " + followerAliasMetadata.toString(),
+                    followerAliasMetadata.searchRoutingValues(),
+                    equalTo(leaderAliasMetadata.searchRoutingValues())
+                );
                 assertThat(
-                        "alias [" + alias + "] filtering did not replicate, but was " + followerAliasMetadata.toString(),
-                        followerAliasMetadata.filter(), equalTo(leaderAliasMetadata.filter()));
+                    "alias [" + alias + "] filtering did not replicate, but was " + followerAliasMetadata.toString(),
+                    followerAliasMetadata.filter(),
+                    equalTo(leaderAliasMetadata.filter())
+                );
                 assertThat(
-                        "alias [" + alias + "] should not be a write index, but was " + followerAliasMetadata.toString(),
-                        followerAliasMetadata.writeIndex(),
-                        equalTo(false));
+                    "alias [" + alias + "] should not be a write index, but was " + followerAliasMetadata.toString(),
+                    followerAliasMetadata.writeIndex(),
+                    equalTo(false)
+                );
                 aliasMetadataAssertion.accept(alias, followerAliasMetadata);
             }
         });
@@ -361,9 +373,9 @@ public class CcrAliasesIT extends CcrIntegTestCase {
         assertBusy(() -> {
             // we must check serially because aliases exist will return true if any but not necessarily all of the requested aliases exist
             final GetAliasesResponse response = followerClient().admin()
-                    .indices()
-                    .getAliases(new GetAliasesRequest().indices("follower").aliases(alias))
-                    .get();
+                .indices()
+                .getAliases(new GetAliasesRequest().indices("follower").aliases(alias))
+                .get();
             if (exists) {
                 assertFalse("alias [" + alias + "] did not exist", response.getAliases().isEmpty());
             } else {
@@ -373,8 +385,11 @@ public class CcrAliasesIT extends CcrIntegTestCase {
     }
 
     private AliasMetadata getAliasMetadata(final GetAliasesResponse response, final String index, final String alias) {
-        final Optional<AliasMetadata> maybeAliasMetadata =
-                response.getAliases().get(index).stream().filter(a -> a.getAlias().equals(alias)).findFirst();
+        final Optional<AliasMetadata> maybeAliasMetadata = response.getAliases()
+            .get(index)
+            .stream()
+            .filter(a -> a.getAlias().equals(alias))
+            .findFirst();
         assertTrue("alias [" + alias + "] did not exist", maybeAliasMetadata.isPresent());
         return maybeAliasMetadata.get();
     }
@@ -394,8 +409,10 @@ public class CcrAliasesIT extends CcrIntegTestCase {
 
             final List<TaskInfo> taskInfos = listTasksResponse.getTasks();
             assertThat("expected a task for each shard", taskInfos.size(), equalTo(numberOfPrimaryShards));
-            final Collection<PersistentTasksCustomMetadata.PersistentTask<?>> shardFollowTasks =
-                    taskMetadata.findTasks(ShardFollowTask.NAME, Objects::nonNull);
+            final Collection<PersistentTasksCustomMetadata.PersistentTask<?>> shardFollowTasks = taskMetadata.findTasks(
+                ShardFollowTask.NAME,
+                Objects::nonNull
+            );
             for (final PersistentTasksCustomMetadata.PersistentTask<?> shardFollowTask : shardFollowTasks) {
                 TaskInfo taskInfo = null;
                 final String expectedId = "id=" + shardFollowTask.getId();

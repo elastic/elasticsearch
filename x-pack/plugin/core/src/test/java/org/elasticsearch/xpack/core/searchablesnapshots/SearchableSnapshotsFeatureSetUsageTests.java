@@ -29,18 +29,25 @@ public class SearchableSnapshotsFeatureSetUsageTests extends AbstractWireSeriali
                 available = available == false;
                 break;
             case 1:
-                numFullCopySearchableSnapshotIndices = randomValueOtherThan(numFullCopySearchableSnapshotIndices,
-                    () -> randomIntBetween(0, 100000));
+                numFullCopySearchableSnapshotIndices = randomValueOtherThan(
+                    numFullCopySearchableSnapshotIndices,
+                    () -> randomIntBetween(0, 100000)
+                );
                 break;
             case 2:
-                numSharedCacheSearchableSnapshotIndices = randomValueOtherThan(numSharedCacheSearchableSnapshotIndices,
-                    () -> randomIntBetween(0, 100000));
+                numSharedCacheSearchableSnapshotIndices = randomValueOtherThan(
+                    numSharedCacheSearchableSnapshotIndices,
+                    () -> randomIntBetween(0, 100000)
+                );
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new SearchableSnapshotFeatureSetUsage(available, numFullCopySearchableSnapshotIndices,
-            numSharedCacheSearchableSnapshotIndices);
+        return new SearchableSnapshotFeatureSetUsage(
+            available,
+            numFullCopySearchableSnapshotIndices,
+            numSharedCacheSearchableSnapshotIndices
+        );
     }
 
     @Override

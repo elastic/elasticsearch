@@ -9,29 +9,32 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.StatusToXContentObject;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class ClearScrollResponse extends ActionResponse implements StatusToXContentObject {
 
     private static final ParseField SUCCEEDED = new ParseField("succeeded");
     private static final ParseField NUMFREED = new ParseField("num_freed");
 
-    private static final ConstructingObjectParser<ClosePointInTimeResponse, Void> PARSER = new ConstructingObjectParser<>("clear_scroll",
-        true, a -> new ClosePointInTimeResponse((boolean) a[0], (int) a[1]));
+    private static final ConstructingObjectParser<ClosePointInTimeResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "clear_scroll",
+        true,
+        a -> new ClosePointInTimeResponse((boolean) a[0], (int) a[1])
+    );
     static {
         PARSER.declareField(constructorArg(), (parser, context) -> parser.booleanValue(), SUCCEEDED, ObjectParser.ValueType.BOOLEAN);
         PARSER.declareField(constructorArg(), (parser, context) -> parser.intValue(), NUMFREED, ObjectParser.ValueType.INT);

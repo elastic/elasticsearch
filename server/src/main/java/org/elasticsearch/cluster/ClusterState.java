@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -121,8 +122,18 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
     private volatile RoutingNodes routingNodes;
 
     public ClusterState(long version, String stateUUID, ClusterState state) {
-        this(state.clusterName, version, stateUUID, state.metadata(), state.routingTable(), state.nodes(), state.blocks(),
-                state.customs(), false, state.routingNodes);
+        this(
+            state.clusterName,
+            version,
+            stateUUID,
+            state.metadata(),
+            state.routingTable(),
+            state.nodes(),
+            state.blocks(),
+            state.customs(),
+            false,
+            state.routingNodes
+        );
     }
 
     public ClusterState(
@@ -147,8 +158,8 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         this.customs = customs;
         this.wasReadFromDiff = wasReadFromDiff;
         this.routingNodes = routingNodes;
-        assert routingNodes == null || routingNodes.equals(new RoutingNodes(this)) :
-            "RoutingNodes [" + routingNodes + "] are not consistent with this cluster state [" + new RoutingNodes(this) + "]";
+        assert routingNodes == null || routingNodes.equals(new RoutingNodes(this))
+            : "RoutingNodes [" + routingNodes + "] are not consistent with this cluster state [" + new RoutingNodes(this) + "]";
     }
 
     public long term() {
@@ -256,27 +267,40 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
     public String toString() {
         StringBuilder sb = new StringBuilder();
         final String TAB = "   ";
-        sb.append("cluster uuid: ").append(metadata.clusterUUID())
-            .append(" [committed: ").append(metadata.clusterUUIDCommitted()).append("]").append("\n");
+        sb.append("cluster uuid: ")
+            .append(metadata.clusterUUID())
+            .append(" [committed: ")
+            .append(metadata.clusterUUIDCommitted())
+            .append("]")
+            .append("\n");
         sb.append("version: ").append(version).append("\n");
         sb.append("state uuid: ").append(stateUUID).append("\n");
         sb.append("from_diff: ").append(wasReadFromDiff).append("\n");
         sb.append("meta data version: ").append(metadata.version()).append("\n");
         sb.append(TAB).append("coordination_metadata:\n");
         sb.append(TAB).append(TAB).append("term: ").append(coordinationMetadata().term()).append("\n");
-        sb.append(TAB).append(TAB)
-                .append("last_committed_config: ").append(coordinationMetadata().getLastCommittedConfiguration()).append("\n");
-        sb.append(TAB).append(TAB)
-                .append("last_accepted_config: ").append(coordinationMetadata().getLastAcceptedConfiguration()).append("\n");
-        sb.append(TAB).append(TAB)
-                .append("voting tombstones: ").append(coordinationMetadata().getVotingConfigExclusions()).append("\n");
+        sb.append(TAB)
+            .append(TAB)
+            .append("last_committed_config: ")
+            .append(coordinationMetadata().getLastCommittedConfiguration())
+            .append("\n");
+        sb.append(TAB)
+            .append(TAB)
+            .append("last_accepted_config: ")
+            .append(coordinationMetadata().getLastAcceptedConfiguration())
+            .append("\n");
+        sb.append(TAB).append(TAB).append("voting tombstones: ").append(coordinationMetadata().getVotingConfigExclusions()).append("\n");
         for (IndexMetadata indexMetadata : metadata) {
             sb.append(TAB).append(indexMetadata.getIndex());
-            sb.append(": v[").append(indexMetadata.getVersion())
-                    .append("], mv[").append(indexMetadata.getMappingVersion())
-                    .append("], sv[").append(indexMetadata.getSettingsVersion())
-                    .append("], av[").append(indexMetadata.getAliasesVersion())
-                    .append("]\n");
+            sb.append(": v[")
+                .append(indexMetadata.getVersion())
+                .append("], mv[")
+                .append(indexMetadata.getMappingVersion())
+                .append("], sv[")
+                .append(indexMetadata.getSettingsVersion())
+                .append("], av[")
+                .append(indexMetadata.getAliasesVersion())
+                .append("]\n");
             for (int shard = 0; shard < indexMetadata.getNumberOfShards(); shard++) {
                 sb.append(TAB).append(TAB).append(shard).append(": ");
                 sb.append("p_term [").append(indexMetadata.primaryTerm(shard)).append("], ");
@@ -314,7 +338,8 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
      * In essence that means that all the changes from the other cluster state are also reflected by the current one
      */
     public boolean supersedes(ClusterState other) {
-        return this.nodes().getMasterNodeId() != null && this.nodes().getMasterNodeId().equals(other.nodes().getMasterNodeId())
+        return this.nodes().getMasterNodeId() != null
+            && this.nodes().getMasterNodeId().equals(other.nodes().getMasterNodeId())
             && this.version() > other.version();
 
     }
@@ -604,8 +629,18 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             } else {
                 routingNodes = null;
             }
-            return new ClusterState(clusterName, version, uuid, metadata, routingTable, nodes, blocks, customs.build(), fromDiff,
-                routingNodes);
+            return new ClusterState(
+                clusterName,
+                version,
+                uuid,
+                metadata,
+                routingTable,
+                nodes,
+                blocks,
+                customs.build(),
+                fromDiff,
+                routingNodes
+            );
         }
 
         public static byte[] toBytes(ClusterState state) throws IOException {

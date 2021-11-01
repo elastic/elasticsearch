@@ -35,8 +35,12 @@ abstract class AbstractDataFrameAnalyticsStep implements DataFrameAnalyticsStep 
     protected final DataFrameAnalyticsAuditor auditor;
     protected final DataFrameAnalyticsConfig config;
 
-    AbstractDataFrameAnalyticsStep(NodeClient client, DataFrameAnalyticsTask task, DataFrameAnalyticsAuditor auditor,
-                                   DataFrameAnalyticsConfig config) {
+    AbstractDataFrameAnalyticsStep(
+        NodeClient client,
+        DataFrameAnalyticsTask task,
+        DataFrameAnalyticsAuditor auditor,
+        DataFrameAnalyticsConfig config
+    ) {
         this.client = Objects.requireNonNull(client);
         this.task = Objects.requireNonNull(task);
         this.auditor = Objects.requireNonNull(auditor);
@@ -63,22 +67,25 @@ abstract class AbstractDataFrameAnalyticsStep implements DataFrameAnalyticsStep 
             listener.onResponse(new StepResponse(true));
             return;
         }
-        doExecute(ActionListener.wrap(
-            stepResponse -> {
-                // We persist progress at the end of each step to ensure we do not have
-                // to repeat the step in case the node goes down without getting a chance to persist progress.
-                task.persistProgress(() -> listener.onResponse(stepResponse));
-            },
-            listener::onFailure
-        ));
+        doExecute(ActionListener.wrap(stepResponse -> {
+            // We persist progress at the end of each step to ensure we do not have
+            // to repeat the step in case the node goes down without getting a chance to persist progress.
+            task.persistProgress(() -> listener.onResponse(stepResponse));
+        }, listener::onFailure));
     }
 
     protected abstract void doExecute(ActionListener<StepResponse> listener);
 
     protected void refreshDestAsync(ActionListener<RefreshResponse> refreshListener) {
         ParentTaskAssigningClient parentTaskClient = parentTaskClient();
-        executeWithHeadersAsync(config.getHeaders(), ML_ORIGIN, parentTaskClient, RefreshAction.INSTANCE,
-            new RefreshRequest(config.getDest().getIndex()), refreshListener);
+        executeWithHeadersAsync(
+            config.getHeaders(),
+            ML_ORIGIN,
+            parentTaskClient,
+            RefreshAction.INSTANCE,
+            new RefreshRequest(config.getDest().getIndex()),
+            refreshListener
+        );
     }
 
     protected boolean shouldSkipIfTaskIsStopping() {

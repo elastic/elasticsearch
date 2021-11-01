@@ -53,12 +53,12 @@ import java.util.concurrent.CountDownLatch;
 import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestResponseListener;
 import static org.elasticsearch.test.TaskAssertions.assertAllCancellableTasksAreCancelled;
 import static org.elasticsearch.test.TaskAssertions.assertAllTasksHaveFinished;
-import static org.elasticsearch.test.TaskAssertions.awaitTaskWithPrefix;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class XPackUsageRestCancellationIT extends ESIntegTestCase {
     private static final CountDownLatch blockActionLatch = new CountDownLatch(1);
+    private static final CountDownLatch blockingXPackUsageActionExecuting = new CountDownLatch(1);
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -88,8 +88,8 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
         final Cancellable cancellable = getRestClient().performRequestAsync(request, wrapAsRestResponseListener(future));
 
         assertThat(future.isDone(), equalTo(false));
-        awaitTaskWithPrefix(actionName);
 
+        blockingXPackUsageActionExecuting.await();
         cancellable.cancel();
         assertAllCancellableTasksAreCancelled(actionName);
 
@@ -168,6 +168,7 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
             ClusterState state,
             ActionListener<XPackUsageFeatureResponse> listener
         ) throws Exception {
+            blockingXPackUsageActionExecuting.countDown();
             blockActionLatch.await();
             listener.onResponse(new XPackUsageFeatureResponse(new XPackFeatureSet.Usage("test", false, false) {
                 @Override

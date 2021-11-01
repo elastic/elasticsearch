@@ -66,38 +66,39 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
         ActionListener<InferTrainedModelDeploymentAction.Response> listener
     ) {
         final String deploymentId = request.getDeploymentId();
-        provider.getTrainedModel(deploymentId, GetTrainedModelsAction.Includes.empty(), ActionListener.wrap(config -> {
-            if (config.getModelType() != TrainedModelType.PYTORCH) {
-                listener.onFailure(
-                    ExceptionsHelper.badRequestException(
-                        "Only [pytorch] models are supported by _infer, provided model [{}] has type [{}]",
-                        config.getModelId(),
-                        config.getModelType()
-                    )
-                );
-                return;
-            }
-            // We need to check whether there is at least an assigned task here, otherwise we cannot redirect to the
-            // node running the job task.
-            TrainedModelAllocation allocation = TrainedModelAllocationMetadata.allocationForModelId(clusterService.state(), deploymentId)
-                .orElse(null);
-            if (allocation == null) {
+        // We need to check whether there is at least an assigned task here, otherwise we cannot redirect to the
+        // node running the job task.
+        TrainedModelAllocation allocation = TrainedModelAllocationMetadata.allocationForModelId(clusterService.state(), deploymentId)
+            .orElse(null);
+        if (allocation == null) {
+            // If there is no allocation, verify the model even exists so that we can provide a nicer error message
+            provider.getTrainedModel(deploymentId, GetTrainedModelsAction.Includes.empty(), ActionListener.wrap(config -> {
+                if (config.getModelType() != TrainedModelType.PYTORCH) {
+                    listener.onFailure(
+                        ExceptionsHelper.badRequestException(
+                            "Only [pytorch] models are supported by _infer, provided model [{}] has type [{}]",
+                            config.getModelId(),
+                            config.getModelType()
+                        )
+                    );
+                    return;
+                }
                 String message = "Cannot perform requested action because deployment [" + deploymentId + "] is not started";
                 listener.onFailure(ExceptionsHelper.conflictStatusException(message));
-                return;
-            }
-            String[] randomRunningNode = allocation.getStartedNodes();
-            if (randomRunningNode.length == 0) {
-                String message = "Cannot perform requested action because deployment [" + deploymentId + "] is not yet running on any node";
-                listener.onFailure(ExceptionsHelper.conflictStatusException(message));
-                return;
-            }
-            // TODO Do better routing for inference calls
-            int nodeIndex = Randomness.get().nextInt(randomRunningNode.length);
-            request.setNodes(randomRunningNode[nodeIndex]);
-            super.doExecute(task, request, listener);
+            }, listener::onFailure));
+            return;
+        }
+        String[] randomRunningNode = allocation.getStartedNodes();
+        if (randomRunningNode.length == 0) {
+            String message = "Cannot perform requested action because deployment [" + deploymentId + "] is not yet running on any node";
+            listener.onFailure(ExceptionsHelper.conflictStatusException(message));
+            return;
+        }
+        // TODO Do better routing for inference calls
+        int nodeIndex = Randomness.get().nextInt(randomRunningNode.length);
+        request.setNodes(randomRunningNode[nodeIndex]);
+        super.doExecute(task, request, listener);
 
-        }, listener::onFailure));
     }
 
     @Override

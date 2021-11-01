@@ -46,8 +46,9 @@ docker pull {docker-repo}:{version}
 
 endif::[]
 
-Now that you have the {es} Docker image, you can start a single-node or
-multi-node cluster.
+Now that you have the {es} Docker image, you can start a 
+<<docker-cli-run-dev-mode,single-node>> or <<docker-compose-file,multi-node>>
+cluster.
 
 [[docker-cli-run-dev-mode]]
 ==== Start a single-node cluster with Docker
@@ -58,21 +59,86 @@ WARNING: Version {version} of the {es} Docker image has not yet been released.
 
 endif::[]
 
-ifeval::["{release-state}"!="unreleased"]
-
 If you're starting a single-node {es} cluster in a Docker container, security
-will be automatically enabled and configured for you.
+will be automatically enabled and configured for you. When you start {es} for
+the first time, the following security configuration occurs automatically:
 
-To start a single-node {es} cluster for development or testing, specify
-<<single-node-discovery,single-node discovery>> to bypass
-the <<bootstrap-checks,bootstrap checks>>:
+* Certificates and keys are generated for the transport and HTTP layers.
+* The Transport Layer Security (TLS) configuration settings are written to
+`elasticsearch.yml`.
+* A password is generated for the `elastic` user.
+* An enrollment token is generated for {kib}.
 
+The following certificates and keys are generated in the
+`/usr/share/elasticsearch/config/tls_auto_config_initial_node_<timestamp>`
+directory, and allow you to connect a {kib} instance to your secured {es}
+cluster and encrypt internode communication:
+
+`http_ca.crt`::
+The CA certificate that is used to sign the certificates for the HTTP layer of
+this {es} cluster.
+
+`http_keystore_local_node.p12`::
+Keystore that contains the key and certificate for the HTTP layer for this node.
+
+`transport_keystore_all_nodes.p12`::
+Keystore that contains the key and certificate for the transport layer for all
+the nodes in your cluster.
+
+You can then {kibana-ref}/docker.html[start {kib}] and enter the enrollment
+token, which is valid for 30 minutes. This token automatically applies the
+security settings from your {es} cluster, authenticates to {es} with the
+`kibana_system` user, and writes the security configuration to `kibana.yml`. 
+
+The following command starts a single-node {es} cluster for development or
+testing and includes <<single-node-discovery,single-node discovery>> to bypass
+the <<bootstrap-checks,bootstrap checks>>.
+
+. Start {es} in Docker. A password is generated for the `elastic` user and
+output to the terminal, plus an enrollment token for enrolling {kib}.
++
+--
+ifeval::["{release-state}"!="unreleased"]
 [source,sh,subs="attributes"]
 ----
-docker run -p 9200:9200 -p 9300:9300 --it -e "discovery.type=single-node" {docker-image}
+docker run -p 9200:9200 -p 9300:9300 -it -e "discovery.type=single-node" {docker-image}
 ----
 
 endif::[]
+--
++
+TIP: You might need to scroll back a bit in the terminal to view the password
+and enrollment token.
+
+. Copy the generated password and enrollment token and save them in a secure
+location. These values are shown only when you start {es} for the first time.
++
+NOTE: If you need to reset the password for the `elastic` or `kibana_system`
+users, run the <<reset-password,`elasticsearch-reset-password`>> tool from the
+{es} `/bin` directory.
+
+. Copy the `http_ca.crt` security certificate from your Docker container to
+your local machine.
++
+[source,sh]
+----
+docker cp <container-id>:/usr/share/elasticsearch/config/tls_auto_config_<timestamp>/http_ca.crt <local-directory>
+----
++
+--
+`<container-id>`:: The ID of your Docker container where {es} is running. Run
+`docker ps` to find this value.
+--
+
+. Open a new terminal and verify that you can connect to your {es} cluster by
+making an authenticated call, using the `http_ca.crt` file that you copied from
+your Docker container. Enter the password for the `elastic` user when prompted.
++
+[source,sh]
+----
+curl --cacert <local-directory>/http_ca.crt \
+-u elastic https://localhost:9200
+----
 
 [[docker-compose-file]]
 ==== Start a multi-node cluster with Docker Compose

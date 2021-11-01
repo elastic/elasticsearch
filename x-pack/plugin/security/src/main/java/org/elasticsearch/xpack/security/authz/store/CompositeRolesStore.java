@@ -285,7 +285,8 @@ public class CompositeRolesStore {
             // The runas user currently must be from a realm and have regular roles
             getRolesForUser(user, roleActionListener);
         } else {
-            if (authentication.isServiceAccount()) {
+            // The authenticated user may not come from a realm and they need to be handled specially
+            if (authentication.isAuthenticatedWithServiceAccount()) {
                 getRolesForServiceAccount(authentication, roleActionListener);
             } else if (ApiKeyService.isApiKeyAuthentication(authentication)) {
                 // API key role descriptors are stored in the authentication metadata

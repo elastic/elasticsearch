@@ -1,11 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file
-   except
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
  * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1. */
+ * Side Public License, v 1.
+ */
 
+/*
+ * This file is forked from https://github.com/lz4/lz4-java, which is licensed under Apache-2 and Copyright
+ * 2020 Adrien Grand and the lz4-java contributors. In particular, it forks the following file
+ * net.jpountz.lz4.SafeUtils.
+ *
+ * It modifies the original implementation to use Java9 varhandle performance improvements. Comments
+ * are included to mark the changes.
+ */
 package org.elasticsearch.lz4;
 
 import net.jpountz.util.Utils;
@@ -14,14 +22,6 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 
-/**
- * This file is forked from https://github.com/lz4/lz4-java, which is licensed under Apache-2 and Copyright
- * 2020 Adrien Grand and the lz4-java contributors. In particular, it forks the following file
- * net.jpountz.lz4.SafeUtils.
- *
- * It modifies the original implementation to use Java9 varhandle performance improvements. Comments
- * are included to mark the changes.
- */
 public enum SafeUtils {
     ;
 

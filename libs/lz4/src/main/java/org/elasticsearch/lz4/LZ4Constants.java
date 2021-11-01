@@ -1,14 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file
-   except
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
  * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1. */
+ * Side Public License, v 1.
+ * */
 
-package org.elasticsearch.lz4;
-
-/**
+/*
  * This file is forked from https://github.com/lz4/lz4-java, which is licensed under Apache-2 and Copyright
  * 2020 Adrien Grand and the lz4-java contributors. In particular, it forks the following file
  * net.jpountz.lz4.LZ4Constants.
@@ -16,6 +14,8 @@ package org.elasticsearch.lz4;
  * There are no modifications. It is copied to this package for reuse as the original implementation is
  * package private.
  */
+package org.elasticsearch.lz4;
+
 enum LZ4Constants {
     ;
 

@@ -1,25 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file
-   except
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
  * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1. */
+ * Side Public License, v 1.
+ */
 
-package org.elasticsearch.transport;
-
-import net.jpountz.lz4.LZ4BlockInputStream;
-import net.jpountz.lz4.LZ4Compressor;
-import net.jpountz.lz4.LZ4FrameOutputStream;
-import net.jpountz.util.SafeUtils;
-
-import org.apache.lucene.util.BytesRef;
-
-import java.io.FilterOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
-
-/**
+/*
  * This file is forked from https://github.com/lz4/lz4-java, which is licensed under Apache-2 and Copyright
  * 2020 Adrien Grand and the lz4-java contributors. In particular, it forks the following file
  * net.jpountz.lz4.LZ4BlockOutputStream.
@@ -39,6 +26,19 @@ import java.io.OutputStream;
  * @see LZ4BlockInputStream
  * @see LZ4FrameOutputStream
  */
+package org.elasticsearch.transport;
+
+import net.jpountz.lz4.LZ4BlockInputStream;
+import net.jpountz.lz4.LZ4Compressor;
+import net.jpountz.lz4.LZ4FrameOutputStream;
+import net.jpountz.util.SafeUtils;
+
+import org.apache.lucene.util.BytesRef;
+
+import java.io.FilterOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+
 public class ReuseBuffersLZ4BlockOutputStream extends FilterOutputStream {
 
     private static class ArrayBox {

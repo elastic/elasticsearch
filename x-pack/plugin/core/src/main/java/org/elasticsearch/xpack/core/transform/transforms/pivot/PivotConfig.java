@@ -189,8 +189,7 @@ public class PivotConfig implements Writeable, ToXContentObject {
                     "https://ela.st/es-deprecation-7-transform-max-page-search-size",
                     "Remove [max_page_search_size] from the pivot in ["
                         + id
-                        + "]. Configure [max_page_search_size]  in the "
-                        + "transform settings.",
+                        + "]. Configure [max_page_search_size] in the transform settings.",
                     false,
                     null
                 )

@@ -52,7 +52,7 @@ public class RestClearServiceAccountTokenStoreCacheAction extends SecurityBaseRe
             req.keys(namespace + "/" + service + "/");
         } else {
             final Set<String> qualifiedTokenNames = new HashSet<>(tokenNames.length);
-            for (String name: tokenNames) {
+            for (String name : tokenNames) {
                 if (false == Validation.isValidServiceAccountTokenName(name)) {
                     throw new IllegalArgumentException(Validation.formatInvalidServiceTokenNameErrorMessage(name));
                 }

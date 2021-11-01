@@ -61,7 +61,9 @@ import static org.elasticsearch.xcontent.XContentParser.Token.VALUE_STRING;
  * {@link #declareField} which can be used to implement exceptional parsing operations not covered by the high level methods.
  */
 public final class ObjectParser<Value, Context> extends AbstractObjectParser<Value, Context>
-    implements BiFunction<XContentParser, Context, Value>, ContextParser<Context, Value>{
+    implements
+        BiFunction<XContentParser, Context, Value>,
+        ContextParser<Context, Value> {
 
     private final List<String[]> requiredFieldSets = new ArrayList<>();
     private final List<String[]> exclusiveFieldSets = new ArrayList<>();
@@ -69,8 +71,10 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     /**
      * Adapts an array (or varags) setter into a list setter.
      */
-    public static <Value, ElementValue> BiConsumer<Value, List<ElementValue>> fromList(Class<ElementValue> c,
-            BiConsumer<Value, ElementValue[]> consumer) {
+    public static <Value, ElementValue> BiConsumer<Value, List<ElementValue>> fromList(
+        Class<ElementValue> c,
+        BiConsumer<Value, ElementValue[]> consumer
+    ) {
         return (Value v, List<ElementValue> l) -> {
             @SuppressWarnings("unchecked")
             ElementValue[] array = (ElementValue[]) Array.newInstance(c, l.size());
@@ -79,19 +83,30 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     }
 
     private interface UnknownFieldParser<Value, Context> {
-        void acceptUnknownField(ObjectParser<Value, Context> objectParser, String field, XContentLocation location, XContentParser parser,
-                Value value, Context context) throws IOException;
+        void acceptUnknownField(
+            ObjectParser<Value, Context> objectParser,
+            String field,
+            XContentLocation location,
+            XContentParser parser,
+            Value value,
+            Context context
+        ) throws IOException;
     }
 
     private static <Value, Context> UnknownFieldParser<Value, Context> ignoreUnknown() {
-      return (op, f, l, p, v, c) -> p.skipChildren();
+        return (op, f, l, p, v, c) -> p.skipChildren();
     }
 
     private static <Value, Context> UnknownFieldParser<Value, Context> errorOnUnknown() {
         return (op, f, l, p, v, c) -> {
-            throw new XContentParseException(l, ErrorOnUnknown.IMPLEMENTATION.errorMessage(op.name, f,
-                op.fieldParserMap.getOrDefault(p.getRestApiVersion(), Collections.emptyMap())
-                .keySet()));
+            throw new XContentParseException(
+                l,
+                ErrorOnUnknown.IMPLEMENTATION.errorMessage(
+                    op.name,
+                    f,
+                    op.fieldParserMap.getOrDefault(p.getRestApiVersion(), Collections.emptyMap()).keySet()
+                )
+            );
         };
     }
 
@@ -125,8 +140,10 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
                     consumer.accept(value, field, parser.list());
                     break;
                 default:
-                    throw new XContentParseException(parser.getTokenLocation(),
-                        "[" + objectParser.name + "] cannot parse field [" + field + "] with value type [" + t + "]");
+                    throw new XContentParseException(
+                        parser.getTokenLocation(),
+                        "[" + objectParser.name + "] cannot parse field [" + field + "] with value type [" + t + "]"
+                    );
             }
         };
     }
@@ -140,9 +157,9 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
             try {
                 o = parser.namedObject(categoryClass, field, context);
             } catch (NamedObjectNotFoundException e) {
-                Set<String> candidates = new HashSet<>(objectParser.fieldParserMap
-                    .getOrDefault(parser.getRestApiVersion(), Collections.emptyMap())
-                    .keySet());
+                Set<String> candidates = new HashSet<>(
+                    objectParser.fieldParserMap.getOrDefault(parser.getRestApiVersion(), Collections.emptyMap()).keySet()
+                );
                 e.getCandidates().forEach(candidates::add);
                 String message = ErrorOnUnknown.IMPLEMENTATION.errorMessage(objectParser.name, field, candidates);
                 throw new XContentParseException(location, message, e);
@@ -196,9 +213,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     }
 
     private static <C, V> Function<C, V> wrapValueSupplier(@Nullable Supplier<V> valueSupplier) {
-        return valueSupplier == null ? c -> {
-            throw new NullPointerException();
-        } : c -> valueSupplier.get();
+        return valueSupplier == null ? c -> { throw new NullPointerException(); } : c -> valueSupplier.get();
     }
 
     /**
@@ -234,13 +249,14 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
      * @param unknownFieldParser how to parse unknown fields
      * @param valueBuilder builds the value from the context. Used when the ObjectParser is not passed a value.
      */
-    private ObjectParser(String name, UnknownFieldParser<Value, Context> unknownFieldParser,
-                @Nullable Function<Context, Value> valueBuilder) {
+    private ObjectParser(
+        String name,
+        UnknownFieldParser<Value, Context> unknownFieldParser,
+        @Nullable Function<Context, Value> valueBuilder
+    ) {
         this.name = name;
         this.unknownFieldParser = unknownFieldParser;
-        this.valueBuilder = valueBuilder == null ? c -> {
-            throw new NullPointerException("valueBuilder is not set");
-        } : valueBuilder;
+        this.valueBuilder = valueBuilder == null ? c -> { throw new NullPointerException("valueBuilder is not set"); } : valueBuilder;
     }
 
     /**
@@ -330,11 +346,11 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     }
 
     private void throwExpectedStartObject(XContentParser parser, XContentParser.Token token) {
-        throw new XContentParseException(parser.getTokenLocation(), "[" + name  + "] Expected START_OBJECT but was: " + token);
+        throw new XContentParseException(parser.getTokenLocation(), "[" + name + "] Expected START_OBJECT but was: " + token);
     }
 
     private void throwNoFieldFound(XContentParser parser) {
-        throw new XContentParseException(parser.getTokenLocation(), "[" + name  + "] no field found");
+        throw new XContentParseException(parser.getTokenLocation(), "[" + name + "] no field found");
     }
 
     private void throwMissingRequiredFields(List<String[]> requiredFields) {
@@ -388,13 +404,14 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         try {
             return parse(parser, context);
         } catch (IOException e) {
-            throw new XContentParseException(parser.getTokenLocation(), "[" + name  + "] failed to parse object", e);
+            throw new XContentParseException(parser.getTokenLocation(), "[" + name + "] failed to parse object", e);
         }
     }
 
     public interface Parser<Value, Context> {
         void parse(XContentParser parser, Value value, Context context) throws IOException;
     }
+
     public void declareField(Parser<Value, Context> p, ParseField parseField, ValueType type) {
         if (parseField == null) {
             throw new IllegalArgumentException("[parseField] is required");
@@ -406,16 +423,17 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         for (String fieldValue : parseField.getAllNamesIncludedDeprecated()) {
 
             if (RestApiVersion.minimumSupported().matches(parseField.getForRestApiVersion())) {
-                Map<String, FieldParser> nameToParserMap =
-                    fieldParserMap.computeIfAbsent(RestApiVersion.minimumSupported(), (v) -> new HashMap<>());
+                Map<String, FieldParser> nameToParserMap = fieldParserMap.computeIfAbsent(
+                    RestApiVersion.minimumSupported(),
+                    (v) -> new HashMap<>()
+                );
                 FieldParser previousValue = nameToParserMap.putIfAbsent(fieldValue, fieldParser);
                 if (previousValue != null) {
                     throw new IllegalArgumentException("Parser already registered for name=[" + fieldValue + "]. " + previousValue);
                 }
             }
             if (RestApiVersion.current().matches(parseField.getForRestApiVersion())) {
-                Map<String, FieldParser> nameToParserMap =
-                    fieldParserMap.computeIfAbsent(RestApiVersion.current(), (v) -> new HashMap<>());
+                Map<String, FieldParser> nameToParserMap = fieldParserMap.computeIfAbsent(RestApiVersion.current(), (v) -> new HashMap<>());
                 FieldParser previousValue = nameToParserMap.putIfAbsent(fieldValue, fieldParser);
                 if (previousValue != null) {
                     throw new IllegalArgumentException("Parser already registered for name=[" + fieldValue + "]. " + previousValue);
@@ -426,8 +444,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     }
 
     @Override
-    public <T> void declareField(BiConsumer<Value, T> consumer, ContextParser<Context, T> parser, ParseField parseField,
-            ValueType type) {
+    public <T> void declareField(BiConsumer<Value, T> consumer, ContextParser<Context, T> parser, ParseField parseField, ValueType type) {
         if (consumer == null) {
             throw new IllegalArgumentException("[consumer] is required");
         }
@@ -437,8 +454,12 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         declareField((p, v, c) -> consumer.accept(v, parser.parse(p, c)), parseField, type);
     }
 
-    public <T> void declareObjectOrDefault(BiConsumer<Value, T> consumer, BiFunction<XContentParser, Context, T> objectParser,
-            Supplier<T> defaultValue, ParseField field) {
+    public <T> void declareObjectOrDefault(
+        BiConsumer<Value, T> consumer,
+        BiFunction<XContentParser, Context, T> objectParser,
+        Supplier<T> defaultValue,
+        ParseField field
+    ) {
         declareField((p, v, c) -> {
             if (p.currentToken() == XContentParser.Token.VALUE_BOOLEAN) {
                 if (p.booleanValue()) {
@@ -451,8 +472,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     }
 
     @Override
-    public <T> void declareNamedObject(BiConsumer<Value, T> consumer, NamedObjectParser<T, Context> namedObjectParser,
-                                       ParseField field) {
+    public <T> void declareNamedObject(BiConsumer<Value, T> consumer, NamedObjectParser<T, Context> namedObjectParser, ParseField field) {
 
         BiFunction<XContentParser, Context, T> objectParser = (XContentParser p, Context c) -> {
             try {
@@ -477,8 +497,12 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     }
 
     @Override
-    public <T> void declareNamedObjects(BiConsumer<Value, List<T>> consumer, NamedObjectParser<T, Context> namedObjectParser,
-            Consumer<Value> orderedModeCallback, ParseField field) {
+    public <T> void declareNamedObjects(
+        BiConsumer<Value, List<T>> consumer,
+        NamedObjectParser<T, Context> namedObjectParser,
+        Consumer<Value> orderedModeCallback,
+        ParseField field
+    ) {
         // This creates and parses the named object
         BiFunction<XContentParser, Context, T> objectParser = (XContentParser p, Context c) -> {
             if (p.currentToken() != XContentParser.Token.FIELD_NAME) {
@@ -511,10 +535,15 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         }, field, ValueType.OBJECT_ARRAY);
     }
 
-    private <T> void parseObjectsInArray(Consumer<Value> orderedModeCallback,
-                                         ParseField field, BiFunction<XContentParser, Context, T> objectParser,
-                                         XContentParser p, Value v, Context c,
-                                         List<T> fields) throws IOException {
+    private <T> void parseObjectsInArray(
+        Consumer<Value> orderedModeCallback,
+        ParseField field,
+        BiFunction<XContentParser, Context, T> objectParser,
+        XContentParser p,
+        Value v,
+        Context c,
+        List<T> fields
+    ) throws IOException {
         orderedModeCallback.accept(v);
         XContentParser.Token token;
         while ((token = p.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -531,8 +560,13 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     }
 
     private XContentParseException wrapCanBeObjectOrArrayOfObjects(ParseField field, XContentParser p) {
-        return new XContentParseException(p.getTokenLocation(), "[" + field + "] can be a single object with any number of "
-            + "fields or an array where each entry is an object with a single field");
+        return new XContentParseException(
+            p.getTokenLocation(),
+            "["
+                + field
+                + "] can be a single object with any number of "
+                + "fields or an array where each entry is an object with a single field"
+        );
     }
 
     private XContentParseException wrapParseError(ParseField field, XContentParser p, IOException e, String s) {
@@ -544,8 +578,11 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     }
 
     @Override
-    public <T> void declareNamedObjects(BiConsumer<Value, List<T>> consumer, NamedObjectParser<T, Context> namedObjectParser,
-            ParseField field) {
+    public <T> void declareNamedObjects(
+        BiConsumer<Value, List<T>> consumer,
+        NamedObjectParser<T, Context> namedObjectParser,
+        ParseField field
+    ) {
         Consumer<Value> orderedModeCallback = (v) -> {
             throw new IllegalArgumentException("[" + field + "] doesn't support arrays. Use a single object with multiple fields.");
         };
@@ -675,12 +712,16 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
                 xContentParser.getDeprecationHandler()
             );
             if (match == false) {
-                throw new XContentParseException(xContentParser.getTokenLocation(),
-                        "[" + parserName  + "] parsefield doesn't accept: " + currentFieldName);
+                throw new XContentParseException(
+                    xContentParser.getTokenLocation(),
+                    "[" + parserName + "] parsefield doesn't accept: " + currentFieldName
+                );
             }
             if (supportedTokens.contains(xContentParser.currentToken()) == false) {
-                throw new XContentParseException(xContentParser.getTokenLocation(),
-                        "[" + parserName + "] " + currentFieldName + " doesn't support values of type: " + xContentParser.currentToken());
+                throw new XContentParseException(
+                    xContentParser.getTokenLocation(),
+                    "[" + parserName + "] " + currentFieldName + " doesn't support values of type: " + xContentParser.currentToken()
+                );
             }
         }
 
@@ -690,15 +731,18 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
             String allReplacedWith = parseField.getAllReplacedWith();
             String deprecated = "";
             if (deprecatedNames != null && deprecatedNames.length > 0) {
-                deprecated = ", deprecated_names="  + Arrays.toString(deprecatedNames);
+                deprecated = ", deprecated_names=" + Arrays.toString(deprecatedNames);
             }
-            return "FieldParser{" +
-                    "preferred_name=" + parseField.getPreferredName() +
-                    ", supportedTokens=" + supportedTokens +
-                    deprecated +
-                    (allReplacedWith == null ? "" : ", replaced_with=" + allReplacedWith) +
-                    ", type=" + type.name() +
-                    '}';
+            return "FieldParser{"
+                + "preferred_name="
+                + parseField.getPreferredName()
+                + ", supportedTokens="
+                + supportedTokens
+                + deprecated
+                + (allReplacedWith == null ? "" : ", replaced_with=" + allReplacedWith)
+                + ", type="
+                + type.name()
+                + '}';
         }
     }
 
@@ -748,9 +792,6 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
 
     @Override
     public String toString() {
-        return "ObjectParser{" +
-                "name='" + name + '\'' +
-                ", fields=" + fieldParserMap +
-                '}';
+        return "ObjectParser{" + "name='" + name + '\'' + ", fields=" + fieldParserMap + '}';
     }
 }

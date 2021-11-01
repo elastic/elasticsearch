@@ -6,12 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.Collections;
-
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
@@ -20,6 +14,12 @@ import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.opensaml.saml.saml2.metadata.IDPSSODescriptor;
 import org.opensaml.saml.saml2.metadata.SingleLogoutService;
 import org.opensaml.security.x509.X509Credential;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Collections;
 
 import static org.mockito.Mockito.mock;
 
@@ -41,21 +41,36 @@ public class SamlRealmTestHelper {
         slo.setBinding(SAMLConstants.SAML2_REDIRECT_BINDING_URI);
         slo.setLocation(IDP_LOGOUT_URL);
 
-        final SpConfiguration spConfiguration = new SpConfiguration(SP_ENTITY_ID, SP_ACS_URL, SP_LOGOUT_URL,
-            new SigningConfiguration(Collections.singleton("*"), credential), Arrays.asList(credential), Collections.emptyList());
-        return new SamlRealm(realmConfig, mock(UserRoleMapper.class), mock(SamlAuthenticator.class),
-            mock(SamlLogoutRequestHandler.class), mock(SamlLogoutResponseHandler.class),
-            () -> idpDescriptor, spConfiguration);
+        final SpConfiguration spConfiguration = new SpConfiguration(
+            SP_ENTITY_ID,
+            SP_ACS_URL,
+            SP_LOGOUT_URL,
+            new SigningConfiguration(Collections.singleton("*"), credential),
+            Arrays.asList(credential),
+            Collections.emptyList()
+        );
+        return new SamlRealm(
+            realmConfig,
+            mock(UserRoleMapper.class),
+            mock(SamlAuthenticator.class),
+            mock(SamlLogoutRequestHandler.class),
+            mock(SamlLogoutResponseHandler.class),
+            () -> idpDescriptor,
+            spConfiguration
+        );
     }
 
     public static void writeIdpMetadata(Path path, String idpEntityId) throws IOException {
-        Files.write(path, Arrays.asList(
-            "<?xml version=\"1.0\"?>",
-            "<md:EntityDescriptor xmlns:md='urn:oasis:names:tc:SAML:2.0:metadata' entityID='" + idpEntityId + "'>",
-            "<md:IDPSSODescriptor protocolSupportEnumeration='urn:oasis:names:tc:SAML:2.0:protocol'>",
-            "<md:SingleSignOnService Binding='urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect' Location='http://localhost/sso/' />",
-            "</md:IDPSSODescriptor>",
-            "</md:EntityDescriptor>"
-        ));
+        Files.write(
+            path,
+            Arrays.asList(
+                "<?xml version=\"1.0\"?>",
+                "<md:EntityDescriptor xmlns:md='urn:oasis:names:tc:SAML:2.0:metadata' entityID='" + idpEntityId + "'>",
+                "<md:IDPSSODescriptor protocolSupportEnumeration='urn:oasis:names:tc:SAML:2.0:protocol'>",
+                "<md:SingleSignOnService Binding='urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect' Location='http://localhost/sso/' />",
+                "</md:IDPSSODescriptor>",
+                "</md:EntityDescriptor>"
+            )
+        );
     }
 }

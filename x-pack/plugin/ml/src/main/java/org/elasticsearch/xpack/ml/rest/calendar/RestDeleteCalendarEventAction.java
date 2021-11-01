@@ -24,13 +24,16 @@ import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 
 public class RestDeleteCalendarEventAction extends BaseRestHandler {
 
-
     @Override
     public List<Route> routes() {
         return List.of(
             Route.builder(DELETE, BASE_PATH + "calendars/{" + Calendar.ID + "}/events/{" + ScheduledEvent.EVENT_ID + "}")
-                .replaces(DELETE, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID + "}/events/{" + ScheduledEvent.EVENT_ID + "}",
-                    RestApiVersion.V_7).build()
+                .replaces(
+                    DELETE,
+                    PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID + "}/events/{" + ScheduledEvent.EVENT_ID + "}",
+                    RestApiVersion.V_7
+                )
+                .build()
         );
     }
 

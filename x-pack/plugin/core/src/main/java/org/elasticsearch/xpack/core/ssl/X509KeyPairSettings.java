@@ -12,13 +12,14 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.ssl.SslConfigurationKeys;
 import org.elasticsearch.common.util.CollectionUtils;
 
-import javax.net.ssl.KeyManagerFactory;
 import java.security.KeyStore;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import javax.net.ssl.KeyManagerFactory;
 
 /**
  * An encapsulation of the configuration options for X.509 Key Pair support in X-Pack security.
@@ -28,43 +29,90 @@ import java.util.stream.Collectors;
  */
 public class X509KeyPairSettings {
 
-    static final Function<String, Setting<Optional<String>>> KEYSTORE_PATH_TEMPLATE = key -> new Setting<>(key, s -> null,
-            Optional::ofNullable, Setting.Property.NodeScope, Setting.Property.Filtered);
+    static final Function<String, Setting<Optional<String>>> KEYSTORE_PATH_TEMPLATE = key -> new Setting<>(
+        key,
+        s -> null,
+        Optional::ofNullable,
+        Setting.Property.NodeScope,
+        Setting.Property.Filtered
+    );
 
-    static final Function<String, Setting<SecureString>> LEGACY_KEYSTORE_PASSWORD_TEMPLATE = key -> new Setting<>(key, "",
-            SecureString::new, Setting.Property.Deprecated, Setting.Property.Filtered, Setting.Property.NodeScope);
-    static final Function<String, Setting<SecureString>> KEYSTORE_PASSWORD_TEMPLATE = key -> SecureSetting.secureString(key,
-            LEGACY_KEYSTORE_PASSWORD_TEMPLATE.apply(
-                key.replace(SslConfigurationKeys.KEYSTORE_SECURE_PASSWORD, SslConfigurationKeys.KEYSTORE_LEGACY_PASSWORD)
-            ));
+    static final Function<String, Setting<SecureString>> LEGACY_KEYSTORE_PASSWORD_TEMPLATE = key -> new Setting<>(
+        key,
+        "",
+        SecureString::new,
+        Setting.Property.Deprecated,
+        Setting.Property.Filtered,
+        Setting.Property.NodeScope
+    );
+    static final Function<String, Setting<SecureString>> KEYSTORE_PASSWORD_TEMPLATE = key -> SecureSetting.secureString(
+        key,
+        LEGACY_KEYSTORE_PASSWORD_TEMPLATE.apply(
+            key.replace(SslConfigurationKeys.KEYSTORE_SECURE_PASSWORD, SslConfigurationKeys.KEYSTORE_LEGACY_PASSWORD)
+        )
+    );
 
-    static final Function<String, Setting<String>> KEY_STORE_ALGORITHM_TEMPLATE = key ->
-            new Setting<>(key, s -> KeyManagerFactory.getDefaultAlgorithm(),
-                    Function.identity(), Setting.Property.NodeScope, Setting.Property.Filtered);
+    static final Function<String, Setting<String>> KEY_STORE_ALGORITHM_TEMPLATE = key -> new Setting<>(
+        key,
+        s -> KeyManagerFactory.getDefaultAlgorithm(),
+        Function.identity(),
+        Setting.Property.NodeScope,
+        Setting.Property.Filtered
+    );
 
-    static final Function<String, Setting<Optional<String>>> KEY_STORE_TYPE_TEMPLATE = key ->
-            new Setting<>(key, s -> null, Optional::ofNullable, Setting.Property.NodeScope, Setting.Property.Filtered);
+    static final Function<String, Setting<Optional<String>>> KEY_STORE_TYPE_TEMPLATE = key -> new Setting<>(
+        key,
+        s -> null,
+        Optional::ofNullable,
+        Setting.Property.NodeScope,
+        Setting.Property.Filtered
+    );
 
-    static final Function<String, Setting<SecureString>> LEGACY_KEYSTORE_KEY_PASSWORD_TEMPLATE = key -> new Setting<>(key, "",
-            SecureString::new, Setting.Property.Deprecated, Setting.Property.Filtered, Setting.Property.NodeScope);
-    static final Function<String, Setting<SecureString>> KEYSTORE_KEY_PASSWORD_TEMPLATE = key ->
-            SecureSetting.secureString(key, LEGACY_KEYSTORE_KEY_PASSWORD_TEMPLATE.apply(
-                key.replace(SslConfigurationKeys.KEYSTORE_SECURE_KEY_PASSWORD, SslConfigurationKeys.KEYSTORE_LEGACY_KEY_PASSWORD)
-            ));
+    static final Function<String, Setting<SecureString>> LEGACY_KEYSTORE_KEY_PASSWORD_TEMPLATE = key -> new Setting<>(
+        key,
+        "",
+        SecureString::new,
+        Setting.Property.Deprecated,
+        Setting.Property.Filtered,
+        Setting.Property.NodeScope
+    );
+    static final Function<String, Setting<SecureString>> KEYSTORE_KEY_PASSWORD_TEMPLATE = key -> SecureSetting.secureString(
+        key,
+        LEGACY_KEYSTORE_KEY_PASSWORD_TEMPLATE.apply(
+            key.replace(SslConfigurationKeys.KEYSTORE_SECURE_KEY_PASSWORD, SslConfigurationKeys.KEYSTORE_LEGACY_KEY_PASSWORD)
+        )
+    );
 
-    static final Function<String, Setting<Optional<String>>> KEY_PATH_TEMPLATE = key -> new Setting<>(key, s -> null,
-            Optional::ofNullable, Setting.Property.NodeScope, Setting.Property.Filtered);
+    static final Function<String, Setting<Optional<String>>> KEY_PATH_TEMPLATE = key -> new Setting<>(
+        key,
+        s -> null,
+        Optional::ofNullable,
+        Setting.Property.NodeScope,
+        Setting.Property.Filtered
+    );
 
-    static final Function<String, Setting<Optional<String>>> CERT_TEMPLATE = key -> new Setting<>(key, s -> null,
-            Optional::ofNullable, Setting.Property.NodeScope, Setting.Property.Filtered);
+    static final Function<String, Setting<Optional<String>>> CERT_TEMPLATE = key -> new Setting<>(
+        key,
+        s -> null,
+        Optional::ofNullable,
+        Setting.Property.NodeScope,
+        Setting.Property.Filtered
+    );
 
-    static final Function<String, Setting<SecureString>> LEGACY_KEY_PASSWORD_TEMPLATE = key -> new Setting<>(key, "",
-            SecureString::new, Setting.Property.Deprecated, Setting.Property.Filtered, Setting.Property.NodeScope);
-    static final Function<String, Setting<SecureString>> KEY_PASSWORD_TEMPLATE = key ->
-            SecureSetting.secureString(key, LEGACY_KEY_PASSWORD_TEMPLATE.apply(
-                key.replace(SslConfigurationKeys.KEY_SECURE_PASSPHRASE, SslConfigurationKeys.KEY_LEGACY_PASSPHRASE)
-            ));
-
+    static final Function<String, Setting<SecureString>> LEGACY_KEY_PASSWORD_TEMPLATE = key -> new Setting<>(
+        key,
+        "",
+        SecureString::new,
+        Setting.Property.Deprecated,
+        Setting.Property.Filtered,
+        Setting.Property.NodeScope
+    );
+    static final Function<String, Setting<SecureString>> KEY_PASSWORD_TEMPLATE = key -> SecureSetting.secureString(
+        key,
+        LEGACY_KEY_PASSWORD_TEMPLATE.apply(
+            key.replace(SslConfigurationKeys.KEY_SECURE_PASSPHRASE, SslConfigurationKeys.KEY_LEGACY_PASSPHRASE)
+        )
+    );
 
     // Specify private cert/key pair via keystore
     final Setting<Optional<String>> keystorePath;
@@ -107,10 +155,17 @@ public class X509KeyPairSettings {
         legacyKeyPassword = factory.apply(SslConfigurationKeys.KEY_LEGACY_PASSPHRASE, LEGACY_KEY_PASSWORD_TEMPLATE);
 
         final List<Setting<?>> enabled = CollectionUtils.arrayAsArrayList(
-                keystorePath, keystorePassword, keystoreAlgorithm, keystoreType, keystoreKeyPassword,
-                keyPath, keyPassword, certificatePath);
+            keystorePath,
+            keystorePassword,
+            keystoreAlgorithm,
+            keystoreType,
+            keystoreKeyPassword,
+            keyPath,
+            keyPassword,
+            certificatePath
+        );
 
-        final List<Setting<?>> legacySettings = List.of(legacyKeystorePassword,legacyKeystoreKeyPassword,legacyKeyPassword);
+        final List<Setting<?>> legacySettings = List.of(legacyKeystorePassword, legacyKeystoreKeyPassword, legacyKeyPassword);
         if (acceptNonSecurePasswords) {
             enabled.addAll(legacySettings);
             disabledSettings = List.of();

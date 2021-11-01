@@ -44,10 +44,10 @@ public class AzureSeedHostsProvider implements SeedHostsProvider {
         PRIVATE_IP("private_ip"),
         PUBLIC_IP("public_ip");
 
-        private String type ;
+        private String type;
 
         HostType(String type) {
-            this.type = type ;
+            this.type = type;
         }
 
         public String getType() {
@@ -99,8 +99,12 @@ public class AzureSeedHostsProvider implements SeedHostsProvider {
     private final String deploymentName;
     private final DeploymentSlot deploymentSlot;
 
-    public AzureSeedHostsProvider(Settings settings, AzureComputeService azureComputeService,
-                                  TransportService transportService, NetworkService networkService) {
+    public AzureSeedHostsProvider(
+        Settings settings,
+        AzureComputeService azureComputeService,
+        TransportService transportService,
+        NetworkService networkService
+    ) {
         this.settings = settings;
         this.azureComputeService = azureComputeService;
         this.transportService = transportService;
@@ -128,8 +132,8 @@ public class AzureSeedHostsProvider implements SeedHostsProvider {
     @Override
     public List<TransportAddress> getSeedAddresses(HostsResolver hostsResolver) {
         if (refreshInterval.millis() != 0) {
-            if (dynamicHosts != null &&
-                    (refreshInterval.millis() < 0 || (System.currentTimeMillis() - lastRefresh) < refreshInterval.millis())) {
+            if (dynamicHosts != null
+                && (refreshInterval.millis() < 0 || (System.currentTimeMillis() - lastRefresh) < refreshInterval.millis())) {
                 logger.trace("using cache to retrieve node list");
                 return dynamicHosts;
             }
@@ -155,7 +159,8 @@ public class AzureSeedHostsProvider implements SeedHostsProvider {
         InetAddress ipAddress = null;
         try {
             ipAddress = networkService.resolvePublishHostAddresses(
-                NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY));
+                NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY)
+            );
             logger.trace("ip of current node: [{}]", ipAddress);
         } catch (IOException e) {
             // We can't find the publish host address... Hmmm. Too bad :-(
@@ -165,24 +170,26 @@ public class AzureSeedHostsProvider implements SeedHostsProvider {
         for (HostedServiceGetDetailedResponse.Deployment deployment : detailed.getDeployments()) {
             // We check the deployment slot
             if (deployment.getDeploymentSlot() != deploymentSlot) {
-                logger.debug("current deployment slot [{}] for [{}] is different from [{}]. skipping...",
-                        deployment.getDeploymentSlot(), deployment.getName(), deploymentSlot);
+                logger.debug(
+                    "current deployment slot [{}] for [{}] is different from [{}]. skipping...",
+                    deployment.getDeploymentSlot(),
+                    deployment.getName(),
+                    deploymentSlot
+                );
                 continue;
             }
 
             // If provided, we check the deployment name
             if (Strings.hasLength(deploymentName) && deploymentName.equals(deployment.getName()) == false) {
-                logger.debug("current deployment name [{}] different from [{}]. skipping...",
-                        deployment.getName(), deploymentName);
+                logger.debug("current deployment name [{}] different from [{}]. skipping...", deployment.getName(), deploymentName);
                 continue;
             }
 
             // We check current deployment status
-            if (deployment.getStatus() != DeploymentStatus.Starting &&
-                    deployment.getStatus() != DeploymentStatus.Deploying &&
-                    deployment.getStatus() != DeploymentStatus.Running) {
-                logger.debug("[{}] status is [{}]. skipping...",
-                        deployment.getName(), deployment.getStatus());
+            if (deployment.getStatus() != DeploymentStatus.Starting
+                && deployment.getStatus() != DeploymentStatus.Deploying
+                && deployment.getStatus() != DeploymentStatus.Running) {
+                logger.debug("[{}] status is [{}]. skipping...", deployment.getName(), deployment.getStatus());
                 continue;
             }
 

@@ -24,10 +24,10 @@ public class RestDeprecationInfoAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(GET, "/_migration/deprecations")
-                .replaces(GET, "/_xpack/migration/deprecations", RestApiVersion.V_7).build(),
+            Route.builder(GET, "/_migration/deprecations").replaces(GET, "/_xpack/migration/deprecations", RestApiVersion.V_7).build(),
             Route.builder(GET, "/{index}/_migration/deprecations")
-                .replaces(GET, "/{index}/_xpack/migration/deprecations", RestApiVersion.V_7).build()
+                .replaces(GET, "/{index}/_xpack/migration/deprecations", RestApiVersion.V_7)
+                .build()
         );
     }
 

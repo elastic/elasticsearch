@@ -20,9 +20,9 @@ import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.core.MainRequest;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.ingest.PipelineConfiguration;
 
 import java.io.IOException;
 import java.util.List;
@@ -35,13 +35,13 @@ public class IngestClientIT extends ESRestHighLevelClientTestCase {
     public void testPutPipeline() throws IOException {
         String id = "some_pipeline_id";
         XContentBuilder pipelineBuilder = buildRandomXContentPipeline();
-        PutPipelineRequest request = new PutPipelineRequest(
-            id,
-            BytesReference.bytes(pipelineBuilder),
-            pipelineBuilder.contentType());
+        PutPipelineRequest request = new PutPipelineRequest(id, BytesReference.bytes(pipelineBuilder), pipelineBuilder.contentType());
 
-        AcknowledgedResponse putPipelineResponse =
-            execute(request, highLevelClient().ingest()::putPipeline, highLevelClient().ingest()::putPipelineAsync);
+        AcknowledgedResponse putPipelineResponse = execute(
+            request,
+            highLevelClient().ingest()::putPipeline,
+            highLevelClient().ingest()::putPipelineAsync
+        );
         assertTrue(putPipelineResponse.isAcknowledged());
     }
 
@@ -49,22 +49,24 @@ public class IngestClientIT extends ESRestHighLevelClientTestCase {
         String id = "some_pipeline_id";
         XContentBuilder pipelineBuilder = buildRandomXContentPipeline();
         {
-            PutPipelineRequest request = new PutPipelineRequest(
-                id,
-                BytesReference.bytes(pipelineBuilder),
-                pipelineBuilder.contentType()
-            );
+            PutPipelineRequest request = new PutPipelineRequest(id, BytesReference.bytes(pipelineBuilder), pipelineBuilder.contentType());
             createPipeline(request);
         }
 
         GetPipelineRequest request = new GetPipelineRequest(id);
 
-        GetPipelineResponse response =
-            execute(request, highLevelClient().ingest()::getPipeline, highLevelClient().ingest()::getPipelineAsync);
+        GetPipelineResponse response = execute(
+            request,
+            highLevelClient().ingest()::getPipeline,
+            highLevelClient().ingest()::getPipelineAsync
+        );
         assertTrue(response.isFound());
         assertEquals(response.pipelines().get(0).getId(), id);
-        PipelineConfiguration expectedConfig =
-            new PipelineConfiguration(id, BytesReference.bytes(pipelineBuilder), pipelineBuilder.contentType());
+        PipelineConfiguration expectedConfig = new PipelineConfiguration(
+            id,
+            BytesReference.bytes(pipelineBuilder),
+            pipelineBuilder.contentType()
+        );
         assertEquals(expectedConfig.getConfigAsMap(), response.pipelines().get(0).getConfigAsMap());
     }
 
@@ -73,8 +75,11 @@ public class IngestClientIT extends ESRestHighLevelClientTestCase {
 
         GetPipelineRequest request = new GetPipelineRequest(id);
 
-        GetPipelineResponse response =
-            execute(request, highLevelClient().ingest()::getPipeline, highLevelClient().ingest()::getPipelineAsync);
+        GetPipelineResponse response = execute(
+            request,
+            highLevelClient().ingest()::getPipeline,
+            highLevelClient().ingest()::getPipelineAsync
+        );
         assertFalse(response.isFound());
     }
 
@@ -86,8 +91,11 @@ public class IngestClientIT extends ESRestHighLevelClientTestCase {
 
         DeletePipelineRequest request = new DeletePipelineRequest(id);
 
-        AcknowledgedResponse response =
-            execute(request, highLevelClient().ingest()::deletePipeline, highLevelClient().ingest()::deletePipelineAsync);
+        AcknowledgedResponse response = execute(
+            request,
+            highLevelClient().ingest()::deletePipeline,
+            highLevelClient().ingest()::deletePipelineAsync
+        );
         assertTrue(response.isAcknowledged());
     }
 
@@ -107,8 +115,7 @@ public class IngestClientIT extends ESRestHighLevelClientTestCase {
         testSimulatePipeline(true, true);
     }
 
-    private void testSimulatePipeline(boolean isVerbose,
-                                      boolean isFailure) throws IOException {
+    private void testSimulatePipeline(boolean isVerbose, boolean isFailure) throws IOException {
         XContentType xContentType = randomFrom(XContentType.values());
         XContentBuilder builder = XContentBuilder.builder(xContentType.xContent());
         String rankValue = isFailure ? "non-int" : Integer.toString(1234);
@@ -121,20 +128,23 @@ public class IngestClientIT extends ESRestHighLevelClientTestCase {
                 builder.startObject()
                     .field("_index", "index")
                     .field("_id", "doc_" + 1)
-                    .startObject("_source").field("foo", "rab_" + 1).field("rank", rankValue).endObject()
+                    .startObject("_source")
+                    .field("foo", "rab_" + 1)
+                    .field("rank", rankValue)
+                    .endObject()
                     .endObject();
             }
             builder.endArray();
         }
         builder.endObject();
 
-        SimulatePipelineRequest request = new SimulatePipelineRequest(
-            BytesReference.bytes(builder),
-            builder.contentType()
-        );
+        SimulatePipelineRequest request = new SimulatePipelineRequest(BytesReference.bytes(builder), builder.contentType());
         request.setVerbose(isVerbose);
-        SimulatePipelineResponse response =
-            execute(request, highLevelClient().ingest()::simulate, highLevelClient().ingest()::simulateAsync);
+        SimulatePipelineResponse response = execute(
+            request,
+            highLevelClient().ingest()::simulate,
+            highLevelClient().ingest()::simulateAsync
+        );
         List<SimulateDocumentResult> results = response.getResults();
         assertEquals(1, results.size());
         if (isVerbose) {
@@ -143,18 +153,15 @@ public class IngestClientIT extends ESRestHighLevelClientTestCase {
             assertEquals(2, verboseResult.getProcessorResults().size());
             if (isFailure) {
                 assertNotNull(verboseResult.getProcessorResults().get(1).getFailure());
-                assertThat(verboseResult.getProcessorResults().get(1).getFailure().getMessage(),
-                    containsString("unable to convert [non-int] to integer"));
-            } else {
-                assertEquals(
-                    verboseResult.getProcessorResults().get(0).getIngestDocument()
-                        .getFieldValue("foo", String.class),
-                    "bar"
+                assertThat(
+                    verboseResult.getProcessorResults().get(1).getFailure().getMessage(),
+                    containsString("unable to convert [non-int] to integer")
                 );
+            } else {
+                assertEquals(verboseResult.getProcessorResults().get(0).getIngestDocument().getFieldValue("foo", String.class), "bar");
                 assertEquals(
                     Integer.valueOf(1234),
-                    verboseResult.getProcessorResults().get(1).getIngestDocument()
-                        .getFieldValue("rank", Integer.class)
+                    verboseResult.getProcessorResults().get(1).getIngestDocument().getFieldValue("rank", Integer.class)
                 );
             }
         } else {
@@ -162,26 +169,21 @@ public class IngestClientIT extends ESRestHighLevelClientTestCase {
             SimulateDocumentBaseResult baseResult = (SimulateDocumentBaseResult) results.get(0);
             if (isFailure) {
                 assertNotNull(baseResult.getFailure());
-                assertThat(baseResult.getFailure().getMessage(),
-                    containsString("unable to convert [non-int] to integer"));
+                assertThat(baseResult.getFailure().getMessage(), containsString("unable to convert [non-int] to integer"));
             } else {
                 assertNotNull(baseResult.getIngestDocument());
-                assertEquals(
-                    baseResult.getIngestDocument().getFieldValue("foo", String.class),
-                    "bar"
-                );
-                assertEquals(
-                    Integer.valueOf(1234),
-                    baseResult.getIngestDocument()
-                        .getFieldValue("rank", Integer.class)
-                );
+                assertEquals(baseResult.getIngestDocument().getFieldValue("foo", String.class), "bar");
+                assertEquals(Integer.valueOf(1234), baseResult.getIngestDocument().getFieldValue("rank", Integer.class));
             }
         }
     }
 
     public void testGeoIpStats() throws IOException {
-        GeoIpStatsResponse response = execute(new MainRequest(), highLevelClient().ingest()::geoIpStats,
-            highLevelClient().ingest()::geoIpStatsAsync);
+        GeoIpStatsResponse response = execute(
+            new MainRequest(),
+            highLevelClient().ingest()::geoIpStats,
+            highLevelClient().ingest()::geoIpStatsAsync
+        );
         assertEquals(0, response.getDatabasesCount());
         assertEquals(0, response.getSkippedDownloads());
         assertEquals(0, response.getSuccessfulDownloads());

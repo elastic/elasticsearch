@@ -8,8 +8,8 @@
 
 package org.elasticsearch.index.search;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -41,7 +41,7 @@ public final class QueryParserHelper {
             float boost = 1.0f;
             if (boostIndex != -1) {
                 fieldName = field.substring(0, boostIndex);
-                boost = Float.parseFloat(field.substring(boostIndex+1));
+                boost = Float.parseFloat(field.substring(boostIndex + 1));
             } else {
                 fieldName = field;
             }
@@ -54,8 +54,7 @@ public final class QueryParserHelper {
         return fieldsAndWeights;
     }
 
-    public static Map<String, Float> resolveMappingFields(SearchExecutionContext context,
-                                                          Map<String, Float> fieldsAndWeights) {
+    public static Map<String, Float> resolveMappingFields(SearchExecutionContext context, Map<String, Float> fieldsAndWeights) {
         return resolveMappingFields(context, fieldsAndWeights, null);
     }
 
@@ -68,9 +67,11 @@ public final class QueryParserHelper {
      *                    The original name of the field is kept if adding the suffix to the field name does not point to a valid field
      *                    in the mapping.
      */
-    static Map<String, Float> resolveMappingFields(SearchExecutionContext context,
-                                                   Map<String, Float> fieldsAndWeights,
-                                                   String fieldSuffix) {
+    static Map<String, Float> resolveMappingFields(
+        SearchExecutionContext context,
+        Map<String, Float> fieldsAndWeights,
+        String fieldSuffix
+    ) {
         Map<String, Float> resolvedFields = new HashMap<>();
         for (Map.Entry<String, Float> fieldEntry : fieldsAndWeights.entrySet()) {
             boolean allField = Regex.isMatchAllPattern(fieldEntry.getKey());
@@ -110,8 +111,14 @@ public final class QueryParserHelper {
      *                    The original name of the field is kept if adding the suffix to the field name does not point to a valid field
      *                    in the mapping.
      */
-    static Map<String, Float> resolveMappingField(SearchExecutionContext context, String fieldOrPattern, float weight,
-                                                  boolean acceptAllTypes, boolean acceptMetadataField, String fieldSuffix) {
+    static Map<String, Float> resolveMappingField(
+        SearchExecutionContext context,
+        String fieldOrPattern,
+        float weight,
+        boolean acceptAllTypes,
+        boolean acceptMetadataField,
+        String fieldSuffix
+    ) {
         Set<String> allFields = context.getMatchingFieldNames(fieldOrPattern);
         Map<String, Float> fields = new HashMap<>();
 

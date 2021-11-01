@@ -21,8 +21,7 @@ import static org.elasticsearch.xcontent.XContentParser.Token.START_OBJECT;
 
 public final class XContentFilterKeysUtils {
 
-    private XContentFilterKeysUtils() {
-    }
+    private XContentFilterKeysUtils() {}
 
     public static Map<String, Object> filterMapOrdered(Set<String> keys, XContentParser parser) throws IOException {
         try {

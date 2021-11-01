@@ -30,21 +30,36 @@ import org.elasticsearch.xpack.ilm.OperationModeUpdateTask;
 public class TransportStopILMAction extends AcknowledgedTransportMasterNodeAction<StopILMRequest> {
 
     @Inject
-    public TransportStopILMAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                  ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(StopILMAction.NAME, transportService, clusterService, threadPool, actionFilters, StopILMRequest::new,
-            indexNameExpressionResolver, ThreadPool.Names.SAME);
+    public TransportStopILMAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            StopILMAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            StopILMRequest::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
+        );
     }
 
     @Override
     protected void masterOperation(Task task, StopILMRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
-        clusterService.submitStateUpdateTask("ilm_operation_mode_update",
+        clusterService.submitStateUpdateTask(
+            "ilm_operation_mode_update",
             new AckedClusterStateUpdateTask(Priority.IMMEDIATE, request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return (OperationModeUpdateTask.ilmMode(OperationMode.STOPPING)).execute(currentState);
                 }
-            });
+            }
+        );
     }
 
     @Override

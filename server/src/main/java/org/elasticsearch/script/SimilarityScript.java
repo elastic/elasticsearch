@@ -20,13 +20,18 @@ public abstract class SimilarityScript {
      * @param term   term-level statistics
      * @param doc    per-document statistics
      */
-    public abstract double execute(double weight, ScriptedSimilarity.Query query,
-            ScriptedSimilarity.Field field, ScriptedSimilarity.Term term, ScriptedSimilarity.Doc doc);
+    public abstract double execute(
+        double weight,
+        ScriptedSimilarity.Query query,
+        ScriptedSimilarity.Field field,
+        ScriptedSimilarity.Term term,
+        ScriptedSimilarity.Doc doc
+    );
 
     public interface Factory extends ScriptFactory {
         SimilarityScript newInstance();
     }
 
-    public static final String[] PARAMETERS = new String[] {"weight", "query", "field", "term", "doc"};
+    public static final String[] PARAMETERS = new String[] { "weight", "query", "field", "term", "doc" };
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("similarity", Factory.class);
 }

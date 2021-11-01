@@ -24,6 +24,7 @@ import java.util.stream.Stream;
 /**
  * Cleans up ML resources created during tests
  */
+@SuppressWarnings("removal")
 public class MlTestStateCleaner {
 
     private final Logger logger;
@@ -50,16 +51,19 @@ public class MlTestStateCleaner {
 
     @SuppressWarnings("unchecked")
     private void deleteAllTrainedModelIngestPipelines() throws IOException {
-        Set<String> pipelinesWithModels = client.machineLearning().getTrainedModelsStats(
-            new GetTrainedModelsStatsRequest("_all").setPageParams(new PageParams(0, 10_000)), RequestOptions.DEFAULT
-        ).getTrainedModelStats()
+        Set<String> pipelinesWithModels = client.machineLearning()
+            .getTrainedModelsStats(
+                new GetTrainedModelsStatsRequest("_all").setPageParams(new PageParams(0, 10_000)),
+                RequestOptions.DEFAULT
+            )
+            .getTrainedModelStats()
             .stream()
             .flatMap(stats -> {
                 Map<String, Object> ingestStats = stats.getIngestStats();
                 if (ingestStats == null || ingestStats.isEmpty()) {
                     return Stream.empty();
                 }
-                Map<String, Object> pipelines = (Map<String, Object>)ingestStats.get("pipelines");
+                Map<String, Object> pipelines = (Map<String, Object>) ingestStats.get("pipelines");
                 if (pipelines == null || pipelines.isEmpty()) {
                     return Stream.empty();
                 }

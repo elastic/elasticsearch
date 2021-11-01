@@ -11,8 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
 /**
@@ -29,8 +29,11 @@ public abstract class AckedClusterStateUpdateTask extends ClusterStateUpdateTask
     }
 
     @SuppressWarnings("unchecked")
-    protected AckedClusterStateUpdateTask(Priority priority, AckedRequest request,
-                                          ActionListener<? extends AcknowledgedResponse> listener) {
+    protected AckedClusterStateUpdateTask(
+        Priority priority,
+        AckedRequest request,
+        ActionListener<? extends AcknowledgedResponse> listener
+    ) {
         super(priority, request.masterNodeTimeout());
         this.listener = (ActionListener<AcknowledgedResponse>) listener;
         this.request = request;

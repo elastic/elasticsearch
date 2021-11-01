@@ -19,8 +19,13 @@ public class StratifiedTrainTestSplitter extends AbstractReservoirTrainTestSplit
 
     private final Map<String, SampleInfo> classSamples;
 
-    public StratifiedTrainTestSplitter(List<String> fieldNames, String dependentVariable, Map<String, Long> classCounts,
-                                       double trainingPercent, long randomizeSeed) {
+    public StratifiedTrainTestSplitter(
+        List<String> fieldNames,
+        String dependentVariable,
+        Map<String, Long> classCounts,
+        double trainingPercent,
+        long randomizeSeed
+    ) {
         super(fieldNames, dependentVariable, trainingPercent, randomizeSeed);
         this.classSamples = new HashMap<>();
         classCounts.entrySet().forEach(entry -> classSamples.put(entry.getKey(), new SampleInfo(entry.getValue())));

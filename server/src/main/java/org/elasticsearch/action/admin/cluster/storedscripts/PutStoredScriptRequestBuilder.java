@@ -14,8 +14,10 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xcontent.XContentType;
 
-public class PutStoredScriptRequestBuilder extends AcknowledgedRequestBuilder<PutStoredScriptRequest,
-    AcknowledgedResponse, PutStoredScriptRequestBuilder> {
+public class PutStoredScriptRequestBuilder extends AcknowledgedRequestBuilder<
+    PutStoredScriptRequest,
+    AcknowledgedResponse,
+    PutStoredScriptRequestBuilder> {
 
     public PutStoredScriptRequestBuilder(ElasticsearchClient client, PutStoredScriptAction action) {
         super(client, action, new PutStoredScriptRequest());

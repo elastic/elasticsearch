@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.unsignedlong;
 
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.ArrayUtil;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.field.DocValuesField;
 
 import java.io.IOException;
@@ -16,17 +17,23 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.PrimitiveIterator;
 
 import static org.elasticsearch.search.DocValueFormat.MASK_2_63;
 import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.BIGINTEGER_2_64_MINUS_ONE;
 
-public class UnsignedLongDocValuesField implements UnsignedLongField, DocValuesField {
+public class UnsignedLongDocValuesField implements UnsignedLongField, DocValuesField<Long> {
 
     private final SortedNumericDocValues input;
-    private long[] values = new long[0];
-    private int count;
-
     private final String name;
+
+    private long[] values = new long[0];
+    private int count = 0;
+
+    // used for backwards compatibility for old-style "doc" access
+    // as a delegate to this field class
+    private UnsignedLongScriptDocValues unsignedLongScriptDocValues = null;
 
     public UnsignedLongDocValuesField(SortedNumericDocValues input, String name) {
         this.input = input;
@@ -45,9 +52,18 @@ public class UnsignedLongDocValuesField implements UnsignedLongField, DocValuesF
         }
     }
 
-    protected void resize(int newSize) {
+    private void resize(int newSize) {
         count = newSize;
         values = ArrayUtil.grow(values, count);
+    }
+
+    @Override
+    public ScriptDocValues<?> getScriptDocValues() {
+        if (unsignedLongScriptDocValues == null) {
+            unsignedLongScriptDocValues = new UnsignedLongScriptDocValues(this);
+        }
+
+        return unsignedLongScriptDocValues;
     }
 
     @Override
@@ -102,12 +118,38 @@ public class UnsignedLongDocValuesField implements UnsignedLongField, DocValuesF
         return toFormatted(index);
     }
 
+    @Override
+    public PrimitiveIterator.OfLong iterator() {
+        return new PrimitiveIterator.OfLong() {
+            private int index = 0;
+
+            @Override
+            public boolean hasNext() {
+                return index < count;
+            }
+
+            @Override
+            public Long next() {
+                return nextLong();
+            }
+
+            @Override
+            public long nextLong() {
+                if (hasNext() == false) {
+                    throw new NoSuchElementException();
+                }
+
+                return toFormatted(index++);
+            }
+        };
+    }
+
     protected BigInteger toBigInteger(int index) {
         return BigInteger.valueOf(toFormatted(index)).and(BIGINTEGER_2_64_MINUS_ONE);
     }
 
     @Override
-    public List<BigInteger> getBigIntegers() {
+    public List<BigInteger> asBigIntegers() {
         if (isEmpty()) {
             return Collections.emptyList();
         }
@@ -122,12 +164,12 @@ public class UnsignedLongDocValuesField implements UnsignedLongField, DocValuesF
     }
 
     @Override
-    public BigInteger getBigInteger(BigInteger defaultValue) {
-        return getBigInteger(0, defaultValue);
+    public BigInteger asBigInteger(BigInteger defaultValue) {
+        return asBigInteger(0, defaultValue);
     }
 
     @Override
-    public BigInteger getBigInteger(int index, BigInteger defaultValue) {
+    public BigInteger asBigInteger(int index, BigInteger defaultValue) {
         if (isEmpty() || index < 0 || index >= count) {
             return defaultValue;
         }

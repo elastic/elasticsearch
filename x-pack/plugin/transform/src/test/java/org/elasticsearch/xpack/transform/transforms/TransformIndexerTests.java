@@ -248,11 +248,7 @@ public class TransformIndexerTests extends ESTestCase {
             --numberOfLoops;
             // pretend that we processed 10k documents for each call
             getStats().incrementNumDocuments(10_000);
-            return new IterationResult<>(
-                Stream.of(new IndexRequest()),
-                new TransformIndexerPosition(null, null),
-                numberOfLoops == 0
-            );
+            return new IterationResult<>(Stream.of(new IndexRequest()), new TransformIndexerPosition(null, null), numberOfLoops == 0);
         }
 
         @Override

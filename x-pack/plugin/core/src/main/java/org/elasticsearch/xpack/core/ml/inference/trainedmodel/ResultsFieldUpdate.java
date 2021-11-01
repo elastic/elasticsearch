@@ -42,13 +42,10 @@ public class ResultsFieldUpdate implements InferenceConfigUpdate {
             return update.apply(originalConfig);
         } else {
             throw ExceptionsHelper.badRequestException(
-                "Inference config of unknown type [{}] can not be updated", originalConfig.getName());
+                "Inference config of unknown type [{}] can not be updated",
+                originalConfig.getName()
+            );
         }
-    }
-
-    @Override
-    public InferenceConfig toConfig() {
-        return new RegressionConfig(resultsField);
     }
 
     @Override

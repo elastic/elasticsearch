@@ -47,8 +47,10 @@ public class SearchLookup {
      * Create the top level field lookup for a search request. Provides a way to look up fields from  doc_values,
      * stored fields, or _source.
      */
-    public SearchLookup(Function<String, MappedFieldType> fieldTypeLookup,
-                        BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup) {
+    public SearchLookup(
+        Function<String, MappedFieldType> fieldTypeLookup,
+        BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup
+    ) {
         this.fieldTypeLookup = fieldTypeLookup;
         this.fieldChain = Collections.emptySet();
         this.sourceLookup = new SourceLookup();
@@ -91,10 +93,12 @@ public class SearchLookup {
     }
 
     public LeafSearchLookup getLeafSearchLookup(LeafReaderContext context) {
-        return new LeafSearchLookup(context,
-                new LeafDocLookup(fieldTypeLookup, this::getForField, context),
-                sourceLookup,
-                new LeafStoredFieldsLookup(fieldTypeLookup, (doc, visitor) -> context.reader().document(doc, visitor)));
+        return new LeafSearchLookup(
+            context,
+            new LeafDocLookup(fieldTypeLookup, this::getForField, context),
+            sourceLookup,
+            new LeafStoredFieldsLookup(fieldTypeLookup, (doc, visitor) -> context.reader().document(doc, visitor))
+        );
     }
 
     public MappedFieldType fieldType(String fieldName) {

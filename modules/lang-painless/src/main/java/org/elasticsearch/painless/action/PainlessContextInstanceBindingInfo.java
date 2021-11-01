@@ -8,17 +8,17 @@
 
 package org.elasticsearch.painless.action;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -35,14 +35,8 @@ public class PainlessContextInstanceBindingInfo implements Writeable, ToXContent
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<PainlessContextInstanceBindingInfo, Void> PARSER = new ConstructingObjectParser<>(
-            PainlessContextInstanceBindingInfo.class.getCanonicalName(),
-            (v) ->
-                    new PainlessContextInstanceBindingInfo(
-                            (String)v[0],
-                            (String)v[1],
-                            (String)v[2],
-                            (List<String>)v[3]
-                    )
+        PainlessContextInstanceBindingInfo.class.getCanonicalName(),
+        (v) -> new PainlessContextInstanceBindingInfo((String) v[0], (String) v[1], (String) v[2], (List<String>) v[3])
     );
 
     static {
@@ -59,10 +53,10 @@ public class PainlessContextInstanceBindingInfo implements Writeable, ToXContent
 
     public PainlessContextInstanceBindingInfo(PainlessInstanceBinding painlessInstanceBinding) {
         this(
-                painlessInstanceBinding.javaMethod.getDeclaringClass().getName(),
-                painlessInstanceBinding.javaMethod.getName(),
-                painlessInstanceBinding.returnType.getName(),
-                painlessInstanceBinding.typeParameters.stream().map(Class::getName).collect(Collectors.toList())
+            painlessInstanceBinding.javaMethod.getDeclaringClass().getName(),
+            painlessInstanceBinding.javaMethod.getName(),
+            painlessInstanceBinding.returnType.getName(),
+            painlessInstanceBinding.typeParameters.stream().map(Class::getName).collect(Collectors.toList())
 
         );
     }
@@ -114,10 +108,10 @@ public class PainlessContextInstanceBindingInfo implements Writeable, ToXContent
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PainlessContextInstanceBindingInfo that = (PainlessContextInstanceBindingInfo) o;
-        return Objects.equals(declaring, that.declaring) &&
-                Objects.equals(name, that.name) &&
-                Objects.equals(rtn, that.rtn) &&
-                Objects.equals(parameters, that.parameters);
+        return Objects.equals(declaring, that.declaring)
+            && Objects.equals(name, that.name)
+            && Objects.equals(rtn, that.rtn)
+            && Objects.equals(parameters, that.parameters);
     }
 
     @Override
@@ -127,12 +121,19 @@ public class PainlessContextInstanceBindingInfo implements Writeable, ToXContent
 
     @Override
     public String toString() {
-        return "PainlessContextInstanceBindingInfo{" +
-                "declaring='" + declaring + '\'' +
-                ", name='" + name + '\'' +
-                ", rtn='" + rtn + '\'' +
-                ", parameters=" + parameters +
-                '}';
+        return "PainlessContextInstanceBindingInfo{"
+            + "declaring='"
+            + declaring
+            + '\''
+            + ", name='"
+            + name
+            + '\''
+            + ", rtn='"
+            + rtn
+            + '\''
+            + ", parameters="
+            + parameters
+            + '}';
     }
 
     public String getDeclaring() {

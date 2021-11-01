@@ -7,12 +7,11 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
-import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.NlpClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
@@ -26,7 +25,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
-import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_TOP_CLASSES_RESULTS_FIELD;
 
 public class TextClassificationProcessor implements NlpTask.Processor {
 
@@ -65,9 +63,9 @@ public class TextClassificationProcessor implements NlpTask.Processor {
             return (tokenization, pytorchResult) -> processResult(
                 tokenization,
                 pytorchResult,
-                textClassificationConfig.getNumTopClasses() < 0 ?
-                    textClassificationConfig.getClassificationLabels().size() :
-                    textClassificationConfig.getNumTopClasses(),
+                textClassificationConfig.getNumTopClasses() < 0
+                    ? textClassificationConfig.getClassificationLabels().size()
+                    : textClassificationConfig.getNumTopClasses(),
                 textClassificationConfig.getClassificationLabels(),
                 textClassificationConfig.getResultsField()
             );
@@ -109,20 +107,15 @@ public class TextClassificationProcessor implements NlpTask.Processor {
             .mapToInt(i -> i)
             .toArray();
 
-        return new ClassificationInferenceResults(
-            sortedIndices[0],
+        return new NlpClassificationInferenceResults(
             labels.get(sortedIndices[0]),
             Arrays.stream(sortedIndices)
                 .mapToObj(i -> new TopClassEntry(labels.get(i), normalizedScores[i]))
                 .limit(numTopClasses)
                 .collect(Collectors.toList()),
-            List.of(),
-            DEFAULT_TOP_CLASSES_RESULTS_FIELD,
             Optional.ofNullable(resultsField).orElse(DEFAULT_RESULTS_FIELD),
-            PredictionFieldType.STRING,
-            0,
             normalizedScores[sortedIndices[0]],
-            null
+            tokenization.anyTruncated()
         );
     }
 }

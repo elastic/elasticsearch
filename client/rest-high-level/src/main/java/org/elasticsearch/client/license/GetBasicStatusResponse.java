@@ -8,9 +8,9 @@
 
 package org.elasticsearch.client.license;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.Objects;
@@ -25,11 +25,18 @@ public class GetBasicStatusResponse {
     private static final ParseField ELIGIBLE_TO_START_BASIC = new ParseField("eligible_to_start_basic");
 
     private static final ConstructingObjectParser<GetBasicStatusResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "get_basic_status_response", true, a -> new GetBasicStatusResponse((boolean) a[0]));
+        "get_basic_status_response",
+        true,
+        a -> new GetBasicStatusResponse((boolean) a[0])
+    );
 
     static {
-        PARSER.declareField(constructorArg(), (parser, context) -> parser.booleanValue(), ELIGIBLE_TO_START_BASIC,
-            ObjectParser.ValueType.BOOLEAN);
+        PARSER.declareField(
+            constructorArg(),
+            (parser, context) -> parser.booleanValue(),
+            ELIGIBLE_TO_START_BASIC,
+            ObjectParser.ValueType.BOOLEAN
+        );
     }
 
     private final boolean eligibleToStartBasic;

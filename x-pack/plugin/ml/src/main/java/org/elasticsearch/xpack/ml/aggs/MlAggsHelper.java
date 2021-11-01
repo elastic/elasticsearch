@@ -21,12 +21,10 @@ import java.util.Optional;
 
 public final class MlAggsHelper {
 
-    private MlAggsHelper() { }
+    private MlAggsHelper() {}
 
     public static InvalidAggregationPathException invalidPathException(List<String> path, String aggType, String aggName) {
-        return new InvalidAggregationPathException(
-            "unknown property " + path + " for " + aggType + " aggregation [" + aggName + "]"
-        );
+        return new InvalidAggregationPathException("unknown property " + path + " for " + aggType + " aggregation [" + aggName + "]");
     }
 
     /**
@@ -65,10 +63,12 @@ public final class MlAggsHelper {
                     values.add(bucketValue);
                     docCounts.add(bucket.getDocCount());
                 }
-                return Optional.of(new DoubleBucketValues(
-                    docCounts.stream().mapToLong(Long::longValue).toArray(),
-                    values.stream().mapToDouble(Double::doubleValue).toArray()
-                ));
+                return Optional.of(
+                    new DoubleBucketValues(
+                        docCounts.stream().mapToLong(Long::longValue).toArray(),
+                        values.stream().mapToDouble(Double::doubleValue).toArray()
+                    )
+                );
             }
         }
         return Optional.empty();

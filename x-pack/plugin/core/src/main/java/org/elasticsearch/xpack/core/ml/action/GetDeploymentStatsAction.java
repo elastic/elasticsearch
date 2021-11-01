@@ -18,14 +18,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
-import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationState;
+import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingStateAndReason;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -105,9 +105,9 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(deploymentId, request.deploymentId) &&
-                this.allowNoMatch == request.allowNoMatch &&
-                Objects.equals(expandedIds, request.expandedIds);
+            return Objects.equals(deploymentId, request.deploymentId)
+                && this.allowNoMatch == request.allowNoMatch
+                && Objects.equals(expandedIds, request.expandedIds);
         }
 
         @Override
@@ -115,7 +115,6 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
             return Objects.hash(deploymentId, allowNoMatch, expandedIds);
         }
     }
-
 
     public static class Response extends BaseTasksResponse implements ToXContentObject {
 
@@ -128,32 +127,43 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                 private final Long inferenceCount;
                 private final Double avgInferenceTime;
                 private final Instant lastAccess;
+                private final Integer pendingCount;
                 private final RoutingStateAndReason routingState;
 
-                public static NodeStats forStartedState(DiscoveryNode node,
-                                                 long inferenceCount,
-                                                 double avgInferenceTime,
-                                                 Instant lastAccess) {
-                    return new NodeStats(node, inferenceCount, avgInferenceTime, lastAccess,
-                        new RoutingStateAndReason(RoutingState.STARTED, null));
+                public static NodeStats forStartedState(
+                    DiscoveryNode node,
+                    long inferenceCount,
+                    Double avgInferenceTime,
+                    int pendingCount,
+                    Instant lastAccess
+                ) {
+                    return new NodeStats(
+                        node,
+                        inferenceCount,
+                        avgInferenceTime,
+                        lastAccess,
+                        pendingCount,
+                        new RoutingStateAndReason(RoutingState.STARTED, null)
+                    );
                 }
 
-                public static NodeStats forNotStartedState(DiscoveryNode node,
-                                                           RoutingState state,
-                                                           String reason) {
-                    return new NodeStats(node, null, null, null,
-                        new RoutingStateAndReason(state, reason));
+                public static NodeStats forNotStartedState(DiscoveryNode node, RoutingState state, String reason) {
+                    return new NodeStats(node, null, null, null, null, new RoutingStateAndReason(state, reason));
                 }
 
-                private NodeStats(DiscoveryNode node,
-                                 Long inferenceCount,
-                                 Double avgInferenceTime,
-                                 Instant lastAccess,
-                                 RoutingStateAndReason routingState) {
+                private NodeStats(
+                    DiscoveryNode node,
+                    Long inferenceCount,
+                    Double avgInferenceTime,
+                    Instant lastAccess,
+                    Integer pendingCount,
+                    RoutingStateAndReason routingState
+                ) {
                     this.node = node;
                     this.inferenceCount = inferenceCount;
                     this.avgInferenceTime = avgInferenceTime;
                     this.lastAccess = lastAccess;
+                    this.pendingCount = pendingCount;
                     this.routingState = routingState;
 
                     // if lastAccess time is null there have been no inferences
@@ -165,6 +175,7 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                     this.inferenceCount = in.readOptionalLong();
                     this.avgInferenceTime = in.readOptionalDouble();
                     this.lastAccess = in.readOptionalInstant();
+                    this.pendingCount = in.readOptionalVInt();
                     this.routingState = in.readOptionalWriteable(RoutingStateAndReason::new);
                 }
 
@@ -194,6 +205,9 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                     if (lastAccess != null) {
                         builder.timeField("last_access", "last_access_string", lastAccess.toEpochMilli());
                     }
+                    if (pendingCount != null) {
+                        builder.field("number_of_pending_requests", pendingCount);
+                    }
                     builder.endObject();
                     return builder;
                 }
@@ -204,6 +218,7 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                     out.writeOptionalLong(inferenceCount);
                     out.writeOptionalDouble(avgInferenceTime);
                     out.writeOptionalInstant(lastAccess);
+                    out.writeOptionalVInt(pendingCount);
                     out.writeOptionalWriteable(routingState);
                 }
 
@@ -212,27 +227,32 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                     if (this == o) return true;
                     if (o == null || getClass() != o.getClass()) return false;
                     NodeStats that = (NodeStats) o;
-                    return Objects.equals(inferenceCount, that.inferenceCount) &&
-                        Objects.equals(that.avgInferenceTime, avgInferenceTime) &&
-                        Objects.equals(node, that.node) &&
-                        Objects.equals(lastAccess, that.lastAccess) &&
-                        Objects.equals(routingState, that.routingState);
+                    return Objects.equals(inferenceCount, that.inferenceCount)
+                        && Objects.equals(that.avgInferenceTime, avgInferenceTime)
+                        && Objects.equals(node, that.node)
+                        && Objects.equals(lastAccess, that.lastAccess)
+                        && Objects.equals(pendingCount, that.pendingCount)
+                        && Objects.equals(routingState, that.routingState);
                 }
 
                 @Override
                 public int hashCode() {
-                    return Objects.hash(node, inferenceCount, avgInferenceTime, lastAccess, routingState);
+                    return Objects.hash(node, inferenceCount, avgInferenceTime, lastAccess, pendingCount, routingState);
                 }
             }
-
 
             private final String modelId;
             private AllocationState state;
             private AllocationStatus allocationStatus;
             private String reason;
-            @Nullable private final ByteSizeValue modelSize;
-            @Nullable private final Integer inferenceThreads;
-            @Nullable private final Integer modelThreads;
+            @Nullable
+            private final ByteSizeValue modelSize;
+            @Nullable
+            private final Integer inferenceThreads;
+            @Nullable
+            private final Integer modelThreads;
+            @Nullable
+            private final Integer queueCapacity;
             private final List<NodeStats> nodeStats;
 
             public AllocationStats(
@@ -240,12 +260,14 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                 @Nullable ByteSizeValue modelSize,
                 @Nullable Integer inferenceThreads,
                 @Nullable Integer modelThreads,
+                @Nullable Integer queueCapacity,
                 List<NodeStats> nodeStats
             ) {
                 this.modelId = modelId;
                 this.modelSize = modelSize;
                 this.inferenceThreads = inferenceThreads;
                 this.modelThreads = modelThreads;
+                this.queueCapacity = queueCapacity;
                 this.nodeStats = nodeStats;
                 this.state = null;
                 this.reason = null;
@@ -256,6 +278,7 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                 modelSize = in.readOptionalWriteable(ByteSizeValue::new);
                 inferenceThreads = in.readOptionalVInt();
                 modelThreads = in.readOptionalVInt();
+                queueCapacity = in.readOptionalVInt();
                 nodeStats = in.readList(NodeStats::new);
                 state = in.readOptionalEnum(AllocationState.class);
                 reason = in.readOptionalString();
@@ -278,6 +301,11 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
             @Nullable
             public Integer getModelThreads() {
                 return modelThreads;
+            }
+
+            @Nullable
+            public Integer getQueueCapacity() {
+                return queueCapacity;
             }
 
             public List<NodeStats> getNodeStats() {
@@ -320,6 +348,9 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                 if (modelThreads != null) {
                     builder.field(StartTrainedModelDeploymentAction.TaskParams.MODEL_THREADS.getPreferredName(), modelThreads);
                 }
+                if (queueCapacity != null) {
+                    builder.field(StartTrainedModelDeploymentAction.TaskParams.QUEUE_CAPACITY.getPreferredName(), queueCapacity);
+                }
                 if (state != null) {
                     builder.field("state", state);
                 }
@@ -330,7 +361,7 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                     builder.field("allocation_status", allocationStatus);
                 }
                 builder.startArray("nodes");
-                for (NodeStats nodeStat : nodeStats){
+                for (NodeStats nodeStat : nodeStats) {
                     nodeStat.toXContent(builder, params);
                 }
                 builder.endArray();
@@ -344,6 +375,7 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                 out.writeOptionalWriteable(modelSize);
                 out.writeOptionalVInt(inferenceThreads);
                 out.writeOptionalVInt(modelThreads);
+                out.writeOptionalVInt(queueCapacity);
                 out.writeList(nodeStats);
                 out.writeOptionalEnum(state);
                 out.writeOptionalString(reason);
@@ -355,26 +387,41 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                 if (this == o) return true;
                 if (o == null || getClass() != o.getClass()) return false;
                 AllocationStats that = (AllocationStats) o;
-                return Objects.equals(modelId, that.modelId) &&
-                    Objects.equals(modelSize, that.modelSize) &&
-                    Objects.equals(inferenceThreads, that.inferenceThreads) &&
-                    Objects.equals(modelThreads, that.modelThreads) &&
-                    Objects.equals(state, that.state) &&
-                    Objects.equals(reason, that.reason) &&
-                    Objects.equals(allocationStatus, that.allocationStatus) &&
-                    Objects.equals(nodeStats, that.nodeStats);
+                return Objects.equals(modelId, that.modelId)
+                    && Objects.equals(modelSize, that.modelSize)
+                    && Objects.equals(inferenceThreads, that.inferenceThreads)
+                    && Objects.equals(modelThreads, that.modelThreads)
+                    && Objects.equals(queueCapacity, that.queueCapacity)
+                    && Objects.equals(state, that.state)
+                    && Objects.equals(reason, that.reason)
+                    && Objects.equals(allocationStatus, that.allocationStatus)
+                    && Objects.equals(nodeStats, that.nodeStats);
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(modelId, modelSize, inferenceThreads, modelThreads, nodeStats, state, reason, allocationStatus);
+                return Objects.hash(
+                    modelId,
+                    modelSize,
+                    inferenceThreads,
+                    modelThreads,
+                    queueCapacity,
+                    nodeStats,
+                    state,
+                    reason,
+                    allocationStatus
+                );
             }
         }
 
         private final QueryPage<AllocationStats> stats;
 
-        public Response(List<TaskOperationFailure> taskFailures, List<? extends ElasticsearchException> nodeFailures,
-                        List<AllocationStats> stats, long count) {
+        public Response(
+            List<TaskOperationFailure> taskFailures,
+            List<? extends ElasticsearchException> nodeFailures,
+            List<AllocationStats> stats,
+            long count
+        ) {
             super(taskFailures, nodeFailures);
             this.stats = new QueryPage<>(stats, count, DEPLOYMENT_STATS);
         }
@@ -456,7 +503,9 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                                 GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forNotStartedState(
                                     nodeStat.getNode(),
                                     stateAndReason.getState(),
-                                    stateAndReason.getReason()));
+                                    stateAndReason.getReason()
+                                )
+                            );
                         } else {
                             updatedNodeStats.add(nodeStat);
                         }
@@ -471,7 +520,9 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                                 GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forNotStartedState(
                                     nodes.get(nodeRoutingState.getKey()),
                                     nodeRoutingState.getValue().getState(),
-                                    nodeRoutingState.getValue().getReason()));
+                                    nodeRoutingState.getValue().getReason()
+                                )
+                            );
                         }
                     }
 
@@ -482,6 +533,7 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
                             stat.getModelSize(),
                             stat.getInferenceThreads(),
                             stat.getModelThreads(),
+                            stat.getQueueCapacity(),
                             updatedNodeStats
                         )
                     );
@@ -493,34 +545,37 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
             // Merge any models in the non-started that were not in the task responses
             for (var nonStartedEntries : nonStartedModelRoutes.entrySet()) {
                 String modelId = nonStartedEntries.getKey();
-                if (tasksResponse.getStats().results()
-                    .stream()
-                    .anyMatch(e -> modelId.equals(e.getModelId())) == false) {
+                if (tasksResponse.getStats().results().stream().anyMatch(e -> modelId.equals(e.getModelId())) == false) {
 
                     // no tasks for this model so build the allocation stats from the non-started states
                     List<GetDeploymentStatsAction.Response.AllocationStats.NodeStats> nodeStats = new ArrayList<>();
 
                     for (var routingEntry : nonStartedEntries.getValue().entrySet()) {
-                            nodeStats.add(AllocationStats.NodeStats.forNotStartedState(
+                        nodeStats.add(
+                            AllocationStats.NodeStats.forNotStartedState(
                                 nodes.get(routingEntry.getKey()),
                                 routingEntry.getValue().getState(),
-                                routingEntry.getValue().getReason()));
+                                routingEntry.getValue().getReason()
+                            )
+                        );
                     }
 
                     nodeStats.sort(Comparator.comparing(n -> n.getNode().getId()));
 
-                    updatedAllocationStats.add(new GetDeploymentStatsAction.Response.AllocationStats(
-                        modelId, null, null, null, nodeStats)
+                    updatedAllocationStats.add(
+                        new GetDeploymentStatsAction.Response.AllocationStats(modelId, null, null, null, null, nodeStats)
                     );
                 }
             }
 
             updatedAllocationStats.sort(Comparator.comparing(GetDeploymentStatsAction.Response.AllocationStats::getModelId));
 
-            return new GetDeploymentStatsAction.Response(tasksResponse.getTaskFailures(),
+            return new GetDeploymentStatsAction.Response(
+                tasksResponse.getTaskFailures(),
                 tasksResponse.getNodeFailures(),
                 updatedAllocationStats,
-                updatedAllocationStats.size());
+                updatedAllocationStats.size()
+            );
         }
     }
 }

@@ -9,6 +9,7 @@
 package org.elasticsearch.index.query;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.Query;
@@ -26,9 +27,7 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
 
     @Override
     protected SpanTermQueryBuilder doCreateTestQueryBuilder() {
-        String fieldName = randomFrom(TEXT_FIELD_NAME,
-            TEXT_ALIAS_FIELD_NAME,
-            randomAlphaOfLengthBetween(1, 10));
+        String fieldName = randomFrom(TEXT_FIELD_NAME, TEXT_ALIAS_FIELD_NAME, randomAlphaOfLengthBetween(1, 10));
 
         Object value;
         if (frequently()) {
@@ -91,32 +90,32 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
     }
 
     public void testParseFailsWithMultipleFields() throws IOException {
-        String json = "{\n" +
-                "  \"span_term\" : {\n" +
-                "    \"message1\" : {\n" +
-                "      \"term\" : \"this\"\n" +
-                "    },\n" +
-                "    \"message2\" : {\n" +
-                "      \"term\" : \"this\"\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
+        String json = "{\n"
+            + "  \"span_term\" : {\n"
+            + "    \"message1\" : {\n"
+            + "      \"term\" : \"this\"\n"
+            + "    },\n"
+            + "    \"message2\" : {\n"
+            + "      \"term\" : \"this\"\n"
+            + "    }\n"
+            + "  }\n"
+            + "}";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertEquals("[span_term] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
 
-        String shortJson = "{\n" +
-                "  \"span_term\" : {\n" +
-                "    \"message1\" : \"this\",\n" +
-                "    \"message2\" : \"this\"\n" +
-                "  }\n" +
-                "}";
+        String shortJson = "{\n"
+            + "  \"span_term\" : {\n"
+            + "    \"message1\" : \"this\",\n"
+            + "    \"message2\" : \"this\"\n"
+            + "  }\n"
+            + "}";
         e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
         assertEquals("[span_term] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
     }
 
     public void testWithMetadataField() throws IOException {
         SearchExecutionContext context = createSearchExecutionContext();
-        for (String field : new String[]{"field1", "field2"}) {
+        for (String field : new String[] { "field1", "field2" }) {
             SpanTermQueryBuilder spanTermQueryBuilder = new SpanTermQueryBuilder(field, "toto");
             Query query = spanTermQueryBuilder.toQuery(context);
             Query expected = new SpanTermQuery(new Term(field, "toto"));

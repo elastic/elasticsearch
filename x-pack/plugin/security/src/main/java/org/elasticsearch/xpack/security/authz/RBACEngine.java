@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.UserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
@@ -75,7 +76,6 @@ import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.sql.SqlAsyncActionNames;
-import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
@@ -100,7 +100,12 @@ import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.P
 public class RBACEngine implements AuthorizationEngine {
 
     private static final Predicate<String> SAME_USER_PRIVILEGE = StringMatcher.of(
-        ChangePasswordAction.NAME, AuthenticateAction.NAME, HasPrivilegesAction.NAME, GetUserPrivilegesAction.NAME, GetApiKeyAction.NAME);
+        ChangePasswordAction.NAME,
+        AuthenticateAction.NAME,
+        HasPrivilegesAction.NAME,
+        GetUserPrivilegesAction.NAME,
+        GetApiKeyAction.NAME
+    );
     private static final String INDEX_SUB_REQUEST_PRIMARY = IndexAction.NAME + "[p]";
     private static final String INDEX_SUB_REQUEST_REPLICA = IndexAction.NAME + "[r]";
     private static final String DELETE_SUB_REQUEST_PRIMARY = DeleteAction.NAME + "[p]";
@@ -121,9 +126,14 @@ public class RBACEngine implements AuthorizationEngine {
         final Authentication authentication = requestInfo.getAuthentication();
         getRoles(authentication.getUser(), authentication, ActionListener.wrap(role -> {
             if (authentication.getUser().isRunAs()) {
-                getRoles(authentication.getUser().authenticatedUser(), authentication, ActionListener.wrap(
-                    authenticatedUserRole -> listener.onResponse(new RBACAuthorizationInfo(role, authenticatedUserRole)),
-                    listener::onFailure));
+                getRoles(
+                    authentication.getUser().authenticatedUser(),
+                    authentication,
+                    ActionListener.wrap(
+                        authenticatedUserRole -> listener.onResponse(new RBACAuthorizationInfo(role, authenticatedUserRole)),
+                        listener::onFailure
+                    )
+                );
             } else {
                 listener.onResponse(new RBACAuthorizationInfo(role, role));
             }
@@ -138,17 +148,20 @@ public class RBACEngine implements AuthorizationEngine {
     public void authorizeRunAs(RequestInfo requestInfo, AuthorizationInfo authorizationInfo, ActionListener<AuthorizationResult> listener) {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getAuthenticatedUserAuthorizationInfo().getRole();
-            listener.onResponse(
-                new AuthorizationResult(role.checkRunAs(requestInfo.getAuthentication().getUser().principal())));
+            listener.onResponse(new AuthorizationResult(role.checkRunAs(requestInfo.getAuthentication().getUser().principal())));
         } else {
-            listener.onFailure(new IllegalArgumentException("unsupported authorization info:" +
-                authorizationInfo.getClass().getSimpleName()));
+            listener.onFailure(
+                new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName())
+            );
         }
     }
 
     @Override
-    public void authorizeClusterAction(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                                       ActionListener<AuthorizationResult> listener) {
+    public void authorizeClusterAction(
+        RequestInfo requestInfo,
+        AuthorizationInfo authorizationInfo,
+        ActionListener<AuthorizationResult> listener
+    ) {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
             if (role.checkClusterAction(requestInfo.getAction(), requestInfo.getRequest(), requestInfo.getAuthentication())) {
@@ -159,8 +172,9 @@ public class RBACEngine implements AuthorizationEngine {
                 listener.onResponse(AuthorizationResult.deny());
             }
         } else {
-            listener.onFailure(new IllegalArgumentException("unsupported authorization info:" +
-                authorizationInfo.getClass().getSimpleName()));
+            listener.onFailure(
+                new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName())
+            );
         }
     }
 
@@ -181,16 +195,17 @@ public class RBACEngine implements AuthorizationEngine {
                     return checkChangePasswordAction(authentication);
                 }
 
-                assert AuthenticateAction.NAME.equals(action) || HasPrivilegesAction.NAME.equals(action)
-                    || GetUserPrivilegesAction.NAME.equals(action) || sameUsername == false
-                    : "Action '" + action + "' should not be possible when sameUsername=" + sameUsername;
+                assert AuthenticateAction.NAME.equals(action)
+                    || HasPrivilegesAction.NAME.equals(action)
+                    || GetUserPrivilegesAction.NAME.equals(action)
+                    || sameUsername == false : "Action '" + action + "' should not be possible when sameUsername=" + sameUsername;
                 return sameUsername;
             } else if (request instanceof GetApiKeyRequest) {
                 GetApiKeyRequest getApiKeyRequest = (GetApiKeyRequest) request;
                 if (AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
                     assert authentication.getLookedUpBy() == null : "runAs not supported for api key authentication";
                     // if authenticated by API key then the request must also contain same API key id
-                    String authenticatedApiKeyId = (String) authentication.getMetadata().get(ApiKeyService.API_KEY_ID_KEY);
+                    String authenticatedApiKeyId = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
                     if (Strings.hasText(getApiKeyRequest.getApiKeyId())) {
                         return getApiKeyRequest.getApiKeyId().equals(authenticatedApiKeyId);
                     } else {
@@ -227,9 +242,14 @@ public class RBACEngine implements AuthorizationEngine {
                     return false;
                 }
                 if (request instanceof CompositeIndicesRequest == false) {
-                    throw new IllegalStateException("Composite and bulk actions must implement " +
-                        CompositeIndicesRequest.class.getSimpleName() + ", " + request.getClass().getSimpleName() + " doesn't. Action " +
-                        action);
+                    throw new IllegalStateException(
+                        "Composite and bulk actions must implement "
+                            + CompositeIndicesRequest.class.getSimpleName()
+                            + ", "
+                            + request.getClass().getSimpleName()
+                            + " doesn't. Action "
+                            + action
+                    );
                 }
                 return true;
             default:
@@ -238,10 +258,13 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     @Override
-    public void authorizeIndexAction(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                                     AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
-                                     Map<String, IndexAbstraction> aliasOrIndexLookup,
-                                     ActionListener<IndexAuthorizationResult> listener) {
+    public void authorizeIndexAction(
+        RequestInfo requestInfo,
+        AuthorizationInfo authorizationInfo,
+        AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
+        Map<String, IndexAbstraction> aliasOrIndexLookup,
+        ActionListener<IndexAuthorizationResult> listener
+    ) {
         final String action = requestInfo.getAction();
         final TransportRequest request = requestInfo.getRequest();
         if (TransportActionProxy.isProxyAction(action) || shouldAuthorizeIndexActionNameOnly(action, request)) {
@@ -269,16 +292,13 @@ public class RBACEngine implements AuthorizationEngine {
                 // index and if they cannot, we can fail the request early before we allow the execution of the action and in
                 // turn the shard actions
                 if (SearchScrollAction.NAME.equals(action)) {
-                    ActionRunnable.supply(
-                        ActionListener.wrap(parsedScrollId -> {
-                            if (parsedScrollId.hasLocalIndices()) {
-                                listener.onResponse(authorizeIndexActionName(action, authorizationInfo, null));
-                            } else {
-                                listener.onResponse(new IndexAuthorizationResult(true, null));
-                            }
-                        }, listener::onFailure),
-                        ((SearchScrollRequest) request)::parseScrollId
-                    ).run();
+                    ActionRunnable.supply(ActionListener.wrap(parsedScrollId -> {
+                        if (parsedScrollId.hasLocalIndices()) {
+                            listener.onResponse(authorizeIndexActionName(action, authorizationInfo, null));
+                        } else {
+                            listener.onResponse(new IndexAuthorizationResult(true, null));
+                        }
+                    }, listener::onFailure), ((SearchScrollRequest) request)::parseScrollId).run();
                 } else {
                     // RBACEngine simply authorizes scroll related actions without filling in any DLS/FLS permissions.
                     // Scroll related actions have special security logic, where the security context of the initial search
@@ -302,12 +322,17 @@ public class RBACEngine implements AuthorizationEngine {
                     listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
                 }
             } else if (action.equals(ClosePointInTimeAction.NAME)) {
-                    listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
+                listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
             } else {
-                assert false : "only scroll and async-search related requests are known indices api that don't " +
-                    "support retrieving the indices they relate to";
-                listener.onFailure(new IllegalStateException("only scroll and async-search related requests are known indices " +
-                    "api that don't support retrieving the indices they relate to"));
+                assert false
+                    : "only scroll and async-search related requests are known indices api that don't "
+                        + "support retrieving the indices they relate to";
+                listener.onFailure(
+                    new IllegalStateException(
+                        "only scroll and async-search related requests are known indices "
+                            + "api that don't support retrieving the indices they relate to"
+                    )
+                );
             }
         } else if (isChildActionAuthorizedByParent(requestInfo, authorizationInfo)) {
             listener.onResponse(
@@ -318,31 +343,46 @@ public class RBACEngine implements AuthorizationEngine {
             indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
                 assert resolvedIndices.isEmpty() == false
                     : "every indices request needs to have its indices set thus the resolved indices must not be empty";
-                //all wildcard expressions have been resolved and only the security plugin could have set '-*' here.
-                //'-*' matches no indices so we allow the request to go through, which will yield an empty response
+                // all wildcard expressions have been resolved and only the security plugin could have set '-*' here.
+                // '-*' matches no indices so we allow the request to go through, which will yield an empty response
                 if (resolvedIndices.isNoIndicesPlaceholder()) {
                     // check action name
                     listener.onResponse(authorizeIndexActionName(action, authorizationInfo, IndicesAccessControl.ALLOW_NO_INDICES));
                 } else {
-                    listener.onResponse(buildIndicesAccessControl(
-                        action, authorizationInfo, Sets.newHashSet(resolvedIndices.getLocal()), aliasOrIndexLookup));
+                    listener.onResponse(
+                        buildIndicesAccessControl(
+                            action,
+                            authorizationInfo,
+                            Sets.newHashSet(resolvedIndices.getLocal()),
+                            aliasOrIndexLookup
+                        )
+                    );
                 }
             }, listener::onFailure));
         } else {
             try {
-                final IndexAuthorizationResult indexAuthorizationResult =
-                        authorizeIndexActionName(action, authorizationInfo, IndicesAccessControl.ALLOW_NO_INDICES);
+                final IndexAuthorizationResult indexAuthorizationResult = authorizeIndexActionName(
+                    action,
+                    authorizationInfo,
+                    IndicesAccessControl.ALLOW_NO_INDICES
+                );
                 if (indexAuthorizationResult.isGranted()) {
                     indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
                         assert resolvedIndices.isEmpty() == false
-                                : "every indices request needs to have its indices set thus the resolved indices must not be empty";
-                        //all wildcard expressions have been resolved and only the security plugin could have set '-*' here.
-                        //'-*' matches no indices so we allow the request to go through, which will yield an empty response
+                            : "every indices request needs to have its indices set thus the resolved indices must not be empty";
+                        // all wildcard expressions have been resolved and only the security plugin could have set '-*' here.
+                        // '-*' matches no indices so we allow the request to go through, which will yield an empty response
                         if (resolvedIndices.isNoIndicesPlaceholder()) {
                             listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
                         } else {
-                            listener.onResponse(buildIndicesAccessControl(
-                                action, authorizationInfo, Sets.newHashSet(resolvedIndices.getLocal()), aliasOrIndexLookup));
+                            listener.onResponse(
+                                buildIndicesAccessControl(
+                                    action,
+                                    authorizationInfo,
+                                    Sets.newHashSet(resolvedIndices.getLocal()),
+                                    aliasOrIndexLookup
+                                )
+                            );
                         }
                     }, listener::onFailure));
                 } else {
@@ -403,11 +443,8 @@ public class RBACEngine implements AuthorizationEngine {
         }
 
         for (String idx : indices) {
-            assert Regex.isSimpleMatchPattern(idx) == false : "Wildcards should already be expanded but action ["
-                + requestInfo.getAction()
-                + "] has index ["
-                + idx
-                + "]";
+            assert Regex.isSimpleMatchPattern(idx) == false
+                : "Wildcards should already be expanded but action [" + requestInfo.getAction() + "] has index [" + idx + "]";
             IndicesAccessControl.IndexAccessControl iac = indicesAccessControl.getIndexPermissions(idx);
             // The parent context has already successfully authorized access to this index (by name)
             if (iac == null || iac.isGranted() == false) {
@@ -417,30 +454,40 @@ public class RBACEngine implements AuthorizationEngine {
         return true;
     }
 
-    private static IndexAuthorizationResult authorizeIndexActionName(String action,
-                                                                     AuthorizationInfo authorizationInfo,
-                                                                     IndicesAccessControl grantedValue) {
+    private static IndexAuthorizationResult authorizeIndexActionName(
+        String action,
+        AuthorizationInfo authorizationInfo,
+        IndicesAccessControl grantedValue
+    ) {
         final Role role = ensureRBAC(authorizationInfo).getRole();
         return new IndexAuthorizationResult(true, role.checkIndicesAction(action) ? grantedValue : IndicesAccessControl.DENIED);
 
     }
 
     @Override
-    public void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                                      Map<String, IndexAbstraction> indicesLookup, ActionListener<Set<String>> listener) {
+    public void loadAuthorizedIndices(
+        RequestInfo requestInfo,
+        AuthorizationInfo authorizationInfo,
+        Map<String, IndexAbstraction> indicesLookup,
+        ActionListener<Set<String>> listener
+    ) {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
             listener.onResponse(resolveAuthorizedIndicesFromRole(role, requestInfo, indicesLookup));
         } else {
             listener.onFailure(
-                new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName()));
+                new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName())
+            );
         }
     }
 
     @Override
-    public void validateIndexPermissionsAreSubset(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                                                  Map<String, List<String>> indexNameToNewNames,
-                                                  ActionListener<AuthorizationResult> listener) {
+    public void validateIndexPermissionsAreSubset(
+        RequestInfo requestInfo,
+        AuthorizationInfo authorizationInfo,
+        Map<String, List<String>> indexNameToNewNames,
+        ActionListener<AuthorizationResult> listener
+    ) {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
             Map<String, Automaton> permissionMap = new HashMap<>();
@@ -457,27 +504,35 @@ public class RBACEngine implements AuthorizationEngine {
             listener.onResponse(AuthorizationResult.granted());
         } else {
             listener.onFailure(
-                new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName()));
+                new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName())
+            );
         }
     }
 
     @Override
-    public void checkPrivileges(Authentication authentication, AuthorizationInfo authorizationInfo,
-                                HasPrivilegesRequest request,
-                                Collection<ApplicationPrivilegeDescriptor> applicationPrivileges,
-                                ActionListener<HasPrivilegesResponse> listener) {
+    public void checkPrivileges(
+        Authentication authentication,
+        AuthorizationInfo authorizationInfo,
+        HasPrivilegesRequest request,
+        Collection<ApplicationPrivilegeDescriptor> applicationPrivileges,
+        ActionListener<HasPrivilegesResponse> listener
+    ) {
         if (authorizationInfo instanceof RBACAuthorizationInfo == false) {
             listener.onFailure(
-                new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName()));
+                new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName())
+            );
             return;
         }
         final Role userRole = ((RBACAuthorizationInfo) authorizationInfo).getRole();
-        logger.trace(() -> new ParameterizedMessage("Check whether role [{}] has privileges cluster=[{}] index=[{}] application=[{}]",
-            Strings.arrayToCommaDelimitedString(userRole.names()),
-            Strings.arrayToCommaDelimitedString(request.clusterPrivileges()),
-            Strings.arrayToCommaDelimitedString(request.indexPrivileges()),
-            Strings.arrayToCommaDelimitedString(request.applicationPrivileges())
-        ));
+        logger.trace(
+            () -> new ParameterizedMessage(
+                "Check whether role [{}] has privileges cluster=[{}] index=[{}] application=[{}]",
+                Strings.arrayToCommaDelimitedString(userRole.names()),
+                Strings.arrayToCommaDelimitedString(request.clusterPrivileges()),
+                Strings.arrayToCommaDelimitedString(request.indexPrivileges()),
+                Strings.arrayToCommaDelimitedString(request.applicationPrivileges())
+            )
+        );
 
         Map<String, Boolean> cluster = new HashMap<>();
         for (String checkAction : request.clusterPrivileges()) {
@@ -486,8 +541,11 @@ public class RBACEngine implements AuthorizationEngine {
         boolean allMatch = cluster.values().stream().allMatch(Boolean::booleanValue);
         ResourcePrivilegesMap.Builder combineIndicesResourcePrivileges = ResourcePrivilegesMap.builder();
         for (RoleDescriptor.IndicesPrivileges check : request.indexPrivileges()) {
-            ResourcePrivilegesMap resourcePrivileges = userRole.checkIndicesPrivileges(Sets.newHashSet(check.getIndices()),
-                check.allowRestrictedIndices(), Sets.newHashSet(check.getPrivileges()));
+            ResourcePrivilegesMap resourcePrivileges = userRole.checkIndicesPrivileges(
+                Sets.newHashSet(check.getIndices()),
+                check.allowRestrictedIndices(),
+                Sets.newHashSet(check.getPrivileges())
+            );
             allMatch = allMatch && resourcePrivileges.allAllowed();
             combineIndicesResourcePrivileges.addResourcePrivilegesMap(resourcePrivileges);
         }
@@ -500,8 +558,12 @@ public class RBACEngine implements AuthorizationEngine {
             ResourcePrivilegesMap.Builder builder = ResourcePrivilegesMap.builder();
             for (RoleDescriptor.ApplicationResourcePrivileges p : request.applicationPrivileges()) {
                 if (applicationName.equals(p.getApplication())) {
-                    ResourcePrivilegesMap appPrivsByResourceMap = userRole.checkApplicationResourcePrivileges(applicationName,
-                        Sets.newHashSet(p.getResources()), Sets.newHashSet(p.getPrivileges()), applicationPrivileges);
+                    ResourcePrivilegesMap appPrivsByResourceMap = userRole.checkApplicationResourcePrivileges(
+                        applicationName,
+                        Sets.newHashSet(p.getResources()),
+                        Sets.newHashSet(p.getPrivileges()),
+                        applicationPrivileges
+                    );
                     builder.addResourcePrivilegesMap(appPrivsByResourceMap);
                 }
             }
@@ -510,17 +572,28 @@ public class RBACEngine implements AuthorizationEngine {
             privilegesByApplication.put(applicationName, resourcePrivsForApplication.getResourceToResourcePrivileges().values());
         }
 
-        listener.onResponse(new HasPrivilegesResponse(request.username(), allMatch, cluster,
-            allIndices.getResourceToResourcePrivileges().values(), privilegesByApplication));
+        listener.onResponse(
+            new HasPrivilegesResponse(
+                request.username(),
+                allMatch,
+                cluster,
+                allIndices.getResourceToResourcePrivileges().values(),
+                privilegesByApplication
+            )
+        );
     }
 
-
     @Override
-    public void getUserPrivileges(Authentication authentication, AuthorizationInfo authorizationInfo, GetUserPrivilegesRequest request,
-                                  ActionListener<GetUserPrivilegesResponse> listener) {
+    public void getUserPrivileges(
+        Authentication authentication,
+        AuthorizationInfo authorizationInfo,
+        GetUserPrivilegesRequest request,
+        ActionListener<GetUserPrivilegesResponse> listener
+    ) {
         if (authorizationInfo instanceof RBACAuthorizationInfo == false) {
             listener.onFailure(
-                new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName()));
+                new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName())
+            );
         } else {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
             listener.onResponse(buildUserPrivilegesResponseObject(role));
@@ -541,8 +614,10 @@ public class RBACEngine implements AuthorizationEngine {
                 conditionalCluster.add((ConfigurableClusterPrivilege) privilege);
             } else {
                 throw new IllegalArgumentException(
-                    "found unsupported cluster privilege : " + privilege +
-                        ((privilege != null) ? " of type " + privilege.getClass().getSimpleName() : ""));
+                    "found unsupported cluster privilege : "
+                        + privilege
+                        + ((privilege != null) ? " of type " + privilege.getClass().getSimpleName() : "")
+                );
             }
         }
 
@@ -558,13 +633,15 @@ public class RBACEngine implements AuthorizationEngine {
             } else {
                 fieldSecurity = Collections.emptySet();
             }
-            indices.add(new GetUserPrivilegesResponse.Indices(
-                Arrays.asList(group.indices()),
-                group.privilege().name(),
-                fieldSecurity,
-                queries,
-                group.allowRestrictedIndices()
-            ));
+            indices.add(
+                new GetUserPrivilegesResponse.Indices(
+                    Arrays.asList(group.indices()),
+                    group.privilege().name(),
+                    fieldSecurity,
+                    queries,
+                    group.allowRestrictedIndices()
+                )
+            );
         }
 
         final Set<RoleDescriptor.ApplicationResourcePrivileges> application = new LinkedHashSet<>();
@@ -574,11 +651,13 @@ public class RBACEngine implements AuthorizationEngine {
                 if (resources.isEmpty()) {
                     logger.trace("No resources defined in application privilege {}", privilege);
                 } else {
-                    application.add(RoleDescriptor.ApplicationResourcePrivileges.builder()
-                        .application(applicationName)
-                        .privileges(privilege.name())
-                        .resources(resources)
-                        .build());
+                    application.add(
+                        RoleDescriptor.ApplicationResourcePrivileges.builder()
+                            .application(applicationName)
+                            .privileges(privilege.name())
+                            .resources(resources)
+                            .build()
+                    );
                 }
             }
         }
@@ -625,10 +704,12 @@ public class RBACEngine implements AuthorizationEngine {
         return Collections.unmodifiableSet(indicesAndAliases);
     }
 
-    private IndexAuthorizationResult buildIndicesAccessControl(String action,
-                                                               AuthorizationInfo authorizationInfo,
-                                                               Set<String> indices,
-                                                               Map<String, IndexAbstraction> aliasAndIndexLookup) {
+    private IndexAuthorizationResult buildIndicesAccessControl(
+        String action,
+        AuthorizationInfo authorizationInfo,
+        Set<String> indices,
+        Map<String, IndexAbstraction> aliasAndIndexLookup
+    ) {
         final Role role = ensureRBAC(authorizationInfo).getRole();
         final IndicesAccessControl accessControl = role.authorize(action, indices, aliasAndIndexLookup, fieldPermissionsCache);
         return new IndexAuthorizationResult(true, accessControl);
@@ -678,8 +759,9 @@ public class RBACEngine implements AuthorizationEngine {
         RBACAuthorizationInfo(Role role, Role authenticatedUserRole) {
             this.role = Objects.requireNonNull(role);
             this.info = Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, role.names());
-            this.authenticatedUserAuthorizationInfo =
-                authenticatedUserRole == null ? this : new RBACAuthorizationInfo(authenticatedUserRole, null);
+            this.authenticatedUserAuthorizationInfo = authenticatedUserRole == null
+                ? this
+                : new RBACAuthorizationInfo(authenticatedUserRole, null);
         }
 
         Role getRole() {
@@ -724,21 +806,21 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     private static boolean isScrollRelatedAction(String action) {
-        return action.equals(SearchScrollAction.NAME) ||
-            action.equals(SearchTransportService.FETCH_ID_SCROLL_ACTION_NAME) ||
-            action.equals(SearchTransportService.QUERY_FETCH_SCROLL_ACTION_NAME) ||
-            action.equals(SearchTransportService.QUERY_SCROLL_ACTION_NAME) ||
-            action.equals(SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME) ||
-            action.equals(ClearScrollAction.NAME) ||
-            action.equals("indices:data/read/sql/close_cursor") ||
-            action.equals(SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
+        return action.equals(SearchScrollAction.NAME)
+            || action.equals(SearchTransportService.FETCH_ID_SCROLL_ACTION_NAME)
+            || action.equals(SearchTransportService.QUERY_FETCH_SCROLL_ACTION_NAME)
+            || action.equals(SearchTransportService.QUERY_SCROLL_ACTION_NAME)
+            || action.equals(SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME)
+            || action.equals(ClearScrollAction.NAME)
+            || action.equals("indices:data/read/sql/close_cursor")
+            || action.equals(SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
     }
 
     private static boolean isAsyncRelatedAction(String action) {
-        return action.equals(SubmitAsyncSearchAction.NAME) ||
-            action.equals(GetAsyncSearchAction.NAME) ||
-            action.equals(DeleteAsyncResultAction.NAME) ||
-            action.equals(EqlAsyncActionNames.EQL_ASYNC_GET_RESULT_ACTION_NAME) ||
-            action.equals(SqlAsyncActionNames.SQL_ASYNC_GET_RESULT_ACTION_NAME);
+        return action.equals(SubmitAsyncSearchAction.NAME)
+            || action.equals(GetAsyncSearchAction.NAME)
+            || action.equals(DeleteAsyncResultAction.NAME)
+            || action.equals(EqlAsyncActionNames.EQL_ASYNC_GET_RESULT_ACTION_NAME)
+            || action.equals(SqlAsyncActionNames.SQL_ASYNC_GET_RESULT_ACTION_NAME);
     }
 }

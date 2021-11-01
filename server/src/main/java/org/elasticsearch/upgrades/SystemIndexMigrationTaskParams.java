@@ -67,11 +67,13 @@ public class SystemIndexMigrationTaskParams implements PersistentTaskParams {
         return MIGRATION_ADDED_VERSION;
     }
 
-    @Override public boolean equals(Object obj) {
+    @Override
+    public boolean equals(Object obj) {
         return obj instanceof SystemIndexMigrationTaskParams;
     }
 
-    @Override public int hashCode() {
+    @Override
+    public int hashCode() {
         return 0;
     }
 }

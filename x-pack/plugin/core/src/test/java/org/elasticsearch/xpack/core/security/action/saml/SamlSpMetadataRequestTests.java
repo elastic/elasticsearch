@@ -24,7 +24,7 @@ public class SamlSpMetadataRequestTests extends ESTestCase {
         assertThat(validationException.getMessage(), containsString("Realm name may not be empty"));
     }
 
-    public void testValidateSerialization()  throws IOException {
+    public void testValidateSerialization() throws IOException {
         final SamlSpMetadataRequest samlSPMetadataRequest = new SamlSpMetadataRequest("saml1");
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             samlSPMetadataRequest.writeTo(out);

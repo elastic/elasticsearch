@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
@@ -46,7 +45,6 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
@@ -73,7 +71,6 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
     private final JobManager jobManager;
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final MlMemoryTracker memoryTracker;
-    private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
 
     /**
      * A map of task listeners by job_id.
@@ -85,7 +82,6 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
 
     @Inject
     public TransportDeleteJobAction(
-        Settings settings,
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -115,7 +111,6 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
         this.jobConfigProvider = jobConfigProvider;
         this.datafeedConfigProvider = datafeedConfigProvider;
         this.memoryTracker = memoryTracker;
-        this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
         this.listenersByJobId = new HashMap<>();
         this.jobManager = jobManager;
     }
@@ -132,12 +127,6 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-
-        if (migrationEligibilityCheck.jobIsEligibleForMigration(request.getJobId(), state)) {
-            listener.onFailure(ExceptionsHelper.configHasNotBeenMigrated("delete job", request.getJobId()));
-            return;
-        }
-
         logger.debug(() -> new ParameterizedMessage("[{}] deleting job ", request.getJobId()));
 
         if (request.isForce() == false) {

@@ -447,7 +447,7 @@ public final class BulkRequestParser {
         if (parser.nextToken() != null) {
             deprecationLogger.compatibleCritical(
                 STRICT_ACTION_PARSING_WARNING_KEY,
-                "A bulk action contains trailing junk after the closing brace. It is currently ignored but will be rejected in a "
+                "A bulk action contained trailing data after the closing brace. This is currently ignored but will be rejected in a "
                     + "future version."
             );
         }

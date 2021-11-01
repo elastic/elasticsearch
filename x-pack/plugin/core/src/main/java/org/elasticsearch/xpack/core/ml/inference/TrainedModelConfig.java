@@ -51,6 +51,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -357,7 +358,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     }
 
     public boolean isAllocateOnly() {
-        return inferenceConfig.isAllocateOnly();
+        return Optional.ofNullable(inferenceConfig).map(InferenceConfig::isAllocateOnly).orElse(false);
     }
 
     @Override

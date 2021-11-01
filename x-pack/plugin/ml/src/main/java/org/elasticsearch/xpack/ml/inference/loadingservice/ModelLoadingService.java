@@ -10,7 +10,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.MessageSupplier;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -30,6 +31,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
@@ -59,6 +61,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.xpack.ml.MachineLearning.ML_MODEL_INFERENCE_FEATURE;
 
 /**
@@ -325,7 +328,26 @@ public class ModelLoadingService implements ClusterStateListener {
     private void loadModel(String modelId, Consumer consumer) {
         provider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.empty(), ActionListener.wrap(trainedModelConfig -> {
             if (trainedModelConfig.isAllocateOnly()) {
-                handleLoadFailure(modelId, new ElasticsearchException("model [{}] is allocate only", modelId));
+                if (consumer == Consumer.SEARCH) {
+                    handleLoadFailure(
+                        modelId,
+                        new ElasticsearchStatusException(
+                            "model [{}] with type [{}] is currently not usable in search.",
+                            RestStatus.BAD_REQUEST,
+                            modelId,
+                            trainedModelConfig.getModelType()
+                        )
+                    );
+                    return;
+                }
+                handleLoadFailure(
+                    modelId,
+                    new ElasticsearchStatusException(
+                        "model [{}] must be deployed to use. Please deploy with the start trained model deployment API.",
+                        RestStatus.BAD_REQUEST,
+                        modelId
+                    )
+                );
                 return;
             }
             auditNewReferencedModel(modelId);
@@ -358,6 +380,28 @@ public class ModelLoadingService implements ClusterStateListener {
         // If we the model is not loaded and we did not kick off a new loading attempt, this means that we may be getting called
         // by a simulated pipeline
         provider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.empty(), ActionListener.wrap(trainedModelConfig -> {
+            // If the model should be allocated, we should fail here
+            if (trainedModelConfig.isAllocateOnly()) {
+                if (consumer == Consumer.SEARCH) {
+                    modelActionListener.onFailure(
+                        new ElasticsearchStatusException(
+                            "model [{}] with type [{}] is currently not usable in search.",
+                            RestStatus.BAD_REQUEST,
+                            modelId,
+                            trainedModelConfig.getModelType()
+                        )
+                    );
+                    return;
+                }
+                modelActionListener.onFailure(
+                    new ElasticsearchStatusException(
+                        "model [{}] must be deployed to use. Please deploy with the start trained model deployment API.",
+                        RestStatus.BAD_REQUEST,
+                        modelId
+                    )
+                );
+                return;
+            }
             // Verify we can pull the model into memory without causing OOM
             trainedModelCircuitBreaker.addEstimateBytesAndMaybeBreak(trainedModelConfig.getEstimatedHeapMemory(), modelId);
             provider.getTrainedModelForInference(modelId, consumer == Consumer.INTERNAL, ActionListener.wrap(inferenceDefinition -> {
@@ -388,7 +432,18 @@ public class ModelLoadingService implements ClusterStateListener {
                 // Failure getting the definition, remove the initial estimation value
                 e -> {
                     trainedModelCircuitBreaker.addWithoutBreaking(-trainedModelConfig.getEstimatedHeapMemory());
-                    modelActionListener.onFailure(e);
+                    if (unwrapCause(e) instanceof ResourceNotFoundException) {
+                        modelActionListener.onFailure(e);
+                    } else {
+                        modelActionListener.onFailure(
+                            new ElasticsearchStatusException(
+                                "failed to load model [{}] definition",
+                                RestStatus.INTERNAL_SERVER_ERROR,
+                                modelId,
+                                e
+                            )
+                        );
+                    }
                 }
             ));
         }, modelActionListener::onFailure));

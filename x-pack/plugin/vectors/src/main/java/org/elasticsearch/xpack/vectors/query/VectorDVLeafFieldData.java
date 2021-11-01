@@ -54,7 +54,7 @@ final class VectorDVLeafFieldData implements LeafFieldData {
     }
 
     @Override
-    public DocValuesField getScriptField(String name) {
+    public DocValuesField<?> getScriptField(String name) {
         try {
             if (indexed) {
                 VectorValues values = reader.getVectorValues(field);

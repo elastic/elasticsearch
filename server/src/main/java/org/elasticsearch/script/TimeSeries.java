@@ -18,18 +18,14 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * A response class representing a snapshot of a {@link org.elasticsearch.script.TimeSeriesCounter} at a point in time.
+ */
 public class TimeSeries implements Writeable, ToXContentFragment {
     public final long fiveMinutes;
     public final long fifteenMinutes;
     public final long twentyFourHours;
     public final long total;
-
-    public TimeSeries() {
-        this.fiveMinutes = 0;
-        this.fifteenMinutes = 0;
-        this.twentyFourHours = 0;
-        this.total = 0;
-    }
 
     public TimeSeries(long total) {
         this.fiveMinutes = 0;
@@ -97,5 +93,19 @@ public class TimeSeries implements Writeable, ToXContentFragment {
     @Override
     public int hashCode() {
         return Objects.hash(fiveMinutes, fifteenMinutes, twentyFourHours, total);
+    }
+
+    @Override
+    public String toString() {
+        return "TimeSeries{"
+            + "fiveMinutes="
+            + fiveMinutes
+            + ", fifteenMinutes="
+            + fifteenMinutes
+            + ", twentyFourHours="
+            + twentyFourHours
+            + ", total="
+            + total
+            + '}';
     }
 }

@@ -14,6 +14,7 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.LongSupplier;
 
 import static org.elasticsearch.script.TimeSeriesCounter.Counter;
 import static org.elasticsearch.script.TimeSeriesCounter.HOUR;
@@ -23,7 +24,8 @@ public class TimeSeriesCounterTests extends ESTestCase {
     protected long now;
     protected long customCounterResolution;
     protected long customCounterDuration;
-    protected TimeSeriesCounter tsc = new TimeSeriesCounter();
+    protected TimeProvider timeProvider = new TimeProvider();
+    protected TimeSeriesCounter tsc = new TimeSeriesCounter(timeProvider);
     protected final Matcher<Long> fiveDelta = lessThan(tsc.fiveMinutes.resolution);
     protected final Matcher<Long> fifteenDelta = lessThan(tsc.fifteenMinutes.resolution);
     protected final Matcher<Long> twentyFourDelta = lessThan(tsc.twentyFourHours.resolution);
@@ -41,8 +43,9 @@ public class TimeSeriesCounterTests extends ESTestCase {
     }
 
     protected void reset() {
-        tsc = new TimeSeriesCounter();
+        timeProvider = new TimeProvider();
         events = new ArrayList<>();
+        tsc = new TimeSeriesCounter(timeProvider);
         counter = new Counter(customCounterResolution, customCounterDuration);
     }
 
@@ -61,23 +64,47 @@ public class TimeSeriesCounterTests extends ESTestCase {
         assertEquals("duration [101] must divisible by resolution [3]", iae.getMessage());
     }
 
+    public void testNegativeIncrement() {
+        inc(-100);
+        assertEquals(1, timeSeries(0).fiveMinutes);
+    }
+
+    public void testNegativeSum() {
+        long t = 60;
+        // t += 24 * HOUR;
+        inc(t);
+        t += 2 * tsc.twentyFourHours.resolution;
+        inc(t);
+        TimeSeries ts = timeSeries(t);
+        assertEquals(2, ts.twentyFourHours);
+    }
+
+    public void testNegativeStart() {
+        long t = -1 * 48 * HOUR;
+        inc(t);
+        t += 2 * tsc.twentyFourHours.resolution;
+        inc(t);
+        TimeSeries ts = timeSeries(t);
+        assertEquals(2, ts.twentyFourHours);
+    }
+
     public void testOnePerSecond() {
         long time = now;
         long t;
-        long next = randomLongBetween(1, HOUR);
+        long nextAssertCheck = randomLongBetween(1, HOUR);
         long twentyFive = 25 * HOUR;
         for (int i = 0; i < twentyFive; i++) {
             t = time + i;
             inc(t);
 
-            if (i == next) {
-                TimeSeries ts = tsc.timeSeries(t);
+            if (i == nextAssertCheck) {
+                TimeSeries ts = timeSeries(t);
                 assertThat(five(t) - ts.fiveMinutes, fiveDelta);
                 assertThat(fifteen(t) - ts.fifteenMinutes, fifteenDelta);
                 assertThat(twentyFour(t) - ts.twentyFourHours, twentyFourDelta);
                 assertEquals(i + 1, tsc.count());
 
-                next = Math.min(twentyFive, next + randomLongBetween(HOUR, 3 * HOUR));
+                nextAssertCheck = Math.min(twentyFive, nextAssertCheck + randomLongBetween(HOUR, 3 * HOUR));
             }
         }
     }
@@ -87,6 +114,7 @@ public class TimeSeriesCounterTests extends ESTestCase {
         long duration = 900;
         counter.inc(now);
         long count = randomLongBetween(resolution / 2, resolution * 2);
+        // this is the beginning of the current epoch
         long start = (now / resolution) * resolution;
         for (int i = 1; i < count; i++) {
             counter.inc(start + randomLongBetween(0, resolution - 1));
@@ -96,11 +124,16 @@ public class TimeSeriesCounterTests extends ESTestCase {
         assertEquals(count, counter.sum(now));
 
         long t = 0;
+
+        // Since we only incremented the first bucket, we should have access to that throughout duration
         for (; t <= duration; t += resolution) {
             assertEquals(count, counter.sum(start + t));
         }
+
+        // Now we've gone past the end of the duration
         assertEquals(0, counter.sum(start + t));
         assertEquals(0, counter.sum(start + duration + resolution));
+        // The last second for which this counter is valid
         assertEquals(count, counter.sum(start + duration + resolution - 1));
     }
 
@@ -114,23 +147,23 @@ public class TimeSeriesCounterTests extends ESTestCase {
             inc(start + i);
         }
         assertEquals(count, tsc.count());
-        assertEquals(count, tsc.timeSeries(now).fiveMinutes);
+        assertEquals(count, timeSeries(now).fiveMinutes);
 
         long t = 0;
         for (; t <= duration; t += resolution) {
-            assertEquals(count, tsc.timeSeries(start + t).fiveMinutes);
+            assertEquals(count, timeSeries(start + t).fiveMinutes);
         }
 
-        TimeSeries series = tsc.timeSeries(start + t);
+        TimeSeries series = timeSeries(start + t);
         assertEquals(0, series.fiveMinutes);
         assertEquals(count, series.fifteenMinutes);
         assertEquals(count, series.twentyFourHours);
 
-        series = tsc.timeSeries(start + duration + resolution);
+        series = timeSeries(start + duration + resolution);
         assertEquals(0, series.fiveMinutes);
         assertEquals(count, series.fifteenMinutes);
         assertEquals(count, series.twentyFourHours);
-        assertEquals(count, tsc.timeSeries(start + duration + resolution - 1).fiveMinutes);
+        assertEquals(count, timeSeries(start + duration + resolution - 1).fiveMinutes);
     }
 
     public void testFifteenMinuteSameBucket() {
@@ -143,23 +176,23 @@ public class TimeSeriesCounterTests extends ESTestCase {
             inc(start + i);
         }
         assertEquals(count, tsc.count());
-        assertEquals(count, tsc.timeSeries(now).fifteenMinutes);
+        assertEquals(count, timeSeries(now).fifteenMinutes);
 
         long t = 0;
         for (; t <= duration; t += resolution) {
-            assertEquals(count, tsc.timeSeries(start + t).fifteenMinutes);
+            assertEquals(count, timeSeries(start + t).fifteenMinutes);
         }
 
-        TimeSeries series = tsc.timeSeries(start + t);
+        TimeSeries series = timeSeries(start + t);
         assertEquals(0, series.fiveMinutes);
         assertEquals(0, series.fifteenMinutes);
         assertEquals(count, series.twentyFourHours);
 
-        series = tsc.timeSeries(start + duration + resolution);
+        series = timeSeries(start + duration + resolution);
         assertEquals(0, series.fiveMinutes);
         assertEquals(0, series.fifteenMinutes);
         assertEquals(count, series.twentyFourHours);
-        assertEquals(count, tsc.timeSeries(start + duration + resolution - 1).fifteenMinutes);
+        assertEquals(count, timeSeries(start + duration + resolution - 1).fifteenMinutes);
     }
 
     public void testTwentyFourHourSameBucket() {
@@ -172,23 +205,23 @@ public class TimeSeriesCounterTests extends ESTestCase {
             inc(start + i);
         }
         assertEquals(count, tsc.count());
-        assertEquals(count, tsc.timeSeries(now).twentyFourHours);
+        assertEquals(count, timeSeries(now).twentyFourHours);
 
         long t = 0;
         for (; t <= duration; t += resolution) {
-            assertEquals(count, tsc.timeSeries(start + t).twentyFourHours);
+            assertEquals(count, timeSeries(start + t).twentyFourHours);
         }
 
-        TimeSeries series = tsc.timeSeries(start + t);
+        TimeSeries series = timeSeries(start + t);
         assertEquals(0, series.fiveMinutes);
         assertEquals(0, series.fifteenMinutes);
         assertEquals(0, series.twentyFourHours);
 
-        series = tsc.timeSeries(start + duration + resolution);
+        series = timeSeries(start + duration + resolution);
         assertEquals(0, series.fiveMinutes);
         assertEquals(0, series.fifteenMinutes);
         assertEquals(0, series.twentyFourHours);
-        assertEquals(count, tsc.timeSeries(start + duration + resolution - 1).twentyFourHours);
+        assertEquals(count, timeSeries(start + duration + resolution - 1).twentyFourHours);
     }
 
     public void testCounterIncrementBucket() {
@@ -211,27 +244,27 @@ public class TimeSeriesCounterTests extends ESTestCase {
             inc(now + i * resolution);
         }
         long t = now + duration;
-        TimeSeries ts = tsc.timeSeries(t);
+        TimeSeries ts = timeSeries(t);
         assertEquals(count, ts.fiveMinutes);
         assertEquals(count, ts.fifteenMinutes);
         assertEquals(count, ts.twentyFourHours);
         assertEquals(count, tsc.count());
 
         t = now + duration + resolution;
-        ts = tsc.timeSeries(t);
+        ts = timeSeries(t);
         assertEquals(count - 1, ts.fiveMinutes);
         assertEquals(count, ts.fifteenMinutes);
         assertEquals(count, ts.twentyFourHours);
 
         long numRes = 2;
         t = now + duration + (numRes * resolution);
-        ts = tsc.timeSeries(t);
+        ts = timeSeries(t);
         assertEquals(count - numRes, ts.fiveMinutes);
         assertEquals(count, ts.fifteenMinutes);
         assertEquals(count, ts.twentyFourHours);
 
         inc(now + duration);
-        ts = tsc.timeSeries(now + duration + resolution);
+        ts = timeSeries(now + duration + resolution);
         assertEquals(count, ts.fiveMinutes);
         assertEquals(count + 1, ts.fifteenMinutes);
         assertEquals(count + 1, ts.twentyFourHours);
@@ -247,27 +280,27 @@ public class TimeSeriesCounterTests extends ESTestCase {
             inc(t);
         }
         long t = now + duration;
-        TimeSeries ts = tsc.timeSeries(t);
+        TimeSeries ts = timeSeries(t);
         assertEquals(five(t), ts.fiveMinutes);
         assertEquals(count, ts.fifteenMinutes);
         assertEquals(count, ts.twentyFourHours);
 
         t = now + duration + resolution;
-        ts = tsc.timeSeries(t);
+        ts = timeSeries(t);
         assertEquals(five(t), ts.fiveMinutes);
         assertEquals(count - 1, ts.fifteenMinutes);
         assertEquals(count, ts.twentyFourHours);
 
         long numRes = 2;
         t = now + duration + (numRes * resolution);
-        ts = tsc.timeSeries(t);
+        ts = timeSeries(t);
         assertEquals(five(t), ts.fiveMinutes);
         assertEquals(count - numRes, ts.fifteenMinutes);
         assertEquals(count, ts.twentyFourHours);
 
         inc(now + duration);
         t = now + duration + resolution;
-        ts = tsc.timeSeries(t);
+        ts = timeSeries(t);
         assertEquals(five(t), ts.fiveMinutes);
         assertEquals(count, ts.fifteenMinutes);
         assertEquals(count + 1, ts.twentyFourHours);
@@ -283,27 +316,27 @@ public class TimeSeriesCounterTests extends ESTestCase {
             inc(t);
         }
         long t = now + duration;
-        TimeSeries ts = tsc.timeSeries(t);
+        TimeSeries ts = timeSeries(t);
         assertEquals(five(t), ts.fiveMinutes);
         assertEquals(fifteen(t), ts.fifteenMinutes);
         assertEquals(count, ts.twentyFourHours);
 
         t = now + duration + resolution;
-        ts = tsc.timeSeries(t);
+        ts = timeSeries(t);
         assertEquals(five(t), ts.fiveMinutes);
         assertEquals(0, ts.fifteenMinutes);
         assertEquals(count - 1, ts.twentyFourHours);
 
         long numRes = 2;
         t = now + duration + (numRes * resolution);
-        ts = tsc.timeSeries(t);
+        ts = timeSeries(t);
         assertEquals(0, ts.fiveMinutes);
         assertEquals(0, ts.fifteenMinutes);
         assertEquals(count - numRes, ts.twentyFourHours);
 
         inc(now + duration);
         t = now + duration + resolution;
-        ts = tsc.timeSeries(t);
+        ts = timeSeries(t);
         assertEquals(0, ts.fiveMinutes);
         assertEquals(1, ts.fifteenMinutes);
         assertEquals(count, ts.twentyFourHours);
@@ -328,14 +361,14 @@ public class TimeSeriesCounterTests extends ESTestCase {
         long resolution = tsc.fiveMinutes.resolution;
         long duration = tsc.fiveMinutes.duration;
         for (int skip = 1; skip <= count; skip++) {
-            tsc = new TimeSeriesCounter();
+            tsc = new TimeSeriesCounter(timeProvider);
             long increments = 0;
             for (int i = 0; (i * skip * resolution) < duration; i++) {
                 inc(now + (i * skip * resolution));
                 increments++;
             }
 
-            TimeSeries series = tsc.timeSeries(now + duration);
+            TimeSeries series = timeSeries(now + duration);
             assertEquals(increments, series.fiveMinutes);
             assertEquals(increments, series.fifteenMinutes);
             assertEquals(increments, series.twentyFourHours);
@@ -352,7 +385,7 @@ public class TimeSeriesCounterTests extends ESTestCase {
             for (int i = 0; (i * skip * resolution) < duration; i++) {
                 inc(now + (i * skip * resolution));
             }
-            TimeSeries ts = tsc.timeSeries(now + duration);
+            TimeSeries ts = timeSeries(now + duration);
             assertEquals(five(now + duration), ts.fiveMinutes);
             assertEquals(events.size(), ts.fifteenMinutes);
             assertEquals(events.size(), ts.twentyFourHours);
@@ -369,7 +402,7 @@ public class TimeSeriesCounterTests extends ESTestCase {
             for (int i = 0; (i * skip * resolution) < duration; i++) {
                 inc(now + (i * skip * resolution));
             }
-            TimeSeries ts = tsc.timeSeries(now + duration);
+            TimeSeries ts = timeSeries(now + duration);
             assertEquals(five(now + duration), ts.fiveMinutes);
             assertEquals(events.size(), ts.twentyFourHours);
             assertEquals(events.size(), tsc.count());
@@ -403,7 +436,7 @@ public class TimeSeriesCounterTests extends ESTestCase {
             for (int j = 0; j < withinBucket; j++) {
                 inc(time + j);
             }
-            TimeSeries ts = tsc.timeSeries(time);
+            TimeSeries ts = timeSeries(time);
             assertThat(five(time) - ts.fiveMinutes, fiveDelta);
             assertThat(fifteen(time) - ts.fifteenMinutes, fifteenDelta);
             assertThat(twentyFour(time) - ts.twentyFourHours, twentyFourDelta);
@@ -421,7 +454,7 @@ public class TimeSeriesCounterTests extends ESTestCase {
             for (int j = 0; j < withinBucket; j++) {
                 inc(time + j);
             }
-            TimeSeries ts = tsc.timeSeries(time);
+            TimeSeries ts = timeSeries(time);
             assertThat(five(time) - ts.fiveMinutes, fiveDelta);
             assertThat(fifteen(time) - ts.fifteenMinutes, fifteenDelta);
             assertThat(twentyFour(time) - ts.twentyFourHours, twentyFourDelta);
@@ -439,7 +472,7 @@ public class TimeSeriesCounterTests extends ESTestCase {
             for (int j = 0; j < withinBucket; j++) {
                 inc(time + j);
             }
-            TimeSeries ts = tsc.timeSeries(time);
+            TimeSeries ts = timeSeries(time);
             assertThat(twentyFour(time) - ts.twentyFourHours, twentyFourDelta);
             assertEquals(events.size(), tsc.count());
         }
@@ -472,8 +505,44 @@ public class TimeSeriesCounterTests extends ESTestCase {
         return count;
     }
 
-    private void inc(long t) {
-        tsc.inc(t);
-        events.add(t);
+    protected void inc(long t) {
+        timeProvider.inc(t);
+    }
+
+    protected TimeSeries timeSeries(long t) {
+        return timeProvider.timeSeries(t);
+    }
+
+    class TimeProvider implements LongSupplier {
+        public int i = 0;
+        public boolean useTimeSeries = false;
+        public long timeSeriesT = 0;
+
+        public void inc(long t) {
+            int last = i;
+            events.add(t);
+            tsc.inc();
+            assert i == last + 1;
+        }
+
+        public TimeSeries timeSeries(long t) {
+            int last = i;
+            useTimeSeries = true;
+            timeSeriesT = t;
+            TimeSeries ts = tsc.timeSeries();
+            assert i == last;
+            return ts;
+        }
+
+        @Override
+        public long getAsLong() {
+            if (useTimeSeries) {
+                useTimeSeries = false;
+                return timeSeriesT * 1000;
+            }
+            long event = events.get(i) * 1000;
+            i++;
+            return event;
+        }
     }
 }

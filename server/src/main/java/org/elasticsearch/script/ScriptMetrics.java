@@ -14,38 +14,41 @@ import java.util.function.LongSupplier;
 
 public class ScriptMetrics {
     final CounterMetric compilationLimitTriggered = new CounterMetric();
-    final TimeSeriesCounter compilations = new TimeSeriesCounter();
-    final TimeSeriesCounter cacheEvictions = new TimeSeriesCounter();
-    final LongSupplier timeProvider;
+    final TimeSeriesCounter compilations;
+    final TimeSeriesCounter cacheEvictions;
 
     public ScriptMetrics(LongSupplier timeProvider) {
-        this.timeProvider = timeProvider;
+        compilations = new TimeSeriesCounter(timeProvider);
+        cacheEvictions = new TimeSeriesCounter(timeProvider);
     }
 
     public void onCompilation() {
-        compilations.inc(now());
+        compilations.inc();
     }
 
     public void onCacheEviction() {
-        cacheEvictions.inc(now());
+        cacheEvictions.inc();
     }
 
     public void onCompilationLimit() {
         compilationLimitTriggered.inc();
     }
 
-    protected long now() {
-        return timeProvider.getAsLong() / 1000;
-    }
-
     public ScriptStats stats() {
-        return new ScriptStats(compilations.count(), cacheEvictions.count(), compilationLimitTriggered.count());
+        TimeSeries compilationsTimeSeries = compilations.timeSeries();
+        TimeSeries cacheEvictionsTimeSeries = cacheEvictions.timeSeries();
+        return new ScriptStats(
+            compilationsTimeSeries.total,
+            cacheEvictionsTimeSeries.total,
+            compilationLimitTriggered.count(),
+            compilationsTimeSeries,
+            cacheEvictionsTimeSeries
+        );
     }
 
     public ScriptContextStats stats(String context) {
-        long t = now();
-        TimeSeries compilationsTimeSeries = compilations.timeSeries(t);
-        TimeSeries cacheEvictionsTimeSeries = cacheEvictions.timeSeries(t);
+        TimeSeries compilationsTimeSeries = compilations.timeSeries();
+        TimeSeries cacheEvictionsTimeSeries = cacheEvictions.timeSeries();
         return new ScriptContextStats(context, compilationLimitTriggered.count(), compilationsTimeSeries, cacheEvictionsTimeSeries);
     }
 }

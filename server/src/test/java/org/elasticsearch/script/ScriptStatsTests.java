@@ -136,10 +136,26 @@ public class ScriptStatsTests extends ESTestCase {
         assertEquals(stats.getCompilations(), deserStats.getCompilations());
         assertEquals(stats.getCacheEvictions(), deserStats.getCacheEvictions());
         assertEquals(stats.getCompilationLimitTriggered(), deserStats.getCompilationLimitTriggered());
-        assertNull(deserStats.getCompilationsHistory());
-        assertNull(deserStats.getCacheEvictionsHistory());
+        assertTrue(deserStats.getCompilationsHistory().areTimingsEmpty());
+        assertEquals(stats.getCompilations(), deserStats.getCompilationsHistory().total);
+        assertTrue(deserStats.getCacheEvictionsHistory().areTimingsEmpty());
+        assertEquals(stats.getCacheEvictions(), deserStats.getCacheEvictionsHistory().total);
 
         deserStats = serDeser(Version.V_8_0_0, Version.V_8_0_0, stats);
+        assertEquals(stats.getCompilations(), deserStats.getCompilations());
+        assertEquals(stats.getCacheEvictions(), deserStats.getCacheEvictions());
+        assertEquals(stats.getCompilationLimitTriggered(), deserStats.getCompilationLimitTriggered());
+        assertEquals(stats.getCompilationsHistory(), deserStats.getCompilationsHistory());
+        assertEquals(stats.getCacheEvictionsHistory(), deserStats.getCacheEvictionsHistory());
+
+        deserStats = serDeser(Version.V_8_1_0, Version.V_7_16_0, stats);
+        assertEquals(stats.getCompilations(), deserStats.getCompilations());
+        assertEquals(stats.getCacheEvictions(), deserStats.getCacheEvictions());
+        assertEquals(stats.getCompilationLimitTriggered(), deserStats.getCompilationLimitTriggered());
+        assertEquals(new TimeSeries(stats.getCompilationsHistory().total), deserStats.getCompilationsHistory());
+        assertEquals(new TimeSeries(stats.getCacheEvictionsHistory().total), deserStats.getCacheEvictionsHistory());
+
+        deserStats = serDeser(Version.V_8_1_0, Version.V_8_1_0, stats);
         assertEquals(stats.getCompilations(), deserStats.getCompilations());
         assertEquals(stats.getCacheEvictions(), deserStats.getCacheEvictions());
         assertEquals(stats.getCompilationLimitTriggered(), deserStats.getCompilationLimitTriggered());
@@ -168,7 +184,7 @@ public class ScriptStatsTests extends ESTestCase {
                 long five = fifteen >= 1 ? randomLongBetween(0, fifteen) : 0;
                 timeSeries.add(new TimeSeries(five, fifteen, day, histStats[j]));
             } else {
-                timeSeries.add(new TimeSeries());
+                timeSeries.add(new TimeSeries(histStats[j]));
             }
         }
         return new ScriptContextStats(randomAlphaOfLength(15), randomLongBetween(0, 1024), timeSeries.get(0), timeSeries.get(1));

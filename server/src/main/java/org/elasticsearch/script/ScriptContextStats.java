@@ -52,8 +52,8 @@ public class ScriptContextStats implements Writeable, ToXContentFragment, Compar
             compilationsHistory = new TimeSeries(in).withTotal(compilations);
             cacheEvictionsHistory = new TimeSeries(in).withTotal(cacheEvictions);
         } else {
-            compilationsHistory = null;
-            cacheEvictionsHistory = null;
+            compilationsHistory = new TimeSeries(compilations);
+            cacheEvictionsHistory = new TimeSeries(cacheEvictions);
         }
     }
 

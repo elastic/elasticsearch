@@ -10,8 +10,8 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.bootstrap.Natives;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.filesystem.FileSystemNatives;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
@@ -407,7 +407,7 @@ public class CacheFileTests extends ESTestCase {
             final FileChannel fileChannel = cacheFile.getChannel();
             assertTrue(Files.exists(file));
 
-            Long sizeOnDisk = Natives.allocatedSizeInBytes(file);
+            Long sizeOnDisk = FileSystemNatives.allocatedSizeInBytes(file);
             assertThat(sizeOnDisk, equalTo(0L));
 
             // write 1 byte at the last position in the cache file.
@@ -416,13 +416,13 @@ public class CacheFileTests extends ESTestCase {
             fill(fileChannel, Math.toIntExact(cacheFile.getLength() - 1L), Math.toIntExact(cacheFile.getLength()));
             fileChannel.force(false);
 
-            sizeOnDisk = Natives.allocatedSizeInBytes(file);
+            sizeOnDisk = FileSystemNatives.allocatedSizeInBytes(file);
             assertThat("Cache file should be sparse and not fully allocated on disk", sizeOnDisk, lessThan(ONE_MB));
 
             fill(fileChannel, 0, Math.toIntExact(cacheFile.getLength()));
             fileChannel.force(false);
 
-            sizeOnDisk = Natives.allocatedSizeInBytes(file);
+            sizeOnDisk = FileSystemNatives.allocatedSizeInBytes(file);
             assertThat(
                 "Cache file should be fully allocated on disk (maybe more given cluster/block size)",
                 sizeOnDisk,

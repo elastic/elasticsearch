@@ -85,11 +85,10 @@ public class DotExpandingXContentParser extends FilterXContentParser {
             state = State.POST;
         }
         assert state == State.POST;
-        if (level > 1) {
+        if (level >= 1) {
             level -= 2;
-            return Token.END_OBJECT;
         }
-        return in.nextToken();
+        return level < 0 ? null : Token.END_OBJECT;
     }
 
     @Override
@@ -123,7 +122,7 @@ public class DotExpandingXContentParser extends FilterXContentParser {
     public void skipChildren() throws IOException {
         if (state == State.PRE) {
             in.skipChildren();
-            level++;
+            level += 2;
             state = State.POST;
         }
         if (state == State.DURING) {

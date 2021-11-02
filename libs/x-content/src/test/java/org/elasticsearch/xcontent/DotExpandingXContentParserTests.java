@@ -45,13 +45,14 @@ public class DotExpandingXContentParserTests extends ESTestCase {
         assertEquals(XContentParser.Token.END_OBJECT, testParser.nextToken());
         assertEquals(XContentParser.Token.END_OBJECT, testParser.nextToken());
         assertEquals(XContentParser.Token.END_OBJECT, testParser.nextToken());
-
-        assertEquals(XContentParser.Token.FIELD_NAME, testParser.nextToken());
-        assertEquals("nodots", testParser.currentName());
-        assertEquals(XContentParser.Token.VALUE_STRING, testParser.nextToken());
-        assertEquals("value2", testParser.text());
-        assertEquals(XContentParser.Token.END_OBJECT, testParser.nextToken());
         assertNull(testParser.nextToken());
+
+        assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+        assertEquals("nodots", parser.currentName());
+        assertEquals(XContentParser.Token.VALUE_STRING, parser.nextToken());
+        assertEquals("value2", parser.text());
+        assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+        assertNull(parser.nextToken());
     }
 
     public void testEmbeddedArray() throws IOException {
@@ -84,8 +85,10 @@ public class DotExpandingXContentParserTests extends ESTestCase {
         assertEquals(XContentParser.Token.END_ARRAY, testParser.nextToken());
         assertEquals(XContentParser.Token.END_OBJECT, testParser.nextToken());
         assertEquals(XContentParser.Token.END_OBJECT, testParser.nextToken());
-        assertEquals(XContentParser.Token.FIELD_NAME, testParser.nextToken());
-        assertEquals("nodots", testParser.currentName());
+        assertNull(testParser.nextToken());
+
+        assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+        assertEquals("nodots", parser.currentName());
         assertEquals(XContentParser.Token.VALUE_STRING, parser.nextToken());
         assertEquals("value2", parser.text());
         assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
@@ -114,13 +117,13 @@ public class DotExpandingXContentParserTests extends ESTestCase {
         assertEquals("value", testParser.text());
         assertEquals(XContentParser.Token.END_OBJECT, testParser.nextToken());
         assertEquals(XContentParser.Token.END_OBJECT, testParser.nextToken());
+        assertNull(testParser.nextToken());
+
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-        assertEquals("nodots", testParser.currentName());
         assertEquals("nodots", parser.currentName());
         assertEquals(XContentParser.Token.VALUE_STRING, parser.nextToken());
-        assertEquals("value2", testParser.text());
-        assertEquals(XContentParser.Token.END_OBJECT, testParser.nextToken());
-        assertNull(testParser.nextToken());
+        assertEquals("value2", parser.text());
+        assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
         assertNull(parser.nextToken());
     }
 
@@ -142,13 +145,13 @@ public class DotExpandingXContentParserTests extends ESTestCase {
         testParser.skipChildren();
         assertEquals(XContentParser.Token.END_OBJECT, testParser.nextToken());
         assertEquals(XContentParser.Token.END_OBJECT, testParser.nextToken());
+        assertNull(testParser.nextToken());
+
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-        assertEquals("nodots", testParser.currentName());
         assertEquals("nodots", parser.currentName());
         assertEquals(XContentParser.Token.VALUE_STRING, parser.nextToken());
-        assertEquals("value2", testParser.text());
-        assertEquals(XContentParser.Token.END_OBJECT, testParser.nextToken());
-        assertNull(testParser.nextToken());
+        assertEquals("value2", parser.text());
+        assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
         assertNull(parser.nextToken());
     }
 }

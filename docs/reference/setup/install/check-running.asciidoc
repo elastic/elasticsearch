@@ -1,14 +1,21 @@
 ==== Checking that Elasticsearch is running
 
-You can test that your Elasticsearch node is running by sending an HTTP
+You can test that your Elasticsearch node is running by sending an HTTPS
 request to port `9200` on `localhost`:
 
-[source,console]
---------------------------------------------
-GET /
---------------------------------------------
+[source,shell]
+----
+curl --cacert /etc/elasticsearch/tls_auto_config_<timestamp>/http_ca.crt \
+-u elastic https://localhost:9200 <1>
+----
+// NOTCONSOLE
+<1> Ensure that you use `https` in your call, or the request will fail.
++
+`--cacert`::
+Path to the generated `http_ca.crt` certificate for the HTTP layer.
 
-which should give you a response something like this:
+which, after you enter the password that was generated on installation,
+should give you a response something like this:
 
 ["source","js",subs="attributes,callouts"]
 --------------------------------------------

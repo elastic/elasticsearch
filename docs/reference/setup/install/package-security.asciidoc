@@ -1,0 +1,64 @@
+==== Security configuration
+
+When installing {es}, security features are enabled and configured by default.
+Concretely:
+
+* Authentication and authorization are enabled, and a password is generated for
+the `elastic` built-in superuser.
+* Certificates and keys for TLS are generated for the transport and HTTP layer
+and TLS is enabled and configured with these keys and certificates.
+
+The output of the installation in your terminal, contains a section such as the
+following:
+
+[source,sh]
+------
+--------------------------- Security autoconfiguration information ------------------------------
+
+Authentication and authorization are enabled.
+TLS for the transport and HTTP layers is enabled and configured.
+
+The generated password for the elastic built-in superuser is : 0zq1L_CkDujyYiVoYlZo <1>
+
+If this node should join an existing cluster, you can reconfigure this with
+'/usr/share/elasticsearch/bin/elasticsearch-reconfigure-node --enrollment-token <token-here>'
+after creating an enrollment token on your existing cluster.
+
+You can complete the following actions at any time:
+
+Reset the password of the elastic built-in superuser with
+'/usr/share/elasticsearch/bin/elasticsearch-reset-password -u elastic'.
+
+Generate an enrollment token for Kibana instances with
+ '/usr/share/elasticsearch/bin/elasticsearch-create-enrollment-token -s kibana'.
+
+Generate an enrollment token for Elasticsearch nodes with
+'/usr/share/elasticsearch/bin/elasticsearch-create-enrollment-token -s node'.
+
+-------------------------------------------------------------------------------------------------
+------
+<1> The password for the elastic user
+
+
+[[package-reconfigure-node]]
+===== Reconfigure the node to join an existing cluster
+
+During installation, {es} is configured by default as the first node of the cluster
+and can form a single node cluster when started.
+If you intend to join this node to an existing cluster instead, you need to perform the following
+actions, _before_ you start the node for the first time:
+
+. On any node of your existing cluster, execute:
+[source, sh]
+-----
+bin/elasticsearch-create-enrollment-token -s node
+-----
+
+. On this newly installed {es} node, use the `elasticsearch-reconfigure-node` CLI tool as follows:
+[source, sh]
+-----
+bin/elasticsearch-reconfigure-node --enrollment-token <token-here> <1>
+-----
+<1> The token that was created on the node of the existing cluster in step 1.
+
+{es} is now configured to join the existing cluster and you can proceed to start the node.

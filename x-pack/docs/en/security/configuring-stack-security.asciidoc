@@ -85,14 +85,13 @@ when you started {es}.
 [[stack-enroll-nodes]]
 === Enroll additional nodes in your cluster
 
-. From the installation directory of your other node, run the
-`elasticsearch-enroll-node` tool and pass the enrollment token with the
-`--enrollment token` parameter. This is the enrollment token that was
-generated when you started your first {es} node.
+. From the installation directory of your other node, start {es} and pass the
+enrollment token with the `--enrollment token` parameter. This is the enrollment
+token that was generated when you started your first {es} node.
 +
 [source,shell]
 ----
-bin/elasticsearch-enroll-node --enrollment token <enrollment-token>
+bin/elasticsearch --enrollment token <enrollment-token>
 ----
 
 . Repeat the previous step for any additional nodes that you want to enroll.

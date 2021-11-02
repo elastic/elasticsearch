@@ -113,6 +113,7 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ID_KEY;
 import static org.elasticsearch.xpack.security.authc.ApiKeyServiceTests.Utils.createApiKeyAuthentication;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -1403,7 +1404,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             new RealmRef(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8), randomAlphaOfLength(8)),
             Version.CURRENT,
             AuthenticationType.API_KEY,
-            Map.of()
+            Map.of(API_KEY_ID_KEY, randomAlphaOfLength(20))
         );
         when(apiKeyService.getApiKeyIdAndRoleBytes(eq(authentication1), anyBoolean())).thenReturn(
             new Tuple<>(apiKeyId, new BytesArray("{}"))
@@ -1586,7 +1587,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final BytesArray roleBytes = new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}");
         final BytesArray limitedByRoleBytes = new BytesArray("{\"limitedBy role\": {\"cluster\": [\"all\"]}}");
         final Map<String, Object> metadata = new HashMap<>();
-        metadata.put(AuthenticationField.API_KEY_ID_KEY, "key-id-1");
+        metadata.put(API_KEY_ID_KEY, "key-id-1");
         metadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 16));
         metadata.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, roleBytes);
         metadata.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, limitedByRoleBytes);
@@ -1610,7 +1611,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         // Different API key with the same roles should read from cache
         final Map<String, Object> metadata2 = new HashMap<>();
-        metadata2.put(AuthenticationField.API_KEY_ID_KEY, "key-id-2");
+        metadata2.put(API_KEY_ID_KEY, "key-id-2");
         metadata2.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 16));
         metadata2.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, roleBytes);
         metadata2.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, limitedByRoleBytes);
@@ -1633,7 +1634,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         // Different API key with the same limitedBy role should read from cache, new role should be built
         final BytesArray anotherRoleBytes = new BytesArray("{\"b role\": {\"cluster\": [\"manage_security\"]}}");
         final Map<String, Object> metadata3 = new HashMap<>();
-        metadata3.put(AuthenticationField.API_KEY_ID_KEY, "key-id-3");
+        metadata3.put(API_KEY_ID_KEY, "key-id-3");
         metadata3.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 16));
         metadata3.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, anotherRoleBytes);
         metadata3.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, limitedByRoleBytes);

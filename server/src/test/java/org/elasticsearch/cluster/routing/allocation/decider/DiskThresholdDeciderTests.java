@@ -931,7 +931,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(baseClusterState).routingTable(builder.build()).build();
         RoutingAllocation routingAllocation = new RoutingAllocation(
             null,
-            new RoutingNodes(clusterState.routingTable(), clusterState.nodes()),
+            RoutingNodes.immutable(clusterState.routingTable(), clusterState.nodes()),
             clusterState,
             clusterInfo,
             null,
@@ -963,7 +963,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(baseClusterState).routingTable(builder.build()).build();
         routingAllocation = new RoutingAllocation(
             null,
-            new RoutingNodes(clusterState.routingTable(), clusterState.nodes()),
+            RoutingNodes.immutable(clusterState.routingTable(), clusterState.nodes()),
             clusterState,
             clusterInfo,
             null,
@@ -1124,7 +1124,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         RoutingAllocation routingAllocation = new RoutingAllocation(
             null,
-            new RoutingNodes(clusterState.routingTable(), clusterState.nodes()),
+            RoutingNodes.immutable(clusterState.routingTable(), clusterState.nodes()),
             clusterState,
             clusterInfo,
             null,

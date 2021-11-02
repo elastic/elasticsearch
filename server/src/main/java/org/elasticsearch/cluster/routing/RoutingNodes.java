@@ -48,8 +48,9 @@ import java.util.stream.StreamSupport;
 
 /**
  * {@link RoutingNodes} represents a copy the routing information contained in the {@link ClusterState cluster state}.
- * It can be either initialized as mutable or immutable (see {@link #RoutingNodes(RoutingTable, DiscoveryNodes, boolean)})
- * and {@link #mutableCopy()}, allowing or disallowing changes to its elements.
+ * It can be either initialized as mutable or immutable allowing or disallowing changes to its elements.
+ * (see {@link RoutingNodes#mutable(RoutingTable, DiscoveryNodes)}, {@link RoutingNodes#immutable(RoutingTable, DiscoveryNodes)},
+ * and {@link #mutableCopy()})
  *
  * The main methods used to update routing entries are:
  * <ul>
@@ -82,11 +83,15 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     private final Map<String, Set<String>> attributeValuesByAttribute;
     private final Map<String, Recoveries> recoveriesPerNode;
 
-    public RoutingNodes(RoutingTable routingTable, DiscoveryNodes discoveryNodes) {
-        this(routingTable, discoveryNodes, true);
+    public static RoutingNodes immutable(RoutingTable routingTable, DiscoveryNodes discoveryNodes) {
+        return new RoutingNodes(routingTable, discoveryNodes, true);
     }
 
-    public RoutingNodes(RoutingTable routingTable, DiscoveryNodes discoveryNodes, boolean readOnly) {
+    public static RoutingNodes mutable(RoutingTable routingTable, DiscoveryNodes discoveryNodes) {
+        return new RoutingNodes(routingTable, discoveryNodes, false);
+    }
+
+    private RoutingNodes(RoutingTable routingTable, DiscoveryNodes discoveryNodes, boolean readOnly) {
         this.readOnly = readOnly;
         this.recoveriesPerNode = new HashMap<>();
         this.assignedShards = new HashMap<>();

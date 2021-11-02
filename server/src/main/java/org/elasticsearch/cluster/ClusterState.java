@@ -169,7 +169,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         if (routingNodes == null) {
             return true;
         }
-        final RoutingNodes expected = new RoutingNodes(routingTable, nodes);
+        final RoutingNodes expected = RoutingNodes.immutable(routingTable, nodes);
         assert routingNodes.equals(expected)
             : "RoutingNodes [" + routingNodes + "] are not consistent with this cluster state [" + expected + "]";
         return true;
@@ -272,7 +272,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         if (routingNodes != null) {
             return routingNodes;
         }
-        routingNodes = new RoutingNodes(routingTable, nodes);
+        routingNodes = RoutingNodes.immutable(routingTable, nodes);
         return routingNodes;
     }
 
@@ -287,7 +287,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         }
         // we don't have any routing nodes for this state, likely because it's a temporary state in the reroute logic, don't compute an
         // immutable copy that will never be used and instead directly build a mutable copy
-        return new RoutingNodes(routingTable, this.nodes, false);
+        return RoutingNodes.mutable(routingTable, this.nodes);
     }
 
     @Override

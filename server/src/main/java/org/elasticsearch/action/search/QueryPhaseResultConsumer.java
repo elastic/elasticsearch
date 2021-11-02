@@ -258,14 +258,14 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                     assert circuitBreakerBytes == 0;
                     return;
                 }
-                assert circuitBreakerBytes >= 0;
-                circuitBreaker.addWithoutBreaking(-circuitBreakerBytes);
-                circuitBreakerBytes = 0;
             } finally {
                 // Clean up any delayed aggregations we haven't processed.
                 Releasables.close(
                     buffer.stream().filter(b -> b.aggregations() != null).map(b -> b.aggregations()).collect(Collectors.toList())
                 );
+                assert circuitBreakerBytes >= 0;
+                circuitBreaker.addWithoutBreaking(-circuitBreakerBytes);
+                circuitBreakerBytes = 0;
             }
         }
 

@@ -85,27 +85,31 @@ when you started {es}.
 [[stack-enroll-nodes]]
 === Enroll additional nodes in your cluster
 
+. In a separate terminal from where {es} is running, navigate to the directory
+where you installed {es} and run the
+<<create-enrollment-token,`elasticsearch-create-enrollment-token`>> tool
+to generate an enrollment token for your additional nodes.
++
+[source,shell]
+----
+bin/elasticsearch-create-enrollment-token -s node
+----
++
+Copy the enrollment token, which you'll use to enroll additional nodes with
+your {es} cluster.
+
 . From the installation directory of your other node, start {es} and pass the
-enrollment token with the `--enrollment token` parameter. This is the enrollment
-token that was generated when you started your first {es} node.
+enrollment token with the `--enrollment-token` parameter.
 +
 [source,shell]
 ----
-bin/elasticsearch --enrollment token <enrollment-token>
-----
-
-. Repeat the previous step for any additional nodes that you want to enroll.
-
-. Start your new nodes, which {es} automatically enrolls into the existing
-cluster.
-+
-[source,shell]
-----
-bin/elasticsearch
+bin/elasticsearch --enrollment-token <enrollment-token>
 ----
 +
 {es} automatically generates certificates and keys in the
 `config/tls_auto_config_node_<timestamp>` directory.
+
+. Repeat the previous step for any additional nodes that you want to enroll.
 
 [discrete]
 === What's next?

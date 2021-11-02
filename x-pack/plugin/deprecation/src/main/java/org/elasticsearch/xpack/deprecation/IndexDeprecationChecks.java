@@ -21,6 +21,8 @@ import org.elasticsearch.index.SearchSlowLog;
 import org.elasticsearch.index.SlowLogLevel;
 import org.elasticsearch.index.engine.frozen.FrozenEngine;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
@@ -573,5 +575,28 @@ public class IndexDeprecationChecks {
             }
         }
         return null;
+    }
+
+    static DeprecationIssue checkSettingNoReplacement(IndexMetadata indexMetadata, Setting<?> deprecatedSetting, String url) {
+        assert deprecatedSetting.isDeprecated() : deprecatedSetting;
+        if (deprecatedSetting.exists(indexMetadata.getSettings()) == false) {
+            return null;
+        }
+        final String deprecatedSettingKey = deprecatedSetting.getKey();
+        final String message = String.format(Locale.ROOT, "Setting [%s] is deprecated", deprecatedSettingKey);
+        final String details = String.format(Locale.ROOT, "Remove the [%s] setting.", deprecatedSetting.getKey());
+        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
+    }
+
+    static DeprecationIssue httpContentTypeRequiredSettingCheck(IndexMetadata indexMetadata) {
+        Setting<Boolean> deprecatedSetting = Store.FORCE_RAM_TERM_DICT;
+        String url = "https://ela.st/es-deprecation-7-force-memory-term-dictionary-setting";
+        return checkSettingNoReplacement(indexMetadata, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue mapperDyamicSettingCheck(IndexMetadata indexMetadata) {
+        Setting<Boolean> deprecatedSetting = MapperService.INDEX_MAPPER_DYNAMIC_SETTING;
+        String url = "https://ela.st/es-deprecation-7-mapper-dynamic-setting";
+        return checkSettingNoReplacement(indexMetadata, deprecatedSetting, url);
     }
 }

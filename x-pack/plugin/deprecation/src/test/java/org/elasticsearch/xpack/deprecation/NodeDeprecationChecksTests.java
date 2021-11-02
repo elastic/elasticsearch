@@ -7,17 +7,22 @@
 
 package org.elasticsearch.xpack.deprecation;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.coordination.DiscoveryUpgradeService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -25,31 +30,44 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Set;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.discovery.zen.FaultDetection;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.gateway.DanglingIndicesState;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.Compression;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.monitoring.Monitoring;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.coordination.JoinHelper.JOIN_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING;
+import static org.elasticsearch.common.settings.Setting.Property;
 import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE_SETTING;
 import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING;
 import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING;
@@ -562,6 +580,9 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .filter(s -> s.legacySetting() != null)
             .map(DiscoveryNodeRole::legacySetting)
             .collect(Collectors.toList());
+        legacyRoleSettings.add(Setting.boolSetting("node.voting_only", false, Property.Deprecated, Property.NodeScope));
+        legacyRoleSettings.add(Setting.boolSetting("node.ml", true, Property.Deprecated, Property.NodeScope));
+        legacyRoleSettings.add(Setting.boolSetting("node.transform", true, Property.Deprecated, Property.NodeScope));
         for (final Setting<Boolean> legacyRoleSetting : legacyRoleSettings) {
             final boolean value = randomBoolean();
             final Settings settings = Settings.builder().put(legacyRoleSetting.getKey(), value).build();
@@ -748,7 +769,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             issues,
             hasItem(
                 new DeprecationIssue(
-                    DeprecationIssue.Level.CRITICAL,
+                    DeprecationIssue.Level.WARNING,
                     "Setting [cluster.routing.allocation.disk.watermark.enable_for_single_data_node=false] is deprecated",
                     expectedUrl,
                     "Remove the [cluster.routing.allocation.disk.watermark.enable_for_single_data_node] setting. Disk watermarks"
@@ -2014,6 +2035,275 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                     false,
                     null
                 )
+            )
+        );
+    }
+
+    public void testShardReroutePriority() {
+        Settings settings = Settings.builder()
+            .put(
+                ShardStateAction.FOLLOW_UP_REROUTE_PRIORITY_SETTING.getKey(),
+                randomFrom(Priority.HIGH, Priority.NORMAL, Priority.URGENT).toString()
+            )
+            .build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "Setting [cluster.routing.allocation.shard_state.reroute.priority] is deprecated",
+            "https://ela.st/es-deprecation-7-reroute-priority-setting",
+            "Remove the [cluster.routing.allocation.shard_state.reroute.priority] setting.",
+            false,
+            null
+        );
+        assertThat(issues, hasItem(expected));
+    }
+
+    public void testZenDiscoverySettings() {
+        Settings settings = Settings.builder()
+            .put(DiscoveryUpgradeService.BWC_PING_TIMEOUT_SETTING.getKey(), randomTimeValue())
+            .put(DiscoveryUpgradeService.ENABLE_UNSAFE_BOOTSTRAPPING_ON_UPGRADE_SETTING.getKey(), randomTimeValue())
+            .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), randomTimeValue())
+            .put(DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING.getKey(), randomBoolean())
+            .put(FaultDetection.CONNECT_ON_NETWORK_DISCONNECT_SETTING.getKey(), randomBoolean())
+            .put(FaultDetection.PING_INTERVAL_SETTING.getKey(), randomPositiveTimeValue())
+            .put(FaultDetection.PING_TIMEOUT_SETTING.getKey(), randomTimeValue())
+            .put(FaultDetection.PING_RETRIES_SETTING.getKey(), randomInt())
+            .put(FaultDetection.REGISTER_CONNECTION_LISTENER_SETTING.getKey(), randomBoolean())
+            .build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
+        Collection<Setting<?>> deprecatedSettings = Set.of(
+            DiscoveryUpgradeService.BWC_PING_TIMEOUT_SETTING,
+            DiscoveryUpgradeService.ENABLE_UNSAFE_BOOTSTRAPPING_ON_UPGRADE_SETTING,
+            DiscoverySettings.COMMIT_TIMEOUT_SETTING,
+            DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING,
+            FaultDetection.CONNECT_ON_NETWORK_DISCONNECT_SETTING,
+            FaultDetection.PING_INTERVAL_SETTING,
+            FaultDetection.PING_TIMEOUT_SETTING,
+            FaultDetection.PING_RETRIES_SETTING,
+            FaultDetection.REGISTER_CONNECTION_LISTENER_SETTING
+        );
+        for (Setting<?> deprecatedSetting : deprecatedSettings) {
+            final DeprecationIssue expected = new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
+                "Setting [" + deprecatedSetting.getKey() + "] is deprecated",
+                "https://ela.st/es-deprecation-7-unused_zen_settings",
+                "Remove the [" + deprecatedSetting.getKey() + "] setting.",
+                false,
+                null
+            );
+            assertThat(issues, hasItem(expected));
+        }
+    }
+
+    public void testAutoImportDanglingIndicesSetting() {
+        Settings settings = Settings.builder()
+            .put(DanglingIndicesState.AUTO_IMPORT_DANGLING_INDICES_SETTING.getKey(), randomBoolean())
+            .build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "Setting [gateway.auto_import_dangling_indices] is deprecated",
+            "https://ela.st/es-deprecation-7-auto-import-dangling-indices-setting",
+            "Remove the [gateway.auto_import_dangling_indices] setting.",
+            false,
+            null
+        );
+        assertThat(issues, hasItem(expected));
+    }
+
+    public void testHttpContentTypeRequiredSetting() {
+        Settings settings = Settings.builder()
+            .put(HttpTransportSettings.SETTING_HTTP_CONTENT_TYPE_REQUIRED.getKey(), randomBoolean())
+            .build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "Setting [http.content_type.required] is deprecated",
+            "https://ela.st/es-deprecation-7-http-content-type-required-setting",
+            "Remove the [http.content_type.required] setting.",
+            false,
+            null
+        );
+        assertThat(issues, hasItem(expected));
+    }
+
+    public void testFsRepositoryCompressionSetting() {
+        boolean settingValue = randomBoolean();
+        Settings settings = Settings.builder().put(FsRepository.REPOSITORIES_COMPRESS_SETTING.getKey(), settingValue).build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "Setting [repositories.fs.compress] is deprecated",
+            "https://ela.st/es-deprecation-7-filesystem-repository-compression-setting",
+            "Remove the [repositories.fs.compress] setting and set [compress] to [" + settingValue + "].",
+            false,
+            null
+        );
+        assertThat(issues, hasItem(expected));
+        assertWarnings(
+            "[repositories.fs.compress] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking"
+                + " changes documentation for the next major version."
+        );
+    }
+
+    public void testTransportSettings() {
+        Map<Setting<?>, Setting<?>> settingToReplacementMap = new HashMap<>();
+        settingToReplacementMap.put(HttpTransportSettings.OLD_SETTING_HTTP_TCP_NO_DELAY, HttpTransportSettings.SETTING_HTTP_TCP_NO_DELAY);
+        settingToReplacementMap.put(NetworkService.TCP_CONNECT_TIMEOUT, TransportSettings.CONNECT_TIMEOUT);
+        settingToReplacementMap.put(TransportSettings.TCP_CONNECT_TIMEOUT, TransportSettings.CONNECT_TIMEOUT);
+        settingToReplacementMap.put(TransportSettings.OLD_PORT, TransportSettings.PORT);
+        settingToReplacementMap.put(TransportSettings.OLD_TCP_NO_DELAY, TransportSettings.TCP_NO_DELAY);
+        settingToReplacementMap.put(TransportSettings.OLD_TRANSPORT_COMPRESS, TransportSettings.TRANSPORT_COMPRESS);
+        Map<Setting<?>, Object> settingToTestValueMap = new HashMap<>();
+        settingToTestValueMap.put(HttpTransportSettings.OLD_SETTING_HTTP_TCP_NO_DELAY, randomBoolean());
+        /*
+         * Note: Limiting time values to between 0 and 23 because the downstream code will normalize them so that 100 hours becomes 4.2
+         * days, so the expected values would not match the actual.
+         */
+        settingToTestValueMap.put(NetworkService.TCP_CONNECT_TIMEOUT, randomTimeValue(0, 23));
+        settingToTestValueMap.put(TransportSettings.TCP_CONNECT_TIMEOUT, randomTimeValue(0, 23));
+        settingToTestValueMap.put(TransportSettings.OLD_PORT, randomAlphaOfLength(10));
+        settingToTestValueMap.put(TransportSettings.OLD_TCP_NO_DELAY, randomBoolean());
+        settingToTestValueMap.put(
+            TransportSettings.OLD_TRANSPORT_COMPRESS,
+            randomFrom(Compression.Enabled.TRUE, Compression.Enabled.FALSE, Compression.Enabled.INDEXING_DATA)
+        );
+        Settings.Builder settingsBuilder = Settings.builder();
+        settingToTestValueMap.entrySet()
+            .stream()
+            .forEach(settingAndValue -> settingsBuilder.put(settingAndValue.getKey().getKey(), settingAndValue.getValue().toString()));
+        Settings settings = settingsBuilder.build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
+        java.util.Set<String> warnings = new HashSet<>();
+        for (Map.Entry<Setting<?>, Setting<?>> deprecatedSettingToReplacement : settingToReplacementMap.entrySet()) {
+            final DeprecationIssue expected = new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
+                "Setting [" + deprecatedSettingToReplacement.getKey().getKey() + "] is deprecated",
+                "https://ela.st/es-deprecation-7-transport-settings",
+                String.format(
+                    Locale.ROOT,
+                    "Remove the [%s] setting and set [%s] to [%s].",
+                    deprecatedSettingToReplacement.getKey().getKey(),
+                    deprecatedSettingToReplacement.getValue().getKey(),
+                    settingToTestValueMap.get(deprecatedSettingToReplacement.getKey())
+                ),
+                false,
+                null
+            );
+            assertThat(issues, hasItem(expected));
+            warnings.add(
+                String.format(
+                    Locale.ROOT,
+                    "[%s] setting was deprecated in Elasticsearch and will be removed in a future "
+                        + "release! See the breaking changes documentation for the next major version.",
+                    deprecatedSettingToReplacement.getKey().getKey()
+                )
+            );
+        }
+        assertWarnings(warnings.toArray(new String[0]));
+    }
+
+    public void testXpackDataFrameEnabledSetting() {
+        boolean settingValue = randomBoolean();
+        Settings settings = Settings.builder().put("xpack.data_frame.enabled", settingValue).build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "Setting [xpack.data_frame.enabled] is deprecated",
+            "https://ela.st/es-deprecation-7-xpack-dataframe-setting",
+            "Remove the [xpack.data_frame.enabled] setting. " + "As of 7.9.2 basic license level features are always enabled.",
+            false,
+            null
+        );
+        assertThat(issues, hasItem(expected));
+        assertWarnings(
+            "[xpack.data_frame.enabled] setting was deprecated in Elasticsearch and will be removed in a "
+                + "future release! See the breaking changes documentation for the next major version."
+        );
+    }
+
+    public void testWatcherHistoryCleanerServiceSetting() {
+        boolean settingValue = randomBoolean();
+        Settings settings = Settings.builder().put(Monitoring.CLEAN_WATCHER_HISTORY.getKey(), settingValue).build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "Setting [xpack.watcher.history.cleaner_service.enabled] is deprecated",
+            "https://ela.st/es-deprecation-7-watcher-history-cleaner-setting",
+            "Remove the [xpack.watcher.history.cleaner_service.enabled] setting. "
+                + "Watcher history indices are now managed by the watch-history-ilm-policy ILM policy.",
+            false,
+            null
+        );
+        assertThat(issues, hasItem(expected));
+        assertWarnings(
+            "[xpack.watcher.history.cleaner_service.enabled] setting was deprecated in Elasticsearch and will be removed in a "
+                + "future release! See the breaking changes documentation for the next major version."
+        );
+    }
+
+    public void testLifecyleStepMasterTimeoutSetting() {
+        Settings settings = Settings.builder()
+            .put(LifecycleSettings.LIFECYCLE_STEP_MASTER_TIMEOUT_SETTING.getKey(), randomTimeValue())
+            .build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            "Setting [indices.lifecycle.step.master_timeout] is deprecated",
+            "https://ela.st/es-deprecation-7-lifecycle-master-timeout-setting",
+            "Remove the [indices.lifecycle.step.master_timeout] setting. As of 7.16 the timeout is always infinite.",
+            false,
+            null
+        );
+        assertThat(issues, hasItem(expected));
+        assertWarnings(
+            true,
+            new DeprecationWarning(
+                Level.WARN,
+                "[indices.lifecycle.step.master_timeout] setting was deprecated in Elasticsearch and will be removed in a future release!"
+                    + " See the breaking changes documentation for the next major version."
+            )
+        );
+    }
+
+    public void testEqlEnabledSetting() {
+        Settings settings = Settings.builder().put("xpack.eql.enabled", randomBoolean()).build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            "Setting [xpack.eql.enabled] is deprecated",
+            "https://ela.st/es-deprecation-7-lifecycle-master-timeout-setting",
+            "Remove the [xpack.eql.enabled] setting. As of 7.9.2 basic license level features are always enabled.",
+            false,
+            null
+        );
+        assertThat(issues, hasItem(expected));
+        assertWarnings(
+            true,
+            new DeprecationWarning(
+                Level.WARN,
+                "[xpack.eql.enabled] setting was deprecated in Elasticsearch and will be removed in a future release!"
+                    + " See the breaking changes documentation for the next major version."
             )
         );
     }

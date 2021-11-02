@@ -25,6 +25,8 @@ import org.elasticsearch.index.SearchSlowLog;
 import org.elasticsearch.index.SlowLogLevel;
 import org.elasticsearch.index.engine.frozen.FrozenEngine;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -872,5 +874,47 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         discoBuilder.masterNodeId(randomFrom(nodesList).getId());
 
         return ClusterState.builder(ClusterState.EMPTY_STATE).nodes(discoBuilder.build()).build();
+    }
+
+    public void testForceMemoryTermDictionary() {
+        Settings settings = Settings.builder()
+            .put(Store.FORCE_RAM_TERM_DICT.getKey(), randomBoolean())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_7_0_0)
+            .build();
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
+            INDEX_SETTINGS_CHECKS,
+            c -> c.apply(ClusterState.EMPTY_STATE, indexMetadata)
+        );
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "Setting [index.force_memory_term_dictionary] is deprecated",
+            "https://ela.st/es-deprecation-7-force-memory-term-dictionary-setting",
+            "Remove the [index.force_memory_term_dictionary] setting.",
+            false,
+            null
+        );
+        assertThat(issues, hasItem(expected));
+    }
+
+    public void testMapperDynamicSetting() {
+        Settings settings = Settings.builder()
+            .put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey(), randomBoolean())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_7_0_0)
+            .build();
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
+            INDEX_SETTINGS_CHECKS,
+            c -> c.apply(ClusterState.EMPTY_STATE, indexMetadata)
+        );
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "Setting [index.mapper.dynamic] is deprecated",
+            "https://ela.st/es-deprecation-7-mapper-dynamic-setting",
+            "Remove the [index.mapper.dynamic] setting.",
+            false,
+            null
+        );
+        assertThat(issues, hasItem(expected));
     }
 }

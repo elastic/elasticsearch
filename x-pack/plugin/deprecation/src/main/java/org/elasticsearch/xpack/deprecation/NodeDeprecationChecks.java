@@ -10,12 +10,16 @@ package org.elasticsearch.xpack.deprecation;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.coordination.DiscoveryUpgradeService;
 import org.elasticsearch.cluster.coordination.JoinHelper;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -25,26 +29,35 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.discovery.zen.FaultDetection;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.gateway.DanglingIndicesState;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeRoleSettings;
+import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
+import org.elasticsearch.transport.Compression;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.SniffConnectionStrategy;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.monitoring.Monitoring;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -644,7 +657,7 @@ class NodeDeprecationChecks {
             && DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.exists(settings)) {
             String key = DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey();
             return new DeprecationIssue(
-                DeprecationIssue.Level.CRITICAL,
+                DeprecationIssue.Level.WARNING,
                 String.format(Locale.ROOT, "Setting [%s=false] is deprecated", key),
                 "https://ela.st/es-deprecation-7-disk-watermark-enable-for-single-node-setting",
                 String.format(
@@ -1787,6 +1800,304 @@ class NodeDeprecationChecks {
             "https://ela.st/es-deprecation-7-monitoring-exporter-create-legacy-template-setting",
             DeprecationIssue.Level.WARNING,
             settings
+        );
+    }
+
+    static DeprecationIssue checkSettingNoReplacement(Settings settings, Setting<?> deprecatedSetting, String url) {
+        assert deprecatedSetting.isDeprecated() : deprecatedSetting;
+        if (deprecatedSetting.exists(settings) == false) {
+            return null;
+        }
+        final String deprecatedSettingKey = deprecatedSetting.getKey();
+        final String message = String.format(Locale.ROOT, "Setting [%s] is deprecated", deprecatedSettingKey);
+        final String details = String.format(Locale.ROOT, "Remove the [%s] setting.", deprecatedSetting.getKey());
+        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
+    }
+
+    static DeprecationIssue checkReroutePrioritySetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Priority> deprecatedSetting = ShardStateAction.FOLLOW_UP_REROUTE_PRIORITY_SETTING;
+        String url = "https://ela.st/es-deprecation-7-reroute-priority-setting";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkZenBwcPingTimeoutSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<TimeValue> deprecatedSetting = DiscoveryUpgradeService.BWC_PING_TIMEOUT_SETTING;
+        String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkZenUnsafeBootstrappingOnUpgradeSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Boolean> deprecatedSetting = DiscoveryUpgradeService.ENABLE_UNSAFE_BOOTSTRAPPING_ON_UPGRADE_SETTING;
+        String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkZenCommitTimeoutSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<TimeValue> deprecatedSetting = DiscoverySettings.COMMIT_TIMEOUT_SETTING;
+        String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkZenPublishDiffEnableSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Boolean> deprecatedSetting = DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING;
+        String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkZenConnectOnNetworkDisconnectSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Boolean> deprecatedSetting = FaultDetection.CONNECT_ON_NETWORK_DISCONNECT_SETTING;
+        String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkZenPingIntervalSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<TimeValue> deprecatedSetting = FaultDetection.PING_INTERVAL_SETTING;
+        String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkZenPingTimeoutSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<TimeValue> deprecatedSetting = FaultDetection.PING_TIMEOUT_SETTING;
+        String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkZenPingRetriesSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Integer> deprecatedSetting = FaultDetection.PING_RETRIES_SETTING;
+        String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkZenRegisterConnectionListenerSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Boolean> deprecatedSetting = FaultDetection.REGISTER_CONNECTION_LISTENER_SETTING;
+        String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkAutoImportDanglingIndicesSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Boolean> deprecatedSetting = DanglingIndicesState.AUTO_IMPORT_DANGLING_INDICES_SETTING;
+        String url = "https://ela.st/es-deprecation-7-auto-import-dangling-indices-setting";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkHttpContentTypeRequiredSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Boolean> deprecatedSetting = HttpTransportSettings.SETTING_HTTP_CONTENT_TYPE_REQUIRED;
+        String url = "https://ela.st/es-deprecation-7-http-content-type-required-setting";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkFsRepositoryCompressionSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Boolean> deprecatedSetting = FsRepository.REPOSITORIES_COMPRESS_SETTING;
+        Setting<Boolean> replacementSetting = FsRepository.COMPRESS_SETTING;
+        String url = "https://ela.st/es-deprecation-7-filesystem-repository-compression-setting";
+        return checkDeprecatedSetting(settings, pluginsAndModules, deprecatedSetting, replacementSetting, url);
+    }
+
+    static DeprecationIssue checkHttpTcpNoDelaySetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Boolean> deprecatedSetting = HttpTransportSettings.OLD_SETTING_HTTP_TCP_NO_DELAY;
+        Setting<Boolean> replacementSetting = HttpTransportSettings.SETTING_HTTP_TCP_NO_DELAY;
+        String url = "https://ela.st/es-deprecation-7-transport-settings";
+        return checkDeprecatedSetting(settings, pluginsAndModules, deprecatedSetting, replacementSetting, url);
+    }
+
+    static DeprecationIssue checkNetworkTcpConnectTimeoutSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<TimeValue> deprecatedSetting = NetworkService.TCP_CONNECT_TIMEOUT;
+        Setting<TimeValue> replacementSetting = TransportSettings.CONNECT_TIMEOUT;
+        String url = "https://ela.st/es-deprecation-7-transport-settings";
+        return checkDeprecatedSetting(settings, pluginsAndModules, deprecatedSetting, replacementSetting, url);
+    }
+
+    static DeprecationIssue checkTransportTcpConnectTimeoutSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<TimeValue> deprecatedSetting = TransportSettings.TCP_CONNECT_TIMEOUT;
+        Setting<TimeValue> replacementSetting = TransportSettings.CONNECT_TIMEOUT;
+        String url = "https://ela.st/es-deprecation-7-transport-settings";
+        return checkDeprecatedSetting(settings, pluginsAndModules, deprecatedSetting, replacementSetting, url);
+    }
+
+    static DeprecationIssue checkTransportPortSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<String> deprecatedSetting = TransportSettings.OLD_PORT;
+        Setting<String> replacementSetting = TransportSettings.PORT;
+        String url = "https://ela.st/es-deprecation-7-transport-settings";
+        return checkDeprecatedSetting(settings, pluginsAndModules, deprecatedSetting, replacementSetting, url);
+    }
+
+    static DeprecationIssue checkTcpNoDelaySetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Boolean> deprecatedSetting = TransportSettings.OLD_TCP_NO_DELAY;
+        Setting<Boolean> replacementSetting = TransportSettings.TCP_NO_DELAY;
+        String url = "https://ela.st/es-deprecation-7-transport-settings";
+        return checkDeprecatedSetting(settings, pluginsAndModules, deprecatedSetting, replacementSetting, url);
+    }
+
+    static DeprecationIssue checkTransportCompressSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Compression.Enabled> deprecatedSetting = TransportSettings.OLD_TRANSPORT_COMPRESS;
+        Setting<Compression.Enabled> replacementSetting = TransportSettings.TRANSPORT_COMPRESS;
+        String url = "https://ela.st/es-deprecation-7-transport-settings";
+        return checkDeprecatedSetting(settings, pluginsAndModules, deprecatedSetting, replacementSetting, url);
+    }
+
+    static DeprecationIssue checkXpackDataFrameEnabledSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Boolean> deprecatedSetting = Setting.boolSetting(
+            "xpack.data_frame.enabled",
+            true,
+            Setting.Property.NodeScope,
+            Setting.Property.Deprecated
+        );
+        String url = "https://ela.st/es-deprecation-7-xpack-dataframe-setting";
+        return checkRemovedSetting(settings, deprecatedSetting, url, "As of 7.9.2 basic license level features are always enabled.");
+    }
+
+    static DeprecationIssue checkWatcherHistoryCleanerServiceSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Boolean> deprecatedSetting = Monitoring.CLEAN_WATCHER_HISTORY;
+        String url = "https://ela.st/es-deprecation-7-watcher-history-cleaner-setting";
+        return checkRemovedSetting(
+            settings,
+            deprecatedSetting,
+            url,
+            "Watcher history indices are now managed by the watch-history-ilm-policy ILM policy."
+        );
+    }
+
+    static DeprecationIssue checkLifecyleStepMasterTimeoutSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<TimeValue> deprecatedSetting = LifecycleSettings.LIFECYCLE_STEP_MASTER_TIMEOUT_SETTING;
+        String url = "https://ela.st/es-deprecation-7-lifecycle-master-timeout-setting";
+        return checkRemovedSetting(
+            settings,
+            deprecatedSetting,
+            url,
+            "As of 7.16 the timeout is always infinite.",
+            DeprecationIssue.Level.WARNING
+        );
+    }
+
+    static DeprecationIssue checkEqlEnabledSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Boolean> deprecatedSetting = Setting.boolSetting(
+            "xpack.eql.enabled",
+            true,
+            Setting.Property.NodeScope,
+            Property.DeprecatedWarning
+        );
+        String url = "https://ela.st/es-deprecation-7-lifecycle-master-timeout-setting";
+        return checkRemovedSetting(
+            settings,
+            deprecatedSetting,
+            url,
+            "As of 7.9.2 basic license level features are always enabled.",
+            DeprecationIssue.Level.WARNING
         );
     }
 }

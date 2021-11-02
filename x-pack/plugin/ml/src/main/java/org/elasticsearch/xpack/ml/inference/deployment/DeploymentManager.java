@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.ml.job.process.ProcessWorkerExecutorService;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -102,6 +103,7 @@ public class DeploymentManager {
         return Optional.ofNullable(processContextByAllocation.get(task.getId()))
             .map(
                 processContext -> new ModelStats(
+                    processContext.startTime,
                     processContext.getResultProcessor().getTimingStats(),
                     processContext.getResultProcessor().getLastUsed(),
                     processContext.executorService.queueSize() + processContext.getResultProcessor().numberOfPendingResults()
@@ -415,6 +417,7 @@ public class DeploymentManager {
         private final PyTorchResultProcessor resultProcessor;
         private final PyTorchStateStreamer stateStreamer;
         private final ProcessWorkerExecutorService executorService;
+        private volatile Instant startTime;
 
         ProcessContext(TrainedModelDeploymentTask task, ExecutorService executorService) {
             this.task = Objects.requireNonNull(task);
@@ -433,6 +436,7 @@ public class DeploymentManager {
 
         synchronized void startProcess() {
             process.set(pyTorchProcessFactory.createProcess(task, executorServiceForProcess, onProcessCrash()));
+            startTime = Instant.now();
             executorServiceForProcess.submit(executorService::start);
         }
 

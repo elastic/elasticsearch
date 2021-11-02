@@ -63,27 +63,12 @@ If you're starting a single-node {es} cluster in a Docker container, security
 will be automatically enabled and configured for you. When you start {es} for
 the first time, the following security configuration occurs automatically:
 
-* Certificates and keys are generated for the transport and HTTP layers.
+* <<elasticsearch-security-certificates,Certificates and keys>> are generated
+for the transport and HTTP layers.
 * The Transport Layer Security (TLS) configuration settings are written to
 `elasticsearch.yml`.
 * A password is generated for the `elastic` user.
 * An enrollment token is generated for {kib}.
-
-The following certificates and keys are generated in the
-`/usr/share/elasticsearch/config/tls_auto_config_initial_node_<timestamp>`
-directory, and allow you to connect a {kib} instance to your secured {es}
-cluster and encrypt internode communication:
-
-`http_ca.crt`::
-The CA certificate that is used to sign the certificates for the HTTP layer of
-this {es} cluster.
-
-`http_keystore_local_node.p12`::
-Keystore that contains the key and certificate for the HTTP layer for this node.
-
-`transport_keystore_all_nodes.p12`::
-Keystore that contains the key and certificate for the transport layer for all
-the nodes in your cluster.
 
 You can then {kibana-ref}/docker.html[start {kib}] and enter the enrollment
 token, which is valid for 30 minutes. This token automatically applies the
@@ -113,9 +98,18 @@ and enrollment token.
 . Copy the generated password and enrollment token and save them in a secure
 location. These values are shown only when you start {es} for the first time.
 +
-NOTE: If you need to reset the password for the `elastic` or `kibana_system`
-users, run the <<reset-password,`elasticsearch-reset-password`>> tool from the
-{es} `/bin` directory.
+[NOTE]
+====
+If you need to reset the password for the `elastic` user or other
+built-in users, run the <<reset-password,`elasticsearch-reset-password`>> tool.
+This tool is available in the {es} `/bin` directory of the Docker container.
+For example:
+
+[source,sh]
+----
+docker exec -ti es-node01 /usr/share/elasticsearch/bin/reset-elastic-password
+----
+====
 
 . Copy the `http_ca.crt` security certificate from your Docker container to
 your local machine.
@@ -124,11 +118,6 @@ your local machine.
 ----
 docker cp <container-id>:/usr/share/elasticsearch/config/tls_auto_config_<timestamp>/http_ca.crt <local-directory>
 ----
-+
---
-`<container-id>`:: The ID of your Docker container where {es} is running. Run
-`docker ps` to find this value.
---
 
 . Open a new terminal and verify that you can connect to your {es} cluster by
 making an authenticated call, using the `http_ca.crt` file that you copied from
@@ -781,3 +770,25 @@ To resolve this error:
 . Retry the command.
 
 include::next-steps.asciidoc[]
+
+[discrete]
+[[elasticsearch-security-certificates]]
+=== Security certificates and keys
+
+When you start {es} for the first time, the following certificates and keys are
+generated in the
+`/usr/share/elasticsearch/config/tls_auto_config_initial_node_<timestamp>`
+directory in the Docker container, and allow you to connect a {kib} instance
+to your secured {es} cluster and encrypt internode communication. The files are
+listed here for reference.
+
+`http_ca.crt`::
+The CA certificate that is used to sign the certificates for the HTTP layer of
+this {es} cluster.
+
+`http_keystore_local_node.p12`::
+Keystore that contains the key and certificate for the HTTP layer for this node.
+
+`transport_keystore_all_nodes.p12`::
+Keystore that contains the key and certificate for the transport layer for all
+the nodes in your cluster.

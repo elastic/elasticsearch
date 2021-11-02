@@ -1379,7 +1379,11 @@ public class SettingTests extends ESTestCase {
         undeprecatedSetting1.checkDeprecation(settings);
         undeprecatedSetting2.checkDeprecation(settings);
         ensureNoWarnings();
-        final Setting<String> criticalDeprecatedSetting = Setting.simpleString(criticalSettingName, settingValue, Property.DeprecatedWarning);
+        final Setting<String> criticalDeprecatedSetting = Setting.simpleString(
+            criticalSettingName,
+            settingValue,
+            Property.DeprecatedWarning
+        );
         criticalDeprecatedSetting.checkDeprecation(settings);
         assertSettingDeprecationsAndWarnings(new Setting<?>[] { criticalDeprecatedSetting });
         final Setting<String> deprecatedSettingWarningOnly = Setting.simpleString(

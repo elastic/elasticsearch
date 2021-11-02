@@ -512,6 +512,7 @@ public abstract class ESTestCase extends LuceneTestCase {
                 .toArray(DeprecationWarning[]::new)
         );
     }
+
     /**
      * Convenience method to assert warnings for settings deprecations and general deprecation warnings. All warnings passed to this method
      * are assumed to be at CRITICAL level.

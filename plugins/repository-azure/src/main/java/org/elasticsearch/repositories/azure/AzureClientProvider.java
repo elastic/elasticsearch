@@ -13,6 +13,7 @@ import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.resolver.DefaultAddressResolverGroup;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
@@ -93,6 +94,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     private final EventLoopGroup eventLoopGroup;
     private final ConnectionProvider connectionProvider;
     private final ByteBufAllocator byteBufAllocator;
+    private final reactor.netty.http.client.HttpClient nettyHttpClient;
     private final ClientLogger clientLogger = new ClientLogger(AzureClientProvider.class);
     private volatile boolean closed = false;
 
@@ -101,13 +103,15 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         String reactorExecutorName,
         EventLoopGroup eventLoopGroup,
         ConnectionProvider connectionProvider,
-        ByteBufAllocator byteBufAllocator
+        ByteBufAllocator byteBufAllocator,
+        reactor.netty.http.client.HttpClient nettyHttpClient
     ) {
         this.threadPool = threadPool;
         this.reactorExecutorName = reactorExecutorName;
         this.eventLoopGroup = eventLoopGroup;
         this.connectionProvider = connectionProvider;
         this.byteBufAllocator = byteBufAllocator;
+        this.nettyHttpClient = nettyHttpClient;
     }
 
     static int eventLoopThreadsFromSettings(Settings settings) {
@@ -127,7 +131,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         final TimeValue openConnectionTimeout = OPEN_CONNECTION_TIMEOUT.get(settings);
         final TimeValue maxIdleTime = MAX_IDLE_TIME.get(settings);
 
-        ConnectionProvider provider = ConnectionProvider.builder("azure-sdk-connection-pool")
+        ConnectionProvider connectionProvider = ConnectionProvider.builder("azure-sdk-connection-pool")
             .maxConnections(MAX_OPEN_CONNECTIONS.get(settings))
             .pendingAcquireMaxCount(PENDING_CONNECTION_QUEUE_SIZE) // This determines the max outstanding queued requests
             .pendingAcquireTimeout(Duration.ofMillis(openConnectionTimeout.millis()))
@@ -136,9 +140,23 @@ class AzureClientProvider extends AbstractLifecycleComponent {
 
         ByteBufAllocator pooledByteBufAllocator = createByteBufAllocator();
 
+        reactor.netty.http.client.HttpClient nettyHttpClient = reactor.netty.http.client.HttpClient.create(connectionProvider)
+            .runOn(eventLoopGroup)
+            .option(ChannelOption.ALLOCATOR, pooledByteBufAllocator)
+            .resolver(DefaultAddressResolverGroup.INSTANCE)
+            .port(80)
+            .wiretap(false);
+
         // Just to verify that this executor exists
         threadPool.executor(REPOSITORY_THREAD_POOL_NAME);
-        return new AzureClientProvider(threadPool, REPOSITORY_THREAD_POOL_NAME, eventLoopGroup, provider, pooledByteBufAllocator);
+        return new AzureClientProvider(
+            threadPool,
+            REPOSITORY_THREAD_POOL_NAME,
+            eventLoopGroup,
+            connectionProvider,
+            pooledByteBufAllocator,
+            nettyHttpClient
+        );
     }
 
     private static ByteBufAllocator createByteBufAllocator() {

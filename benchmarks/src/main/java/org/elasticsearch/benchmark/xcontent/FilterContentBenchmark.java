@@ -77,57 +77,39 @@ public class FilterContentBenchmark {
                 throw new IllegalArgumentException("Unknown type [" + type + "]");
         }
         source = readSource(sourceFile);
+        filters = buildFilters();
+        parserConfig = buildParseConfig();
+    }
 
+    private Set<String> buildFilters() {
         Map<String, Object> flattenMap = Maps.flatten(XContentHelper.convertToMap(source, true, XContentType.JSON).v2(), false, true);
         Set<String> keys = flattenMap.keySet();
+        AtomicInteger count = new AtomicInteger();
         switch (fieldCount) {
-            case "10_field": {
-                AtomicInteger count = new AtomicInteger();
-                Set<String> filterKeys = keys.stream()
-                    .filter(key -> count.getAndIncrement() % 5 == 0)
-                    .limit(10)
-                    .collect(Collectors.toSet());
-                filters = filterKeys;
-            }
-                break;
-            case "half_field": {
-                AtomicInteger count = new AtomicInteger();
-                Set<String> halfKeys = keys.stream().filter(key -> count.getAndIncrement() % 2 == 0).collect(Collectors.toSet());
-                filters = halfKeys;
-            }
-                break;
-            case "all_field": {
-                Set<String> allKeys = new HashSet<>(keys);
-                allKeys.remove("cluster_uuid");
-                filters = allKeys;
-            }
-                break;
-            case "wildcard_field": {
-                Set<String> wildcardField = new HashSet<>(Arrays.asList("*stats"));
-                filters = wildcardField;
-            }
-                break;
-            case "10_wildcard_field": {
-                filters = new HashSet<>(
-                    Arrays.asList(
-                        "*stats.nodes*",
-                        "*stats.ind*",
-                        "*sta*.shards",
-                        "*stats*.xpack",
-                        "*stats.*.segments",
-                        "*stat*.*.data*",
-                        inclusive ? "*stats.**.request_cache" : "*stats.*.request_cache",
-                        inclusive ? "*stats.**.stat" : "*stats.*.stat",
-                        inclusive ? "*stats.**.threads" : "*stats.*.threads",
-                        "*source_node.t*"
-                    )
+            case "10_field":
+                return keys.stream().filter(key -> count.getAndIncrement() % 5 == 0).limit(10).collect(Collectors.toSet());
+            case "half_field":
+                return keys.stream().filter(key -> count.getAndIncrement() % 2 == 0).collect(Collectors.toSet());
+            case "all_field":
+                return new HashSet<>(keys);
+            case "wildcard_field":
+                return new HashSet<>(Arrays.asList("*stats"));
+            case "10_wildcard_field":
+                return Set.of(
+                    "*stats.nodes*",
+                    "*stats.ind*",
+                    "*sta*.shards",
+                    "*stats*.xpack",
+                    "*stats.*.segments",
+                    "*stat*.*.data*",
+                    inclusive ? "*stats.**.request_cache" : "*stats.*.request_cache",
+                    inclusive ? "*stats.**.stat" : "*stats.*.stat",
+                    inclusive ? "*stats.**.threads" : "*stats.*.threads",
+                    "*source_node.t*"
                 );
-            }
-                break;
             default:
                 throw new IllegalArgumentException("Unknown type [" + type + "]");
         }
-        parserConfig = buildParseConfig();
     }
 
     @Benchmark
@@ -158,7 +140,9 @@ public class FilterContentBenchmark {
         try (BytesStreamOutput os = new BytesStreamOutput()) {
             XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), os);
             try (XContentParser parser = XContentType.JSON.xContent().createParser(contentParserConfiguration, source.streamInput())) {
-                builder.copyCurrentStructure(parser);
+                if (parser.nextToken() != null) {
+                    builder.copyCurrentStructure(parser);
+                }
                 return BytesReference.bytes(builder);
             } catch (Exception e) {
                 return new BytesArray("");

@@ -9,9 +9,4 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 public abstract class NlpConfigUpdate implements InferenceConfigUpdate {
 
-    @Override
-    public InferenceConfig toConfig() {
-        throw new UnsupportedOperationException("cannot serialize to nodes before 7.8");
-    }
-
 }

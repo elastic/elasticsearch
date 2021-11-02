@@ -13,8 +13,6 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Includes;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Request;
 
-import java.util.HashSet;
-import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -47,16 +45,6 @@ public class GetTrainedModelsRequestTests extends AbstractBWCWireSerializationTe
 
     @Override
     protected Request mutateInstanceForVersion(Request instance, Version version) {
-        if (version.before(Version.V_7_10_0)) {
-            Set<String> includes = new HashSet<>();
-            if (instance.getIncludes().isIncludeModelDefinition()) {
-                includes.add(Includes.DEFINITION);
-            }
-            Request request = new Request(instance.getResourceId(), instance.getTags(), includes);
-            request.setPageParams(instance.getPageParams());
-            request.setAllowNoResources(instance.isAllowNoResources());
-            return request;
-        }
         return instance;
     }
 }

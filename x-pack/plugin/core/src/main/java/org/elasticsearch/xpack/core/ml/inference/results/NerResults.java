@@ -20,7 +20,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-public class NerResults implements InferenceResults {
+public class NerResults extends NlpInferenceResults {
 
     public static final String NAME = "ner_result";
     public static final String ENTITY_FIELD = "entities";
@@ -30,27 +30,28 @@ public class NerResults implements InferenceResults {
 
     private final List<EntityGroup> entityGroups;
 
-    public NerResults(String resultsField, String annotatedResult, List<EntityGroup> entityGroups) {
+    public NerResults(String resultsField, String annotatedResult, List<EntityGroup> entityGroups, boolean isTruncated) {
+        super(isTruncated);
         this.entityGroups = Objects.requireNonNull(entityGroups);
         this.resultsField = Objects.requireNonNull(resultsField);
         this.annotatedResult = Objects.requireNonNull(annotatedResult);
     }
 
     public NerResults(StreamInput in) throws IOException {
+        super(in);
         entityGroups = in.readList(EntityGroup::new);
         resultsField = in.readString();
         annotatedResult = in.readString();
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(resultsField, annotatedResult);
         builder.startArray("entities");
         for (EntityGroup entity : entityGroups) {
             entity.toXContent(builder, params);
         }
         builder.endArray();
-        return builder;
     }
 
     @Override
@@ -59,18 +60,16 @@ public class NerResults implements InferenceResults {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    void doWriteTo(StreamOutput out) throws IOException {
         out.writeList(entityGroups);
         out.writeString(resultsField);
         out.writeString(annotatedResult);
     }
 
     @Override
-    public Map<String, Object> asMap() {
-        Map<String, Object> map = new LinkedHashMap<>();
+    void addMapFields(Map<String, Object> map) {
         map.put(resultsField, annotatedResult);
         map.put(ENTITY_FIELD, entityGroups.stream().map(EntityGroup::toMap).collect(Collectors.toList()));
-        return map;
     }
 
     @Override
@@ -95,15 +94,16 @@ public class NerResults implements InferenceResults {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
+        if (super.equals(o) == false) return false;
         NerResults that = (NerResults) o;
-        return Objects.equals(entityGroups, that.entityGroups)
-            && Objects.equals(resultsField, that.resultsField)
-            && Objects.equals(annotatedResult, that.annotatedResult);
+        return Objects.equals(resultsField, that.resultsField)
+            && Objects.equals(annotatedResult, that.annotatedResult)
+            && Objects.equals(entityGroups, that.entityGroups);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(entityGroups, resultsField, annotatedResult);
+        return Objects.hash(super.hashCode(), resultsField, annotatedResult, entityGroups);
     }
 
     public static class EntityGroup implements ToXContentObject, Writeable {

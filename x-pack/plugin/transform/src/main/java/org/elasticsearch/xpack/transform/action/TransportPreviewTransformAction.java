@@ -91,33 +91,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         Settings settings,
         IngestService ingestService
     ) {
-        this(
-            PreviewTransformAction.NAME,
-            licenseState,
-            transportService,
-            actionFilters,
-            client,
-            threadPool,
-            indexNameExpressionResolver,
-            clusterService,
-            settings,
-            ingestService
-        );
-    }
-
-    protected TransportPreviewTransformAction(
-        String name,
-        XPackLicenseState licenseState,
-        TransportService transportService,
-        ActionFilters actionFilters,
-        Client client,
-        ThreadPool threadPool,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        ClusterService clusterService,
-        Settings settings,
-        IngestService ingestService
-    ) {
-        super(name, transportService, actionFilters, Request::new);
+        super(PreviewTransformAction.NAME, transportService, actionFilters, Request::new);
         this.licenseState = licenseState;
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())

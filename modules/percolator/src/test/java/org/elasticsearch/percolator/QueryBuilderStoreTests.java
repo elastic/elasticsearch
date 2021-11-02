@@ -75,7 +75,7 @@ public class QueryBuilderStoreTests extends ESTestCase {
             SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
             when(searchExecutionContext.indexVersionCreated()).thenReturn(version);
             when(searchExecutionContext.getWriteableRegistry()).thenReturn(writableRegistry());
-            when(searchExecutionContext.getXContentRegistry()).thenReturn(xContentRegistry());
+            when(searchExecutionContext.getParserConfig()).thenReturn(parserConfig());
             when(searchExecutionContext.getForField(fieldMapper.fieldType())).thenReturn(
                 new BytesBinaryIndexFieldData(fieldMapper.name(), CoreValuesSourceType.KEYWORD)
             );

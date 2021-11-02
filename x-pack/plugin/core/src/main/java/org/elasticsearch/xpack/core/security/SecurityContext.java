@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -35,8 +36,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
-import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
 
 /**
  * A lightweight utility that can find the current user and authentication information for the local thread.
@@ -190,23 +189,29 @@ public class SecurityContext {
                 && streamVersion.before(VERSION_API_KEY_ROLES_AS_BYTES)) {
                 metadata = new HashMap<>(metadata);
                 metadata.put(
-                    API_KEY_ROLE_DESCRIPTORS_KEY,
-                    convertRoleDescriptorsBytesToMap((BytesReference) metadata.get(API_KEY_ROLE_DESCRIPTORS_KEY))
+                    AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
+                    convertRoleDescriptorsBytesToMap((BytesReference) metadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY))
                 );
                 metadata.put(
-                    API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
-                    convertRoleDescriptorsBytesToMap((BytesReference) metadata.get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY))
+                    AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+                    convertRoleDescriptorsBytesToMap(
+                        (BytesReference) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
+                    )
                 );
             } else if (authentication.getVersion().before(VERSION_API_KEY_ROLES_AS_BYTES)
                 && streamVersion.onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)) {
                     metadata = new HashMap<>(metadata);
                     metadata.put(
-                        API_KEY_ROLE_DESCRIPTORS_KEY,
-                        convertRoleDescriptorsMapToBytes((Map<String, Object>) metadata.get(API_KEY_ROLE_DESCRIPTORS_KEY))
+                        AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
+                        convertRoleDescriptorsMapToBytes(
+                            (Map<String, Object>) metadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY)
+                        )
                     );
                     metadata.put(
-                        API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
-                        convertRoleDescriptorsMapToBytes((Map<String, Object>) metadata.get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY))
+                        AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+                        convertRoleDescriptorsMapToBytes(
+                            (Map<String, Object>) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
+                        )
                     );
                 }
         }

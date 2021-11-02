@@ -72,7 +72,6 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.validateJobAndId;
-import static org.elasticsearch.xpack.ml.task.AbstractJobPersistentTasksExecutor.AWAITING_MIGRATION;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -147,13 +146,6 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
     public void testValidate_givenValidJob() {
         Job.Builder jobBuilder = buildJobBuilder("job_id");
         validateJobAndId("job_id", jobBuilder.build(new Date()));
-    }
-
-    public void testGetAssignment_GivenJobThatRequiresMigration() {
-        OpenJobPersistentTasksExecutor executor = createExecutor(Settings.EMPTY);
-
-        OpenJobAction.JobParams params = new OpenJobAction.JobParams("missing_job_field");
-        assertEquals(AWAITING_MIGRATION, executor.getAssignment(params, Collections.emptyList(), mock(ClusterState.class)));
     }
 
     // An index being unavailable should take precedence over waiting for a lazy node

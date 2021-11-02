@@ -51,7 +51,7 @@ public class DiscoveryNodeFilters {
         Map<String, String[]> bFilters = new HashMap<>();
         for (Map.Entry<String, String> entry : filters.entrySet()) {
             String[] values = Strings.tokenizeToStringArray(entry.getValue(), ",");
-            if (values.length > 0) {
+            if (values.length > 0 && entry.getKey() != null) {
                 bFilters.put(entry.getKey(), values);
             }
         }
@@ -66,12 +66,12 @@ public class DiscoveryNodeFilters {
     private final OpType opType;
 
     @Nullable
-    private final DiscoveryNodeFilters trimmed;
+    private final DiscoveryNodeFilters withoutTierPreferences;
 
-    DiscoveryNodeFilters(OpType opType, Map<String, String[]> filters) {
+    private DiscoveryNodeFilters(OpType opType, Map<String, String[]> filters) {
         this.opType = opType;
         this.filters = Map.copyOf(filters);
-        this.trimmed = doTrim(this);
+        this.withoutTierPreferences = doTrimTier(this);
     }
 
     private boolean matchByIP(String[] values, @Nullable String hostIp, @Nullable String publishIp) {
@@ -92,30 +92,17 @@ public class DiscoveryNodeFilters {
      */
     @Nullable
     public static DiscoveryNodeFilters trimTier(@Nullable DiscoveryNodeFilters original) {
-        return original == null ? null : original.trimmed;
+        return original == null ? null : original.withoutTierPreferences;
     }
 
-    private static DiscoveryNodeFilters doTrim(DiscoveryNodeFilters original) {
-        boolean filtered = false;
-        final Map<String, String[]> newFilters = new HashMap<>(original.filters.size());
-        // Remove all entries that use "_tier_preference", as these will be handled elsewhere
-        for (Map.Entry<String, String[]> entry : original.filters.entrySet()) {
-            String attr = entry.getKey();
-            if (attr != null && attr.equals("_tier_preference") == false) {
-                newFilters.put(entry.getKey(), entry.getValue());
-            } else {
-                filtered = true;
-            }
-        }
-        if (filtered == false) {
+    private static DiscoveryNodeFilters doTrimTier(DiscoveryNodeFilters original) {
+        if (original.filters.containsKey("_tier_preference") == false) {
             return original;
         }
-
-        if (newFilters.size() == 0) {
-            return null;
-        } else {
-            return new DiscoveryNodeFilters(original.opType, newFilters);
-        }
+        final Map<String, String[]> newFilters = new HashMap<>(original.filters);
+        final String[] removed = newFilters.remove("_tier_preference");
+        assert removed != null;
+        return newFilters.isEmpty() ? null : new DiscoveryNodeFilters(original.opType, newFilters);
     }
 
     public boolean match(DiscoveryNode node) {

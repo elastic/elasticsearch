@@ -76,8 +76,7 @@ security settings from your {es} cluster, authenticates to {es} with the
 `kibana_system` user, and writes the security configuration to `kibana.yml`. 
 
 The following command starts a single-node {es} cluster for development or
-testing and includes <<single-node-discovery,single-node discovery>> to bypass
-the <<bootstrap-checks,bootstrap checks>>.
+testing.
 
 . Start {es} in Docker. A password is generated for the `elastic` user and
 output to the terminal, plus an enrollment token for enrolling {kib}.
@@ -86,7 +85,7 @@ output to the terminal, plus an enrollment token for enrolling {kib}.
 ifeval::["{release-state}"!="unreleased"]
 [source,sh,subs="attributes"]
 ----
-docker run -p 9200:9200 -p 9300:9300 -it -e "discovery.type=single-node" {docker-image}
+docker run --name es-node01 -p 9200:9200 -p 9300:9300 -it {docker-image}
 ----
 
 endif::[]
@@ -116,7 +115,7 @@ your local machine.
 +
 [source,sh]
 ----
-docker cp <container-id>:/usr/share/elasticsearch/config/tls_auto_config_<timestamp>/http_ca.crt <local-directory>
+docker cp es-node01:/usr/share/elasticsearch/config/tls_auto_config_*/http_ca.crt .
 ----
 
 . Open a new terminal and verify that you can connect to your {es} cluster by
@@ -125,8 +124,7 @@ your Docker container. Enter the password for the `elastic` user when prompted.
 +
 [source,sh]
 ----
-curl --cacert <local-directory>/http_ca.crt \
--u elastic https://localhost:9200
+curl --cacert http_ca.crt -u elastic https://localhost:9200
 ----
 // NOTCONSOLE
 

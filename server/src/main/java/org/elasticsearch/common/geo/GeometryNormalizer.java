@@ -30,7 +30,7 @@ import static org.elasticsearch.common.geo.GeoUtils.normalizePoint;
  * Transforms provided {@link Geometry} into a lucene friendly format by normalizing latitude and longitude
  * coordinates and breaking geometries that cross the dateline.
  */
-public class GeometryNormalizer {
+public final class GeometryNormalizer {
 
     private GeometryNormalizer() {
         // no instances

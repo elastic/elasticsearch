@@ -62,6 +62,9 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-wildca
 [[ml-get-overall-buckets-request-body]]
 == {api-request-body-title}
 
+`allow_no_jobs`::
+(Optional, Boolean) deprecated:[7.10,Use `allow_no_match` instead.]
+
 `allow_no_match`::
 (Optional, Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-jobs]

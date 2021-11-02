@@ -41,7 +41,10 @@
   - skip:
       version: " - 7.15.99"
       reason: "return_200_for_cluster_health_timeout was added in 7.16"
+      features: [ "allowed_warnings" ]
   - do:
+      allowed_warnings:
+        - 'the [return_200_for_cluster_health_timeout] parameter is deprecated and will be removed in a future release.'
       cluster.health:
         timeout: 1ms
         wait_for_active_shards: 5

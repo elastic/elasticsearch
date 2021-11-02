@@ -181,15 +181,6 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             throw new IllegalStateException("AzureClientProvider is already closed");
         }
 
-        reactor.netty.http.client.HttpClient nettyHttpClient = reactor.netty.http.client.HttpClient.create(connectionProvider);
-        nettyHttpClient = nettyHttpClient.port(80).wiretap(false);
-
-        nettyHttpClient = nettyHttpClient.tcpConfiguration(tcpClient -> {
-            tcpClient = tcpClient.runOn(eventLoopGroup);
-            tcpClient = tcpClient.option(ChannelOption.ALLOCATOR, byteBufAllocator);
-            return tcpClient;
-        });
-
         final HttpClient httpClient = new NettyAsyncHttpClientBuilder(nettyHttpClient).disableBufferCopy(true).proxy(proxyOptions).build();
 
         final String connectionString = settings.getConnectString();

@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -32,6 +32,8 @@ import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.DEPRECATED_ALLOW_NO_JOBS_PARAM;
+import static org.elasticsearch.xpack.ml.rest.RestCompatibilityChecker.checkAndSetDeprecatedParam;
 
 public class RestCatJobsAction extends AbstractCatAction {
 
@@ -52,11 +54,13 @@ public class RestCatJobsAction extends AbstractCatAction {
             jobId = Metadata.ALL;
         }
         Request request = new Request(jobId);
-        if (restRequest.hasParam(Request.ALLOW_NO_JOBS)) {
-            LoggingDeprecationHandler.INSTANCE.logRenamedField(null, () -> null, Request.ALLOW_NO_JOBS, Request.ALLOW_NO_MATCH);
-        }
-        request.setAllowNoMatch(
-            restRequest.paramAsBoolean(Request.ALLOW_NO_MATCH, restRequest.paramAsBoolean(Request.ALLOW_NO_JOBS, request.allowNoMatch()))
+        checkAndSetDeprecatedParam(
+            DEPRECATED_ALLOW_NO_JOBS_PARAM,
+            Request.ALLOW_NO_MATCH,
+            RestApiVersion.V_7,
+            restRequest,
+            (r, s) -> r.paramAsBoolean(s, request.allowNoMatch()),
+            request::setAllowNoMatch
         );
         return channel -> client.execute(GetJobsStatsAction.INSTANCE, request, new RestResponseListener<>(channel) {
             @Override

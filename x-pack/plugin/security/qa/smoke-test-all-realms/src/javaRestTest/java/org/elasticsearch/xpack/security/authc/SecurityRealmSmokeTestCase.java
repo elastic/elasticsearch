@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.junit.BeforeClass;
 
 import java.io.FileNotFoundException;
@@ -38,7 +39,9 @@ import java.util.Map;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 @SuppressWarnings("removal")
 public abstract class SecurityRealmSmokeTestCase extends ESRestTestCase {
@@ -99,6 +102,12 @@ public abstract class SecurityRealmSmokeTestCase extends ESRestTestCase {
             roleJson,
             arrayContainingInAnyOrder(roles)
         );
+    }
+
+    protected void assertNoApiKeyInfo(Map<String, Object> authenticateResponse, AuthenticationType type) {
+        // If authentication type is API_KEY, authentication.api_key={"id":"abc123","name":"my-api-key"}. No encoded, api_key, or metadata.
+        // If authentication type is other, authentication.api_key not present.
+        assertThat(authenticateResponse, not(hasKey("api_key")));
     }
 
     protected void createUser(String username, SecureString password, List<String> roles) throws IOException {

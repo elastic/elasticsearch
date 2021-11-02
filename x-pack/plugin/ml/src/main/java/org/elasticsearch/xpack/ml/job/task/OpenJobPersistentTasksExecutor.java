@@ -121,12 +121,11 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
 
     @Override
     public Assignment getAssignment(OpenJobAction.JobParams params, Collection<DiscoveryNode> candidateNodes, ClusterState clusterState) {
+        Job job = params.getJob();
         // If the task parameters do not have a job field then the job
         // was first opened on a pre v6.6 node and has not been migrated
-        Job job = params.getJob();
-        if (job == null) {
-            return AWAITING_MIGRATION;
-        }
+        // out of cluster state - this should be impossible in version 8
+        assert job != null;
         boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
         Optional<Assignment> optionalAssignment = getPotentialAssignment(params, clusterState, isMemoryTrackerRecentlyRefreshed);
         // NOTE: this will return here if isMemoryTrackerRecentlyRefreshed is false, we don't allow assignment with stale memory

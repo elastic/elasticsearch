@@ -14,15 +14,12 @@ import com.sun.jna.NativeLong;
 import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 import com.sun.jna.WString;
-import com.sun.jna.ptr.IntByReference;
 import com.sun.jna.win32.StdCallLibrary;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -317,50 +314,4 @@ final class JNAKernel32Library {
      * @return true if the function succeeds
      */
     native boolean SetInformationJobObject(Pointer job, int infoClass, Pointer info, int infoLength);
-
-    /**
-     * Retrieves the actual number of bytes of disk storage used to store a specified file.
-     *
-     * https://docs.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getcompressedfilesizew
-     *
-     * @param lpFileName the path string
-     * @param lpFileSizeHigh pointer to high-order DWORD for compressed file size (or null if not needed)
-     * @return the low-order DWORD for compressed file siz
-     */
-    native int GetCompressedFileSizeW(WString lpFileName, IntByReference lpFileSizeHigh);
-
-    /**
-     * Retrieves the actual number of bytes of disk storage used to store a specified file. If the file is located on a volume that supports
-     * compression and the file is compressed, the value obtained is the compressed size of the specified file. If the file is located on a
-     * volume that supports sparse files and the file is a sparse file, the value obtained is the sparse size of the specified file.
-     *
-     * This method uses Win32 DLL native method {@link #GetCompressedFileSizeW(WString, IntByReference)}.
-     *
-     * @param path the path to the file
-     * @return the number of allocated bytes on disk for the file or {@code null} if the allocated size is invalid
-     */
-    Long allocatedSizeInBytes(Path path) {
-        assert Files.isRegularFile(path) : path;
-        final WString fileName = new WString("\\\\?\\" + path);
-        final IntByReference lpFileSizeHigh = new IntByReference();
-
-        final int lpFileSizeLow = GetCompressedFileSizeW(fileName, lpFileSizeHigh);
-        if (lpFileSizeLow == 0xffffffff) {
-            final int err = Native.getLastError();
-            logger.warn("error [{}] when executing native method GetCompressedFileSizeW for file [{}]", err, path);
-            return null;
-        }
-
-        final long allocatedSize = (((long) lpFileSizeHigh.getValue()) << 32) | (lpFileSizeLow & 0xffffffffL);
-        if (logger.isTraceEnabled()) {
-            logger.trace(
-                "executing native method GetCompressedFileSizeW returned [high={}, low={}, allocated={}] for file [{}]",
-                lpFileSizeHigh,
-                lpFileSizeLow,
-                allocatedSize,
-                path
-            );
-        }
-        return allocatedSize;
-    }
 }

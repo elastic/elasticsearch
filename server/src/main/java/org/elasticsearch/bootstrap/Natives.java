@@ -10,7 +10,6 @@ package org.elasticsearch.bootstrap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.core.Nullable;
 
 import java.nio.file.Path;
 
@@ -18,7 +17,7 @@ import java.nio.file.Path;
  * The Natives class is a wrapper class that checks if the classes necessary for calling native methods are available on
  * startup. If they are not available, this class will avoid calling code that loads these classes.
  */
-public final class Natives {
+final class Natives {
     /** no instantiation */
     private Natives() {}
 
@@ -134,17 +133,4 @@ public final class Natives {
         return JNANatives.LOCAL_SYSTEM_CALL_FILTER;
     }
 
-    /**
-     * Returns the number of allocated bytes on disk for a given file.
-     *
-     * @param path the path to the file
-     * @return the number of allocated bytes on disk for the file or {@code null} if the allocated size could not be returned
-     */
-    @Nullable
-    public static Long allocatedSizeInBytes(Path path) {
-        if (JNA_AVAILABLE == false) {
-            return null;
-        }
-        return JNANatives.allocatedSizeInBytes(path);
-    }
 }

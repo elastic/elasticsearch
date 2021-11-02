@@ -287,10 +287,7 @@ public class TimeSeriesMetrics {
         }
         SearchRequest search = searchInRange(resolvedMetrics, dimensions, from, time, size);
         if (size > 0) {
-            client.search(
-                search,
-                ActionListener.wrap(new SearchResponseHandler(resolvedMetrics, callback, search), callback::onError)
-            );
+            client.search(search, ActionListener.wrap(new SearchResponseHandler(resolvedMetrics, callback, search), callback::onError));
         } else {
             CompositeAggregationBuilder timeSeries = timeSeriesComposite();
             for (String metric : resolvedMetrics) {
@@ -390,11 +387,7 @@ public class TimeSeriesMetrics {
         private final MetricsCallback callback;
         private final SearchRequest search;
 
-        SearchResponseHandler(
-            List<String> resolvedMetrics,
-            MetricsCallback callback,
-            SearchRequest search
-        ) {
+        SearchResponseHandler(List<String> resolvedMetrics, MetricsCallback callback, SearchRequest search) {
             this.resolvedMetrics = resolvedMetrics;
             this.previousDimensions = null;
             this.callback = callback;
@@ -498,8 +491,9 @@ public class TimeSeriesMetrics {
             String aggKey = range == null ? Long.toString(time) : "use_timestamp";
             return new FilterAggregationBuilder(metric, new ExistsQueryBuilder(metric)).subAggregation(
                 new FilterAggregationBuilder(aggKey, new MatchAllQueryBuilder()).subAggregation(
-                    new TopHitsAggregationBuilder("results").sort(new FieldSortBuilder("@timestamp")
-                            .order(range == null ? SortOrder.DESC : SortOrder.ASC))
+                    new TopHitsAggregationBuilder("results").sort(
+                        new FieldSortBuilder("@timestamp").order(range == null ? SortOrder.DESC : SortOrder.ASC)
+                    )
                         .fetchField(metric)
                         .fetchField(new FieldAndFormat("@timestamp", "epoch_millis"))
                         .size(range == null ? 1 : MAX_INNER_RESULT_WINDOW_SETTING.getDefault(Settings.EMPTY))

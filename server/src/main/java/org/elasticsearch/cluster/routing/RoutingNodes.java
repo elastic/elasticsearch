@@ -83,6 +83,11 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     private final Map<String, Set<String>> attributeValuesByAttribute;
     private final Map<String, Recoveries> recoveriesPerNode;
 
+    /**
+     * Creates an immutable instance from the {@link RoutingTable} and {@link DiscoveryNodes} found in a cluster state. Used to initialize
+     * the routing nodes in {@link ClusterState#getRoutingNodes()}. This method should not be used directly, use
+     * {@link ClusterState#getRoutingNodes()} instead.
+     */
     public static RoutingNodes immutable(RoutingTable routingTable, DiscoveryNodes discoveryNodes) {
         return new RoutingNodes(routingTable, discoveryNodes, true);
     }

@@ -29,7 +29,7 @@ Returns configuration and usage information about {dfeeds}.
 {dfeeds-cap} retrieve data from {es} for analysis by {anomaly-jobs}. For more 
 information, see {ml-docs}/ml-dfeeds.html[{dfeeds-cap}].
 
-NOTE: This API returns a maximum of 10,000 jobs.
+NOTE: This API returns a maximum of 10,000 {dfeeds}.
 
 [[cat-datafeeds-path-params]]
 ==== {api-path-parms-title}
@@ -40,6 +40,9 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
 [[cat-datafeeds-query-params]]
 ==== {api-query-parms-title}
+
+`allow_no_datafeeds`::
+(Optional, Boolean) deprecated:[7.10,Use `allow_no_match` instead.]
 
 `allow_no_match`::
 (Optional, Boolean)

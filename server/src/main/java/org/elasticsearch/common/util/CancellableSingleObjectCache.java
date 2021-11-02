@@ -60,8 +60,18 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
      * @param listener           A {@link ActionListener} which should be notified when the computation completes. If the computation fails
      *                           by calling {@link ActionListener#onFailure} then the result is returned to the pending listeners but is not
      *                           cached.
+     * @param isSupersededSupplier Returns whether the input has been superseded by a fresher input. If the refresh happens asynchronously
+     *                             then the implementation can use this to check whether to proceed each time it resumes. If {@code
+     *                             isSupersededSupplier} returns {@code true} then the listener (and cancellation checks) have been
+     *                             subscribed to a fresher item, so no further action is needed by this refresh invocation.
+     *
      */
-    protected abstract void refresh(Input input, Runnable ensureNotCancelled, ActionListener<Value> listener);
+    protected abstract void refresh(
+        Input input,
+        Runnable ensureNotCancelled,
+        ActionListener<Value> listener,
+        BooleanSupplier isSupersededSupplier
+    );
 
     /**
      * Compute the key for the given input value.
@@ -140,10 +150,10 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
                 if (currentCachedItem != null) {
                     currentCachedItem.decRef();
                 }
-                startRefresh(input, newCachedItem);
                 final boolean listenerAdded = newCachedItem.addListener(listener, isCancelled);
                 assert listenerAdded;
-                newCachedItem.decRef();
+                newCachedItem.decRef(); // release our ref before calling refresh so that we're not blocking a cancellation
+                startRefresh(input, newCachedItem);
                 return;
             }
             // else the CAS failed because we lost a race to a concurrent retrieval; try again from the top since we expect the race winner
@@ -153,7 +163,7 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
 
     private void startRefresh(Input input, CachedItem cachedItem) {
         try {
-            refresh(input, cachedItem::ensureNotCancelled, cachedItem.getFuture());
+            refresh(input, cachedItem::ensureNotCancelled, cachedItem.getFuture(), cachedItem::supersedeIfStale);
         } catch (Exception e) {
             cachedItem.getFuture().onFailure(e);
         }
@@ -232,7 +242,7 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
 
         void ensureNotCancelled() {
             cancellationChecks.runAll();
-            if (refCount() == 0) {
+            if (hasReferences() == false) {
                 throw new TaskCancelledException("task cancelled");
             }
         }
@@ -241,6 +251,31 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
         protected void closeInternal() {
             // Complete the future (and hence all its listeners) with an exception if it hasn't already been completed.
             future.onFailure(new TaskCancelledException("task cancelled"));
+        }
+
+        public boolean supersedeIfStale() {
+            final CachedItem currentCachedItem = currentCachedItemRef.get();
+            if (currentCachedItem == this) {
+                // this item is still the freshest
+                return false;
+            }
+
+            if (currentCachedItem == null) {
+                // this item was superseded but the newer item was cancelled so we must proceed with a refresh for this item
+                return false;
+            }
+
+            cancellationChecks.runAll();
+            if (tryIncRef()) {
+                try {
+                    return currentCachedItem.addListener(future, () -> hasReferences() == false);
+                } finally {
+                    decRef();
+                }
+            } else {
+                // this item was cancelled, not superseded - return value doesn't really matter, refresh() will check for cancellation.
+                return false;
+            }
         }
     }
 

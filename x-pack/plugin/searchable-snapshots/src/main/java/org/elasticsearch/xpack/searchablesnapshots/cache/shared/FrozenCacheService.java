@@ -108,7 +108,7 @@ public class FrozenCacheService implements Releasable {
         };
     }
 
-    public static final Setting<RelativeByteSizeValue> SNAPSHOT_CACHE_SIZE_SETTING = new Setting<>(
+    public static final Setting<RelativeByteSizeValue> SHARED_CACHE_SIZE_SETTING = new Setting<>(
         new Setting.SimpleKey(SHARED_CACHE_SETTINGS_PREFIX + "size"),
         (settings) -> {
             if (DiscoveryNode.isDedicatedFrozenNode(settings)) {

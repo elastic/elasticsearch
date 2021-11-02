@@ -378,7 +378,7 @@ public class FrozenCacheServiceTests extends ESTestCase {
     private void assertThatNonPositiveRecoveryRangeSizeRejected(Setting<ByteSizeValue> setting) {
         final String value = randomFrom(ByteSizeValue.MINUS_ONE, ByteSizeValue.ZERO).getStringRep();
         final Settings settings = Settings.builder()
-            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(size(100)).getStringRep())
+            .put(FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(size(100)).getStringRep())
             .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName())
             .put(setting.getKey(), value)
             .build();
@@ -389,7 +389,7 @@ public class FrozenCacheServiceTests extends ESTestCase {
     }
 
     public void testNonPositiveRegionSizeRejected() {
-        assertThatNonPositiveRecoveryRangeSizeRejected(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING);
+        assertThatNonPositiveRecoveryRangeSizeRejected(FrozenCacheService.SHARED_CACHE_REGION_SIZE_SETTING);
     }
 
     public void testNonPositiveRangeSizeRejected() {
@@ -397,7 +397,7 @@ public class FrozenCacheServiceTests extends ESTestCase {
     }
 
     public void testNonPositiveRecoveryRangeSizeRejected() {
-        assertThatNonPositiveRecoveryRangeSizeRejected(FrozenCacheService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING);
+        assertThatNonPositiveRecoveryRangeSizeRejected(FrozenCacheService.SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING);
     }
 
 }

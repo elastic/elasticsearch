@@ -28,13 +28,13 @@ import java.util.Map;
  * The seconds formatter is provided by {@link #SECONDS_FORMATTER}.
  * The milliseconds formatter is provided by {@link #MILLIS_FORMATTER}.
  * <p>
- * Both formatters support fractional time, up to nanosecond precision. Values must be positive numbers.
+ * Both formatters support fractional time, up to nanosecond precision.
  */
 class EpochTime {
 
-    private static final ValueRange LONG_POSITIVE_RANGE = ValueRange.of(0, Long.MAX_VALUE);
+    private static final ValueRange LONG_INTEGER_RANGE = ValueRange.of(Long.MIN_VALUE, Long.MAX_VALUE);
 
-    private static final EpochField SECONDS = new EpochField(ChronoUnit.SECONDS, ChronoUnit.FOREVER, LONG_POSITIVE_RANGE) {
+    private static final EpochField SECONDS = new EpochField(ChronoUnit.SECONDS, ChronoUnit.FOREVER, LONG_INTEGER_RANGE) {
         @Override
         public boolean isSupportedBy(TemporalAccessor temporal) {
             return temporal.isSupported(ChronoField.INSTANT_SECONDS);
@@ -73,15 +73,30 @@ class EpochTime {
         }
     };
 
-    private static final EpochField MILLIS = new EpochField(ChronoUnit.MILLIS, ChronoUnit.FOREVER, LONG_POSITIVE_RANGE) {
+    private static final EpochField MILLIS = new EpochField(ChronoUnit.MILLIS, ChronoUnit.FOREVER, LONG_INTEGER_RANGE) {
         @Override
         public boolean isSupportedBy(TemporalAccessor temporal) {
-            return temporal.isSupported(ChronoField.INSTANT_SECONDS) && temporal.isSupported(ChronoField.MILLI_OF_SECOND);
+            return temporal.isSupported(ChronoField.INSTANT_SECONDS)
+                && (temporal.isSupported(ChronoField.NANO_OF_SECOND) || temporal.isSupported(ChronoField.MILLI_OF_SECOND));
         }
 
         @Override
         public long getFrom(TemporalAccessor temporal) {
-            return temporal.getLong(ChronoField.INSTANT_SECONDS) * 1_000 + temporal.getLong(ChronoField.MILLI_OF_SECOND);
+            long millis = temporal.getLong(ChronoField.INSTANT_SECONDS) * 1_000;
+            if (millis >= 0 || !temporal.isSupported(ChronoField.NANO_OF_SECOND)) {
+                return millis + (temporal.getLong(ChronoField.MILLI_OF_SECOND));
+            } else {
+                long nanos = temporal.getLong(ChronoField.NANO_OF_SECOND);
+                if (nanos % 1_000_000 != 0) {
+                    // Fractional negative timestamp.
+                    // Add 1 ms towards positive infinity because the fraction leads
+                    // the output's integral part to be an off-by-one when the
+                    // `(nanos / 1_000_000)` is added below.
+                    millis += 1;
+                }
+                millis += (nanos / 1_000_000);
+                return millis;
+            }
         }
 
         @Override
@@ -94,14 +109,35 @@ class EpochTime {
             long seconds = secondsAndMillis / 1_000;
             long nanos = secondsAndMillis % 1000 * 1_000_000;
             Long nanosOfMilli = fieldValues.remove(NANOS_OF_MILLI);
-            if (nanosOfMilli != null) {
-                nanos += nanosOfMilli;
+
+            if (secondsAndMillis < 0) {
+                // `secondsAndMillis < 0` implies negative timestamp; so `nanos < 0`
+                if (nanosOfMilli != null) {
+                    // aggregate fractional part of the input; subtract b/c `nanos < 0`
+                    nanos -= nanosOfMilli;
+                }
+                if (nanos != 0) {
+                    // nanos must be positive. B/c the timestamp is represented by the
+                    // (seconds, nanos) tuple, seconds moves 1s toward negative-infinity
+                    // and nanos moves 1s toward positive-infinity
+                    seconds -= 1;
+                    nanos = 1_000_000_000 + nanos;
+                }
+            } else {
+                if (nanosOfMilli != null) {
+                    // aggregate fractional part of the input
+                    nanos += nanosOfMilli;
+                }
             }
+
             fieldValues.put(ChronoField.INSTANT_SECONDS, seconds);
             fieldValues.put(ChronoField.NANO_OF_SECOND, nanos);
             // if there is already a milli of second, we need to overwrite it
             if (fieldValues.containsKey(ChronoField.MILLI_OF_SECOND)) {
                 fieldValues.put(ChronoField.MILLI_OF_SECOND, nanos / 1_000_000);
+            }
+            if (fieldValues.containsKey(ChronoField.MICRO_OF_SECOND)) {
+                fieldValues.put(ChronoField.MICRO_OF_SECOND, nanos / 1_000);
             }
             return null;
         }
@@ -117,7 +153,11 @@ class EpochTime {
 
         @Override
         public long getFrom(TemporalAccessor temporal) {
-            return temporal.getLong(ChronoField.NANO_OF_SECOND) % 1_000_000;
+            if (temporal.getLong(ChronoField.INSTANT_SECONDS) < 0) {
+                return (1_000_000_000 - temporal.getLong(ChronoField.NANO_OF_SECOND)) % 1_000_000;
+            } else {
+                return temporal.getLong(ChronoField.NANO_OF_SECOND) % 1_000_000;
+            }
         }
     };
 

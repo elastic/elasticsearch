@@ -6,7 +6,7 @@ beta::[This functionality is in beta and is subject to change. The design and co
 When you start {es} for the first time, the following security configuration
 occurs automatically:
 
-* <<stack-security-certificates,Certificates and keys>> are for TLS are
+* <<stack-security-certificates,Certificates and keys>> for TLS are
 generated for the transport and HTTP layers.
 * The TLS configuration settings are written to `elasticsearch.yml`.
 * A password is generated for the `elastic` user.
@@ -14,7 +14,7 @@ generated for the transport and HTTP layers.
 
 You can then start {kib} and enter the enrollment token, which is valid for 30
 minutes. This token automatically applies the security settings from your {es} 
-cluster, authenticates to {es} with the `kibana_system` user, and writes the 
+cluster, authenticates to {es} with the built-in `kibana` service account, and writes the 
 security configuration to `kibana.yml`. 
 
 [discrete]
@@ -119,9 +119,9 @@ can <<encrypt-kibana-browser,encrypt traffic between your browser and {kib}>>.
 === Security certificates and keys
 
 When you start {es} for the first time, the following certificates and keys are
-generated in the `config/tls_auto_config_initial_node_<timestamp>` directory,
+generated in the `config/tls_auto_config_<timestamp>` directory,
 which are used to connect a {kib} instance to your secured {es} cluster and
-encrypt internode communication. The files are listed here for reference.
+to encrypt internode communication. The files are listed here for reference.
 
 `http_ca.crt`::
 The CA certificate that is used to sign the certificates for the HTTP layer of
@@ -134,6 +134,6 @@ Keystore that contains the key and certificate for the HTTP layer for this node.
 Keystore that contains the key and certificate for the transport layer for all
 the nodes in your cluster.
 
-Additionally, a security certificate is retrieved from {es} and stored in the
+Additionally, when you use the enrollment token to connect {kib} to a secured {es} cluster, a security certificate is retrieved from {es} and stored in the
 {kib} `/data` directory. This file establishes trust between {kib} and the {es}
 Certificate Authority (CA) for the HTTP layer.

@@ -537,40 +537,40 @@ public class AzureBlobStore implements BlobStore {
             // 128 elements (that's hardcoded) once it's subscribed (later on, it requests
             // by 64 elements), that's why we provide 64kb buffers.
 
-            // length is at most 100MB so it's safe to cast back to an integer in this case
-            final int parts = (int) length / chunkSize;
-            final long remaining = length % chunkSize;
-            return Flux.range(0, remaining == 0 ? parts : parts + 1).map(i -> i * chunkSize).concatMap(pos -> Mono.fromCallable(() -> {
-                long count = pos + chunkSize > length ? length - pos : chunkSize;
-                int numOfBytesRead = 0;
-                int offset = 0;
-                int len = (int) count;
-                final byte[] buffer = new byte[len];
-                while (numOfBytesRead != -1 && offset < count) {
-                    numOfBytesRead = inputStream.read(buffer, offset, len);
-                    offset += numOfBytesRead;
-                    len -= numOfBytesRead;
-                    if (numOfBytesRead != -1) {
-                        currentTotalLength.addAndGet(numOfBytesRead);
+            return Flux.range(0, Math.toIntExact((length + chunkSize - 1) / chunkSize)) // ceil(length/chunkSize)
+                .map(i -> i * (long) chunkSize)
+                .concatMap(pos -> Mono.fromCallable(() -> {
+                    long count = pos + chunkSize > length ? length - pos : chunkSize;
+                    int numOfBytesRead = 0;
+                    int offset = 0;
+                    int len = (int) count;
+                    final byte[] buffer = new byte[len];
+                    while (numOfBytesRead != -1 && offset < count) {
+                        numOfBytesRead = inputStream.read(buffer, offset, len);
+                        offset += numOfBytesRead;
+                        len -= numOfBytesRead;
+                        if (numOfBytesRead != -1) {
+                            currentTotalLength.addAndGet(numOfBytesRead);
+                        }
                     }
-                }
-                if (numOfBytesRead == -1 && currentTotalLength.get() < length) {
-                    throw new IllegalStateException(
-                        "InputStream provided" + currentTotalLength + " bytes, less than the expected" + length + " bytes"
-                    );
-                }
-                return ByteBuffer.wrap(buffer);
-            })).doOnComplete(() -> {
-                if (currentTotalLength.get() > length) {
-                    throw new IllegalStateException(
-                        "Read more data than was requested. Size of data read: "
-                            + currentTotalLength.get()
-                            + "."
-                            + " Size of data requested: "
-                            + length
-                    );
-                }
-            });
+                    if (numOfBytesRead == -1 && currentTotalLength.get() < length) {
+                        throw new IllegalStateException(
+                            "InputStream provided" + currentTotalLength + " bytes, less than the expected" + length + " bytes"
+                        );
+                    }
+                    return ByteBuffer.wrap(buffer);
+                }))
+                .doOnComplete(() -> {
+                    if (currentTotalLength.get() > length) {
+                        throw new IllegalStateException(
+                            "Read more data than was requested. Size of data read: "
+                                + currentTotalLength.get()
+                                + "."
+                                + " Size of data requested: "
+                                + length
+                        );
+                    }
+                });
         }).subscribeOn(Schedulers.elastic()); // We need to subscribe on a different scheduler to avoid blocking the io threads when
                                               // we read the input stream (i.e. when it's rate limited)
     }

@@ -91,12 +91,6 @@ import org.elasticsearch.xpack.core.ml.action.EstimateModelMemoryAction;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
-import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
-import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
-import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
-import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
-import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
-import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.core.ml.action.ForecastJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
@@ -149,9 +143,14 @@ import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
+import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
+import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
+import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesAction;
@@ -167,7 +166,7 @@ import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl.IndexAccessControl;
+import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
@@ -180,6 +179,7 @@ import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
 import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
 import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
@@ -189,14 +189,6 @@ import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
-import org.elasticsearch.xpack.core.transform.action.compat.DeleteTransformActionDeprecated;
-import org.elasticsearch.xpack.core.transform.action.compat.GetTransformActionDeprecated;
-import org.elasticsearch.xpack.core.transform.action.compat.GetTransformStatsActionDeprecated;
-import org.elasticsearch.xpack.core.transform.action.compat.PreviewTransformActionDeprecated;
-import org.elasticsearch.xpack.core.transform.action.compat.PutTransformActionDeprecated;
-import org.elasticsearch.xpack.core.transform.action.compat.StartTransformActionDeprecated;
-import org.elasticsearch.xpack.core.transform.action.compat.StopTransformActionDeprecated;
-import org.elasticsearch.xpack.core.transform.action.compat.UpdateTransformActionDeprecated;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.core.watcher.execution.TriggeredWatchStoreField;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
@@ -214,7 +206,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.SortedMap;
 
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON;
@@ -297,26 +288,43 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(snapshotUserRole.cluster().check(WatcherServiceAction.NAME, request, authentication), is(false));
         assertThat(snapshotUserRole.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
 
-        assertThat(snapshotUserRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(
-                mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))), is(false));
-        assertThat(snapshotUserRole.indices().allowedIndicesMatcher("indices:foo").test(
-                mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))), is(false));
-        assertThat(snapshotUserRole.indices().allowedIndicesMatcher(GetAction.NAME).test(
-                mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))), is(false));
-        assertThat(snapshotUserRole.indices().allowedIndicesMatcher(GetAction.NAME).test(
-                mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))), is(false));
+        assertThat(
+            snapshotUserRole.indices()
+                .allowedIndicesMatcher(IndexAction.NAME)
+                .test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
+            is(false)
+        );
+        assertThat(
+            snapshotUserRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
+            is(false)
+        );
+        assertThat(
+            snapshotUserRole.indices().allowedIndicesMatcher(GetAction.NAME).test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
+            is(false)
+        );
+        assertThat(
+            snapshotUserRole.indices().allowedIndicesMatcher(GetAction.NAME).test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
+            is(false)
+        );
 
-        assertThat(snapshotUserRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(
-                mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))), is(true));
+        assertThat(
+            snapshotUserRole.indices()
+                .allowedIndicesMatcher(GetIndexAction.NAME)
+                .test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
+            is(true)
+        );
 
         for (String index : RestrictedIndicesNames.RESTRICTED_NAMES) {
             // This test might cease to be true if we ever have non-security restricted names
             // but that depends on how users are supposed to perform snapshots of those new indices.
-            assertThat(snapshotUserRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(
-                    mockIndexAbstraction(index)), is(true));
+            assertThat(snapshotUserRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
         }
-        assertThat(snapshotUserRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(
-                mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2))), is(true));
+        assertThat(
+            snapshotUserRole.indices()
+                .allowedIndicesMatcher(GetIndexAction.NAME)
+                .test(mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2))),
+            is(true)
+        );
 
         assertNoAccessAllowed(snapshotUserRole, RestrictedIndicesNames.RESTRICTED_NAMES);
         assertNoAccessAllowed(snapshotUserRole, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
@@ -343,10 +351,14 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(ingestAdminRole.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
 
         assertThat(ingestAdminRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction("foo")), is(false));
-        assertThat(ingestAdminRole.indices().allowedIndicesMatcher("indices:foo").test(
-                mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))), is(false));
-        assertThat(ingestAdminRole.indices().allowedIndicesMatcher(GetAction.NAME).test(
-                mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))), is(false));
+        assertThat(
+            ingestAdminRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
+            is(false)
+        );
+        assertThat(
+            ingestAdminRole.indices().allowedIndicesMatcher(GetAction.NAME).test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
+            is(false)
+        );
 
         assertNoAccessAllowed(ingestAdminRole, RestrictedIndicesNames.RESTRICTED_NAMES);
         assertNoAccessAllowed(ingestAdminRole, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
@@ -383,9 +395,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaRole.cluster().check(CreateApiKeyAction.NAME, createApiKeyRequest, authentication), is(true));
         // Can only get and query its own API keys
         assertThat(kibanaRole.cluster().check(CreateApiKeyAction.NAME, new GetApiKeyRequest(), authentication), is(false));
-        assertThat(kibanaRole.cluster().check(CreateApiKeyAction.NAME,
-            new GetApiKeyRequest(null, null, null, null, true), authentication),
-            is(true));
+        assertThat(
+            kibanaRole.cluster().check(CreateApiKeyAction.NAME, new GetApiKeyRequest(null, null, null, null, true), authentication),
+            is(true)
+        );
         final QueryApiKeyRequest queryApiKeyRequest = new QueryApiKeyRequest();
         assertThat(kibanaRole.cluster().check(CreateApiKeyAction.NAME, queryApiKeyRequest, authentication), is(false));
         queryApiKeyRequest.setFilterForCurrentUser();
@@ -398,8 +411,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaRole.cluster().check(FindStructureAction.NAME, request, authentication), is(true));
 
         // Application Privileges
-        DeletePrivilegesRequest deleteKibanaPrivileges = new DeletePrivilegesRequest("kibana-.kibana", new String[]{ "all", "read" });
-        DeletePrivilegesRequest deleteLogstashPrivileges = new DeletePrivilegesRequest("logstash", new String[]{ "all", "read" });
+        DeletePrivilegesRequest deleteKibanaPrivileges = new DeletePrivilegesRequest("kibana-.kibana", new String[] { "all", "read" });
+        DeletePrivilegesRequest deleteLogstashPrivileges = new DeletePrivilegesRequest("logstash", new String[] { "all", "read" });
         assertThat(kibanaRole.cluster().check(DeletePrivilegesAction.NAME, deleteKibanaPrivileges, authentication), is(true));
         assertThat(kibanaRole.cluster().check(DeletePrivilegesAction.NAME, deleteLogstashPrivileges, authentication), is(false));
 
@@ -411,11 +424,22 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaRole.cluster().check(GetPrivilegesAction.NAME, getApmPrivileges, authentication), is(false));
 
         PutPrivilegesRequest putKibanaPrivileges = new PutPrivilegesRequest();
-        putKibanaPrivileges.setPrivileges(Collections.singletonList(new ApplicationPrivilegeDescriptor(
-            "kibana-.kibana-" + randomAlphaOfLengthBetween(2,6), "all", Collections.emptySet(), Collections.emptyMap())));
+        putKibanaPrivileges.setPrivileges(
+            Collections.singletonList(
+                new ApplicationPrivilegeDescriptor(
+                    "kibana-.kibana-" + randomAlphaOfLengthBetween(2, 6),
+                    "all",
+                    Collections.emptySet(),
+                    Collections.emptyMap()
+                )
+            )
+        );
         PutPrivilegesRequest putSwiftypePrivileges = new PutPrivilegesRequest();
-        putSwiftypePrivileges.setPrivileges(Collections.singletonList(new ApplicationPrivilegeDescriptor(
-            "swiftype-kibana" , "all", Collections.emptySet(), Collections.emptyMap())));
+        putSwiftypePrivileges.setPrivileges(
+            Collections.singletonList(
+                new ApplicationPrivilegeDescriptor("swiftype-kibana", "all", Collections.emptySet(), Collections.emptyMap())
+            )
+        );
         assertThat(kibanaRole.cluster().check(PutPrivilegesAction.NAME, putKibanaPrivileges, authentication), is(true));
         assertThat(kibanaRole.cluster().check(PutPrivilegesAction.NAME, putSwiftypePrivileges, authentication), is(false));
 
@@ -427,8 +451,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction("foo")), is(false));
         assertThat(kibanaRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(".reporting")), is(false));
-        assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
-                is(false));
+        assertThat(
+            kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
+            is(false)
+        );
 
         Arrays.asList(
             ".kibana",
@@ -537,12 +563,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             ".fleet-servers"
         ).forEach(index -> assertAllIndicesAccessAllowed(kibanaRole, index));
 
-
         // Data telemetry reads mappings, metadata and stats of indices
-        Arrays.asList(randomAlphaOfLengthBetween(8, 24), "packetbeat-*",
-            // check system indices other than .security* and .async-search*
-            ".watches", ".triggered-watches", ".tasks", ".enrich"
-        ).forEach((index) -> {
+        Arrays.asList(randomAlphaOfLengthBetween(8, 24), "packetbeat-*").forEach((index) -> {
             logger.info("index name [{}]", index);
             assertThat(kibanaRole.indices().allowedIndicesMatcher(IndicesStatsAction.NAME).test(mockIndexAbstraction(index)), is(true));
             assertViewIndexMetadata(kibanaRole, index);
@@ -557,6 +579,17 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(index)), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(mockIndexAbstraction(index)), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(GetAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(mockIndexAbstraction(index)), is(false));
+        });
+
+        // Data telemetry does not have access to system indices that aren't specified
+        List.of(".watches", ".geoip_databases", ".logstash", ".snapshot-blob-cache").forEach((index) -> {
+            logger.info("index name [{}]", index);
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetMappingsAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(IndicesStatsAction.NAME).test(mockIndexAbstraction(index)), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(mockIndexAbstraction(index)), is(false));
         });
 
@@ -665,7 +698,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertViewIndexMetadata(kibanaRole, indexName);
             assertThat(
                 kibanaRole.indices().allowedIndicesMatcher("indices:monitor/" + randomAlphaOfLengthBetween(3, 8)).test(indexAbstraction),
-                is(true));
+                is(true)
+            );
 
             assertThat(kibanaRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(indexAbstraction), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(indexAbstraction), is(false));
@@ -689,14 +723,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
             StopTransformAction.NAME,
             UpdateTransformAction.NAME,
             ValidateTransformAction.NAME,
-            DeleteTransformActionDeprecated.NAME,
-            GetTransformActionDeprecated.NAME,
-            GetTransformStatsActionDeprecated.NAME,
-            PreviewTransformActionDeprecated.NAME,
-            PutTransformActionDeprecated.NAME,
-            StartTransformActionDeprecated.NAME,
-            StopTransformActionDeprecated.NAME,
-            UpdateTransformActionDeprecated.NAME,
             "cluster:admin/data_frame/" + randomAlphaOfLengthBetween(3, 8),
             "cluster:monitor/data_frame/" + randomAlphaOfLengthBetween(3, 8),
             "cluster:admin/transform/" + randomAlphaOfLengthBetween(3, 8),
@@ -704,20 +730,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
         ).forEach(action -> assertThat(kibanaRole.cluster().check(action, request, authentication), is(true)));
 
         Arrays.asList(
-            "metrics-endpoint.metadata" + randomAlphaOfLengthBetween(3, 8)
-        ).forEach(indexName -> {
-            assertOnlyReadAllowed(kibanaRole, indexName);
-            assertViewIndexMetadata(kibanaRole, indexName);
-
-            final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(PutMappingAction.NAME).test(indexAbstraction), is(false));
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(false));
-        });
-
-        Arrays.asList(
             "metrics-endpoint.metadata_current_default",
-            "metrics-endpoint.metadata_united_default"
+            ".metrics-endpoint.metadata_current_default",
+            ".metrics-endpoint.metadata_united_default"
         ).forEach(indexName -> {
             logger.info("index name [{}]", indexName);
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
@@ -738,11 +753,14 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertViewIndexMetadata(kibanaRole, indexName);
             assertThat(
                 kibanaRole.indices().allowedIndicesMatcher("indices:monitor/" + randomAlphaOfLengthBetween(3, 8)).test(indexAbstraction),
-                is(true));
+                is(true)
+            );
 
             // Granted by bwc for index privilege
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(PutMappingAction.NAME).test(indexAbstraction),
-                is(indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM));
+            assertThat(
+                kibanaRole.indices().allowedIndicesMatcher(PutMappingAction.NAME).test(indexAbstraction),
+                is(indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM)
+            );
 
             // Deny deleting documents and modifying the index settings
             assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(indexAbstraction), is(false));
@@ -766,34 +784,31 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaAdminRole.cluster().check(ClusterStatsAction.NAME, request, authentication), is(false));
         assertThat(kibanaAdminRole.cluster().check(PutIndexTemplateAction.NAME, request, authentication), is(false));
         assertThat(kibanaAdminRole.cluster().check(ClusterRerouteAction.NAME, request, authentication), is(false));
-        assertThat(kibanaAdminRole.cluster().check(ClusterUpdateSettingsAction.NAME, request, authentication),
-                is(false));
+        assertThat(kibanaAdminRole.cluster().check(ClusterUpdateSettingsAction.NAME, request, authentication), is(false));
         assertThat(kibanaAdminRole.cluster().check(MonitoringBulkAction.NAME, request, authentication), is(false));
-        assertThat(kibanaAdminRole.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication),
-                is(false));
+        assertThat(kibanaAdminRole.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
 
         assertThat(kibanaAdminRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
 
         assertThat(kibanaAdminRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction("foo")), is(false));
         assertThat(kibanaAdminRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(".reporting")), is(false));
-        assertThat(kibanaAdminRole.indices().allowedIndicesMatcher("indices:foo").test(
-                mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))), is(false));
+        assertThat(
+            kibanaAdminRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
+            is(false)
+        );
 
         final String randomApplication = "kibana-" + randomAlphaOfLengthBetween(8, 24);
-        assertThat(kibanaAdminRole.application().grants(new ApplicationPrivilege(randomApplication, "app-random", "all"),
-                "*"), is(false));
+        assertThat(kibanaAdminRole.application().grants(new ApplicationPrivilege(randomApplication, "app-random", "all"), "*"), is(false));
 
         final String application = "kibana-.kibana";
-        assertThat(kibanaAdminRole.application().grants(new ApplicationPrivilege(application, "app-foo", "foo"), "*"),
-                is(false));
-        assertThat(kibanaAdminRole.application().grants(new ApplicationPrivilege(application, "app-all", "all"), "*"),
-                is(true));
+        assertThat(kibanaAdminRole.application().grants(new ApplicationPrivilege(application, "app-foo", "foo"), "*"), is(false));
+        assertThat(kibanaAdminRole.application().grants(new ApplicationPrivilege(application, "app-all", "all"), "*"), is(true));
 
         final String applicationWithRandomIndex = "kibana-.kibana_" + randomAlphaOfLengthBetween(8, 24);
         assertThat(
-                kibanaAdminRole.application()
-                        .grants(new ApplicationPrivilege(applicationWithRandomIndex, "app-random-index", "all"), "*"),
-                is(false));
+            kibanaAdminRole.application().grants(new ApplicationPrivilege(applicationWithRandomIndex, "app-random-index", "all"), "*"),
+            is(false)
+        );
 
         assertNoAccessAllowed(kibanaAdminRole, RestrictedIndicesNames.RESTRICTED_NAMES);
     }
@@ -821,8 +836,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertThat(kibanaUserRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction("foo")), is(false));
         assertThat(kibanaUserRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(".reporting")), is(false));
-        assertThat(kibanaUserRole.indices().allowedIndicesMatcher("indices:foo")
-                .test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))), is(false));
+        assertThat(
+            kibanaUserRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
+            is(false)
+        );
 
         final String randomApplication = "kibana-" + randomAlphaOfLengthBetween(8, 24);
         assertThat(kibanaUserRole.application().grants(new ApplicationPrivilege(randomApplication, "app-random", "all"), "*"), is(false));
@@ -832,8 +849,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(kibanaUserRole.application().grants(new ApplicationPrivilege(application, "app-all", "all"), "*"), is(true));
 
         final String applicationWithRandomIndex = "kibana-.kibana_" + randomAlphaOfLengthBetween(8, 24);
-        assertThat(kibanaUserRole.application().grants(new ApplicationPrivilege(applicationWithRandomIndex, "app-random-index", "all"),
-            "*"), is(false));
+        assertThat(
+            kibanaUserRole.application().grants(new ApplicationPrivilege(applicationWithRandomIndex, "app-random-index", "all"), "*"),
+            is(false)
+        );
 
         assertNoAccessAllowed(kibanaUserRole, RestrictedIndicesNames.RESTRICTED_NAMES);
         assertNoAccessAllowed(kibanaUserRole, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
@@ -863,18 +882,27 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(monitoringUserRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
 
         assertThat(monitoringUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("foo")), is(false));
-        assertThat(monitoringUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(".reporting")),
-                is(false));
-        assertThat(monitoringUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(".kibana")),
-                is(false));
-        assertThat(monitoringUserRole.indices().allowedIndicesMatcher("indices:foo").test(
-                mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))), is(false));
-        assertThat(monitoringUserRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(mockIndexAbstraction("foo")),
-                is(false));
-        assertThat(monitoringUserRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(mockIndexAbstraction(".reporting")),
-                is(false));
-        assertThat(monitoringUserRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(mockIndexAbstraction(".kibana")),
-                is(false));
+        assertThat(
+            monitoringUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(".reporting")),
+            is(false)
+        );
+        assertThat(monitoringUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(".kibana")), is(false));
+        assertThat(
+            monitoringUserRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
+            is(false)
+        );
+        assertThat(
+            monitoringUserRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(mockIndexAbstraction("foo")),
+            is(false)
+        );
+        assertThat(
+            monitoringUserRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(mockIndexAbstraction(".reporting")),
+            is(false)
+        );
+        assertThat(
+            monitoringUserRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(mockIndexAbstraction(".kibana")),
+            is(false)
+        );
 
         final String index = ".monitoring-" + randomAlphaOfLength(randomIntBetween(0, 13));
         assertThat(monitoringUserRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
@@ -883,8 +911,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(monitoringUserRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
         assertThat(monitoringUserRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
         assertThat(monitoringUserRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(mockIndexAbstraction(index)), is(false));
-        assertThat(monitoringUserRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME)
-                .test(mockIndexAbstraction(index)), is(false));
+        assertThat(
+            monitoringUserRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(mockIndexAbstraction(index)),
+            is(false)
+        );
         assertThat(monitoringUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
         assertThat(monitoringUserRole.indices().allowedIndicesMatcher(GetAction.NAME).test(mockIndexAbstraction(index)), is(true));
         assertThat(monitoringUserRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(mockIndexAbstraction(index)), is(true));
@@ -893,16 +923,23 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(monitoringUserRole, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
 
         final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
-        assertThat(monitoringUserRole.application().grants(
-            new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"), is(false));
-        assertThat(monitoringUserRole.application().grants(
-            new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_monitoring", "reserved_monitoring"), "*"), is(true));
+        assertThat(
+            monitoringUserRole.application().grants(new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"),
+            is(false)
+        );
+        assertThat(
+            monitoringUserRole.application()
+                .grants(new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_monitoring", "reserved_monitoring"), "*"),
+            is(true)
+        );
 
         final String otherApplication = "logstash-" + randomAlphaOfLengthBetween(8, 24);
-        assertThat(monitoringUserRole.application().grants(
-            new ApplicationPrivilege(otherApplication, "app-foo", "foo"), "*"), is(false));
-        assertThat(monitoringUserRole.application().grants(
-            new ApplicationPrivilege(otherApplication, "app-reserved_monitoring", "reserved_monitoring"), "*"), is(false));
+        assertThat(monitoringUserRole.application().grants(new ApplicationPrivilege(otherApplication, "app-foo", "foo"), "*"), is(false));
+        assertThat(
+            monitoringUserRole.application()
+                .grants(new ApplicationPrivilege(otherApplication, "app-reserved_monitoring", "reserved_monitoring"), "*"),
+            is(false)
+        );
     }
 
     public void testRemoteMonitoringAgentRole() {
@@ -938,66 +975,134 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertThat(remoteMonitoringAgentRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
 
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("foo")),
-                is(false));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(".reporting")),
-                is(false));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(".kibana")),
-                is(false));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher("indices:foo")
-                .test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))), is(false));
+        assertThat(
+            remoteMonitoringAgentRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("foo")),
+            is(false)
+        );
+        assertThat(
+            remoteMonitoringAgentRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(".reporting")),
+            is(false)
+        );
+        assertThat(
+            remoteMonitoringAgentRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(".kibana")),
+            is(false)
+        );
+        assertThat(
+            remoteMonitoringAgentRole.indices()
+                .allowedIndicesMatcher("indices:foo")
+                .test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
+            is(false)
+        );
 
         final String monitoringIndex = ".monitoring-" + randomAlphaOfLength(randomIntBetween(0, 13));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(monitoringIndex)),
-                is(true));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(monitoringIndex)),
-                is(true));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME)
-                .test(mockIndexAbstraction(monitoringIndex)), is(true));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME)
-                .test(mockIndexAbstraction(monitoringIndex)), is(true));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(IndexAction.NAME)
-                .test(mockIndexAbstraction(monitoringIndex)), is(true));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(DeleteAction.NAME)
-                .test(mockIndexAbstraction(monitoringIndex)), is(true));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME)
-                .test(mockIndexAbstraction(monitoringIndex)), is(true));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(SearchAction.NAME)
-                .test(mockIndexAbstraction(monitoringIndex)), is(true));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetAction.NAME)
-                .test(mockIndexAbstraction(monitoringIndex)), is(true));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetIndexAction.NAME)
-                .test(mockIndexAbstraction(monitoringIndex)), is(true));
+        assertThat(
+            remoteMonitoringAgentRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(monitoringIndex)),
+            is(true)
+        );
+        assertThat(
+            remoteMonitoringAgentRole.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(monitoringIndex)),
+            is(true)
+        );
+        assertThat(
+            remoteMonitoringAgentRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(mockIndexAbstraction(monitoringIndex)),
+            is(true)
+        );
+        assertThat(
+            remoteMonitoringAgentRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(mockIndexAbstraction(monitoringIndex)),
+            is(true)
+        );
+        assertThat(
+            remoteMonitoringAgentRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(monitoringIndex)),
+            is(true)
+        );
+        assertThat(
+            remoteMonitoringAgentRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(mockIndexAbstraction(monitoringIndex)),
+            is(true)
+        );
+        assertThat(
+            remoteMonitoringAgentRole.indices()
+                .allowedIndicesMatcher(UpdateSettingsAction.NAME)
+                .test(mockIndexAbstraction(monitoringIndex)),
+            is(true)
+        );
+        assertThat(
+            remoteMonitoringAgentRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(monitoringIndex)),
+            is(true)
+        );
+        assertThat(
+            remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetAction.NAME).test(mockIndexAbstraction(monitoringIndex)),
+            is(true)
+        );
+        assertThat(
+            remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(mockIndexAbstraction(monitoringIndex)),
+            is(true)
+        );
 
         final String metricbeatIndex = "metricbeat-" + randomAlphaOfLength(randomIntBetween(0, 13));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher("indices:foo")
-                .test(mockIndexAbstraction(metricbeatIndex)), is(false));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher("indices:bar")
-                .test(mockIndexAbstraction(metricbeatIndex)), is(false));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME)
-                .test(mockIndexAbstraction(metricbeatIndex)), is(false));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME)
-                .test(mockIndexAbstraction(metricbeatIndex)), is(true));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(IndexAction.NAME)
-                .test(mockIndexAbstraction(metricbeatIndex)), is(true));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetIndexAction.NAME)
-                .test(mockIndexAbstraction(metricbeatIndex)), is(true));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetAliasesAction.NAME)
-                .test(mockIndexAbstraction(metricbeatIndex)), is(true));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(IndicesAliasesAction.NAME)
-                .test(mockIndexAbstraction(metricbeatIndex)), is(true));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(IndicesSegmentsAction.NAME)
-                .test(mockIndexAbstraction(metricbeatIndex)), is(false));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(RemoveIndexLifecyclePolicyAction.NAME)
-                .test(mockIndexAbstraction(metricbeatIndex)), is(false));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(DeleteAction.NAME)
-                .test(mockIndexAbstraction(metricbeatIndex)), is(false));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME)
-                .test(mockIndexAbstraction(metricbeatIndex)), is(false));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(SearchAction.NAME)
-                .test(mockIndexAbstraction(metricbeatIndex)), is(false));
-        assertThat(remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetAction.NAME)
-                .test(mockIndexAbstraction(metricbeatIndex)), is(false));
+        assertThat(
+            remoteMonitoringAgentRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(metricbeatIndex)),
+            is(false)
+        );
+        assertThat(
+            remoteMonitoringAgentRole.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(metricbeatIndex)),
+            is(false)
+        );
+        assertThat(
+            remoteMonitoringAgentRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(mockIndexAbstraction(metricbeatIndex)),
+            is(false)
+        );
+        assertThat(
+            remoteMonitoringAgentRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(mockIndexAbstraction(metricbeatIndex)),
+            is(true)
+        );
+        assertThat(
+            remoteMonitoringAgentRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(metricbeatIndex)),
+            is(true)
+        );
+        assertThat(
+            remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(mockIndexAbstraction(metricbeatIndex)),
+            is(true)
+        );
+        assertThat(
+            remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetAliasesAction.NAME).test(mockIndexAbstraction(metricbeatIndex)),
+            is(true)
+        );
+        assertThat(
+            remoteMonitoringAgentRole.indices()
+                .allowedIndicesMatcher(IndicesAliasesAction.NAME)
+                .test(mockIndexAbstraction(metricbeatIndex)),
+            is(true)
+        );
+        assertThat(
+            remoteMonitoringAgentRole.indices()
+                .allowedIndicesMatcher(IndicesSegmentsAction.NAME)
+                .test(mockIndexAbstraction(metricbeatIndex)),
+            is(false)
+        );
+        assertThat(
+            remoteMonitoringAgentRole.indices()
+                .allowedIndicesMatcher(RemoveIndexLifecyclePolicyAction.NAME)
+                .test(mockIndexAbstraction(metricbeatIndex)),
+            is(false)
+        );
+        assertThat(
+            remoteMonitoringAgentRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(mockIndexAbstraction(metricbeatIndex)),
+            is(false)
+        );
+        assertThat(
+            remoteMonitoringAgentRole.indices()
+                .allowedIndicesMatcher(UpdateSettingsAction.NAME)
+                .test(mockIndexAbstraction(metricbeatIndex)),
+            is(false)
+        );
+        assertThat(
+            remoteMonitoringAgentRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(metricbeatIndex)),
+            is(false)
+        );
+        assertThat(
+            remoteMonitoringAgentRole.indices().allowedIndicesMatcher(GetAction.NAME).test(mockIndexAbstraction(metricbeatIndex)),
+            is(false)
+        );
 
         assertNoAccessAllowed(remoteMonitoringAgentRole, RestrictedIndicesNames.RESTRICTED_NAMES);
         assertNoAccessAllowed(remoteMonitoringAgentRole, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
@@ -1025,91 +1130,205 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertThat(remoteMonitoringCollectorRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
 
-        assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(RecoveryAction.NAME)
-                .test(mockIndexAbstraction("foo")), is(true));
-        assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(SearchAction.NAME)
-                .test(mockIndexAbstraction("foo")), is(false));
-        assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(SearchAction.NAME)
-                .test(mockIndexAbstraction(".reporting")), is(false));
-        assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(SearchAction.NAME)
-                .test(mockIndexAbstraction(".kibana")), is(true));
-        assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(GetAction.NAME)
-                .test(mockIndexAbstraction(".kibana")), is(true));
-        assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher("indices:foo")
-            .test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))), is(false));
+        assertThat(
+            remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(RecoveryAction.NAME).test(mockIndexAbstraction("foo")),
+            is(true)
+        );
+        assertThat(
+            remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("foo")),
+            is(false)
+        );
+        assertThat(
+            remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(".reporting")),
+            is(false)
+        );
+        assertThat(
+            remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(".kibana")),
+            is(true)
+        );
+        assertThat(
+            remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(GetAction.NAME).test(mockIndexAbstraction(".kibana")),
+            is(true)
+        );
+        assertThat(
+            remoteMonitoringCollectorRole.indices()
+                .allowedIndicesMatcher("indices:foo")
+                .test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
+            is(false)
+        );
 
         Arrays.asList(
             ".monitoring-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "metricbeat-" + randomAlphaOfLength(randomIntBetween(0, 13))
         ).forEach((index) -> {
             logger.info("index name [{}]", index);
-            assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher("indices:foo")
-                    .test(mockIndexAbstraction(index)), is(false));
-            assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher("indices:bar")
-                    .test(mockIndexAbstraction(index)), is(false));
-            assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME)
-                    .test(mockIndexAbstraction(index)), is(false));
-            assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME)
-                    .test(mockIndexAbstraction(index)), is(false));
-            assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(IndexAction.NAME)
-                    .test(mockIndexAbstraction(index)), is(false));
-            assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(GetIndexAction.NAME)
-                    .test(mockIndexAbstraction(index)), is(false));
-            assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(GetAliasesAction.NAME)
-                    .test(mockIndexAbstraction(index)), is(false));
-            assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(RemoveIndexLifecyclePolicyAction.NAME)
-                    .test(mockIndexAbstraction(index)), is(false));
-            assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(DeleteAction.NAME)
-                    .test(mockIndexAbstraction(index)), is(false));
-            assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME)
-                    .test(mockIndexAbstraction(index)), is(false));
-            assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(SearchAction.NAME)
-                    .test(mockIndexAbstraction(index)), is(false));
-            assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(GetAction.NAME)
-                    .test(mockIndexAbstraction(index)), is(false));
-            assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(GetIndexAction.NAME)
-                    .test(mockIndexAbstraction(index)), is(false));
+            assertThat(
+                remoteMonitoringCollectorRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)),
+                is(false)
+            );
+            assertThat(
+                remoteMonitoringCollectorRole.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)),
+                is(false)
+            );
+            assertThat(
+                remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(mockIndexAbstraction(index)),
+                is(false)
+            );
+            assertThat(
+                remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(mockIndexAbstraction(index)),
+                is(false)
+            );
+            assertThat(
+                remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(index)),
+                is(false)
+            );
+            assertThat(
+                remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(mockIndexAbstraction(index)),
+                is(false)
+            );
+            assertThat(
+                remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(GetAliasesAction.NAME).test(mockIndexAbstraction(index)),
+                is(false)
+            );
+            assertThat(
+                remoteMonitoringCollectorRole.indices()
+                    .allowedIndicesMatcher(RemoveIndexLifecyclePolicyAction.NAME)
+                    .test(mockIndexAbstraction(index)),
+                is(false)
+            );
+            assertThat(
+                remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(mockIndexAbstraction(index)),
+                is(false)
+            );
+            assertThat(
+                remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(mockIndexAbstraction(index)),
+                is(false)
+            );
+            assertThat(
+                remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(index)),
+                is(false)
+            );
+            assertThat(
+                remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(GetAction.NAME).test(mockIndexAbstraction(index)),
+                is(false)
+            );
+            assertThat(
+                remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(mockIndexAbstraction(index)),
+                is(false)
+            );
         });
 
         // These tests might need to change if we add new non-security restricted indices that the monitoring user isn't supposed to see
         // (but ideally, the monitoring user should see all indices).
-        assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(GetSettingsAction.NAME)
-                .test(mockIndexAbstraction(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES))), is(true));
-        assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(GetSettingsAction.NAME)
-                .test(mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2))), is(true));
-        assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(IndicesShardStoresAction.NAME)
-                .test(mockIndexAbstraction(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES))), is(true));
-        assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(IndicesShardStoresAction.NAME)
-                .test(mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2))), is(true));
-        assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(RecoveryAction.NAME)
-                .test(mockIndexAbstraction(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES))), is(true));
-        assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(RecoveryAction.NAME)
-                .test(mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2))), is(true));
-        assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(IndicesStatsAction.NAME)
-                .test(mockIndexAbstraction(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES))), is(true));
-        assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(IndicesStatsAction.NAME)
-                .test(mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2))), is(true));
-        assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(IndicesSegmentsAction.NAME)
-                .test(mockIndexAbstraction(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES))), is(true));
-        assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(IndicesSegmentsAction.NAME)
-                .test(mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2))), is(true));
+        assertThat(
+            remoteMonitoringCollectorRole.indices()
+                .allowedIndicesMatcher(GetSettingsAction.NAME)
+                .test(mockIndexAbstraction(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES))),
+            is(true)
+        );
+        assertThat(
+            remoteMonitoringCollectorRole.indices()
+                .allowedIndicesMatcher(GetSettingsAction.NAME)
+                .test(mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2))),
+            is(true)
+        );
+        assertThat(
+            remoteMonitoringCollectorRole.indices()
+                .allowedIndicesMatcher(IndicesShardStoresAction.NAME)
+                .test(mockIndexAbstraction(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES))),
+            is(true)
+        );
+        assertThat(
+            remoteMonitoringCollectorRole.indices()
+                .allowedIndicesMatcher(IndicesShardStoresAction.NAME)
+                .test(mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2))),
+            is(true)
+        );
+        assertThat(
+            remoteMonitoringCollectorRole.indices()
+                .allowedIndicesMatcher(RecoveryAction.NAME)
+                .test(mockIndexAbstraction(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES))),
+            is(true)
+        );
+        assertThat(
+            remoteMonitoringCollectorRole.indices()
+                .allowedIndicesMatcher(RecoveryAction.NAME)
+                .test(mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2))),
+            is(true)
+        );
+        assertThat(
+            remoteMonitoringCollectorRole.indices()
+                .allowedIndicesMatcher(IndicesStatsAction.NAME)
+                .test(mockIndexAbstraction(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES))),
+            is(true)
+        );
+        assertThat(
+            remoteMonitoringCollectorRole.indices()
+                .allowedIndicesMatcher(IndicesStatsAction.NAME)
+                .test(mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2))),
+            is(true)
+        );
+        assertThat(
+            remoteMonitoringCollectorRole.indices()
+                .allowedIndicesMatcher(IndicesSegmentsAction.NAME)
+                .test(mockIndexAbstraction(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES))),
+            is(true)
+        );
+        assertThat(
+            remoteMonitoringCollectorRole.indices()
+                .allowedIndicesMatcher(IndicesSegmentsAction.NAME)
+                .test(mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2))),
+            is(true)
+        );
 
-        assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(SearchAction.NAME)
-                .test(mockIndexAbstraction(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES))), is(false));
-        assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(SearchAction.NAME)
-                .test(mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2))), is(false));
-        assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(GetAction.NAME)
-                .test(mockIndexAbstraction(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES))), is(false));
-        assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(GetAction.NAME)
-                .test(mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2))), is(false));
-        assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(DeleteAction.NAME)
-                .test(mockIndexAbstraction(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES))), is(false));
-        assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(DeleteAction.NAME)
-                .test(mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2))), is(false));
-        assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(IndexAction.NAME)
-                .test(mockIndexAbstraction(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES))), is(false));
-        assertThat(remoteMonitoringCollectorRole.indices().allowedIndicesMatcher(IndexAction.NAME)
-                .test(mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2))), is(false));
+        assertThat(
+            remoteMonitoringCollectorRole.indices()
+                .allowedIndicesMatcher(SearchAction.NAME)
+                .test(mockIndexAbstraction(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES))),
+            is(false)
+        );
+        assertThat(
+            remoteMonitoringCollectorRole.indices()
+                .allowedIndicesMatcher(SearchAction.NAME)
+                .test(mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2))),
+            is(false)
+        );
+        assertThat(
+            remoteMonitoringCollectorRole.indices()
+                .allowedIndicesMatcher(GetAction.NAME)
+                .test(mockIndexAbstraction(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES))),
+            is(false)
+        );
+        assertThat(
+            remoteMonitoringCollectorRole.indices()
+                .allowedIndicesMatcher(GetAction.NAME)
+                .test(mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2))),
+            is(false)
+        );
+        assertThat(
+            remoteMonitoringCollectorRole.indices()
+                .allowedIndicesMatcher(DeleteAction.NAME)
+                .test(mockIndexAbstraction(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES))),
+            is(false)
+        );
+        assertThat(
+            remoteMonitoringCollectorRole.indices()
+                .allowedIndicesMatcher(DeleteAction.NAME)
+                .test(mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2))),
+            is(false)
+        );
+        assertThat(
+            remoteMonitoringCollectorRole.indices()
+                .allowedIndicesMatcher(IndexAction.NAME)
+                .test(mockIndexAbstraction(randomFrom(RestrictedIndicesNames.RESTRICTED_NAMES))),
+            is(false)
+        );
+        assertThat(
+            remoteMonitoringCollectorRole.indices()
+                .allowedIndicesMatcher(IndexAction.NAME)
+                .test(mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2))),
+            is(false)
+        );
 
         assertMonitoringOnRestrictedIndices(remoteMonitoringCollectorRole);
 
@@ -1119,27 +1338,38 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     private void assertMonitoringOnRestrictedIndices(Role role) {
         final Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
-        final String internalSecurityIndex = randomFrom(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_6,
-            RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7);
-        final Metadata metadata = new Metadata.Builder()
-                .put(new IndexMetadata.Builder(internalSecurityIndex)
-                        .settings(indexSettings)
-                        .numberOfShards(1)
-                        .numberOfReplicas(0)
-                        .putAlias(new AliasMetadata.Builder(RestrictedIndicesNames.SECURITY_MAIN_ALIAS).build())
-                        .build(), true)
-                .build();
+        final String internalSecurityIndex = randomFrom(
+            RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_6,
+            RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7
+        );
+        final Metadata metadata = new Metadata.Builder().put(
+            new IndexMetadata.Builder(internalSecurityIndex).settings(indexSettings)
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .putAlias(new AliasMetadata.Builder(RestrictedIndicesNames.SECURITY_MAIN_ALIAS).build())
+                .build(),
+            true
+        ).build();
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
-        final List<String> indexMonitoringActionNamesList = Arrays.asList(IndicesStatsAction.NAME, IndicesSegmentsAction.NAME,
-                GetSettingsAction.NAME, IndicesShardStoresAction.NAME, RecoveryAction.NAME);
+        final List<String> indexMonitoringActionNamesList = Arrays.asList(
+            IndicesStatsAction.NAME,
+            IndicesSegmentsAction.NAME,
+            GetSettingsAction.NAME,
+            IndicesShardStoresAction.NAME,
+            RecoveryAction.NAME
+        );
         for (final String indexMonitoringActionName : indexMonitoringActionNamesList) {
             String asyncSearchIndex = XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2);
-            final Map<String, IndexAccessControl> authzMap = role.indices().authorize(indexMonitoringActionName,
-                Sets.newHashSet(internalSecurityIndex, RestrictedIndicesNames.SECURITY_MAIN_ALIAS, asyncSearchIndex),
-                metadata.getIndicesLookup(), fieldPermissionsCache);
-            assertThat(authzMap.get(internalSecurityIndex).isGranted(), is(true));
-            assertThat(authzMap.get(RestrictedIndicesNames.SECURITY_MAIN_ALIAS).isGranted(), is(true));
-            assertThat(authzMap.get(asyncSearchIndex).isGranted(), is(true));
+            final IndicesAccessControl iac = role.indices()
+                .authorize(
+                    indexMonitoringActionName,
+                    Sets.newHashSet(internalSecurityIndex, RestrictedIndicesNames.SECURITY_MAIN_ALIAS, asyncSearchIndex),
+                    metadata.getIndicesLookup(),
+                    fieldPermissionsCache
+                );
+            assertThat(iac.getIndexPermissions(internalSecurityIndex).isGranted(), is(true));
+            assertThat(iac.getIndexPermissions(RestrictedIndicesNames.SECURITY_MAIN_ALIAS).isGranted(), is(true));
+            assertThat(iac.getIndexPermissions(asyncSearchIndex).isGranted(), is(true));
         }
     }
 
@@ -1165,20 +1395,25 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(reportingUserRole.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
 
         assertThat(reportingUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction("foo")), is(false));
-        assertThat(reportingUserRole.indices().allowedIndicesMatcher(SearchAction.NAME)
-                .test(mockIndexAbstraction(".reporting")), is(false));
-        assertThat(reportingUserRole.indices().allowedIndicesMatcher(SearchAction.NAME)
-                .test(mockIndexAbstraction(".kibana")), is(false));
-        assertThat(reportingUserRole.indices().allowedIndicesMatcher("indices:foo")
-                .test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))), is(false));
+        assertThat(
+            reportingUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(".reporting")),
+            is(false)
+        );
+        assertThat(reportingUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(".kibana")), is(false));
+        assertThat(
+            reportingUserRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
+            is(false)
+        );
 
         final String index = ".reporting-" + randomAlphaOfLength(randomIntBetween(0, 13));
         assertThat(reportingUserRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
         assertThat(reportingUserRole.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
         assertThat(reportingUserRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
         assertThat(reportingUserRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
-        assertThat(reportingUserRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME)
-                .test(mockIndexAbstraction(index)), is(false));
+        assertThat(
+            reportingUserRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(mockIndexAbstraction(index)),
+            is(false)
+        );
         assertThat(reportingUserRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(index)), is(false));
         assertThat(reportingUserRole.indices().allowedIndicesMatcher(GetAction.NAME).test(mockIndexAbstraction(index)), is(false));
         assertThat(reportingUserRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(index)), is(false));
@@ -1208,58 +1443,77 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(superuserRole.cluster().check("internal:admin/foo", request, authentication), is(false));
 
         final Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
-        final String internalSecurityIndex = randomFrom(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_6,
-            RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7);
-        final Metadata metadata = new Metadata.Builder()
-                .put(new IndexMetadata.Builder("a1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
-                .put(new IndexMetadata.Builder("a2").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
-                .put(new IndexMetadata.Builder("aaaaaa").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
-                .put(new IndexMetadata.Builder("bbbbb").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
-                .put(new IndexMetadata.Builder("b")
-                        .settings(indexSettings)
-                        .numberOfShards(1)
-                        .numberOfReplicas(0)
-                        .putAlias(new AliasMetadata.Builder("ab").build())
-                        .putAlias(new AliasMetadata.Builder("ba").build())
-                        .build(), true)
-                .put(new IndexMetadata.Builder(internalSecurityIndex)
-                        .settings(indexSettings)
-                        .numberOfShards(1)
-                        .numberOfReplicas(0)
-                        .putAlias(new AliasMetadata.Builder(RestrictedIndicesNames.SECURITY_MAIN_ALIAS).build())
-                        .build(), true)
-                .build();
+        final String internalSecurityIndex = randomFrom(
+            RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_6,
+            RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7
+        );
+        final Metadata metadata = new Metadata.Builder().put(
+            new IndexMetadata.Builder("a1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(),
+            true
+        )
+            .put(new IndexMetadata.Builder("a2").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
+            .put(new IndexMetadata.Builder("aaaaaa").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
+            .put(new IndexMetadata.Builder("bbbbb").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
+            .put(
+                new IndexMetadata.Builder("b").settings(indexSettings)
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putAlias(new AliasMetadata.Builder("ab").build())
+                    .putAlias(new AliasMetadata.Builder("ba").build())
+                    .build(),
+                true
+            )
+            .put(
+                new IndexMetadata.Builder(internalSecurityIndex).settings(indexSettings)
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putAlias(new AliasMetadata.Builder(RestrictedIndicesNames.SECURITY_MAIN_ALIAS).build())
+                    .build(),
+                true
+            )
+            .build();
 
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         SortedMap<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
-        Map<String, IndexAccessControl> authzMap =
-                superuserRole.indices().authorize(SearchAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache);
-        assertThat(authzMap.get("a1").isGranted(), is(true));
-        assertThat(authzMap.get("b").isGranted(), is(true));
-        authzMap =
-            superuserRole.indices().authorize(DeleteIndexAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache);
-        assertThat(authzMap.get("a1").isGranted(), is(true));
-        assertThat(authzMap.get("b").isGranted(), is(true));
-        authzMap = superuserRole.indices().authorize(IndexAction.NAME, Sets.newHashSet("a2", "ba"), lookup, fieldPermissionsCache);
-        assertThat(authzMap.get("a2").isGranted(), is(true));
-        assertThat(authzMap.get("b").isGranted(), is(true));
-        authzMap = superuserRole.indices()
-                .authorize(UpdateSettingsAction.NAME, Sets.newHashSet("aaaaaa", "ba"), lookup, fieldPermissionsCache);
-        assertThat(authzMap.get("aaaaaa").isGranted(), is(true));
-        assertThat(authzMap.get("b").isGranted(), is(true));
-        authzMap = superuserRole.indices().authorize(randomFrom(IndexAction.NAME, DeleteIndexAction.NAME, SearchAction.NAME),
-                Sets.newHashSet(RestrictedIndicesNames.SECURITY_MAIN_ALIAS), lookup, fieldPermissionsCache);
-        assertThat(authzMap.get(RestrictedIndicesNames.SECURITY_MAIN_ALIAS).isGranted(), is(true));
-        assertThat(authzMap.get(internalSecurityIndex).isGranted(), is(true));
+        IndicesAccessControl iac = superuserRole.indices()
+            .authorize(SearchAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache);
+        assertThat(iac.getIndexPermissions("a1").isGranted(), is(true));
+        assertThat(iac.getIndexPermissions("b").isGranted(), is(true));
+        iac = superuserRole.indices().authorize(DeleteIndexAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache);
+        assertThat(iac.getIndexPermissions("a1").isGranted(), is(true));
+        assertThat(iac.getIndexPermissions("b").isGranted(), is(true));
+        iac = superuserRole.indices().authorize(IndexAction.NAME, Sets.newHashSet("a2", "ba"), lookup, fieldPermissionsCache);
+        assertThat(iac.getIndexPermissions("a2").isGranted(), is(true));
+        assertThat(iac.getIndexPermissions("b").isGranted(), is(true));
+        iac = superuserRole.indices().authorize(UpdateSettingsAction.NAME, Sets.newHashSet("aaaaaa", "ba"), lookup, fieldPermissionsCache);
+        assertThat(iac.getIndexPermissions("aaaaaa").isGranted(), is(true));
+        assertThat(iac.getIndexPermissions("b").isGranted(), is(true));
+        iac = superuserRole.indices()
+            .authorize(
+                randomFrom(IndexAction.NAME, DeleteIndexAction.NAME, SearchAction.NAME),
+                Sets.newHashSet(RestrictedIndicesNames.SECURITY_MAIN_ALIAS),
+                lookup,
+                fieldPermissionsCache
+            );
+        assertThat(iac.getIndexPermissions(RestrictedIndicesNames.SECURITY_MAIN_ALIAS).isGranted(), is(true));
+        assertThat(iac.getIndexPermissions(internalSecurityIndex).isGranted(), is(true));
         assertTrue(superuserRole.indices().check(SearchAction.NAME));
         assertFalse(superuserRole.indices().check("unknown"));
 
         assertThat(superuserRole.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(true));
 
-        assertThat(superuserRole.indices().allowedIndicesMatcher(randomFrom(IndexAction.NAME, DeleteIndexAction.NAME, SearchAction.NAME))
-                .test(mockIndexAbstraction(RestrictedIndicesNames.SECURITY_MAIN_ALIAS)), is(true));
-        assertThat(superuserRole.indices().allowedIndicesMatcher(randomFrom(IndexAction.NAME, DeleteIndexAction.NAME, SearchAction.NAME))
-                .test(mockIndexAbstraction(internalSecurityIndex)), is(true));
+        assertThat(
+            superuserRole.indices()
+                .allowedIndicesMatcher(randomFrom(IndexAction.NAME, DeleteIndexAction.NAME, SearchAction.NAME))
+                .test(mockIndexAbstraction(RestrictedIndicesNames.SECURITY_MAIN_ALIAS)),
+            is(true)
+        );
+        assertThat(
+            superuserRole.indices()
+                .allowedIndicesMatcher(randomFrom(IndexAction.NAME, DeleteIndexAction.NAME, SearchAction.NAME))
+                .test(mockIndexAbstraction(internalSecurityIndex)),
+            is(true)
+        );
     }
 
     public void testLogstashSystemRole() {
@@ -1283,10 +1537,14 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(logstashSystemRole.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
         assertThat(logstashSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction("foo")), is(false));
-        assertThat(logstashSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME)
-                .test(mockIndexAbstraction(".reporting")), is(false));
-        assertThat(logstashSystemRole.indices().allowedIndicesMatcher("indices:foo")
-                .test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))), is(false));
+        assertThat(
+            logstashSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(".reporting")),
+            is(false)
+        );
+        assertThat(
+            logstashSystemRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
+            is(false)
+        );
 
         assertNoAccessAllowed(logstashSystemRole, RestrictedIndicesNames.RESTRICTED_NAMES);
         assertNoAccessAllowed(logstashSystemRole, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
@@ -1300,7 +1558,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-
         final Role beatsAdminRole = Role.builder(roleDescriptor, null, RESTRICTED_INDICES_AUTOMATON).build();
         assertThat(beatsAdminRole.cluster().check(ClusterHealthAction.NAME, request, authentication), is(false));
         assertThat(beatsAdminRole.cluster().check(ClusterStateAction.NAME, request, authentication), is(false));
@@ -1313,8 +1570,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertThat(beatsAdminRole.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
-        assertThat(beatsAdminRole.indices().allowedIndicesMatcher("indices:foo")
-                .test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))), is(false));
+        assertThat(
+            beatsAdminRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
+            is(false)
+        );
 
         final String index = ".management-beats";
         logger.info("index name [{}]", index);
@@ -1353,13 +1612,15 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertThat(beatsSystemRole.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
-
-        final String index = ".monitoring-beats-" + randomIntBetween(0, 5);;
+        final String index = ".monitoring-beats-" + randomIntBetween(0, 5);
+        ;
         logger.info("beats monitoring index name [{}]", index);
         assertThat(beatsSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction("foo")), is(false));
         assertThat(beatsSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(".reporting")), is(false));
-        assertThat(beatsSystemRole.indices().allowedIndicesMatcher("indices:foo")
-                .test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))), is(false));
+        assertThat(
+            beatsSystemRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
+            is(false)
+        );
         assertThat(beatsSystemRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
         assertThat(beatsSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
         assertThat(beatsSystemRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(mockIndexAbstraction(index)), is(false));
@@ -1391,22 +1652,32 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertThat(APMSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction("foo")), is(false));
         assertThat(APMSystemRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(".reporting")), is(false));
-        assertThat(APMSystemRole.indices().allowedIndicesMatcher("indices:foo")
-                .test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))), is(false));
+        assertThat(
+            APMSystemRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
+            is(false)
+        );
 
         final String index = ".monitoring-beats-" + randomIntBetween(10, 15);
         logger.info("APM beats monitoring index name [{}]", index);
 
         assertThat(APMSystemRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(mockIndexAbstraction(index)), is(true));
-        assertThat(APMSystemRole.indices().allowedIndicesMatcher("indices:data/write/index:op_type/create")
-                .test(mockIndexAbstraction(index)), is(true));
+        assertThat(
+            APMSystemRole.indices().allowedIndicesMatcher("indices:data/write/index:op_type/create").test(mockIndexAbstraction(index)),
+            is(true)
+        );
         assertThat(APMSystemRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(mockIndexAbstraction(index)), is(false));
         assertThat(APMSystemRole.indices().allowedIndicesMatcher(BulkAction.NAME).test(mockIndexAbstraction(index)), is(true));
 
-        assertThat(APMSystemRole.indices().allowedIndicesMatcher("indices:data/write/index:op_type/index")
-                .test(mockIndexAbstraction(index)), is(false));
-        assertThat(APMSystemRole.indices().allowedIndicesMatcher(
-            "indices:data/write/index:op_type/" + randomAlphaOfLengthBetween(3,5)).test(mockIndexAbstraction(index)), is(false));
+        assertThat(
+            APMSystemRole.indices().allowedIndicesMatcher("indices:data/write/index:op_type/index").test(mockIndexAbstraction(index)),
+            is(false)
+        );
+        assertThat(
+            APMSystemRole.indices()
+                .allowedIndicesMatcher("indices:data/write/index:op_type/" + randomAlphaOfLengthBetween(3, 5))
+                .test(mockIndexAbstraction(index)),
+            is(false)
+        );
 
         assertNoAccessAllowed(APMSystemRole, RestrictedIndicesNames.RESTRICTED_NAMES);
         assertNoAccessAllowed(APMSystemRole, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
@@ -1446,16 +1717,22 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, "observability-annotations");
 
         final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
-        assertThat(role.application().grants(
-            new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"), is(false));
-        assertThat(role.application().grants(
-            new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml_apm_user", "reserved_ml_apm_user"), "*"), is(true));
+        assertThat(role.application().grants(new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"), is(false));
+        assertThat(
+            role.application()
+                .grants(
+                    new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml_apm_user", "reserved_ml_apm_user"),
+                    "*"
+                ),
+            is(true)
+        );
 
         final String otherApplication = "logstash-" + randomAlphaOfLengthBetween(8, 24);
-        assertThat(role.application().grants(
-            new ApplicationPrivilege(otherApplication, "app-foo", "foo"), "*"), is(false));
-        assertThat(role.application().grants(
-            new ApplicationPrivilege(otherApplication, "app-reserved_ml_apm_user", "reserved_ml_apm_user"), "*"), is(false));
+        assertThat(role.application().grants(new ApplicationPrivilege(otherApplication, "app-foo", "foo"), "*"), is(false));
+        assertThat(
+            role.application().grants(new ApplicationPrivilege(otherApplication, "app-reserved_ml_apm_user", "reserved_ml_apm_user"), "*"),
+            is(false)
+        );
     }
 
     public void testMachineLearningAdminRole() {
@@ -1478,22 +1755,25 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX);
         assertOnlyReadAllowed(role, AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT);
         assertOnlyReadAllowed(role, NotificationsIndex.NOTIFICATIONS_INDEX);
-        assertReadWriteDocsButNotDeleteIndexAllowed(role, AnnotationIndex.INDEX_NAME);
+        assertReadWriteDocsButNotDeleteIndexAllowed(role, AnnotationIndex.LATEST_INDEX_NAME);
 
         assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
         assertNoAccessAllowed(role, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
 
         final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
-        assertThat(role.application().grants(
-            new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"), is(false));
-        assertThat(role.application().grants(
-            new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml", "reserved_ml_admin"), "*"), is(true));
+        assertThat(role.application().grants(new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"), is(false));
+        assertThat(
+            role.application()
+                .grants(new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml", "reserved_ml_admin"), "*"),
+            is(true)
+        );
 
         final String otherApplication = "logstash-" + randomAlphaOfLengthBetween(8, 24);
-        assertThat(role.application().grants(
-            new ApplicationPrivilege(otherApplication, "app-foo", "foo"), "*"), is(false));
-        assertThat(role.application().grants(
-            new ApplicationPrivilege(otherApplication, "app-reserved_ml", "reserved_ml_admin"), "*"), is(false));
+        assertThat(role.application().grants(new ApplicationPrivilege(otherApplication, "app-foo", "foo"), "*"), is(false));
+        assertThat(
+            role.application().grants(new ApplicationPrivilege(otherApplication, "app-reserved_ml", "reserved_ml_admin"), "*"),
+            is(false)
+        );
     }
 
     private void assertRoleHasManageMl(Role role) {
@@ -1632,23 +1912,25 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(role, AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX);
         assertOnlyReadAllowed(role, AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT);
         assertOnlyReadAllowed(role, NotificationsIndex.NOTIFICATIONS_INDEX);
-        assertReadWriteDocsButNotDeleteIndexAllowed(role, AnnotationIndex.INDEX_NAME);
+        assertReadWriteDocsButNotDeleteIndexAllowed(role, AnnotationIndex.LATEST_INDEX_NAME);
 
         assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
         assertNoAccessAllowed(role, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
 
-
         final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
-        assertThat(role.application().grants(
-            new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"), is(false));
-        assertThat(role.application().grants(
-            new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml", "reserved_ml_user"), "*"), is(true));
+        assertThat(role.application().grants(new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"), is(false));
+        assertThat(
+            role.application()
+                .grants(new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml", "reserved_ml_user"), "*"),
+            is(true)
+        );
 
         final String otherApplication = "logstash-" + randomAlphaOfLengthBetween(8, 24);
-        assertThat(role.application().grants(
-            new ApplicationPrivilege(otherApplication, "app-foo", "foo"), "*"), is(false));
-        assertThat(role.application().grants(
-            new ApplicationPrivilege(otherApplication, "app-reserved_ml", "reserved_ml_user"), "*"), is(false));
+        assertThat(role.application().grants(new ApplicationPrivilege(otherApplication, "app-foo", "foo"), "*"), is(false));
+        assertThat(
+            role.application().grants(new ApplicationPrivilege(otherApplication, "app-reserved_ml", "reserved_ml_user"), "*"),
+            is(false)
+        );
     }
 
     public void testTransformAdminRole() {
@@ -1657,8 +1939,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         RoleDescriptor[] roleDescriptors = {
             new ReservedRolesStore().roleDescriptor("data_frame_transforms_admin"),
-            new ReservedRolesStore().roleDescriptor("transform_admin")
-        };
+            new ReservedRolesStore().roleDescriptor("transform_admin") };
 
         for (RoleDescriptor roleDescriptor : roleDescriptors) {
             assertNotNull(roleDescriptor);
@@ -1691,20 +1972,26 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertNoAccessAllowed(role, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
 
             final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
-            assertThat(role.application().grants(
-                new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"), is(false));
+            assertThat(
+                role.application().grants(new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"),
+                is(false)
+            );
 
             if (roleDescriptor.getName().equals("data_frame_transforms_admin")) {
-                assertThat(role.application().grants(
-                    new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml", "reserved_ml_user"), "*"), is(true));
+                assertThat(
+                    role.application()
+                        .grants(new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml", "reserved_ml_user"), "*"),
+                    is(true)
+                );
             }
 
             final String otherApplication = "logstash-" + randomAlphaOfLengthBetween(8, 24);
-            assertThat(role.application().grants(
-                new ApplicationPrivilege(otherApplication, "app-foo", "foo"), "*"), is(false));
+            assertThat(role.application().grants(new ApplicationPrivilege(otherApplication, "app-foo", "foo"), "*"), is(false));
             if (roleDescriptor.getName().equals("data_frame_transforms_admin")) {
-                assertThat(role.application().grants(
-                        new ApplicationPrivilege(otherApplication, "app-reserved_ml", "reserved_ml_user"), "*"), is(false));
+                assertThat(
+                    role.application().grants(new ApplicationPrivilege(otherApplication, "app-reserved_ml", "reserved_ml_user"), "*"),
+                    is(false)
+                );
             }
         }
     }
@@ -1715,8 +2002,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         RoleDescriptor[] roleDescriptors = {
             new ReservedRolesStore().roleDescriptor("data_frame_transforms_user"),
-            new ReservedRolesStore().roleDescriptor("transform_user")
-        };
+            new ReservedRolesStore().roleDescriptor("transform_user") };
 
         for (RoleDescriptor roleDescriptor : roleDescriptors) {
             assertNotNull(roleDescriptor);
@@ -1749,20 +2035,26 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertNoAccessAllowed(role, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
 
             final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
-            assertThat(role.application().grants(
-                new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"), is(false));
+            assertThat(
+                role.application().grants(new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"),
+                is(false)
+            );
 
             if (roleDescriptor.getName().equals("data_frame_transforms_user")) {
-                assertThat(role.application().grants(
-                    new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml", "reserved_ml_user"), "*"), is(true));
+                assertThat(
+                    role.application()
+                        .grants(new ApplicationPrivilege(kibanaApplicationWithRandomIndex, "app-reserved_ml", "reserved_ml_user"), "*"),
+                    is(true)
+                );
             }
 
             final String otherApplication = "logstash-" + randomAlphaOfLengthBetween(8, 24);
-            assertThat(role.application().grants(
-                new ApplicationPrivilege(otherApplication, "app-foo", "foo"), "*"), is(false));
+            assertThat(role.application().grants(new ApplicationPrivilege(otherApplication, "app-foo", "foo"), "*"), is(false));
             if (roleDescriptor.getName().equals("data_frame_transforms_user")) {
-                assertThat(role.application().grants(
-                    new ApplicationPrivilege(otherApplication, "app-reserved_ml", "reserved_ml_user"), "*"), is(false));
+                assertThat(
+                    role.application().grants(new ApplicationPrivilege(otherApplication, "app-reserved_ml", "reserved_ml_user"), "*"),
+                    is(false)
+                );
             }
         }
     }
@@ -1790,7 +2082,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction("foo")), is(false));
 
-        for (String index : new String[]{ Watch.INDEX, HistoryStoreField.DATA_STREAM, TriggeredWatchStoreField.INDEX_NAME }) {
+        for (String index : new String[] { Watch.INDEX, HistoryStoreField.DATA_STREAM, TriggeredWatchStoreField.INDEX_NAME }) {
             assertOnlyReadAllowed(role, index);
         }
 
@@ -1820,10 +2112,12 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
 
         assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction("foo")), is(false));
-        assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(TriggeredWatchStoreField.INDEX_NAME)),
-                is(false));
+        assertThat(
+            role.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(TriggeredWatchStoreField.INDEX_NAME)),
+            is(false)
+        );
 
-        for (String index : new String[]{ Watch.INDEX, HistoryStoreField.DATA_STREAM }) {
+        for (String index : new String[] { Watch.INDEX, HistoryStoreField.DATA_STREAM }) {
             assertOnlyReadAllowed(role, index);
         }
 
@@ -2049,8 +2343,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(logstashAdminRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction("foo")), is(false));
         assertThat(logstashAdminRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(".reporting")), is(false));
         assertThat(logstashAdminRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(mockIndexAbstraction(".logstash")), is(true));
-        assertThat(logstashAdminRole.indices().allowedIndicesMatcher("indices:foo").test(
-                mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))), is(false));
+        assertThat(
+            logstashAdminRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(randomAlphaOfLengthBetween(8, 24))),
+            is(false)
+        );
 
         final String index = ".logstash-" + randomIntBetween(0, 5);
 
@@ -2061,15 +2357,18 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(logstashAdminRole.indices().allowedIndicesMatcher(GetAction.NAME).test(mockIndexAbstraction(index)), is(true));
         assertThat(logstashAdminRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
         assertThat(logstashAdminRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(mockIndexAbstraction(index)), is(true));
-        assertThat(logstashAdminRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(mockIndexAbstraction(index)),
-                is(true));
+        assertThat(
+            logstashAdminRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(mockIndexAbstraction(index)),
+            is(true)
+        );
     }
 
     private IndexAbstraction mockIndexAbstraction(String name) {
         IndexAbstraction mock = mock(IndexAbstraction.class);
         when(mock.getName()).thenReturn(name);
-        when(mock.getType()).thenReturn(randomFrom(IndexAbstraction.Type.CONCRETE_INDEX,
-                IndexAbstraction.Type.ALIAS, IndexAbstraction.Type.DATA_STREAM));
+        when(mock.getType()).thenReturn(
+            randomFrom(IndexAbstraction.Type.CONCRETE_INDEX, IndexAbstraction.Type.ALIAS, IndexAbstraction.Type.DATA_STREAM)
+        );
         return mock;
     }
 }

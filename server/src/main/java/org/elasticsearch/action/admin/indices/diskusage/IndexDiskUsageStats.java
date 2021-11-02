@@ -13,8 +13,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -140,8 +140,10 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
         // per field
         builder.startObject("fields");
         {
-            final List<Map.Entry<String, PerFieldDiskUsage>> entries = fields.entrySet().stream()
-                .sorted(Map.Entry.comparingByKey()).collect(Collectors.toList());
+            final List<Map.Entry<String, PerFieldDiskUsage>> entries = fields.entrySet()
+                .stream()
+                .sorted(Map.Entry.comparingByKey())
+                .collect(Collectors.toList());
             for (Map.Entry<String, PerFieldDiskUsage> entry : entries) {
                 builder.startObject(entry.getKey());
                 entry.getValue().toXContent(builder, params);
@@ -223,7 +225,6 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
         public long getTermVectorsBytes() {
             return termVectorsBytes;
         }
-
 
         long totalBytes() {
             return invertedIndexBytes + storedFieldBytes + docValuesBytes + pointsBytes + normsBytes + termVectorsBytes;

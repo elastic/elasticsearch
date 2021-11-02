@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
@@ -35,22 +35,22 @@ public class ZeroShotClassificationConfigUpdate extends NlpConfigUpdate implemen
         return STRICT_PARSER.apply(parser, null);
     }
 
-    @SuppressWarnings({ "unchecked"})
+    @SuppressWarnings({ "unchecked" })
     public static ZeroShotClassificationConfigUpdate fromMap(Map<String, Object> map) {
         Map<String, Object> options = new HashMap<>(map);
-        Boolean isMultiLabel = (Boolean)options.remove(MULTI_LABEL.getPreferredName());
-        List<String> labels = (List<String>)options.remove(LABELS.getPreferredName());
-        String resultsField = (String)options.remove(RESULTS_FIELD.getPreferredName());
+        Boolean isMultiLabel = (Boolean) options.remove(MULTI_LABEL.getPreferredName());
+        List<String> labels = (List<String>) options.remove(LABELS.getPreferredName());
+        String resultsField = (String) options.remove(RESULTS_FIELD.getPreferredName());
         if (options.isEmpty() == false) {
             throw ExceptionsHelper.badRequestException("Unrecognized fields {}.", map.keySet());
         }
         return new ZeroShotClassificationConfigUpdate(labels, isMultiLabel, resultsField);
     }
 
-    @SuppressWarnings({ "unchecked"})
+    @SuppressWarnings({ "unchecked" })
     private static final ConstructingObjectParser<ZeroShotClassificationConfigUpdate, Void> STRICT_PARSER = new ConstructingObjectParser<>(
         NAME,
-        a -> new ZeroShotClassificationConfigUpdate((List<String>)a[0], (Boolean) a[1], (String) a[2])
+        a -> new ZeroShotClassificationConfigUpdate((List<String>) a[0], (Boolean) a[1], (String) a[2])
     );
 
     static {
@@ -116,10 +116,11 @@ public class ZeroShotClassificationConfigUpdate extends NlpConfigUpdate implemen
             throw ExceptionsHelper.badRequestException(
                 "Inference config of type [{}] can not be updated with a inference request of type [{}]",
                 originalConfig.getName(),
-                getName());
+                getName()
+            );
         }
 
-        ZeroShotClassificationConfig zeroShotConfig = (ZeroShotClassificationConfig)originalConfig;
+        ZeroShotClassificationConfig zeroShotConfig = (ZeroShotClassificationConfig) originalConfig;
         if ((labels == null || labels.isEmpty()) && (zeroShotConfig.getLabels() == null || zeroShotConfig.getLabels().isEmpty())) {
             throw ExceptionsHelper.badRequestException(
                 "stored configuration has no [{}] defined, supplied inference_config update must supply [{}]",
@@ -173,9 +174,9 @@ public class ZeroShotClassificationConfigUpdate extends NlpConfigUpdate implemen
         if (o == null || getClass() != o.getClass()) return false;
 
         ZeroShotClassificationConfigUpdate that = (ZeroShotClassificationConfigUpdate) o;
-        return Objects.equals(isMultiLabel, that.isMultiLabel) &&
-            Objects.equals(labels, that.labels) &&
-            Objects.equals(resultsField, that.resultsField);
+        return Objects.equals(isMultiLabel, that.isMultiLabel)
+            && Objects.equals(labels, that.labels)
+            && Objects.equals(resultsField, that.resultsField);
     }
 
     @Override
@@ -187,10 +188,9 @@ public class ZeroShotClassificationConfigUpdate extends NlpConfigUpdate implemen
         return labels;
     }
 
-    public static class Builder implements InferenceConfigUpdate.Builder<
-        ZeroShotClassificationConfigUpdate.Builder,
-        ZeroShotClassificationConfigUpdate
-        > {
+    public static class Builder
+        implements
+            InferenceConfigUpdate.Builder<ZeroShotClassificationConfigUpdate.Builder, ZeroShotClassificationConfigUpdate> {
         private List<String> labels;
         private Boolean isMultiLabel;
         private String resultsField;

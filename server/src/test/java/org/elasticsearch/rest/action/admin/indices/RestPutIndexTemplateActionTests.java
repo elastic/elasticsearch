@@ -8,16 +8,15 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -40,24 +39,31 @@ public class RestPutIndexTemplateActionTests extends ESTestCase {
     }
 
     public void testIncludeTypeName() throws IOException {
-        XContentBuilder typedContent = XContentFactory.jsonBuilder().startObject()
+        XContentBuilder typedContent = XContentFactory.jsonBuilder()
+            .startObject()
             .startObject("mappings")
-                .startObject("my_doc")
-                    .startObject("properties")
-                        .startObject("field1").field("type", "keyword").endObject()
-                        .startObject("field2").field("type", "text").endObject()
-                    .endObject()
-                .endObject()
+            .startObject("my_doc")
+            .startObject("properties")
+            .startObject("field1")
+            .field("type", "keyword")
             .endObject()
-                .startObject("aliases")
-                    .startObject("read_alias").endObject()
-                .endObject()
+            .startObject("field2")
+            .field("type", "text")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .startObject("aliases")
+            .startObject("read_alias")
+            .endObject()
+            .endObject()
             .endObject();
 
         Map<String, String> params = new HashMap<>();
         params.put(INCLUDE_TYPE_NAME_PARAMETER, "true");
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
+            Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
+        )
             .withMethod(RestRequest.Method.PUT)
             .withParams(params)
             .withPath("/_template/_some_template")

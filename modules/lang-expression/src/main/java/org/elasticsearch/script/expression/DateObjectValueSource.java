@@ -22,14 +22,18 @@ import java.time.ZonedDateTime;
 import java.util.Objects;
 import java.util.function.ToIntFunction;
 
-/** Extracts a portion of a date field with joda time */
+/** Extracts a portion of a date field with Java time */
 class DateObjectValueSource extends FieldDataValueSource {
 
     final String methodName;
     final ToIntFunction<ZonedDateTime> function;
 
-    DateObjectValueSource(IndexFieldData<?> indexFieldData, MultiValueMode multiValueMode,
-                          String methodName, ToIntFunction<ZonedDateTime> function) {
+    DateObjectValueSource(
+        IndexFieldData<?> indexFieldData,
+        MultiValueMode multiValueMode,
+        String methodName,
+        ToIntFunction<ZonedDateTime> function
+    ) {
         super(indexFieldData, multiValueMode);
 
         Objects.requireNonNull(methodName);
@@ -45,7 +49,7 @@ class DateObjectValueSource extends FieldDataValueSource {
         return new DoubleValues() {
             @Override
             public double doubleValue() throws IOException {
-                return function.applyAsInt(ZonedDateTime.ofInstant(Instant.ofEpochMilli((long)docValues.doubleValue()), ZoneOffset.UTC));
+                return function.applyAsInt(ZonedDateTime.ofInstant(Instant.ofEpochMilli((long) docValues.doubleValue()), ZoneOffset.UTC));
             }
 
             @Override

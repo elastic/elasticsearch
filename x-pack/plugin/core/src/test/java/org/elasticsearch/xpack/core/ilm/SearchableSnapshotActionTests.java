@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 
@@ -30,8 +30,9 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
         List<Step> steps = action.toSteps(null, phase, nextStepKey, null);
         assertThat(steps.size(), is(action.isForceMergeIndex() ? 18 : 16));
 
-        List<StepKey> expectedSteps = action.isForceMergeIndex() ? expectedStepKeysWithForceMerge(phase) :
-            expectedStepKeysNoForceMerge(phase);
+        List<StepKey> expectedSteps = action.isForceMergeIndex()
+            ? expectedStepKeysWithForceMerge(phase)
+            : expectedStepKeysNoForceMerge(phase);
 
         assertThat(steps.get(0).getKey(), is(expectedSteps.get(0)));
         assertThat(steps.get(1).getKey(), is(expectedSteps.get(1)));
@@ -104,7 +105,8 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
             new StepKey(phase, NAME, SearchableSnapshotAction.CONDITIONAL_DATASTREAM_CHECK_KEY),
             new StepKey(phase, NAME, ReplaceDataStreamBackingIndexStep.NAME),
             new StepKey(phase, NAME, DeleteStep.NAME),
-            new StepKey(phase, NAME, SwapAliasesAndDeleteSourceIndexStep.NAME));
+            new StepKey(phase, NAME, SwapAliasesAndDeleteSourceIndexStep.NAME)
+        );
     }
 
     private List<StepKey> expectedStepKeysNoForceMerge(String phase) {
@@ -124,7 +126,8 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
             new StepKey(phase, NAME, SearchableSnapshotAction.CONDITIONAL_DATASTREAM_CHECK_KEY),
             new StepKey(phase, NAME, ReplaceDataStreamBackingIndexStep.NAME),
             new StepKey(phase, NAME, DeleteStep.NAME),
-            new StepKey(phase, NAME, SwapAliasesAndDeleteSourceIndexStep.NAME));
+            new StepKey(phase, NAME, SwapAliasesAndDeleteSourceIndexStep.NAME)
+        );
     }
 
     @Override

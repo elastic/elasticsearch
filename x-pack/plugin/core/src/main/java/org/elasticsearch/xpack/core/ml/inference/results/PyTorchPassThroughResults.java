@@ -9,27 +9,28 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
-public class PyTorchPassThroughResults implements InferenceResults {
+public class PyTorchPassThroughResults extends NlpInferenceResults {
 
     public static final String NAME = "pass_through_result";
 
     private final double[][] inference;
     private final String resultsField;
 
-    public PyTorchPassThroughResults(String resultsField, double[][] inference) {
+    public PyTorchPassThroughResults(String resultsField, double[][] inference, boolean isTruncated) {
+        super(isTruncated);
         this.inference = inference;
         this.resultsField = resultsField;
     }
 
     public PyTorchPassThroughResults(StreamInput in) throws IOException {
+        super(in);
         inference = in.readArray(StreamInput::readDoubleArray, double[][]::new);
         resultsField = in.readString();
     }
@@ -39,9 +40,8 @@ public class PyTorchPassThroughResults implements InferenceResults {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(resultsField, inference);
-        return builder;
     }
 
     @Override
@@ -50,7 +50,7 @@ public class PyTorchPassThroughResults implements InferenceResults {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    public void doWriteTo(StreamOutput out) throws IOException {
         out.writeArray(StreamOutput::writeDoubleArray, inference);
         out.writeString(resultsField);
     }
@@ -61,10 +61,8 @@ public class PyTorchPassThroughResults implements InferenceResults {
     }
 
     @Override
-    public Map<String, Object> asMap() {
-        Map<String, Object> map = new LinkedHashMap<>();
+    void addMapFields(Map<String, Object> map) {
         map.put(resultsField, inference);
-        return map;
     }
 
     @Override
@@ -76,12 +74,13 @@ public class PyTorchPassThroughResults implements InferenceResults {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
+        if (super.equals(o) == false) return false;
         PyTorchPassThroughResults that = (PyTorchPassThroughResults) o;
         return Arrays.deepEquals(inference, that.inference) && Objects.equals(resultsField, that.resultsField);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(Arrays.deepHashCode(inference), resultsField);
+        return Objects.hash(super.hashCode(), resultsField, Arrays.deepHashCode(inference));
     }
 }

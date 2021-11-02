@@ -69,8 +69,8 @@ import static org.elasticsearch.gradle.internal.vagrant.VagrantMachine.convertWi
  * This class defines gradle tasks for testing our various distribution artifacts.
  */
 public class DistroTestPlugin implements Plugin<Project> {
-    private static final String SYSTEM_JDK_VERSION = "11.0.2+9";
-    private static final String SYSTEM_JDK_VENDOR = "openjdk";
+    private static final String SYSTEM_JDK_VERSION = "17+35";
+    private static final String SYSTEM_JDK_VENDOR = "adoptium";
     private static final String GRADLE_JDK_VERSION = "16.0.2+7";
     private static final String GRADLE_JDK_VENDOR = "adoptium";
 
@@ -118,7 +118,7 @@ public class DistroTestPlugin implements Plugin<Project> {
             TaskProvider<Test> destructiveTask = configureTestTask(project, taskname, distribution, t -> {
                 t.onlyIf(t2 -> distribution.isDocker() == false || dockerSupport.get().getDockerAvailability().isAvailable);
                 addDistributionSysprop(t, DISTRIBUTION_SYSPROP, distribution::getFilepath);
-                //addDistributionSysprop(t, EXAMPLE_PLUGIN_SYSPROP, () -> examplePlugin.getSingleFile().toString());
+                // addDistributionSysprop(t, EXAMPLE_PLUGIN_SYSPROP, () -> examplePlugin.getSingleFile().toString());
                 t.exclude("**/PackageUpgradeTests.class");
             }, depsTask);
 
@@ -366,9 +366,12 @@ public class DistroTestPlugin implements Plugin<Project> {
         List<ElasticsearchDistribution> currentDistros = new ArrayList<>();
 
         for (Architecture architecture : Architecture.values()) {
-            ALL_INTERNAL.stream().forEach(type -> currentDistros.add(
-                createDistro(distributions, architecture, type, null, true, VersionProperties.getElasticsearch())
-            ));
+            ALL_INTERNAL.stream()
+                .forEach(
+                    type -> currentDistros.add(
+                        createDistro(distributions, architecture, type, null, true, VersionProperties.getElasticsearch())
+                    )
+                );
         }
 
         for (Architecture architecture : Architecture.values()) {

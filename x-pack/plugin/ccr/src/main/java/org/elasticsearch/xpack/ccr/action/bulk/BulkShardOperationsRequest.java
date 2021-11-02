@@ -11,11 +11,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 
 import java.io.IOException;
 import java.util.List;
 
-public final class BulkShardOperationsRequest extends ReplicatedWriteRequest<BulkShardOperationsRequest> {
+public final class BulkShardOperationsRequest extends ReplicatedWriteRequest<BulkShardOperationsRequest>
+    implements
+        RawIndexingDataTransportRequest {
 
     private final String historyUUID;
     private final List<Translog.Operation> operations;
@@ -28,10 +31,12 @@ public final class BulkShardOperationsRequest extends ReplicatedWriteRequest<Bul
         operations = in.readList(Translog.Operation::readOperation);
     }
 
-    public BulkShardOperationsRequest(final ShardId shardId,
-                                      final String historyUUID,
-                                      final List<Translog.Operation> operations,
-                                      long maxSeqNoOfUpdatesOrDeletes) {
+    public BulkShardOperationsRequest(
+        final ShardId shardId,
+        final String historyUUID,
+        final List<Translog.Operation> operations,
+        long maxSeqNoOfUpdatesOrDeletes
+    ) {
         super(shardId);
         setRefreshPolicy(RefreshPolicy.NONE);
         this.historyUUID = historyUUID;
@@ -64,15 +69,23 @@ public final class BulkShardOperationsRequest extends ReplicatedWriteRequest<Bul
 
     @Override
     public String toString() {
-        return "BulkShardOperationsRequest{" +
-                "historyUUID=" + historyUUID +
-                ", operations=" + operations.size() +
-                ", maxSeqNoUpdates=" + maxSeqNoOfUpdatesOrDeletes +
-                ", shardId=" + shardId +
-                ", timeout=" + timeout +
-                ", index='" + index + '\'' +
-                ", waitForActiveShards=" + waitForActiveShards +
-                '}';
+        return "BulkShardOperationsRequest{"
+            + "historyUUID="
+            + historyUUID
+            + ", operations="
+            + operations.size()
+            + ", maxSeqNoUpdates="
+            + maxSeqNoOfUpdatesOrDeletes
+            + ", shardId="
+            + shardId
+            + ", timeout="
+            + timeout
+            + ", index='"
+            + index
+            + '\''
+            + ", waitForActiveShards="
+            + waitForActiveShards
+            + '}';
     }
 
 }

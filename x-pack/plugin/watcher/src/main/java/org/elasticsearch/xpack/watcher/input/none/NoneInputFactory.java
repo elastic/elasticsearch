@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.input.none;
 
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.input.none.NoneInput;
 import org.elasticsearch.xpack.watcher.input.InputFactory;
 

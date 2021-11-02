@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
@@ -28,7 +28,7 @@ public class NerConfigUpdate extends NlpConfigUpdate implements NamedXContentObj
 
     public static NerConfigUpdate fromMap(Map<String, Object> map) {
         Map<String, Object> options = new HashMap<>(map);
-        String resultsField = (String)options.remove(RESULTS_FIELD.getPreferredName());
+        String resultsField = (String) options.remove(RESULTS_FIELD.getPreferredName());
 
         if (options.isEmpty() == false) {
             throw ExceptionsHelper.badRequestException("Unrecognized fields {}.", options.keySet());
@@ -39,10 +39,7 @@ public class NerConfigUpdate extends NlpConfigUpdate implements NamedXContentObj
     private static final ObjectParser<NerConfigUpdate.Builder, Void> STRICT_PARSER = createParser(false);
 
     private static ObjectParser<NerConfigUpdate.Builder, Void> createParser(boolean lenient) {
-        ObjectParser<NerConfigUpdate.Builder, Void> parser = new ObjectParser<>(
-            NAME,
-            lenient,
-            NerConfigUpdate.Builder::new);
+        ObjectParser<NerConfigUpdate.Builder, Void> parser = new ObjectParser<>(NAME, lenient, NerConfigUpdate.Builder::new);
         parser.declareString(NerConfigUpdate.Builder::setResultsField, RESULTS_FIELD);
         return parser;
     }
@@ -92,9 +89,10 @@ public class NerConfigUpdate extends NlpConfigUpdate implements NamedXContentObj
             throw ExceptionsHelper.badRequestException(
                 "Inference config of type [{}] can not be updated with a request of type [{}]",
                 originalConfig.getName(),
-                getName());
+                getName()
+            );
         }
-        NerConfig nerConfig = (NerConfig)originalConfig;
+        NerConfig nerConfig = (NerConfig) originalConfig;
         if (isNoop(nerConfig)) {
             return nerConfig;
         }
@@ -123,8 +121,7 @@ public class NerConfigUpdate extends NlpConfigUpdate implements NamedXContentObj
 
     @Override
     public InferenceConfigUpdate.Builder<? extends InferenceConfigUpdate.Builder<?, ?>, ? extends InferenceConfigUpdate> newBuilder() {
-        return new NerConfigUpdate.Builder()
-            .setResultsField(resultsField);
+        return new NerConfigUpdate.Builder().setResultsField(resultsField);
     }
 
     @Override
@@ -140,8 +137,7 @@ public class NerConfigUpdate extends NlpConfigUpdate implements NamedXContentObj
         return Objects.hash(resultsField);
     }
 
-    public static class Builder
-        implements InferenceConfigUpdate.Builder<NerConfigUpdate.Builder, NerConfigUpdate> {
+    public static class Builder implements InferenceConfigUpdate.Builder<NerConfigUpdate.Builder, NerConfigUpdate> {
         private String resultsField;
 
         @Override
@@ -155,4 +151,3 @@ public class NerConfigUpdate extends NlpConfigUpdate implements NamedXContentObj
         }
     }
 }
-

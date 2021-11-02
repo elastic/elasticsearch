@@ -16,10 +16,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -179,8 +179,10 @@ public class GetResponse extends ActionResponse implements Iterable<DocumentFiel
         // a valid GetResponse instance. If it's not the case, we throw an
         // exception so that callers know it and can handle it correctly.
         if (getResult.getIndex() == null && getResult.getId() == null) {
-            throw new ParsingException(parser.getTokenLocation(),
-                    String.format(Locale.ROOT, "Missing required fields [%s,%s]", GetResult._INDEX, GetResult._ID));
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                String.format(Locale.ROOT, "Missing required fields [%s,%s]", GetResult._INDEX, GetResult._ID)
+            );
         }
         return new GetResponse(getResult);
     }

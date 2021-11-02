@@ -17,15 +17,10 @@ import com.fasterxml.jackson.databind.node.TextNode;
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransform;
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransformByParentObject;
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransformGlobalSetup;
-import org.elasticsearch.gradle.internal.test.rest.transform.feature.FeatureInjector;
 import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.Internal;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Iterator;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Function;
 
 /**
  * A {@link RestTestTransform} that injects a skip into a REST test.
@@ -90,7 +85,6 @@ public class Skip implements RestTestTransformGlobalSetup, RestTestTransformByPa
             skipNode.set("skip", skipChild);
         }
     }
-
 
     @Override
     public void transformTest(ObjectNode parent) {

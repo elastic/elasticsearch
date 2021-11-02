@@ -104,14 +104,17 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     leaderSeqNoStats.getGlobalCheckpoint(),
                     leaderSeqNoStats.getMaxSeqNo(),
                     followerSeqNoStats.getGlobalCheckpoint(),
-                    followerSeqNoStats.getMaxSeqNo());
+                    followerSeqNoStats.getMaxSeqNo()
+                );
                 docCount += leaderGroup.appendDocs(randomInt(128));
                 leaderGroup.syncGlobalCheckpoint();
                 leaderGroup.assertAllEqual(docCount);
                 Set<String> indexedDocIds = getShardDocUIDs(leaderGroup.getPrimary());
                 assertBusy(() -> {
-                    assertThat(followerGroup.getPrimary().getLastKnownGlobalCheckpoint(),
-                        equalTo(leaderGroup.getPrimary().getLastKnownGlobalCheckpoint()));
+                    assertThat(
+                        followerGroup.getPrimary().getLastKnownGlobalCheckpoint(),
+                        equalTo(leaderGroup.getPrimary().getLastKnownGlobalCheckpoint())
+                    );
                     followerGroup.assertAllEqual(indexedDocIds.size());
                 });
                 for (IndexShard shard : followerGroup) {
@@ -125,8 +128,10 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 }
                 leaderGroup.syncGlobalCheckpoint();
                 assertBusy(() -> {
-                    assertThat(followerGroup.getPrimary().getLastKnownGlobalCheckpoint(),
-                        equalTo(leaderGroup.getPrimary().getLastKnownGlobalCheckpoint()));
+                    assertThat(
+                        followerGroup.getPrimary().getLastKnownGlobalCheckpoint(),
+                        equalTo(leaderGroup.getPrimary().getLastKnownGlobalCheckpoint())
+                    );
                     followerGroup.assertAllEqual(indexedDocIds.size() - deleteDocIds.size());
                 });
                 assertNull(shardFollowTask.getStatus().getFatalException());
@@ -149,7 +154,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     leaderSeqNoStats.getGlobalCheckpoint(),
                     leaderSeqNoStats.getMaxSeqNo(),
                     followerSeqNoStats.getGlobalCheckpoint(),
-                    followerSeqNoStats.getMaxSeqNo());
+                    followerSeqNoStats.getMaxSeqNo()
+                );
                 int batches = between(0, 10);
                 int docCount = 0;
                 boolean hasPromotion = false;
@@ -196,13 +202,16 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     leaderSeqNoStats.getGlobalCheckpoint(),
                     leaderSeqNoStats.getMaxSeqNo(),
                     followerSeqNoStats.getGlobalCheckpoint(),
-                    followerSeqNoStats.getMaxSeqNo());
+                    followerSeqNoStats.getMaxSeqNo()
+                );
                 leaderGroup.syncGlobalCheckpoint();
                 leaderGroup.assertAllEqual(docCount);
                 Set<String> indexedDocIds = getShardDocUIDs(leaderGroup.getPrimary());
                 assertBusy(() -> {
-                    assertThat(followerGroup.getPrimary().getLastKnownGlobalCheckpoint(),
-                        equalTo(leaderGroup.getPrimary().getLastKnownGlobalCheckpoint()));
+                    assertThat(
+                        followerGroup.getPrimary().getLastKnownGlobalCheckpoint(),
+                        equalTo(leaderGroup.getPrimary().getLastKnownGlobalCheckpoint())
+                    );
                     followerGroup.assertAllEqual(indexedDocIds.size());
                 });
 
@@ -218,8 +227,10 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 assertBusy(() -> {
                     assertThat(shardFollowTask.isStopped(), is(true));
                     ElasticsearchException failure = shardFollowTask.getStatus().getFatalException();
-                    assertThat(failure.getRootCause().getMessage(), equalTo("unexpected history uuid, expected [" + oldHistoryUUID +
-                        "], actual [" + newHistoryUUID + "]"));
+                    assertThat(
+                        failure.getRootCause().getMessage(),
+                        equalTo("unexpected history uuid, expected [" + oldHistoryUUID + "], actual [" + newHistoryUUID + "]")
+                    );
                 });
             }
         }
@@ -228,7 +239,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
     public void testChangeFollowerHistoryUUID() throws Exception {
         try (ReplicationGroup leaderGroup = createLeaderGroup(0)) {
             leaderGroup.startAll();
-            try(ReplicationGroup followerGroup = createFollowGroup(leaderGroup, 0)) {
+            try (ReplicationGroup followerGroup = createFollowGroup(leaderGroup, 0)) {
                 int docCount = leaderGroup.appendDocs(randomInt(64));
                 leaderGroup.assertAllEqual(docCount);
                 followerGroup.startAll();
@@ -240,13 +251,16 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     leaderSeqNoStats.getGlobalCheckpoint(),
                     leaderSeqNoStats.getMaxSeqNo(),
                     followerSeqNoStats.getGlobalCheckpoint(),
-                    followerSeqNoStats.getMaxSeqNo());
+                    followerSeqNoStats.getMaxSeqNo()
+                );
                 leaderGroup.syncGlobalCheckpoint();
                 leaderGroup.assertAllEqual(docCount);
                 Set<String> indexedDocIds = getShardDocUIDs(leaderGroup.getPrimary());
                 assertBusy(() -> {
-                    assertThat(followerGroup.getPrimary().getLastKnownGlobalCheckpoint(),
-                        equalTo(leaderGroup.getPrimary().getLastKnownGlobalCheckpoint()));
+                    assertThat(
+                        followerGroup.getPrimary().getLastKnownGlobalCheckpoint(),
+                        equalTo(leaderGroup.getPrimary().getLastKnownGlobalCheckpoint())
+                    );
                     followerGroup.assertAllEqual(indexedDocIds.size());
                 });
 
@@ -262,8 +276,16 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 assertBusy(() -> {
                     assertThat(shardFollowTask.isStopped(), is(true));
                     ElasticsearchException failure = shardFollowTask.getStatus().getFatalException();
-                    assertThat(failure.getRootCause().getMessage(), equalTo("unexpected history uuid, expected [" + oldHistoryUUID +
-                        "], actual [" + newHistoryUUID + "], shard is likely restored from snapshot or force allocated"));
+                    assertThat(
+                        failure.getRootCause().getMessage(),
+                        equalTo(
+                            "unexpected history uuid, expected ["
+                                + oldHistoryUUID
+                                + "], actual ["
+                                + newHistoryUUID
+                                + "], shard is likely restored from snapshot or force allocated"
+                        )
+                    );
                 });
             }
         }
@@ -272,14 +294,19 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
     public void testRetryBulkShardOperations() throws Exception {
         try (ReplicationGroup leaderGroup = createLeaderGroup(between(0, 1))) {
             leaderGroup.startAll();
-            try(ReplicationGroup followerGroup = createFollowGroup(leaderGroup, between(1, 3))) {
+            try (ReplicationGroup followerGroup = createFollowGroup(leaderGroup, between(1, 3))) {
                 followerGroup.startAll();
                 leaderGroup.appendDocs(between(10, 100));
                 leaderGroup.refresh("test");
                 for (int numNoOps = between(1, 10), i = 0; i < numNoOps; i++) {
                     long seqNo = leaderGroup.getPrimary().seqNoStats().getMaxSeqNo() + 1;
-                    Engine.NoOp noOp = new Engine.NoOp(seqNo, leaderGroup.getPrimary().getOperationPrimaryTerm(),
-                        Engine.Operation.Origin.REPLICA, threadPool.relativeTimeInMillis(), "test-" + i);
+                    Engine.NoOp noOp = new Engine.NoOp(
+                        seqNo,
+                        leaderGroup.getPrimary().getOperationPrimaryTerm(),
+                        Engine.Operation.Origin.REPLICA,
+                        threadPool.relativeTimeInMillis(),
+                        "test-" + i
+                    );
                     for (IndexShard shard : leaderGroup) {
                         getEngine(shard).noOp(noOp);
                     }
@@ -296,20 +323,35 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     long fromSeqNo = randomLongBetween(0, leadingPrimary.getLastKnownGlobalCheckpoint());
                     long toSeqNo = randomLongBetween(fromSeqNo, leadingPrimary.getLastKnownGlobalCheckpoint());
                     int numOps = Math.toIntExact(toSeqNo + 1 - fromSeqNo);
-                    Translog.Operation[] ops = ShardChangesAction.getOperations(leadingPrimary,
-                        leadingPrimary.getLastKnownGlobalCheckpoint(), fromSeqNo, numOps, leadingPrimary.getHistoryUUID(),
-                        new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES));
+                    Translog.Operation[] ops = ShardChangesAction.getOperations(
+                        leadingPrimary,
+                        leadingPrimary.getLastKnownGlobalCheckpoint(),
+                        fromSeqNo,
+                        numOps,
+                        leadingPrimary.getHistoryUUID(),
+                        new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES)
+                    );
 
                     IndexShard followingPrimary = followerGroup.getPrimary();
                     TransportWriteAction.WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> primaryResult =
-                        TransportBulkShardOperationsAction.shardOperationOnPrimary(followingPrimary.shardId(),
-                            followingPrimary.getHistoryUUID(), Arrays.asList(ops), leadingPrimary.getMaxSeqNoOfUpdatesOrDeletes(),
-                            followingPrimary, logger);
+                        TransportBulkShardOperationsAction.shardOperationOnPrimary(
+                            followingPrimary.shardId(),
+                            followingPrimary.getHistoryUUID(),
+                            Arrays.asList(ops),
+                            leadingPrimary.getMaxSeqNoOfUpdatesOrDeletes(),
+                            followingPrimary,
+                            logger
+                        );
                     for (IndexShard replica : randomSubsetOf(followerGroup.getReplicas())) {
                         final PlainActionFuture<Releasable> permitFuture = new PlainActionFuture<>();
-                        replica.acquireReplicaOperationPermit(followingPrimary.getOperationPrimaryTerm(),
-                            followingPrimary.getLastKnownGlobalCheckpoint(), followingPrimary.getMaxSeqNoOfUpdatesOrDeletes(),
-                            permitFuture, ThreadPool.Names.SAME, primaryResult);
+                        replica.acquireReplicaOperationPermit(
+                            followingPrimary.getOperationPrimaryTerm(),
+                            followingPrimary.getLastKnownGlobalCheckpoint(),
+                            followingPrimary.getMaxSeqNoOfUpdatesOrDeletes(),
+                            permitFuture,
+                            ThreadPool.Names.SAME,
+                            primaryResult
+                        );
                         try (Releasable ignored = permitFuture.get()) {
                             TransportBulkShardOperationsAction.shardOperationOnReplica(primaryResult.replicaRequest(), replica, logger);
                         }
@@ -319,15 +361,19 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 followerGroup.promoteReplicaToPrimary(randomFrom(followerGroup.getReplicas()));
                 ShardFollowNodeTask shardFollowTask = createShardFollowTask(leaderGroup, followerGroup);
                 SeqNoStats followerSeqNoStats = followerGroup.getPrimary().seqNoStats();
-                shardFollowTask.start(followerGroup.getPrimary().getHistoryUUID(),
+                shardFollowTask.start(
+                    followerGroup.getPrimary().getHistoryUUID(),
                     leadingPrimary.getLastKnownGlobalCheckpoint(),
                     leadingPrimary.getMaxSeqNoOfUpdatesOrDeletes(),
                     followerSeqNoStats.getGlobalCheckpoint(),
-                    followerSeqNoStats.getMaxSeqNo());
+                    followerSeqNoStats.getMaxSeqNo()
+                );
                 try {
                     assertBusy(() -> {
-                        assertThat(followerGroup.getPrimary().getLastKnownGlobalCheckpoint(),
-                            equalTo(leadingPrimary.getLastKnownGlobalCheckpoint()));
+                        assertThat(
+                            followerGroup.getPrimary().getLastKnownGlobalCheckpoint(),
+                            equalTo(leadingPrimary.getLastKnownGlobalCheckpoint())
+                        );
                         assertConsistentHistoryBetweenLeaderAndFollower(leaderGroup, followerGroup, true);
                     });
                     assertNull(shardFollowTask.getStatus().getFatalException());
@@ -346,7 +392,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             operations.add(new Translog.Index(Integer.toString(i), i, primaryTerm, 0, source, null, -1));
         }
         Future<Void> recoveryFuture = null;
-        Settings settings = Settings.builder().put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
+        Settings settings = Settings.builder()
+            .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
             .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(between(1, 1000), ByteSizeUnit.KB))
             .build();
         IndexMetadata indexMetadata = buildIndexMetadata(between(0, 1), settings, indexMapping);
@@ -360,8 +407,12 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             while (operations.isEmpty() == false) {
                 List<Translog.Operation> bulkOps = randomSubsetOf(between(1, operations.size()), operations);
                 operations.removeAll(bulkOps);
-                BulkShardOperationsRequest bulkRequest = new BulkShardOperationsRequest(group.getPrimary().shardId(),
-                    group.getPrimary().getHistoryUUID(), bulkOps, -1);
+                BulkShardOperationsRequest bulkRequest = new BulkShardOperationsRequest(
+                    group.getPrimary().shardId(),
+                    group.getPrimary().getHistoryUUID(),
+                    bulkOps,
+                    -1
+                );
                 new CcrAction(bulkRequest, new PlainActionFuture<>(), group).execute();
                 if (randomInt(100) < 10) {
                     group.getPrimary().flush(new FlushRequest());
@@ -371,8 +422,11 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     IndexShard newReplica = group.addReplica();
                     // We need to recover the replica async to release the main thread for the following task to fill missing
                     // operations between the local checkpoint and max_seq_no which the recovering replica is waiting for.
-                    recoveryFuture = group.asyncRecoverReplica(newReplica,
-                        (shard, sourceNode) -> new RecoveryTarget(shard, sourceNode, null, recoveryListener) {});
+                    recoveryFuture = group.asyncRecoverReplica(
+                        newReplica,
+                        (shard, sourceNode) -> new RecoveryTarget(shard, sourceNode, null, null, recoveryListener) {
+                        }
+                    );
                 }
             }
             if (recoveryFuture != null) {
@@ -416,11 +470,12 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 follower.startAll();
                 final ShardFollowNodeTask task = createShardFollowTask(leader, follower);
                 task.start(
-                        follower.getPrimary().getHistoryUUID(),
-                        leader.getPrimary().getLastKnownGlobalCheckpoint(),
-                        leader.getPrimary().seqNoStats().getMaxSeqNo(),
-                        follower.getPrimary().getLastKnownGlobalCheckpoint(),
-                        follower.getPrimary().seqNoStats().getMaxSeqNo());
+                    follower.getPrimary().getHistoryUUID(),
+                    leader.getPrimary().getLastKnownGlobalCheckpoint(),
+                    leader.getPrimary().seqNoStats().getMaxSeqNo(),
+                    follower.getPrimary().getLastKnownGlobalCheckpoint(),
+                    follower.getPrimary().seqNoStats().getMaxSeqNo()
+                );
                 final Scheduler.Cancellable renewable = task.getRenewable();
                 assertNotNull(renewable);
                 assertFalse(renewable.isCancelled());
@@ -432,44 +487,56 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
     }
 
     private ReplicationGroup createLeaderGroup(int replicas) throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 10000)
-            .build();
+        Settings settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), 10000).build();
         return createGroup(replicas, settings);
     }
 
     private ReplicationGroup createFollowGroup(ReplicationGroup leaderGroup, int replicas) throws IOException {
-        final Settings settings = Settings.builder().put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
-                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
-                     new ByteSizeValue(between(1, 1000), ByteSizeUnit.KB))
-                .build();
+        final Settings settings = Settings.builder()
+            .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(between(1, 1000), ByteSizeUnit.KB))
+            .build();
         IndexMetadata indexMetadata = buildIndexMetadata(replicas, settings, indexMapping);
         return new ReplicationGroup(indexMetadata) {
             @Override
             protected EngineFactory getEngineFactory(ShardRouting routing) {
                 return new FollowingEngineFactory();
             }
+
             @Override
             protected synchronized void recoverPrimary(IndexShard primary) {
                 DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
                 Snapshot snapshot = new Snapshot("foo", new SnapshotId("bar", UUIDs.randomBase64UUID()));
-                ShardRouting routing = ShardRoutingHelper.newWithRestoreSource(primary.routingEntry(),
-                    new RecoverySource.SnapshotRecoverySource(UUIDs.randomBase64UUID(), snapshot, Version.CURRENT,
-                        new IndexId("test", UUIDs.randomBase64UUID(random()))));
+                ShardRouting routing = ShardRoutingHelper.newWithRestoreSource(
+                    primary.routingEntry(),
+                    new RecoverySource.SnapshotRecoverySource(
+                        UUIDs.randomBase64UUID(),
+                        snapshot,
+                        Version.CURRENT,
+                        new IndexId("test", UUIDs.randomBase64UUID(random()))
+                    )
+                );
                 primary.markAsRecovering("remote recovery from leader", new RecoveryState(routing, localNode, null));
                 final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
                 primary.restoreFromRepository(new RestoreOnlyRepository(index.getName()) {
                     @Override
-                    public void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId,
-                                             RecoveryState recoveryState, ActionListener<Void> listener) {
+                    public void restoreShard(
+                        Store store,
+                        SnapshotId snapshotId,
+                        IndexId indexId,
+                        ShardId snapshotShardId,
+                        RecoveryState recoveryState,
+                        ActionListener<Void> listener
+                    ) {
                         ActionListener.completeWith(listener, () -> {
                             IndexShard leader = leaderGroup.getPrimary();
                             Lucene.cleanLuceneIndex(primary.store().directory());
                             try (Engine.IndexCommitRef sourceCommit = leader.acquireSafeIndexCommit()) {
                                 Store.MetadataSnapshot sourceSnapshot = leader.store().getMetadata(sourceCommit.getIndexCommit());
                                 for (StoreFileMetadata md : sourceSnapshot) {
-                                    primary.store().directory().copyFrom(
-                                        leader.store().directory(), md.name(), md.name(), IOContext.DEFAULT);
+                                    primary.store()
+                                        .directory()
+                                        .copyFrom(leader.store().directory(), md.name(), md.name(), IOContext.DEFAULT);
                                 }
                             }
                             recoveryState.getIndex().setFileDetailsComplete();
@@ -509,7 +576,16 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         AtomicBoolean stopped = new AtomicBoolean(false);
         LongSet fetchOperations = new LongHashSet();
         return new ShardFollowNodeTask(
-                1L, "type", ShardFollowTask.NAME, "description", null, Collections.emptyMap(), params, scheduler, System::nanoTime) {
+            1L,
+            "type",
+            ShardFollowTask.NAME,
+            "description",
+            null,
+            Collections.emptyMap(),
+            params,
+            scheduler,
+            System::nanoTime
+        ) {
             @Override
             protected synchronized void onOperationsFetched(Translog.Operation[] operations) {
                 super.onOperationsFetched(operations);
@@ -544,10 +620,15 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 final List<Translog.Operation> operations,
                 final long maxSeqNoOfUpdates,
                 final Consumer<BulkShardOperationsResponse> handler,
-                final Consumer<Exception> errorHandler) {
+                final Consumer<Exception> errorHandler
+            ) {
                 Runnable task = () -> {
-                    BulkShardOperationsRequest request = new BulkShardOperationsRequest(params.getFollowShardId(),
-                        followerHistoryUUID, operations, maxSeqNoOfUpdates);
+                    BulkShardOperationsRequest request = new BulkShardOperationsRequest(
+                        params.getFollowShardId(),
+                        followerHistoryUUID,
+                        operations,
+                        maxSeqNoOfUpdates
+                    );
                     ActionListener<BulkShardOperationsResponse> listener = ActionListener.wrap(handler::accept, errorHandler);
                     new CcrAction(request, listener, followerGroup).execute();
                 };
@@ -555,8 +636,12 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             }
 
             @Override
-            protected void innerSendShardChangesRequest(long from, int maxOperationCount, Consumer<ShardChangesAction.Response> handler,
-                                                        Consumer<Exception> errorHandler) {
+            protected void innerSendShardChangesRequest(
+                long from,
+                int maxOperationCount,
+                Consumer<ShardChangesAction.Response> handler,
+                Consumer<Exception> errorHandler
+            ) {
                 Runnable task = () -> {
                     List<IndexShard> indexShards = new ArrayList<>(leaderGroup.getReplicas());
                     indexShards.add(leaderGroup.getPrimary());
@@ -568,18 +653,27 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                             final SeqNoStats seqNoStats = indexShard.seqNoStats();
                             final long maxSeqNoOfUpdatesOrDeletes = indexShard.getMaxSeqNoOfUpdatesOrDeletes();
                             if (from > seqNoStats.getGlobalCheckpoint()) {
-                                handler.accept(ShardChangesAction.getResponse(
+                                handler.accept(
+                                    ShardChangesAction.getResponse(
                                         1L,
                                         1L,
                                         1L,
                                         seqNoStats,
                                         maxSeqNoOfUpdatesOrDeletes,
                                         ShardChangesAction.EMPTY_OPERATIONS_ARRAY,
-                                        1L));
+                                        1L
+                                    )
+                                );
                                 return;
                             }
-                            Translog.Operation[] ops = ShardChangesAction.getOperations(indexShard, seqNoStats.getGlobalCheckpoint(), from,
-                                maxOperationCount, recordedLeaderIndexHistoryUUID, params.getMaxReadRequestSize());
+                            Translog.Operation[] ops = ShardChangesAction.getOperations(
+                                indexShard,
+                                seqNoStats.getGlobalCheckpoint(),
+                                from,
+                                maxOperationCount,
+                                recordedLeaderIndexHistoryUUID,
+                                params.getMaxReadRequestSize()
+                            );
                             // hard code mapping version; this is ok, as mapping updates are not tested here
                             final ShardChangesAction.Response response = new ShardChangesAction.Response(
                                 1L,
@@ -606,22 +700,24 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             @Override
             protected Scheduler.Cancellable scheduleBackgroundRetentionLeaseRenewal(final LongSupplier followerGlobalCheckpoint) {
                 final String retentionLeaseId = CcrRetentionLeases.retentionLeaseId(
-                        "follower",
-                        followerGroup.getPrimary().routingEntry().index(),
-                        "remote",
-                        leaderGroup.getPrimary().routingEntry().index());
+                    "follower",
+                    followerGroup.getPrimary().routingEntry().index(),
+                    "remote",
+                    leaderGroup.getPrimary().routingEntry().index()
+                );
                 final PlainActionFuture<ReplicationResponse> response = new PlainActionFuture<>();
                 leaderGroup.addRetentionLease(
-                        retentionLeaseId,
-                        followerGlobalCheckpoint.getAsLong(),
-                        "ccr",
-                        ActionListener.wrap(response::onResponse, e -> fail(e.toString())));
+                    retentionLeaseId,
+                    followerGlobalCheckpoint.getAsLong(),
+                    "ccr",
+                    ActionListener.wrap(response::onResponse, e -> fail(e.toString()))
+                );
                 response.actionGet();
                 return threadPool.scheduleWithFixedDelay(
-                        () -> leaderGroup.renewRetentionLease(retentionLeaseId, followerGlobalCheckpoint.getAsLong(), "ccr"),
-                        CcrRetentionLeases.RETENTION_LEASE_RENEW_INTERVAL_SETTING.get(
-                                followerGroup.getPrimary().indexSettings().getSettings()),
-                        ThreadPool.Names.GENERIC);
+                    () -> leaderGroup.renewRetentionLease(retentionLeaseId, followerGlobalCheckpoint.getAsLong(), "ccr"),
+                    CcrRetentionLeases.RETENTION_LEASE_RENEW_INTERVAL_SETTING.get(followerGroup.getPrimary().indexSettings().getSettings()),
+                    ThreadPool.Names.GENERIC
+                );
             }
 
             @Override
@@ -637,13 +733,19 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         };
     }
 
-    private void assertConsistentHistoryBetweenLeaderAndFollower(ReplicationGroup leader, ReplicationGroup follower,
-                                                                 boolean assertMaxSeqNoOfUpdatesOrDeletes) throws Exception {
+    private void assertConsistentHistoryBetweenLeaderAndFollower(
+        ReplicationGroup leader,
+        ReplicationGroup follower,
+        boolean assertMaxSeqNoOfUpdatesOrDeletes
+    ) throws Exception {
         final List<Tuple<String, Long>> docAndSeqNosOnLeader = getDocIdAndSeqNos(leader.getPrimary()).stream()
-            .map(d -> Tuple.tuple(d.getId(), d.getSeqNo())).collect(Collectors.toList());
+            .map(d -> Tuple.tuple(d.getId(), d.getSeqNo()))
+            .collect(Collectors.toList());
         final Map<Long, Translog.Operation> operationsOnLeader = new HashMap<>();
-        try (Translog.Snapshot snapshot =
-                 leader.getPrimary().newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean(), randomBoolean())) {
+        try (
+            Translog.Snapshot snapshot = leader.getPrimary()
+                .newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean(), randomBoolean())
+        ) {
             Translog.Operation op;
             while ((op = snapshot.next()) != null) {
                 operationsOnLeader.put(op.seqNo(), op);
@@ -651,19 +753,32 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         }
         for (IndexShard followingShard : follower) {
             if (assertMaxSeqNoOfUpdatesOrDeletes) {
-                assertThat(followingShard.getMaxSeqNoOfUpdatesOrDeletes(),
-                    greaterThanOrEqualTo(leader.getPrimary().getMaxSeqNoOfUpdatesOrDeletes()));
+                assertThat(
+                    followingShard.getMaxSeqNoOfUpdatesOrDeletes(),
+                    greaterThanOrEqualTo(leader.getPrimary().getMaxSeqNoOfUpdatesOrDeletes())
+                );
             }
             List<Tuple<String, Long>> docAndSeqNosOnFollower = getDocIdAndSeqNos(followingShard).stream()
-                .map(d -> Tuple.tuple(d.getId(), d.getSeqNo())).collect(Collectors.toList());
+                .map(d -> Tuple.tuple(d.getId(), d.getSeqNo()))
+                .collect(Collectors.toList());
             assertThat(docAndSeqNosOnFollower, equalTo(docAndSeqNosOnLeader));
-            try (Translog.Snapshot snapshot =
-                     followingShard.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean(), randomBoolean())) {
+            try (
+                Translog.Snapshot snapshot = followingShard.newChangesSnapshot(
+                    "test",
+                    0,
+                    Long.MAX_VALUE,
+                    false,
+                    randomBoolean(),
+                    randomBoolean()
+                )
+            ) {
                 Translog.Operation op;
                 while ((op = snapshot.next()) != null) {
                     Translog.Operation leaderOp = operationsOnLeader.get(op.seqNo());
-                    assertThat(TransportBulkShardOperationsAction.rewriteOperationWithPrimaryTerm(op, leaderOp.primaryTerm()),
-                        equalTo(leaderOp));
+                    assertThat(
+                        TransportBulkShardOperationsAction.rewriteOperationWithPrimaryTerm(op, leaderOp.primaryTerm()),
+                        equalTo(leaderOp)
+                    );
                 }
             }
         }
@@ -681,8 +796,14 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             primary.acquirePrimaryOperationPermit(permitFuture, ThreadPool.Names.SAME, request);
             final TransportWriteAction.WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> ccrResult;
             try (Releasable ignored = permitFuture.get()) {
-                ccrResult = TransportBulkShardOperationsAction.shardOperationOnPrimary(primary.shardId(), request.getHistoryUUID(),
-                    request.getOperations(), request.getMaxSeqNoOfUpdatesOrDeletes(), primary, logger);
+                ccrResult = TransportBulkShardOperationsAction.shardOperationOnPrimary(
+                    primary.shardId(),
+                    request.getHistoryUUID(),
+                    request.getOperations(),
+                    request.getMaxSeqNoOfUpdatesOrDeletes(),
+                    primary,
+                    logger
+                );
                 TransportWriteActionTestHelper.performPostWriteActions(primary, request, ccrResult.location, logger);
             } catch (InterruptedException | ExecutionException | IOException e) {
                 throw new RuntimeException(e);
@@ -697,9 +818,18 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
 
         @Override
         protected void performOnReplica(BulkShardOperationsRequest request, IndexShard replica) throws Exception {
-            try (Releasable ignored = PlainActionFuture.get(f -> replica.acquireReplicaOperationPermit(
-                getPrimaryShard().getPendingPrimaryTerm(), getPrimaryShard().getLastKnownGlobalCheckpoint(),
-                getPrimaryShard().getMaxSeqNoOfUpdatesOrDeletes(), f, ThreadPool.Names.SAME, request))) {
+            try (
+                Releasable ignored = PlainActionFuture.get(
+                    f -> replica.acquireReplicaOperationPermit(
+                        getPrimaryShard().getPendingPrimaryTerm(),
+                        getPrimaryShard().getLastKnownGlobalCheckpoint(),
+                        getPrimaryShard().getMaxSeqNoOfUpdatesOrDeletes(),
+                        f,
+                        ThreadPool.Names.SAME,
+                        request
+                    )
+                )
+            ) {
                 Translog.Location location = TransportBulkShardOperationsAction.shardOperationOnReplica(request, replica, logger).location;
                 TransportWriteActionTestHelper.performPostWriteActions(replica, request, location, logger);
             }

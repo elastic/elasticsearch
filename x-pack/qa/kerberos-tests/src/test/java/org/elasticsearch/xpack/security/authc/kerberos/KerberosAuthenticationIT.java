@@ -14,14 +14,14 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.ietf.jgss.GSSException;
 import org.junit.Before;
 
@@ -73,15 +73,22 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
     @Before
     public void setupRoleMapping() throws IOException {
         final String json = Strings // top-level
-                .toString(XContentBuilder.builder(XContentType.JSON.xContent()).startObject()
-                        .array("roles", new String[] { "kerb_test" })
-                        .field("enabled", true)
-                        .startObject("rules")
-                        .startArray("all")
-                        .startObject().startObject("field").field("realm.name", TEST_KERBEROS_REALM_NAME).endObject().endObject()
-                        .endArray() // "all"
-                        .endObject() // "rules"
-                        .endObject());
+            .toString(
+                XContentBuilder.builder(XContentType.JSON.xContent())
+                    .startObject()
+                    .array("roles", new String[] { "kerb_test" })
+                    .field("enabled", true)
+                    .startObject("rules")
+                    .startArray("all")
+                    .startObject()
+                    .startObject("field")
+                    .field("realm.name", TEST_KERBEROS_REALM_NAME)
+                    .endObject()
+                    .endObject()
+                    .endArray() // "all"
+                    .endObject() // "rules"
+                    .endObject()
+            );
 
         final Request request = new Request("POST", "/_security/role_mapping/kerberosrolemapping");
         request.setJsonEntity(json);
@@ -90,43 +97,55 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
     }
 
     public void testLoginByKeytab() throws IOException, PrivilegedActionException {
-        assumeFalse("This test fails often on Java 17 early access. See: https://github.com/elastic/elasticsearch/issues/72120",
-            "17".equals(System.getProperty("java.version")));
+        assumeFalse(
+            "This test fails often on Java 17 early access. See: https://github.com/elastic/elasticsearch/issues/72120",
+            "17".equals(System.getProperty("java.version"))
+        );
         final String userPrincipalName = System.getProperty(TEST_USER_WITH_KEYTAB_KEY);
         final String keytabPath = System.getProperty(TEST_USER_WITH_KEYTAB_PATH_KEY);
         final boolean enabledDebugLogs = Boolean.parseBoolean(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY));
-        final SpnegoHttpClientConfigCallbackHandler callbackHandler = new SpnegoHttpClientConfigCallbackHandler(userPrincipalName,
-                keytabPath, enabledDebugLogs);
+        final SpnegoHttpClientConfigCallbackHandler callbackHandler = new SpnegoHttpClientConfigCallbackHandler(
+            userPrincipalName,
+            keytabPath,
+            enabledDebugLogs
+        );
         executeRequestAndVerifyResponse(userPrincipalName, callbackHandler);
     }
 
     public void testLoginByUsernamePassword() throws IOException, PrivilegedActionException {
-        assumeFalse("This test fails often on Java 17 early access. See: https://github.com/elastic/elasticsearch/issues/72120",
-            "17".equals(System.getProperty("java.version")));
+        assumeFalse(
+            "This test fails often on Java 17 early access. See: https://github.com/elastic/elasticsearch/issues/72120",
+            "17".equals(System.getProperty("java.version"))
+        );
         final String userPrincipalName = System.getProperty(TEST_USER_WITH_PWD_KEY);
         final String password = System.getProperty(TEST_USER_WITH_PWD_PASSWD_KEY);
         final boolean enabledDebugLogs = Boolean.parseBoolean(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY));
-        final SpnegoHttpClientConfigCallbackHandler callbackHandler = new SpnegoHttpClientConfigCallbackHandler(userPrincipalName,
-                new SecureString(password.toCharArray()), enabledDebugLogs);
+        final SpnegoHttpClientConfigCallbackHandler callbackHandler = new SpnegoHttpClientConfigCallbackHandler(
+            userPrincipalName,
+            new SecureString(password.toCharArray()),
+            enabledDebugLogs
+        );
         executeRequestAndVerifyResponse(userPrincipalName, callbackHandler);
     }
 
     public void testGetOauth2TokenInExchangeForKerberosTickets() throws PrivilegedActionException, GSSException, IOException {
-        assumeFalse("This test fails often on Java 17. See: https://github.com/elastic/elasticsearch/issues/72120",
-            "17".equals(System.getProperty("java.version")));
+        assumeFalse(
+            "This test fails often on Java 17. See: https://github.com/elastic/elasticsearch/issues/72120",
+            "17".equals(System.getProperty("java.version"))
+        );
         final String userPrincipalName = System.getProperty(TEST_USER_WITH_PWD_KEY);
         final String password = System.getProperty(TEST_USER_WITH_PWD_PASSWD_KEY);
         final boolean enabledDebugLogs = Boolean.parseBoolean(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY));
-        final SpnegoHttpClientConfigCallbackHandler callbackHandler = new SpnegoHttpClientConfigCallbackHandler(userPrincipalName,
-                new SecureString(password.toCharArray()), enabledDebugLogs);
+        final SpnegoHttpClientConfigCallbackHandler callbackHandler = new SpnegoHttpClientConfigCallbackHandler(
+            userPrincipalName,
+            new SecureString(password.toCharArray()),
+            enabledDebugLogs
+        );
         final String host = getClusterHosts().get(0).getHostName();
         final String kerberosTicket = callbackHandler.getBase64EncodedTokenForSpnegoHeader(host);
 
         final Request request = new Request("POST", "/_security/oauth2/token");
-        String json = "{" +
-                      "  \"grant_type\" : \"_kerberos\", " +
-                      "  \"kerberos_ticket\" : \"" + kerberosTicket  + "\"" +
-                      "}";
+        String json = "{" + "  \"grant_type\" : \"_kerberos\", " + "  \"kerberos_ticket\" : \"" + kerberosTicket + "\"" + "}";
         request.setJsonEntity(json);
 
         try (RestClient client = buildClientForUser("test_kibana_user")) {
@@ -156,16 +175,19 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
         throw new IllegalStateException("DNS not resolved and assume did not trip");
     }
 
-    private void executeRequestAndVerifyResponse(final String userPrincipalName,
-            final SpnegoHttpClientConfigCallbackHandler callbackHandler) throws PrivilegedActionException, IOException {
+    private void executeRequestAndVerifyResponse(
+        final String userPrincipalName,
+        final SpnegoHttpClientConfigCallbackHandler callbackHandler
+    ) throws PrivilegedActionException, IOException {
         final Request request = new Request("GET", "/_security/_authenticate");
         try (RestClient restClient = buildRestClientForKerberos(callbackHandler)) {
             final AccessControlContext accessControlContext = AccessController.getContext();
             final LoginContext lc = callbackHandler.login();
-            Response response = SpnegoHttpClientConfigCallbackHandler.doAsPrivilegedWrapper(lc.getSubject(),
-                    (PrivilegedExceptionAction<Response>) () -> {
-                        return restClient.performRequest(request);
-                    }, accessControlContext);
+            Response response = SpnegoHttpClientConfigCallbackHandler.doAsPrivilegedWrapper(
+                lc.getSubject(),
+                (PrivilegedExceptionAction<Response>) () -> { return restClient.performRequest(request); },
+                accessControlContext
+            );
 
             assertOK(response);
             final Map<String, Object> map = parseResponseAsMap(response.getEntity());

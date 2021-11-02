@@ -10,12 +10,12 @@ package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -42,7 +42,8 @@ public final class QueryApiKeyRequest implements Validatable, ToXContentObject {
         @Nullable Integer from,
         @Nullable Integer size,
         @Nullable List<FieldSortBuilder> fieldSortBuilders,
-        @Nullable SearchAfterBuilder searchAfterBuilder) {
+        @Nullable SearchAfterBuilder searchAfterBuilder
+    ) {
         this.queryBuilder = queryBuilder;
         this.from = from;
         this.size = size;
@@ -131,16 +132,14 @@ public final class QueryApiKeyRequest implements Validatable, ToXContentObject {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         QueryApiKeyRequest that = (QueryApiKeyRequest) o;
-        return Objects.equals(queryBuilder, that.queryBuilder) && Objects.equals(from, that.from) && Objects.equals(
-            size,
-            that.size) && Objects.equals(fieldSortBuilders, that.fieldSortBuilders) && Objects.equals(
-            searchAfterBuilder,
-            that.searchAfterBuilder);
+        return Objects.equals(queryBuilder, that.queryBuilder)
+            && Objects.equals(from, that.from)
+            && Objects.equals(size, that.size)
+            && Objects.equals(fieldSortBuilders, that.fieldSortBuilders)
+            && Objects.equals(searchAfterBuilder, that.searchAfterBuilder);
     }
 
     @Override

@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -82,6 +83,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
      * Similar to the previous test, but ensures that the status stays at `COMPLETE` when the node is offline when the shutdown is
      * registered. This may happen if {@link NodeSeenService} isn't working as expected.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/76689")
     public void testShardStatusStaysCompleteAfterNodeLeavesIfRegisteredWhileNodeOffline() throws Exception {
         assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         final String nodeToRestartName = internalCluster().startNode();
@@ -438,6 +440,48 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         });
     }
 
+    public void testReallocationForReplicaDuringNodeReplace() throws Exception {
+        final String nodeA = internalCluster().startNode();
+        final String nodeAId = getNodeId(nodeA);
+        createIndex("myindex", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 1).build());
+        ensureYellow("myindex");
+
+        // Start a second node, so the replica will be on nodeB
+        final String nodeB = internalCluster().startNode();
+        ensureGreen("myindex");
+
+        final String nodeC = internalCluster().startNode();
+
+        // Register a replace for nodeA, with nodeC as the target
+        PutShutdownNodeAction.Request shutdownRequest = new PutShutdownNodeAction.Request(
+            nodeAId,
+            SingleNodeShutdownMetadata.Type.REPLACE,
+            "testing",
+            null,
+            nodeC
+        );
+        client().execute(PutShutdownNodeAction.INSTANCE, shutdownRequest).get();
+
+        // Wait for the node replace shutdown to be complete
+        assertBusy(() -> {
+            GetShutdownStatusAction.Response shutdownStatus = client().execute(
+                GetShutdownStatusAction.INSTANCE,
+                new GetShutdownStatusAction.Request(nodeAId)
+            ).get();
+            assertThat(shutdownStatus.getShutdownStatuses().get(0).migrationStatus().getStatus(), equalTo(COMPLETE));
+        });
+
+        // Remove nodeA from the cluster (it's been terminated)
+        internalCluster().stopNode(nodeA);
+
+        // Restart nodeC, the replica on nodeB will be flipped to primary and
+        // when nodeC comes back up, it should have the replica assigned to it
+        internalCluster().restartNode(nodeC);
+
+        // All shards for the index should be allocated
+        ensureGreen("myindex");
+    }
+
     private void indexRandomData() throws Exception {
         int numDocs = scaledRandomIntBetween(100, 1000);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
@@ -449,7 +493,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
 
     private String findIdOfNodeWithPrimaryShard(String indexName) {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        List<ShardRouting> startedShards = state.routingTable().shardsWithState(ShardRoutingState.STARTED);
+        List<ShardRouting> startedShards = RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED);
         return startedShards.stream()
             .filter(ShardRouting::primary)
             .filter(shardRouting -> indexName.equals(shardRouting.index().getName()))

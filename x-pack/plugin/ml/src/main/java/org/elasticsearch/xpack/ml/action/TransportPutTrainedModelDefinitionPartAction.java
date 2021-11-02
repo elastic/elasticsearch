@@ -28,6 +28,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartAction.Request;
@@ -124,13 +125,13 @@ public class TransportPutTrainedModelDefinitionPartAction extends TransportMaste
 
     @Override
     protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-        //TODO do we really need to do this???
+        // TODO do we really need to do this???
         return null;
     }
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<AcknowledgedResponse> listener) {
-        if (licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING)) {
+        if (MachineLearningField.ML_API_FEATURE.check(licenseState)) {
             super.doExecute(task, request, listener);
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));

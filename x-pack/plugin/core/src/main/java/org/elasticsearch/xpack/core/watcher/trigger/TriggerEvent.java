@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.core.watcher.trigger;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 
 import java.io.IOException;
@@ -46,12 +46,17 @@ public abstract class TriggerEvent implements ToXContentObject {
 
     @Override
     public String toString() {
-        return new StringBuilder("[")
-                .append("name=[").append(jobName).append("],")
-                .append("triggered_time=[").append(triggeredTime).append("],")
-                .append("data=[").append(data).append("]")
-                .append("]")
-                .toString();
+        return new StringBuilder("[").append("name=[")
+            .append(jobName)
+            .append("],")
+            .append("triggered_time=[")
+            .append(triggeredTime)
+            .append("],")
+            .append("data=[")
+            .append(data)
+            .append("]")
+            .append("]")
+            .toString();
     }
 
     public void recordXContent(XContentBuilder builder, Params params) throws IOException {

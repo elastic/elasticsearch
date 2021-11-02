@@ -20,48 +20,55 @@ import java.net.URI;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
 public class BaseEnrollmentTokenGenerator {
+    public static final long ENROLL_API_KEY_EXPIRATION_MINUTES = 30L;
 
-    public BaseEnrollmentTokenGenerator() {
-    }
+    public BaseEnrollmentTokenGenerator() {}
 
-    static String getCaFingerprint(SSLService sslService) throws Exception {
+    static String getHttpsCaFingerprint(SSLService sslService) throws Exception {
         final SslKeyConfig keyConfig = sslService.getHttpTransportSSLConfiguration().getKeyConfig();
         if (keyConfig instanceof StoreKeyConfig == false) {
-            throw new IllegalStateException("Unable to create an enrollment token. Elasticsearch node HTTP layer SSL configuration is " +
-                "not configured with a keystore");
+            throw new IllegalStateException(
+                "Unable to create an enrollment token. Elasticsearch node HTTP layer SSL configuration is "
+                    + "not configured with a keystore"
+            );
         }
-        final List<Tuple<PrivateKey, X509Certificate>> httpCaKeysAndCertificates =
-            ((StoreKeyConfig) keyConfig).getKeys().stream()
-                .filter(t -> t.v2().getBasicConstraints() != -1)
-                .collect(Collectors.toList());
+        final List<Tuple<PrivateKey, X509Certificate>> httpCaKeysAndCertificates = ((StoreKeyConfig) keyConfig).getKeys()
+            .stream()
+            .filter(t -> t.v2().getBasicConstraints() != -1)
+            .collect(Collectors.toList());
         if (httpCaKeysAndCertificates.isEmpty()) {
-            throw new IllegalStateException("Unable to create an enrollment token. Elasticsearch node HTTP layer SSL configuration " +
-                "Keystore doesn't contain any PrivateKey entries where the associated certificate is a CA certificate");
+            throw new IllegalStateException(
+                "Unable to create an enrollment token. Elasticsearch node HTTP layer SSL configuration "
+                    + "Keystore doesn't contain any PrivateKey entries where the associated certificate is a CA certificate"
+            );
         } else if (httpCaKeysAndCertificates.size() > 1) {
-            throw new IllegalStateException("Unable to create an enrollment token. Elasticsearch node HTTP layer SSL configuration " +
-                "Keystore contains multiple PrivateKey entries where the associated certificate is a CA certificate");
+            throw new IllegalStateException(
+                "Unable to create an enrollment token. Elasticsearch node HTTP layer SSL configuration "
+                    + "Keystore contains multiple PrivateKey entries where the associated certificate is a CA certificate"
+            );
         }
         return SslUtil.calculateFingerprint(httpCaKeysAndCertificates.get(0).v2(), "SHA-256");
     }
 
-    static List<String> getFilteredAddresses(List<String> addresses) throws Exception {
-        List<String> filteredAddresses = new ArrayList<>();
-        for (String boundAddress : addresses){
+    static Tuple<List<String>, List<String>> splitAddresses(List<String> addresses) throws Exception {
+        final List<String> nonLocalAddresses = new ArrayList<>();
+        final List<String> localAddresses = new ArrayList<>();
+        for (String boundAddress : addresses) {
             InetAddress inetAddress = getInetAddressFromString(boundAddress);
-            if (inetAddress.isLoopbackAddress() != true) {
-                filteredAddresses.add(boundAddress);
+            if (inetAddress.isLoopbackAddress()) {
+                localAddresses.add(boundAddress);
+            } else if (inetAddress.isAnyLocalAddress() == false) {
+                nonLocalAddresses.add(boundAddress);
             }
-        }
-        if (filteredAddresses.isEmpty()) {
-            filteredAddresses = addresses;
         }
         // Sort the list prioritizing IPv4 addresses when possible, as it is more probable to be reachable when token consumer iterates
         // addresses for the initial node and it is less surprising for users to see in the UI or config
-        filteredAddresses.sort((String a, String b) -> {
+        final Comparator<String> ipv4BeforeIpv6Comparator = (String a, String b) -> {
             try {
                 final InetAddress addressA = getInetAddressFromString(a);
                 final InetAddress addressB = getInetAddressFromString(b);
@@ -75,8 +82,34 @@ public class BaseEnrollmentTokenGenerator {
             } catch (Exception e) {
                 return 0;
             }
-        });
-        return filteredAddresses;
+        };
+        localAddresses.sort(ipv4BeforeIpv6Comparator);
+        nonLocalAddresses.sort(ipv4BeforeIpv6Comparator);
+        final List<String> distinctLocalAddresses = localAddresses.stream().distinct().collect(Collectors.toUnmodifiableList());
+        final List<String> distinctNonLocalAddresses = nonLocalAddresses.stream().distinct().collect(Collectors.toUnmodifiableList());
+        return new Tuple<>(distinctLocalAddresses, distinctNonLocalAddresses);
+    }
+
+    static List<String> getFilteredAddresses(Tuple<List<String>, List<String>> splitAddresses) {
+        // If there are no non-local addresses, the enrollment token contains only local addresses
+        if (splitAddresses.v2().isEmpty()) {
+            return splitAddresses.v1();
+        } else {
+            // otherwise it contains only non-local addresses
+            return splitAddresses.v2();
+        }
+    }
+
+    static List<String> getFilteredAddresses(List<String> addresses) throws Exception {
+        Tuple<List<String>, List<String>> splitAddresses = splitAddresses(addresses);
+        return getFilteredAddresses(splitAddresses);
+    }
+
+    static String getIpFromPublishAddress(String publishAddress) {
+        if (publishAddress.contains("/")) {
+            return publishAddress.split("/")[1];
+        }
+        return publishAddress;
     }
 
     private static InetAddress getInetAddressFromString(String address) throws Exception {

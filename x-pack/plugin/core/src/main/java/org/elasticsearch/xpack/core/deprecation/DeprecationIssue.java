@@ -10,9 +10,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -33,8 +33,7 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
         /**
          * This issue must be resolved to upgrade. Failures will occur unless this is resolved before upgrading.
          */
-        CRITICAL
-        ;
+        CRITICAL;
 
         public static Level fromString(String value) {
             return Level.valueOf(value.toUpperCase(Locale.ROOT));
@@ -66,8 +65,14 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
     private final boolean resolveDuringRollingUpgrade;
     private final Map<String, Object> meta;
 
-    public DeprecationIssue(Level level, String message, String url, @Nullable String details, boolean resolveDuringRollingUpgrade,
-                            @Nullable Map<String, Object> meta) {
+    public DeprecationIssue(
+        Level level,
+        String message,
+        String url,
+        @Nullable String details,
+        boolean resolveDuringRollingUpgrade,
+        @Nullable Map<String, Object> meta
+    ) {
         this.level = level;
         this.message = message;
         this.url = url;
@@ -128,10 +133,7 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject()
-            .field("level", level)
-            .field("message", message)
-            .field("url", url);
+        builder.startObject().field("level", level).field("message", message).field("url", url);
         if (details != null) {
             builder.field("details", details);
         }
@@ -151,12 +153,12 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
             return false;
         }
         DeprecationIssue that = (DeprecationIssue) o;
-        return Objects.equals(level, that.level) &&
-            Objects.equals(message, that.message) &&
-            Objects.equals(url, that.url) &&
-            Objects.equals(details, that.details) &&
-            Objects.equals(resolveDuringRollingUpgrade, that.resolveDuringRollingUpgrade) &&
-            Objects.equals(meta, that.meta);
+        return Objects.equals(level, that.level)
+            && Objects.equals(message, that.message)
+            && Objects.equals(url, that.url)
+            && Objects.equals(details, that.details)
+            && Objects.equals(resolveDuringRollingUpgrade, that.resolveDuringRollingUpgrade)
+            && Objects.equals(meta, that.meta);
     }
 
     @Override
@@ -169,4 +171,3 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
         return Strings.toString(this);
     }
 }
-

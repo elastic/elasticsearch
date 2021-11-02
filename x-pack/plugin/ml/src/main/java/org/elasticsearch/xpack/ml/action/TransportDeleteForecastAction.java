@@ -62,7 +62,6 @@ import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-
 public class TransportDeleteForecastAction extends HandledTransportAction<DeleteForecastAction.Request, AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportDeleteForecastAction.class);
@@ -71,16 +70,17 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
     private final ClusterService clusterService;
     private static final int MAX_FORECAST_TO_SEARCH = 10_000;
 
-    private static final Set<String> DELETABLE_STATUSES =
-        Stream.of(ForecastRequestStatus.FINISHED, ForecastRequestStatus.FAILED)
-            .map(ForecastRequestStatus::toString)
-            .collect(toSet());
+    private static final Set<String> DELETABLE_STATUSES = Stream.of(ForecastRequestStatus.FINISHED, ForecastRequestStatus.FAILED)
+        .map(ForecastRequestStatus::toString)
+        .collect(toSet());
 
     @Inject
-    public TransportDeleteForecastAction(TransportService transportService,
-                                         ActionFilters actionFilters,
-                                         Client client,
-                                         ClusterService clusterService) {
+    public TransportDeleteForecastAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Client client,
+        ClusterService clusterService
+    ) {
         super(DeleteForecastAction.NAME, transportService, actionFilters, DeleteForecastAction.Request::new);
         this.client = client;
         this.clusterService = clusterService;
@@ -98,23 +98,16 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
             e -> handleFailure(e, request, listener)
         );
 
-        BoolQueryBuilder query =
-            QueryBuilders.boolQuery()
-                .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ForecastRequestStats.RESULT_TYPE_VALUE));
-        QueryBuilderHelper
-            .buildTokenFilterQuery(Forecast.FORECAST_ID.getPreferredName(), forecastIds)
-            .ifPresent(query::filter);
-        SearchSourceBuilder source =
-            new SearchSourceBuilder()
-                .size(MAX_FORECAST_TO_SEARCH)
-                // We only need forecast id and status, there is no need fetching the whole source
-                .fetchSource(false)
-                .docValueField(ForecastRequestStats.FORECAST_ID.getPreferredName())
-                .docValueField(ForecastRequestStats.STATUS.getPreferredName())
-                .query(query);
-        SearchRequest searchRequest =
-            new SearchRequest(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
-                .source(source);
+        BoolQueryBuilder query = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ForecastRequestStats.RESULT_TYPE_VALUE));
+        QueryBuilderHelper.buildTokenFilterQuery(Forecast.FORECAST_ID.getPreferredName(), forecastIds).ifPresent(query::filter);
+        SearchSourceBuilder source = new SearchSourceBuilder().size(MAX_FORECAST_TO_SEARCH)
+            // We only need forecast id and status, there is no need fetching the whole source
+            .fetchSource(false)
+            .docValueField(ForecastRequestStats.FORECAST_ID.getPreferredName())
+            .docValueField(ForecastRequestStats.STATUS.getPreferredName())
+            .query(query);
+        SearchRequest searchRequest = new SearchRequest(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)).source(source);
 
         executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, forecastStatsHandler);
     }
@@ -133,14 +126,17 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
         }
         if (badStatusForecastIds.size() > 0 && JobState.OPENED.equals(jobState)) {
             throw ExceptionsHelper.conflictStatusException(
-                Messages.getMessage(Messages.REST_CANNOT_DELETE_FORECAST_IN_CURRENT_STATE, badStatusForecastIds, jobId));
+                Messages.getMessage(Messages.REST_CANNOT_DELETE_FORECAST_IN_CURRENT_STATE, badStatusForecastIds, jobId)
+            );
         }
         return forecastIds;
     }
 
-    private void deleteForecasts(SearchResponse searchResponse,
-                                 DeleteForecastAction.Request request,
-                                 ActionListener<AcknowledgedResponse> listener) {
+    private void deleteForecasts(
+        SearchResponse searchResponse,
+        DeleteForecastAction.Request request,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         final String jobId = request.getJobId();
         SearchHits forecastsToDelete = searchResponse.getHits();
 
@@ -149,7 +145,8 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
                 listener.onResponse(AcknowledgedResponse.TRUE);
             } else {
                 listener.onFailure(
-                    new ResourceNotFoundException(Messages.getMessage(Messages.REST_NO_SUCH_FORECAST, request.getForecastId(), jobId)));
+                    new ResourceNotFoundException(Messages.getMessage(Messages.REST_NO_SUCH_FORECAST, request.getForecastId(), jobId))
+                );
             }
             return;
         }
@@ -165,31 +162,36 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
         }
 
         DeleteByQueryRequest deleteByQueryRequest = buildDeleteByQuery(jobId, forecastIds);
-        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, deleteByQueryRequest, ActionListener.wrap(
-            response -> {
-                if (response.isTimedOut()) {
-                    listener.onFailure(
-                        new TimeoutException("Delete request timed out. Successfully deleted " +
-                            response.getDeleted() + " forecast documents from job [" + jobId + "]"));
-                    return;
-                }
-                if ((response.getBulkFailures().isEmpty() && response.getSearchFailures().isEmpty()) == false) {
-                    Tuple<RestStatus, Throwable> statusAndReason = getStatusAndReason(response);
-                    listener.onFailure(
-                        new ElasticsearchStatusException(statusAndReason.v2().getMessage(), statusAndReason.v1(), statusAndReason.v2()));
-                    return;
-                }
-                logger.info("Deleted forecast(s) [{}] from job [{}]", forecastIds, jobId);
-                listener.onResponse(AcknowledgedResponse.TRUE);
-            },
-            e -> handleFailure(e, request, listener)));
+        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, deleteByQueryRequest, ActionListener.wrap(response -> {
+            if (response.isTimedOut()) {
+                listener.onFailure(
+                    new TimeoutException(
+                        "Delete request timed out. Successfully deleted "
+                            + response.getDeleted()
+                            + " forecast documents from job ["
+                            + jobId
+                            + "]"
+                    )
+                );
+                return;
+            }
+            if ((response.getBulkFailures().isEmpty() && response.getSearchFailures().isEmpty()) == false) {
+                Tuple<RestStatus, Throwable> statusAndReason = getStatusAndReason(response);
+                listener.onFailure(
+                    new ElasticsearchStatusException(statusAndReason.v2().getMessage(), statusAndReason.v1(), statusAndReason.v2())
+                );
+                return;
+            }
+            logger.info("Deleted forecast(s) [{}] from job [{}]", forecastIds, jobId);
+            listener.onResponse(AcknowledgedResponse.TRUE);
+        }, e -> handleFailure(e, request, listener)));
     }
 
     private static Tuple<RestStatus, Throwable> getStatusAndReason(final BulkByScrollResponse response) {
         RestStatus status = RestStatus.OK;
         Throwable reason = new Exception("Unknown error");
-        //Getting the max RestStatus is sort of arbitrary, would the user care about 5xx over 4xx?
-        //Unsure of a better way to return an appropriate and possibly actionable cause to the user.
+        // Getting the max RestStatus is sort of arbitrary, would the user care about 5xx over 4xx?
+        // Unsure of a better way to return an appropriate and possibly actionable cause to the user.
         for (BulkItemResponse.Failure failure : response.getBulkFailures()) {
             if (failure.getStatus().getStatus() > status.getStatus()) {
                 status = failure.getStatus();
@@ -209,31 +211,35 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
 
     private DeleteByQueryRequest buildDeleteByQuery(String jobId, List<String> forecastsToDelete) {
         BoolQueryBuilder innerBoolQuery = QueryBuilders.boolQuery()
-            .must(QueryBuilders.termsQuery(Result.RESULT_TYPE.getPreferredName(),
-                ForecastRequestStats.RESULT_TYPE_VALUE, Forecast.RESULT_TYPE_VALUE))
-            .must(QueryBuilders.termsQuery(Forecast.FORECAST_ID.getPreferredName(),
-                forecastsToDelete));
+            .must(
+                QueryBuilders.termsQuery(
+                    Result.RESULT_TYPE.getPreferredName(),
+                    ForecastRequestStats.RESULT_TYPE_VALUE,
+                    Forecast.RESULT_TYPE_VALUE
+                )
+            )
+            .must(QueryBuilders.termsQuery(Forecast.FORECAST_ID.getPreferredName(), forecastsToDelete));
         QueryBuilder query = QueryBuilders.boolQuery().filter(innerBoolQuery);
 
         // We want *all* of the docs to be deleted. Hence, we rely on the default value of max_docs.
-        return new DeleteByQueryRequest()
-            .setAbortOnVersionConflict(false) // since these documents are not updated, a conflict just means it was deleted previously
+        return new DeleteByQueryRequest().setAbortOnVersionConflict(false) // since these documents are not updated, a conflict just means
+                                                                           // it was deleted previously
             .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
             .indices(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
             .setQuery(query)
             .setRefresh(true);
     }
 
-    private static void handleFailure(Exception e,
-                                      DeleteForecastAction.Request request,
-                                      ActionListener<AcknowledgedResponse> listener) {
+    private static void handleFailure(Exception e, DeleteForecastAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
             if (request.isAllowNoForecasts() && Strings.isAllOrWildcard(request.getForecastId())) {
                 listener.onResponse(AcknowledgedResponse.TRUE);
             } else {
-                listener.onFailure(new ResourceNotFoundException(
-                    Messages.getMessage(Messages.REST_NO_SUCH_FORECAST, request.getForecastId(), request.getJobId())
-                ));
+                listener.onFailure(
+                    new ResourceNotFoundException(
+                        Messages.getMessage(Messages.REST_NO_SUCH_FORECAST, request.getForecastId(), request.getJobId())
+                    )
+                );
             }
         } else {
             listener.onFailure(new ElasticsearchException("An error occurred while searching forecasts to delete", e));

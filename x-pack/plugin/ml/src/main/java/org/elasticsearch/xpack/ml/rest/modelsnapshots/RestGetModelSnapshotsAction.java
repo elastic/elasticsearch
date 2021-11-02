@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.ml.rest.modelsnapshots;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction.Request;
@@ -41,15 +41,25 @@ public class RestGetModelSnapshotsAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             Route.builder(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots/{" + Request.SNAPSHOT_ID + "}")
-                .replaces(GET, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots/{" + Request.SNAPSHOT_ID + "}",
-                    RestApiVersion.V_7).build(),
+                .replaces(
+                    GET,
+                    PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots/{" + Request.SNAPSHOT_ID + "}",
+                    RestApiVersion.V_7
+                )
+                .build(),
             Route.builder(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots/{" + Request.SNAPSHOT_ID + "}")
-                .replaces(POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots/{" + Request.SNAPSHOT_ID + "}",
-                    RestApiVersion.V_7).build(),
+                .replaces(
+                    POST,
+                    PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots/{" + Request.SNAPSHOT_ID + "}",
+                    RestApiVersion.V_7
+                )
+                .build(),
             Route.builder(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots")
-                .replaces(GET, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots", RestApiVersion.V_7).build(),
+                .replaces(GET, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots", RestApiVersion.V_7)
+                .build(),
             Route.builder(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots")
-                .replaces(POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots", RestApiVersion.V_7).build()
+                .replaces(POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots", RestApiVersion.V_7)
+                .build()
         );
     }
 
@@ -79,9 +89,12 @@ public class RestGetModelSnapshotsAction extends BaseRestHandler {
                 getModelSnapshots.setEnd(restRequest.param(Request.END.getPreferredName(), DEFAULT_END));
             }
             getModelSnapshots.setDescOrder(restRequest.paramAsBoolean(Request.DESC.getPreferredName(), DEFAULT_DESC_ORDER));
-            getModelSnapshots.setPageParams(new PageParams(
+            getModelSnapshots.setPageParams(
+                new PageParams(
                     restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
-                    restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
+                    restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)
+                )
+            );
         }
 
         return channel -> client.execute(GetModelSnapshotsAction.INSTANCE, getModelSnapshots, new RestToXContentListener<>(channel));

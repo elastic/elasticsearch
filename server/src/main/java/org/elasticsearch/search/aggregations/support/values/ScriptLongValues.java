@@ -13,7 +13,6 @@ import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.joda.time.ReadableInstant;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
@@ -78,9 +77,6 @@ public class ScriptLongValues extends AbstractSortingNumericDocValues implements
     private static long toLongValue(Object o) {
         if (o instanceof Number) {
             return ((Number) o).longValue();
-        } else if (o instanceof ReadableInstant) {
-            // Dates are exposed in scripts as ReadableDateTimes but aggregations want them to be numeric
-            return ((ReadableInstant) o).getMillis();
         } else if (o instanceof ZonedDateTime) {
             return ((ZonedDateTime) o).toInstant().toEpochMilli();
         } else if (o instanceof Boolean) {

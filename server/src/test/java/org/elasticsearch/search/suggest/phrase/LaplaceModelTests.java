@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.suggest.phrase;
 
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -20,7 +20,6 @@ public class LaplaceModelTests extends SmoothingModelTestCase {
     protected SmoothingModel createTestModel() {
         return createRandomModel();
     }
-
 
     static SmoothingModel createRandomModel() {
         return new Laplace(randomDoubleBetween(0.0, 10.0, false));

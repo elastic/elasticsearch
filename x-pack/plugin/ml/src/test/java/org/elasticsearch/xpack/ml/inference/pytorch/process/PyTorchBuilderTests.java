@@ -17,7 +17,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.hamcrest.Matchers.contains;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -48,12 +48,15 @@ public class PyTorchBuilderTests extends ESTestCase {
 
         verify(nativeController).startProcess(commandCaptor.capture());
 
-        assertThat(commandCaptor.getValue(), contains(
-            "./pytorch_inference",
-            "--validElasticLicenseKeyConfirmed=true",
-            "--inferenceThreads=2",
-            "--modelThreads=4",
-            PROCESS_PIPES_ARG)
+        assertThat(
+            commandCaptor.getValue(),
+            contains(
+                "./pytorch_inference",
+                "--validElasticLicenseKeyConfirmed=true",
+                "--inferenceThreads=2",
+                "--modelThreads=4",
+                PROCESS_PIPES_ARG
+            )
         );
     }
 }

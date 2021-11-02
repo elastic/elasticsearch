@@ -11,16 +11,16 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
@@ -42,14 +42,19 @@ public class ShrinkAction implements LifecycleAction {
     public static final String CONDITIONAL_SKIP_SHRINK_STEP = BranchingStep.NAME + "-check-prerequisites";
     public static final String CONDITIONAL_DATASTREAM_CHECK_KEY = BranchingStep.NAME + "-on-datastream-check";
 
-    private static final ConstructingObjectParser<ShrinkAction, Void> PARSER =
-        new ConstructingObjectParser<>(NAME, a -> new ShrinkAction((Integer) a[0], (ByteSizeValue) a[1]));
+    private static final ConstructingObjectParser<ShrinkAction, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        a -> new ShrinkAction((Integer) a[0], (ByteSizeValue) a[1])
+    );
 
     static {
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), NUMBER_OF_SHARDS_FIELD);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_PRIMARY_SHARD_SIZE.getPreferredName()),
-            MAX_PRIMARY_SHARD_SIZE, ObjectParser.ValueType.STRING);
+            MAX_PRIMARY_SHARD_SIZE,
+            ObjectParser.ValueType.STRING
+        );
     }
 
     private Integer numberOfShards;
@@ -151,35 +156,54 @@ public class ShrinkAction implements LifecycleAction {
         StepKey replaceDataStreamIndexKey = new StepKey(phase, NAME, ReplaceDataStreamBackingIndexStep.NAME);
         StepKey deleteIndexKey = new StepKey(phase, NAME, DeleteStep.NAME);
 
-        BranchingStep conditionalSkipShrinkStep = new BranchingStep(preShrinkBranchingKey, checkNotWriteIndex, nextStepKey,
+        BranchingStep conditionalSkipShrinkStep = new BranchingStep(
+            preShrinkBranchingKey,
+            checkNotWriteIndex,
+            nextStepKey,
             (index, clusterState) -> {
                 IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
                 if (numberOfShards != null && indexMetadata.getNumberOfShards() == numberOfShards) {
                     return true;
                 }
                 if (indexMetadata.getSettings().get(LifecycleSettings.SNAPSHOT_INDEX_NAME) != null) {
-                    logger.warn("[{}] action is configured for index [{}] in policy [{}] which is mounted as searchable snapshot. " +
-                            "Skipping this action", ShrinkAction.NAME, indexMetadata.getIndex().getName(),
-                        LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings()));
+                    logger.warn(
+                        "[{}] action is configured for index [{}] in policy [{}] which is mounted as searchable snapshot. "
+                            + "Skipping this action",
+                        ShrinkAction.NAME,
+                        indexMetadata.getIndex().getName(),
+                        LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings())
+                    );
                     return true;
                 }
                 return false;
-            });
-        CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNotWriteIndex,
-            waitForNoFollowerStepKey);
+            }
+        );
+        CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(
+            checkNotWriteIndex,
+            waitForNoFollowerStepKey
+        );
         WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(waitForNoFollowerStepKey, readOnlyKey, client);
         ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, checkTargetShardsCountKey, client);
-        CheckTargetShardsCountStep checkTargetShardsCountStep = new CheckTargetShardsCountStep(checkTargetShardsCountKey,
-            cleanupShrinkIndexKey, numberOfShards);
+        CheckTargetShardsCountStep checkTargetShardsCountStep = new CheckTargetShardsCountStep(
+            checkTargetShardsCountKey,
+            cleanupShrinkIndexKey,
+            numberOfShards
+        );
         // we generate a unique shrink index name but we also retry if the allocation of the shrunk index is not possible, so we want to
         // delete the "previously generated" shrink index (this is a no-op if it's the first run of the action and he haven't generated a
         // shrink index name)
-        CleanupShrinkIndexStep cleanupShrinkIndexStep = new CleanupShrinkIndexStep(cleanupShrinkIndexKey, generateShrinkIndexNameKey,
-            client);
+        CleanupShrinkIndexStep cleanupShrinkIndexStep = new CleanupShrinkIndexStep(
+            cleanupShrinkIndexKey,
+            generateShrinkIndexNameKey,
+            client
+        );
         // generate a unique shrink index name and store it in the ILM execution state
-        GenerateUniqueIndexNameStep generateUniqueIndexNameStep =
-            new GenerateUniqueIndexNameStep(generateShrinkIndexNameKey, setSingleNodeKey, SHRUNKEN_INDEX_PREFIX,
-                (generatedIndexName, lifecycleStateBuilder) -> lifecycleStateBuilder.setShrinkIndexName(generatedIndexName));
+        GenerateUniqueIndexNameStep generateUniqueIndexNameStep = new GenerateUniqueIndexNameStep(
+            generateShrinkIndexNameKey,
+            setSingleNodeKey,
+            SHRUNKEN_INDEX_PREFIX,
+            (generatedIndexName, lifecycleStateBuilder) -> lifecycleStateBuilder.setShrinkIndexName(generatedIndexName)
+        );
         // choose a node to collocate the source index in preparation for shrink
         SetSingleNodeAllocateStep setSingleNodeStep = new SetSingleNodeAllocateStep(setSingleNodeKey, allocationRoutedKey, client);
 
@@ -187,36 +211,66 @@ public class ShrinkAction implements LifecycleAction {
         // breached (controlled by LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD) at which point we rewind to the
         // "set-single-node-allocation" step to choose another node to host the shrink operation
         ClusterStateWaitUntilThresholdStep checkShrinkReadyStep = new ClusterStateWaitUntilThresholdStep(
-            new CheckShrinkReadyStep(allocationRoutedKey, shrinkKey), setSingleNodeKey);
+            new CheckShrinkReadyStep(allocationRoutedKey, shrinkKey),
+            setSingleNodeKey
+        );
         ShrinkStep shrink = new ShrinkStep(shrinkKey, enoughShardsKey, client, numberOfShards, maxPrimaryShardSize);
 
         // wait until the shrunk index is recovered. we again wait until the configured threshold is breached and if the shrunk index has
         // not successfully recovered until then, we rewind to the "cleanup-shrink-index" step to delete this unsuccessful shrunk index
         // and retry the operation by generating a new shrink index name and attempting to shrink again
         ClusterStateWaitUntilThresholdStep allocated = new ClusterStateWaitUntilThresholdStep(
-            new ShrunkShardsAllocatedStep(enoughShardsKey, copyMetadataKey), cleanupShrinkIndexKey);
-        CopyExecutionStateStep copyMetadata = new CopyExecutionStateStep(copyMetadataKey, dataStreamCheckBranchingKey,
-            ShrinkIndexNameSupplier::getShrinkIndexName, isShrunkIndexKey);
+            new ShrunkShardsAllocatedStep(enoughShardsKey, copyMetadataKey),
+            cleanupShrinkIndexKey
+        );
+        CopyExecutionStateStep copyMetadata = new CopyExecutionStateStep(
+            copyMetadataKey,
+            dataStreamCheckBranchingKey,
+            ShrinkIndexNameSupplier::getShrinkIndexName,
+            isShrunkIndexKey
+        );
         // by the time we get to this step we have 2 indices, the source and the shrunken one. we now need to choose an index
         // swapping strategy such that the shrunken index takes the place of the source index (which is also deleted).
         // if the source index is part of a data stream it's a matter of replacing it with the shrunken index one in the data stream and
         // then deleting the source index; otherwise we'll use the alias management api to atomically transfer the aliases from source to
         // the shrunken index and delete the source
-        BranchingStep isDataStreamBranchingStep = new BranchingStep(dataStreamCheckBranchingKey, aliasKey, replaceDataStreamIndexKey,
+        BranchingStep isDataStreamBranchingStep = new BranchingStep(
+            dataStreamCheckBranchingKey,
+            aliasKey,
+            replaceDataStreamIndexKey,
             (index, clusterState) -> {
                 IndexAbstraction indexAbstraction = clusterState.metadata().getIndicesLookup().get(index.getName());
                 assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";
                 return indexAbstraction.getParentDataStream() != null;
-            });
+            }
+        );
         ShrinkSetAliasStep aliasSwapAndDelete = new ShrinkSetAliasStep(aliasKey, isShrunkIndexKey, client);
-        ReplaceDataStreamBackingIndexStep replaceDataStreamBackingIndex = new ReplaceDataStreamBackingIndexStep(replaceDataStreamIndexKey,
-            deleteIndexKey, ShrinkIndexNameSupplier::getShrinkIndexName);
+        ReplaceDataStreamBackingIndexStep replaceDataStreamBackingIndex = new ReplaceDataStreamBackingIndexStep(
+            replaceDataStreamIndexKey,
+            deleteIndexKey,
+            ShrinkIndexNameSupplier::getShrinkIndexName
+        );
         DeleteStep deleteSourceIndexStep = new DeleteStep(deleteIndexKey, isShrunkIndexKey, client);
         ShrunkenIndexCheckStep waitOnShrinkTakeover = new ShrunkenIndexCheckStep(isShrunkIndexKey, nextStepKey);
-        return Arrays.asList(conditionalSkipShrinkStep, checkNotWriteIndexStep, waitForNoFollowersStep, readOnlyStep,
-            checkTargetShardsCountStep, cleanupShrinkIndexStep, generateUniqueIndexNameStep, setSingleNodeStep, checkShrinkReadyStep,
-            shrink, allocated, copyMetadata, isDataStreamBranchingStep, aliasSwapAndDelete, waitOnShrinkTakeover,
-            replaceDataStreamBackingIndex, deleteSourceIndexStep);
+        return Arrays.asList(
+            conditionalSkipShrinkStep,
+            checkNotWriteIndexStep,
+            waitForNoFollowersStep,
+            readOnlyStep,
+            checkTargetShardsCountStep,
+            cleanupShrinkIndexStep,
+            generateUniqueIndexNameStep,
+            setSingleNodeStep,
+            checkShrinkReadyStep,
+            shrink,
+            allocated,
+            copyMetadata,
+            isDataStreamBranchingStep,
+            aliasSwapAndDelete,
+            waitOnShrinkTakeover,
+            replaceDataStreamBackingIndex,
+            deleteSourceIndexStep
+        );
     }
 
     @Override
@@ -224,8 +278,7 @@ public class ShrinkAction implements LifecycleAction {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ShrinkAction that = (ShrinkAction) o;
-        return Objects.equals(numberOfShards, that.numberOfShards) &&
-            Objects.equals(maxPrimaryShardSize, that.maxPrimaryShardSize);
+        return Objects.equals(numberOfShards, that.numberOfShards) && Objects.equals(maxPrimaryShardSize, that.maxPrimaryShardSize);
     }
 
     @Override

@@ -1,0 +1,50 @@
+setup:
+  - do:
+      indices.create:
+        index: airline-data
+        body:
+          mappings:
+            properties:
+              time:
+                type: date
+              airline:
+                type: keyword
+              responsetime:
+                type: float
+              event_rate:
+                type: integer
+
+  - do:
+      transform.put_transform:
+        transform_id: "upgrading-airline-transform"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-data-by-airline" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "description": "yaml test transform on airline-data",
+            "frequency": "60s",
+            "sync": {
+              "time": {
+                "field": "time",
+                "delay": "90m"
+              }
+            }
+          }
+---
+"Test upgrade transform":
+  - do:
+      transform.upgrade_transforms:
+        dry_run: false
+  # upgrade does not do anything on a fresh install, so we can only test that nothing breaks
+  - match: { no_action: 1 }
+---
+"Test upgrade transform dry run":
+  - do:
+      transform.upgrade_transforms:
+        dry_run: true
+  # upgrade does not do anything on a fresh install, so we can only test that nothing breaks
+  - match: { no_action: 1 }

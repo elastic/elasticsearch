@@ -39,8 +39,8 @@ public class ClusterConnectionManager implements ConnectionManager {
     private static final Logger logger = LogManager.getLogger(ClusterConnectionManager.class);
 
     private final ConcurrentMap<DiscoveryNode, Transport.Connection> connectedNodes = ConcurrentCollections.newConcurrentMap();
-    private final ConcurrentMap<DiscoveryNode, ListenableFuture<Transport.Connection>> pendingConnections
-        = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<DiscoveryNode, ListenableFuture<Transport.Connection>> pendingConnections = ConcurrentCollections
+        .newConcurrentMap();
     private final AbstractRefCounted connectingRefCounter = AbstractRefCounted.of(this::pendingConnectionsComplete);
 
     private final Transport transport;
@@ -129,18 +129,26 @@ public class ClusterConnectionManager implements ConnectionManager {
             final int failureCount = previousFailureCount + 1;
             if (failureCount < 10) {
                 logger.trace("concurrent connect/disconnect for [{}] ([{}] failures), will try again", node, failureCount);
-                connection.addRemovedListener(listener.delegateFailure((retryDelegate, ignored) -> connectToNodeOrRetry(
-                    node,
-                    connectionProfile,
-                    connectionValidator,
-                    failureCount,
-                    retryDelegate)));
+                connection.addRemovedListener(
+                    listener.delegateFailure(
+                        (retryDelegate, ignored) -> connectToNodeOrRetry(
+                            node,
+                            connectionProfile,
+                            connectionValidator,
+                            failureCount,
+                            retryDelegate
+                        )
+                    )
+                );
             } else {
                 // A run of bad luck this long is probably not bad luck after all: something's broken, just give up.
                 logger.warn("failed to connect to [{}] after [{}] attempts, giving up", node.descriptionWithoutAttributes(), failureCount);
-                listener.onFailure(new ConnectTransportException(
-                    node,
-                    "concurrently connecting and disconnecting even after [" + failureCount + "] attempts"));
+                listener.onFailure(
+                    new ConnectTransportException(
+                        node,
+                        "concurrently connecting and disconnecting even after [" + failureCount + "] attempts"
+                    )
+                );
             }
         });
 
@@ -178,9 +186,11 @@ public class ClusterConnectionManager implements ConnectionManager {
         }
 
         final RunOnce releaseOnce = new RunOnce(connectingRefCounter::decRef);
-        internalOpenConnection(node, resolvedProfile, ActionListener.wrap(
-            conn -> connectionValidator.validate(conn, resolvedProfile, ActionListener.runAfter(ActionListener.wrap(
-                ignored -> {
+        internalOpenConnection(
+            node,
+            resolvedProfile,
+            ActionListener.wrap(
+                conn -> connectionValidator.validate(conn, resolvedProfile, ActionListener.runAfter(ActionListener.wrap(ignored -> {
                     assert Transports.assertNotTransportThread("connection validator success");
                     try {
                         if (connectedNodes.putIfAbsent(node, conn) != null) {
@@ -224,10 +234,12 @@ public class ClusterConnectionManager implements ConnectionManager {
                     IOUtils.closeWhileHandlingException(conn);
                     failConnectionListener(node, releaseOnce, e, currentListener);
                 }), conn::decRef)),
-            e -> {
-                assert Transports.assertNotTransportThread("internalOpenConnection failure");
-                failConnectionListener(node, releaseOnce, e, currentListener);
-            }));
+                e -> {
+                    assert Transports.assertNotTransportThread("internalOpenConnection failure");
+                    failConnectionListener(node, releaseOnce, e, currentListener);
+                }
+            )
+        );
     }
 
     /**
@@ -318,8 +330,11 @@ public class ClusterConnectionManager implements ConnectionManager {
         closeLatch.countDown();
     }
 
-    private void internalOpenConnection(DiscoveryNode node, ConnectionProfile connectionProfile,
-                                        ActionListener<Transport.Connection> listener) {
+    private void internalOpenConnection(
+        DiscoveryNode node,
+        ConnectionProfile connectionProfile,
+        ActionListener<Transport.Connection> listener
+    ) {
         transport.openConnection(node, connectionProfile, listener.map(connection -> {
             assert Transports.assertNotTransportThread("internalOpenConnection success");
             try {

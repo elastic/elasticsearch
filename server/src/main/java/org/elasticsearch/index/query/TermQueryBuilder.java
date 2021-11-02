@@ -12,14 +12,14 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -32,9 +32,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
     public static final boolean DEFAULT_CASE_INSENSITIVITY = false;
     private static final ParseField CASE_INSENSITIVE_FIELD = new ParseField("case_insensitive");
 
-
     private boolean caseInsensitive = DEFAULT_CASE_INSENSITIVITY;
-
 
     private static final ParseField TERM_FIELD = new ParseField("term");
     private static final ParseField VALUE_FIELD = new ParseField("value");
@@ -83,7 +81,6 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
         return this.caseInsensitive;
     }
 
-
     /**
      * Read from a stream.
      */
@@ -93,6 +90,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
             caseInsensitive = in.readBoolean();
         }
     }
+
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         super.doWriteTo(out);
@@ -130,8 +128,10 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
                         } else if (CASE_INSENSITIVE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             caseInsensitive = parser.booleanValue();
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(),
-                                    "[term] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(
+                                parser.getTokenLocation(),
+                                "[term] query does not support [" + currentFieldName + "]"
+                            );
                         }
                     }
                 }
@@ -183,7 +183,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
                 } else if (query instanceof MatchNoDocsQuery) {
                     return new MatchNoneQueryBuilder();
                 } else {
-                    assert false : "Constant fields must produce match-all or match-none queries, got " + query ;
+                    assert false : "Constant fields must produce match-all or match-none queries, got " + query;
                 }
             }
         }
@@ -207,7 +207,6 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
         return NAME;
     }
 
-
     @Override
     protected final int doHashCode() {
         return Objects.hash(super.doHashCode(), caseInsensitive);
@@ -215,8 +214,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
 
     @Override
     protected final boolean doEquals(TermQueryBuilder other) {
-        return super.doEquals(other) &&
-               Objects.equals(caseInsensitive, other.caseInsensitive);
+        return super.doEquals(other) && Objects.equals(caseInsensitive, other.caseInsensitive);
     }
 
 }

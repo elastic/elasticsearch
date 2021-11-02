@@ -10,13 +10,13 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -74,8 +74,9 @@ public class ClosePointInTimeRequest extends ActionRequest implements ToXContent
                     }
                     id = parser.text();
                 } else {
-                    throw new IllegalArgumentException("Unknown parameter [" + parser.currentName() +
-                        "] in request body or parameter is of the wrong type[" + token + "] ");
+                    throw new IllegalArgumentException(
+                        "Unknown parameter [" + parser.currentName() + "] in request body or parameter is of the wrong type[" + token + "] "
+                    );
                 }
             }
             if (Strings.isNullOrEmpty(id)) {

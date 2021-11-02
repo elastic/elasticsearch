@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.suggest.phrase;
 
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -38,16 +38,16 @@ public class LinearInterpolationModelTests extends SmoothingModelTestCase {
         LinearInterpolation original = (LinearInterpolation) input;
         // swap two values permute original lambda values
         switch (randomIntBetween(0, 2)) {
-        case 0:
-            // swap first two
-            return new LinearInterpolation(original.getBigramLambda(), original.getTrigramLambda(), original.getUnigramLambda());
-        case 1:
-            // swap last two
-            return new LinearInterpolation(original.getTrigramLambda(), original.getUnigramLambda(), original.getBigramLambda());
-        case 2:
-        default:
-            // swap first and last
-            return new LinearInterpolation(original.getUnigramLambda(), original.getBigramLambda(), original.getTrigramLambda());
+            case 0:
+                // swap first two
+                return new LinearInterpolation(original.getBigramLambda(), original.getTrigramLambda(), original.getUnigramLambda());
+            case 1:
+                // swap last two
+                return new LinearInterpolation(original.getTrigramLambda(), original.getUnigramLambda(), original.getBigramLambda());
+            case 2:
+            default:
+                // swap first and last
+                return new LinearInterpolation(original.getUnigramLambda(), original.getBigramLambda(), original.getTrigramLambda());
         }
     }
 

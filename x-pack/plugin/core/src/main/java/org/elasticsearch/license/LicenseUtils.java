@@ -24,8 +24,11 @@ public class LicenseUtils {
      * exception's rest header
      */
     public static ElasticsearchSecurityException newComplianceException(String feature) {
-        ElasticsearchSecurityException e = new ElasticsearchSecurityException("current license is non-compliant for [{}]",
-                RestStatus.FORBIDDEN, feature);
+        ElasticsearchSecurityException e = new ElasticsearchSecurityException(
+            "current license is non-compliant for [{}]",
+            RestStatus.FORBIDDEN,
+            feature
+        );
         e.addMetadata(EXPIRED_FEATURE_METADATA, feature);
         return e;
     }
@@ -39,8 +42,7 @@ public class LicenseUtils {
     }
 
     public static boolean licenseNeedsExtended(License license) {
-        return LicenseType.isBasic(license.type()) &&
-            license.expiryDate() != LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
+        return LicenseType.isBasic(license.type()) && license.expiryDate() != LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS;
     }
 
     /**
@@ -52,10 +54,9 @@ public class LicenseUtils {
 
         String typeName = license.type();
         return (LicenseType.isBasic(typeName) || LicenseType.isTrial(typeName)) &&
-                // only upgrade signature when all nodes are ready to deserialize the new signature
-                (license.version() < License.VERSION_CRYPTO_ALGORITHMS &&
-                    compatibleLicenseVersion(currentNodes) >= License.VERSION_CRYPTO_ALGORITHMS
-                );
+        // only upgrade signature when all nodes are ready to deserialize the new signature
+            (license.version() < License.VERSION_CRYPTO_ALGORITHMS
+                && compatibleLicenseVersion(currentNodes) >= License.VERSION_CRYPTO_ALGORITHMS);
     }
 
     public static int compatibleLicenseVersion(DiscoveryNodes currentNodes) {

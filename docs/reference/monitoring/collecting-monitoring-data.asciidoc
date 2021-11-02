@@ -6,17 +6,7 @@
 <titleabbrev>Legacy collection methods</titleabbrev>
 ++++
 
-[IMPORTANT]
-=========================
-{metricbeat} is the recommended method for collecting and shipping monitoring
-data to a monitoring cluster.
-
-If you have previously configured legacy collection methods, you should migrate
-to using {metricbeat} collection methods. Use either {metricbeat} collection or
-legacy collection methods; do not use both.
-
-Learn more about <<configuring-metricbeat>>.
-=========================
+include::{es-ref-dir}/settings/monitoring-settings.asciidoc[tag=monitoring-deprecation-notice]
 
 This method for collecting metrics about {es} involves sending the metrics to
 the monitoring cluster by using exporters. For the recommended method, see <<configuring-metricbeat>>.
@@ -55,7 +45,10 @@ For example, use the following APIs to review and change this setting:
 [source,console]
 ----------------------------------
 GET _cluster/settings
+----------------------------------
 
+[source,console]
+----------------------------------
 PUT _cluster/settings
 {
   "persistent": {
@@ -63,6 +56,7 @@ PUT _cluster/settings
   }
 }
 ----------------------------------
+// TEST[warning:[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version.]
 
 Alternatively, you can enable this setting in {kib}. In the side navigation,
 click *Monitoring*. If data collection is disabled, you are prompted to turn it

@@ -53,6 +53,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * than 84, the line will be cut and a horizontal scroll bar will be displayed.
  * (the code indentation of the tag is not included in the width)
  */
+@SuppressWarnings("removal")
 public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
     @SuppressWarnings("unused")
@@ -175,7 +176,6 @@ public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
         Map<String, List<org.elasticsearch.client.tasks.TaskInfo>> perNodeTasks = response.getPerNodeTasks(); // <1>
         List<org.elasticsearch.client.tasks.TaskGroup> groups = response.getTaskGroups(); // <2>
         // end::cancel-tasks-response-calc
-
 
         // tag::cancel-tasks-response-failures
         List<org.elasticsearch.client.tasks.ElasticsearchException> nodeFailures = response.getNodeFailures(); // <1>

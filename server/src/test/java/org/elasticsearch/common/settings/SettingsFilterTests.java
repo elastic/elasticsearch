@@ -8,17 +8,17 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -36,64 +36,53 @@ public class SettingsFilterTests extends ESTestCase {
 
     public void testSettingsFiltering() throws IOException {
 
-        testFiltering(Settings.builder()
-                        .put("foo", "foo_test")
-                        .put("foo1", "foo1_test")
-                        .put("bar", "bar_test")
-                        .put("bar1", "bar1_test")
-                        .put("bar.2", "bar2_test")
-                        .build(),
-                    Settings.builder()
-                        .put("foo1", "foo1_test")
-                        .build(),
-                "foo", "bar*"
-        );
-
-        testFiltering(Settings.builder()
-                        .put("foo", "foo_test")
-                        .put("foo1", "foo1_test")
-                        .put("bar", "bar_test")
-                        .put("bar1", "bar1_test")
-                        .put("bar.2", "bar2_test")
-                        .build(),
-                Settings.builder()
-                        .put("foo", "foo_test")
-                        .put("foo1", "foo1_test")
-                        .build(),
-                "bar*"
-        );
-
-        testFiltering(Settings.builder()
-                        .put("foo", "foo_test")
-                        .put("foo1", "foo1_test")
-                        .put("bar", "bar_test")
-                        .put("bar1", "bar1_test")
-                        .put("bar.2", "bar2_test")
-                        .build(),
-                Settings.builder()
-                        .build(),
-                "foo", "bar*", "foo*"
-        );
-
-        testFiltering(Settings.builder()
-                        .put("foo", "foo_test")
-                        .put("bar", "bar_test")
-                        .put("baz", "baz_test")
-                        .build(),
-                Settings.builder()
-                        .put("foo", "foo_test")
-                        .put("bar", "bar_test")
-                        .put("baz", "baz_test")
-                        .build()
-        );
-
-        testFiltering(Settings.builder()
-                .put("a.b.something.d", "foo_test")
-                .put("a.b.something.c", "foo1_test")
-                .build(),
+        testFiltering(
             Settings.builder()
-                .put("a.b.something.c", "foo1_test")
+                .put("foo", "foo_test")
+                .put("foo1", "foo1_test")
+                .put("bar", "bar_test")
+                .put("bar1", "bar1_test")
+                .put("bar.2", "bar2_test")
                 .build(),
+            Settings.builder().put("foo1", "foo1_test").build(),
+            "foo",
+            "bar*"
+        );
+
+        testFiltering(
+            Settings.builder()
+                .put("foo", "foo_test")
+                .put("foo1", "foo1_test")
+                .put("bar", "bar_test")
+                .put("bar1", "bar1_test")
+                .put("bar.2", "bar2_test")
+                .build(),
+            Settings.builder().put("foo", "foo_test").put("foo1", "foo1_test").build(),
+            "bar*"
+        );
+
+        testFiltering(
+            Settings.builder()
+                .put("foo", "foo_test")
+                .put("foo1", "foo1_test")
+                .put("bar", "bar_test")
+                .put("bar1", "bar1_test")
+                .put("bar.2", "bar2_test")
+                .build(),
+            Settings.builder().build(),
+            "foo",
+            "bar*",
+            "foo*"
+        );
+
+        testFiltering(
+            Settings.builder().put("foo", "foo_test").put("bar", "bar_test").put("baz", "baz_test").build(),
+            Settings.builder().put("foo", "foo_test").put("bar", "bar_test").put("baz", "baz_test").build()
+        );
+
+        testFiltering(
+            Settings.builder().put("a.b.something.d", "foo_test").put("a.b.something.c", "foo1_test").build(),
+            Settings.builder().put("a.b.something.c", "foo1_test").build(),
             "a.b.*.d"
         );
     }
@@ -103,7 +92,8 @@ public class SettingsFilterTests extends ESTestCase {
         Settings newSettings = Settings.builder().put("key", "new").build();
 
         Setting<String> filteredSetting = Setting.simpleString("key", Property.Filtered);
-        assertExpectedLogMessages((testLogger) -> Setting.logSettingUpdate(filteredSetting, newSettings, oldSettings, testLogger),
+        assertExpectedLogMessages(
+            (testLogger) -> Setting.logSettingUpdate(filteredSetting, newSettings, oldSettings, testLogger),
             new MockLogAppender.SeenEventExpectation("secure logging", "org.elasticsearch.test", Level.INFO, "updating [key]"),
             new MockLogAppender.UnseenEventExpectation("unwanted old setting name", "org.elasticsearch.test", Level.INFO, "*old*"),
             new MockLogAppender.UnseenEventExpectation("unwanted new setting name", "org.elasticsearch.test", Level.INFO, "*new*")
@@ -115,13 +105,19 @@ public class SettingsFilterTests extends ESTestCase {
         Settings newSettings = Settings.builder().put("key", "new").build();
 
         Setting<String> regularSetting = Setting.simpleString("key");
-        assertExpectedLogMessages((testLogger) -> Setting.logSettingUpdate(regularSetting, newSettings, oldSettings, testLogger),
-            new MockLogAppender.SeenEventExpectation("regular logging", "org.elasticsearch.test", Level.INFO,
-            "updating [key] from [old] to [new]"));
+        assertExpectedLogMessages(
+            (testLogger) -> Setting.logSettingUpdate(regularSetting, newSettings, oldSettings, testLogger),
+            new MockLogAppender.SeenEventExpectation(
+                "regular logging",
+                "org.elasticsearch.test",
+                Level.INFO,
+                "updating [key] from [old] to [new]"
+            )
+        );
     }
 
-    private void assertExpectedLogMessages(Consumer<Logger> consumer,
-                                           MockLogAppender.LoggingExpectation ... expectations) throws IllegalAccessException {
+    private void assertExpectedLogMessages(Consumer<Logger> consumer, MockLogAppender.LoggingExpectation... expectations)
+        throws IllegalAccessException {
         Logger testLogger = LogManager.getLogger("org.elasticsearch.test");
         MockLogAppender appender = new MockLogAppender();
         Loggers.addAppender(testLogger, appender);

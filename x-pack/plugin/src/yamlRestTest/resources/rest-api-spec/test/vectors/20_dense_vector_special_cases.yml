@@ -1,8 +1,6 @@
 setup:
   - skip:
       features: headers
-      version: " - 7.3.99"
-      reason: "vector functions check on empty values was added from 7.4"
 
   - do:
       indices.create:
@@ -21,6 +19,10 @@ setup:
                 dims: 3
                 index: true
                 similarity: l2_norm
+                index_options:
+                  type: hnsw
+                  m: 15
+                  ef_construction: 50
 
 ---
 "Indexing of Dense vectors should error when dims don't match defined in the mapping":

@@ -8,8 +8,8 @@
 package org.elasticsearch.persistent;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.persistent.PersistentTasksNodeService.Status;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import static org.hamcrest.Matchers.containsString;
 

@@ -9,15 +9,15 @@
 package org.elasticsearch.discovery;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.coordination.PendingClusterStateStats;
+import org.elasticsearch.cluster.coordination.PublishClusterStateStats;
 import org.elasticsearch.cluster.service.ClusterApplierRecordingService;
 import org.elasticsearch.cluster.service.ClusterStateUpdateStats;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.cluster.coordination.PendingClusterStateStats;
-import org.elasticsearch.cluster.coordination.PublishClusterStateStats;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -32,7 +32,8 @@ public class DiscoveryStats implements Writeable, ToXContentFragment {
         PendingClusterStateStats queueStats,
         PublishClusterStateStats publishStats,
         ClusterStateUpdateStats clusterStateUpdateStats,
-        ClusterApplierRecordingService.Stats applierRecordingStats) {
+        ClusterApplierRecordingService.Stats applierRecordingStats
+    ) {
         this.queueStats = queueStats;
         this.publishStats = publishStats;
         this.clusterStateUpdateStats = clusterStateUpdateStats;
@@ -47,7 +48,7 @@ public class DiscoveryStats implements Writeable, ToXContentFragment {
         } else {
             clusterStateUpdateStats = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
             applierRecordingStats = in.readOptionalWriteable(ClusterApplierRecordingService.Stats::new);
         } else {
             applierRecordingStats = null;
@@ -61,7 +62,7 @@ public class DiscoveryStats implements Writeable, ToXContentFragment {
         if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
             out.writeOptionalWriteable(clusterStateUpdateStats);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
             out.writeOptionalWriteable(applierRecordingStats);
         }
     }

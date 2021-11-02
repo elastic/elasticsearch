@@ -7,11 +7,11 @@
 package org.elasticsearch.xpack.ml.rest.calendar;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.PostCalendarEventsAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 
@@ -28,7 +28,8 @@ public class RestPostCalendarEventAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             Route.builder(POST, BASE_PATH + "calendars/{" + Calendar.ID + "}/events")
-                .replaces(POST, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID + "}/events", RestApiVersion.V_7).build()
+                .replaces(POST, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID + "}/events", RestApiVersion.V_7)
+                .build()
         );
     }
 
@@ -42,8 +43,7 @@ public class RestPostCalendarEventAction extends BaseRestHandler {
         String calendarId = restRequest.param(Calendar.ID.getPreferredName());
 
         XContentParser parser = restRequest.contentOrSourceParamParser();
-        PostCalendarEventsAction.Request request =
-                PostCalendarEventsAction.Request.parseRequest(calendarId, parser);
+        PostCalendarEventsAction.Request request = PostCalendarEventsAction.Request.parseRequest(calendarId, parser);
         return channel -> client.execute(PostCalendarEventsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

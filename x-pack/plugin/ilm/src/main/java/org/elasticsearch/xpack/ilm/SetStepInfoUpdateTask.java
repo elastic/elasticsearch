@@ -14,9 +14,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Step;
@@ -55,7 +55,7 @@ public class SetStepInfoUpdateTask extends IndexLifecycleClusterStateUpdateTask 
         Settings indexSettings = idxMeta.getSettings();
         LifecycleExecutionState indexILMData = LifecycleExecutionState.fromIndexMetadata(idxMeta);
         if (policy.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings))
-                && Objects.equals(currentStepKey, LifecycleExecutionState.getCurrentStepKey(indexILMData))) {
+            && Objects.equals(currentStepKey, LifecycleExecutionState.getCurrentStepKey(indexILMData))) {
             return IndexLifecycleTransition.addStepInfoToClusterState(index, currentState, stepInfo);
         } else {
             // either the policy has changed or the step is now
@@ -70,7 +70,9 @@ public class SetStepInfoUpdateTask extends IndexLifecycleClusterStateUpdateTask 
         logger.warn(
             new ParameterizedMessage(
                 "policy [{}] for index [{}] failed trying to set step info for step [{}].",
-                policy, index, currentStepKey
+                policy,
+                index,
+                currentStepKey
             ),
             e
         );
@@ -81,8 +83,10 @@ public class SetStepInfoUpdateTask extends IndexLifecycleClusterStateUpdateTask 
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SetStepInfoUpdateTask that = (SetStepInfoUpdateTask) o;
-        return index.equals(that.index) && policy.equals(that.policy)
-            && currentStepKey.equals(that.currentStepKey) && Objects.equals(stepInfo, that.stepInfo);
+        return index.equals(that.index)
+            && policy.equals(that.policy)
+            && currentStepKey.equals(that.currentStepKey)
+            && Objects.equals(stepInfo, that.stepInfo);
     }
 
     @Override

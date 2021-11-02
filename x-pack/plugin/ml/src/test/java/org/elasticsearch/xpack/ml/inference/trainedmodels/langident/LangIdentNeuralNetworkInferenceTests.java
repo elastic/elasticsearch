@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.ml.inference.trainedmodels.langident;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
@@ -41,7 +41,7 @@ public class LangIdentNeuralNetworkInferenceTests extends ESTestCase {
         config.ensureParsedDefinition(xContentRegistry());
         TrainedModelDefinition trainedModelDefinition = config.getModelDefinition();
         InferenceDefinition inferenceDefinition = new InferenceDefinition(
-            (LangIdentNeuralNetwork)trainedModelDefinition.getTrainedModel(),
+            (LangIdentNeuralNetwork) trainedModelDefinition.getTrainedModel(),
             trainedModelDefinition.getPreProcessors()
         );
         List<LanguageExamples.LanguageExampleEntry> examples = new LanguageExamples().getLanguageExamples();
@@ -54,13 +54,18 @@ public class LangIdentNeuralNetworkInferenceTests extends ESTestCase {
 
             Map<String, Object> inferenceFields = new HashMap<>();
             inferenceFields.put("text", text);
-            ClassificationInferenceResults singleValueInferenceResults =
-                (ClassificationInferenceResults) inferenceDefinition.infer(inferenceFields, classificationConfig);
+            ClassificationInferenceResults singleValueInferenceResults = (ClassificationInferenceResults) inferenceDefinition.infer(
+                inferenceFields,
+                classificationConfig
+            );
 
             assertThat(singleValueInferenceResults.valueAsString(), equalTo(cld3Actual));
             double eps = entry.getLanguage().equals("hr") ? 0.001 : 0.00001;
-            assertThat("mismatch probability for language " + cld3Actual,
-                singleValueInferenceResults.getTopClasses().get(0).getProbability(), closeTo(cld3Probability, eps));
+            assertThat(
+                "mismatch probability for language " + cld3Actual,
+                singleValueInferenceResults.getTopClasses().get(0).getProbability(),
+                closeTo(cld3Probability, eps)
+            );
         }
     }
 

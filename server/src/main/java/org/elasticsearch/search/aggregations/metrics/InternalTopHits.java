@@ -17,10 +17,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -206,7 +206,6 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
             ScoreDoc otherDoc = other.topDocs.topDocs.scoreDocs[d];
             if (thisDoc.doc != otherDoc.doc) return false;
             if (Double.compare(thisDoc.score, otherDoc.score) != 0) return false;
-            if (thisDoc.shardIndex != otherDoc.shardIndex) return false;
             if (thisDoc instanceof FieldDoc) {
                 if (false == (otherDoc instanceof FieldDoc)) return false;
                 FieldDoc thisFieldDoc = (FieldDoc) thisDoc;
@@ -231,7 +230,6 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
             ScoreDoc doc = topDocs.topDocs.scoreDocs[d];
             hashCode = 31 * hashCode + doc.doc;
             hashCode = 31 * hashCode + Float.floatToIntBits(doc.score);
-            hashCode = 31 * hashCode + doc.shardIndex;
             if (doc instanceof FieldDoc) {
                 FieldDoc fieldDoc = (FieldDoc) doc;
                 hashCode = 31 * hashCode + Arrays.hashCode(fieldDoc.fields);

@@ -20,8 +20,6 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -37,6 +35,8 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
@@ -148,6 +148,7 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         return XPackPlugin.getSharedLicenseState();
     }
 
+    @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return List.of(
             new ActionHandler<>(XPackInfoFeatureAction.ENRICH, EnrichInfoTransportAction.class),
@@ -165,6 +166,7 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         );
     }
 
+    @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
         RestController restController,
@@ -236,6 +238,7 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         );
     }
 
+    @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return List.of(
             new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(EnrichMetadata.TYPE), EnrichMetadata::fromXContent)

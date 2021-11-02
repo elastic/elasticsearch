@@ -12,10 +12,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 
@@ -52,7 +52,7 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
     }
 
     public IndexLifecycleFeatureSetUsage() {
-        this((List<PolicyStats>)null);
+        this((List<PolicyStats>) null);
     }
 
     public IndexLifecycleFeatureSetUsage(List<PolicyStats> policyStats) {
@@ -86,9 +86,9 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
             return false;
         }
         IndexLifecycleFeatureSetUsage other = (IndexLifecycleFeatureSetUsage) obj;
-        return Objects.equals(available, other.available) &&
-                Objects.equals(enabled, other.enabled) &&
-                Objects.equals(policyStats, other.policyStats);
+        return Objects.equals(available, other.available)
+            && Objects.equals(enabled, other.enabled)
+            && Objects.equals(policyStats, other.policyStats);
     }
 
     public static final class PolicyStats implements ToXContentObject, Writeable {
@@ -145,8 +145,7 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
                 return false;
             }
             PolicyStats other = (PolicyStats) obj;
-            return Objects.equals(phaseStats, other.phaseStats) &&
-                    Objects.equals(indicesManaged, other.indicesManaged);
+            return Objects.equals(phaseStats, other.phaseStats) && Objects.equals(indicesManaged, other.indicesManaged);
         }
 
         @Override
@@ -218,9 +217,9 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
                 return false;
             }
             PhaseStats other = (PhaseStats) obj;
-            return Objects.equals(minimumAge, other.minimumAge) &&
-                    Objects.deepEquals(configurations, other.configurations) &&
-                    Objects.deepEquals(actionNames, other.actionNames);
+            return Objects.equals(minimumAge, other.minimumAge)
+                && Objects.deepEquals(configurations, other.configurations)
+                && Objects.deepEquals(actionNames, other.actionNames);
         }
     }
 
@@ -314,14 +313,31 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
             }
 
             public ActionConfigStats build() {
-                return new ActionConfigStats(allocateNumberOfReplicas, forceMergeMaxNumberOfSegments, rolloverMaxAge, rolloverMaxDocs,
-                    rolloverMaxPrimaryShardSize, rolloverMaxSize, setPriorityPriority, shrinkMaxPrimaryShardSize, shrinkNumberOfShards);
+                return new ActionConfigStats(
+                    allocateNumberOfReplicas,
+                    forceMergeMaxNumberOfSegments,
+                    rolloverMaxAge,
+                    rolloverMaxDocs,
+                    rolloverMaxPrimaryShardSize,
+                    rolloverMaxSize,
+                    setPriorityPriority,
+                    shrinkMaxPrimaryShardSize,
+                    shrinkNumberOfShards
+                );
             }
         }
 
-        public ActionConfigStats(Integer allocateNumberOfReplicas, Integer forceMergeMaxNumberOfSegments, TimeValue rolloverMaxAge,
-                                 Long rolloverMaxDocs, ByteSizeValue rolloverMaxPrimaryShardSize, ByteSizeValue rolloverMaxSize,
-                                 Integer setPriorityPriority, ByteSizeValue shrinkMaxPrimaryShardSize, Integer shrinkNumberOfShards) {
+        public ActionConfigStats(
+            Integer allocateNumberOfReplicas,
+            Integer forceMergeMaxNumberOfSegments,
+            TimeValue rolloverMaxAge,
+            Long rolloverMaxDocs,
+            ByteSizeValue rolloverMaxPrimaryShardSize,
+            ByteSizeValue rolloverMaxSize,
+            Integer setPriorityPriority,
+            ByteSizeValue shrinkMaxPrimaryShardSize,
+            Integer shrinkNumberOfShards
+        ) {
             this.allocateNumberOfReplicas = allocateNumberOfReplicas;
             this.forceMergeMaxNumberOfSegments = forceMergeMaxNumberOfSegments;
             this.rolloverMaxAge = rolloverMaxAge;
@@ -385,10 +401,14 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
                     builder.field(RolloverAction.MAX_SIZE_FIELD.getPreferredName() + "_bytes", rolloverMaxSize.getBytes());
                 }
                 if (rolloverMaxPrimaryShardSize != null) {
-                    builder.field(RolloverAction.MAX_PRIMARY_SHARD_SIZE_FIELD.getPreferredName(),
-                        rolloverMaxPrimaryShardSize.getStringRep());
-                    builder.field(RolloverAction.MAX_PRIMARY_SHARD_SIZE_FIELD.getPreferredName() + "_bytes",
-                        rolloverMaxPrimaryShardSize.getBytes());
+                    builder.field(
+                        RolloverAction.MAX_PRIMARY_SHARD_SIZE_FIELD.getPreferredName(),
+                        rolloverMaxPrimaryShardSize.getStringRep()
+                    );
+                    builder.field(
+                        RolloverAction.MAX_PRIMARY_SHARD_SIZE_FIELD.getPreferredName() + "_bytes",
+                        rolloverMaxPrimaryShardSize.getBytes()
+                    );
                 }
                 builder.endObject();
             }
@@ -453,21 +473,30 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             ActionConfigStats that = (ActionConfigStats) o;
-            return Objects.equals(allocateNumberOfReplicas, that.allocateNumberOfReplicas) &&
-                    Objects.equals(forceMergeMaxNumberOfSegments, that.forceMergeMaxNumberOfSegments) &&
-                    Objects.equals(rolloverMaxAge, that.rolloverMaxAge) &&
-                    Objects.equals(rolloverMaxDocs, that.rolloverMaxDocs) &&
-                    Objects.equals(rolloverMaxPrimaryShardSize, that.rolloverMaxPrimaryShardSize) &&
-                    Objects.equals(rolloverMaxSize, that.rolloverMaxSize) &&
-                    Objects.equals(setPriorityPriority, that.setPriorityPriority) &&
-                    Objects.equals(shrinkMaxPrimaryShardSize, that.shrinkMaxPrimaryShardSize) &&
-                    Objects.equals(shrinkNumberOfShards, that.shrinkNumberOfShards);
+            return Objects.equals(allocateNumberOfReplicas, that.allocateNumberOfReplicas)
+                && Objects.equals(forceMergeMaxNumberOfSegments, that.forceMergeMaxNumberOfSegments)
+                && Objects.equals(rolloverMaxAge, that.rolloverMaxAge)
+                && Objects.equals(rolloverMaxDocs, that.rolloverMaxDocs)
+                && Objects.equals(rolloverMaxPrimaryShardSize, that.rolloverMaxPrimaryShardSize)
+                && Objects.equals(rolloverMaxSize, that.rolloverMaxSize)
+                && Objects.equals(setPriorityPriority, that.setPriorityPriority)
+                && Objects.equals(shrinkMaxPrimaryShardSize, that.shrinkMaxPrimaryShardSize)
+                && Objects.equals(shrinkNumberOfShards, that.shrinkNumberOfShards);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(allocateNumberOfReplicas, forceMergeMaxNumberOfSegments, rolloverMaxAge, rolloverMaxDocs,
-                rolloverMaxPrimaryShardSize, rolloverMaxSize, setPriorityPriority, shrinkMaxPrimaryShardSize, shrinkNumberOfShards);
+            return Objects.hash(
+                allocateNumberOfReplicas,
+                forceMergeMaxNumberOfSegments,
+                rolloverMaxAge,
+                rolloverMaxDocs,
+                rolloverMaxPrimaryShardSize,
+                rolloverMaxSize,
+                setPriorityPriority,
+                shrinkMaxPrimaryShardSize,
+                shrinkNumberOfShards
+            );
         }
     }
 }

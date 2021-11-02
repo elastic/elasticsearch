@@ -13,11 +13,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Comparator;
@@ -36,7 +36,8 @@ public final class ClusterApplierRecordingService {
 
     synchronized Stats getStats() {
         return new Stats(
-            recordedActions.entrySet().stream()
+            recordedActions.entrySet()
+                .stream()
                 .sorted(Comparator.<Map.Entry<String, MeanMetric>>comparingLong(o -> o.getValue().sum()).reversed())
                 .collect(Maps.toUnmodifiableOrderedMap(Map.Entry::getKey, v -> new Recording(v.getValue().count(), v.getValue().sum())))
         );
@@ -175,10 +176,7 @@ public final class ClusterApplierRecordingService {
 
             @Override
             public String toString() {
-                return "Recording{" +
-                    "count=" + count +
-                    ", sum=" + sum +
-                    '}';
+                return "Recording{" + "count=" + count + ", sum=" + sum + '}';
             }
         }
     }

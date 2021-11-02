@@ -68,6 +68,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+
 import javax.inject.Inject;
 
 /**
@@ -126,7 +127,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
     }
 
     public void skipTest(String fullTestName, String reason) {
-        //The tests are defined by 3 parts a/b/c where
+        // The tests are defined by 3 parts a/b/c where
         // a = the folder name
         // b = the file name without the .yml extension
         // c = the test name inside the .yml
@@ -135,15 +136,19 @@ public class RestCompatTestTransformTask extends DefaultTask {
         // So we also need to support a1/a2/a3/b/c1/c2/c3
 
         String[] testParts = fullTestName.split("/");
-        if(testParts.length < 3 ){
-            throw new IllegalArgumentException("To skip tests, all 3 parts [folder/file/test name] must be defined. found [" + fullTestName + "]");
+        if (testParts.length < 3) {
+            throw new IllegalArgumentException(
+                "To skip tests, all 3 parts [folder/file/test name] must be defined. found [" + fullTestName + "]"
+            );
         }
 
         PatternSet skippedPatternSet = patternSetFactory.create();
-        //create file patterns for all a1/a2/a3/b.yml possibilities.
-        for(int i = testParts.length - 1; i > 1; i-- ){
+        // create file patterns for all a1/a2/a3/b.yml possibilities.
+        for (int i = testParts.length - 1; i > 1; i--) {
             final String lastPart = testParts[i];
-            String filePattern = "**/" + Arrays.stream(testParts).takeWhile(x -> x.equals(lastPart) == false).collect(Collectors.joining("/")) + ".yml";
+            String filePattern = "**/"
+                + Arrays.stream(testParts).takeWhile(x -> x.equals(lastPart) == false).collect(Collectors.joining("/"))
+                + ".yml";
             skippedPatternSet.include(filePattern);
         }
 
@@ -305,7 +310,6 @@ public class RestCompatTestTransformTask extends DefaultTask {
         transformations.add(new ReplaceTextual(key, oldValue, MAPPER.convertValue(newValue, TextNode.class), testName));
     }
 
-
     /**
      * Removes the key/value of a match assertion all project REST tests for the matching subkey.
      * For example "match":{"_type": "foo"} to "match":{}
@@ -425,7 +429,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
 
         Map<File, String> skippedFilesWithReason = new HashMap<>();
         skippedTestByFilePatternTransformations.forEach((filePattern, reason) -> {
-            //resolve file pattern to concrete files
+            // resolve file pattern to concrete files
             for (File file : getTestFiles().matching(filePattern).getFiles()) {
                 skippedFilesWithReason.put(file, reason);
             }
@@ -433,7 +437,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
 
         Map<File, List<Pair<String, String>>> skippedFilesWithTestAndReason = new HashMap<>();
         skippedTestByTestNameTransformations.forEach((filePattern, testWithReason) -> {
-            //resolve file pattern to concrete files
+            // resolve file pattern to concrete files
             for (File file : getTestFiles().matching(filePattern).getFiles()) {
                 skippedFilesWithTestAndReason.put(file, testWithReason);
             }
@@ -446,12 +450,14 @@ public class RestCompatTestTransformTask extends DefaultTask {
             List<ObjectNode> tests = READER.<ObjectNode>readValues(yamlParser).readAll();
             List<ObjectNode> transformRestTests;
             if (skippedFilesWithReason.containsKey(file)) {
-                //skip all the tests in the file
-                transformRestTests = transformer.transformRestTests(new LinkedList<>(tests),
-                    Collections.singletonList(new Skip(skippedFilesWithReason.get(file))));
+                // skip all the tests in the file
+                transformRestTests = transformer.transformRestTests(
+                    new LinkedList<>(tests),
+                    Collections.singletonList(new Skip(skippedFilesWithReason.get(file)))
+                );
             } else {
                 if (skippedFilesWithTestAndReason.containsKey(file)) {
-                    //skip the named tests for this file
+                    // skip the named tests for this file
                     skippedFilesWithTestAndReason.get(file).forEach(fullTestNameAndReasonPair -> {
                         String prefix = file.getName().replace(".yml", "/");
                         String singleTestName = fullTestNameAndReasonPair.getLeft().replaceAll(".*" + prefix, "");
@@ -488,7 +494,8 @@ public class RestCompatTestTransformTask extends DefaultTask {
 
     @Input
     public String getSkippedTestByFilePatternTransformations() {
-        return skippedTestByFilePatternTransformations.keySet().stream()
+        return skippedTestByFilePatternTransformations.keySet()
+            .stream()
             .map(key -> String.join(",", key.getIncludes()) + skippedTestByFilePatternTransformations.get(key))
             .collect(Collectors.joining());
     }
@@ -496,7 +503,8 @@ public class RestCompatTestTransformTask extends DefaultTask {
     @Input
     public String getSkippedTestByTestNameTransformations() {
 
-        return skippedTestByTestNameTransformations.keySet().stream()
+        return skippedTestByTestNameTransformations.keySet()
+            .stream()
             .map(key -> String.join(",", key.getIncludes()) + skippedTestByTestNameTransformations.get(key))
             .collect(Collectors.joining());
     }

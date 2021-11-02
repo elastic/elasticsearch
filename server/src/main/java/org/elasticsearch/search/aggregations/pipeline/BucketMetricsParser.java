@@ -9,9 +9,9 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;

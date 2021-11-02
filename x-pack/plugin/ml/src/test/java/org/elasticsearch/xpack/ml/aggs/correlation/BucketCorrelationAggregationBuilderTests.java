@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.ml.aggs.correlation;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.util.Collections;
@@ -31,7 +31,7 @@ public class BucketCorrelationAggregationBuilderTests extends BasePipelineAggreg
 
     @Override
     protected List<SearchPlugin> plugins() {
-        return Collections.singletonList(new MachineLearning(Settings.EMPTY, null));
+        return Collections.singletonList(new MachineLearning(Settings.EMPTY));
     }
 
     @Override
@@ -47,11 +47,7 @@ public class BucketCorrelationAggregationBuilderTests extends BasePipelineAggreg
     @Override
     protected BucketCorrelationAggregationBuilder createTestAggregatorFactory() {
         CorrelationFunction function = new CountCorrelationFunction(CountCorrelationIndicatorTests.randomInstance());
-        return new BucketCorrelationAggregationBuilder(
-            NAME,
-            randomAlphaOfLength(8),
-            function
-        );
+        return new BucketCorrelationAggregationBuilder(NAME, randomAlphaOfLength(8), function);
     }
 
     public void testValidate() {

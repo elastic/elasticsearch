@@ -19,8 +19,6 @@ import org.elasticsearch.xpack.idp.saml.support.SamlAuthenticationState;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 import org.elasticsearch.xpack.idp.saml.support.SamlInit;
 import org.elasticsearch.xpack.idp.saml.support.SamlObjectSigner;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.opensaml.core.xml.schema.XSString;
 import org.opensaml.saml.saml2.core.Assertion;
 import org.opensaml.saml.saml2.core.Attribute;
@@ -117,10 +115,6 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
         return conditions;
     }
 
-    private DateTime now() {
-        return new DateTime(clock.millis(), DateTimeZone.UTC);
-    }
-
     private Subject buildSubject(Instant now, UserServiceAuthentication user, SamlAuthenticationState authnState) {
         final SamlServiceProvider serviceProvider = user.getServiceProvider();
 
@@ -129,8 +123,10 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
         final Subject subject = samlFactory.object(Subject.class, Subject.DEFAULT_ELEMENT_NAME);
         subject.setNameID(nameID);
 
-        final SubjectConfirmationData data = samlFactory.object(SubjectConfirmationData.class,
-            SubjectConfirmationData.DEFAULT_ELEMENT_NAME);
+        final SubjectConfirmationData data = samlFactory.object(
+            SubjectConfirmationData.class,
+            SubjectConfirmationData.DEFAULT_ELEMENT_NAME
+        );
         if (authnState != null && authnState.getAuthnRequestId() != null) {
             data.setInResponseTo(authnState.getAuthnRequestId());
         }
@@ -256,8 +252,9 @@ public class SuccessfulAuthenticationResponseMessageBuilder {
         if (authnState != null && authnState.getRequestedNameidFormat() != null) {
             nameIdFormat = authnState.getRequestedNameidFormat();
         } else {
-            nameIdFormat = serviceProvider.getAllowedNameIdFormat() != null ? serviceProvider.getAllowedNameIdFormat() :
-                idp.getServiceProviderDefaults().nameIdFormat;
+            nameIdFormat = serviceProvider.getAllowedNameIdFormat() != null
+                ? serviceProvider.getAllowedNameIdFormat()
+                : idp.getServiceProviderDefaults().nameIdFormat;
         }
         nameID.setFormat(nameIdFormat);
         nameID.setValue(getNameIdValueForFormat(nameIdFormat, user));

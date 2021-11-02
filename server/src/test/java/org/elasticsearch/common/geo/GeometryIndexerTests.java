@@ -9,9 +9,6 @@
 package org.elasticsearch.common.geo;
 
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
@@ -27,6 +24,9 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -44,104 +44,123 @@ public class GeometryIndexerTests extends ESTestCase {
     GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
 
     public void testCircle() {
-        UnsupportedOperationException ex =
-            expectThrows(UnsupportedOperationException.class, () -> indexer.prepareForIndexing(new Circle(2, 1, 3)));
+        UnsupportedOperationException ex = expectThrows(
+            UnsupportedOperationException.class,
+            () -> indexer.prepareForIndexing(new Circle(2, 1, 3))
+        );
         assertEquals(ShapeType.CIRCLE + " geometry is not supported", ex.getMessage());
     }
 
     public void testCollection() {
         assertEquals(GeometryCollection.EMPTY, indexer.prepareForIndexing(GeometryCollection.EMPTY));
 
-        GeometryCollection<Geometry> collection = new GeometryCollection<>(Collections.singletonList(
-            new Point(2, 1)
-        ));
+        GeometryCollection<Geometry> collection = new GeometryCollection<>(Collections.singletonList(new Point(2, 1)));
 
         Geometry indexed = new Point(2, 1);
         assertEquals(indexed, indexer.prepareForIndexing(collection));
 
-        collection = new GeometryCollection<>(Arrays.asList(
-            new Point(2, 1), new Point(4, 3), new Line(new double[]{160, 200}, new double[]{10, 20})
-        ));
+        collection = new GeometryCollection<>(
+            Arrays.asList(new Point(2, 1), new Point(4, 3), new Line(new double[] { 160, 200 }, new double[] { 10, 20 }))
+        );
 
-        indexed = new GeometryCollection<>(Arrays.asList(
-            new Point(2, 1), new Point(4, 3),
-            new MultiLine(Arrays.asList(
-                new Line(new double[]{160, 180}, new double[]{10, 15}),
-                new Line(new double[]{-180, -160}, new double[]{15, 20}))
-            ))
+        indexed = new GeometryCollection<>(
+            Arrays.asList(
+                new Point(2, 1),
+                new Point(4, 3),
+                new MultiLine(
+                    Arrays.asList(
+                        new Line(new double[] { 160, 180 }, new double[] { 10, 15 }),
+                        new Line(new double[] { -180, -160 }, new double[] { 15, 20 })
+                    )
+                )
+            )
         );
         assertEquals(indexed, indexer.prepareForIndexing(collection));
 
     }
 
     public void testLine() {
-        Line line = new Line(new double[]{3, 4}, new double[]{1, 2});
+        Line line = new Line(new double[] { 3, 4 }, new double[] { 1, 2 });
         Geometry indexed = line;
         assertEquals(indexed, indexer.prepareForIndexing(line));
 
-        line = new Line(new double[]{160, 200}, new double[]{10, 20});
-        indexed = new MultiLine(Arrays.asList(
-            new Line(new double[]{160, 180}, new double[]{10, 15}),
-            new Line(new double[]{-180, -160}, new double[]{15, 20}))
+        line = new Line(new double[] { 160, 200 }, new double[] { 10, 20 });
+        indexed = new MultiLine(
+            Arrays.asList(
+                new Line(new double[] { 160, 180 }, new double[] { 10, 15 }),
+                new Line(new double[] { -180, -160 }, new double[] { 15, 20 })
+            )
         );
 
         assertEquals(indexed, indexer.prepareForIndexing(line));
 
-        line = new Line(new double[]{200, 160}, new double[]{10, 20});
-        indexed = new MultiLine(Arrays.asList(
-            new Line(new double[]{-160, -180}, new double[]{10, 15}),
-            new Line(new double[]{180, 160}, new double[]{15, 20}))
+        line = new Line(new double[] { 200, 160 }, new double[] { 10, 20 });
+        indexed = new MultiLine(
+            Arrays.asList(
+                new Line(new double[] { -160, -180 }, new double[] { 10, 15 }),
+                new Line(new double[] { 180, 160 }, new double[] { 15, 20 })
+            )
         );
 
         assertEquals(indexed, indexer.prepareForIndexing(line));
 
-        line = new Line(new double[]{160, 200, 160}, new double[]{0, 10, 20});
-        indexed = new MultiLine(Arrays.asList(
-            new Line(new double[]{160, 180}, new double[]{0, 5}),
-            new Line(new double[]{-180, -160, -180}, new double[]{5, 10, 15}),
-            new Line(new double[]{180, 160}, new double[]{15, 20})
-        ));
+        line = new Line(new double[] { 160, 200, 160 }, new double[] { 0, 10, 20 });
+        indexed = new MultiLine(
+            Arrays.asList(
+                new Line(new double[] { 160, 180 }, new double[] { 0, 5 }),
+                new Line(new double[] { -180, -160, -180 }, new double[] { 5, 10, 15 }),
+                new Line(new double[] { 180, 160 }, new double[] { 15, 20 })
+            )
+        );
 
         assertEquals(indexed, indexer.prepareForIndexing(line));
 
-        line = new Line(new double[]{0, 720}, new double[]{0, 20});
-        indexed = new MultiLine(Arrays.asList(
-            new Line(new double[]{0, 180}, new double[]{0, 5}),
-            new Line(new double[]{-180, 180}, new double[]{5, 15}),
-            new Line(new double[]{-180, 0}, new double[]{15, 20})
-        ));
+        line = new Line(new double[] { 0, 720 }, new double[] { 0, 20 });
+        indexed = new MultiLine(
+            Arrays.asList(
+                new Line(new double[] { 0, 180 }, new double[] { 0, 5 }),
+                new Line(new double[] { -180, 180 }, new double[] { 5, 15 }),
+                new Line(new double[] { -180, 0 }, new double[] { 15, 20 })
+            )
+        );
 
         assertEquals(indexed, indexer.prepareForIndexing(line));
 
-        line = new Line(new double[]{160, 180, 180, 200, 160, 140}, new double[]{0, 10, 20, 30, 30, 40});
-        indexed = new MultiLine(Arrays.asList(
-            new Line(new double[]{160, 180}, new double[]{0, 10}),
-            new Line(new double[]{-180, -180, -160, -180}, new double[]{10, 20, 30, 30}),
-            new Line(new double[]{180, 160, 140}, new double[]{30, 30, 40})
-        ));
+        line = new Line(new double[] { 160, 180, 180, 200, 160, 140 }, new double[] { 0, 10, 20, 30, 30, 40 });
+        indexed = new MultiLine(
+            Arrays.asList(
+                new Line(new double[] { 160, 180 }, new double[] { 0, 10 }),
+                new Line(new double[] { -180, -180, -160, -180 }, new double[] { 10, 20, 30, 30 }),
+                new Line(new double[] { 180, 160, 140 }, new double[] { 30, 30, 40 })
+            )
+        );
 
         assertEquals(indexed, indexer.prepareForIndexing(line));
 
-        line = new Line(new double[]{-70, 180, 900}, new double[]{0, 0, 4});
+        line = new Line(new double[] { -70, 180, 900 }, new double[] { 0, 0, 4 });
 
-        indexed = new MultiLine(Arrays.asList(
-            new Line(new double[]{-70, 180}, new double[]{0, 0}),
-            new Line(new double[]{-180, 180}, new double[]{0, 2}),
-            new Line(new double[]{-180, 180}, new double[]{2, 4})
-        ));
+        indexed = new MultiLine(
+            Arrays.asList(
+                new Line(new double[] { -70, 180 }, new double[] { 0, 0 }),
+                new Line(new double[] { -180, 180 }, new double[] { 0, 2 }),
+                new Line(new double[] { -180, 180 }, new double[] { 2, 4 })
+            )
+        );
 
         assertEquals(indexed, indexer.prepareForIndexing(line));
 
-        line = new Line(new double[]{160, 200, 160, 200, 160, 200}, new double[]{0, 10, 20, 30, 40, 50});
+        line = new Line(new double[] { 160, 200, 160, 200, 160, 200 }, new double[] { 0, 10, 20, 30, 40, 50 });
 
-        indexed = new MultiLine(Arrays.asList(
-            new Line(new double[]{160, 180}, new double[]{0, 5}),
-            new Line(new double[]{-180, -160, -180}, new double[]{5, 10, 15}),
-            new Line(new double[]{180, 160, 180}, new double[]{15, 20, 25}),
-            new Line(new double[]{-180, -160, -180}, new double[]{25, 30, 35}),
-            new Line(new double[]{180, 160, 180}, new double[]{35, 40, 45}),
-            new Line(new double[]{-180, -160}, new double[]{45, 50})
-        ));
+        indexed = new MultiLine(
+            Arrays.asList(
+                new Line(new double[] { 160, 180 }, new double[] { 0, 5 }),
+                new Line(new double[] { -180, -160, -180 }, new double[] { 5, 10, 15 }),
+                new Line(new double[] { 180, 160, 180 }, new double[] { 15, 20, 25 }),
+                new Line(new double[] { -180, -160, -180 }, new double[] { 25, 30, 35 }),
+                new Line(new double[] { 180, 160, 180 }, new double[] { 35, 40, 45 }),
+                new Line(new double[] { -180, -160 }, new double[] { 45, 50 })
+            )
+        );
 
         assertEquals(indexed, indexer.prepareForIndexing(line));
     }
@@ -151,10 +170,10 @@ public class GeometryIndexerTests extends ESTestCase {
      */
     public double length(Line line) {
         double distance = 0;
-        double[] prev = new double[]{line.getLon(0), line.getLat(0)};
+        double[] prev = new double[] { line.getLon(0), line.getLat(0) };
         GeoUtils.normalizePoint(prev, false, true);
         for (int i = 1; i < line.length(); i++) {
-            double[] cur = new double[]{line.getLon(i), line.getLat(i)};
+            double[] cur = new double[] { line.getLon(i), line.getLat(i) };
             GeoUtils.normalizePoint(cur, false, true);
             distance += Math.sqrt((cur[0] - prev[0]) * (cur[0] - prev[0]) + (cur[1] - prev[1]) * (cur[1] - prev[1]));
             prev = cur;
@@ -222,28 +241,46 @@ public class GeometryIndexerTests extends ESTestCase {
         MultiPoint originalPoints = GeometryTestUtils.toMultiPoint(original);
         MultiPoint decomposedViaPoint = remove180s(GeometryTestUtils.toMultiPoint(indexer.prepareForIndexing(originalPoints)));
         assertEquals(decomposedViaPoint.size(), decomposedViaLines.size());
-        for (int i=0; i<decomposedViaPoint.size(); i++) {
-            assertEquals("Difference between decomposing lines " + decomposedViaLines + " and points " + decomposedViaPoint +
-                " at the position " + i, decomposedViaPoint.get(i).getLat(), decomposedViaLines.get(i).getLat(), 0.0001);
-            assertEquals("Difference between decomposing lines " + decomposedViaLines + " and points " + decomposedViaPoint +
-                " at the position " + i, decomposedViaPoint.get(i).getLon(), decomposedViaLines.get(i).getLon(), 0.0001);
+        for (int i = 0; i < decomposedViaPoint.size(); i++) {
+            assertEquals(
+                "Difference between decomposing lines "
+                    + decomposedViaLines
+                    + " and points "
+                    + decomposedViaPoint
+                    + " at the position "
+                    + i,
+                decomposedViaPoint.get(i).getLat(),
+                decomposedViaLines.get(i).getLat(),
+                0.0001
+            );
+            assertEquals(
+                "Difference between decomposing lines "
+                    + decomposedViaLines
+                    + " and points "
+                    + decomposedViaPoint
+                    + " at the position "
+                    + i,
+                decomposedViaPoint.get(i).getLon(),
+                decomposedViaLines.get(i).getLon(),
+                0.0001
+            );
         }
     }
 
     public void testMultiLine() {
-        Line line = new Line(new double[]{3, 4}, new double[]{1, 2});
+        Line line = new Line(new double[] { 3, 4 }, new double[] { 1, 2 });
         MultiLine multiLine = new MultiLine(Collections.singletonList(line));
         Geometry indexed = line;
         assertEquals(indexed, indexer.prepareForIndexing(multiLine));
 
-        multiLine = new MultiLine(Arrays.asList(
-            line, new Line(new double[]{160, 200}, new double[]{10, 20})
-        ));
+        multiLine = new MultiLine(Arrays.asList(line, new Line(new double[] { 160, 200 }, new double[] { 10, 20 })));
 
-        indexed = new MultiLine(Arrays.asList(
-            line,
-            new Line(new double[]{160, 180}, new double[]{10, 15}),
-            new Line(new double[]{-180, -160}, new double[]{15, 20}))
+        indexed = new MultiLine(
+            Arrays.asList(
+                line,
+                new Line(new double[] { 160, 180 }, new double[] { 10, 15 }),
+                new Line(new double[] { -180, -160 }, new double[] { 15, 20 })
+            )
         );
 
         assertEquals(indexed, indexer.prepareForIndexing(multiLine));
@@ -382,68 +419,87 @@ public class GeometryIndexerTests extends ESTestCase {
     }
 
     public void testPolygon() {
-        Polygon polygon = new Polygon(new LinearRing(new double[]{160, 200, 200, 160, 160}, new double[]{10, 10, 20, 20, 10}));
-        Geometry indexed = new MultiPolygon(Arrays.asList(
-            new Polygon(new LinearRing(new double[]{180, 180, 160, 160, 180}, new double[]{10, 20, 20, 10, 10})),
-            new Polygon(new LinearRing(new double[]{-180, -180, -160, -160, -180}, new double[]{20, 10, 10, 20, 20}))
-        ));
+        Polygon polygon = new Polygon(new LinearRing(new double[] { 160, 200, 200, 160, 160 }, new double[] { 10, 10, 20, 20, 10 }));
+        Geometry indexed = new MultiPolygon(
+            Arrays.asList(
+                new Polygon(new LinearRing(new double[] { 180, 180, 160, 160, 180 }, new double[] { 10, 20, 20, 10, 10 })),
+                new Polygon(new LinearRing(new double[] { -180, -180, -160, -160, -180 }, new double[] { 20, 10, 10, 20, 20 }))
+            )
+        );
 
         assertEquals(indexed, indexer.prepareForIndexing(polygon));
 
-        polygon = new Polygon(new LinearRing(new double[]{160, 200, 200, 160, 160}, new double[]{10, 10, 20, 20, 10}),
-            Collections.singletonList(
-                new LinearRing(new double[]{165, 165, 195, 195, 165}, new double[]{12, 18, 18, 12, 12})));
+        polygon = new Polygon(
+            new LinearRing(new double[] { 160, 200, 200, 160, 160 }, new double[] { 10, 10, 20, 20, 10 }),
+            Collections.singletonList(new LinearRing(new double[] { 165, 165, 195, 195, 165 }, new double[] { 12, 18, 18, 12, 12 }))
+        );
 
-        indexed = new MultiPolygon(Arrays.asList(
-            new Polygon(new LinearRing(
-                new double[]{180, 180, 165, 165, 180, 180, 160, 160, 180}, new double[]{10, 12, 12, 18, 18, 20, 20, 10, 10}
-            )),
-            new Polygon(new LinearRing(
-                new double[]{-180, -180, -160, -160, -180, -180, -165, -165, -180}, new double[]{12, 10, 10, 20, 20, 18, 18, 12, 12}
-            ))
-        ));
+        indexed = new MultiPolygon(
+            Arrays.asList(
+                new Polygon(
+                    new LinearRing(
+                        new double[] { 180, 180, 165, 165, 180, 180, 160, 160, 180 },
+                        new double[] { 10, 12, 12, 18, 18, 20, 20, 10, 10 }
+                    )
+                ),
+                new Polygon(
+                    new LinearRing(
+                        new double[] { -180, -180, -160, -160, -180, -180, -165, -165, -180 },
+                        new double[] { 12, 10, 10, 20, 20, 18, 18, 12, 12 }
+                    )
+                )
+            )
+        );
 
         assertEquals(indexed, indexer.prepareForIndexing(polygon));
     }
 
     public void testPolygonOrientation() throws IOException, ParseException {
-        assertEquals(expected("POLYGON ((160 10, -160 10, -160 0, 160 0, 160 10))"), // current algorithm shifts edges to left
-            actual("POLYGON ((160 0, 160 10, -160 10, -160 0, 160 0))", randomBoolean())); // In WKT the orientation is ignored
+        assertEquals(
+            expected("POLYGON ((160 10, -160 10, -160 0, 160 0, 160 10))"), // current algorithm shifts edges to left
+            actual("POLYGON ((160 0, 160 10, -160 10, -160 0, 160 0))", randomBoolean())
+        ); // In WKT the orientation is ignored
 
-        assertEquals(expected("POLYGON ((20 10, -20 10, -20 0, 20 0, 20 10)))"),
-            actual("POLYGON ((20 0, 20 10, -20 10, -20 0, 20 0))", randomBoolean()));
+        assertEquals(
+            expected("POLYGON ((20 10, -20 10, -20 0, 20 0, 20 10)))"),
+            actual("POLYGON ((20 0, 20 10, -20 10, -20 0, 20 0))", randomBoolean())
+        );
 
-        assertEquals(expected("POLYGON ((160 10, -160 10, -160 0, 160 0, 160 10))"),
-            actual(polygon(null, 160, 0, 160, 10, -160, 10, -160, 0, 160, 0), true));
+        assertEquals(
+            expected("POLYGON ((160 10, -160 10, -160 0, 160 0, 160 10))"),
+            actual(polygon(null, 160, 0, 160, 10, -160, 10, -160, 0, 160, 0), true)
+        );
 
-        assertEquals(expected("MULTIPOLYGON (((180 0, 180 10, 160 10, 160 0, 180 0)), ((-180 10, -180 0, -160 0, -160 10, -180 10)))"),
-            actual(polygon(randomBoolean() ? null : false, 160, 0, 160, 10, -160, 10, -160, 0, 160, 0), false));
+        assertEquals(
+            expected("MULTIPOLYGON (((180 0, 180 10, 160 10, 160 0, 180 0)), ((-180 10, -180 0, -160 0, -160 10, -180 10)))"),
+            actual(polygon(randomBoolean() ? null : false, 160, 0, 160, 10, -160, 10, -160, 0, 160, 0), false)
+        );
 
-        assertEquals(expected("MULTIPOLYGON (((180 0, 180 10, 160 10, 160 0, 180 0)), ((-180 10, -180 0, -160 0, -160 10, -180 10)))"),
-            actual(polygon(false, 160, 0, 160, 10, -160, 10, -160, 0, 160, 0), true));
+        assertEquals(
+            expected("MULTIPOLYGON (((180 0, 180 10, 160 10, 160 0, 180 0)), ((-180 10, -180 0, -160 0, -160 10, -180 10)))"),
+            actual(polygon(false, 160, 0, 160, 10, -160, 10, -160, 0, 160, 0), true)
+        );
 
-        assertEquals(expected("POLYGON ((20 10, -20 10, -20 0, 20 0, 20 10)))"),
-            actual(polygon(randomBoolean() ? null : randomBoolean(), 20, 0, 20, 10, -20, 10, -20, 0, 20, 0), randomBoolean()));
+        assertEquals(
+            expected("POLYGON ((20 10, -20 10, -20 0, 20 0, 20 10)))"),
+            actual(polygon(randomBoolean() ? null : randomBoolean(), 20, 0, 20, 10, -20, 10, -20, 0, 20, 0), randomBoolean())
+        );
     }
 
     public void testInvalidSelfCrossingPolygon() {
-        Polygon polygon = new Polygon(new LinearRing(
-            new double[]{0, 0, 1, 0.5, 1.5, 1, 2, 2, 0}, new double[]{0, 2, 1.9, 1.8, 1.8, 1.9, 2, 0, 0}
-        ));
+        Polygon polygon = new Polygon(
+            new LinearRing(new double[] { 0, 0, 1, 0.5, 1.5, 1, 2, 2, 0 }, new double[] { 0, 2, 1.9, 1.8, 1.8, 1.9, 2, 0, 0 })
+        );
         Exception e = expectThrows(IllegalArgumentException.class, () -> indexer.prepareForIndexing(polygon));
         assertThat(e.getMessage(), containsString("Self-intersection at or near point ["));
         assertThat(e.getMessage(), not(containsString("NaN")));
     }
 
     public void testCrossingDateline() {
-        Polygon polygon = new Polygon(new LinearRing(
-            new double[]{170, -170, -170, 170, 170}, new double[]{-10, -10, 10, 10, -10}
-        ));
+        Polygon polygon = new Polygon(new LinearRing(new double[] { 170, -170, -170, 170, 170 }, new double[] { -10, -10, 10, 10, -10 }));
         Geometry geometry = indexer.prepareForIndexing(polygon);
         assertTrue(geometry instanceof MultiPolygon);
-        polygon = new Polygon(new LinearRing(
-            new double[]{180, -170, -170, 170, 180}, new double[]{-10, -5, 15, -15, -10}
-        ));
+        polygon = new Polygon(new LinearRing(new double[] { 180, -170, -170, 170, 180 }, new double[] { -10, -5, 15, -15, -10 }));
         geometry = indexer.prepareForIndexing(polygon);
         assertTrue(geometry instanceof MultiPolygon);
     }
@@ -476,7 +532,6 @@ public class GeometryIndexerTests extends ESTestCase {
         Geometry shape = parseGeometry(wkt, rightOrientation);
         return new GeoShapeIndexer(true, "test").prepareForIndexing(shape);
     }
-
 
     private Geometry actual(XContentBuilder geoJson, boolean rightOrientation) throws IOException, ParseException {
         Geometry shape = parseGeometry(geoJson, rightOrientation);

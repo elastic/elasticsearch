@@ -17,8 +17,6 @@ import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentSubParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -38,11 +36,15 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.script.field.DelegateDocValuesField;
+import org.elasticsearch.script.field.DocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentSubParser;
 import org.elasticsearch.xpack.aggregatemetric.aggregations.support.AggregateMetricsValuesSourceType;
 import org.elasticsearch.xpack.aggregatemetric.fielddata.IndexAggregateDoubleMetricFieldData;
 import org.elasticsearch.xpack.aggregatemetric.fielddata.LeafAggregateDoubleMetricFieldData;
@@ -419,9 +421,9 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                         }
 
                         @Override
-                        public ScriptDocValues<?> getScriptValues() {
+                        public DocValuesField<?> getScriptField(String name) {
                             // getAggregateMetricValues returns all metric as doubles, including `value_count`
-                            return new ScriptDocValues.Doubles(getAggregateMetricValues(defaultMetric));
+                            return new DelegateDocValuesField(new ScriptDocValues.Doubles(getAggregateMetricValues(defaultMetric)), name);
                         }
 
                         @Override

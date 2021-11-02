@@ -111,6 +111,14 @@ field types are all described as the `keyword` type family.
 `aggregatable`::
   Whether this field can be aggregated on all indices.
 
+`time_series_dimension`::
+  experimental:[]
+  Whether this field is used as a time series dimension.
+
+`time_series_metric`::
+  experimental:[]
+  Contains metric type if this fields is used as a time series metrics, absent if the field is not used as metric.
+
 `indices`::
   The list of indices where this field has the same type family, or null if all indices
   have the same type family for the field.
@@ -122,6 +130,16 @@ field types are all described as the `keyword` type family.
 `non_aggregatable_indices`::
   The list of indices where this field is not aggregatable, or null if all
   indices have the same definition for the field.
+
+`non_dimension_indices`::
+  experimental:[]
+  If this list is present in response then some indices have the field marked as a dimension and other indices, the
+  ones in this list, do not.
+
+`metric_conflicts_indices`::
+  experimental:[]
+  The list of indices where this field is present if these indices don't have the same `time_series_metric` value for
+  this field.
 
 `meta`::
   Merged metadata across all indices as a map of string keys to arrays of values.
@@ -179,7 +197,6 @@ The API returns the following response:
         "metadata_field": false,
         "searchable": true,
         "aggregatable": false
-
       }
     }
   }

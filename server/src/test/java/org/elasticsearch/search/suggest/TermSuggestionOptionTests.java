@@ -10,11 +10,11 @@ package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.suggest.term.TermSuggestion.Entry.Option;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
@@ -67,8 +67,7 @@ public class TermSuggestionOptionTests extends ESTestCase {
     public void testToXContent() throws IOException {
         Option option = new Option(new Text("someText"), 100, 1.3f);
         BytesReference xContent = toXContent(option, XContentType.JSON, randomBoolean());
-        assertEquals("{\"text\":\"someText\",\"score\":1.3,\"freq\":100}"
-                   , xContent.utf8ToString());
+        assertEquals("{\"text\":\"someText\",\"score\":1.3,\"freq\":100}", xContent.utf8ToString());
     }
 
 }

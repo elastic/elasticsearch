@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
 import java.io.IOException;
@@ -24,31 +24,35 @@ public class FillMaskConfigUpdateTests extends AbstractBWCSerializationTestCase<
 
     public void testFromMap() {
         FillMaskConfigUpdate expected = new FillMaskConfigUpdate(3, "ml-results");
-        Map<String, Object> config = new HashMap<>(){{
-            put(NlpConfig.RESULTS_FIELD.getPreferredName(), "ml-results");
-            put(NlpConfig.NUM_TOP_CLASSES.getPreferredName(), 3);
-        }};
+        Map<String, Object> config = new HashMap<>() {
+            {
+                put(NlpConfig.RESULTS_FIELD.getPreferredName(), "ml-results");
+                put(NlpConfig.NUM_TOP_CLASSES.getPreferredName(), 3);
+            }
+        };
         assertThat(FillMaskConfigUpdate.fromMap(config), equalTo(expected));
     }
 
     public void testFromMapWithUnknownField() {
-        ElasticsearchException ex = expectThrows(ElasticsearchException.class,
-            () -> FillMaskConfigUpdate.fromMap(Collections.singletonMap("some_key", 1)));
+        ElasticsearchException ex = expectThrows(
+            ElasticsearchException.class,
+            () -> FillMaskConfigUpdate.fromMap(Collections.singletonMap("some_key", 1))
+        );
         assertThat(ex.getMessage(), equalTo("Unrecognized fields [some_key]."));
     }
 
     public void testIsNoop() {
         assertTrue(new FillMaskConfigUpdate.Builder().build().isNoop(FillMaskConfigTests.createRandom()));
 
-        assertFalse(new FillMaskConfigUpdate.Builder()
-            .setResultsField("foo")
-            .build()
-            .isNoop(new FillMaskConfig.Builder().setResultsField("bar").build()));
+        assertFalse(
+            new FillMaskConfigUpdate.Builder().setResultsField("foo")
+                .build()
+                .isNoop(new FillMaskConfig.Builder().setResultsField("bar").build())
+        );
 
-        assertTrue(new FillMaskConfigUpdate.Builder()
-            .setNumTopClasses(3)
-            .build()
-            .isNoop(new FillMaskConfig.Builder().setNumTopClasses(3).build()));
+        assertTrue(
+            new FillMaskConfigUpdate.Builder().setNumTopClasses(3).build().isNoop(new FillMaskConfig.Builder().setNumTopClasses(3).build())
+        );
     }
 
     public void testApply() {
@@ -56,22 +60,16 @@ public class FillMaskConfigUpdateTests extends AbstractBWCSerializationTestCase<
 
         assertThat(originalConfig, equalTo(new FillMaskConfigUpdate.Builder().build().apply(originalConfig)));
 
-        assertThat(new FillMaskConfig.Builder(originalConfig)
-                .setResultsField("ml-results")
-                .build(),
-            equalTo(new FillMaskConfigUpdate.Builder()
-                .setResultsField("ml-results")
-                .build()
-                .apply(originalConfig)
-            ));
-        assertThat(new FillMaskConfig.Builder(originalConfig)
-                .setNumTopClasses(originalConfig.getNumTopClasses() +1)
-                .build(),
-            equalTo(new FillMaskConfigUpdate.Builder()
-                .setNumTopClasses(originalConfig.getNumTopClasses() +1)
-                .build()
-                .apply(originalConfig)
-            ));
+        assertThat(
+            new FillMaskConfig.Builder(originalConfig).setResultsField("ml-results").build(),
+            equalTo(new FillMaskConfigUpdate.Builder().setResultsField("ml-results").build().apply(originalConfig))
+        );
+        assertThat(
+            new FillMaskConfig.Builder(originalConfig).setNumTopClasses(originalConfig.getNumTopClasses() + 1).build(),
+            equalTo(
+                new FillMaskConfigUpdate.Builder().setNumTopClasses(originalConfig.getNumTopClasses() + 1).build().apply(originalConfig)
+            )
+        );
     }
 
     @Override

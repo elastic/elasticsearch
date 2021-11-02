@@ -12,13 +12,13 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -46,7 +46,8 @@ public final class FetchSourcePhase implements FetchSubPhase {
                 if (fetchContext.getSearchExecutionContext().isSourceEnabled() == false) {
                     if (containsFilters(fetchSourceContext)) {
                         throw new IllegalArgumentException(
-                            "unable to fetch fields from _source field: _source is disabled in the mappings for index [" + index + "]");
+                            "unable to fetch fields from _source field: _source is disabled in the mappings for index [" + index + "]"
+                        );
                     }
                     return;
                 }

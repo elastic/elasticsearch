@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
 import java.io.IOException;
@@ -25,33 +25,31 @@ public class TextEmbeddingConfigUpdateTests extends AbstractBWCSerializationTest
 
     public void testFromMap() {
         TextEmbeddingConfigUpdate expected = new TextEmbeddingConfigUpdate("ml-results");
-        Map<String, Object> config = new HashMap<>(){{
-            put(NlpConfig.RESULTS_FIELD.getPreferredName(), "ml-results");
-        }};
+        Map<String, Object> config = new HashMap<>() {
+            {
+                put(NlpConfig.RESULTS_FIELD.getPreferredName(), "ml-results");
+            }
+        };
         assertThat(TextEmbeddingConfigUpdate.fromMap(config), equalTo(expected));
     }
 
     public void testFromMapWithUnknownField() {
-        ElasticsearchException ex = expectThrows(ElasticsearchException.class,
-            () -> TextEmbeddingConfigUpdate.fromMap(Collections.singletonMap("some_key", 1)));
+        ElasticsearchException ex = expectThrows(
+            ElasticsearchException.class,
+            () -> TextEmbeddingConfigUpdate.fromMap(Collections.singletonMap("some_key", 1))
+        );
         assertThat(ex.getMessage(), equalTo("Unrecognized fields [some_key]."));
     }
-
 
     public void testApply() {
         TextEmbeddingConfig originalConfig = TextEmbeddingConfigTests.createRandom();
 
         assertThat(originalConfig, sameInstance(new TextEmbeddingConfigUpdate.Builder().build().apply(originalConfig)));
 
-        assertThat(new TextEmbeddingConfig(
-            originalConfig.getVocabularyConfig(),
-            originalConfig.getTokenization(),
-            "ml-results"),
-            equalTo(new TextEmbeddingConfigUpdate.Builder()
-                .setResultsField("ml-results")
-                .build()
-                .apply(originalConfig)
-            ));
+        assertThat(
+            new TextEmbeddingConfig(originalConfig.getVocabularyConfig(), originalConfig.getTokenization(), "ml-results"),
+            equalTo(new TextEmbeddingConfigUpdate.Builder().setResultsField("ml-results").build().apply(originalConfig))
+        );
     }
 
     @Override

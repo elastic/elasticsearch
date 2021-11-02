@@ -5,7 +5,6 @@
  * 2.0.
  */
 
-
 package org.elasticsearch.xpack.vectors.query;
 
 import org.apache.lucene.index.BinaryDocValues;
@@ -39,7 +38,6 @@ public class BinaryDenseVectorScriptDocValues extends DenseVectorScriptDocValues
         }
     }
 
-
     @Override
     public float[] getVectorValue() {
         VectorEncoderDecoder.decodeDenseVector(value, vector);
@@ -58,11 +56,6 @@ public class BinaryDenseVectorScriptDocValues extends DenseVectorScriptDocValues
         } else {
             return 1;
         }
-    }
-
-    @Override
-    public BytesRef getNonPrimitiveValue() {
-        return value;
     }
 
     @Override

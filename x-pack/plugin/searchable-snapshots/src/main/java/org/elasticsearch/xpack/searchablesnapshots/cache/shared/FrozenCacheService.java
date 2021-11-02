@@ -72,7 +72,7 @@ public class FrozenCacheService implements Releasable {
         SHARED_CACHE_SETTINGS_PREFIX + "range_size",
         ByteSizeValue.ofMb(16).getStringRep(),
         s -> ByteSizeValue.parseBytesSizeValue(s, SHARED_CACHE_SETTINGS_PREFIX + "range_size"),
-        getPageSizeAlignedByteSizeValueValidator(SHARED_CACHE_SETTINGS_PREFIX + "range_size"),
+        getPositivePageSizeAlignedByteSizeValueValidator(SHARED_CACHE_SETTINGS_PREFIX + "range_size"),
         Setting.Property.NodeScope
     );
 
@@ -80,7 +80,7 @@ public class FrozenCacheService implements Releasable {
         SHARED_CACHE_SETTINGS_PREFIX + "recovery_range_size",
         ByteSizeValue.ofKb(128L).getStringRep(),
         s -> ByteSizeValue.parseBytesSizeValue(s, SHARED_CACHE_SETTINGS_PREFIX + "recovery_range_size"),
-        getPageSizeAlignedByteSizeValueValidator(SHARED_CACHE_SETTINGS_PREFIX + "recovery_range_size"),
+        getPositivePageSizeAlignedByteSizeValueValidator(SHARED_CACHE_SETTINGS_PREFIX + "recovery_range_size"),
         Setting.Property.NodeScope
     );
 
@@ -88,7 +88,7 @@ public class FrozenCacheService implements Releasable {
         SHARED_CACHE_SETTINGS_PREFIX + "region_size",
         SHARED_CACHE_RANGE_SIZE_SETTING,
         s -> ByteSizeValue.parseBytesSizeValue(s, SHARED_CACHE_SETTINGS_PREFIX + "region_size"),
-        getPageSizeAlignedByteSizeValueValidator(SHARED_CACHE_SETTINGS_PREFIX + "region_size"),
+        getPositivePageSizeAlignedByteSizeValueValidator(SHARED_CACHE_SETTINGS_PREFIX + "region_size"),
         Setting.Property.NodeScope
     );
 
@@ -100,6 +100,15 @@ public class FrozenCacheService implements Releasable {
             if (value.getBytes() % SharedBytes.PAGE_SIZE != 0L) {
                 throw new SettingsException("setting [{}] must be multiple of {}", settingName, SharedBytes.PAGE_SIZE);
             }
+        };
+    }
+
+    private static Setting.Validator<ByteSizeValue> getPositivePageSizeAlignedByteSizeValueValidator(String settingName) {
+        return value -> {
+            if (value.getBytes() <= 0L) {
+                throw new SettingsException("setting [{}] must be greater than zero", settingName);
+            }
+            getPageSizeAlignedByteSizeValueValidator(settingName).validate(value);
         };
     }
 
@@ -134,6 +143,17 @@ public class FrozenCacheService implements Releasable {
                             SHARED_CACHE_SETTINGS_PREFIX + "size",
                             value.getStringRep(),
                             roles.stream().map(DiscoveryNodeRole::roleName).collect(Collectors.joining(","))
+                        );
+                    }
+
+                    @SuppressWarnings("unchecked")
+                    final List<String> dataPaths = (List<String>) settings.get(Environment.PATH_DATA_SETTING);
+                    if (dataPaths.size() > 1) {
+                        throw new SettingsException(
+                            "setting [{}={}] is not permitted on nodes with multiple data paths [{}]",
+                            SNAPSHOT_CACHE_SIZE_SETTING.getKey(),
+                            value.getStringRep(),
+                            String.join(",", dataPaths)
                         );
                     }
                 }
@@ -250,9 +270,9 @@ public class FrozenCacheService implements Releasable {
         this.currentTimeSupplier = threadPool::relativeTimeInMillis;
         long totalFsSize;
         try {
-            totalFsSize = FsProbe.getTotal(Environment.getFileStore(environment.nodeDataPath()));
+            totalFsSize = FsProbe.getTotal(Environment.getFileStore(environment.nodeDataPaths()[0]));
         } catch (IOException e) {
-            throw new IllegalStateException("unable to probe size of filesystem [" + environment.nodeDataPath() + "]");
+            throw new IllegalStateException("unable to probe size of filesystem [" + environment.nodeDataPaths()[0] + "]");
         }
         this.cacheSize = calculateCacheSize(settings, totalFsSize);
         final long regionSize = SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(settings).getBytes();

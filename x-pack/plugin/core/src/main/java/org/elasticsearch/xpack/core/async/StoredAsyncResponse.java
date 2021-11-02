@@ -11,8 +11,8 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -21,7 +21,9 @@ import java.util.Objects;
  * Internal class for temporary storage of eql search results
  */
 public class StoredAsyncResponse<R extends Writeable> extends ActionResponse
-    implements AsyncResponse<StoredAsyncResponse<R>>, ToXContentObject {
+    implements
+        AsyncResponse<StoredAsyncResponse<R>>,
+        ToXContentObject {
     private final R response;
     private final Exception exception;
     private final long expirationTimeMillis;
@@ -77,8 +79,8 @@ public class StoredAsyncResponse<R extends Writeable> extends ActionResponse
         if (o == null || getClass() != o.getClass()) return false;
         StoredAsyncResponse<?> response1 = (StoredAsyncResponse<?>) o;
         if (exception != null && response1.exception != null) {
-            if (Objects.equals(exception.getClass(), response1.exception.getClass()) == false ||
-                Objects.equals(exception.getMessage(), response1.exception.getMessage()) == false) {
+            if (Objects.equals(exception.getClass(), response1.exception.getClass()) == false
+                || Objects.equals(exception.getMessage(), response1.exception.getMessage()) == false) {
                 return false;
             }
         } else {
@@ -86,14 +88,17 @@ public class StoredAsyncResponse<R extends Writeable> extends ActionResponse
                 return false;
             }
         }
-        return expirationTimeMillis == response1.expirationTimeMillis &&
-            Objects.equals(response, response1.response);
+        return expirationTimeMillis == response1.expirationTimeMillis && Objects.equals(response, response1.response);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(response, exception == null ? null : exception.getClass(),
-            exception == null ? null : exception.getMessage(), expirationTimeMillis);
+        return Objects.hash(
+            response,
+            exception == null ? null : exception.getClass(),
+            exception == null ? null : exception.getMessage(),
+            expirationTimeMillis
+        );
     }
 
     @Override

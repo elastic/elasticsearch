@@ -41,9 +41,9 @@ import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -60,6 +60,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
+@SuppressWarnings("removal")
 public class CCRIT extends ESRestHighLevelClientTestCase {
 
     @Before
@@ -81,8 +82,7 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         assertThat(putFollowResponse.isFollowIndexShardsAcked(), is(true));
         assertThat(putFollowResponse.isIndexFollowingStarted(), is(true));
 
-        IndexRequest indexRequest = new IndexRequest("leader")
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+        IndexRequest indexRequest = new IndexRequest("leader").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .source("{}", XContentType.JSON);
         highLevelClient().index(indexRequest, RequestOptions.DEFAULT);
 
@@ -93,8 +93,7 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         try {
             assertBusy(() -> {
                 FollowInfoRequest followInfoRequest = new FollowInfoRequest("follower");
-                FollowInfoResponse followInfoResponse =
-                    execute(followInfoRequest, ccrClient::getFollowInfo, ccrClient::getFollowInfoAsync);
+                FollowInfoResponse followInfoResponse = execute(followInfoRequest, ccrClient::getFollowInfo, ccrClient::getFollowInfoAsync);
                 assertThat(followInfoResponse.getInfos().size(), equalTo(1));
                 assertThat(followInfoResponse.getInfos().get(0).getFollowerIndex(), equalTo("follower"));
                 assertThat(followInfoResponse.getInfos().get(0).getLeaderIndex(), equalTo("leader"));
@@ -102,8 +101,11 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
                 assertThat(followInfoResponse.getInfos().get(0).getStatus(), equalTo(FollowInfoResponse.Status.ACTIVE));
 
                 FollowStatsRequest followStatsRequest = new FollowStatsRequest("follower");
-                FollowStatsResponse followStatsResponse =
-                    execute(followStatsRequest, ccrClient::getFollowStats, ccrClient::getFollowStatsAsync);
+                FollowStatsResponse followStatsResponse = execute(
+                    followStatsRequest,
+                    ccrClient::getFollowStats,
+                    ccrClient::getFollowStatsAsync
+                );
                 List<ShardFollowStats> shardFollowStats = followStatsResponse.getIndicesFollowStats().getShardFollowStats("follower");
                 long followerGlobalCheckpoint = shardFollowStats.stream()
                     .mapToLong(ShardFollowStats::getFollowerGlobalCheckpoint)
@@ -116,19 +118,22 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
                 assertThat(followerSearchResponse.getHits().getTotalHits().value, equalTo(1L));
 
                 GetSettingsRequest followerSettingsRequest = new GetSettingsRequest().indices("follower");
-                GetSettingsResponse followerSettingsResponse =
-                    highLevelClient().indices().getSettings(followerSettingsRequest, RequestOptions.DEFAULT);
+                GetSettingsResponse followerSettingsResponse = highLevelClient().indices()
+                    .getSettings(followerSettingsRequest, RequestOptions.DEFAULT);
                 assertThat(
                     IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(followerSettingsResponse.getIndexToSettings().get("follower")),
-                    equalTo(0));
+                    equalTo(0)
+                );
             });
         } catch (Exception e) {
             IndicesFollowStats followStats = ccrClient.getCcrStats(new CcrStatsRequest(), RequestOptions.DEFAULT).getIndicesFollowStats();
             for (Map.Entry<String, List<ShardFollowStats>> entry : followStats.getShardFollowStats().entrySet()) {
                 for (ShardFollowStats shardFollowStats : entry.getValue()) {
                     if (shardFollowStats.getFatalException() != null) {
-                        logger.warn(new ParameterizedMessage("fatal shard follow exception {}", shardFollowStats.getShardId()),
-                            shardFollowStats.getFatalException());
+                        logger.warn(
+                            new ParameterizedMessage("fatal shard follow exception {}", shardFollowStats.getShardId()),
+                            shardFollowStats.getFatalException()
+                        );
                     }
                 }
             }
@@ -146,8 +151,11 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
 
         assertBusy(() -> {
             FollowStatsRequest followStatsRequest = new FollowStatsRequest("follower");
-            FollowStatsResponse followStatsResponse =
-                execute(followStatsRequest, ccrClient::getFollowStats, ccrClient::getFollowStatsAsync);
+            FollowStatsResponse followStatsResponse = execute(
+                followStatsRequest,
+                ccrClient::getFollowStats,
+                ccrClient::getFollowStatsAsync
+            );
             List<ShardFollowStats> shardFollowStats = followStatsResponse.getIndicesFollowStats().getShardFollowStats("follower");
             long followerGlobalCheckpoint = shardFollowStats.stream()
                 .mapToLong(ShardFollowStats::getFollowerGlobalCheckpoint)
@@ -167,8 +175,7 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
 
         assertBusy(() -> {
             FollowInfoRequest followInfoRequest = new FollowInfoRequest("follower");
-            FollowInfoResponse followInfoResponse =
-                execute(followInfoRequest, ccrClient::getFollowInfo, ccrClient::getFollowInfoAsync);
+            FollowInfoResponse followInfoResponse = execute(followInfoRequest, ccrClient::getFollowInfo, ccrClient::getFollowInfoAsync);
             assertThat(followInfoResponse.getInfos().size(), equalTo(1));
             assertThat(followInfoResponse.getInfos().get(0).getFollowerIndex(), equalTo("follower"));
             assertThat(followInfoResponse.getInfos().get(0).getLeaderIndex(), equalTo("leader"));
@@ -178,8 +185,8 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
 
         // Need to close index prior to unfollowing it:
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest("follower");
-        org.elasticsearch.action.support.master.AcknowledgedResponse closeIndexReponse =
-            highLevelClient().indices().close(closeIndexRequest, RequestOptions.DEFAULT);
+        org.elasticsearch.action.support.master.AcknowledgedResponse closeIndexReponse = highLevelClient().indices()
+            .close(closeIndexRequest, RequestOptions.DEFAULT);
         assertThat(closeIndexReponse.isAcknowledged(), is(true));
 
         UnfollowRequest unfollowRequest = new UnfollowRequest("follower");
@@ -216,10 +223,18 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         AcknowledgedResponse pauseFollowResponse = execute(pauseFollowRequest, ccrClient::pauseFollow, ccrClient::pauseFollowAsync);
         assertTrue(pauseFollowResponse.isAcknowledged());
 
-        final ForgetFollowerRequest forgetFollowerRequest =
-                new ForgetFollowerRequest(clusterName, "follower", followerIndexUUID, "local_cluster", "leader");
-        final BroadcastResponse forgetFollowerResponse =
-                execute(forgetFollowerRequest, ccrClient::forgetFollower, ccrClient::forgetFollowerAsync);
+        final ForgetFollowerRequest forgetFollowerRequest = new ForgetFollowerRequest(
+            clusterName,
+            "follower",
+            followerIndexUUID,
+            "local_cluster",
+            "leader"
+        );
+        final BroadcastResponse forgetFollowerResponse = execute(
+            forgetFollowerRequest,
+            ccrClient::forgetFollower,
+            ccrClient::forgetFollowerAsync
+        );
         assertThat(forgetFollowerResponse.shards().total(), equalTo(numberOfShards));
         assertThat(forgetFollowerResponse.shards().successful(), equalTo(numberOfShards));
         assertThat(forgetFollowerResponse.shards().skipped(), equalTo(0));
@@ -245,22 +260,26 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
 
     public void testAutoFollowing() throws Exception {
         CcrClient ccrClient = highLevelClient().ccr();
-        PutAutoFollowPatternRequest putAutoFollowPatternRequest = new PutAutoFollowPatternRequest("pattern1",
-                "local_cluster",
-                Collections.singletonList("logs-*"),
-                Collections.singletonList("logs-excluded"));
+        PutAutoFollowPatternRequest putAutoFollowPatternRequest = new PutAutoFollowPatternRequest(
+            "pattern1",
+            "local_cluster",
+            Collections.singletonList("logs-*"),
+            Collections.singletonList("logs-excluded")
+        );
         putAutoFollowPatternRequest.setFollowIndexNamePattern("copy-{{leader_index}}");
         final int followerNumberOfReplicas = randomIntBetween(0, 4);
-        final Settings autoFollowerPatternSettings =
-            Settings.builder().put("index.number_of_replicas", followerNumberOfReplicas).build();
+        final Settings autoFollowerPatternSettings = Settings.builder().put("index.number_of_replicas", followerNumberOfReplicas).build();
         putAutoFollowPatternRequest.setSettings(autoFollowerPatternSettings);
-        AcknowledgedResponse putAutoFollowPatternResponse =
-            execute(putAutoFollowPatternRequest, ccrClient::putAutoFollowPattern, ccrClient::putAutoFollowPatternAsync);
+        AcknowledgedResponse putAutoFollowPatternResponse = execute(
+            putAutoFollowPatternRequest,
+            ccrClient::putAutoFollowPattern,
+            ccrClient::putAutoFollowPatternAsync
+        );
         assertThat(putAutoFollowPatternResponse.isAcknowledged(), is(true));
 
         CreateIndexRequest createExcludedIndexRequest = new CreateIndexRequest("logs-excluded");
-        CreateIndexResponse createExcludedIndexResponse =
-            highLevelClient().indices().create(createExcludedIndexRequest, RequestOptions.DEFAULT);
+        CreateIndexResponse createExcludedIndexResponse = highLevelClient().indices()
+            .create(createExcludedIndexRequest, RequestOptions.DEFAULT);
         assertThat(createExcludedIndexResponse.isAcknowledged(), is(true));
 
         CreateIndexRequest createIndexRequest = new CreateIndexRequest("logs-20200101");
@@ -277,13 +296,18 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         assertThat(indexExists("copy-logs-20200101"), is(true));
         assertThat(
             getIndexSettingsAsMap("copy-logs-20200101"),
-            hasEntry("index.number_of_replicas", Integer.toString(followerNumberOfReplicas)));
+            hasEntry("index.number_of_replicas", Integer.toString(followerNumberOfReplicas))
+        );
         assertThat(indexExists("copy-logs-excluded"), is(false));
 
-        GetAutoFollowPatternRequest getAutoFollowPatternRequest =
-            randomBoolean() ? new GetAutoFollowPatternRequest("pattern1") : new GetAutoFollowPatternRequest();
-        GetAutoFollowPatternResponse getAutoFollowPatternResponse =
-            execute(getAutoFollowPatternRequest, ccrClient::getAutoFollowPattern, ccrClient::getAutoFollowPatternAsync);
+        GetAutoFollowPatternRequest getAutoFollowPatternRequest = randomBoolean()
+            ? new GetAutoFollowPatternRequest("pattern1")
+            : new GetAutoFollowPatternRequest();
+        GetAutoFollowPatternResponse getAutoFollowPatternResponse = execute(
+            getAutoFollowPatternRequest,
+            ccrClient::getAutoFollowPattern,
+            ccrClient::getAutoFollowPatternAsync
+        );
         assertThat(getAutoFollowPatternResponse.getPatterns().size(), equalTo(1));
         GetAutoFollowPatternResponse.Pattern pattern = getAutoFollowPatternResponse.getPatterns().get("pattern1");
         assertThat(pattern, notNullValue());
@@ -295,8 +319,11 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
 
         // Cleanup:
         final DeleteAutoFollowPatternRequest deleteAutoFollowPatternRequest = new DeleteAutoFollowPatternRequest("pattern1");
-        AcknowledgedResponse deleteAutoFollowPatternResponse =
-            execute(deleteAutoFollowPatternRequest, ccrClient::deleteAutoFollowPattern, ccrClient::deleteAutoFollowPatternAsync);
+        AcknowledgedResponse deleteAutoFollowPatternResponse = execute(
+            deleteAutoFollowPatternRequest,
+            ccrClient::deleteAutoFollowPattern,
+            ccrClient::deleteAutoFollowPatternAsync
+        );
         assertThat(deleteAutoFollowPatternResponse.isAcknowledged(), is(true));
 
         PauseFollowRequest pauseFollowRequest = new PauseFollowRequest("copy-logs-20200101");

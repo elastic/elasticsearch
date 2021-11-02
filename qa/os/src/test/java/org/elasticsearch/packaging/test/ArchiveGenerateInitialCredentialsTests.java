@@ -8,7 +8,6 @@
 
 package org.elasticsearch.packaging.test;
 
-import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.ServerUtils;
@@ -45,15 +44,10 @@ public class ArchiveGenerateInitialCredentialsTests extends PackagingTestCase {
     }
 
     public void test10Install() throws Exception {
-        // security config tool would run as administrator and change the owner of the config file, which is elasticsearch
-        // We can re-enable this when #77231 is merged, but the rest of the tests in class are also currently muted on windows
-        assumeTrue("Don't run on windows", distribution.platform != Distribution.Platform.WINDOWS);
         installation = installArchive(sh, distribution());
         // Enable security for these tests only where it is necessary, until we can enable it for all
-        // TODO: Remove this when https://github.com/elastic/elasticsearch/pull/77231 is merged
         ServerUtils.enableSecurityFeatures(installation);
         verifyArchiveInstallation(installation, distribution());
-        installation.executables().securityConfigTool.run("");
     }
 
     public void test20NoAutoGenerationWhenAutoConfigurationDisabled() throws Exception {
@@ -88,12 +82,7 @@ public class ArchiveGenerateInitialCredentialsTests extends PackagingTestCase {
         assertThat(parseElasticPassword(result.stdout), notNullValue());
         assertThat(parseKibanaToken(result.stdout), notNullValue());
         assertThat(parseFingerprint(result.stdout), notNullValue());
-        String response = ServerUtils.makeRequest(
-            Request.Get("https://localhost:9200"),
-            "elastic",
-            parseElasticPassword(result.stdout),
-            ServerUtils.getCaCert(installation.config)
-        );
+        String response = makeRequestAsElastic("https://localhost:9200", parseElasticPassword(result.stdout));
         assertThat(response, containsString("You Know, for Search"));
     }
 

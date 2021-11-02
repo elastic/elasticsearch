@@ -12,9 +12,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -68,8 +68,10 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
 
         builder.startObject("fields");
         {
-            final List<Map.Entry<String, PerFieldUsageStats>> sortedEntries =
-                stats.entrySet().stream().sorted(Map.Entry.comparingByKey()).collect(Collectors.toList());
+            final List<Map.Entry<String, PerFieldUsageStats>> sortedEntries = stats.entrySet()
+                .stream()
+                .sorted(Map.Entry.comparingByKey())
+                .collect(Collectors.toList());
             for (Map.Entry<String, PerFieldUsageStats> entry : sortedEntries) {
                 builder.startObject(entry.getKey());
                 entry.getValue().toXContent(builder, params);
@@ -140,8 +142,21 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
         private final long termVectors;
         private final long points;
 
-        public PerFieldUsageStats(long any, long proximity, long terms, long postings, long termFrequencies, long positions, long offsets,
-                                  long docValues, long storedFields, long norms, long payloads, long termVectors, long points) {
+        public PerFieldUsageStats(
+            long any,
+            long proximity,
+            long terms,
+            long postings,
+            long termFrequencies,
+            long positions,
+            long offsets,
+            long docValues,
+            long storedFields,
+            long norms,
+            long payloads,
+            long termVectors,
+            long points
+        ) {
             this.any = any;
             this.proximity = proximity;
             this.terms = terms;
@@ -171,7 +186,8 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
                 norms + other.norms,
                 payloads + other.payloads,
                 termVectors + other.termVectors,
-                points + other.points);
+                points + other.points
+            );
         }
 
         public PerFieldUsageStats(StreamInput in) throws IOException {

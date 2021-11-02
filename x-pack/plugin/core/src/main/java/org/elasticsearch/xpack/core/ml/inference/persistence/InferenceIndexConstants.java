@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.ml.inference.persistence;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 /**
@@ -43,7 +43,8 @@ public final class InferenceIndexConstants {
         return TemplateUtils.loadTemplate(
             "/org/elasticsearch/xpack/core/ml/inference_index_mappings.json",
             Version.CURRENT.toString(),
-            MAPPINGS_VERSION_VARIABLE);
+            MAPPINGS_VERSION_VARIABLE
+        );
     }
 
     public static String nativeDefinitionStore() {

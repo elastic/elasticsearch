@@ -6,14 +6,14 @@
  */
 package org.elasticsearch.xpack.ml.inference.persistence;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -46,14 +46,20 @@ public class TrainedModelDefinitionDoc implements ToXContentObject {
     public static final ObjectParser<TrainedModelDefinitionDoc.Builder, Void> STRICT_PARSER = createParser(false);
 
     private static ObjectParser<TrainedModelDefinitionDoc.Builder, Void> createParser(boolean ignoreUnknownFields) {
-        ObjectParser<TrainedModelDefinitionDoc.Builder, Void> parser = new ObjectParser<>(NAME,
+        ObjectParser<TrainedModelDefinitionDoc.Builder, Void> parser = new ObjectParser<>(
+            NAME,
             ignoreUnknownFields,
-            TrainedModelDefinitionDoc.Builder::new);
+            TrainedModelDefinitionDoc.Builder::new
+        );
         parser.declareString((a, b) -> {}, InferenceIndexConstants.DOC_TYPE);  // type is hard coded but must be parsed
         parser.declareString(TrainedModelDefinitionDoc.Builder::setModelId, TrainedModelConfig.MODEL_ID);
         parser.declareString(TrainedModelDefinitionDoc.Builder::setCompressedString, DEFINITION);
-        parser.declareField(TrainedModelDefinitionDoc.Builder::setBinaryData, (p, c) -> new BytesArray(p.binaryValue()),
-            BINARY_DEFINITION, ObjectParser.ValueType.VALUE_OBJECT_ARRAY);
+        parser.declareField(
+            TrainedModelDefinitionDoc.Builder::setBinaryData,
+            (p, c) -> new BytesArray(p.binaryValue()),
+            BINARY_DEFINITION,
+            ObjectParser.ValueType.VALUE_OBJECT_ARRAY
+        );
         parser.declareInt(TrainedModelDefinitionDoc.Builder::setDocNum, DOC_NUM);
         parser.declareInt(TrainedModelDefinitionDoc.Builder::setCompressionVersion, COMPRESSION_VERSION);
         parser.declareLong(TrainedModelDefinitionDoc.Builder::setDefinitionLength, DEFINITION_LENGTH);
@@ -80,13 +86,15 @@ public class TrainedModelDefinitionDoc implements ToXContentObject {
     private final int compressionVersion;
     private final boolean eos;
 
-    private TrainedModelDefinitionDoc(BytesReference binaryData,
-                                      String modelId,
-                                      int docNum,
-                                      Long totalDefinitionLength,
-                                      long definitionLength,
-                                      int compressionVersion,
-                                      boolean eos) {
+    private TrainedModelDefinitionDoc(
+        BytesReference binaryData,
+        String modelId,
+        int docNum,
+        Long totalDefinitionLength,
+        long definitionLength,
+        int compressionVersion,
+        boolean eos
+    ) {
         this.binaryData = ExceptionsHelper.requireNonNull(binaryData, BINARY_DEFINITION);
         this.modelId = ExceptionsHelper.requireNonNull(modelId, TrainedModelConfig.MODEL_ID);
         if (docNum < 0) {
@@ -164,13 +172,13 @@ public class TrainedModelDefinitionDoc implements ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         TrainedModelDefinitionDoc that = (TrainedModelDefinitionDoc) o;
-        return Objects.equals(modelId, that.modelId) &&
-            Objects.equals(docNum, that.docNum) &&
-            Objects.equals(definitionLength, that.definitionLength) &&
-            Objects.equals(totalDefinitionLength, that.totalDefinitionLength) &&
-            Objects.equals(compressionVersion, that.compressionVersion) &&
-            Objects.equals(eos, that.eos) &&
-            Objects.equals(binaryData, that.binaryData);
+        return Objects.equals(modelId, that.modelId)
+            && Objects.equals(docNum, that.docNum)
+            && Objects.equals(definitionLength, that.definitionLength)
+            && Objects.equals(totalDefinitionLength, that.totalDefinitionLength)
+            && Objects.equals(compressionVersion, that.compressionVersion)
+            && Objects.equals(eos, that.eos)
+            && Objects.equals(binaryData, that.binaryData);
     }
 
     @Override
@@ -194,8 +202,7 @@ public class TrainedModelDefinitionDoc implements ToXContentObject {
         }
 
         public Builder setCompressedString(String compressedString) {
-            this.binaryData = new BytesArray(Base64.getDecoder()
-                .decode(compressedString.getBytes(StandardCharsets.UTF_8)));
+            this.binaryData = new BytesArray(Base64.getDecoder().decode(compressedString.getBytes(StandardCharsets.UTF_8)));
             return this;
         }
 
@@ -237,7 +244,8 @@ public class TrainedModelDefinitionDoc implements ToXContentObject {
                 this.totalDefinitionLength,
                 this.definitionLength,
                 this.compressionVersion,
-                this.eos);
+                this.eos
+            );
         }
     }
 

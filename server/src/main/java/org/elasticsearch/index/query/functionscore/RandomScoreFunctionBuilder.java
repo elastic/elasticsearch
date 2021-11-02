@@ -14,10 +14,10 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -32,8 +32,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
     private String field;
     private Integer seed;
 
-    public RandomScoreFunctionBuilder() {
-    }
+    public RandomScoreFunctionBuilder() {}
 
     /**
      * Read from a stream.
@@ -147,8 +146,11 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
         } else {
             String fieldName;
             if (field == null) {
-                deprecationLogger.critical(DeprecationCategory.QUERIES, "seed_requires_field",
-                    "As of version 7.0 Elasticsearch will require that a [field] parameter is provided when a [seed] is set");
+                deprecationLogger.critical(
+                    DeprecationCategory.QUERIES,
+                    "seed_requires_field",
+                    "As of version 7.0 Elasticsearch will require that a [field] parameter is provided when a [seed] is set"
+                );
                 fieldName = IdFieldMapper.NAME;
             } else {
                 fieldName = field;
@@ -158,8 +160,9 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
                     // no mappings: the index is empty anyway
                     return new RandomScoreFunction(hash(context.nowInMillis()), salt, null);
                 }
-                throw new IllegalArgumentException("Field [" + field + "] is not mapped on [" + context.index() +
-                    "] and cannot be used as a source of random numbers.");
+                throw new IllegalArgumentException(
+                    "Field [" + field + "] is not mapped on [" + context.index() + "] and cannot be used as a source of random numbers."
+                );
             }
             int seed = this.seed == null ? hash(context.nowInMillis()) : this.seed;
             return new RandomScoreFunction(seed, salt, context.getForField(context.getFieldType(fieldName)));
@@ -170,8 +173,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
         return Long.hashCode(value);
     }
 
-    public static RandomScoreFunctionBuilder fromXContent(XContentParser parser)
-            throws IOException, ParsingException {
+    public static RandomScoreFunctionBuilder fromXContent(XContentParser parser) throws IOException, ParsingException {
         RandomScoreFunctionBuilder randomScoreFunctionBuilder = new RandomScoreFunctionBuilder();
         String currentFieldName = null;
         XContentParser.Token token;
@@ -186,14 +188,18 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
                         } else if (parser.numberType() == XContentParser.NumberType.LONG) {
                             randomScoreFunctionBuilder.seed(parser.longValue());
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(), "random_score seed must be an int, long or string, not '"
-                                    + token.toString() + "'");
+                            throw new ParsingException(
+                                parser.getTokenLocation(),
+                                "random_score seed must be an int, long or string, not '" + token.toString() + "'"
+                            );
                         }
                     } else if (token == XContentParser.Token.VALUE_STRING) {
                         randomScoreFunctionBuilder.seed(parser.text());
                     } else {
-                        throw new ParsingException(parser.getTokenLocation(), "random_score seed must be an int/long or string, not '"
-                                + token.toString() + "'");
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "random_score seed must be an int/long or string, not '" + token.toString() + "'"
+                        );
                     }
                 } else if ("field".equals(currentFieldName)) {
                     randomScoreFunctionBuilder.setField(parser.text());

@@ -12,9 +12,9 @@ import org.apache.lucene.mockfile.FilterFileStore;
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.mockfile.FilterPath;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.fs.FsService;
@@ -26,6 +26,7 @@ import org.junit.Before;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileStore;
 import java.nio.file.FileSystem;
@@ -92,7 +93,7 @@ public class DiskUsageIntegTestCase extends ESIntegTestCase {
     }
 
     public TestFileStore getTestFileStore(String nodeName) {
-        return fileSystemProvider.getTestFileStore(internalCluster().getInstance(Environment.class, nodeName).dataFile());
+        return fileSystemProvider.getTestFileStore(internalCluster().getInstance(Environment.class, nodeName).dataFiles()[0]);
     }
 
     protected static class TestFileStore extends FilterFileStore {
@@ -148,6 +149,10 @@ public class DiskUsageIntegTestCase extends ESIntegTestCase {
 
         private static long getTotalFileSize(Path path) throws IOException {
             if (Files.isRegularFile(path)) {
+                if (path.getFileName().toString().equals("nodes")
+                    && Files.readString(path, StandardCharsets.UTF_8).contains("prevent a downgrade")) {
+                    return 0;
+                }
                 try {
                     return Files.size(path);
                 } catch (NoSuchFileException | FileNotFoundException e) {

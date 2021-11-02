@@ -8,9 +8,9 @@
 package org.elasticsearch.client.ml.dataframe.evaluation.classification;
 
 import org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -22,9 +22,7 @@ public class AucRocMetricTests extends AbstractXContentTestCase<AucRocMetric> {
     }
 
     public static AucRocMetric createRandom() {
-        return new AucRocMetric(
-            randomAlphaOfLengthBetween(1, 10),
-            randomBoolean() ? randomBoolean() : null);
+        return new AucRocMetric(randomAlphaOfLengthBetween(1, 10), randomBoolean() ? randomBoolean() : null);
     }
 
     @Override

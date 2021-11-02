@@ -16,9 +16,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -134,15 +134,23 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
             usedBuiltInTokenFilters.keySet().removeAll(tokenFilterSettings.keySet());
             aggregateAnalysisTypes(tokenFilterSettings.values(), usedTokenFilterTypes, indexTokenFilterTypes);
         }
-        return new AnalysisStats(usedCharFilterTypes.values(), usedTokenizerTypes.values(), usedTokenFilterTypes.values(),
-                usedAnalyzerTypes.values(), usedBuiltInCharFilters.values(), usedBuiltInTokenizers.values(),
-                usedBuiltInTokenFilters.values(), usedBuiltInAnalyzers.values());
+        return new AnalysisStats(
+            usedCharFilterTypes.values(),
+            usedTokenizerTypes.values(),
+            usedTokenFilterTypes.values(),
+            usedAnalyzerTypes.values(),
+            usedBuiltInCharFilters.values(),
+            usedBuiltInTokenizers.values(),
+            usedBuiltInTokenFilters.values(),
+            usedBuiltInAnalyzers.values()
+        );
     }
 
     private static void aggregateAnalysisTypes(
-                Collection<Settings> settings,
-                Map<String, IndexFeatureStats> stats,
-                Set<String> indexTypes) {
+        Collection<Settings> settings,
+        Map<String, IndexFeatureStats> stats,
+        Set<String> indexTypes
+    ) {
         for (Settings analysisComponentSettings : settings) {
             final String type = analysisComponentSettings.get("type");
             if (type != null) {
@@ -165,14 +173,15 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
     private final Set<IndexFeatureStats> usedBuiltInCharFilters, usedBuiltInTokenizers, usedBuiltInTokenFilters, usedBuiltInAnalyzers;
 
     AnalysisStats(
-            Collection<IndexFeatureStats> usedCharFilters,
-            Collection<IndexFeatureStats> usedTokenizers,
-            Collection<IndexFeatureStats> usedTokenFilters,
-            Collection<IndexFeatureStats> usedAnalyzers,
-            Collection<IndexFeatureStats> usedBuiltInCharFilters,
-            Collection<IndexFeatureStats> usedBuiltInTokenizers,
-            Collection<IndexFeatureStats> usedBuiltInTokenFilters,
-            Collection<IndexFeatureStats> usedBuiltInAnalyzers) {
+        Collection<IndexFeatureStats> usedCharFilters,
+        Collection<IndexFeatureStats> usedTokenizers,
+        Collection<IndexFeatureStats> usedTokenFilters,
+        Collection<IndexFeatureStats> usedAnalyzers,
+        Collection<IndexFeatureStats> usedBuiltInCharFilters,
+        Collection<IndexFeatureStats> usedBuiltInTokenizers,
+        Collection<IndexFeatureStats> usedBuiltInTokenFilters,
+        Collection<IndexFeatureStats> usedBuiltInAnalyzers
+    ) {
         this.usedCharFilters = sort(usedCharFilters);
         this.usedTokenizers = sort(usedTokenizers);
         this.usedTokenFilters = sort(usedTokenFilters);
@@ -267,24 +276,32 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AnalysisStats that = (AnalysisStats) o;
-        return Objects.equals(usedCharFilters, that.usedCharFilters) &&
-                Objects.equals(usedTokenizers, that.usedTokenizers) &&
-                Objects.equals(usedTokenFilters, that.usedTokenFilters) &&
-                Objects.equals(usedAnalyzers, that.usedAnalyzers) &&
-                Objects.equals(usedBuiltInCharFilters, that.usedBuiltInCharFilters) &&
-                Objects.equals(usedBuiltInTokenizers, that.usedBuiltInTokenizers) &&
-                Objects.equals(usedBuiltInTokenFilters, that.usedBuiltInTokenFilters) &&
-                Objects.equals(usedBuiltInAnalyzers, that.usedBuiltInAnalyzers);
+        return Objects.equals(usedCharFilters, that.usedCharFilters)
+            && Objects.equals(usedTokenizers, that.usedTokenizers)
+            && Objects.equals(usedTokenFilters, that.usedTokenFilters)
+            && Objects.equals(usedAnalyzers, that.usedAnalyzers)
+            && Objects.equals(usedBuiltInCharFilters, that.usedBuiltInCharFilters)
+            && Objects.equals(usedBuiltInTokenizers, that.usedBuiltInTokenizers)
+            && Objects.equals(usedBuiltInTokenFilters, that.usedBuiltInTokenFilters)
+            && Objects.equals(usedBuiltInAnalyzers, that.usedBuiltInAnalyzers);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(usedCharFilters, usedTokenizers, usedTokenFilters, usedAnalyzers, usedBuiltInCharFilters,
-                usedBuiltInTokenizers, usedBuiltInTokenFilters, usedBuiltInAnalyzers);
+        return Objects.hash(
+            usedCharFilters,
+            usedTokenizers,
+            usedTokenFilters,
+            usedAnalyzers,
+            usedBuiltInCharFilters,
+            usedBuiltInTokenizers,
+            usedBuiltInTokenFilters,
+            usedBuiltInAnalyzers
+        );
     }
 
     private void toXContentCollection(XContentBuilder builder, Params params, String name, Collection<? extends ToXContent> coll)
-                throws IOException {
+        throws IOException {
         builder.startArray(name);
         for (ToXContent toXContent : coll) {
             toXContent.toXContent(builder, params);

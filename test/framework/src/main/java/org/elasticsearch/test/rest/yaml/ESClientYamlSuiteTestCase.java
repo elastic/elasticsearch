@@ -10,7 +10,10 @@ package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
 import org.apache.http.HttpHost;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Node;
@@ -22,9 +25,8 @@ import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.test.ClasspathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -33,6 +35,7 @@ import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSuite;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -42,6 +45,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -52,6 +56,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 /**
  * Runs a suite of yaml tests shared with all the official Elasticsearch
@@ -158,12 +163,13 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     }
 
     protected ClientYamlTestClient initClientYamlTestClient(
-            final ClientYamlSuiteRestSpec restSpec,
-            final RestClient restClient,
-            final List<HttpHost> hosts,
-            final Version esVersion,
-            final Version masterVersion,
-            final String os) {
+        final ClientYamlSuiteRestSpec restSpec,
+        final RestClient restClient,
+        final List<HttpHost> hosts,
+        final Version esVersion,
+        final Version masterVersion,
+        final String os
+    ) {
         return new ClientYamlTestClient(restSpec, restClient, hosts, esVersion, masterVersion, os, this::getClientBuilderWithSniffedHosts);
     }
 
@@ -204,10 +210,11 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                 suites.add(suite);
                 try {
                     suite.validate();
-                } catch(IllegalArgumentException e) {
+                } catch (IllegalArgumentException e) {
                     if (validationException == null) {
-                        validationException = new IllegalArgumentException("Validation errors for the following test suites:\n- "
-                            + e.getMessage());
+                        validationException = new IllegalArgumentException(
+                            "Validation errors for the following test suites:\n- " + e.getMessage()
+                        );
                     } else {
                         String previousMessage = validationException.getMessage();
                         Throwable[] suppressed = validationException.getSuppressed();
@@ -228,10 +235,10 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         List<Object[]> tests = new ArrayList<>();
         for (ClientYamlTestSuite yamlTestSuite : suites) {
             for (ClientYamlTestSection testSection : yamlTestSuite.getTestSections()) {
-                tests.add(new Object[]{ new ClientYamlTestCandidate(yamlTestSuite, testSection) });
+                tests.add(new Object[] { new ClientYamlTestCandidate(yamlTestSuite, testSection) });
             }
         }
-        //sort the candidates so they will always be in the same order before being shuffled, for repeatability
+        // sort the candidates so they will always be in the same order before being shuffled, for repeatability
         tests.sort(Comparator.comparing(o -> ((ClientYamlTestCandidate) o[0]).getTestPath()));
         return tests;
     }
@@ -270,13 +277,27 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             filesSet = new HashSet<>();
             files.put(groupName, filesSet);
         }
+
         filesSet.add(file);
+        List<String> fileNames = filesSet.stream().map(p -> p.getFileName().toString()).collect(Collectors.toList());
+        if (Collections.frequency(fileNames, file.getFileName().toString()) > 1) {
+            Logger logger = LogManager.getLogger(ESClientYamlSuiteTestCase.class);
+            logger.warn(
+                "Found duplicate test name ["
+                    + groupName
+                    + "/"
+                    + file.getFileName()
+                    + "] on the class path. "
+                    + "This can result in class loader dependent execution commands and reproduction commands "
+                    + "(will add #2 to one of the test names dependent on the classloading order)"
+            );
+        }
     }
 
     private static String[] resolvePathsProperty(String propertyName, String defaultValue) {
         String property = System.getProperty(propertyName);
         if (Strings.hasLength(property) == false) {
-            return defaultValue == null ? Strings.EMPTY_ARRAY : new String[]{defaultValue};
+            return defaultValue == null ? Strings.EMPTY_ARRAY : new String[] { defaultValue };
         } else {
             return property.split(PATHS_SEPARATOR);
         }
@@ -296,7 +317,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                         List<String> methodsList = Arrays.asList(path.getMethods());
                         if (methodsList.contains("GET") && restApi.isBodySupported()) {
                             if (methodsList.contains("POST") == false) {
-                                errorMessage.append("\n- ").append(restApi.getName())
+                                errorMessage.append("\n- ")
+                                    .append(restApi.getName())
                                     .append(" supports GET with a body but doesn't support POST");
                             }
                         }
@@ -371,33 +393,43 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     }
 
     public void test() throws IOException {
-        //skip test if it matches one of the blacklist globs
+        // skip test if it matches one of the blacklist globs
         for (BlacklistedPathPatternMatcher blacklistedPathMatcher : blacklistPathMatchers) {
             String testPath = testCandidate.getSuitePath() + "/" + testCandidate.getTestSection().getName();
-            assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: blacklisted", blacklistedPathMatcher
-                .isSuffixMatch(testPath));
+            assumeFalse(
+                "[" + testCandidate.getTestPath() + "] skipped, reason: blacklisted",
+                blacklistedPathMatcher.isSuffixMatch(testPath)
+            );
         }
 
-        //skip test if the whole suite (yaml file) is disabled
-        assumeFalse(testCandidate.getSetupSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
-            testCandidate.getSetupSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
-        //skip test if the whole suite (yaml file) is disabled
-        assumeFalse(testCandidate.getTeardownSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
-            testCandidate.getTeardownSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
-        //skip test if test section is disabled
-        assumeFalse(testCandidate.getTestSection().getSkipSection().getSkipMessage(testCandidate.getTestPath()),
-            testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
-        //skip test if os is excluded
-        assumeFalse(testCandidate.getTestSection().getSkipSection().getSkipMessage(testCandidate.getTestPath()),
-            testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.os()));
+        // skip test if the whole suite (yaml file) is disabled
+        assumeFalse(
+            testCandidate.getSetupSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
+            testCandidate.getSetupSection().getSkipSection().skip(restTestExecutionContext.esVersion())
+        );
+        // skip test if the whole suite (yaml file) is disabled
+        assumeFalse(
+            testCandidate.getTeardownSection().getSkipSection().getSkipMessage(testCandidate.getSuitePath()),
+            testCandidate.getTeardownSection().getSkipSection().skip(restTestExecutionContext.esVersion())
+        );
+        // skip test if test section is disabled
+        assumeFalse(
+            testCandidate.getTestSection().getSkipSection().getSkipMessage(testCandidate.getTestPath()),
+            testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.esVersion())
+        );
+        // skip test if os is excluded
+        assumeFalse(
+            testCandidate.getTestSection().getSkipSection().getSkipMessage(testCandidate.getTestPath()),
+            testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.os())
+        );
 
-        //let's check that there is something to run, otherwise there might be a problem with the test section
+        // let's check that there is something to run, otherwise there might be a problem with the test section
         if (testCandidate.getTestSection().getExecutableSections().size() == 0) {
             throw new IllegalArgumentException("No executable sections loaded for [" + testCandidate.getTestPath() + "]");
         }
 
         if (useDefaultNumberOfShards == false
-                && testCandidate.getTestSection().getSkipSection().getFeatures().contains("default_shards") == false) {
+            && testCandidate.getTestSection().getSkipSection().getFeatures().contains("default_shards") == false) {
             final Request request = new Request("PUT", "/_template/global");
             request.setJsonEntity("{\"index_patterns\":[\"*\"],\"settings\":{\"index.number_of_shards\":2}}");
             // Because this has not yet transitioned to a composable template, it's possible that
@@ -410,8 +442,10 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             request.setOptions(builder.build());
             adminClient().performRequest(request);
         }
-        assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: in fips 140 mode",
-            inFipsJvm() && testCandidate.getTestSection().getSkipSection().getFeatures().contains("fips_140"));
+        assumeFalse(
+            "[" + testCandidate.getTestPath() + "] skipped, reason: in fips 140 mode",
+            inFipsJvm() && testCandidate.getTestSection().getSkipSection().getFeatures().contains("fips_140")
+        );
 
         if (testCandidate.getSetupSection().isEmpty() == false) {
             logger.debug("start setup test [{}]", testCandidate.getTestPath());
@@ -444,9 +478,13 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             executableSection.execute(restTestExecutionContext);
         } catch (AssertionError | Exception e) {
             // Dump the stash on failure. Instead of dumping it in true json we escape `\n`s so stack traces are easier to read
-            logger.info("Stash dump on test failure [{}]",
-                    Strings.toString(restTestExecutionContext.stash(), true, true)
-                            .replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t"));
+            logger.info(
+                "Stash dump on test failure [{}]",
+                Strings.toString(restTestExecutionContext.stash(), true, true)
+                    .replace("\\n", "\n")
+                    .replace("\\r", "\r")
+                    .replace("\\t", "\t")
+            );
             if (e instanceof AssertionError) {
                 throw new AssertionError(errorMessage(executableSection, e), e);
             } else {
@@ -468,10 +506,12 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * {@link RestClientBuilder} for a client with that metadata.
      */
     protected final RestClientBuilder getClientBuilderWithSniffedHosts() throws IOException {
-        ElasticsearchNodesSniffer.Scheme scheme =
-            ElasticsearchNodesSniffer.Scheme.valueOf(getProtocol().toUpperCase(Locale.ROOT));
+        ElasticsearchNodesSniffer.Scheme scheme = ElasticsearchNodesSniffer.Scheme.valueOf(getProtocol().toUpperCase(Locale.ROOT));
         ElasticsearchNodesSniffer sniffer = new ElasticsearchNodesSniffer(
-                adminClient(), ElasticsearchNodesSniffer.DEFAULT_SNIFF_REQUEST_TIMEOUT, scheme);
+            adminClient(),
+            ElasticsearchNodesSniffer.DEFAULT_SNIFF_REQUEST_TIMEOUT,
+            scheme
+        );
         RestClientBuilder builder = RestClient.builder(sniffer.sniff().toArray(new Node[0]));
         configureClient(builder, restClientSettings());
         return builder;

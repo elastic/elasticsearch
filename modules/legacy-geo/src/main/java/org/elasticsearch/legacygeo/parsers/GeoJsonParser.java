@@ -11,13 +11,13 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentSubParser;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.legacygeo.GeoShapeType;
 import org.elasticsearch.legacygeo.builders.CircleBuilder;
 import org.elasticsearch.legacygeo.builders.GeometryCollectionBuilder;
 import org.elasticsearch.legacygeo.builders.ShapeBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentSubParser;
 import org.locationtech.jts.geom.Coordinate;
 
 import java.io.IOException;

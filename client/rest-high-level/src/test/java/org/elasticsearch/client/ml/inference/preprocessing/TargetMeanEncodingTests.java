@@ -7,14 +7,13 @@
  */
 package org.elasticsearch.client.ml.inference.preprocessing;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
-
 
 public class TargetMeanEncodingTests extends AbstractXContentTestCase<TargetMeanEncoding> {
 
@@ -48,11 +47,7 @@ public class TargetMeanEncodingTests extends AbstractXContentTestCase<TargetMean
         for (int i = 0; i < valuesSize; i++) {
             valueMap.put(randomAlphaOfLength(10), randomDoubleBetween(0.0, 1.0, false));
         }
-        return new TargetMeanEncoding(inputField,
-            randomAlphaOfLength(10),
-            valueMap,
-            randomDoubleBetween(0.0, 1.0, false),
-            true);
+        return new TargetMeanEncoding(inputField, randomAlphaOfLength(10), valueMap, randomDoubleBetween(0.0, 1.0, false), true);
     }
 
 }

@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
@@ -38,23 +38,23 @@ public class PassThroughConfig implements NlpConfig {
     private static final ConstructingObjectParser<PassThroughConfig, Void> LENIENT_PARSER = createParser(true);
 
     private static ConstructingObjectParser<PassThroughConfig, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<PassThroughConfig, Void> parser = new ConstructingObjectParser<>(NAME, ignoreUnknownFields,
-            a -> new PassThroughConfig((VocabularyConfig) a[0], (Tokenization) a[1], (String) a[2]));
-        parser.declareObject(
-            ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> {
-                if (ignoreUnknownFields == false) {
-                    throw ExceptionsHelper.badRequestException(
-                        "illegal setting [{}] on inference model creation",
-                        VOCABULARY.getPreferredName()
-                    );
-                }
-                return VocabularyConfig.fromXContentLenient(p);
-            },
-            VOCABULARY
+        ConstructingObjectParser<PassThroughConfig, Void> parser = new ConstructingObjectParser<>(
+            NAME,
+            ignoreUnknownFields,
+            a -> new PassThroughConfig((VocabularyConfig) a[0], (Tokenization) a[1], (String) a[2])
         );
+        parser.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
+            if (ignoreUnknownFields == false) {
+                throw ExceptionsHelper.badRequestException(
+                    "illegal setting [{}] on inference model creation",
+                    VOCABULARY.getPreferredName()
+                );
+            }
+            return VocabularyConfig.fromXContentLenient(p);
+        }, VOCABULARY);
         parser.declareNamedObject(
-            ConstructingObjectParser.optionalConstructorArg(), (p, c, n) -> p.namedObject(Tokenization.class, n, ignoreUnknownFields),
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c, n) -> p.namedObject(Tokenization.class, n, ignoreUnknownFields),
             TOKENIZATION
         );
         parser.declareString(ConstructingObjectParser.optionalConstructorArg(), RESULTS_FIELD);
@@ -65,9 +65,10 @@ public class PassThroughConfig implements NlpConfig {
     private final Tokenization tokenization;
     private final String resultsField;
 
-    public PassThroughConfig(@Nullable VocabularyConfig vocabularyConfig,
-                             @Nullable Tokenization tokenization,
-                             @Nullable String resultsField
+    public PassThroughConfig(
+        @Nullable VocabularyConfig vocabularyConfig,
+        @Nullable Tokenization tokenization,
+        @Nullable String resultsField
     ) {
         this.vocabularyConfig = Optional.ofNullable(vocabularyConfig)
             .orElse(new VocabularyConfig(InferenceIndexConstants.nativeDefinitionStore()));

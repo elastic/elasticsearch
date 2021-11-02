@@ -6,16 +6,16 @@
  */
 package org.elasticsearch.xpack.core.rollup.action;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
@@ -50,7 +50,7 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
     private final Map<String, RollupFieldCaps> fieldCapLookup;
 
     // TODO now that these rollup caps are being used more widely (e.g. search), perhaps we should
-    // store the RollupJob and translate into FieldCaps on demand for json output.  Would make working with
+    // store the RollupJob and translate into FieldCaps on demand for json output. Would make working with
     // it internally a lot easier
     public RollupJobCaps(RollupJobConfig job) {
         jobID = job.getId();
@@ -185,24 +185,23 @@ public class RollupJobCaps implements Writeable, ToXContentObject {
 
         // Create RollupFieldCaps for the metrics
         final List<MetricConfig> metricsConfig = rollupJobConfig.getMetricsConfig();
-            if (metricsConfig.size() > 0) {
-                rollupJobConfig.getMetricsConfig().forEach(metricConfig -> {
-                    final List<Map<String, Object>> metrics = metricConfig.getMetrics().stream()
-                        .map(metric -> singletonMap("agg", (Object) metric))
-                        .collect(Collectors.toList());
-                    metrics.forEach(m -> {
-                        List<Map<String, Object>> caps = tempFieldCaps
-                            .getOrDefault(metricConfig.getField(), new ArrayList<>());
-                        caps.add(m);
-                        tempFieldCaps.put(metricConfig.getField(), caps);
-                    });
+        if (metricsConfig.size() > 0) {
+            rollupJobConfig.getMetricsConfig().forEach(metricConfig -> {
+                final List<Map<String, Object>> metrics = metricConfig.getMetrics()
+                    .stream()
+                    .map(metric -> singletonMap("agg", (Object) metric))
+                    .collect(Collectors.toList());
+                metrics.forEach(m -> {
+                    List<Map<String, Object>> caps = tempFieldCaps.getOrDefault(metricConfig.getField(), new ArrayList<>());
+                    caps.add(m);
+                    tempFieldCaps.put(metricConfig.getField(), caps);
                 });
+            });
         }
 
-        return Collections.unmodifiableMap(tempFieldCaps.entrySet()
-            .stream()
-            .collect(Collectors.toMap(Map.Entry::getKey,
-                e -> new RollupFieldCaps(e.getValue()))));
+        return Collections.unmodifiableMap(
+            tempFieldCaps.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> new RollupFieldCaps(e.getValue())))
+        );
     }
 
     public static class RollupFieldCaps implements Writeable, ToXContentFragment {

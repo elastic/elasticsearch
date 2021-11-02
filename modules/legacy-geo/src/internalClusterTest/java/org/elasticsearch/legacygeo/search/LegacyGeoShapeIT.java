@@ -10,13 +10,13 @@ package org.elasticsearch.legacygeo.search;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.legacygeo.test.TestLegacyGeoShapeFieldMapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.geo.GeoShapeIntegTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collection;

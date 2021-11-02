@@ -41,10 +41,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ObjectPath;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -53,6 +49,10 @@ import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.xcontent.ObjectPath;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
 import org.elasticsearch.xpack.enrich.action.EnrichReindexAction;
@@ -127,11 +127,10 @@ public class EnrichPolicyRunner implements Runnable {
         client.admin().indices().getIndex(getIndexRequest, listener.delegateFailure((l, getIndexResponse) -> {
             try {
                 validateMappings(getIndexResponse);
+                prepareAndCreateEnrichIndex(toMappings(getIndexResponse));
             } catch (Exception e) {
                 l.onFailure(e);
-                return;
             }
-            prepareAndCreateEnrichIndex(toMappings(getIndexResponse));
         }));
     }
 

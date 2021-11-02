@@ -8,9 +8,9 @@ package org.elasticsearch.protocol.xpack.graph;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest.TermBoost;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -34,7 +34,6 @@ public class VertexRequest implements ToXContentObject {
     private int minDocCount = DEFAULT_MIN_DOC_COUNT;
     public static final int DEFAULT_SHARD_MIN_DOC_COUNT = 2;
     private int shardMinDocCount = DEFAULT_SHARD_MIN_DOC_COUNT;
-
 
     public VertexRequest() {
 
@@ -183,7 +182,6 @@ public class VertexRequest implements ToXContentObject {
         return this;
     }
 
-
     public int shardMinDocCount() {
         return Math.min(shardMinDocCount, minDocCount);
     }
@@ -212,7 +210,7 @@ public class VertexRequest implements ToXContentObject {
         if (shardMinDocCount != DEFAULT_SHARD_MIN_DOC_COUNT) {
             builder.field("shard_min_doc_count", shardMinDocCount);
         }
-        if(includes!=null) {
+        if (includes != null) {
             builder.startArray("include");
             for (TermBoost tb : includes.values()) {
                 builder.startObject();
@@ -222,7 +220,7 @@ public class VertexRequest implements ToXContentObject {
             }
             builder.endArray();
         }
-        if(excludes!=null) {
+        if (excludes != null) {
             builder.startArray("exclude");
             for (String value : excludes) {
                 builder.value(value);

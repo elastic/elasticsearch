@@ -19,8 +19,6 @@ import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -34,6 +32,8 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.legacygeo.test.TestLegacyGeoShapeFieldMapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collection;

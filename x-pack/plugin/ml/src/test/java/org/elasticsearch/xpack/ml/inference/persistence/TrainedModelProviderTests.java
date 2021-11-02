@@ -11,12 +11,12 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
@@ -47,10 +47,7 @@ public class TrainedModelProviderTests extends ESTestCase {
         // Should be OK as we don't make any client calls
         trainedModelProvider.deleteTrainedModel("lang_ident_model_1", future);
         ElasticsearchException ex = expectThrows(ElasticsearchException.class, future::actionGet);
-        assertThat(ex.getMessage(), equalTo(Messages.getMessage(
-            Messages.INFERENCE_CANNOT_DELETE_ML_MANAGED_MODEL,
-            "lang_ident_model_1"
-        )));
+        assertThat(ex.getMessage(), equalTo(Messages.getMessage(Messages.INFERENCE_CANNOT_DELETE_ML_MANAGED_MODEL, "lang_ident_model_1")));
     }
 
     public void testPutModelThatExistsAsResource() {
@@ -64,9 +61,9 @@ public class TrainedModelProviderTests extends ESTestCase {
 
     public void testGetModelThatExistsAsResource() throws Exception {
         TrainedModelProvider trainedModelProvider = new TrainedModelProvider(mock(Client.class), xContentRegistry());
-        for(String modelId : TrainedModelProvider.MODELS_STORED_AS_RESOURCE) {
+        for (String modelId : TrainedModelProvider.MODELS_STORED_AS_RESOURCE) {
             PlainActionFuture<TrainedModelConfig> future = new PlainActionFuture<>();
-            trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.forModelDefinition(),future);
+            trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.forModelDefinition(), future);
             TrainedModelConfig configWithDefinition = future.actionGet();
 
             assertThat(configWithDefinition.getModelId(), equalTo(modelId));
@@ -82,17 +79,19 @@ public class TrainedModelProviderTests extends ESTestCase {
     }
 
     public void testExpandIdsQuery() {
-        QueryBuilder queryBuilder = TrainedModelProvider.buildExpandIdsQuery(new String[]{"model*", "trained_mode"},
-            Arrays.asList("tag1", "tag2"));
+        QueryBuilder queryBuilder = TrainedModelProvider.buildExpandIdsQuery(
+            new String[] { "model*", "trained_mode" },
+            Arrays.asList("tag1", "tag2")
+        );
         assertThat(queryBuilder, is(instanceOf(ConstantScoreQueryBuilder.class)));
 
-        QueryBuilder innerQuery = ((ConstantScoreQueryBuilder)queryBuilder).innerQuery();
+        QueryBuilder innerQuery = ((ConstantScoreQueryBuilder) queryBuilder).innerQuery();
         assertThat(innerQuery, is(instanceOf(BoolQueryBuilder.class)));
 
-        ((BoolQueryBuilder)innerQuery).filter().forEach(qb -> {
+        ((BoolQueryBuilder) innerQuery).filter().forEach(qb -> {
             if (qb instanceof TermQueryBuilder) {
-                assertThat(((TermQueryBuilder)qb).fieldName(), equalTo(TrainedModelConfig.TAGS.getPreferredName()));
-                assertThat(((TermQueryBuilder)qb).value(), is(oneOf("tag1", "tag2")));
+                assertThat(((TermQueryBuilder) qb).fieldName(), equalTo(TrainedModelConfig.TAGS.getPreferredName()));
+                assertThat(((TermQueryBuilder) qb).value(), is(oneOf("tag1", "tag2")));
                 return;
             }
             assertThat(qb, is(instanceOf(BoolQueryBuilder.class)));
@@ -102,51 +101,65 @@ public class TrainedModelProviderTests extends ESTestCase {
     public void testExpandIdsPagination() {
         // NOTE: these tests assume that the query pagination results are "buffered"
 
-        assertThat(TrainedModelProvider.collectIds(new PageParams(0, 3),
-            Collections.emptySet(),
-            new HashSet<>(Arrays.asList("a", "b", "c"))),
-            equalTo(new TreeSet<>(Arrays.asList("a", "b", "c"))));
+        assertThat(
+            TrainedModelProvider.collectIds(new PageParams(0, 3), Collections.emptySet(), new HashSet<>(Arrays.asList("a", "b", "c"))),
+            equalTo(new TreeSet<>(Arrays.asList("a", "b", "c")))
+        );
 
-        assertThat(TrainedModelProvider.collectIds(new PageParams(0, 3),
-            Collections.singleton("a"),
-            new HashSet<>(Arrays.asList("b", "c", "d"))),
-            equalTo(new TreeSet<>(Arrays.asList("a", "b", "c"))));
+        assertThat(
+            TrainedModelProvider.collectIds(new PageParams(0, 3), Collections.singleton("a"), new HashSet<>(Arrays.asList("b", "c", "d"))),
+            equalTo(new TreeSet<>(Arrays.asList("a", "b", "c")))
+        );
 
-        assertThat(TrainedModelProvider.collectIds(new PageParams(1, 3),
-            Collections.singleton("a"),
-            new HashSet<>(Arrays.asList("b", "c", "d"))),
-            equalTo(new TreeSet<>(Arrays.asList("b", "c", "d"))));
+        assertThat(
+            TrainedModelProvider.collectIds(new PageParams(1, 3), Collections.singleton("a"), new HashSet<>(Arrays.asList("b", "c", "d"))),
+            equalTo(new TreeSet<>(Arrays.asList("b", "c", "d")))
+        );
 
-        assertThat(TrainedModelProvider.collectIds(new PageParams(1, 1),
-            Collections.singleton("c"),
-            new HashSet<>(Arrays.asList("a", "b"))),
-            equalTo(new TreeSet<>(Arrays.asList("b"))));
+        assertThat(
+            TrainedModelProvider.collectIds(new PageParams(1, 1), Collections.singleton("c"), new HashSet<>(Arrays.asList("a", "b"))),
+            equalTo(new TreeSet<>(Arrays.asList("b")))
+        );
 
-        assertThat(TrainedModelProvider.collectIds(new PageParams(1, 1),
-            Collections.singleton("b"),
-            new HashSet<>(Arrays.asList("a", "c"))),
-            equalTo(new TreeSet<>(Arrays.asList("b"))));
+        assertThat(
+            TrainedModelProvider.collectIds(new PageParams(1, 1), Collections.singleton("b"), new HashSet<>(Arrays.asList("a", "c"))),
+            equalTo(new TreeSet<>(Arrays.asList("b")))
+        );
 
-        assertThat(TrainedModelProvider.collectIds(new PageParams(1, 2),
-            new HashSet<>(Arrays.asList("a", "b")),
-            new HashSet<>(Arrays.asList("c", "d", "e"))),
-            equalTo(new TreeSet<>(Arrays.asList("b", "c"))));
+        assertThat(
+            TrainedModelProvider.collectIds(
+                new PageParams(1, 2),
+                new HashSet<>(Arrays.asList("a", "b")),
+                new HashSet<>(Arrays.asList("c", "d", "e"))
+            ),
+            equalTo(new TreeSet<>(Arrays.asList("b", "c")))
+        );
 
-        assertThat(TrainedModelProvider.collectIds(new PageParams(1, 3),
-            new HashSet<>(Arrays.asList("a", "b")),
-            new HashSet<>(Arrays.asList("c", "d", "e"))),
-            equalTo(new TreeSet<>(Arrays.asList("b", "c", "d"))));
+        assertThat(
+            TrainedModelProvider.collectIds(
+                new PageParams(1, 3),
+                new HashSet<>(Arrays.asList("a", "b")),
+                new HashSet<>(Arrays.asList("c", "d", "e"))
+            ),
+            equalTo(new TreeSet<>(Arrays.asList("b", "c", "d")))
+        );
 
-        assertThat(TrainedModelProvider.collectIds(new PageParams(2, 3),
-            new HashSet<>(Arrays.asList("a", "b")),
-            new HashSet<>(Arrays.asList("c", "d", "e"))),
-            equalTo(new TreeSet<>(Arrays.asList("c", "d", "e"))));
+        assertThat(
+            TrainedModelProvider.collectIds(
+                new PageParams(2, 3),
+                new HashSet<>(Arrays.asList("a", "b")),
+                new HashSet<>(Arrays.asList("c", "d", "e"))
+            ),
+            equalTo(new TreeSet<>(Arrays.asList("c", "d", "e")))
+        );
     }
 
     public void testGetModelThatExistsAsResourceButIsMissing() {
         TrainedModelProvider trainedModelProvider = new TrainedModelProvider(mock(Client.class), xContentRegistry());
-        ElasticsearchException ex = expectThrows(ElasticsearchException.class,
-            () -> trainedModelProvider.loadModelFromResource("missing_model", randomBoolean()));
+        ElasticsearchException ex = expectThrows(
+            ElasticsearchException.class,
+            () -> trainedModelProvider.loadModelFromResource("missing_model", randomBoolean())
+        );
         assertThat(ex.getMessage(), equalTo(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, "missing_model")));
     }
 
@@ -160,8 +173,10 @@ public class TrainedModelProviderTests extends ESTestCase {
         int start = 0;
         int end = size;
         for (BytesReference chunk : chunks) {
-            assertArrayEquals(Arrays.copyOfRange(bytes, start, end),
-                Arrays.copyOfRange(chunk.array(), chunk.arrayOffset(), chunk.arrayOffset() + chunk.length()));
+            assertArrayEquals(
+                Arrays.copyOfRange(bytes, start, end),
+                Arrays.copyOfRange(chunk.array(), chunk.arrayOffset(), chunk.arrayOffset() + chunk.length())
+            );
 
             start += size;
             end = Math.min(end + size, totalLength);

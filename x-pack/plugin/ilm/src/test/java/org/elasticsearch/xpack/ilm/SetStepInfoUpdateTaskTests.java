@@ -18,14 +18,14 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
@@ -46,9 +46,10 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
     public void setupClusterState() {
         policy = randomAlphaOfLength(10);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
-            .settings(settings(Version.CURRENT)
-                .put(LifecycleSettings.LIFECYCLE_NAME, policy))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policy))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
         index = indexMetadata.getIndex();
         Metadata metadata = Metadata.builder()
             .persistentSettings(settings(Version.CURRENT).build())
@@ -108,7 +109,7 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
         assertThat(newState, sameInstance(clusterState));
     }
 
-    @TestLogging(reason = "logging test", value="logger.org.elasticsearch.xpack.ilm.SetStepInfoUpdateTask:WARN")
+    @TestLogging(reason = "logging test", value = "logger.org.elasticsearch.xpack.ilm.SetStepInfoUpdateTask:WARN")
     public void testOnFailure() throws IllegalAccessException {
         StepKey currentStepKey = new StepKey("current-phase", "current-action", "current-name");
         ToXContentObject stepInfo = getRandomStepInfo();
@@ -120,12 +121,13 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
         final MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
         mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                        "warning",
-                        SetStepInfoUpdateTask.class.getCanonicalName(),
-                        Level.WARN,
-                        "*policy [" + policy + "] for index [" + index + "] failed trying to set step info for step ["
-                                + currentStepKey + "]."));
+            new MockLogAppender.SeenEventExpectation(
+                "warning",
+                SetStepInfoUpdateTask.class.getCanonicalName(),
+                Level.WARN,
+                "*policy [" + policy + "] for index [" + index + "] failed trying to set step info for step [" + currentStepKey + "]."
+            )
+        );
 
         final Logger taskLogger = LogManager.getLogger(SetStepInfoUpdateTask.class);
         Loggers.addAppender(taskLogger, mockAppender);
@@ -140,21 +142,30 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
 
     private void setStatePolicy(String policy) {
         clusterState = ClusterState.builder(clusterState)
-            .metadata(Metadata.builder(clusterState.metadata())
-                .updateSettings(Settings.builder()
-                    .put(LifecycleSettings.LIFECYCLE_NAME, policy).build(), index.getName())).build();
+            .metadata(
+                Metadata.builder(clusterState.metadata())
+                    .updateSettings(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy).build(), index.getName())
+            )
+            .build();
 
     }
+
     private void setStateToKey(StepKey stepKey) {
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder(
-            LifecycleExecutionState.fromIndexMetadata(clusterState.metadata().index(index)));
+            LifecycleExecutionState.fromIndexMetadata(clusterState.metadata().index(index))
+        );
         lifecycleState.setPhase(stepKey.getPhase());
         lifecycleState.setAction(stepKey.getAction());
         lifecycleState.setStep(stepKey.getName());
 
         clusterState = ClusterState.builder(clusterState)
-            .metadata(Metadata.builder(clusterState.getMetadata())
-                .put(IndexMetadata.builder(clusterState.getMetadata().index(index))
-                    .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap()))).build();
+            .metadata(
+                Metadata.builder(clusterState.getMetadata())
+                    .put(
+                        IndexMetadata.builder(clusterState.getMetadata().index(index))
+                            .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
+                    )
+            )
+            .build();
     }
 }

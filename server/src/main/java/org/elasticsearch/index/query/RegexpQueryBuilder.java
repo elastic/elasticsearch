@@ -15,18 +15,18 @@ import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.support.QueryParsers;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -229,8 +229,10 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
                         } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             queryName = parser.text();
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(),
-                                    "[regexp] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(
+                                parser.getTokenLocation(),
+                                "[regexp] query does not support [" + currentFieldName + "]"
+                            );
                         }
                     }
                 }
@@ -241,12 +243,11 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
             }
         }
 
-        RegexpQueryBuilder result = new RegexpQueryBuilder(fieldName, value)
-                .flags(flagsValue)
-                .maxDeterminizedStates(maxDeterminizedStates)
-                .rewrite(rewrite)
-                .boost(boost)
-                .queryName(queryName);
+        RegexpQueryBuilder result = new RegexpQueryBuilder(fieldName, value).flags(flagsValue)
+            .maxDeterminizedStates(maxDeterminizedStates)
+            .rewrite(rewrite)
+            .boost(boost)
+            .queryName(queryName);
         result.caseInsensitive(caseInsensitive);
         return result;
     }
@@ -261,10 +262,16 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         final int maxAllowedRegexLength = context.getIndexSettings().getMaxRegexLength();
         if (value.length() > maxAllowedRegexLength) {
             throw new IllegalArgumentException(
-                "The length of regex ["  + value.length() +  "] used in the Regexp Query request has exceeded " +
-                    "the allowed maximum of [" + maxAllowedRegexLength + "]. " +
-                    "This maximum can be set by changing the [" +
-                    IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey() + "] index level setting.");
+                "The length of regex ["
+                    + value.length()
+                    + "] used in the Regexp Query request has exceeded "
+                    + "the allowed maximum of ["
+                    + maxAllowedRegexLength
+                    + "]. "
+                    + "This maximum can be set by changing the ["
+                    + IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey()
+                    + "] index level setting."
+            );
         }
         MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE);
 
@@ -278,8 +285,12 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
             query = fieldType.regexpQuery(value, sanitisedSyntaxFlag, matchFlagsValue, maxDeterminizedStates, method, context);
         }
         if (query == null) {
-            RegexpQuery regexpQuery = new RegexpQuery(new Term(fieldName, BytesRefs.toBytesRef(value)), sanitisedSyntaxFlag,
-                matchFlagsValue, maxDeterminizedStates);
+            RegexpQuery regexpQuery = new RegexpQuery(
+                new Term(fieldName, BytesRefs.toBytesRef(value)),
+                sanitisedSyntaxFlag,
+                matchFlagsValue,
+                maxDeterminizedStates
+            );
             if (method != null) {
                 regexpQuery.setRewriteMethod(method);
             }
@@ -295,11 +306,11 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
 
     @Override
     protected boolean doEquals(RegexpQueryBuilder other) {
-        return Objects.equals(fieldName, other.fieldName) &&
-                Objects.equals(value, other.value) &&
-                Objects.equals(syntaxFlagsValue, other.syntaxFlagsValue) &&
-                Objects.equals(caseInsensitive, other.caseInsensitive) &&
-                Objects.equals(maxDeterminizedStates, other.maxDeterminizedStates) &&
-                Objects.equals(rewrite, other.rewrite);
+        return Objects.equals(fieldName, other.fieldName)
+            && Objects.equals(value, other.value)
+            && Objects.equals(syntaxFlagsValue, other.syntaxFlagsValue)
+            && Objects.equals(caseInsensitive, other.caseInsensitive)
+            && Objects.equals(maxDeterminizedStates, other.maxDeterminizedStates)
+            && Objects.equals(rewrite, other.rewrite);
     }
 }

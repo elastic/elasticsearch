@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -24,6 +23,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.mockito.Mockito;
 
 import java.util.Arrays;
@@ -47,10 +47,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
     }
 
     public void testGetOperations() throws Exception {
-        final Settings settings = Settings.builder()
-                .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 0)
-                .build();
+        final Settings settings = Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build();
         final IndexService indexService = createIndex("index", settings);
 
         final int numWrites = randomIntBetween(10, 4096);
@@ -66,12 +63,13 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
             int max = randomIntBetween(min, numWrites - 1);
             int size = max - min + 1;
             final Translog.Operation[] operations = ShardChangesAction.getOperations(
-                    indexShard,
-                    indexShard.getLastKnownGlobalCheckpoint(),
-                    min,
-                    size,
-                    indexShard.getHistoryUUID(),
-                    new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES));
+                indexShard,
+                indexShard.getLastKnownGlobalCheckpoint(),
+                min,
+                size,
+                indexShard.getHistoryUUID(),
+                new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES)
+            );
             final List<Long> seenSeqNos = Arrays.stream(operations).map(Translog.Operation::seqNo).collect(Collectors.toList());
             final List<Long> expectedSeqNos = LongStream.rangeClosed(min, max).boxed().collect(Collectors.toList());
             assertThat(seenSeqNos, equalTo(expectedSeqNos));
@@ -80,43 +78,72 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
         {
             // get operations for a range for which no operations exist
             final IllegalStateException e = expectThrows(
-                    IllegalStateException.class,
-                    () -> ShardChangesAction.getOperations(
-                            indexShard,
-                            indexShard.getLastKnownGlobalCheckpoint(),
-                            numWrites,
-                            numWrites + 1,
-                            indexShard.getHistoryUUID(),
-                            new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES)));
-            final String message = String.format(
-                    Locale.ROOT,
-                    "not exposing operations from [%d] greater than the global checkpoint [%d]",
+                IllegalStateException.class,
+                () -> ShardChangesAction.getOperations(
+                    indexShard,
+                    indexShard.getLastKnownGlobalCheckpoint(),
                     numWrites,
-                    indexShard.getLastKnownGlobalCheckpoint());
+                    numWrites + 1,
+                    indexShard.getHistoryUUID(),
+                    new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES)
+                )
+            );
+            final String message = String.format(
+                Locale.ROOT,
+                "not exposing operations from [%d] greater than the global checkpoint [%d]",
+                numWrites,
+                indexShard.getLastKnownGlobalCheckpoint()
+            );
             assertThat(e, hasToString(containsString(message)));
         }
 
         // get operations for a range some operations do not exist:
-        Translog.Operation[] operations = ShardChangesAction.getOperations(indexShard, indexShard.getLastKnownGlobalCheckpoint(),
-            numWrites  - 10, numWrites + 10, indexShard.getHistoryUUID(), new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES));
+        Translog.Operation[] operations = ShardChangesAction.getOperations(
+            indexShard,
+            indexShard.getLastKnownGlobalCheckpoint(),
+            numWrites - 10,
+            numWrites + 10,
+            indexShard.getHistoryUUID(),
+            new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES)
+        );
         assertThat(operations.length, equalTo(10));
 
         // Unexpected history UUID:
-        Exception e = expectThrows(IllegalStateException.class, () -> ShardChangesAction.getOperations(indexShard,
-            indexShard.getLastKnownGlobalCheckpoint(), 0, 10, "different-history-uuid",
-            new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES)));
-        assertThat(e.getMessage(), equalTo("unexpected history uuid, expected [different-history-uuid], actual [" +
-                indexShard.getHistoryUUID() + "]"));
+        Exception e = expectThrows(
+            IllegalStateException.class,
+            () -> ShardChangesAction.getOperations(
+                indexShard,
+                indexShard.getLastKnownGlobalCheckpoint(),
+                0,
+                10,
+                "different-history-uuid",
+                new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES)
+            )
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo("unexpected history uuid, expected [different-history-uuid], actual [" + indexShard.getHistoryUUID() + "]")
+        );
 
         // invalid range
         {
             final long fromSeqNo = randomLongBetween(Long.MIN_VALUE, -1);
             final int batchSize = randomIntBetween(0, Integer.MAX_VALUE);
-            final IllegalArgumentException invalidRangeError = expectThrows(IllegalArgumentException.class,
-                () -> ShardChangesAction.getOperations(indexShard, indexShard.getLastKnownGlobalCheckpoint(),
-                    fromSeqNo, batchSize, indexShard.getHistoryUUID(), new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES)));
-            assertThat(invalidRangeError.getMessage(),
-                equalTo("Invalid range; from_seqno [" + fromSeqNo + "], to_seqno [" + (fromSeqNo + batchSize - 1) + "]"));
+            final IllegalArgumentException invalidRangeError = expectThrows(
+                IllegalArgumentException.class,
+                () -> ShardChangesAction.getOperations(
+                    indexShard,
+                    indexShard.getLastKnownGlobalCheckpoint(),
+                    fromSeqNo,
+                    batchSize,
+                    indexShard.getHistoryUUID(),
+                    new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES)
+                )
+            );
+            assertThat(
+                invalidRangeError.getMessage(),
+                equalTo("Invalid range; from_seqno [" + fromSeqNo + "], to_seqno [" + (fromSeqNo + batchSize - 1) + "]")
+            );
         }
     }
 
@@ -125,16 +152,21 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
 
         ShardRouting shardRouting = TestShardRouting.newShardRouting("index", 0, "_node_id", true, ShardRoutingState.INITIALIZING);
         Mockito.when(indexShard.routingEntry()).thenReturn(shardRouting);
-        expectThrows(IndexShardNotStartedException.class, () -> ShardChangesAction.getOperations(indexShard,
-            indexShard.getLastKnownGlobalCheckpoint(), 0, 1, indexShard.getHistoryUUID(),
-            new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES)));
+        expectThrows(
+            IndexShardNotStartedException.class,
+            () -> ShardChangesAction.getOperations(
+                indexShard,
+                indexShard.getLastKnownGlobalCheckpoint(),
+                0,
+                1,
+                indexShard.getHistoryUUID(),
+                new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES)
+            )
+        );
     }
 
     public void testGetOperationsExceedByteLimit() throws Exception {
-        final Settings settings = Settings.builder()
-                .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 0)
-                .build();
+        final Settings settings = Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build();
         final IndexService indexService = createIndex("index", settings);
 
         final long numWrites = 32;
@@ -143,8 +175,14 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
         }
 
         final IndexShard indexShard = indexService.getShard(0);
-        final Translog.Operation[] operations = ShardChangesAction.getOperations(indexShard, indexShard.getLastKnownGlobalCheckpoint(),
-            0, randomIntBetween(100, 500), indexShard.getHistoryUUID(), new ByteSizeValue(256, ByteSizeUnit.BYTES));
+        final Translog.Operation[] operations = ShardChangesAction.getOperations(
+            indexShard,
+            indexShard.getLastKnownGlobalCheckpoint(),
+            0,
+            randomIntBetween(100, 500),
+            indexShard.getHistoryUUID(),
+            new ByteSizeValue(256, ByteSizeUnit.BYTES)
+        );
         assertThat(operations.length, equalTo(8));
         assertThat(operations[0].seqNo(), equalTo(0L));
         assertThat(operations[1].seqNo(), equalTo(1L));
@@ -157,18 +195,20 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
     }
 
     public void testGetOperationsAlwaysReturnAtLeastOneOp() throws Exception {
-        final Settings settings = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .build();
+        final Settings settings = Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build();
         final IndexService indexService = createIndex("index", settings);
 
         client().prepareIndex("index").setId("0").setSource("{}", XContentType.JSON).get();
 
         final IndexShard indexShard = indexService.getShard(0);
-        final Translog.Operation[] operations =
-            ShardChangesAction.getOperations(
-                    indexShard, indexShard.getLastKnownGlobalCheckpoint(), 0, 1, indexShard.getHistoryUUID(), ByteSizeValue.ZERO);
+        final Translog.Operation[] operations = ShardChangesAction.getOperations(
+            indexShard,
+            indexShard.getLastKnownGlobalCheckpoint(),
+            0,
+            1,
+            indexShard.getHistoryUUID(),
+            ByteSizeValue.ZERO
+        );
         assertThat(operations.length, equalTo(1));
         assertThat(operations[0].seqNo(), equalTo(0L));
     }
@@ -177,20 +217,23 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Exception> reference = new AtomicReference<>();
         final ShardChangesAction.TransportAction transportAction = node().injector().getInstance(ShardChangesAction.TransportAction.class);
-        ActionTestUtils.execute(transportAction, null,
-                new ShardChangesAction.Request(new ShardId(new Index("non-existent", "uuid"), 0), "uuid"),
-                new ActionListener<ShardChangesAction.Response>() {
-                    @Override
-                    public void onResponse(final ShardChangesAction.Response response) {
-                        fail();
-                    }
+        ActionTestUtils.execute(
+            transportAction,
+            null,
+            new ShardChangesAction.Request(new ShardId(new Index("non-existent", "uuid"), 0), "uuid"),
+            new ActionListener<ShardChangesAction.Response>() {
+                @Override
+                public void onResponse(final ShardChangesAction.Response response) {
+                    fail();
+                }
 
-                    @Override
-                    public void onFailure(final Exception e) {
-                        reference.set(e);
-                        latch.countDown();
-                    }
-        });
+                @Override
+                public void onFailure(final Exception e) {
+                    reference.set(e);
+                    latch.countDown();
+                }
+            }
+        );
         latch.await();
         assertNotNull(reference.get());
         assertThat(reference.get(), instanceOf(IndexNotFoundException.class));
@@ -202,20 +245,23 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Exception> reference = new AtomicReference<>();
         final ShardChangesAction.TransportAction transportAction = node().injector().getInstance(ShardChangesAction.TransportAction.class);
-        ActionTestUtils.execute(transportAction, null,
-                new ShardChangesAction.Request(new ShardId(indexService.getMetadata().getIndex(), numberOfShards), "uuid"),
-                new ActionListener<ShardChangesAction.Response>() {
-                    @Override
-                    public void onResponse(final ShardChangesAction.Response response) {
-                        fail();
-                    }
+        ActionTestUtils.execute(
+            transportAction,
+            null,
+            new ShardChangesAction.Request(new ShardId(indexService.getMetadata().getIndex(), numberOfShards), "uuid"),
+            new ActionListener<ShardChangesAction.Response>() {
+                @Override
+                public void onResponse(final ShardChangesAction.Response response) {
+                    fail();
+                }
 
-                    @Override
-                    public void onFailure(final Exception e) {
-                        reference.set(e);
-                        latch.countDown();
-                    }
-                });
+                @Override
+                public void onFailure(final Exception e) {
+                    reference.set(e);
+                    latch.countDown();
+                }
+            }
+        );
         latch.await();
         assertNotNull(reference.get());
         assertThat(reference.get(), instanceOf(ShardNotFoundException.class));

@@ -18,10 +18,10 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.transport.NodeDisconnectedException;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.BaseMonitoringDocTestCase;
@@ -53,8 +53,15 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
     }
 
     @Override
-    protected IndexRecoveryMonitoringDoc createMonitoringDoc(String cluster, long timestamp, long interval, MonitoringDoc.Node node,
-                                                             MonitoredSystem system, String type, String id) {
+    protected IndexRecoveryMonitoringDoc createMonitoringDoc(
+        String cluster,
+        long timestamp,
+        long interval,
+        MonitoringDoc.Node node,
+        MonitoredSystem system,
+        String type,
+        String id
+    ) {
         return new IndexRecoveryMonitoringDoc(cluster, timestamp, interval, node, recoveryResponse);
     }
 
@@ -68,37 +75,40 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
     }
 
     public void testConstructorRecoveryResponseMustNotBeNull() {
-        expectThrows(NullPointerException.class,
-                () -> new IndexRecoveryMonitoringDoc(cluster, timestamp, interval, node, null));
+        expectThrows(NullPointerException.class, () -> new IndexRecoveryMonitoringDoc(cluster, timestamp, interval, node, null));
     }
 
     @Override
     public void testToXContent() throws IOException {
-        final DiscoveryNode discoveryNodeZero = new DiscoveryNode("_node_0",
-                                                                    "_node_id_0",
-                                                                    "_ephemeral_id_0",
-                                                                    "_host_name_0",
-                                                                    "_host_address_0",
-                                                                    new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-                                                                    singletonMap("attr", "value_0"),
-                                                                    singleton(DiscoveryNodeRole.MASTER_ROLE),
-                                                                    Version.CURRENT);
+        final DiscoveryNode discoveryNodeZero = new DiscoveryNode(
+            "_node_0",
+            "_node_id_0",
+            "_ephemeral_id_0",
+            "_host_name_0",
+            "_host_address_0",
+            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
+            singletonMap("attr", "value_0"),
+            singleton(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT
+        );
 
-        final DiscoveryNode discoveryNodeOne = new DiscoveryNode("_node_1",
-                                                                    "_node_id_1",
-                                                                    "_ephemeral_id_1",
-                                                                    "_host_name_1",
-                                                                    "_host_address_1",
-                                                                    new TransportAddress(TransportAddress.META_ADDRESS, 9301),
-                                                                    singletonMap("attr", "value_1"),
-                                                                    singleton(DiscoveryNodeRole.DATA_ROLE),
-                                                                    Version.CURRENT.minimumIndexCompatibilityVersion());
+        final DiscoveryNode discoveryNodeOne = new DiscoveryNode(
+            "_node_1",
+            "_node_id_1",
+            "_ephemeral_id_1",
+            "_host_name_1",
+            "_host_address_1",
+            new TransportAddress(TransportAddress.META_ADDRESS, 9301),
+            singletonMap("attr", "value_1"),
+            singleton(DiscoveryNodeRole.DATA_ROLE),
+            Version.CURRENT.minimumIndexCompatibilityVersion()
+        );
 
         final ShardId shardId = new ShardId("_index_a", "_uuid_a", 0);
         final RecoverySource source = RecoverySource.PeerRecoverySource.INSTANCE;
         final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "_index_info_a");
         final ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true, source, unassignedInfo)
-                                                      .initialize("_node_id", "_allocation_id", 123L);
+            .initialize("_node_id", "_allocation_id", 123L);
 
         final Map<String, List<RecoveryState>> shardRecoveryStates = new HashMap<>();
         final RecoveryState recoveryState = new RecoveryState(shardRouting, discoveryNodeOne, discoveryNodeOne);
@@ -113,8 +123,13 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
 
         final RecoveryResponse recoveryResponse = new RecoveryResponse(10, 7, 3, shardRecoveryStates, shardFailures);
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
-        final IndexRecoveryMonitoringDoc document =
-                new IndexRecoveryMonitoringDoc("_cluster", 1502266739402L, 1506593717631L, node, recoveryResponse);
+        final IndexRecoveryMonitoringDoc document = new IndexRecoveryMonitoringDoc(
+            "_cluster",
+            1502266739402L,
+            1506593717631L,
+            node,
+            recoveryResponse
+        );
 
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
         final String expected = XContentHelper.stripWhitespace(

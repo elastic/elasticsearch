@@ -8,12 +8,12 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.painless.action.PainlessContextInfo;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -41,9 +41,13 @@ public class ContextApiSpecGenerator {
         }
 
         Path json = rootDir.resolve("painless-common.json");
-        try (PrintStream jsonStream = new PrintStream(
-             Files.newOutputStream(json, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
-             false, StandardCharsets.UTF_8.name())) {
+        try (
+            PrintStream jsonStream = new PrintStream(
+                Files.newOutputStream(json, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
+                false,
+                StandardCharsets.UTF_8.name()
+            )
+        ) {
 
             XContentBuilder builder = XContentFactory.jsonBuilder(jsonStream);
             builder.startObject();
@@ -54,9 +58,13 @@ public class ContextApiSpecGenerator {
 
         for (PainlessInfoJson.Context context : infos.contexts) {
             json = rootDir.resolve("painless-" + context.getName() + ".json");
-            try (PrintStream jsonStream = new PrintStream(
-                Files.newOutputStream(json, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
-                false, StandardCharsets.UTF_8.name())) {
+            try (
+                PrintStream jsonStream = new PrintStream(
+                    Files.newOutputStream(json, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE),
+                    false,
+                    StandardCharsets.UTF_8.name()
+                )
+            ) {
 
                 XContentBuilder builder = XContentFactory.jsonBuilder(jsonStream);
                 context.toXContent(builder, null);
@@ -85,12 +93,10 @@ public class ContextApiSpecGenerator {
             return new JavaClassFilesystemResolver(PathUtils.get(jdksrc));
         }
         HashMap<String, Path> packageSources = new HashMap<>();
-        for (String packageSourceString: packageSourcesString.split(";")) {
+        for (String packageSourceString : packageSourcesString.split(";")) {
             String[] packageSource = packageSourceString.split(":", 2);
             if (packageSource.length != 2) {
-                throw new IllegalArgumentException(
-                    "Bad format for packageSources. Format <package0>:<path0>;<package1>:<path1> ..."
-                );
+                throw new IllegalArgumentException("Bad format for packageSources. Format <package0>:<path0>;<package1>:<path1> ...");
             }
             packageSources.put(packageSource[0], PathUtils.get(packageSource[1]));
         }

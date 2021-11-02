@@ -7,10 +7,10 @@
  */
 package org.elasticsearch.client.ml.inference.preprocessing;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -19,7 +19,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.IntFunction;
 import java.util.stream.IntStream;
-
 
 /**
  * PreProcessor for n-gram encoding a string
@@ -36,14 +35,10 @@ public class NGram implements PreProcessor {
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<NGram, Void> PARSER = new ConstructingObjectParser<NGram, Void>(
-            NAME,
-            true,
-            a -> new NGram((String)a[0],
-                (List<Integer>)a[1],
-                (Integer)a[2],
-                (Integer)a[3],
-                (Boolean)a[4],
-                (String)a[5]));
+        NAME,
+        true,
+        a -> new NGram((String) a[0], (List<Integer>) a[1], (Integer) a[2], (Integer) a[3], (Boolean) a[4], (String) a[5])
+    );
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELD);
         PARSER.declareIntArray(ConstructingObjectParser.constructorArg(), NGRAMS);
@@ -136,12 +131,12 @@ public class NGram implements PreProcessor {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         NGram nGram = (NGram) o;
-        return Objects.equals(field, nGram.field) &&
-            Objects.equals(featurePrefix, nGram.featurePrefix) &&
-            Objects.equals(nGrams, nGram.nGrams) &&
-            Objects.equals(start, nGram.start) &&
-            Objects.equals(length, nGram.length) &&
-            Objects.equals(custom, nGram.custom);
+        return Objects.equals(field, nGram.field)
+            && Objects.equals(featurePrefix, nGram.featurePrefix)
+            && Objects.equals(nGrams, nGram.nGrams)
+            && Objects.equals(start, nGram.start)
+            && Objects.equals(length, nGram.length)
+            && Objects.equals(custom, nGram.custom);
     }
 
     @Override
@@ -150,10 +145,7 @@ public class NGram implements PreProcessor {
     }
 
     private String nGramFeature(int nGram, int pos) {
-        return featurePrefix
-            + "."
-            + nGram
-            + pos;
+        return featurePrefix + "." + nGram + pos;
     }
 
     private List<String> allPossibleNGramOutputFeatureNames() {

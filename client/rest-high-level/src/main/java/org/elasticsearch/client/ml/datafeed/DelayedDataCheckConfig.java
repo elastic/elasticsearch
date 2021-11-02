@@ -8,11 +8,11 @@
 package org.elasticsearch.client.ml.datafeed;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -33,16 +33,20 @@ public class DelayedDataCheckConfig implements ToXContentObject {
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ConstructingObjectParser<DelayedDataCheckConfig, Void> PARSER = new ConstructingObjectParser<>(
-        "delayed_data_check_config", true, a -> new DelayedDataCheckConfig((Boolean) a[0], (TimeValue) a[1]));
+        "delayed_data_check_config",
+        true,
+        a -> new DelayedDataCheckConfig((Boolean) a[0], (TimeValue) a[1])
+    );
     static {
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), ENABLED);
         PARSER.declareString(
             ConstructingObjectParser.optionalConstructorArg(),
             text -> TimeValue.parseTimeValue(text, CHECK_WINDOW.getPreferredName()),
-            CHECK_WINDOW);
+            CHECK_WINDOW
+        );
     }
 
-   /**
+    /**
     * This creates a new DelayedDataCheckConfig that has a check_window of the passed `timeValue`
     *
     * We query the index to the latest finalized bucket from this TimeValue in the past looking to see if any data has been indexed

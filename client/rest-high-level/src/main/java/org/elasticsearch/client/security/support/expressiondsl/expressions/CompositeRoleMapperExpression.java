@@ -9,7 +9,7 @@
 package org.elasticsearch.client.security.support.expressiondsl.expressions;
 
 import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -84,4 +84,3 @@ public abstract class CompositeRoleMapperExpression implements RoleMapperExpress
     }
 
 }
-

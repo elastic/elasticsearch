@@ -14,11 +14,11 @@ import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -51,7 +51,7 @@ public class TrainedModelAllocation extends AbstractDiffable<TrainedModelAllocat
         a -> new TrainedModelAllocation(
             (StartTrainedModelDeploymentAction.TaskParams) a[0],
             (Map<String, RoutingStateAndReason>) a[1],
-            AllocationState.fromString((String)a[2]),
+            AllocationState.fromString((String) a[2]),
             (String) a[3]
         )
     );
@@ -115,8 +115,7 @@ public class TrainedModelAllocation extends AbstractDiffable<TrainedModelAllocat
     }
 
     public String[] getStartedNodes() {
-        return nodeRoutingTable
-            .entrySet()
+        return nodeRoutingTable.entrySet()
             .stream()
             .filter(entry -> RoutingState.STARTED.equals(entry.getValue().getState()))
             .map(Map.Entry::getKey)
@@ -184,7 +183,6 @@ public class TrainedModelAllocation extends AbstractDiffable<TrainedModelAllocat
         return Optional.of(new AllocationStatus(numStarted, numAllocatableNodes));
     }
 
-
     public static class Builder {
         private final Map<String, RoutingStateAndReason> nodeRoutingTable;
         private final StartTrainedModelDeploymentAction.TaskParams taskParams;
@@ -221,7 +219,9 @@ public class TrainedModelAllocation extends AbstractDiffable<TrainedModelAllocat
         public Builder addNewRoutingEntry(String nodeId) {
             if (nodeRoutingTable.containsKey(nodeId)) {
                 throw new ResourceAlreadyExistsException(
-                    "routing entry for node [{}] for model [{}] already exists", nodeId, taskParams.getModelId()
+                    "routing entry for node [{}] for model [{}] already exists",
+                    nodeId,
+                    taskParams.getModelId()
                 );
             }
             isChanged = true;
@@ -238,7 +238,9 @@ public class TrainedModelAllocation extends AbstractDiffable<TrainedModelAllocat
         public Builder addNewFailedRoutingEntry(String nodeId, String reason) {
             if (nodeRoutingTable.containsKey(nodeId)) {
                 throw new ResourceAlreadyExistsException(
-                    "routing entry for node [{}] for model [{}] already exists", nodeId, taskParams.getModelId()
+                    "routing entry for node [{}] for model [{}] already exists",
+                    nodeId,
+                    taskParams.getModelId()
                 );
             }
             isChanged = true;
@@ -250,7 +252,9 @@ public class TrainedModelAllocation extends AbstractDiffable<TrainedModelAllocat
             RoutingStateAndReason stateAndReason = nodeRoutingTable.get(nodeId);
             if (stateAndReason == null) {
                 throw new ResourceNotFoundException(
-                    "routing entry for node [{}] for model [{}] does not exist", nodeId, taskParams.getModelId()
+                    "routing entry for node [{}] for model [{}] does not exist",
+                    nodeId,
+                    taskParams.getModelId()
                 );
             }
             if (stateAndReason.equals(state)) {

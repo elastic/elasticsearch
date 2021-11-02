@@ -19,12 +19,12 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -60,8 +60,11 @@ public class BulkRequestTests extends ESTestCase {
         bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON);
         assertThat(bulkRequest.numberOfActions(), equalTo(1));
         assertThat(((IndexRequest) bulkRequest.requests().get(0)).source(), equalTo(new BytesArray("{ \"field1\" : \"value1\" }")));
-        Map<String, Object> sourceMap = XContentHelper.convertToMap(((IndexRequest) bulkRequest.requests().get(0)).source(),
-            false, XContentType.JSON).v2();
+        Map<String, Object> sourceMap = XContentHelper.convertToMap(
+            ((IndexRequest) bulkRequest.requests().get(0)).source(),
+            false,
+            XContentType.JSON
+        ).v2();
         assertEquals("value1", sourceMap.get("field1"));
     }
 
@@ -102,9 +105,10 @@ public class BulkRequestTests extends ESTestCase {
 
     public void testBulkAllowExplicitIndex() throws Exception {
         String bulkAction1 = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk.json");
-        Exception ex = expectThrows(Exception.class,
-            () -> new BulkRequest().add(
-                new BytesArray(bulkAction1.getBytes(StandardCharsets.UTF_8)), null, false, XContentType.JSON));
+        Exception ex = expectThrows(
+            Exception.class,
+            () -> new BulkRequest().add(new BytesArray(bulkAction1.getBytes(StandardCharsets.UTF_8)), null, false, XContentType.JSON)
+        );
         assertEquals("explicit index in bulk is not allowed", ex.getMessage());
 
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk5.json");
@@ -127,35 +131,47 @@ public class BulkRequestTests extends ESTestCase {
     public void testSimpleBulk6() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk6.json");
         BulkRequest bulkRequest = new BulkRequest();
-        ParsingException exc = expectThrows(ParsingException.class,
-            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON));
+        ParsingException exc = expectThrows(
+            ParsingException.class,
+            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON)
+        );
         assertThat(exc.getMessage(), containsString("Unknown key for a VALUE_STRING in [hello]"));
     }
 
     public void testSimpleBulk7() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk7.json");
         BulkRequest bulkRequest = new BulkRequest();
-        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
-            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON));
-        assertThat(exc.getMessage(),
-            containsString("Malformed action/metadata line [5], expected a simple value for field [_unknown] but found [START_ARRAY]"));
+        IllegalArgumentException exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON)
+        );
+        assertThat(
+            exc.getMessage(),
+            containsString("Malformed action/metadata line [5], expected a simple value for field [_unknown] but found [START_ARRAY]")
+        );
     }
 
     public void testSimpleBulk8() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk8.json");
         BulkRequest bulkRequest = new BulkRequest();
-        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
-            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON));
+        IllegalArgumentException exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON)
+        );
         assertThat(exc.getMessage(), containsString("Action/metadata line [3] contains an unknown parameter [_foo]"));
     }
 
     public void testSimpleBulk9() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk9.json");
         BulkRequest bulkRequest = new BulkRequest();
-        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
-            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON));
-        assertThat(exc.getMessage(),
-            containsString("Malformed action/metadata line [3], expected START_OBJECT or END_OBJECT but found [START_ARRAY]"));
+        IllegalArgumentException exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON)
+        );
+        assertThat(
+            exc.getMessage(),
+            containsString("Malformed action/metadata line [3], expected START_OBJECT or END_OBJECT but found [START_ARRAY]")
+        );
     }
 
     public void testSimpleBulk10() throws Exception {
@@ -166,13 +182,16 @@ public class BulkRequestTests extends ESTestCase {
     }
 
     public void testBulkActionShouldNotContainArray() throws Exception {
-        String bulkAction = "{ \"index\":{\"_index\":[\"index1\", \"index2\"],\"_id\":\"1\"} }\r\n"
-            + "{ \"field1\" : \"value1\" }\r\n";
+        String bulkAction = "{ \"index\":{\"_index\":[\"index1\", \"index2\"],\"_id\":\"1\"} }\r\n" + "{ \"field1\" : \"value1\" }\r\n";
         BulkRequest bulkRequest = new BulkRequest();
-        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
-            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON));
-        assertEquals(exc.getMessage(), "Malformed action/metadata line [1]" +
-            ", expected a simple value for field [_index] but found [START_ARRAY]");
+        IllegalArgumentException exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON)
+        );
+        assertEquals(
+            exc.getMessage(),
+            "Malformed action/metadata line [1]" + ", expected a simple value for field [_index] but found [START_ARRAY]"
+        );
     }
 
     public void testBulkEmptyObject() throws Exception {
@@ -195,10 +214,14 @@ public class BulkRequestTests extends ESTestCase {
         }
         String bulkAction = bulk.toString();
         BulkRequest bulkRequest = new BulkRequest();
-        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
-            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON));
-        assertThat(exc.getMessage(), containsString("Malformed action/metadata line ["
-            + emptyLine + "], expected FIELD_NAME but found [END_OBJECT]"));
+        IllegalArgumentException exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON)
+        );
+        assertThat(
+            exc.getMessage(),
+            containsString("Malformed action/metadata line [" + emptyLine + "], expected FIELD_NAME but found [END_OBJECT]")
+        );
     }
 
     // issue 7361
@@ -212,12 +235,16 @@ public class BulkRequestTests extends ESTestCase {
         ActionRequestValidationException validate = bulkRequest.validate();
         assertThat(validate, notNullValue());
         assertThat(validate.validationErrors(), not(empty()));
-        assertThat(validate.validationErrors(), contains(
+        assertThat(
+            validate.validationErrors(),
+            contains(
                 "RefreshPolicy is not supported on an item request. Set it on the BulkRequest instead.",
                 "id is missing",
                 "RefreshPolicy is not supported on an item request. Set it on the BulkRequest instead.",
                 "RefreshPolicy is not supported on an item request. Set it on the BulkRequest instead.",
-                "RefreshPolicy is not supported on an item request. Set it on the BulkRequest instead."));
+                "RefreshPolicy is not supported on an item request. Set it on the BulkRequest instead."
+            )
+        );
     }
 
     // issue 15120
@@ -228,10 +255,7 @@ public class BulkRequestTests extends ESTestCase {
         ActionRequestValidationException validate = bulkRequest.validate();
         assertThat(validate, notNullValue());
         assertThat(validate.validationErrors(), not(empty()));
-        assertThat(validate.validationErrors(), contains(
-                "script or doc is missing",
-                "source is missing",
-                "content type is missing"));
+        assertThat(validate.validationErrors(), contains("script or doc is missing", "source is missing", "content type is missing"));
     }
 
     public void testCannotAddNullRequests() throws Exception {
@@ -245,7 +269,7 @@ public class BulkRequestTests extends ESTestCase {
         XContentType xContentType = XContentType.SMILE;
         BytesReference data;
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            try(XContentBuilder builder = XContentFactory.contentBuilder(xContentType, out)) {
+            try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType, out)) {
                 builder.startObject();
                 builder.startObject("index");
                 builder.field("_index", "index");
@@ -254,7 +278,7 @@ public class BulkRequestTests extends ESTestCase {
                 builder.endObject();
             }
             out.write(xContentType.xContent().streamSeparator());
-            try(XContentBuilder builder = XContentFactory.contentBuilder(xContentType, out)) {
+            try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType, out)) {
                 builder.startObject();
                 builder.field("field", "value");
                 builder.endObject();
@@ -291,10 +315,10 @@ public class BulkRequestTests extends ESTestCase {
                 builder.endObject();
             }
             out.write(xContentType.xContent().streamSeparator());
-            try(XContentBuilder builder = XContentFactory.contentBuilder(xContentType, out)) {
+            try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType, out)) {
                 builder.startObject();
                 builder.startObject("doc").endObject();
-                Map<String,Object> values = new HashMap<>();
+                Map<String, Object> values = new HashMap<>();
                 values.put("if_seq_no", 1L);
                 values.put("if_primary_term", 100L);
                 values.put("_index", "index");
@@ -311,66 +335,80 @@ public class BulkRequestTests extends ESTestCase {
 
     public void testBulkTerminatedByNewline() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk11.json");
-        IllegalArgumentException expectThrows = expectThrows(IllegalArgumentException.class, () -> new BulkRequest()
-                .add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON));
+        IllegalArgumentException expectThrows = expectThrows(
+            IllegalArgumentException.class,
+            () -> new BulkRequest().add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, XContentType.JSON)
+        );
         assertEquals("The bulk request must be terminated by a newline [\\n]", expectThrows.getMessage());
 
         String bulkActionWithNewLine = bulkAction + "\n";
         BulkRequest bulkRequestWithNewLine = new BulkRequest();
-        bulkRequestWithNewLine.add(bulkActionWithNewLine.getBytes(StandardCharsets.UTF_8), 0, bulkActionWithNewLine.length(), null,
-                XContentType.JSON);
+        bulkRequestWithNewLine.add(
+            bulkActionWithNewLine.getBytes(StandardCharsets.UTF_8),
+            0,
+            bulkActionWithNewLine.length(),
+            null,
+            XContentType.JSON
+        );
         assertEquals(3, bulkRequestWithNewLine.numberOfActions());
     }
 
     public void testDynamicTemplates() throws Exception {
         BytesArray data = new BytesArray(
-            "{ \"index\":{\"_index\":\"test\",\"dynamic_templates\":{\"baz\":\"t1\", \"foo.bar\":\"t2\"}}}\n" +
-            "{ \"field1\" : \"value1\" }\n" +
+            "{ \"index\":{\"_index\":\"test\",\"dynamic_templates\":{\"baz\":\"t1\", \"foo.bar\":\"t2\"}}}\n"
+                + "{ \"field1\" : \"value1\" }\n"
+                +
 
-            "{ \"delete\" : { \"_index\" : \"test\", \"_id\" : \"2\" } }\n" +
+                "{ \"delete\" : { \"_index\" : \"test\", \"_id\" : \"2\" } }\n"
+                +
 
-            "{ \"create\" : {\"_index\":\"test\",\"dynamic_templates\":{\"bar\":\"t1\"}}}\n" +
-            "{ \"field1\" : \"value3\" }\n" +
+                "{ \"create\" : {\"_index\":\"test\",\"dynamic_templates\":{\"bar\":\"t1\"}}}\n"
+                + "{ \"field1\" : \"value3\" }\n"
+                +
 
-            "{ \"create\" : {\"dynamic_templates\":{\"foo.bar\":\"xyz\"}}}\n" +
-            "{ \"field1\" : \"value3\" }\n" +
+                "{ \"create\" : {\"dynamic_templates\":{\"foo.bar\":\"xyz\"}}}\n"
+                + "{ \"field1\" : \"value3\" }\n"
+                +
 
-            "{ \"index\" : {\"dynamic_templates\":{}}\n" +
-            "{ \"field1\" : \"value3\" }\n"
+                "{ \"index\" : {\"dynamic_templates\":{}}\n"
+                + "{ \"field1\" : \"value3\" }\n"
         );
         BulkRequest bulkRequest = new BulkRequest().add(data, null, XContentType.JSON);
         assertThat(bulkRequest.requests, hasSize(5));
-        assertThat(((IndexRequest) bulkRequest.requests.get(0)).getDynamicTemplates(),
-            equalTo(Map.of("baz", "t1", "foo.bar", "t2")));
-        assertThat(((IndexRequest) bulkRequest.requests.get(2)).getDynamicTemplates(),
-            equalTo(Map.of("bar", "t1")));
-        assertThat(((IndexRequest) bulkRequest.requests.get(3)).getDynamicTemplates(),
-            equalTo(Map.of("foo.bar", "xyz")));
-        assertThat(((IndexRequest) bulkRequest.requests.get(4)).getDynamicTemplates(),
-            equalTo(Map.of()));
+        assertThat(((IndexRequest) bulkRequest.requests.get(0)).getDynamicTemplates(), equalTo(Map.of("baz", "t1", "foo.bar", "t2")));
+        assertThat(((IndexRequest) bulkRequest.requests.get(2)).getDynamicTemplates(), equalTo(Map.of("bar", "t1")));
+        assertThat(((IndexRequest) bulkRequest.requests.get(3)).getDynamicTemplates(), equalTo(Map.of("foo.bar", "xyz")));
+        assertThat(((IndexRequest) bulkRequest.requests.get(4)).getDynamicTemplates(), equalTo(Map.of()));
     }
 
     public void testInvalidDynamicTemplates() {
         BytesArray deleteWithDynamicTemplates = new BytesArray(
-            "{ \"delete\" : { \"_index\" : \"test\", \"_id\" : \"2\", \"dynamic_templates\":{\"baz\":\"t1\"}} }\n");
-        IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
-            () -> new BulkRequest().add(deleteWithDynamicTemplates, null, XContentType.JSON));
+            "{ \"delete\" : { \"_index\" : \"test\", \"_id\" : \"2\", \"dynamic_templates\":{\"baz\":\"t1\"}} }\n"
+        );
+        IllegalArgumentException error = expectThrows(
+            IllegalArgumentException.class,
+            () -> new BulkRequest().add(deleteWithDynamicTemplates, null, XContentType.JSON)
+        );
         assertThat(error.getMessage(), equalTo("Delete request in line [1] does not accept dynamic_templates"));
 
         BytesArray updateWithDynamicTemplates = new BytesArray(
-            "{ \"update\" : {\"dynamic_templates\":{\"foo.bar\":\"xyz\"}}}\n" +
-            "{ \"field1\" : \"value3\" }\n");
-        error = expectThrows(IllegalArgumentException.class,
-            () -> new BulkRequest().add(updateWithDynamicTemplates, null, XContentType.JSON));
+            "{ \"update\" : {\"dynamic_templates\":{\"foo.bar\":\"xyz\"}}}\n" + "{ \"field1\" : \"value3\" }\n"
+        );
+        error = expectThrows(
+            IllegalArgumentException.class,
+            () -> new BulkRequest().add(updateWithDynamicTemplates, null, XContentType.JSON)
+        );
         assertThat(error.getMessage(), equalTo("Update request in line [2] does not accept dynamic_templates"));
 
         BytesArray invalidDynamicTemplates = new BytesArray(
-            "{ \"index\":{\"_index\":\"test\",\"dynamic_templates\":[]}\n" +
-            "{ \"field1\" : \"value1\" }\n"
+            "{ \"index\":{\"_index\":\"test\",\"dynamic_templates\":[]}\n" + "{ \"field1\" : \"value1\" }\n"
         );
-        error = expectThrows(IllegalArgumentException.class,
-            () -> new BulkRequest().add(invalidDynamicTemplates, null, XContentType.JSON));
-        assertThat(error.getMessage(), equalTo("Malformed action/metadata line [1], " +
-            "expected a simple value for field [dynamic_templates] but found [START_ARRAY]"));
+        error = expectThrows(IllegalArgumentException.class, () -> new BulkRequest().add(invalidDynamicTemplates, null, XContentType.JSON));
+        assertThat(
+            error.getMessage(),
+            equalTo(
+                "Malformed action/metadata line [1], " + "expected a simple value for field [dynamic_templates] but found [START_ARRAY]"
+            )
+        );
     }
 }

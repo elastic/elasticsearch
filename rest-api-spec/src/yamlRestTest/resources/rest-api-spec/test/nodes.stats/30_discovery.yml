@@ -141,8 +141,8 @@
 "Master cluster applier stats":
   - skip:
       features: [arbitrary_key]
-      version: "- 7.99.99"
-      reason: "not yet backported to 7.x branch"
+      version: "- 7.15.99"
+      reason: "Cluster state applier stats available since 7.16.0"
 
   - do:
       nodes.info:
@@ -158,3 +158,49 @@
   - is_true: nodes.$master.discovery.cluster_applier_stats.recordings.0.name
   - gte: { nodes.$master.discovery.cluster_applier_stats.recordings.0.cumulative_execution_count: 1 }
   - gte: { nodes.$master.discovery.cluster_applier_stats.recordings.0.cumulative_execution_time_millis: 1 }
+
+---
+"Master serialization stats":
+  - skip:
+      features: [arbitrary_key]
+      version: "- 7.15.99"
+      reason: "master serialization stats added in 7.16.0"
+
+  - do:
+      nodes.info:
+        node_id: _master
+  - set:
+      nodes._arbitrary_key_: master
+
+  - do:
+      nodes.stats:
+        metric: [ discovery ]
+
+  - gte: { nodes.$master.discovery.serialized_cluster_states.full_states.count: 0 }
+  - gte: { nodes.$master.discovery.serialized_cluster_states.full_states.uncompressed_size_in_bytes: 0 }
+  - gte: { nodes.$master.discovery.serialized_cluster_states.full_states.compressed_size_in_bytes: 0 }
+  - gte: { nodes.$master.discovery.serialized_cluster_states.diffs.count: 0 }
+  - gte: { nodes.$master.discovery.serialized_cluster_states.diffs.uncompressed_size_in_bytes: 0 }
+  - gte: { nodes.$master.discovery.serialized_cluster_states.diffs.compressed_size_in_bytes: 0 }
+
+  - is_false: nodes.$master.discovery.serialized_cluster_states.full_states.uncompressed_size
+  - is_false: nodes.$master.discovery.serialized_cluster_states.full_states.compressed_size
+  - is_false: nodes.$master.discovery.serialized_cluster_states.diffs.uncompressed_size
+  - is_false: nodes.$master.discovery.serialized_cluster_states.diffs.compressed_size
+
+  - do:
+      nodes.stats:
+        metric: [ discovery ]
+        human: true
+
+  - gte: { nodes.$master.discovery.serialized_cluster_states.full_states.count: 0 }
+  - gte: { nodes.$master.discovery.serialized_cluster_states.full_states.uncompressed_size_in_bytes: 0 }
+  - gte: { nodes.$master.discovery.serialized_cluster_states.full_states.compressed_size_in_bytes: 0 }
+  - gte: { nodes.$master.discovery.serialized_cluster_states.diffs.count: 0 }
+  - gte: { nodes.$master.discovery.serialized_cluster_states.diffs.uncompressed_size_in_bytes: 0 }
+  - gte: { nodes.$master.discovery.serialized_cluster_states.diffs.compressed_size_in_bytes: 0 }
+
+  - is_true: nodes.$master.discovery.serialized_cluster_states.full_states.uncompressed_size
+  - is_true: nodes.$master.discovery.serialized_cluster_states.full_states.compressed_size
+  - is_true: nodes.$master.discovery.serialized_cluster_states.diffs.uncompressed_size
+  - is_true: nodes.$master.discovery.serialized_cluster_states.diffs.compressed_size

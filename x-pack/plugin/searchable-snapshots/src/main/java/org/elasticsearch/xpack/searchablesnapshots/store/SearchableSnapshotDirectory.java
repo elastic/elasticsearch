@@ -696,7 +696,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     }
 
     public ByteRange getBlobCacheByteRange(String fileName, long fileLength) {
-        return blobStoreCacheService.computeBlobCacheByteRange(fileName, fileLength, blobStoreCacheMaxLength);
+        return blobStoreCacheService.computeBlobCacheByteRange(shardId, fileName, fileLength, blobStoreCacheMaxLength);
     }
 
     public CachedBlob getCachedBlob(String name, ByteRange range) {

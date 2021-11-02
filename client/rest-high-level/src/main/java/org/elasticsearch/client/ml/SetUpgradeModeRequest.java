@@ -8,8 +8,8 @@
 package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.util.Objects;
 
@@ -17,7 +17,6 @@ import java.util.Objects;
  * Sets ML into upgrade_mode
  */
 public class SetUpgradeModeRequest implements Validatable {
-
 
     public static final ParseField ENABLED = new ParseField("enabled");
     public static final ParseField TIMEOUT = new ParseField("timeout");

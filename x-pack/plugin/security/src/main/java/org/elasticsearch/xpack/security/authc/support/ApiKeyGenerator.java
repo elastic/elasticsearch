@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.security.authc.support;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -60,9 +60,13 @@ public class ApiKeyGenerator {
         if (ServiceAccountSettings.REALM_NAME.equals(authentication.getSourceRealm().getName())) {
             final ServiceAccount serviceAccount = ServiceAccountService.getServiceAccounts().get(authentication.getUser().principal());
             if (serviceAccount == null) {
-                roleDescriptorsListener.onFailure(new ElasticsearchSecurityException(
-                    "the authentication is created by a service account that does not exist: ["
-                        + authentication.getUser().principal() + "]"));
+                roleDescriptorsListener.onFailure(
+                    new ElasticsearchSecurityException(
+                        "the authentication is created by a service account that does not exist: ["
+                            + authentication.getUser().principal()
+                            + "]"
+                    )
+                );
             } else {
                 roleDescriptorsListener.onResponse(Set.of(serviceAccount.roleDescriptor()));
             }

@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -20,7 +20,7 @@ import java.util.Map;
 abstract class InferenceResultsTestCase<T extends InferenceResults> extends AbstractWireSerializingTestCase<T> {
 
     public void testWriteToIngestDoc() throws IOException {
-        for (int i = 0 ; i < NUMBER_OF_TEST_RUNS; ++i) {
+        for (int i = 0; i < NUMBER_OF_TEST_RUNS; ++i) {
             T inferenceResult = createTestInstance();
             if (randomBoolean()) {
                 inferenceResult = copyInstance(inferenceResult, Version.CURRENT);
@@ -40,7 +40,7 @@ abstract class InferenceResultsTestCase<T extends InferenceResults> extends Abst
     abstract void assertFieldValues(T createdInstance, IngestDocument document, String resultsField);
 
     public void testWriteToDocAndSerialize() throws IOException {
-        for (int i = 0 ; i < NUMBER_OF_TEST_RUNS; ++i) {
+        for (int i = 0; i < NUMBER_OF_TEST_RUNS; ++i) {
             T inferenceResult = createTestInstance();
             if (randomBoolean()) {
                 inferenceResult = copyInstance(inferenceResult, Version.CURRENT);

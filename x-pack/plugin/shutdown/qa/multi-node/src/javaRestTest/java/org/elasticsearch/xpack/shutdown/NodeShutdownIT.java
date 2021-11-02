@@ -14,11 +14,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.ObjectPath;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.ObjectPath;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.List;
@@ -113,7 +113,6 @@ public class NodeShutdownIT extends ESRestTestCase {
             assertThat(nodesArray.get(0).get("reason"), equalTo(newReason));
         }
     }
-
 
     public void testPutShutdownCanChangeTypeFromRestartToRemove() throws Exception {
         checkTypeChange("RESTART", "REMOVE");
@@ -279,7 +278,7 @@ public class NodeShutdownIT extends ESRestTestCase {
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/77456")
     public void testStalledShardMigrationProperlyDetected() throws Exception {
         String nodeIdToShutdown = getRandomNodeId();
-        int numberOfShards = randomIntBetween(1,5);
+        int numberOfShards = randomIntBetween(1, 5);
 
         // Create an index, pin the allocation to the node we're about to shut down
         final String indexName = "test-idx";
@@ -322,7 +321,7 @@ public class NodeShutdownIT extends ESRestTestCase {
             Map<String, Object> status = entityAsMap(statusResponse);
             assertThat(ObjectPath.eval("nodes.0.shard_migration.status", status), equalTo("COMPLETE"));
             assertThat(ObjectPath.eval("nodes.0.shard_migration.shard_migrations_remaining", status), equalTo(0));
-                        assertThat(ObjectPath.eval("nodes.0.shard_migration.explanation", status), nullValue());
+            assertThat(ObjectPath.eval("nodes.0.shard_migration.explanation", status), nullValue());
         });
     }
 
@@ -394,11 +393,7 @@ public class NodeShutdownIT extends ESRestTestCase {
                     putBody.field("allocation_delay", allocationDelay);
                 }
                 if (targetNodeName != null) {
-                    assertThat(
-                        "target node name parameter is only valid for REPLACE-type shutdowns",
-                        type,
-                        equalToIgnoringCase("replace")
-                    );
+                    assertThat("target node name parameter is only valid for REPLACE-type shutdowns", type, equalToIgnoringCase("replace"));
                     putBody.field("target_node_name", targetNodeName);
                 } else {
                     assertThat("target node name is required for REPALCE-type shutdowns", type, not(equalToIgnoringCase("replace")));

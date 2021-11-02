@@ -246,7 +246,8 @@ The API returns the following response:
       "template": "my-index-template",
       "ilm_policy": "my-lifecycle-policy",
       "hidden": false,
-      "system": false
+      "system": false,
+      "allow_custom_routing": false
     },
     {
       "name": "my-data-stream-two",
@@ -267,7 +268,8 @@ The API returns the following response:
       "template": "my-index-template",
       "ilm_policy": "my-lifecycle-policy",
       "hidden": false,
-      "system": false
+      "system": false,
+      "allow_custom_routing": false
     }
   ]
 }

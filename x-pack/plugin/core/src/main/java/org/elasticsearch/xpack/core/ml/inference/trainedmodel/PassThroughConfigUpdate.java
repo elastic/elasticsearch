@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
@@ -27,7 +27,7 @@ public class PassThroughConfigUpdate extends NlpConfigUpdate implements NamedXCo
 
     public static PassThroughConfigUpdate fromMap(Map<String, Object> map) {
         Map<String, Object> options = new HashMap<>(map);
-        String resultsField = (String)options.remove(RESULTS_FIELD.getPreferredName());
+        String resultsField = (String) options.remove(RESULTS_FIELD.getPreferredName());
 
         if (options.isEmpty() == false) {
             throw ExceptionsHelper.badRequestException("Unrecognized fields {}.", options.keySet());
@@ -41,7 +41,8 @@ public class PassThroughConfigUpdate extends NlpConfigUpdate implements NamedXCo
         ObjectParser<PassThroughConfigUpdate.Builder, Void> parser = new ObjectParser<>(
             NAME,
             lenient,
-            PassThroughConfigUpdate.Builder::new);
+            PassThroughConfigUpdate.Builder::new
+        );
         parser.declareString(PassThroughConfigUpdate.Builder::setResultsField, RESULTS_FIELD);
         return parser;
     }
@@ -95,14 +96,12 @@ public class PassThroughConfigUpdate extends NlpConfigUpdate implements NamedXCo
             throw ExceptionsHelper.badRequestException(
                 "Inference config of type [{}] can not be updated with a inference request of type [{}]",
                 originalConfig.getName(),
-                getName());
+                getName()
+            );
         }
 
-        PassThroughConfig passThroughConfig = (PassThroughConfig)originalConfig;
-        return new PassThroughConfig(
-            passThroughConfig.getVocabularyConfig(),
-            passThroughConfig.getTokenization(),
-            resultsField);
+        PassThroughConfig passThroughConfig = (PassThroughConfig) originalConfig;
+        return new PassThroughConfig(passThroughConfig.getVocabularyConfig(), passThroughConfig.getTokenization(), resultsField);
     }
 
     @Override
@@ -117,8 +116,7 @@ public class PassThroughConfigUpdate extends NlpConfigUpdate implements NamedXCo
 
     @Override
     public InferenceConfigUpdate.Builder<? extends InferenceConfigUpdate.Builder<?, ?>, ? extends InferenceConfigUpdate> newBuilder() {
-        return new PassThroughConfigUpdate.Builder()
-            .setResultsField(resultsField);
+        return new PassThroughConfigUpdate.Builder().setResultsField(resultsField);
     }
 
     @Override
@@ -134,8 +132,7 @@ public class PassThroughConfigUpdate extends NlpConfigUpdate implements NamedXCo
         return Objects.hash(resultsField);
     }
 
-    public static class Builder
-        implements InferenceConfigUpdate.Builder<PassThroughConfigUpdate.Builder, PassThroughConfigUpdate> {
+    public static class Builder implements InferenceConfigUpdate.Builder<PassThroughConfigUpdate.Builder, PassThroughConfigUpdate> {
         private String resultsField;
 
         @Override

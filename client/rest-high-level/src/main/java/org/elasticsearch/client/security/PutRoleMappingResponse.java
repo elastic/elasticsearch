@@ -8,14 +8,14 @@
 
 package org.elasticsearch.client.security;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Response when adding/updating a role mapping. Returns a boolean field for
@@ -51,10 +51,16 @@ public final class PutRoleMappingResponse {
     }
 
     private static final ConstructingObjectParser<PutRoleMappingResponse, Void> PARSER = new ConstructingObjectParser<>(
-            "put_role_mapping_response", true, args -> new PutRoleMappingResponse((boolean) args[0]));
+        "put_role_mapping_response",
+        true,
+        args -> new PutRoleMappingResponse((boolean) args[0])
+    );
     static {
         ConstructingObjectParser<Boolean, Void> roleMappingParser = new ConstructingObjectParser<>(
-                "put_role_mapping_response.role_mapping", true, args -> (Boolean) args[0]);
+            "put_role_mapping_response.role_mapping",
+            true,
+            args -> (Boolean) args[0]
+        );
         roleMappingParser.declareBoolean(constructorArg(), new ParseField("created"));
         PARSER.declareObject(constructorArg(), roleMappingParser::parse, new ParseField("role_mapping"));
     }

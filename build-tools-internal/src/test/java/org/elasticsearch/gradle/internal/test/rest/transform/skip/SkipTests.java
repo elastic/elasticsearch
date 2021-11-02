@@ -11,16 +11,13 @@ package org.elasticsearch.gradle.internal.test.rest.transform.skip;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import org.elasticsearch.gradle.internal.test.rest.transform.AssertObjectNodes;
-import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransform;
 import org.elasticsearch.gradle.internal.test.rest.transform.TransformTests;
-import org.elasticsearch.gradle.internal.test.rest.transform.match.ReplaceKeyInMatch;
 import org.junit.Test;
 
 import java.util.Collections;
 import java.util.List;
 
 public class SkipTests extends TransformTests {
-
 
     @Test
     public void testAddGlobalSetup() throws Exception {
@@ -30,10 +27,7 @@ public class SkipTests extends TransformTests {
         String test_transformed = "/rest/transform/skip/without_setup_transformed.yml";
         List<ObjectNode> expectedTransformation = getTests(test_transformed);
 
-        List<ObjectNode> transformedTests = transformTests(
-            tests,
-            Collections.singletonList(new Skip("my reason"))
-        );
+        List<ObjectNode> transformedTests = transformTests(tests, Collections.singletonList(new Skip("my reason")));
 
         AssertObjectNodes.areEqual(transformedTests, expectedTransformation);
     }
@@ -46,10 +40,7 @@ public class SkipTests extends TransformTests {
         String test_transformed = "/rest/transform/skip/without_setup_transformed.yml";
         List<ObjectNode> expectedTransformation = getTests(test_transformed);
 
-        List<ObjectNode> transformedTests = transformTests(
-            tests,
-            Collections.singletonList(new Skip("my reason"))
-        );
+        List<ObjectNode> transformedTests = transformTests(tests, Collections.singletonList(new Skip("my reason")));
 
         AssertObjectNodes.areEqual(transformedTests, expectedTransformation);
     }
@@ -62,10 +53,7 @@ public class SkipTests extends TransformTests {
         String test_transformed = "/rest/transform/skip/with_setup_no_skip_transformed.yml";
         List<ObjectNode> expectedTransformation = getTests(test_transformed);
 
-        List<ObjectNode> transformedTests = transformTests(
-            tests,
-            Collections.singletonList(new Skip("my reason"))
-        );
+        List<ObjectNode> transformedTests = transformTests(tests, Collections.singletonList(new Skip("my reason")));
 
         AssertObjectNodes.areEqual(transformedTests, expectedTransformation);
     }
@@ -78,10 +66,7 @@ public class SkipTests extends TransformTests {
         String test_transformed = "/rest/transform/skip/with_features_transformed.yml";
         List<ObjectNode> expectedTransformation = getTests(test_transformed);
 
-        List<ObjectNode> transformedTests = transformTests(
-            tests,
-            Collections.singletonList(new Skip("my reason"))
-        );
+        List<ObjectNode> transformedTests = transformTests(tests, Collections.singletonList(new Skip("my reason")));
 
         AssertObjectNodes.areEqual(transformedTests, expectedTransformation);
     }

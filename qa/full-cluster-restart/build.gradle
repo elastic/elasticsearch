@@ -23,6 +23,9 @@ BuildParams.bwcVersions.withIndexCompatiple { bwcVersion, baseName ->
       setting 'indices.memory.shard_inactive_time', '60m'
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
       setting 'xpack.security.enabled', 'false'
+      if (BuildParams.isSnapshotBuild() == false) {
+        systemProperty 'es.index_mode_feature_flag_registered', 'true'
+      }
   }
 
   tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {

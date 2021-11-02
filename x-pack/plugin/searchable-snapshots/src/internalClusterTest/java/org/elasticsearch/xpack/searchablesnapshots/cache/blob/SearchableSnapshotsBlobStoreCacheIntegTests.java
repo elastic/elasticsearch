@@ -28,8 +28,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
@@ -41,6 +39,8 @@ import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest.Storage;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotShardStats;
@@ -300,7 +300,8 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
                     .build();
             }
         });
-        ensureGreen(restoredAgainIndex);
+
+        ensureGreen("restored-*");
 
         assertRecoveryStats(restoredAgainIndex, false);
         assertExecutorIsIdle(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);

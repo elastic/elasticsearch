@@ -10,8 +10,8 @@ package org.elasticsearch.client.watcher;
 
 import org.elasticsearch.client.NodesResponseHeader;
 import org.elasticsearch.client.NodesResponseHeaderTestUtils;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -29,11 +29,7 @@ import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 public class WatcherStatsResponseTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
-        xContentTester(
-            this::createParser,
-            this::createTestInstance,
-            this::toXContent,
-            WatcherStatsResponse::fromXContent)
+        xContentTester(this::createParser, this::createTestInstance, this::toXContent, WatcherStatsResponse::fromXContent)
             .supportsUnknownFields(true)
             .randomFieldsExcludeFilter(field -> field.endsWith("stats"))
             .test();
@@ -142,21 +138,33 @@ public class WatcherStatsResponseTests extends ESTestCase {
                             stackTrace[k] = randomAlphaOfLength(10);
                         }
                     }
-                    snapshots.add(new WatchExecutionSnapshot(randomAlphaOfLength(10), randomAlphaOfLength(10),
-                        ZonedDateTime.ofInstant(Instant.ofEpochMilli(randomInt()), ZoneOffset.UTC),
-                        ZonedDateTime.ofInstant(Instant.ofEpochMilli(randomInt()), ZoneOffset.UTC),
-                        randomFrom(ExecutionPhase.values()), actions, stackTrace));
+                    snapshots.add(
+                        new WatchExecutionSnapshot(
+                            randomAlphaOfLength(10),
+                            randomAlphaOfLength(10),
+                            ZonedDateTime.ofInstant(Instant.ofEpochMilli(randomInt()), ZoneOffset.UTC),
+                            ZonedDateTime.ofInstant(Instant.ofEpochMilli(randomInt()), ZoneOffset.UTC),
+                            randomFrom(ExecutionPhase.values()),
+                            actions,
+                            stackTrace
+                        )
+                    );
                 }
             }
 
             List<QueuedWatch> queuedWatches = null;
-            if(randomBoolean()) {
+            if (randomBoolean()) {
                 int queuedWatchCount = randomInt(10);
                 queuedWatches = new ArrayList<>(queuedWatchCount);
-                for (int j=0; j<queuedWatchCount; j++) {
-                    queuedWatches.add(new QueuedWatch(randomAlphaOfLength(10), randomAlphaOfLength(10),
-                        ZonedDateTime.ofInstant(Instant.ofEpochMilli(randomInt()), ZoneOffset.UTC),
-                        ZonedDateTime.ofInstant(Instant.ofEpochMilli(randomInt()), ZoneOffset.UTC)));
+                for (int j = 0; j < queuedWatchCount; j++) {
+                    queuedWatches.add(
+                        new QueuedWatch(
+                            randomAlphaOfLength(10),
+                            randomAlphaOfLength(10),
+                            ZonedDateTime.ofInstant(Instant.ofEpochMilli(randomInt()), ZoneOffset.UTC),
+                            ZonedDateTime.ofInstant(Instant.ofEpochMilli(randomInt()), ZoneOffset.UTC)
+                        )
+                    );
                 }
             }
 
@@ -164,16 +172,30 @@ public class WatcherStatsResponseTests extends ESTestCase {
             if (randomBoolean()) {
                 int statsCount = randomInt(10);
                 stats = new HashMap<>(statsCount);
-                for (int j=0; j<statsCount; j++) {
+                for (int j = 0; j < statsCount; j++) {
                     stats.put(randomAlphaOfLength(10), randomNonNegativeLong());
                 }
             }
 
-            nodes.add(new WatcherStatsResponse.Node(randomAlphaOfLength(10), randomFrom(WatcherState.values()), randomNonNegativeLong(),
-                randomNonNegativeLong(), randomNonNegativeLong(), snapshots, queuedWatches, stats));
+            nodes.add(
+                new WatcherStatsResponse.Node(
+                    randomAlphaOfLength(10),
+                    randomFrom(WatcherState.values()),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    snapshots,
+                    queuedWatches,
+                    stats
+                )
+            );
         }
-        NodesResponseHeader nodesResponseHeader = new NodesResponseHeader(randomInt(10), randomInt(10),
-            randomInt(10), Collections.emptyList());
+        NodesResponseHeader nodesResponseHeader = new NodesResponseHeader(
+            randomInt(10),
+            randomInt(10),
+            randomInt(10),
+            Collections.emptyList()
+        );
         WatcherMetadata watcherMetadata = new WatcherMetadata(randomBoolean());
         return new WatcherStatsResponse(nodesResponseHeader, randomAlphaOfLength(10), watcherMetadata, nodes);
     }

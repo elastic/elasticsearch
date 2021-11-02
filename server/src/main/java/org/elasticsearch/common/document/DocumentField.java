@@ -8,17 +8,19 @@
 
 package org.elasticsearch.common.document;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -32,19 +34,30 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.parseFieldsV
  * @see SearchHit
  * @see GetResult
  */
-public class DocumentField implements Writeable, ToXContentFragment, Iterable<Object> {
+public class DocumentField implements Writeable, Iterable<Object> {
 
     private final String name;
     private final List<Object> values;
+    private List<Object> ignoredValues;
 
     public DocumentField(StreamInput in) throws IOException {
         name = in.readString();
         values = in.readList(StreamInput::readGenericValue);
+        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
+            ignoredValues = in.readList(StreamInput::readGenericValue);
+        } else {
+            ignoredValues = Collections.emptyList();
+        }
     }
 
     public DocumentField(String name, List<Object> values) {
+        this(name, values, Collections.emptyList());
+    }
+
+    public DocumentField(String name, List<Object> values, List<Object> ignoredValues) {
         this.name = Objects.requireNonNull(name, "name must not be null");
         this.values = Objects.requireNonNull(values, "values must not be null");
+        this.ignoredValues = Objects.requireNonNull(ignoredValues, "ignoredValues must not be null");
     }
 
     /**
@@ -77,23 +90,54 @@ public class DocumentField implements Writeable, ToXContentFragment, Iterable<Ob
         return values.iterator();
     }
 
+    /**
+     * The field's ignored values as an immutable list.
+     */
+    public List<Object> getIgnoredValues() {
+        return ignoredValues == Collections.emptyList() ? ignoredValues : Collections.unmodifiableList(ignoredValues);
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeCollection(values, StreamOutput::writeGenericValue);
+        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
+            out.writeCollection(ignoredValues, StreamOutput::writeGenericValue);
+        }
+
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray(name);
-        for (Object value : values) {
-            // This call doesn't really need to support writing any kind of object, since the values
-            // here are always serializable to xContent. Each value could be a leaf types like a string,
-            // number, or boolean, a list of such values, or a map of such values with string keys.
-            builder.value(value);
-        }
-        builder.endArray();
-        return builder;
+    public ToXContentFragment getValidValuesWriter() {
+        return new ToXContentFragment() {
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                builder.startArray(name);
+                for (Object value : values) {
+                    // This call doesn't really need to support writing any kind of object, since the values
+                    // here are always serializable to xContent. Each value could be a leaf types like a string,
+                    // number, or boolean, a list of such values, or a map of such values with string keys.
+                    builder.value(value);
+                }
+                builder.endArray();
+                return builder;
+            }
+        };
+    }
+
+    public ToXContentFragment getIgnoredValuesWriter() {
+        return new ToXContentFragment() {
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                builder.startArray(name);
+                for (Object value : ignoredValues) {
+                    builder.value(value);
+                }
+                builder.endArray();
+                return builder;
+            }
+        };
     }
 
     public static DocumentField fromXContent(XContentParser parser) throws IOException {
@@ -117,19 +161,19 @@ public class DocumentField implements Writeable, ToXContentFragment, Iterable<Ob
             return false;
         }
         DocumentField objects = (DocumentField) o;
-        return Objects.equals(name, objects.name) && Objects.equals(values, objects.values);
+        return Objects.equals(name, objects.name)
+            && Objects.equals(values, objects.values)
+            && Objects.equals(ignoredValues, objects.ignoredValues);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, values);
+        return Objects.hash(name, values, ignoredValues);
     }
 
     @Override
     public String toString() {
-        return "DocumentField{" +
-                "name='" + name + '\'' +
-                ", values=" + values +
-                '}';
+        return "DocumentField{" + "name='" + name + '\'' + ", values=" + values + ", ignoredValues=" + ignoredValues + '}';
     }
+
 }

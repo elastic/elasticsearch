@@ -14,7 +14,6 @@ import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.elasticsearch.gradle.transform.UnzipTransform;
-import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.NamedDomainObjectProvider;
 import org.gradle.api.Plugin;
@@ -26,9 +25,7 @@ import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.attributes.Attribute;
 import org.gradle.api.internal.artifacts.ArtifactAttributes;
-import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.JavaBasePlugin;
-import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
@@ -110,9 +107,9 @@ public class YamlRestTestPlugin implements Plugin<Project> {
     }
 
     private TaskProvider<StandaloneRestIntegTestTask> setupTestTask(
-            Project project,
-            SourceSet testSourceSet,
-            NamedDomainObjectProvider<ElasticsearchCluster> clusterProvider
+        Project project,
+        SourceSet testSourceSet,
+        NamedDomainObjectProvider<ElasticsearchCluster> clusterProvider
     ) {
         return project.getTasks().register(YAML_REST_TEST, StandaloneRestIntegTestTask.class, task -> {
             task.useCluster(clusterProvider.get());

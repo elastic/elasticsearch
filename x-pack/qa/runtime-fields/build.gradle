@@ -98,6 +98,7 @@ subprojects {
           'search/330_fetch_fields/error includes glob pattern',
           // we need a @timestamp field to be defined in index mapping
           'search/380_sort_segments_on_timestamp/*',
+          'field_caps/40_time_series/*',
           /////// NOT SUPPORTED ///////
         ].join(',')
     }

@@ -29,6 +29,7 @@ dependencies {
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  api "joda-time:joda-time:2.10.10"
 }
 
 restResources {

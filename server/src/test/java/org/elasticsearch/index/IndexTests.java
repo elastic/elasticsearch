@@ -11,11 +11,11 @@ package org.elasticsearch.index;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 
@@ -29,8 +29,10 @@ public class IndexTests extends ESTestCase {
         assertEquals("[name/uuid]", new Index("name", "uuid").toString());
         assertEquals("[name]", new Index("name", ClusterState.UNKNOWN_UUID).toString());
 
-        Index random = new Index(randomSimpleString(random(), 1, 100),
-                usually() ? UUIDs.randomBase64UUID(random()) : ClusterState.UNKNOWN_UUID);
+        Index random = new Index(
+            randomSimpleString(random(), 1, 100),
+            usually() ? UUIDs.randomBase64UUID(random()) : ClusterState.UNKNOWN_UUID
+        );
         assertThat(random.toString(), containsString(random.getName()));
         if (ClusterState.UNKNOWN_UUID.equals(random.getUUID())) {
             assertThat(random.toString(), not(containsString(random.getUUID())));

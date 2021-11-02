@@ -9,14 +9,14 @@
 package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -37,11 +37,9 @@ public class RestMultiTermVectorsActionTests extends RestActionTestCase {
     }
 
     public void testTypeInPath() {
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
-            .withMethod(RestRequest.Method.POST)
-            .withPath("/some_index/some_type/_mtermvectors")
-            .build();
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
+            Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
+        ).withMethod(RestRequest.Method.POST).withPath("/some_index/some_type/_mtermvectors").build();
 
         dispatchRequest(request);
         assertWarnings(RestMultiTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
@@ -51,11 +49,9 @@ public class RestMultiTermVectorsActionTests extends RestActionTestCase {
         Map<String, String> params = new HashMap<>();
         params.put("type", "some_type");
 
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
-            .withPath("/some_index/_mtermvectors")
-            .withParams(params)
-            .build();
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
+            Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
+        ).withPath("/some_index/_mtermvectors").withParams(params).build();
 
         dispatchRequest(request);
         assertWarnings(RestMultiTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
@@ -72,8 +68,9 @@ public class RestMultiTermVectorsActionTests extends RestActionTestCase {
             .endArray()
             .endObject();
 
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
+            Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
+        )
             .withMethod(RestRequest.Method.POST)
             .withPath("/some_index/_mtermvectors")
             .withContent(BytesReference.bytes(content), null)

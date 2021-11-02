@@ -7,6 +7,10 @@
  */
 package org.elasticsearch.repositories.hdfs;
 
+import org.apache.hadoop.security.UserGroupInformation;
+import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.env.Environment;
+
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.reflect.ReflectPermission;
@@ -18,13 +22,10 @@ import java.security.Permission;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.Arrays;
+
 import javax.security.auth.AuthPermission;
 import javax.security.auth.PrivateCredentialPermission;
 import javax.security.auth.kerberos.ServicePermission;
-
-import org.apache.hadoop.security.UserGroupInformation;
-import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.env.Environment;
 
 /**
  * Oversees all the security specific logic for the HDFS Repository plugin.
@@ -38,15 +39,14 @@ class HdfsSecurityContext {
     private static final Permission[] KERBEROS_AUTH_PERMISSIONS;
     static {
         // We can do FS ops with only a few elevated permissions:
-        SIMPLE_AUTH_PERMISSIONS = new Permission[]{
+        SIMPLE_AUTH_PERMISSIONS = new Permission[] {
             new SocketPermission("*", "connect"),
             // 1) hadoop dynamic proxy is messy with access rules
             new ReflectPermission("suppressAccessChecks"),
             // 2) allow hadoop to add credentials to our Subject
             new AuthPermission("modifyPrivateCredentials"),
             // 3) RPC Engine requires this for re-establishing pooled connections over the lifetime of the client
-            new PrivateCredentialPermission("org.apache.hadoop.security.Credentials * \"*\"", "read")
-        };
+            new PrivateCredentialPermission("org.apache.hadoop.security.Credentials * \"*\"", "read") };
 
         // If Security is enabled, we need all the following elevated permissions:
         KERBEROS_AUTH_PERMISSIONS = new Permission[] {

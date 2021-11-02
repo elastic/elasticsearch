@@ -11,17 +11,17 @@ package org.elasticsearch.index.mapper.extras;
 import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.extras.RankFeatureFieldMapper.RankFeatureFieldType;
 import org.elasticsearch.index.mapper.extras.RankFeaturesFieldMapper.RankFeaturesFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -52,7 +52,9 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
         public static class Log extends ScoreFunction {
 
             private static final ConstructingObjectParser<Log, Void> PARSER = new ConstructingObjectParser<>(
-                    "log", a -> new Log((Float) a[0]));
+                "log",
+                a -> new Log((Float) a[0])
+            );
             static {
                 PARSER.declareFloat(ConstructingObjectParser.constructorArg(), new ParseField("scaling_factor"));
             }
@@ -97,8 +99,10 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
             @Override
             Query toQuery(String field, String feature, boolean positiveScoreImpact) {
                 if (positiveScoreImpact == false) {
-                    throw new IllegalArgumentException("Cannot use the [log] function with a field that has a negative score impact as " +
-                            "it would trigger negative scores");
+                    throw new IllegalArgumentException(
+                        "Cannot use the [log] function with a field that has a negative score impact as "
+                            + "it would trigger negative scores"
+                    );
                 }
                 return FeatureField.newLogQuery(field, feature, DEFAULT_BOOST, scalingFactor);
             }
@@ -111,7 +115,9 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
         public static class Saturation extends ScoreFunction {
 
             private static final ConstructingObjectParser<Saturation, Void> PARSER = new ConstructingObjectParser<>(
-                    "saturation", a -> new Saturation((Float) a[0]));
+                "saturation",
+                a -> new Saturation((Float) a[0])
+            );
             static {
                 PARSER.declareFloat(ConstructingObjectParser.optionalConstructorArg(), new ParseField("pivot"));
             }
@@ -182,7 +188,9 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
         public static class Sigmoid extends ScoreFunction {
 
             private static final ConstructingObjectParser<Sigmoid, Void> PARSER = new ConstructingObjectParser<>(
-                    "sigmoid", a -> new Sigmoid((Float) a[0], ((Float) a[1]).floatValue()));
+                "sigmoid",
+                a -> new Sigmoid((Float) a[0], ((Float) a[1]).floatValue())
+            );
             static {
                 PARSER.declareFloat(ConstructingObjectParser.constructorArg(), new ParseField("pivot"));
                 PARSER.declareFloat(ConstructingObjectParser.constructorArg(), new ParseField("exponent"));
@@ -206,8 +214,7 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
                     return false;
                 }
                 Sigmoid that = (Sigmoid) obj;
-                return pivot == that.pivot
-                        && exp == that.exp;
+                return pivot == that.pivot && exp == that.exp;
             }
 
             @Override
@@ -244,8 +251,7 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
 
             private static final ObjectParser<Linear, Void> PARSER = new ObjectParser<>("linear", Linear::new);
 
-            public Linear() {
-            }
+            public Linear() {}
 
             private Linear(StreamInput in) {
                 this();
@@ -285,53 +291,49 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
     private static ScoreFunction readScoreFunction(StreamInput in) throws IOException {
         byte b = in.readByte();
         switch (b) {
-        case 0:
-            return new ScoreFunction.Log(in);
-        case 1:
-            return new ScoreFunction.Saturation(in);
-        case 2:
-            return new ScoreFunction.Sigmoid(in);
-        case 3:
-            return new ScoreFunction.Linear(in);
-        default:
-            throw new IOException("Illegal score function id: " + b);
+            case 0:
+                return new ScoreFunction.Log(in);
+            case 1:
+                return new ScoreFunction.Saturation(in);
+            case 2:
+                return new ScoreFunction.Sigmoid(in);
+            case 3:
+                return new ScoreFunction.Linear(in);
+            default:
+                throw new IOException("Illegal score function id: " + b);
         }
     }
 
-    public static final ConstructingObjectParser<RankFeatureQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
-            "feature", args -> {
-                final String field = (String) args[0];
-                final float boost = args[1] == null ? DEFAULT_BOOST : (Float) args[1];
-                final String queryName = (String) args[2];
-                long numNonNulls = Arrays.stream(args, 3, args.length).filter(Objects::nonNull).count();
-                final RankFeatureQueryBuilder query;
-                if (numNonNulls > 1) {
-                    throw new IllegalArgumentException("Can only specify one of [log], [saturation], [sigmoid] and [linear]");
-                } else if (numNonNulls == 0) {
-                    query = new RankFeatureQueryBuilder(field, new ScoreFunction.Saturation());
-                } else {
-                    ScoreFunction scoreFunction = (ScoreFunction) Arrays.stream(args, 3, args.length)
-                            .filter(Objects::nonNull)
-                            .findAny()
-                            .get();
-                    query = new RankFeatureQueryBuilder(field, scoreFunction);
-                }
-                query.boost(boost);
-                query.queryName(queryName);
-                return query;
-            });
+    public static final ConstructingObjectParser<RankFeatureQueryBuilder, Void> PARSER = new ConstructingObjectParser<>("feature", args -> {
+        final String field = (String) args[0];
+        final float boost = args[1] == null ? DEFAULT_BOOST : (Float) args[1];
+        final String queryName = (String) args[2];
+        long numNonNulls = Arrays.stream(args, 3, args.length).filter(Objects::nonNull).count();
+        final RankFeatureQueryBuilder query;
+        if (numNonNulls > 1) {
+            throw new IllegalArgumentException("Can only specify one of [log], [saturation], [sigmoid] and [linear]");
+        } else if (numNonNulls == 0) {
+            query = new RankFeatureQueryBuilder(field, new ScoreFunction.Saturation());
+        } else {
+            ScoreFunction scoreFunction = (ScoreFunction) Arrays.stream(args, 3, args.length).filter(Objects::nonNull).findAny().get();
+            query = new RankFeatureQueryBuilder(field, scoreFunction);
+        }
+        query.boost(boost);
+        query.queryName(queryName);
+        return query;
+    });
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("field"));
         PARSER.declareFloat(ConstructingObjectParser.optionalConstructorArg(), BOOST_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), NAME_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
-                ScoreFunction.Log.PARSER, new ParseField("log"));
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
-                ScoreFunction.Saturation.PARSER, new ParseField("saturation"));
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
-                ScoreFunction.Sigmoid.PARSER, new ParseField("sigmoid"));
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
-                ScoreFunction.Linear.PARSER, new ParseField("linear"));
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ScoreFunction.Log.PARSER, new ParseField("log"));
+        PARSER.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            ScoreFunction.Saturation.PARSER,
+            new ParseField("saturation")
+        );
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ScoreFunction.Sigmoid.PARSER, new ParseField("sigmoid"));
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ScoreFunction.Linear.PARSER, new ParseField("linear"));
     }
 
     public static final String NAME = "rank_feature";
@@ -393,8 +395,12 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
             }
             return new MatchNoDocsQuery(); // unmapped field
         } else {
-            throw new IllegalArgumentException("[rank_feature] query only works on [rank_feature] fields and " +
-                "features of [rank_features] fields, not [" + ft.typeName() + "]");
+            throw new IllegalArgumentException(
+                "[rank_feature] query only works on [rank_feature] fields and "
+                    + "features of [rank_features] fields, not ["
+                    + ft.typeName()
+                    + "]"
+            );
         }
     }
 

@@ -7,19 +7,19 @@
  */
 package org.elasticsearch.client.ml.datafeed;
 
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class DatafeedTimingStats implements ToXContentObject {
 
@@ -35,25 +35,22 @@ public class DatafeedTimingStats implements ToXContentObject {
     public static final ConstructingObjectParser<DatafeedTimingStats, Void> PARSER = createParser();
 
     private static ConstructingObjectParser<DatafeedTimingStats, Void> createParser() {
-        ConstructingObjectParser<DatafeedTimingStats, Void> parser =
-            new ConstructingObjectParser<>(
-                "datafeed_timing_stats",
-                true,
-                args -> {
-                    String jobId = (String) args[0];
-                    Long searchCount = (Long) args[1];
-                    Long bucketCount = (Long) args[2];
-                    Double totalSearchTimeMs = (Double) args[3];
-                    Double avgSearchTimePerBucketMs = (Double) args[4];
-                    Double exponentialAvgSearchTimePerHourMs = (Double) args[5];
-                    return new DatafeedTimingStats(
-                        jobId,
-                        getOrDefault(searchCount, 0L),
-                        getOrDefault(bucketCount, 0L),
-                        getOrDefault(totalSearchTimeMs, 0.0),
-                        avgSearchTimePerBucketMs,
-                        exponentialAvgSearchTimePerHourMs);
-                });
+        ConstructingObjectParser<DatafeedTimingStats, Void> parser = new ConstructingObjectParser<>("datafeed_timing_stats", true, args -> {
+            String jobId = (String) args[0];
+            Long searchCount = (Long) args[1];
+            Long bucketCount = (Long) args[2];
+            Double totalSearchTimeMs = (Double) args[3];
+            Double avgSearchTimePerBucketMs = (Double) args[4];
+            Double exponentialAvgSearchTimePerHourMs = (Double) args[5];
+            return new DatafeedTimingStats(
+                jobId,
+                getOrDefault(searchCount, 0L),
+                getOrDefault(bucketCount, 0L),
+                getOrDefault(totalSearchTimeMs, 0.0),
+                avgSearchTimePerBucketMs,
+                exponentialAvgSearchTimePerHourMs
+            );
+        });
         parser.declareString(constructorArg(), JOB_ID);
         parser.declareLong(optionalConstructorArg(), SEARCH_COUNT);
         parser.declareLong(optionalConstructorArg(), BUCKET_COUNT);
@@ -71,12 +68,13 @@ public class DatafeedTimingStats implements ToXContentObject {
     private Double exponentialAvgSearchTimePerHourMs;
 
     public DatafeedTimingStats(
-            String jobId,
-            long searchCount,
-            long bucketCount,
-            double totalSearchTimeMs,
-            @Nullable Double avgSearchTimePerBucketMs,
-            @Nullable Double exponentialAvgSearchTimePerHourMs) {
+        String jobId,
+        long searchCount,
+        long bucketCount,
+        double totalSearchTimeMs,
+        @Nullable Double avgSearchTimePerBucketMs,
+        @Nullable Double exponentialAvgSearchTimePerHourMs
+    ) {
         this.jobId = Objects.requireNonNull(jobId);
         this.searchCount = searchCount;
         this.bucketCount = bucketCount;
@@ -152,7 +150,8 @@ public class DatafeedTimingStats implements ToXContentObject {
             bucketCount,
             totalSearchTimeMs,
             avgSearchTimePerBucketMs,
-            exponentialAvgSearchTimePerHourMs);
+            exponentialAvgSearchTimePerHourMs
+        );
     }
 
     @Override

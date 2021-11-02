@@ -10,13 +10,13 @@ package org.elasticsearch.xpack.ml.aggs.categorization;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.util.ArrayList;
@@ -33,7 +33,7 @@ public class InternalCategorizationAggregationTests extends InternalMultiBucketA
 
     @Override
     protected SearchPlugin registerPlugin() {
-        return new MachineLearning(Settings.EMPTY, null);
+        return new MachineLearning(Settings.EMPTY);
     }
 
     @Override

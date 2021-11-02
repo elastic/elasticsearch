@@ -8,10 +8,10 @@
 
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class AnalyzeResponse {
 
@@ -40,13 +40,13 @@ public class AnalyzeResponse {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             AnalyzeResponse.AnalyzeToken that = (AnalyzeResponse.AnalyzeToken) o;
-            return startOffset == that.startOffset &&
-                endOffset == that.endOffset &&
-                position == that.position &&
-                positionLength == that.positionLength &&
-                Objects.equals(term, that.term) &&
-                Objects.equals(attributes, that.attributes) &&
-                Objects.equals(type, that.type);
+            return startOffset == that.startOffset
+                && endOffset == that.endOffset
+                && position == that.position
+                && positionLength == that.positionLength
+                && Objects.equals(term, that.term)
+                && Objects.equals(attributes, that.attributes)
+                && Objects.equals(type, that.type);
         }
 
         @Override
@@ -110,8 +110,11 @@ public class AnalyzeResponse {
             this.attributes.put(key, value);
         }
 
-        private static final ObjectParser<AnalyzeToken, Void> PARSER
-            = new ObjectParser<>("analyze_token", AnalyzeToken::setAttribute, AnalyzeToken::new);
+        private static final ObjectParser<AnalyzeToken, Void> PARSER = new ObjectParser<>(
+            "analyze_token",
+            AnalyzeToken::setAttribute,
+            AnalyzeToken::new
+        );
         static {
             PARSER.declareString(AnalyzeToken::setTerm, new ParseField("token"));
             PARSER.declareString(AnalyzeToken::setType, new ParseField("type"));
@@ -143,8 +146,11 @@ public class AnalyzeResponse {
     }
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<AnalyzeResponse, Void> PARSER = new ConstructingObjectParser<>("analyze_response",
-        true, args -> new AnalyzeResponse((List<AnalyzeResponse.AnalyzeToken>) args[0], (DetailAnalyzeResponse) args[1]));
+    private static final ConstructingObjectParser<AnalyzeResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "analyze_response",
+        true,
+        args -> new AnalyzeResponse((List<AnalyzeResponse.AnalyzeToken>) args[0], (DetailAnalyzeResponse) args[1])
+    );
 
     static {
         PARSER.declareObjectArray(optionalConstructorArg(), AnalyzeToken.PARSER, new ParseField(TOKENS));
@@ -160,8 +166,7 @@ public class AnalyzeResponse {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AnalyzeResponse that = (AnalyzeResponse) o;
-        return Objects.equals(detail, that.detail) &&
-            Objects.equals(tokens, that.tokens);
+        return Objects.equals(detail, that.detail) && Objects.equals(tokens, that.tokens);
     }
 
     @Override

@@ -14,6 +14,7 @@ import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.file.ArchiveOperations;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.logging.Logger;
@@ -320,7 +321,12 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         for (ElasticsearchNode node : nodes) {
             if (node.getTestDistribution().equals(TestDistribution.INTEG_TEST)) {
                 node.defaultConfig.put("xpack.security.enabled", "false");
+            } else {
+                if (node.getVersion().onOrAfter("7.16.0")) {
+                    node.defaultConfig.put("cluster.deprecation_indexing.enabled", "false");
+                }
             }
+
             // Can only configure master nodes if we have node names defined
             if (nodeNames != null) {
                 if (node.getVersion().onOrAfter("7.0.0")) {
@@ -377,6 +383,11 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         node.goToNextVersion();
         commonNodeConfig();
         nodeIndex += 1;
+        if (node.getTestDistribution().equals(TestDistribution.DEFAULT)) {
+            if (node.getVersion().onOrAfter("7.16.0")) {
+                node.setting("cluster.deprecation_indexing.enabled", "false");
+            }
+        }
         node.start();
     }
 
@@ -391,8 +402,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
-    public void extraJarFile(File from) {
-        nodes.all(node -> node.extraJarFile(from));
+    public void extraJarFiles(FileCollection from) {
+        nodes.all(node -> node.extraJarFiles(from));
     }
 
     @Override

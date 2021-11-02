@@ -18,9 +18,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.MlInfoAction;
@@ -55,8 +55,13 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
     private final Map<String, Object> nativeCodeInfo;
 
     @Inject
-    public TransportMlInfoAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService,
-                                 NamedXContentRegistry xContentRegistry, MlControllerHolder mlControllerHolder) {
+    public TransportMlInfoAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ClusterService clusterService,
+        NamedXContentRegistry xContentRegistry,
+        MlControllerHolder mlControllerHolder
+    ) {
         super(MlInfoAction.NAME, transportService, actionFilters, MlInfoAction.Request::new);
         this.clusterService = clusterService;
         this.xContentRegistry = xContentRegistry;
@@ -94,12 +99,17 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
         defaults.put(AnalysisLimits.MODEL_MEMORY_LIMIT.getPreferredName(), defaultModelMemoryLimit());
         defaults.put(AnalysisLimits.CATEGORIZATION_EXAMPLES_LIMIT.getPreferredName(), AnalysisLimits.DEFAULT_CATEGORIZATION_EXAMPLES_LIMIT);
         defaults.put(Job.MODEL_SNAPSHOT_RETENTION_DAYS.getPreferredName(), Job.DEFAULT_MODEL_SNAPSHOT_RETENTION_DAYS);
-        defaults.put(Job.DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS.getPreferredName(),
-            Job.DEFAULT_DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS);
+        defaults.put(
+            Job.DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS.getPreferredName(),
+            Job.DEFAULT_DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS
+        );
         try {
-            defaults.put(CategorizationAnalyzerConfig.CATEGORIZATION_ANALYZER.getPreferredName(),
+            defaults.put(
+                CategorizationAnalyzerConfig.CATEGORIZATION_ANALYZER.getPreferredName(),
                 CategorizationAnalyzerConfig.buildStandardCategorizationAnalyzer(Collections.emptyList())
-                    .asMap(xContentRegistry).get(CategorizationAnalyzerConfig.CATEGORIZATION_ANALYZER.getPreferredName()));
+                    .asMap(xContentRegistry)
+                    .get(CategorizationAnalyzerConfig.CATEGORIZATION_ANALYZER.getPreferredName())
+            );
         } catch (IOException e) {
             logger.error("failed to convert default categorization analyzer to map", e);
         }
@@ -109,8 +119,7 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
     private ByteSizeValue defaultModelMemoryLimit() {
         ByteSizeValue defaultLimit = ByteSizeValue.ofMb(AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB);
         ByteSizeValue maxModelMemoryLimit = clusterService.getClusterSettings().get(MachineLearningField.MAX_MODEL_MEMORY_LIMIT);
-        if (maxModelMemoryLimit != null && maxModelMemoryLimit.getBytes() > 0
-            && maxModelMemoryLimit.getBytes() < defaultLimit.getBytes()) {
+        if (maxModelMemoryLimit != null && maxModelMemoryLimit.getBytes() > 0 && maxModelMemoryLimit.getBytes() < defaultLimit.getBytes()) {
             return maxModelMemoryLimit;
         }
         return defaultLimit;
@@ -158,10 +167,14 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
         long maxMlNodeSize = clusterSettings.get(MAX_ML_NODE_SIZE).getBytes();
         int maxLazyNodes = clusterSettings.get(MAX_LAZY_ML_NODES);
         if (maxMlNodeSize > 0 && numMlNodes < maxLazyNodes) {
-            maxMlMemory = Math.max(maxMlMemory, NativeMemoryCalculator.allowedBytesForMl(
-                maxMlNodeSize,
-                clusterSettings.get(MAX_MACHINE_MEMORY_PERCENT),
-                clusterSettings.get(USE_AUTO_MACHINE_MEMORY_PERCENT)));
+            maxMlMemory = Math.max(
+                maxMlMemory,
+                NativeMemoryCalculator.allowedBytesForMl(
+                    maxMlNodeSize,
+                    clusterSettings.get(MAX_MACHINE_MEMORY_PERCENT),
+                    clusterSettings.get(USE_AUTO_MACHINE_MEMORY_PERCENT)
+                )
+            );
         }
 
         if (maxMlMemory <= 0) {
@@ -180,7 +193,8 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
         Map<String, Object> limits = new HashMap<>();
         ByteSizeValue effectiveMaxModelMemoryLimit = calculateEffectiveMaxModelMemoryLimit(
             clusterService.getClusterSettings(),
-            clusterService.state().getNodes());
+            clusterService.state().getNodes()
+        );
         ByteSizeValue maxModelMemoryLimit = clusterService.getClusterSettings().get(MachineLearningField.MAX_MODEL_MEMORY_LIMIT);
         if (maxModelMemoryLimit != null && maxModelMemoryLimit.getBytes() > 0) {
             limits.put("max_model_memory_limit", maxModelMemoryLimit.getStringRep());
@@ -191,8 +205,10 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
         if (effectiveMaxModelMemoryLimit != null) {
             limits.put("effective_max_model_memory_limit", effectiveMaxModelMemoryLimit.getStringRep());
         }
-        limits.put("total_ml_memory",
-            calculateTotalMlMemory(clusterService.getClusterSettings(), clusterService.state().getNodes()).getStringRep());
+        limits.put(
+            "total_ml_memory",
+            calculateTotalMlMemory(clusterService.getClusterSettings(), clusterService.state().getNodes()).getStringRep()
+        );
         return limits;
     }
 }

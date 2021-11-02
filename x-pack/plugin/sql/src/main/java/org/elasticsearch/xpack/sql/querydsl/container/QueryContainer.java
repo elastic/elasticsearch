@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeMap;
@@ -92,22 +92,23 @@ public class QueryContainer {
     // associate Attributes with aliased FieldAttributes (since they map directly to ES fields)
     private Map<Attribute, FieldAttribute> fieldAlias;
 
-
     public QueryContainer() {
         this(null, null, null, null, null, null, null, -1, false, false, -1);
     }
 
-    public QueryContainer(Query query,
-            Aggs aggs,
-            List<Tuple<FieldExtraction, String>> fields,
-            AttributeMap<Expression> aliases,
-            Map<String, GroupByKey> pseudoFunctions,
-            AttributeMap<Pipe> scalarFunctions,
-            Map<String, Sort> sort,
-            int limit,
-            boolean trackHits,
-            boolean includeFrozen,
-            int minPageSize) {
+    public QueryContainer(
+        Query query,
+        Aggs aggs,
+        List<Tuple<FieldExtraction, String>> fields,
+        AttributeMap<Expression> aliases,
+        Map<String, GroupByKey> pseudoFunctions,
+        AttributeMap<Pipe> scalarFunctions,
+        Map<String, Sort> sort,
+        int limit,
+        boolean trackHits,
+        boolean includeFrozen,
+        int minPageSize
+    ) {
         this.query = query;
         this.aggs = aggs == null ? Aggs.EMPTY : aggs;
         this.fields = fields == null || fields.isEmpty() ? emptyList() : fields;
@@ -269,13 +270,35 @@ public class QueryContainer {
     //
 
     public QueryContainer with(Query q) {
-        return new QueryContainer(q, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen,
-                minPageSize);
+        return new QueryContainer(
+            q,
+            aggs,
+            fields,
+            aliases,
+            pseudoFunctions,
+            scalarFunctions,
+            sort,
+            limit,
+            trackHits,
+            includeFrozen,
+            minPageSize
+        );
     }
 
     public QueryContainer withAliases(AttributeMap<Expression> a) {
-        return new QueryContainer(query, aggs, fields, a, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen,
-                minPageSize);
+        return new QueryContainer(
+            query,
+            aggs,
+            fields,
+            a,
+            pseudoFunctions,
+            scalarFunctions,
+            sort,
+            limit,
+            trackHits,
+            includeFrozen,
+            minPageSize
+        );
     }
 
     public QueryContainer withPseudoFunctions(Map<String, GroupByKey> p) {
@@ -283,23 +306,61 @@ public class QueryContainer {
     }
 
     public QueryContainer with(Aggs a) {
-        return new QueryContainer(query, a, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen,
-                minPageSize);
+        return new QueryContainer(
+            query,
+            a,
+            fields,
+            aliases,
+            pseudoFunctions,
+            scalarFunctions,
+            sort,
+            limit,
+            trackHits,
+            includeFrozen,
+            minPageSize
+        );
     }
 
     public QueryContainer withLimit(int l) {
-        return l == limit ? this : new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, l, trackHits,
-                includeFrozen, minPageSize);
+        return l == limit
+            ? this
+            : new QueryContainer(
+                query,
+                aggs,
+                fields,
+                aliases,
+                pseudoFunctions,
+                scalarFunctions,
+                sort,
+                l,
+                trackHits,
+                includeFrozen,
+                minPageSize
+            );
     }
 
     public QueryContainer withTrackHits() {
-        return trackHits ? this : new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, true,
-                includeFrozen, minPageSize);
+        return trackHits
+            ? this
+            : new QueryContainer(
+                query,
+                aggs,
+                fields,
+                aliases,
+                pseudoFunctions,
+                scalarFunctions,
+                sort,
+                limit,
+                true,
+                includeFrozen,
+                minPageSize
+            );
     }
 
     public QueryContainer withFrozen() {
-        return includeFrozen ? this : new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit,
-                trackHits, true, minPageSize);
+        return includeFrozen
+            ? this
+            : new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, true, minPageSize);
     }
 
     public QueryContainer withScalarProcessors(AttributeMap<Pipe> procs) {
@@ -316,8 +377,19 @@ public class QueryContainer {
         for (Map.Entry<String, Sort> entry : this.sort.entrySet()) {
             newSort.putIfAbsent(entry.getKey(), entry.getValue());
         }
-        return new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, scalarFunctions, newSort, limit, trackHits, includeFrozen,
-                minPageSize);
+        return new QueryContainer(
+            query,
+            aggs,
+            fields,
+            aliases,
+            pseudoFunctions,
+            scalarFunctions,
+            newSort,
+            limit,
+            trackHits,
+            includeFrozen,
+            minPageSize
+        );
     }
 
     private String aliasName(Attribute attr) {
@@ -342,26 +414,52 @@ public class QueryContainer {
 
     private Tuple<QueryContainer, FieldExtraction> nestedHitFieldRef(FieldAttribute attr) {
         String name = aliasName(attr);
-        Query q = rewriteToContainNestedField(query, attr.source(),
-                attr.nestedParent().name(), name,
-                SqlDataTypes.format(attr.field().getDataType()),
-                SqlDataTypes.isFromDocValuesOnly(attr.field().getDataType()));
+        Query q = rewriteToContainNestedField(
+            query,
+            attr.source(),
+            attr.nestedParent().name(),
+            name,
+            SqlDataTypes.format(attr.field().getDataType()),
+            SqlDataTypes.isFromDocValuesOnly(attr.field().getDataType())
+        );
 
         SearchHitFieldRef nestedFieldRef = new SearchHitFieldRef(name, attr.field().getDataType(), attr.nestedParent().name());
 
         return new Tuple<>(
-                new QueryContainer(q, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen,
-                        minPageSize),
-                nestedFieldRef);
+            new QueryContainer(
+                q,
+                aggs,
+                fields,
+                aliases,
+                pseudoFunctions,
+                scalarFunctions,
+                sort,
+                limit,
+                trackHits,
+                includeFrozen,
+                minPageSize
+            ),
+            nestedFieldRef
+        );
     }
 
-    static Query rewriteToContainNestedField(@Nullable Query query, Source source, String path, String name, String format,
-            boolean hasDocValues) {
+    static Query rewriteToContainNestedField(
+        @Nullable Query query,
+        Source source,
+        String path,
+        String name,
+        String format,
+        boolean hasDocValues
+    ) {
         if (query == null) {
             /* There is no query so we must add the nested query
              * ourselves to fetch the field. */
-            return new NestedQuery(source, path, singletonMap(name, new AbstractMap.SimpleImmutableEntry<>(hasDocValues, format)),
-                    new MatchAll(source));
+            return new NestedQuery(
+                source,
+                path,
+                singletonMap(name, new AbstractMap.SimpleImmutableEntry<>(hasDocValues, format)),
+                new MatchAll(source)
+            );
         }
         if (query.containsNestedField(path, name)) {
             // The query already has the nested field. Nothing to do.
@@ -377,8 +475,12 @@ public class QueryContainer {
         }
         /* There is no nested query with a matching path so we must
          * add the nested query ourselves just to fetch the field. */
-        NestedQuery nested = new NestedQuery(source, path,
-                singletonMap(name, new AbstractMap.SimpleImmutableEntry<>(hasDocValues, format)), new MatchAll(source));
+        NestedQuery nested = new NestedQuery(
+            source,
+            path,
+            singletonMap(name, new AbstractMap.SimpleImmutableEntry<>(hasDocValues, format)),
+            new MatchAll(source)
+        );
         return new BoolQuery(source, true, query, nested);
     }
 
@@ -412,8 +514,7 @@ public class QueryContainer {
 
         // update proc (if needed)
         if (qContainer.scalarFunctions().size() != scalarFunctions.size()) {
-            qContainer = qContainer.withScalarProcessors(
-                AttributeMap.builder(qContainer.scalarFunctions).put(attr, proc).build());
+            qContainer = qContainer.withScalarProcessors(AttributeMap.builder(qContainer.scalarFunctions).put(attr, proc).build());
         }
 
         return new Tuple<>(qContainer, new ComputedRef(proc));
@@ -458,9 +559,19 @@ public class QueryContainer {
     }
 
     public QueryContainer addColumn(FieldExtraction ref, String id) {
-        return new QueryContainer(query, aggs, combine(fields, new Tuple<>(ref, id)), aliases, pseudoFunctions,
-                scalarFunctions,
-                sort, limit, trackHits, includeFrozen, minPageSize);
+        return new QueryContainer(
+            query,
+            aggs,
+            combine(fields, new Tuple<>(ref, id)),
+            aliases,
+            pseudoFunctions,
+            scalarFunctions,
+            sort,
+            limit,
+            trackHits,
+            includeFrozen,
+            minPageSize
+        );
     }
 
     public AttributeMap<Pipe> scalarFunctions() {
@@ -508,13 +619,13 @@ public class QueryContainer {
 
         QueryContainer other = (QueryContainer) obj;
         return Objects.equals(query, other.query)
-                && Objects.equals(aggs, other.aggs)
-                && Objects.equals(fields, other.fields)
-                && Objects.equals(aliases, other.aliases)
-                && Objects.equals(sort, other.sort)
-                && Objects.equals(limit, other.limit)
-                && Objects.equals(trackHits, other.trackHits)
-                && Objects.equals(includeFrozen, other.includeFrozen);
+            && Objects.equals(aggs, other.aggs)
+            && Objects.equals(fields, other.fields)
+            && Objects.equals(aliases, other.aliases)
+            && Objects.equals(sort, other.sort)
+            && Objects.equals(limit, other.limit)
+            && Objects.equals(trackHits, other.trackHits)
+            && Objects.equals(includeFrozen, other.includeFrozen);
     }
 
     @Override

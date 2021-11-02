@@ -8,20 +8,21 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -46,16 +47,20 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
     private static final ParseField ALLOW_AUTO_CREATE = new ParseField("allow_auto_create");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<ComposableIndexTemplate, Void> PARSER = new ConstructingObjectParser<>("index_template",
+    public static final ConstructingObjectParser<ComposableIndexTemplate, Void> PARSER = new ConstructingObjectParser<>(
+        "index_template",
         false,
-        a -> new ComposableIndexTemplate((List<String>) a[0],
+        a -> new ComposableIndexTemplate(
+            (List<String>) a[0],
             (Template) a[1],
             (List<String>) a[2],
             (Long) a[3],
             (Long) a[4],
             (Map<String, Object>) a[5],
             (DataStreamTemplate) a[6],
-            (Boolean) a[7]));
+            (Boolean) a[7]
+        )
+    );
 
     static {
         PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), INDEX_PATTERNS);
@@ -92,20 +97,39 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         return PARSER.parse(parser, null);
     }
 
-    public ComposableIndexTemplate(List<String> indexPatterns, @Nullable Template template, @Nullable List<String> componentTemplates,
-                                   @Nullable Long priority, @Nullable Long version, @Nullable Map<String, Object> metadata) {
+    public ComposableIndexTemplate(
+        List<String> indexPatterns,
+        @Nullable Template template,
+        @Nullable List<String> componentTemplates,
+        @Nullable Long priority,
+        @Nullable Long version,
+        @Nullable Map<String, Object> metadata
+    ) {
         this(indexPatterns, template, componentTemplates, priority, version, metadata, null, null);
     }
 
-    public ComposableIndexTemplate(List<String> indexPatterns, @Nullable Template template, @Nullable List<String> componentTemplates,
-        @Nullable Long priority, @Nullable Long version, @Nullable Map<String, Object> metadata,
-        @Nullable DataStreamTemplate dataStreamTemplate) {
+    public ComposableIndexTemplate(
+        List<String> indexPatterns,
+        @Nullable Template template,
+        @Nullable List<String> componentTemplates,
+        @Nullable Long priority,
+        @Nullable Long version,
+        @Nullable Map<String, Object> metadata,
+        @Nullable DataStreamTemplate dataStreamTemplate
+    ) {
         this(indexPatterns, template, componentTemplates, priority, version, metadata, dataStreamTemplate, null);
     }
 
-    public ComposableIndexTemplate(List<String> indexPatterns, @Nullable Template template, @Nullable List<String> componentTemplates,
-                                   @Nullable Long priority, @Nullable Long version, @Nullable Map<String, Object> metadata,
-                                   @Nullable DataStreamTemplate dataStreamTemplate, @Nullable Boolean allowAutoCreate) {
+    public ComposableIndexTemplate(
+        List<String> indexPatterns,
+        @Nullable Template template,
+        @Nullable List<String> componentTemplates,
+        @Nullable Long priority,
+        @Nullable Long version,
+        @Nullable Map<String, Object> metadata,
+        @Nullable DataStreamTemplate dataStreamTemplate,
+        @Nullable Boolean allowAutoCreate
+    ) {
         this.indexPatterns = indexPatterns;
         this.template = template;
         this.componentTemplates = componentTemplates;
@@ -201,7 +225,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         builder.startObject();
         builder.stringListField(INDEX_PATTERNS.getPreferredName(), this.indexPatterns);
         if (this.template != null) {
-            builder.field(TEMPLATE.getPreferredName(), this.template);
+            builder.field(TEMPLATE.getPreferredName(), this.template, params);
         }
         if (this.componentTemplates != null) {
             builder.stringListField(COMPOSED_OF.getPreferredName(), this.componentTemplates);
@@ -216,7 +240,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             builder.field(METADATA.getPreferredName(), metadata);
         }
         if (this.dataStreamTemplate != null) {
-            builder.field(DATA_STREAM.getPreferredName(), dataStreamTemplate);
+            builder.field(DATA_STREAM.getPreferredName(), dataStreamTemplate, params);
         }
         if (this.allowAutoCreate != null) {
             builder.field(ALLOW_AUTO_CREATE.getPreferredName(), allowAutoCreate);
@@ -227,8 +251,16 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.indexPatterns, this.template, this.componentTemplates, this.priority, this.version,
-            this.metadata, this.dataStreamTemplate, this.allowAutoCreate);
+        return Objects.hash(
+            this.indexPatterns,
+            this.template,
+            this.componentTemplates,
+            this.priority,
+            this.version,
+            this.metadata,
+            this.dataStreamTemplate,
+            this.allowAutoCreate
+        );
     }
 
     @Override
@@ -240,14 +272,14 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             return false;
         }
         ComposableIndexTemplate other = (ComposableIndexTemplate) obj;
-        return Objects.equals(this.indexPatterns, other.indexPatterns) &&
-            Objects.equals(this.template, other.template) &&
-            Objects.equals(this.componentTemplates, other.componentTemplates) &&
-            Objects.equals(this.priority, other.priority) &&
-            Objects.equals(this.version, other.version) &&
-            Objects.equals(this.metadata, other.metadata) &&
-            Objects.equals(this.dataStreamTemplate, other.dataStreamTemplate) &&
-            Objects.equals(this.allowAutoCreate, other.allowAutoCreate);
+        return Objects.equals(this.indexPatterns, other.indexPatterns)
+            && Objects.equals(this.template, other.template)
+            && Objects.equals(this.componentTemplates, other.componentTemplates)
+            && Objects.equals(this.priority, other.priority)
+            && Objects.equals(this.version, other.version)
+            && Objects.equals(this.metadata, other.metadata)
+            && Objects.equals(this.dataStreamTemplate, other.dataStreamTemplate)
+            && Objects.equals(this.allowAutoCreate, other.allowAutoCreate);
     }
 
     @Override
@@ -258,28 +290,38 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
     public static class DataStreamTemplate implements Writeable, ToXContentObject {
 
         private static final ParseField HIDDEN = new ParseField("hidden");
+        private static final ParseField ALLOW_CUSTOM_ROUTING = new ParseField("allow_custom_routing");
 
         public static final ConstructingObjectParser<DataStreamTemplate, Void> PARSER = new ConstructingObjectParser<>(
             "data_stream_template",
             false,
-            a -> new DataStreamTemplate(a[0] != null && (boolean) a[0]));
+            a -> new DataStreamTemplate(a[0] != null && (boolean) a[0], a[1] != null && (boolean) a[1])
+        );
 
         static {
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), HIDDEN);
+            PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
         }
 
         private final boolean hidden;
+        private final boolean allowCustomRouting;
 
         public DataStreamTemplate() {
-            this(false);
+            this(false, false);
         }
 
-        public DataStreamTemplate(boolean hidden) {
+        public DataStreamTemplate(boolean hidden, boolean allowCustomRouting) {
             this.hidden = hidden;
+            this.allowCustomRouting = allowCustomRouting;
         }
 
         DataStreamTemplate(StreamInput in) throws IOException {
             hidden = in.readBoolean();
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                allowCustomRouting = in.readBoolean();
+            } else {
+                allowCustomRouting = false;
+            }
         }
 
         public String getTimestampField() {
@@ -298,15 +340,23 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             return hidden;
         }
 
+        public boolean isAllowCustomRouting() {
+            return allowCustomRouting;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(hidden);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeBoolean(allowCustomRouting);
+            }
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("hidden", hidden);
+            builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), allowCustomRouting);
             builder.endObject();
             return builder;
         }
@@ -316,16 +366,16 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             DataStreamTemplate that = (DataStreamTemplate) o;
-            return hidden == that.hidden;
+            return hidden == that.hidden && allowCustomRouting == that.allowCustomRouting;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(hidden);
+            return Objects.hash(hidden, allowCustomRouting);
         }
     }
 
-    public static class Builder{
+    public static class Builder {
         private List<String> indexPatterns;
         private Template template;
         private List<String> componentTemplates;
@@ -335,8 +385,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         private DataStreamTemplate dataStreamTemplate;
         private Boolean allowAutoCreate;
 
-        public Builder() {
-        }
+        public Builder() {}
 
         public Builder indexPatterns(List<String> indexPatterns) {
             this.indexPatterns = indexPatterns;
@@ -379,8 +428,16 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         }
 
         public ComposableIndexTemplate build() {
-            return new ComposableIndexTemplate(this.indexPatterns,this.template,this.componentTemplates,
-                    this.priority,this.version,this.metadata,this.dataStreamTemplate,this.allowAutoCreate);
+            return new ComposableIndexTemplate(
+                this.indexPatterns,
+                this.template,
+                this.componentTemplates,
+                this.priority,
+                this.version,
+                this.metadata,
+                this.dataStreamTemplate,
+                this.allowAutoCreate
+            );
         }
     }
 }

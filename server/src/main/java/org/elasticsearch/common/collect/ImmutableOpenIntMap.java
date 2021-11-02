@@ -163,7 +163,7 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
         return map.hashCode();
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     private static final ImmutableOpenIntMap EMPTY = new ImmutableOpenIntMap(new IntObjectHashMap());
 
     @SuppressWarnings("unchecked")

@@ -12,9 +12,9 @@ import org.apache.lucene.queries.spans.SpanNotQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 
@@ -58,8 +58,10 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
     }
 
     public void testDist() {
-        SpanNotQueryBuilder builder = new SpanNotQueryBuilder(new SpanTermQueryBuilder("name1", "value1"),
-            new SpanTermQueryBuilder("name2", "value2"));
+        SpanNotQueryBuilder builder = new SpanNotQueryBuilder(
+            new SpanTermQueryBuilder("name1", "value1"),
+            new SpanTermQueryBuilder("name2", "value2")
+        );
         assertThat(builder.pre(), equalTo(0));
         assertThat(builder.post(), equalTo(0));
         builder.dist(-4);
@@ -71,8 +73,10 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
     }
 
     public void testPrePost() {
-        SpanNotQueryBuilder builder = new SpanNotQueryBuilder(new SpanTermQueryBuilder("name1", "value1"),
-            new SpanTermQueryBuilder("name2", "value2"));
+        SpanNotQueryBuilder builder = new SpanNotQueryBuilder(
+            new SpanTermQueryBuilder("name1", "value1"),
+            new SpanTermQueryBuilder("name2", "value2")
+        );
         assertThat(builder.pre(), equalTo(0));
         assertThat(builder.post(), equalTo(0));
         builder.pre(-4).post(-4);
@@ -93,12 +97,12 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
         builder.field("exclude");
         spanTermQuery("description", "jumped").toXContent(builder, null);
         builder.field("include");
-        spanNearQuery(QueryBuilders.spanTermQuery("description", "quick"), 1)
-                .addClause(QueryBuilders.spanTermQuery("description", "fox")).toXContent(builder, null);
+        spanNearQuery(QueryBuilders.spanTermQuery("description", "quick"), 1).addClause(QueryBuilders.spanTermQuery("description", "fox"))
+            .toXContent(builder, null);
         builder.field("dist", 3);
         builder.endObject();
         builder.endObject();
-        SpanNotQueryBuilder query = (SpanNotQueryBuilder)parseQuery(Strings.toString(builder));
+        SpanNotQueryBuilder query = (SpanNotQueryBuilder) parseQuery(Strings.toString(builder));
         assertThat(query.pre(), equalTo(3));
         assertThat(query.post(), equalTo(3));
         assertNotNull(query.includeQuery());
@@ -127,8 +131,9 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
             builder.startObject();
             builder.startObject(SpanNotQueryBuilder.NAME);
             builder.field("include");
-            spanNearQuery(QueryBuilders.spanTermQuery("description", "quick"), 1)
-                    .addClause(QueryBuilders.spanTermQuery("description", "fox")).toXContent(builder, null);
+            spanNearQuery(QueryBuilders.spanTermQuery("description", "quick"), 1).addClause(
+                QueryBuilders.spanTermQuery("description", "fox")
+            ).toXContent(builder, null);
             builder.field("dist", 2);
             builder.endObject();
             builder.endObject();
@@ -141,8 +146,9 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
             builder.startObject();
             builder.startObject(SpanNotQueryBuilder.NAME);
             builder.field("include");
-            spanNearQuery(QueryBuilders.spanTermQuery("description", "quick"), 1)
-                    .addClause(QueryBuilders.spanTermQuery("description", "fox")).toXContent(builder, null);
+            spanNearQuery(QueryBuilders.spanTermQuery("description", "quick"), 1).addClause(
+                QueryBuilders.spanTermQuery("description", "fox")
+            ).toXContent(builder, null);
             builder.field("exclude");
             spanTermQuery("description", "jumped").toXContent(builder, null);
             builder.field("dist", 2);
@@ -156,44 +162,43 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
     }
 
     public void testFromJson() throws IOException {
-        String json =
-                "{\n" +
-                "  \"span_not\" : {\n" +
-                "    \"include\" : {\n" +
-                "      \"span_term\" : {\n" +
-                "        \"field1\" : {\n" +
-                "          \"value\" : \"hoya\",\n" +
-                "          \"boost\" : 1.0\n" +
-                "        }\n" +
-                "      }\n" +
-                "    },\n" +
-                "    \"exclude\" : {\n" +
-                "      \"span_near\" : {\n" +
-                "        \"clauses\" : [ {\n" +
-                "          \"span_term\" : {\n" +
-                "            \"field1\" : {\n" +
-                "              \"value\" : \"la\",\n" +
-                "              \"boost\" : 1.0\n" +
-                "            }\n" +
-                "          }\n" +
-                "        }, {\n" +
-                "          \"span_term\" : {\n" +
-                "            \"field1\" : {\n" +
-                "              \"value\" : \"hoya\",\n" +
-                "              \"boost\" : 1.0\n" +
-                "            }\n" +
-                "          }\n" +
-                "        } ],\n" +
-                "        \"slop\" : 0,\n" +
-                "        \"in_order\" : true,\n" +
-                "        \"boost\" : 1.0\n" +
-                "      }\n" +
-                "    },\n" +
-                "    \"pre\" : 0,\n" +
-                "    \"post\" : 0,\n" +
-                "    \"boost\" : 2.0\n" +
-                "  }\n" +
-                "}";
+        String json = "{\n"
+            + "  \"span_not\" : {\n"
+            + "    \"include\" : {\n"
+            + "      \"span_term\" : {\n"
+            + "        \"field1\" : {\n"
+            + "          \"value\" : \"hoya\",\n"
+            + "          \"boost\" : 1.0\n"
+            + "        }\n"
+            + "      }\n"
+            + "    },\n"
+            + "    \"exclude\" : {\n"
+            + "      \"span_near\" : {\n"
+            + "        \"clauses\" : [ {\n"
+            + "          \"span_term\" : {\n"
+            + "            \"field1\" : {\n"
+            + "              \"value\" : \"la\",\n"
+            + "              \"boost\" : 1.0\n"
+            + "            }\n"
+            + "          }\n"
+            + "        }, {\n"
+            + "          \"span_term\" : {\n"
+            + "            \"field1\" : {\n"
+            + "              \"value\" : \"hoya\",\n"
+            + "              \"boost\" : 1.0\n"
+            + "            }\n"
+            + "          }\n"
+            + "        } ],\n"
+            + "        \"slop\" : 0,\n"
+            + "        \"in_order\" : true,\n"
+            + "        \"boost\" : 1.0\n"
+            + "      }\n"
+            + "    },\n"
+            + "    \"pre\" : 0,\n"
+            + "    \"post\" : 0,\n"
+            + "    \"boost\" : 2.0\n"
+            + "  }\n"
+            + "}";
 
         SpanNotQueryBuilder parsed = (SpanNotQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
@@ -204,93 +209,88 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
     }
 
     public void testFromJsonWithNonDefaultBoostInIncludeQuery() {
-        String json =
-                "{\n" +
-                "  \"span_not\" : {\n" +
-                "    \"exclude\" : {\n" +
-                "      \"span_term\" : {\n" +
-                "        \"field1\" : {\n" +
-                "          \"value\" : \"hoya\",\n" +
-                "          \"boost\" : 1.0\n" +
-                "        }\n" +
-                "      }\n" +
-                "    },\n" +
-                "    \"include\" : {\n" +
-                "      \"span_near\" : {\n" +
-                "        \"clauses\" : [ {\n" +
-                "          \"span_term\" : {\n" +
-                "            \"field1\" : {\n" +
-                "              \"value\" : \"la\",\n" +
-                "              \"boost\" : 1.0\n" +
-                "            }\n" +
-                "          }\n" +
-                "        }, {\n" +
-                "          \"span_term\" : {\n" +
-                "            \"field1\" : {\n" +
-                "              \"value\" : \"hoya\",\n" +
-                "              \"boost\" : 1.0\n" +
-                "            }\n" +
-                "          }\n" +
-                "        } ],\n" +
-                "        \"slop\" : 0,\n" +
-                "        \"in_order\" : true,\n" +
-                "        \"boost\" : 2.0\n" +
-                "      }\n" +
-                "    },\n" +
-                "    \"pre\" : 0,\n" +
-                "    \"post\" : 0,\n" +
-                "    \"boost\" : 1.0\n" +
-                "  }\n" +
-                "}";
+        String json = "{\n"
+            + "  \"span_not\" : {\n"
+            + "    \"exclude\" : {\n"
+            + "      \"span_term\" : {\n"
+            + "        \"field1\" : {\n"
+            + "          \"value\" : \"hoya\",\n"
+            + "          \"boost\" : 1.0\n"
+            + "        }\n"
+            + "      }\n"
+            + "    },\n"
+            + "    \"include\" : {\n"
+            + "      \"span_near\" : {\n"
+            + "        \"clauses\" : [ {\n"
+            + "          \"span_term\" : {\n"
+            + "            \"field1\" : {\n"
+            + "              \"value\" : \"la\",\n"
+            + "              \"boost\" : 1.0\n"
+            + "            }\n"
+            + "          }\n"
+            + "        }, {\n"
+            + "          \"span_term\" : {\n"
+            + "            \"field1\" : {\n"
+            + "              \"value\" : \"hoya\",\n"
+            + "              \"boost\" : 1.0\n"
+            + "            }\n"
+            + "          }\n"
+            + "        } ],\n"
+            + "        \"slop\" : 0,\n"
+            + "        \"in_order\" : true,\n"
+            + "        \"boost\" : 2.0\n"
+            + "      }\n"
+            + "    },\n"
+            + "    \"pre\" : 0,\n"
+            + "    \"post\" : 0,\n"
+            + "    \"boost\" : 1.0\n"
+            + "  }\n"
+            + "}";
 
         Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
-        assertThat(exception.getMessage(),
-            equalTo("span_not [include] as a nested span clause can't have non-default boost value [2.0]"));
+        assertThat(exception.getMessage(), equalTo("span_not [include] as a nested span clause can't have non-default boost value [2.0]"));
     }
 
-
     public void testFromJsonWithNonDefaultBoostInExcludeQuery() {
-        String json =
-                "{\n" +
-                "  \"span_not\" : {\n" +
-                "    \"include\" : {\n" +
-                "      \"span_term\" : {\n" +
-                "        \"field1\" : {\n" +
-                "          \"value\" : \"hoya\",\n" +
-                "          \"boost\" : 1.0\n" +
-                "        }\n" +
-                "      }\n" +
-                "    },\n" +
-                "    \"exclude\" : {\n" +
-                "      \"span_near\" : {\n" +
-                "        \"clauses\" : [ {\n" +
-                "          \"span_term\" : {\n" +
-                "            \"field1\" : {\n" +
-                "              \"value\" : \"la\",\n" +
-                "              \"boost\" : 1.0\n" +
-                "            }\n" +
-                "          }\n" +
-                "        }, {\n" +
-                "          \"span_term\" : {\n" +
-                "            \"field1\" : {\n" +
-                "              \"value\" : \"hoya\",\n" +
-                "              \"boost\" : 1.0\n" +
-                "            }\n" +
-                "          }\n" +
-                "        } ],\n" +
-                "        \"slop\" : 0,\n" +
-                "        \"in_order\" : true,\n" +
-                "        \"boost\" : 2.0\n" +
-                "      }\n" +
-                "    },\n" +
-                "    \"pre\" : 0,\n" +
-                "    \"post\" : 0,\n" +
-                "    \"boost\" : 1.0\n" +
-                "  }\n" +
-                "}";
+        String json = "{\n"
+            + "  \"span_not\" : {\n"
+            + "    \"include\" : {\n"
+            + "      \"span_term\" : {\n"
+            + "        \"field1\" : {\n"
+            + "          \"value\" : \"hoya\",\n"
+            + "          \"boost\" : 1.0\n"
+            + "        }\n"
+            + "      }\n"
+            + "    },\n"
+            + "    \"exclude\" : {\n"
+            + "      \"span_near\" : {\n"
+            + "        \"clauses\" : [ {\n"
+            + "          \"span_term\" : {\n"
+            + "            \"field1\" : {\n"
+            + "              \"value\" : \"la\",\n"
+            + "              \"boost\" : 1.0\n"
+            + "            }\n"
+            + "          }\n"
+            + "        }, {\n"
+            + "          \"span_term\" : {\n"
+            + "            \"field1\" : {\n"
+            + "              \"value\" : \"hoya\",\n"
+            + "              \"boost\" : 1.0\n"
+            + "            }\n"
+            + "          }\n"
+            + "        } ],\n"
+            + "        \"slop\" : 0,\n"
+            + "        \"in_order\" : true,\n"
+            + "        \"boost\" : 2.0\n"
+            + "      }\n"
+            + "    },\n"
+            + "    \"pre\" : 0,\n"
+            + "    \"post\" : 0,\n"
+            + "    \"boost\" : 1.0\n"
+            + "  }\n"
+            + "}";
 
         Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
-        assertThat(exception.getMessage(),
-            equalTo("span_not [exclude] as a nested span clause can't have non-default boost value [2.0]"));
+        assertThat(exception.getMessage(), equalTo("span_not [exclude] as a nested span clause can't have non-default boost value [2.0]"));
     }
 }

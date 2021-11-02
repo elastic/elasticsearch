@@ -12,8 +12,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -26,8 +26,14 @@ public class ScriptContextStats implements Writeable, ToXContentFragment, Compar
     private final TimeSeries cacheEvictionsHistory;
     private final long compilationLimitTriggered;
 
-    public ScriptContextStats(String context, long compilations, long cacheEvictions, long compilationLimitTriggered,
-                              TimeSeries compilationsHistory, TimeSeries cacheEvictionsHistory) {
+    public ScriptContextStats(
+        String context,
+        long compilations,
+        long cacheEvictions,
+        long compilationLimitTriggered,
+        TimeSeries compilationsHistory,
+        TimeSeries cacheEvictionsHistory
+    ) {
         this.context = Objects.requireNonNull(context);
         this.compilations = compilations;
         this.cacheEvictions = cacheEvictions;

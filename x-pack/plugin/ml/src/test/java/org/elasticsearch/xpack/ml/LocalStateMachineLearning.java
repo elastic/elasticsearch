@@ -9,11 +9,8 @@ package org.elasticsearch.xpack.ml;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -43,10 +40,11 @@ import static org.elasticsearch.xpack.ml.MachineLearning.TRAINED_MODEL_CIRCUIT_B
 public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
 
     private final MachineLearning mlPlugin;
+
     public LocalStateMachineLearning(final Settings settings, final Path configPath) {
         super(settings, configPath);
         LocalStateMachineLearning thisVar = this;
-        mlPlugin = new MachineLearning(settings, configPath){
+        mlPlugin = new MachineLearning(settings) {
             @Override
             protected XPackLicenseState getLicenseState() {
                 return thisVar.getLicenseState();
@@ -72,20 +70,16 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
         });
         plugins.add(new Security(settings, configPath) {
             @Override
-            protected SSLService getSslService() { return thisVar.getSslService(); }
+            protected SSLService getSslService() {
+                return thisVar.getSslService();
+            }
 
             @Override
-            protected XPackLicenseState getLicenseState() { return thisVar.getLicenseState(); }
+            protected XPackLicenseState getLicenseState() {
+                return thisVar.getLicenseState();
+            }
         });
         plugins.add(new MockedRollupPlugin());
-    }
-
-    @Override
-    public void cleanUpFeature(
-        ClusterService clusterService,
-        Client client,
-        ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> finalListener) {
-        mlPlugin.cleanUpFeature(clusterService, client, finalListener);
     }
 
     @Override
@@ -113,13 +107,12 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
 
         @Override
         public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-            return Collections.singletonList(
-                new ActionHandler<>(GetRollupIndexCapsAction.INSTANCE, MockedRollupIndexCapsTransport.class)
-            );
+            return Collections.singletonList(new ActionHandler<>(GetRollupIndexCapsAction.INSTANCE, MockedRollupIndexCapsTransport.class));
         }
 
-        public static class MockedRollupIndexCapsTransport
-            extends TransportAction<GetRollupIndexCapsAction.Request, GetRollupIndexCapsAction.Response> {
+        public static class MockedRollupIndexCapsTransport extends TransportAction<
+            GetRollupIndexCapsAction.Request,
+            GetRollupIndexCapsAction.Response> {
 
             @Inject
             public MockedRollupIndexCapsTransport(TransportService transportService) {
@@ -127,9 +120,11 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
             }
 
             @Override
-            protected void doExecute(Task task,
-                                     GetRollupIndexCapsAction.Request request,
-                                     ActionListener<GetRollupIndexCapsAction.Response> listener) {
+            protected void doExecute(
+                Task task,
+                GetRollupIndexCapsAction.Request request,
+                ActionListener<GetRollupIndexCapsAction.Response> listener
+            ) {
                 listener.onResponse(new GetRollupIndexCapsAction.Response());
             }
         }

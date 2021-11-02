@@ -17,7 +17,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
@@ -41,7 +41,6 @@ public class LocalBulk extends ExportBulk {
     private final DateFormatter formatter;
 
     private BulkRequestBuilder requestBuilder;
-
 
     LocalBulk(String name, Logger logger, Client client, DateFormatter dateTimeFormatter) {
         super(name, client.threadPool().getThreadContext());
@@ -73,8 +72,14 @@ public class LocalBulk extends ExportBulk {
                 requestBuilder.add(request);
 
                 if (logger.isTraceEnabled()) {
-                    logger.trace("local exporter [{}] - added index request [index={}, id={}, pipeline={}, monitoring data type={}]",
-                                 name, request.index(), request.id(), request.getPipeline(), doc.getType());
+                    logger.trace(
+                        "local exporter [{}] - added index request [index={}, id={}, pipeline={}, monitoring data type={}]",
+                        name,
+                        request.index(),
+                        request.id(),
+                        request.getPipeline(),
+                        doc.getType()
+                    );
                 }
             } catch (Exception e) {
                 if (exception == null) {
@@ -96,15 +101,19 @@ public class LocalBulk extends ExportBulk {
         } else {
             try {
                 logger.trace("exporter [{}] - exporting {} documents", name, requestBuilder.numberOfActions());
-                executeAsyncWithOrigin(client.threadPool().getThreadContext(), MONITORING_ORIGIN, requestBuilder.request(),
-                        ActionListener.<BulkResponse>wrap(bulkResponse -> {
-                            if (bulkResponse.hasFailures()) {
-                                throwExportException(bulkResponse.getItems(), listener);
-                            } else {
-                                listener.onResponse(null);
-                            }
-                        }, e -> listener.onFailure(new ExportException("failed to flush export bulk [{}]", e, name))),
-                        client::bulk);
+                executeAsyncWithOrigin(
+                    client.threadPool().getThreadContext(),
+                    MONITORING_ORIGIN,
+                    requestBuilder.request(),
+                    ActionListener.<BulkResponse>wrap(bulkResponse -> {
+                        if (bulkResponse.hasFailures()) {
+                            throwExportException(bulkResponse.getItems(), listener);
+                        } else {
+                            listener.onResponse(null);
+                        }
+                    }, e -> listener.onFailure(new ExportException("failed to flush export bulk [{}]", e, name))),
+                    client::bulk
+                );
             } finally {
                 requestBuilder = null;
             }
@@ -115,9 +124,9 @@ public class LocalBulk extends ExportBulk {
         ExportException exception = new ExportException("bulk [{}] reports failures when exporting documents", name);
 
         Arrays.stream(bulkItemResponses)
-                .filter(BulkItemResponse::isFailed)
-                .map(item -> new ExportException(item.getFailure().getCause()))
-                .forEach(exception::addExportException);
+            .filter(BulkItemResponse::isFailed)
+            .map(item -> new ExportException(item.getFailure().getCause()))
+            .forEach(exception::addExportException);
 
         if (exception.hasExportExceptions()) {
             for (ExportException e : exception) {

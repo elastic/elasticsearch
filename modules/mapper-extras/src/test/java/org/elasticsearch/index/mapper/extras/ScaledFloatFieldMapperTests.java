@@ -12,9 +12,6 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -23,6 +20,9 @@ import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -51,21 +51,19 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
-        checker.registerConflictCheck(
-            "scaling_factor",
-            fieldMapping(this::minimalMapping),
-            fieldMapping(b -> {
-                b.field("type", "scaled_float");
-                b.field("scaling_factor", 5.0);
-            }));
+        checker.registerConflictCheck("scaling_factor", fieldMapping(this::minimalMapping), fieldMapping(b -> {
+            b.field("type", "scaled_float");
+            b.field("scaling_factor", 5.0);
+        }));
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
-        checker.registerUpdateCheck(b -> b.field("coerce", false),
-            m -> assertFalse(((ScaledFloatFieldMapper) m).coerce()));
-        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true),
-            m -> assertTrue(((ScaledFloatFieldMapper) m).ignoreMalformed()));
+        checker.registerUpdateCheck(b -> b.field("coerce", false), m -> assertFalse(((ScaledFloatFieldMapper) m).coerce()));
+        checker.registerUpdateCheck(
+            b -> b.field("ignore_malformed", true),
+            m -> assertTrue(((ScaledFloatFieldMapper) m).ignoreMalformed())
+        );
     }
 
     public void testExistsQueryDocValuesDisabled() throws IOException {
@@ -116,12 +114,14 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             fieldMapping(b -> b.field("type", "scaled_float").field("index", false).field("scaling_factor", 10.0))
         );
 
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("field", 123)
-                        .endObject()),
-                XContentType.JSON));
+        ParsedDocument doc = mapper.parse(
+            new SourceToParse(
+                "test",
+                "1",
+                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", 123).endObject()),
+                XContentType.JSON
+            )
+        );
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.length);
@@ -135,12 +135,14 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             fieldMapping(b -> b.field("type", "scaled_float").field("doc_values", false).field("scaling_factor", 10.0))
         );
 
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("field", 123)
-                        .endObject()),
-                XContentType.JSON));
+        ParsedDocument doc = mapper.parse(
+            new SourceToParse(
+                "test",
+                "1",
+                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", 123).endObject()),
+                XContentType.JSON
+            )
+        );
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.length);
@@ -154,12 +156,14 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             fieldMapping(b -> b.field("type", "scaled_float").field("store", true).field("scaling_factor", 10.0))
         );
 
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("field", 123)
-                        .endObject()),
-                XContentType.JSON));
+        ParsedDocument doc = mapper.parse(
+            new SourceToParse(
+                "test",
+                "1",
+                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", 123).endObject()),
+                XContentType.JSON
+            )
+        );
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(3, fields.length);
@@ -175,12 +179,14 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
 
     public void testCoerce() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
-            .bytes(XContentFactory.jsonBuilder()
-                    .startObject()
-                    .field("field", "123")
-                    .endObject()),
-            XContentType.JSON));
+        ParsedDocument doc = mapper.parse(
+            new SourceToParse(
+                "test",
+                "1",
+                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "123").endObject()),
+                XContentType.JSON
+            )
+        );
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
         IndexableField pointField = fields[0];
@@ -192,12 +198,14 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper2 = createDocumentMapper(
             fieldMapping(b -> b.field("type", "scaled_float").field("scaling_factor", 10.0).field("coerce", false))
         );
-        ThrowingRunnable runnable = () -> mapper2.parse(new SourceToParse("test", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("field", "123")
-                        .endObject()),
-                XContentType.JSON));
+        ThrowingRunnable runnable = () -> mapper2.parse(
+            new SourceToParse(
+                "test",
+                "1",
+                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "123").endObject()),
+                XContentType.JSON
+            )
+        );
         MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
         assertThat(e.getCause().getMessage(), containsString("passed as String"));
     }
@@ -213,24 +221,28 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
 
     private void doTestIgnoreMalformed(String value, String exceptionMessageContains) throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        ThrowingRunnable runnable = () -> mapper.parse(new SourceToParse("test", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("field", value)
-                        .endObject()),
-            XContentType.JSON));
+        ThrowingRunnable runnable = () -> mapper.parse(
+            new SourceToParse(
+                "test",
+                "1",
+                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", value).endObject()),
+                XContentType.JSON
+            )
+        );
         MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
         assertThat(e.getCause().getMessage(), containsString(exceptionMessageContains));
 
         DocumentMapper mapper2 = createDocumentMapper(
             fieldMapping(b -> b.field("type", "scaled_float").field("scaling_factor", 10.0).field("ignore_malformed", true))
         );
-        ParsedDocument doc = mapper2.parse(new SourceToParse("test", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("field", value)
-                        .endObject()),
-            XContentType.JSON));
+        ParsedDocument doc = mapper2.parse(
+            new SourceToParse(
+                "test",
+                "1",
+                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", value).endObject()),
+                XContentType.JSON
+            )
+        );
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(0, fields.length);
@@ -238,23 +250,27 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
 
     public void testNullValue() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        ParsedDocument doc = mapper.parse(new SourceToParse("test", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .nullField("field")
-                        .endObject()),
-                XContentType.JSON));
+        ParsedDocument doc = mapper.parse(
+            new SourceToParse(
+                "test",
+                "1",
+                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().nullField("field").endObject()),
+                XContentType.JSON
+            )
+        );
         assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
 
-        mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "scaled_float")
-            .field("scaling_factor", 10.0)
-            .field("null_value", 2.5)));
-        doc = mapper.parse(new SourceToParse("test", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .nullField("field")
-                        .endObject()),
-                XContentType.JSON));
+        mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "scaled_float").field("scaling_factor", 10.0).field("null_value", 2.5))
+        );
+        doc = mapper.parse(
+            new SourceToParse(
+                "test",
+                "1",
+                BytesReference.bytes(XContentFactory.jsonBuilder().startObject().nullField("field").endObject()),
+                XContentType.JSON
+            )
+        );
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
         IndexableField pointField = fields[0];
@@ -274,8 +290,10 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
             MapperParsingException.class,
             () -> createMapperService(fieldMapping(b -> b.field("type", "scaled_float").field("index_options", randomIndexOptions())))
         );
-        assertThat(e.getMessage(),
-            containsString("Failed to parse mapping: unknown parameter [index_options] on mapper [field] of type [scaled_float]"));
+        assertThat(
+            e.getMessage(),
+            containsString("Failed to parse mapping: unknown parameter [index_options] on mapper [field] of type [scaled_float]")
+        );
     }
 
     public void testMetricType() throws IOException {

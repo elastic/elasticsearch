@@ -9,15 +9,16 @@ package org.elasticsearch.client.watcher.hlrc;
 
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.client.watcher.PutWatchResponse;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class PutWatchResponseTests extends AbstractResponseTestCase<
-    org.elasticsearch.protocol.xpack.watcher.PutWatchResponse, PutWatchResponse> {
+    org.elasticsearch.protocol.xpack.watcher.PutWatchResponse,
+    PutWatchResponse> {
 
     @Override
     protected org.elasticsearch.protocol.xpack.watcher.PutWatchResponse createServerTestInstance(XContentType xContentType) {
@@ -35,8 +36,10 @@ public class PutWatchResponseTests extends AbstractResponseTestCase<
     }
 
     @Override
-    protected void assertInstances(org.elasticsearch.protocol.xpack.watcher.PutWatchResponse serverTestInstance,
-                                   PutWatchResponse clientInstance) {
+    protected void assertInstances(
+        org.elasticsearch.protocol.xpack.watcher.PutWatchResponse serverTestInstance,
+        PutWatchResponse clientInstance
+    ) {
         assertThat(clientInstance.getId(), equalTo(serverTestInstance.getId()));
         assertThat(clientInstance.getSeqNo(), equalTo(serverTestInstance.getSeqNo()));
         assertThat(clientInstance.getPrimaryTerm(), equalTo(serverTestInstance.getPrimaryTerm()));

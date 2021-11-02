@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.core.security.action;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -31,7 +31,8 @@ public class ApiKeyTests extends ESTestCase {
         final String id = randomAlphaOfLength(20);
         // between 1970 and 2065
         final Instant creation = Instant.ofEpochSecond(randomLongBetween(0, 3000000000L), randomLongBetween(0, 999999999));
-        final Instant expiration = randomBoolean() ? null
+        final Instant expiration = randomBoolean()
+            ? null
             : Instant.ofEpochSecond(randomLongBetween(0, 3000000000L), randomLongBetween(0, 999999999));
         final boolean invalidated = randomBoolean();
         final String username = randomAlphaOfLengthBetween(4, 10);
@@ -63,13 +64,19 @@ public class ApiKeyTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public static Map<String, Object> randomMetadata() {
         return randomFrom(
-            Map.of("application", randomAlphaOfLength(5),
-                "number", 1,
-                "numbers", List.of(1, 3, 5),
-                "environment", Map.of("os", "linux", "level", 42, "category", "trusted")
+            Map.of(
+                "application",
+                randomAlphaOfLength(5),
+                "number",
+                1,
+                "numbers",
+                List.of(1, 3, 5),
+                "environment",
+                Map.of("os", "linux", "level", 42, "category", "trusted")
             ),
             Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)),
             Map.of(),
-            null);
+            null
+        );
     }
 }

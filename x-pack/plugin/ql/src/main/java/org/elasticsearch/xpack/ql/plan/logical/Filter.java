@@ -61,8 +61,7 @@ public class Filter extends UnaryPlan {
 
         Filter other = (Filter) obj;
 
-        return Objects.equals(condition, other.condition)
-                && Objects.equals(child(), other.child());
+        return Objects.equals(condition, other.condition) && Objects.equals(child(), other.child());
     }
 
     public Filter with(Expression condition) {

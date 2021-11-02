@@ -16,6 +16,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
@@ -48,19 +49,17 @@ class TransformClusterStateListener implements ClusterStateListener {
         // The atomic flag prevents multiple simultaneous attempts to run alias creation
         // if there is a flurry of cluster state updates in quick succession
         if (event.localNodeMaster() && isIndexCreationInProgress.compareAndSet(false, true)) {
-            createAuditAliasForDataFrameBWC(event.state(), client, ActionListener.wrap(
-                r -> {
-                    isIndexCreationInProgress.set(false);
-                    if (r) {
-                        logger.info("Created alias for deprecated data frame notifications index");
-                    } else {
-                        logger.debug("Skipped creating alias for deprecated data frame notifications index");
-                    }
-                },
-                e -> {
-                    isIndexCreationInProgress.set(false);
-                    logger.error("Error creating alias for deprecated data frame notifications index", e);
-                }));
+            createAuditAliasForDataFrameBWC(event.state(), client, ActionListener.wrap(r -> {
+                isIndexCreationInProgress.set(false);
+                if (r) {
+                    logger.info("Created alias for deprecated data frame notifications index");
+                } else {
+                    logger.debug("Skipped creating alias for deprecated data frame notifications index");
+                }
+            }, e -> {
+                isIndexCreationInProgress.set(false);
+                logger.error("Error creating alias for deprecated data frame notifications index", e);
+            }));
         }
     }
 
@@ -72,22 +71,35 @@ class TransformClusterStateListener implements ClusterStateListener {
             return;
         }
 
-        if (state.getMetadata().getIndicesLookup().get(TransformInternalIndexConstants.AUDIT_INDEX_DEPRECATED).getIndices().stream()
-                .anyMatch(metadata -> metadata.getAliases().containsKey(TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS))) {
+        Metadata metadata = state.metadata();
+        if (state.getMetadata()
+            .getIndicesLookup()
+            .get(TransformInternalIndexConstants.AUDIT_INDEX_DEPRECATED)
+            .getIndices()
+            .stream()
+            .anyMatch(name -> metadata.index(name).getAliases().containsKey(TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS))) {
             finalListener.onResponse(false);
             return;
         }
 
-        final IndicesAliasesRequest request = client.admin().indices().prepareAliases()
-                .addAliasAction(IndicesAliasesRequest.AliasActions.add()
+        final IndicesAliasesRequest request = client.admin()
+            .indices()
+            .prepareAliases()
+            .addAliasAction(
+                IndicesAliasesRequest.AliasActions.add()
                     .index(TransformInternalIndexConstants.AUDIT_INDEX_DEPRECATED)
                     .alias(TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS)
-                    .isHidden(true))
-                .request();
+                    .isHidden(true)
+            )
+            .request();
 
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), TRANSFORM_ORIGIN, request,
-                ActionListener.<AcknowledgedResponse>wrap(r -> finalListener.onResponse(r.isAcknowledged()), finalListener::onFailure),
-                client.admin().indices()::aliases);
+        executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
+            TRANSFORM_ORIGIN,
+            request,
+            ActionListener.<AcknowledgedResponse>wrap(r -> finalListener.onResponse(r.isAcknowledged()), finalListener::onFailure),
+            client.admin().indices()::aliases
+        );
     }
 
 }

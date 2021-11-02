@@ -13,8 +13,6 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
@@ -26,6 +24,8 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KeyedFlattenedFieldType;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -55,14 +55,13 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("null_value", b -> b.field("null_value", "foo"));
         checker.registerConflictCheck("similarity", b -> b.field("similarity", "boolean"));
 
-        checker.registerUpdateCheck(b -> b.field("eager_global_ordinals", true),
-            m -> assertTrue(m.fieldType().eagerGlobalOrdinals()));
-        checker.registerUpdateCheck(b -> b.field("ignore_above", 256),
-            m -> assertEquals(256, ((FlattenedFieldMapper)m).ignoreAbove()));
-        checker.registerUpdateCheck(b -> b.field("split_queries_on_whitespace", true),
-            m -> assertEquals("_whitespace", m.fieldType().getTextSearchInfo().getSearchAnalyzer().name()));
-        checker.registerUpdateCheck(b -> b.field("depth_limit", 10),
-            m -> assertEquals(10, ((FlattenedFieldMapper)m).depthLimit()));
+        checker.registerUpdateCheck(b -> b.field("eager_global_ordinals", true), m -> assertTrue(m.fieldType().eagerGlobalOrdinals()));
+        checker.registerUpdateCheck(b -> b.field("ignore_above", 256), m -> assertEquals(256, ((FlattenedFieldMapper) m).ignoreAbove()));
+        checker.registerUpdateCheck(
+            b -> b.field("split_queries_on_whitespace", true),
+            m -> assertEquals("_whitespace", m.fieldType().getTextSearchInfo().getSearchAnalyzer().name())
+        );
+        checker.registerUpdateCheck(b -> b.field("depth_limit", 10), m -> assertEquals(10, ((FlattenedFieldMapper) m).depthLimit()));
     }
 
     @Override
@@ -153,13 +152,14 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         }));
 
         for (String indexOptions : Arrays.asList("positions", "offsets")) {
-            Exception e = expectThrows(MapperParsingException.class,
-                () -> createDocumentMapper(fieldMapping(b -> {
-                        b.field("type", "flattened");
-                        b.field("index_options", indexOptions);
-                    })));
-            assertThat(e.getMessage(), containsString("Unknown value [" + indexOptions
-                + "] for field [index_options] - accepted values are [docs, freqs]"));
+            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+                b.field("type", "flattened");
+                b.field("index_options", indexOptions);
+            })));
+            assertThat(
+                e.getMessage(),
+                containsString("Unknown value [" + indexOptions + "] for field [index_options] - accepted values are [docs, freqs]")
+            );
         }
     }
 
@@ -176,8 +176,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field("field", "not a JSON object"))));
 
         BytesReference doc2 = new BytesArray("{ \"field\": { \"key\": \"value\" ");
-        expectThrows(MapperParsingException.class, () -> mapper.parse(
-            new SourceToParse("test", "1", doc2, XContentType.JSON)));
+        expectThrows(MapperParsingException.class, () -> mapper.parse(new SourceToParse("test", "1", doc2, XContentType.JSON)));
     }
 
     public void testFieldMultiplicity() throws Exception {
@@ -233,18 +232,17 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             b.field("depth_limit", 2);
         }));
 
-        expectThrows(MapperParsingException.class, () ->
-            mapperService.documentMapper().parse(source(b -> {
-                b.startObject("field");
+        expectThrows(MapperParsingException.class, () -> mapperService.documentMapper().parse(source(b -> {
+            b.startObject("field");
+            {
+                b.startObject("key1");
                 {
-                    b.startObject("key1");
-                    {
-                        b.startObject("key2").field("key3", "value").endObject();
-                    }
-                    b.endObject();
+                    b.startObject("key2").field("key3", "value").endObject();
                 }
                 b.endObject();
-            })));
+            }
+            b.endObject();
+        })));
     }
 
     public void testEagerGlobalOrdinals() throws IOException {
@@ -331,13 +329,17 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
 
         RootFlattenedFieldType rootFieldType = (RootFlattenedFieldType) mapperService.fieldType("field");
         assertThat(rootFieldType.getTextSearchInfo().getSearchAnalyzer().name(), equalTo("_whitespace"));
-        assertTokenStreamContents(rootFieldType.getTextSearchInfo().getSearchAnalyzer().analyzer().tokenStream("", "Hello World"),
-            new String[] {"Hello", "World"});
+        assertTokenStreamContents(
+            rootFieldType.getTextSearchInfo().getSearchAnalyzer().analyzer().tokenStream("", "Hello World"),
+            new String[] { "Hello", "World" }
+        );
 
         KeyedFlattenedFieldType keyedFieldType = (KeyedFlattenedFieldType) mapperService.fieldType("field.key");
         assertThat(keyedFieldType.getTextSearchInfo().getSearchAnalyzer().name(), equalTo("_whitespace"));
-        assertTokenStreamContents(keyedFieldType.getTextSearchInfo().getSearchAnalyzer().analyzer().tokenStream("", "Hello World"),
-            new String[] {"Hello", "World"});
+        assertTokenStreamContents(
+            keyedFieldType.getTextSearchInfo().getSearchAnalyzer().analyzer().tokenStream("", "Hello World"),
+            new String[] { "Hello", "World" }
+        );
     }
 
     @Override

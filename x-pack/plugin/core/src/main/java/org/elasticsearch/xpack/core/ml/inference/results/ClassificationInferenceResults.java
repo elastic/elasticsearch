@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PredictionFieldType;
@@ -37,29 +37,35 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
     private final List<ClassificationFeatureImportance> featureImportance;
     private final PredictionFieldType predictionFieldType;
 
-    public ClassificationInferenceResults(double value,
-                                          String classificationLabel,
-                                          List<TopClassEntry> topClasses,
-                                          List<ClassificationFeatureImportance> featureImportance,
-                                          InferenceConfig config,
-                                          Double predictionProbability,
-                                          Double predictionScore) {
-        this(value,
+    public ClassificationInferenceResults(
+        double value,
+        String classificationLabel,
+        List<TopClassEntry> topClasses,
+        List<ClassificationFeatureImportance> featureImportance,
+        InferenceConfig config,
+        Double predictionProbability,
+        Double predictionScore
+    ) {
+        this(
+            value,
             classificationLabel,
             topClasses,
             featureImportance,
-            (ClassificationConfig)config,
+            (ClassificationConfig) config,
             predictionProbability,
-            predictionScore);
+            predictionScore
+        );
     }
 
-    private ClassificationInferenceResults(double value,
-                                           String classificationLabel,
-                                           List<TopClassEntry> topClasses,
-                                           List<ClassificationFeatureImportance> featureImportance,
-                                           ClassificationConfig classificationConfig,
-                                           Double predictionProbability,
-                                           Double predictionScore) {
+    private ClassificationInferenceResults(
+        double value,
+        String classificationLabel,
+        List<TopClassEntry> topClasses,
+        List<ClassificationFeatureImportance> featureImportance,
+        ClassificationConfig classificationConfig,
+        Double predictionProbability,
+        Double predictionScore
+    ) {
         this(
             value,
             classificationLabel,
@@ -97,13 +103,15 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
         this.featureImportance = takeTopFeatureImportances(featureImportance, numTopFeatureImportanceValues);
     }
 
-    static List<ClassificationFeatureImportance> takeTopFeatureImportances(List<ClassificationFeatureImportance> featureImportances,
-                                                                           int numTopFeatures) {
+    static List<ClassificationFeatureImportance> takeTopFeatureImportances(
+        List<ClassificationFeatureImportance> featureImportances,
+        int numTopFeatures
+    ) {
         if (featureImportances == null || featureImportances.isEmpty()) {
             return Collections.emptyList();
         }
         return featureImportances.stream()
-            .sorted((l, r)-> Double.compare(r.getTotalImportance(), l.getTotalImportance()))
+            .sorted((l, r) -> Double.compare(r.getTotalImportance(), l.getTotalImportance()))
             .limit(numTopFeatures)
             .collect(Collectors.toUnmodifiableList());
     }
@@ -151,8 +159,12 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
 
     @Override
     public boolean equals(Object object) {
-        if (object == this) { return true; }
-        if (object == null || getClass() != object.getClass()) { return false; }
+        if (object == this) {
+            return true;
+        }
+        if (object == null || getClass() != object.getClass()) {
+            return false;
+        }
         ClassificationInferenceResults that = (ClassificationInferenceResults) object;
         return Objects.equals(value(), that.value())
             && Objects.equals(classificationLabel, that.classificationLabel)
@@ -167,7 +179,8 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
 
     @Override
     public int hashCode() {
-        return Objects.hash(value(),
+        return Objects.hash(
+            value(),
             classificationLabel,
             topClasses,
             resultsField,
@@ -175,7 +188,8 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
             predictionProbability,
             predictionScore,
             featureImportance,
-            predictionFieldType);
+            predictionFieldType
+        );
     }
 
     @Override
@@ -215,8 +229,10 @@ public class ClassificationInferenceResults extends SingleValueInferenceResults 
             map.put(PREDICTION_SCORE, predictionScore);
         }
         if (featureImportance.isEmpty() == false) {
-            map.put(FEATURE_IMPORTANCE, featureImportance.stream().map(ClassificationFeatureImportance::toMap)
-                .collect(Collectors.toList()));
+            map.put(
+                FEATURE_IMPORTANCE,
+                featureImportance.stream().map(ClassificationFeatureImportance::toMap).collect(Collectors.toList())
+            );
         }
         return map;
     }

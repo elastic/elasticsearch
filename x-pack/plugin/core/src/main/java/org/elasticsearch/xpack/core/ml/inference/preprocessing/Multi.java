@@ -6,6 +6,16 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -19,17 +29,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
 
 /**
  * Multi-PreProcessor for chaining together multiple processors
@@ -50,22 +49,24 @@ public class Multi implements LenientlyParsedPreProcessor, StrictlyParsedPreProc
             lenient,
             Multi.Builder::new
         );
-        parser.declareNamedObjects(Multi.Builder::setProcessors,
-            (p, c, n) -> lenient ?
-                p.namedObject(LenientlyParsedPreProcessor.class, n, PreProcessor.PreProcessorParseContext.DEFAULT) :
-                p.namedObject(StrictlyParsedPreProcessor.class, n, PreProcessor.PreProcessorParseContext.DEFAULT),
+        parser.declareNamedObjects(
+            Multi.Builder::setProcessors,
+            (p, c, n) -> lenient
+                ? p.namedObject(LenientlyParsedPreProcessor.class, n, PreProcessor.PreProcessorParseContext.DEFAULT)
+                : p.namedObject(StrictlyParsedPreProcessor.class, n, PreProcessor.PreProcessorParseContext.DEFAULT),
             (multiBuilder) -> multiBuilder.setOrdered(true),
-            PROCESSORS);
+            PROCESSORS
+        );
         parser.declareBoolean(Multi.Builder::setCustom, CUSTOM);
         return parser;
     }
 
     public static Multi fromXContentStrict(XContentParser parser, PreProcessorParseContext context) {
-        return STRICT_PARSER.apply(parser, context == null ?  PreProcessorParseContext.DEFAULT : context).build();
+        return STRICT_PARSER.apply(parser, context == null ? PreProcessorParseContext.DEFAULT : context).build();
     }
 
     public static Multi fromXContentLenient(XContentParser parser, PreProcessorParseContext context) {
-        return LENIENT_PARSER.apply(parser, context == null ?  PreProcessorParseContext.DEFAULT : context).build();
+        return LENIENT_PARSER.apply(parser, context == null ? PreProcessorParseContext.DEFAULT : context).build();
     }
 
     private final PreProcessor[] processors;
@@ -110,8 +111,8 @@ public class Multi implements LenientlyParsedPreProcessor, StrictlyParsedPreProc
             throw new IllegalArgumentException(
                 String.format(
                     Locale.ROOT,
-                    "[custom] cannot be false as [%s] is unable to accurately determine" +
-                        " field reverse encoding for input fields [%s] and output fields %s",
+                    "[custom] cannot be false as [%s] is unable to accurately determine"
+                        + " field reverse encoding for input fields [%s] and output fields %s",
                     NAME.getPreferredName(),
                     Strings.arrayToCommaDelimitedString(this.inputFields),
                     this.outputFields.keySet()

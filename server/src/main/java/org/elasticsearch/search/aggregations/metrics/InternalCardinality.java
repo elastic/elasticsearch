@@ -11,9 +11,9 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -101,7 +101,7 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), counts.hashCode(0));
+        return Objects.hash(super.hashCode(), counts == null ? 0 : counts.hashCode(0));
     }
 
     @Override
@@ -111,6 +111,9 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
         if (super.equals(obj) == false) return false;
 
         InternalCardinality other = (InternalCardinality) obj;
+        if (counts == null) {
+            return other.counts == null;
+        }
         return counts.equals(0, other.counts, 0);
     }
 

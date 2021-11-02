@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
@@ -58,11 +58,13 @@ public class NlpTask {
 
         Request buildRequest(TokenizationResult tokenizationResult, String requestId) throws IOException;
 
-        static void writePaddedTokens(String fieldName,
-                                      TokenizationResult tokenization,
-                                      int padToken,
-                                      TokenLookupFunction generator,
-                                      XContentBuilder builder) throws IOException {
+        static void writePaddedTokens(
+            String fieldName,
+            TokenizationResult tokenization,
+            int padToken,
+            TokenLookupFunction generator,
+            XContentBuilder builder
+        ) throws IOException {
             builder.startArray(fieldName);
             for (var inputTokens : tokenization.getTokenizations()) {
                 builder.startArray();
@@ -79,10 +81,13 @@ public class NlpTask {
             builder.endArray();
         }
 
-        static void writeNonPaddedArguments(String fieldName,
-                                            int numTokenizations, int longestSequenceLength,
-                                            IntToIntFunction generator,
-                                            XContentBuilder builder) throws IOException {
+        static void writeNonPaddedArguments(
+            String fieldName,
+            int numTokenizations,
+            int longestSequenceLength,
+            IntToIntFunction generator,
+            XContentBuilder builder
+        ) throws IOException {
             builder.startArray(fieldName);
             for (int i = 0; i < numTokenizations; i++) {
                 builder.startArray();
@@ -109,6 +114,7 @@ public class NlpTask {
         void validateInputs(List<String> inputs);
 
         RequestBuilder getRequestBuilder(NlpConfig config);
+
         ResultProcessor getResultProcessor(NlpConfig config);
     }
 

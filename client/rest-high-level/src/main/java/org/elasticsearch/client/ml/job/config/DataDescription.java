@@ -7,10 +7,10 @@
  */
 package org.elasticsearch.client.ml.job.config;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -70,8 +70,11 @@ public class DataDescription implements ToXContentObject {
     private final String timeFieldName;
     private final String timeFormat;
 
-    public static final ObjectParser<Builder, Void> PARSER =
-        new ObjectParser<>(DATA_DESCRIPTION_FIELD.getPreferredName(), true, Builder::new);
+    public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(
+        DATA_DESCRIPTION_FIELD.getPreferredName(),
+        true,
+        Builder::new
+    );
 
     static {
         PARSER.declareString(Builder::setTimeField, TIME_FIELD_NAME_FIELD);

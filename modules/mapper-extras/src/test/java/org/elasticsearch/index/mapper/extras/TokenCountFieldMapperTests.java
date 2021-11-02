@@ -15,7 +15,6 @@ import org.apache.lucene.analysis.Token;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -25,9 +24,8 @@ import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
-import org.elasticsearch.index.mapper.extras.TokenCountFieldMapper;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -69,29 +67,18 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
         checker.registerConflictCheck("enable_position_increments", b -> b.field("enable_position_increments", false));
-        checker.registerUpdateCheck(
-            this::minimalMapping,
-            b -> b.field("type", "token_count").field("analyzer", "standard"),
-            m -> {
-                TokenCountFieldMapper tcfm = (TokenCountFieldMapper) m;
-                assertThat(tcfm.analyzer(), equalTo("standard"));
-            });
+        checker.registerUpdateCheck(this::minimalMapping, b -> b.field("type", "token_count").field("analyzer", "standard"), m -> {
+            TokenCountFieldMapper tcfm = (TokenCountFieldMapper) m;
+            assertThat(tcfm.analyzer(), equalTo("standard"));
+        });
     }
 
     @Override
     protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
-        NamedAnalyzer dflt = new NamedAnalyzer(
-            "default",
-            AnalyzerScope.INDEX,
-            new StandardAnalyzer()
-        );
+        NamedAnalyzer dflt = new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer());
         NamedAnalyzer standard = new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer());
         NamedAnalyzer keyword = new NamedAnalyzer("keyword", AnalyzerScope.INDEX, new KeywordAnalyzer());
-        return new IndexAnalyzers(
-            Map.of("default", dflt, "standard", standard, "keyword", keyword),
-            Map.of(),
-            Map.of()
-        );
+        return new IndexAnalyzers(Map.of("default", dflt, "standard", standard, "keyword", keyword), Map.of(), Map.of());
     }
 
     /**
@@ -126,7 +113,7 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
         Token t3 = new Token();
         t2.setPositionIncrement(2);  // Funny token with more than one increment
         int finalTokenIncrement = 4; // Final token increment
-        Token[] tokens = new Token[] {t1, t2, t3};
+        Token[] tokens = new Token[] { t1, t2, t3 };
         Collections.shuffle(Arrays.asList(tokens), random());
         final TokenStream tokenStream = new CannedTokenStream(finalTokenIncrement, 0, tokens);
         // TODO: we have no CannedAnalyzer?
@@ -181,8 +168,7 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
     }
 
     private LuceneDocument parseDocument(DocumentMapper mapper, SourceToParse request) {
-        return mapper.parse(request)
-            .docs().stream().findFirst().orElseThrow(() -> new IllegalStateException("Test object not parsed"));
+        return mapper.parse(request).docs().stream().findFirst().orElseThrow(() -> new IllegalStateException("Test object not parsed"));
     }
 
     @Override

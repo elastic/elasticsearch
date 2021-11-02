@@ -28,13 +28,26 @@ public class KeywordEsField extends EsField {
         this(name, properties, hasDocValues, precision, normalized, false);
     }
 
-    public KeywordEsField(String name, Map<String, EsField> properties, boolean hasDocValues, int precision,
-            boolean normalized, boolean isAlias) {
+    public KeywordEsField(
+        String name,
+        Map<String, EsField> properties,
+        boolean hasDocValues,
+        int precision,
+        boolean normalized,
+        boolean isAlias
+    ) {
         this(name, KEYWORD, properties, hasDocValues, precision, normalized, isAlias);
     }
 
-    protected KeywordEsField(String name, DataType esDataType, Map<String, EsField> properties, boolean hasDocValues, int precision,
-            boolean normalized, boolean isAlias) {
+    protected KeywordEsField(
+        String name,
+        DataType esDataType,
+        Map<String, EsField> properties,
+        boolean hasDocValues,
+        int precision,
+        boolean normalized,
+        boolean isAlias
+    ) {
         super(name, esDataType, properties, hasDocValues, isAlias);
         this.precision = precision;
         this.normalized = normalized;
@@ -61,8 +74,7 @@ public class KeywordEsField extends EsField {
             return false;
         }
         KeywordEsField that = (KeywordEsField) o;
-        return precision == that.precision &&
-                normalized == that.normalized;
+        return precision == that.precision && normalized == that.normalized;
     }
 
     @Override

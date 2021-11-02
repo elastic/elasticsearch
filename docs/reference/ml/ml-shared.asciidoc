@@ -897,8 +897,8 @@ end::inference-config-classification-num-top-classes[]
 
 tag::inference-config-classification-num-top-feature-importance-values[]
 Specifies the maximum number of
-{ml-docs}/ml-feature-importance.html[{feat-imp}] values per document. By
-default, it is zero and no {feat-imp} calculation occurs.
+{ml-docs}/ml-feature-importance.html[{feat-imp}] values per document. Defaults 
+to 0 which means no {feat-imp} calculation occurs.
 end::inference-config-classification-num-top-feature-importance-values[]
 
 tag::inference-config-classification-top-classes-results-field[]
@@ -908,7 +908,7 @@ end::inference-config-classification-top-classes-results-field[]
 
 tag::inference-config-classification-prediction-field-type[]
 Specifies the type of the predicted field to write.
-Acceptable values are: `string`, `number`, `boolean`. When `boolean` is provided
+Valid values are: `string`, `number`, `boolean`. When `boolean` is provided 
 `1.0` is transformed to `true` and `0.0` to `false`.
 end::inference-config-classification-prediction-field-type[]
 
@@ -921,9 +921,25 @@ BERT-style tokenization is to be performed with the enclosed settings.
 end::inference-config-nlp-tokenization-bert[]
 
 tag::inference-config-nlp-tokenization-bert-do-lower-case[]
-Should the tokenization lower case the text sequence when building
-the tokens.
+Specifies if the tokenization lower case the text sequence when building the 
+tokens.
 end::inference-config-nlp-tokenization-bert-do-lower-case[]
+
+tag::inference-config-nlp-tokenization-bert-truncate[]
+Indicates how tokens are truncated when they exceed `max_sequence_length`.
+The default value is `none`.
++
+--
+* `none`: No truncation occurs; the inference request receives an error.
+* `first`: Only the first sequence is truncated.
+* `second`: Only the second sequence is truncated. If there is just one sequence,
+					 that sequence is truncated.
+--
+
+NOTE: For `zero_shot_classification`, the hypothesis sequence is always the second 
+sequence. Therefore, do not use `second` in this case.
+
+end::inference-config-nlp-tokenization-bert-truncate[]
 
 tag::inference-config-nlp-tokenization-bert-with-special-tokens[]
 Tokenize with special tokens. The tokens typically included in BERT-style tokenization are:
@@ -935,29 +951,29 @@ Tokenize with special tokens. The tokens typically included in BERT-style tokeni
 end::inference-config-nlp-tokenization-bert-with-special-tokens[]
 
 tag::inference-config-nlp-tokenization-bert-max-sequence-length[]
-The maximum number of tokens allowed to be output by the tokenizer.
+Specifies the maximum number of tokens allowed to be output by the tokenizer. 
 The default for BERT-style tokenization is `512`.
 end::inference-config-nlp-tokenization-bert-max-sequence-length[]
 
 tag::inference-config-nlp-vocabulary[]
-The configuration for retreiving the model's vocabulary. The vocabulary is then
-used at inference time. This information is usually provided automatically by
-storing vocabulary in a known, internally managed index.
+The configuration for retreiving the vocabulary of the model. The vocabulary is 
+then used at inference time. This information is usually provided automatically 
+by storing vocabulary in a known, internally managed index.
 end::inference-config-nlp-vocabulary[]
 
 tag::inference-config-nlp-fill-mask[]
-Configuration for a fill_mask NLP task. The fill_mask task works with models
-optimized for a fill mask action. For example, for BERT models, the following
-text may be provided: "The capital of France is [MASK].". The response indicates
-the value most likely to replace `[MASK]`. In this instance, the
-most probable token is `paris`.
+Configuration for a fill_mask natural language processing (NLP) task. The 
+fill_mask task works with models optimized for a fill mask action. For example, 
+for BERT models, the following text may be provided: "The capital of France is 
+[MASK].". The response indicates the value most likely to replace `[MASK]`. In 
+this instance, the most probable token is `paris`.
 end::inference-config-nlp-fill-mask[]
 
 tag::inference-config-ner[]
 Configures a named entity recognition (NER) task. NER is a special case of token
 classification. Each token in the sequence is classified according to the
 provided classification labels. Currently, the NER task requires the
-`classification_labels` Inside-Outside-Beginning formatted labels. Only
+`classification_labels` Inside-Outside-Beginning (IOB) formatted labels. Only
 person, organization, location, and miscellaneous are supported.
 end::inference-config-ner[]
 
@@ -977,8 +993,8 @@ end::inference-config-text-classification[]
 tag::inference-config-text-embedding[]
 Text embedding takes an input sequence and transforms it into a vector of
 numbers. These embeddings capture not simply tokens, but semantic meanings and
-context. These embeddings can then be used in a <<dense-vector,dense vector>>
-field for powerful insights.
+context. These embeddings can be used in a <<dense-vector,dense vector>> field 
+for powerful insights.
 end::inference-config-text-embedding[]
 
 tag::inference-config-regression-num-top-feature-importance-values[]
@@ -1003,9 +1019,11 @@ Configures a zero-shot classification task. Zero-shot classification allows for
 text classification to occur without pre-determined labels. At inference time,
 it is possible to adjust the labels to classify. This makes this type of model
 and task exceptionally flexible.
-
-If consistently classifying the same labels, it may be better to use a fine turned
-text classification model.
++
+--
+If consistently classifying the same labels, it may be better to use a 
+fine-tuned text classification model.
+--
 end::inference-config-zero-shot-classification[]
 
 tag::inference-config-zero-shot-classification-classification-labels[]
@@ -1019,9 +1037,11 @@ end::inference-config-zero-shot-classification-classification-labels[]
 
 tag::inference-config-zero-shot-classification-hypothesis-template[]
 This is the template used when tokenizing the sequences for classification.
-
++
+--
 The labels replace the `{}` value in the text. The default value is:
 `This example is {}.`
+--
 end::inference-config-zero-shot-classification-hypothesis-template[]
 
 tag::inference-config-zero-shot-classification-labels[]
@@ -1031,11 +1051,8 @@ end::inference-config-zero-shot-classification-labels[]
 
 tag::inference-config-zero-shot-classification-multi-label[]
 Indicates if more than one `true` label is possible given the input.
-
 This is useful when labeling text that could pertain to more than one of the
-input labels.
-
-Defaults to `false`.
+input labels. Defaults to `false`.
 end::inference-config-zero-shot-classification-multi-label[]
 
 tag::inference-metadata-feature-importance-feature-name[]

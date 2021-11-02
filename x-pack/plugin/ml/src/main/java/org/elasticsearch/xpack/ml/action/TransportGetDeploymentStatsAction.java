@@ -46,47 +46,63 @@ import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class TransportGetDeploymentStatsAction extends TransportTasksAction<TrainedModelDeploymentTask,
-    GetDeploymentStatsAction.Request, GetDeploymentStatsAction.Response, GetDeploymentStatsAction.Response.AllocationStats> {
+public class TransportGetDeploymentStatsAction extends TransportTasksAction<
+    TrainedModelDeploymentTask,
+    GetDeploymentStatsAction.Request,
+    GetDeploymentStatsAction.Response,
+    GetDeploymentStatsAction.Response.AllocationStats> {
 
     @Inject
-    public TransportGetDeploymentStatsAction(TransportService transportService,
-                                             ActionFilters actionFilters,
-                                             ClusterService clusterService) {
-        super(GetDeploymentStatsAction.NAME, clusterService, transportService, actionFilters, GetDeploymentStatsAction.Request::new,
-            GetDeploymentStatsAction.Response::new, GetDeploymentStatsAction.Response.AllocationStats::new, ThreadPool.Names.MANAGEMENT);
+    public TransportGetDeploymentStatsAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ClusterService clusterService
+    ) {
+        super(
+            GetDeploymentStatsAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            GetDeploymentStatsAction.Request::new,
+            GetDeploymentStatsAction.Response::new,
+            GetDeploymentStatsAction.Response.AllocationStats::new,
+            ThreadPool.Names.MANAGEMENT
+        );
     }
 
     @Override
-    protected GetDeploymentStatsAction.Response newResponse(GetDeploymentStatsAction.Request request,
-                                                            List<GetDeploymentStatsAction.Response.AllocationStats> taskResponse,
-                                                            List<TaskOperationFailure> taskOperationFailures,
-                                                            List<FailedNodeException> failedNodeExceptions) {
+    protected GetDeploymentStatsAction.Response newResponse(
+        GetDeploymentStatsAction.Request request,
+        List<GetDeploymentStatsAction.Response.AllocationStats> taskResponse,
+        List<TaskOperationFailure> taskOperationFailures,
+        List<FailedNodeException> failedNodeExceptions
+    ) {
         // group the stats by model and merge individual node stats
-        var mergedNodeStatsByModel =
-            taskResponse.stream().collect(Collectors.toMap(GetDeploymentStatsAction.Response.AllocationStats::getModelId,
-                Function.identity(),
-                (l, r) -> {
-                    l.getNodeStats().addAll(r.getNodeStats());
-                    return l;
-                },
-                TreeMap::new));
+        var mergedNodeStatsByModel = taskResponse.stream()
+            .collect(Collectors.toMap(GetDeploymentStatsAction.Response.AllocationStats::getModelId, Function.identity(), (l, r) -> {
+                l.getNodeStats().addAll(r.getNodeStats());
+                return l;
+            }, TreeMap::new));
 
         List<GetDeploymentStatsAction.Response.AllocationStats> bunchedAndSorted = new ArrayList<>(mergedNodeStatsByModel.values());
 
-        return new GetDeploymentStatsAction.Response(taskOperationFailures,
+        return new GetDeploymentStatsAction.Response(
+            taskOperationFailures,
             failedNodeExceptions,
             bunchedAndSorted,
-            bunchedAndSorted.size());
+            bunchedAndSorted.size()
+        );
     }
 
     @Override
-    protected void doExecute(Task task, GetDeploymentStatsAction.Request request,
-                             ActionListener<GetDeploymentStatsAction.Response> listener) {
+    protected void doExecute(
+        Task task,
+        GetDeploymentStatsAction.Request request,
+        ActionListener<GetDeploymentStatsAction.Response> listener
+    ) {
 
         String[] tokenizedRequestIds = Strings.tokenizeToStringArray(request.getDeploymentId(), ",");
-        ExpandedIdsMatcher.SimpleIdsMatcher idsMatcher =
-            new ExpandedIdsMatcher.SimpleIdsMatcher(tokenizedRequestIds);
+        ExpandedIdsMatcher.SimpleIdsMatcher idsMatcher = new ExpandedIdsMatcher.SimpleIdsMatcher(tokenizedRequestIds);
 
         TrainedModelAllocationMetadata allocation = TrainedModelAllocationMetadata.fromState(clusterService.state());
         List<String> matchedDeploymentIds = new ArrayList<>();
@@ -99,7 +115,9 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<Trai
 
                 taskNodes.addAll(Arrays.asList(allocationEntry.getValue().getStartedNodes()));
 
-                Map<String, RoutingStateAndReason> routings = allocationEntry.getValue().getNodeRoutingTable().entrySet()
+                Map<String, RoutingStateAndReason> routings = allocationEntry.getValue()
+                    .getNodeRoutingTable()
+                    .entrySet()
                     .stream()
                     .filter(routingEntry -> RoutingState.STARTED.equals(routingEntry.getValue().getState()) == false)
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
@@ -116,76 +134,88 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<Trai
             return;
         }
         if (matchedDeploymentIds.isEmpty()) {
-            listener.onResponse(new GetDeploymentStatsAction.Response(
-                Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), 0L));
+            listener.onResponse(
+                new GetDeploymentStatsAction.Response(Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), 0L)
+            );
             return;
         }
 
         request.setNodes(taskNodes.toArray(String[]::new));
         request.setExpandedIds(matchedDeploymentIds);
 
-        ActionListener<GetDeploymentStatsAction.Response> addFailedListener = listener.delegateFailure(
-            (l, response) -> {
-                var updatedResponse= GetDeploymentStatsAction.Response.addFailedRoutes(response,
-                    nonStartedAllocationsForModel,
-                    clusterService.state().nodes()
-                );
-                ClusterState latestState = clusterService.state();
-                Set<String> nodesShuttingDown = TransportStartTrainedModelDeploymentAction.nodesShuttingDown(latestState);
-                List<DiscoveryNode> nodes = latestState.getNodes()
-                    .getAllNodes()
-                    .stream()
-                    .filter(d -> nodesShuttingDown.contains(d.getId()) == false)
-                    .filter(StartTrainedModelDeploymentAction.TaskParams::mayAllocateToNode)
-                    .collect(Collectors.toList());
-                // Set the allocation state and reason if we have it
-                for (GetDeploymentStatsAction.Response.AllocationStats stats : updatedResponse.getStats().results()) {
-                    Optional<TrainedModelAllocation> modelAllocation = Optional.ofNullable(
-                        allocation.getModelAllocation(stats.getModelId())
-                    );
-                    TrainedModelAllocation trainedModelAllocation = modelAllocation.orElse(null);
-                    if (trainedModelAllocation != null) {
-                        stats.setState(trainedModelAllocation.getAllocationState())
-                            .setReason(trainedModelAllocation.getReason().orElse(null));
-                        if (trainedModelAllocation.getAllocationState().isAnyOf(AllocationState.STARTED, AllocationState.STARTING)) {
-                            stats.setAllocationStatus(trainedModelAllocation.calculateAllocationStatus(nodes).orElse(null));
-                        }
+        ActionListener<GetDeploymentStatsAction.Response> addFailedListener = listener.delegateFailure((l, response) -> {
+            var updatedResponse = GetDeploymentStatsAction.Response.addFailedRoutes(
+                response,
+                nonStartedAllocationsForModel,
+                clusterService.state().nodes()
+            );
+            ClusterState latestState = clusterService.state();
+            Set<String> nodesShuttingDown = TransportStartTrainedModelDeploymentAction.nodesShuttingDown(latestState);
+            List<DiscoveryNode> nodes = latestState.getNodes()
+                .getAllNodes()
+                .stream()
+                .filter(d -> nodesShuttingDown.contains(d.getId()) == false)
+                .filter(StartTrainedModelDeploymentAction.TaskParams::mayAllocateToNode)
+                .collect(Collectors.toList());
+            // Set the allocation state and reason if we have it
+            for (GetDeploymentStatsAction.Response.AllocationStats stats : updatedResponse.getStats().results()) {
+                Optional<TrainedModelAllocation> modelAllocation = Optional.ofNullable(allocation.getModelAllocation(stats.getModelId()));
+                TrainedModelAllocation trainedModelAllocation = modelAllocation.orElse(null);
+                if (trainedModelAllocation != null) {
+                    stats.setState(trainedModelAllocation.getAllocationState()).setReason(trainedModelAllocation.getReason().orElse(null));
+                    if (trainedModelAllocation.getAllocationState().isAnyOf(AllocationState.STARTED, AllocationState.STARTING)) {
+                        stats.setAllocationStatus(trainedModelAllocation.calculateAllocationStatus(nodes).orElse(null));
                     }
                 }
-                l.onResponse(updatedResponse);
             }
-        );
+            l.onResponse(updatedResponse);
+        });
 
         super.doExecute(task, request, addFailedListener);
     }
 
     @Override
-    protected void taskOperation(GetDeploymentStatsAction.Request request, TrainedModelDeploymentTask task,
-                                 ActionListener<GetDeploymentStatsAction.Response.AllocationStats> listener) {
+    protected void taskOperation(
+        GetDeploymentStatsAction.Request request,
+        TrainedModelDeploymentTask task,
+        ActionListener<GetDeploymentStatsAction.Response.AllocationStats> listener
+    ) {
         Optional<ModelStats> stats = task.modelStats();
 
         List<GetDeploymentStatsAction.Response.AllocationStats.NodeStats> nodeStats = new ArrayList<>();
 
         if (stats.isPresent()) {
-            nodeStats.add(GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forStartedState(
-                clusterService.localNode(),
-                stats.get().getTimingStats().getCount(),
-                stats.get().getTimingStats().getAverage(),
-                stats.get().getLastUsed()));
+            nodeStats.add(
+                GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forStartedState(
+                    clusterService.localNode(),
+                    stats.get().getTimingStats().getCount(),
+                    // avoid reporting the average time as 0 if count < 1
+                    (stats.get().getTimingStats().getCount() > 0) ? stats.get().getTimingStats().getAverage() : null,
+                    stats.get().getPendingCount(),
+                    stats.get().getLastUsed()
+                )
+            );
         } else {
             // if there are no stats the process is missing.
             // Either because it is starting or stopped
-            nodeStats.add(GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forNotStartedState(
-                clusterService.localNode(),
-                RoutingState.STOPPED, ""));
+            nodeStats.add(
+                GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forNotStartedState(
+                    clusterService.localNode(),
+                    RoutingState.STOPPED,
+                    ""
+                )
+            );
         }
 
-        listener.onResponse(new GetDeploymentStatsAction.Response.AllocationStats(
-            task.getModelId(),
-            ByteSizeValue.ofBytes(task.getParams().getModelBytes()),
-            task.getParams().getInferenceThreads(),
-            task.getParams().getModelThreads(),
-            nodeStats)
+        listener.onResponse(
+            new GetDeploymentStatsAction.Response.AllocationStats(
+                task.getModelId(),
+                ByteSizeValue.ofBytes(task.getParams().getModelBytes()),
+                task.getParams().getInferenceThreads(),
+                task.getParams().getModelThreads(),
+                task.getParams().getQueueCapacity(),
+                nodeStats
+            )
         );
     }
 }

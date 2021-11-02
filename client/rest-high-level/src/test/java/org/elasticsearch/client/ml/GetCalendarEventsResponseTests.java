@@ -10,8 +10,8 @@ package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.ml.calendars.ScheduledEvent;
 import org.elasticsearch.client.ml.calendars.ScheduledEventTests;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -24,7 +24,7 @@ public class GetCalendarEventsResponseTests extends AbstractXContentTestCase<Get
         String calendarId = randomAlphaOfLength(10);
         List<ScheduledEvent> scheduledEvents = new ArrayList<>();
         int count = randomIntBetween(0, 3);
-        for (int i=0; i<count; i++) {
+        for (int i = 0; i < count; i++) {
             scheduledEvents.add(ScheduledEventTests.testInstance(calendarId, randomAlphaOfLength(10)));
         }
         return new GetCalendarEventsResponse(scheduledEvents, count);

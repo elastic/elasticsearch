@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.ml.rest.inference;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelVocabularyAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 
@@ -25,13 +25,7 @@ public class RestPutTrainedModelVocabularyAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(
-                PUT,
-                BASE_PATH
-                    + "trained_models/{"
-                    + TrainedModelConfig.MODEL_ID.getPreferredName()
-                    + "}/vocabulary"
-            ).build()
+            Route.builder(PUT, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/vocabulary").build()
         );
     }
 

@@ -82,8 +82,8 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.matchesRegex;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.matches;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.matches;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -312,6 +312,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             new SettingsConfig(pageSize, null, (Boolean) null, null),
             null,
             null,
+            null,
             null
         );
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
@@ -386,6 +387,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             new SettingsConfig(pageSize, null, (Boolean) null, null),
             null,
             null,
+            null,
             null
         );
         SearchResponse searchResponse = new SearchResponse(
@@ -447,6 +449,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             new SettingsConfig(pageSize, null, (Boolean) null, null),
+            null,
             null,
             null,
             null
@@ -529,6 +532,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             randomPivotConfig(),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            null,
             null,
             new TimeRetentionPolicyConfig(randomAlphaOfLength(10), TimeValue.timeValueSeconds(10)),
             null,
@@ -631,6 +635,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             null,
+            null,
             new TimeRetentionPolicyConfig(randomAlphaOfLength(10), TimeValue.timeValueSeconds(10)),
             null,
             null
@@ -729,6 +734,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             randomPivotConfig(),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            null,
             null,
             null,
             null,

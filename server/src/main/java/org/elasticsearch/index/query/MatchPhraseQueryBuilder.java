@@ -9,14 +9,14 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.search.MatchQueryParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -216,16 +216,22 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
                             } else if ("all".equalsIgnoreCase(zeroTermsValue)) {
                                 zeroTermsQuery = ZeroTermsQueryOption.ALL;
                             } else {
-                                throw new ParsingException(parser.getTokenLocation(),
-                                    "Unsupported zero_terms_query value [" + zeroTermsValue + "]");
+                                throw new ParsingException(
+                                    parser.getTokenLocation(),
+                                    "Unsupported zero_terms_query value [" + zeroTermsValue + "]"
+                                );
                             }
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(),
-                                    "[" + NAME + "] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(
+                                parser.getTokenLocation(),
+                                "[" + NAME + "] query does not support [" + currentFieldName + "]"
+                            );
                         }
                     } else {
-                        throw new ParsingException(parser.getTokenLocation(),
-                                "[" + NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "[" + NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]"
+                        );
                     }
                 }
             } else {

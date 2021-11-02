@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureTransportAction;
-import org.elasticsearch.xpack.core.watcher.WatcherConstants;
+import org.elasticsearch.xpack.core.watcher.WatcherField;
 
 public class WatcherInfoTransportAction extends XPackInfoFeatureTransportAction {
 
@@ -23,8 +23,12 @@ public class WatcherInfoTransportAction extends XPackInfoFeatureTransportAction 
     private final XPackLicenseState licenseState;
 
     @Inject
-    public WatcherInfoTransportAction(TransportService transportService, ActionFilters actionFilters,
-                                      Settings settings, XPackLicenseState licenseState) {
+    public WatcherInfoTransportAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Settings settings,
+        XPackLicenseState licenseState
+    ) {
         super(XPackInfoFeatureAction.WATCHER.name(), transportService, actionFilters);
         this.enabled = XPackSettings.WATCHER_ENABLED.get(settings);
         this.licenseState = licenseState;
@@ -37,7 +41,7 @@ public class WatcherInfoTransportAction extends XPackInfoFeatureTransportAction 
 
     @Override
     public boolean available() {
-        return WatcherConstants.WATCHER_FEATURE.checkWithoutTracking(licenseState);
+        return WatcherField.WATCHER_FEATURE.checkWithoutTracking(licenseState);
     }
 
     @Override

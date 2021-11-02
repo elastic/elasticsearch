@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.inference.pytorch.process;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.ml.process.AbstractNativeProcess;
 import org.elasticsearch.xpack.ml.process.NativeController;
@@ -28,8 +28,14 @@ public class NativePyTorchProcess extends AbstractNativeProcess {
 
     private final ProcessResultsParser<PyTorchResult> resultsParser;
 
-    protected NativePyTorchProcess(String jobId, NativeController nativeController, ProcessPipes processPipes, int numberOfFields,
-                                   List<Path> filesToDelete, Consumer<String> onProcessCrash) {
+    protected NativePyTorchProcess(
+        String jobId,
+        NativeController nativeController,
+        ProcessPipes processPipes,
+        int numberOfFields,
+        List<Path> filesToDelete,
+        Consumer<String> onProcessCrash
+    ) {
         super(jobId, nativeController, processPipes, numberOfFields, filesToDelete, onProcessCrash);
         this.resultsParser = new ProcessResultsParser<>(PyTorchResult.PARSER, NamedXContentRegistry.EMPTY);
     }

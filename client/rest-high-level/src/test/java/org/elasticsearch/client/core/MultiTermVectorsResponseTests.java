@@ -8,8 +8,8 @@
 
 package org.elasticsearch.client.core;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -20,14 +20,9 @@ import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 public class MultiTermVectorsResponseTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
-        xContentTester(
-            this::createParser,
-            this::createTestInstance,
-            this::toXContent,
-            MultiTermVectorsResponse::fromXContent)
+        xContentTester(this::createParser, this::createTestInstance, this::toXContent, MultiTermVectorsResponse::fromXContent)
             .supportsUnknownFields(true)
-            .randomFieldsExcludeFilter(field ->
-                field.endsWith("term_vectors") || field.endsWith("terms") || field.endsWith("tokens"))
+            .randomFieldsExcludeFilter(field -> field.endsWith("term_vectors") || field.endsWith("terms") || field.endsWith("tokens"))
             .test();
     }
 

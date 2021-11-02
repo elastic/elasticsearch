@@ -60,7 +60,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         }
         assert indexAbstraction.getType() == IndexAbstraction.Type.ALIAS;
         assert indexAbstraction.getIndices().size() == 1;
-        IndexMetadata imd = indexAbstraction.getIndices().get(0);
+        IndexMetadata imd = metadata.index(indexAbstraction.getIndices().get(0));
 
         Map<String, Object> mappingAsMap = imd.mapping().sourceAsMap();
         String policyType = (String) XContentMapValues.extractValue(

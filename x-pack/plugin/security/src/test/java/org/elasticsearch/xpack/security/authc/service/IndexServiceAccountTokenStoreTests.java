@@ -35,10 +35,9 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
@@ -47,6 +46,7 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheResponse;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
@@ -88,7 +88,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -114,8 +114,11 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
         client = new FilterClient(mockClient) {
             @Override
             @SuppressWarnings("unchecked")
-            protected <Request extends ActionRequest, Response extends ActionResponse>
-            void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
                 requestHolder.set(request);
                 responseProviderHolder.get().accept(request, (ActionListener<ActionResponse>) listener);
             }
@@ -143,12 +146,15 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
             action.run();
             return null;
         }).when(securityIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
-        store = new IndexServiceAccountTokenStore(Settings.EMPTY,
+        store = new IndexServiceAccountTokenStore(
+            Settings.EMPTY,
             threadPool,
             Clock.systemUTC(),
-            client, securityIndex,
+            client,
+            securityIndex,
             clusterService,
-            cacheInvalidatorRegistry);
+            cacheInvalidatorRegistry
+        );
     }
 
     public void testDoAuthenticate() throws IOException, ExecutionException, InterruptedException, IllegalAccessException {
@@ -184,8 +190,11 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
 
     public void testCreateToken() throws ExecutionException, InterruptedException {
         final Authentication authentication = createAuthentication();
-        final CreateServiceAccountTokenRequest request =
-            new CreateServiceAccountTokenRequest("elastic", "fleet-server", randomAlphaOfLengthBetween(3, 8));
+        final CreateServiceAccountTokenRequest request = new CreateServiceAccountTokenRequest(
+            "elastic",
+            "fleet-server",
+            randomAlphaOfLengthBetween(3, 8)
+        );
 
         // created
         responseProviderHolder.set((r, l) -> l.onResponse(createSingleBulkResponse()));
@@ -230,13 +239,19 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
         final Authentication authentication = createAuthentication();
         final CreateServiceAccountTokenRequest request = randomValueOtherThanMany(
             r -> "elastic".equals(r.getNamespace()) && "fleet-server".equals(r.getServiceName()),
-            () -> new CreateServiceAccountTokenRequest(randomAlphaOfLengthBetween(3, 8),
-                randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)));
+            () -> new CreateServiceAccountTokenRequest(
+                randomAlphaOfLengthBetween(3, 8),
+                randomAlphaOfLengthBetween(3, 8),
+                randomAlphaOfLengthBetween(3, 8)
+            )
+        );
         final PlainActionFuture<CreateServiceAccountTokenResponse> future = new PlainActionFuture<>();
         store.createToken(authentication, request, future);
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
-        assertThat(e.getMessage(),
-            containsString("service account [" + request.getNamespace() + "/" + request.getServiceName() + "] does not exist"));
+        assertThat(
+            e.getMessage(),
+            containsString("service account [" + request.getNamespace() + "/" + request.getServiceName() + "] does not exist")
+        );
     }
 
     public void testFindTokensFor() {
@@ -247,19 +262,36 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
         responseProviderHolder.set((r, l) -> {
             if (r instanceof SearchRequest) {
                 final SearchHit[] hits = IntStream.range(0, nhits)
-                    .mapToObj(i ->
-                        new SearchHit(randomIntBetween(0, Integer.MAX_VALUE),
-                            SERVICE_ACCOUNT_TOKEN_DOC_TYPE + "-" + accountId.asPrincipal() + "/" + tokenNames[i], Map.of(), Map.of()))
+                    .mapToObj(
+                        i -> new SearchHit(
+                            randomIntBetween(0, Integer.MAX_VALUE),
+                            SERVICE_ACCOUNT_TOKEN_DOC_TYPE + "-" + accountId.asPrincipal() + "/" + tokenNames[i],
+                            Map.of(),
+                            Map.of()
+                        )
+                    )
                     .toArray(SearchHit[]::new);
                 final InternalSearchResponse internalSearchResponse;
-                    internalSearchResponse = new InternalSearchResponse(new SearchHits(hits,
-                        new TotalHits(nhits, TotalHits.Relation.EQUAL_TO),
-                        randomFloat(), null, null, null),
-                        null, null, null, false, null, 0);
+                internalSearchResponse = new InternalSearchResponse(
+                    new SearchHits(hits, new TotalHits(nhits, TotalHits.Relation.EQUAL_TO), randomFloat(), null, null, null),
+                    null,
+                    null,
+                    null,
+                    false,
+                    null,
+                    0
+                );
 
-                final SearchResponse searchResponse =
-                    new SearchResponse(internalSearchResponse, randomAlphaOfLengthBetween(3, 8),
-                        1, 1, 0, 10, null, null);
+                final SearchResponse searchResponse = new SearchResponse(
+                    internalSearchResponse,
+                    randomAlphaOfLengthBetween(3, 8),
+                    1,
+                    1,
+                    0,
+                    10,
+                    null,
+                    null
+                );
                 l.onResponse(searchResponse);
             } else if (r instanceof ClearScrollRequest) {
                 l.onResponse(new ClearScrollResponse(true, 1));
@@ -272,16 +304,13 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
         store.findTokensFor(accountId, future);
         final Collection<TokenInfo> tokenInfos = future.actionGet();
         assertThat(tokenInfos.stream().map(TokenInfo::getSource).allMatch(TokenSource.INDEX::equals), is(true));
-        assertThat(tokenInfos.stream().map(TokenInfo::getName).collect(Collectors.toUnmodifiableSet()),
-            equalTo(Set.of(tokenNames)));
+        assertThat(tokenInfos.stream().map(TokenInfo::getName).collect(Collectors.toUnmodifiableSet()), equalTo(Set.of(tokenNames)));
     }
 
     public void testFindTokensForException() {
         final ServiceAccountId accountId = new ServiceAccountId(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
         final RuntimeException e = new RuntimeException("fail");
-        responseProviderHolder.set((r, l) -> {
-            l.onFailure(e);
-        });
+        responseProviderHolder.set((r, l) -> { l.onFailure(e); });
 
         final PlainActionFuture<Collection<TokenInfo>> future = new PlainActionFuture<>();
         store.findTokensFor(accountId, future);
@@ -295,19 +324,31 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
             if (r instanceof DeleteRequest) {
                 final DeleteRequest dr = (DeleteRequest) r;
                 final boolean found = dr.id().equals(SERVICE_ACCOUNT_TOKEN_DOC_TYPE + "-elastic/fleet-server/token1");
-                l.onResponse(new DeleteResponse(mock(ShardId.class), randomAlphaOfLengthBetween(3, 8),
-                    randomLong(), randomLong(), randomLong(), found));
+                l.onResponse(
+                    new DeleteResponse(
+                        mock(ShardId.class),
+                        randomAlphaOfLengthBetween(3, 8),
+                        randomLong(),
+                        randomLong(),
+                        randomLong(),
+                        found
+                    )
+                );
             } else if (r instanceof ClearSecurityCacheRequest) {
                 cacheCleared.set(true);
-                l.onResponse(new ClearSecurityCacheResponse(mock(ClusterName.class),
-                    List.of(mock(ClearSecurityCacheResponse.Node.class)), List.of()));
+                l.onResponse(
+                    new ClearSecurityCacheResponse(mock(ClusterName.class), List.of(mock(ClearSecurityCacheResponse.Node.class)), List.of())
+                );
             } else {
                 fail("unexpected request " + r);
             }
         });
 
         final DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest1 = new DeleteServiceAccountTokenRequest(
-            "elastic", "fleet-server", "token1");
+            "elastic",
+            "fleet-server",
+            "token1"
+        );
         final PlainActionFuture<Boolean> future1 = new PlainActionFuture<>();
         store.deleteToken(deleteServiceAccountTokenRequest1, future1);
         assertThat(future1.actionGet(), is(true));
@@ -315,14 +356,20 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
 
         // non-exist token name
         final DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest2 = new DeleteServiceAccountTokenRequest(
-            "elastic", "fleet-server", randomAlphaOfLengthBetween(3, 8));
+            "elastic",
+            "fleet-server",
+            randomAlphaOfLengthBetween(3, 8)
+        );
         final PlainActionFuture<Boolean> future2 = new PlainActionFuture<>();
         store.deleteToken(deleteServiceAccountTokenRequest2, future2);
         assertThat(future2.actionGet(), is(false));
 
         // Invalid service account
         final DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest3 = new DeleteServiceAccountTokenRequest(
-            randomValueOtherThan("elastic", () -> randomAlphaOfLengthBetween(3, 8)), "fleet-server", "token1");
+            randomValueOtherThan("elastic", () -> randomAlphaOfLengthBetween(3, 8)),
+            "fleet-server",
+            "token1"
+        );
         final PlainActionFuture<Boolean> future3 = new PlainActionFuture<>();
         store.deleteToken(deleteServiceAccountTokenRequest3, future3);
         assertThat(future3.actionGet(), is(false));
@@ -340,7 +387,10 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
         assertThat(future1.actionGet(), equalTo(List.of()));
 
         final DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest = new DeleteServiceAccountTokenRequest(
-            randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
+            randomAlphaOfLengthBetween(3, 8),
+            randomAlphaOfLengthBetween(3, 8),
+            randomAlphaOfLengthBetween(3, 8)
+        );
         final PlainActionFuture<Boolean> future2 = new PlainActionFuture<>();
         store.deleteToken(deleteServiceAccountTokenRequest, future2);
         assertThat(future2.actionGet(), is(false));
@@ -367,30 +417,50 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
     private GetResponse createGetResponse(ServiceAccountToken serviceAccountToken, boolean exists) throws IOException {
         final char[] hash = Hasher.PBKDF2_STRETCH.hash(serviceAccountToken.getSecret());
         final Map<String, Object> documentMap = Map.of("password", new String(CharArrays.toUtf8Bytes(hash), StandardCharsets.UTF_8));
-        return new GetResponse(new GetResult(
-            randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8),
-            exists ? randomLongBetween(0, Long.MAX_VALUE) : UNASSIGNED_SEQ_NO,
-            exists ? randomLongBetween(1, Long.MAX_VALUE) : UNASSIGNED_PRIMARY_TERM, randomLong(), exists,
-            XContentTestUtils.convertToXContent(documentMap, XContentType.JSON),
-            Map.of(), Map.of()));
+        return new GetResponse(
+            new GetResult(
+                randomAlphaOfLengthBetween(3, 8),
+                randomAlphaOfLengthBetween(3, 8),
+                exists ? randomLongBetween(0, Long.MAX_VALUE) : UNASSIGNED_SEQ_NO,
+                exists ? randomLongBetween(1, Long.MAX_VALUE) : UNASSIGNED_PRIMARY_TERM,
+                randomLong(),
+                exists,
+                XContentTestUtils.convertToXContent(documentMap, XContentType.JSON),
+                Map.of(),
+                Map.of()
+            )
+        );
     }
 
     private Authentication createAuthentication() {
-        return new Authentication(new User(randomAlphaOfLengthBetween(3, 8)),
-            new Authentication.RealmRef(randomAlphaOfLengthBetween(3, 8),
+        return new Authentication(
+            new User(randomAlphaOfLengthBetween(3, 8)),
+            new Authentication.RealmRef(
                 randomAlphaOfLengthBetween(3, 8),
-                randomAlphaOfLengthBetween(3, 8)),
-            randomFrom(new Authentication.RealmRef(randomAlphaOfLengthBetween(3, 8),
                 randomAlphaOfLengthBetween(3, 8),
-                randomAlphaOfLengthBetween(3, 8)), null));
+                randomAlphaOfLengthBetween(3, 8)
+            ),
+            randomFrom(
+                new Authentication.RealmRef(
+                    randomAlphaOfLengthBetween(3, 8),
+                    randomAlphaOfLengthBetween(3, 8),
+                    randomAlphaOfLengthBetween(3, 8)
+                ),
+                null
+            )
+        );
     }
 
     private BulkResponse createSingleBulkResponse() {
-        return new BulkResponse(new BulkItemResponse[] {
-           BulkItemResponse.success(randomInt(), OpType.CREATE, new IndexResponse(
-                mock(ShardId.class), randomAlphaOfLengthBetween(3, 8), randomLong(), randomLong(), randomLong(), true
-            ))
-        }, randomLong());
+        return new BulkResponse(
+            new BulkItemResponse[] {
+                BulkItemResponse.success(
+                    randomInt(),
+                    OpType.CREATE,
+                    new IndexResponse(mock(ShardId.class), randomAlphaOfLengthBetween(3, 8), randomLong(), randomLong(), randomLong(), true)
+                ) },
+            randomLong()
+        );
     }
 
     @SuppressWarnings("unchecked")

@@ -15,12 +15,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -40,14 +40,16 @@ public final class PhaseCacheManagement {
 
     private static final Logger logger = LogManager.getLogger(PhaseCacheManagement.class);
 
-    private PhaseCacheManagement() {
-    }
+    private PhaseCacheManagement() {}
 
     /**
      * Rereads the phase JSON for the given index, returning a new cluster state.
      */
-    public static ClusterState refreshPhaseDefinition(final ClusterState state, final String index,
-                                                      final LifecyclePolicyMetadata updatedPolicy) {
+    public static ClusterState refreshPhaseDefinition(
+        final ClusterState state,
+        final String index,
+        final LifecyclePolicyMetadata updatedPolicy
+    ) {
         final IndexMetadata idxMeta = state.metadata().index(index);
         Metadata.Builder metadataBuilder = Metadata.builder(state.metadata());
         refreshPhaseDefinition(metadataBuilder, idxMeta, updatedPolicy);
@@ -57,8 +59,11 @@ public final class PhaseCacheManagement {
     /**
      * Rereads the phase JSON for the given index, and updates the provided metadata.
      */
-    public static void refreshPhaseDefinition(final Metadata.Builder metadataBuilder, final IndexMetadata idxMeta,
-                                              final LifecyclePolicyMetadata updatedPolicy) {
+    public static void refreshPhaseDefinition(
+        final Metadata.Builder metadataBuilder,
+        final IndexMetadata idxMeta,
+        final LifecyclePolicyMetadata updatedPolicy
+    ) {
         String index = idxMeta.getIndex().getName();
         assert eligibleToCheckForRefresh(idxMeta) : "index " + index + " is missing crucial information needed to refresh phase definition";
 
@@ -66,17 +71,19 @@ public final class PhaseCacheManagement {
         LifecycleExecutionState currentExState = LifecycleExecutionState.fromIndexMetadata(idxMeta);
 
         String currentPhase = currentExState.getPhase();
-        PhaseExecutionInfo pei = new PhaseExecutionInfo(updatedPolicy.getName(),
-            updatedPolicy.getPolicy().getPhases().get(currentPhase), updatedPolicy.getVersion(), updatedPolicy.getModifiedDate());
+        PhaseExecutionInfo pei = new PhaseExecutionInfo(
+            updatedPolicy.getName(),
+            updatedPolicy.getPolicy().getPhases().get(currentPhase),
+            updatedPolicy.getVersion(),
+            updatedPolicy.getModifiedDate()
+        );
 
         LifecycleExecutionState newExState = LifecycleExecutionState.builder(currentExState)
             .setPhaseDefinition(Strings.toString(pei, false, false))
             .build();
 
-        metadataBuilder.put(IndexMetadata.builder(idxMeta)
-            .putCustom(ILM_CUSTOM_METADATA_KEY, newExState.asMap()));
+        metadataBuilder.put(IndexMetadata.builder(idxMeta).putCustom(ILM_CUSTOM_METADATA_KEY, newExState.asMap()));
     }
-
 
     /**
      * Ensure that we have the minimum amount of metadata necessary to check for cache phase
@@ -104,9 +111,14 @@ public final class PhaseCacheManagement {
     /**
      * For the given new policy, returns a new cluster with all updateable indices' phase JSON refreshed.
      */
-    public static ClusterState updateIndicesForPolicy(final ClusterState state, final NamedXContentRegistry xContentRegistry,
-                                                      final Client client, final LifecyclePolicy oldPolicy,
-                                                      final LifecyclePolicyMetadata newPolicy, XPackLicenseState licenseState) {
+    public static ClusterState updateIndicesForPolicy(
+        final ClusterState state,
+        final NamedXContentRegistry xContentRegistry,
+        final Client client,
+        final LifecyclePolicy oldPolicy,
+        final LifecyclePolicyMetadata newPolicy,
+        XPackLicenseState licenseState
+    ) {
         Metadata.Builder mb = Metadata.builder(state.metadata());
         if (updateIndicesForPolicy(mb, state, xContentRegistry, client, oldPolicy, newPolicy, licenseState)) {
             return ClusterState.builder(state).metadata(mb.build(false)).build();
@@ -119,12 +131,17 @@ public final class PhaseCacheManagement {
      * Returns true if any indices were updated and false otherwise.
      * Users of this API should consider the returned value and only create a new {@link ClusterState} if `true` is returned.
      */
-    public static boolean updateIndicesForPolicy(final Metadata.Builder mb, final ClusterState currentState,
-                                                 final NamedXContentRegistry xContentRegistry, final Client client,
-                                                 final LifecyclePolicy oldPolicy, final LifecyclePolicyMetadata newPolicy,
-                                                 final XPackLicenseState licenseState) {
-        assert oldPolicy.getName().equals(newPolicy.getName()) : "expected both policies to have the same id but they were: [" +
-            oldPolicy.getName() + "] vs. [" + newPolicy.getName() + "]";
+    public static boolean updateIndicesForPolicy(
+        final Metadata.Builder mb,
+        final ClusterState currentState,
+        final NamedXContentRegistry xContentRegistry,
+        final Client client,
+        final LifecyclePolicy oldPolicy,
+        final LifecyclePolicyMetadata newPolicy,
+        final XPackLicenseState licenseState
+    ) {
+        assert oldPolicy.getName().equals(newPolicy.getName())
+            : "expected both policies to have the same id but they were: [" + oldPolicy.getName() + "] vs. [" + newPolicy.getName() + "]";
 
         // No need to update anything if the policies are identical in contents
         if (oldPolicy.equals(newPolicy.getPolicy())) {
@@ -132,11 +149,13 @@ public final class PhaseCacheManagement {
             return false;
         }
 
-        final List<IndexMetadata> indicesThatCanBeUpdated =
-            currentState.metadata().indices().values().stream()
-                .filter(meta -> newPolicy.getName().equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(meta.getSettings())))
-                .filter(meta -> isIndexPhaseDefinitionUpdatable(xContentRegistry, client, meta, newPolicy.getPolicy(), licenseState))
-                .collect(Collectors.toList());
+        final List<IndexMetadata> indicesThatCanBeUpdated = currentState.metadata()
+            .indices()
+            .values()
+            .stream()
+            .filter(meta -> newPolicy.getName().equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(meta.getSettings())))
+            .filter(meta -> isIndexPhaseDefinitionUpdatable(xContentRegistry, client, meta, newPolicy.getPolicy(), licenseState))
+            .collect(Collectors.toList());
 
         final List<String> refreshedIndices = new ArrayList<>(indicesThatCanBeUpdated.size());
         for (IndexMetadata index : indicesThatCanBeUpdated) {
@@ -144,8 +163,10 @@ public final class PhaseCacheManagement {
                 refreshPhaseDefinition(mb, index, newPolicy);
                 refreshedIndices.add(index.getIndex().getName());
             } catch (Exception e) {
-                logger.warn(new ParameterizedMessage("[{}] unable to refresh phase definition for updated policy [{}]",
-                    index, newPolicy.getName()), e);
+                logger.warn(
+                    new ParameterizedMessage("[{}] unable to refresh phase definition for updated policy [{}]", index, newPolicy.getName()),
+                    e
+                );
             }
         }
         logger.debug("refreshed policy [{}] phase definition for [{}] indices", newPolicy.getName(), refreshedIndices.size());
@@ -155,9 +176,13 @@ public final class PhaseCacheManagement {
     /**
      * Returns 'true' if the index's cached phase JSON can be safely reread, 'false' otherwise.
      */
-    public static boolean isIndexPhaseDefinitionUpdatable(final NamedXContentRegistry xContentRegistry, final Client client,
-                                                          final IndexMetadata metadata, final LifecyclePolicy newPolicy,
-                                                          final XPackLicenseState licenseState) {
+    public static boolean isIndexPhaseDefinitionUpdatable(
+        final NamedXContentRegistry xContentRegistry,
+        final Client client,
+        final IndexMetadata metadata,
+        final LifecyclePolicy newPolicy,
+        final XPackLicenseState licenseState
+    ) {
         final String index = metadata.getIndex().getName();
         if (eligibleToCheckForRefresh(metadata) == false) {
             logger.debug("[{}] does not contain enough information to check for eligibility of refreshing phase", index);
@@ -169,23 +194,31 @@ public final class PhaseCacheManagement {
         final Step.StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(executionState);
         final String currentPhase = currentStepKey.getPhase();
 
-        final Set<Step.StepKey> newStepKeys = newPolicy.toSteps(client, licenseState).stream()
+        final Set<Step.StepKey> newStepKeys = newPolicy.toSteps(client, licenseState)
+            .stream()
             .map(Step::getKey)
             .collect(Collectors.toCollection(LinkedHashSet::new));
 
         if (newStepKeys.contains(currentStepKey) == false) {
             // The index is on a step that doesn't exist in the new policy, we
             // can't safely re-read the JSON
-            logger.debug("[{}] updated policy [{}] does not contain the current step key [{}], so the policy phase will not be refreshed",
-                index, policyId, currentStepKey);
+            logger.debug(
+                "[{}] updated policy [{}] does not contain the current step key [{}], so the policy phase will not be refreshed",
+                index,
+                policyId,
+                currentStepKey
+            );
             return false;
         }
 
         final String phaseDef = executionState.getPhaseDefinition();
         final Set<Step.StepKey> oldStepKeys = readStepKeys(xContentRegistry, client, phaseDef, currentPhase, licenseState);
         if (oldStepKeys == null) {
-            logger.debug("[{}] unable to parse phase definition for cached policy [{}], policy phase will not be refreshed",
-                index, policyId);
+            logger.debug(
+                "[{}] unable to parse phase definition for cached policy [{}], policy phase will not be refreshed",
+                index,
+                policyId
+            );
             return false;
         }
 
@@ -198,8 +231,13 @@ public final class PhaseCacheManagement {
 
         final Set<Step.StepKey> newPhaseStepKeys = readStepKeys(xContentRegistry, client, peiJson, currentPhase, licenseState);
         if (newPhaseStepKeys == null) {
-            logger.debug(new ParameterizedMessage("[{}] unable to parse phase definition for policy [{}] " +
-                "to determine if it could be refreshed", index, policyId));
+            logger.debug(
+                new ParameterizedMessage(
+                    "[{}] unable to parse phase definition for policy [{}] " + "to determine if it could be refreshed",
+                    index,
+                    policyId
+                )
+            );
             return false;
         }
 
@@ -209,9 +247,14 @@ public final class PhaseCacheManagement {
             logger.debug("[{}] updated policy [{}] contains the same phase step keys and can be refreshed", index, policyId);
             return true;
         } else {
-            logger.debug("[{}] updated policy [{}] has different phase step keys and will NOT refresh phase " +
-                    "definition as it differs too greatly. old: {}, new: {}",
-                index, policyId, oldPhaseStepKeys, newPhaseStepKeys);
+            logger.debug(
+                "[{}] updated policy [{}] has different phase step keys and will NOT refresh phase "
+                    + "definition as it differs too greatly. old: {}, new: {}",
+                index,
+                policyId,
+                oldPhaseStepKeys,
+                newPhaseStepKeys
+            );
             return false;
         }
     }
@@ -222,19 +265,31 @@ public final class PhaseCacheManagement {
      * information, returns null.
      */
     @Nullable
-    public static Set<Step.StepKey> readStepKeys(final NamedXContentRegistry xContentRegistry, final Client client,
-                                                 final String phaseDef, final String currentPhase, final XPackLicenseState licenseState) {
+    public static Set<Step.StepKey> readStepKeys(
+        final NamedXContentRegistry xContentRegistry,
+        final Client client,
+        final String phaseDef,
+        final String currentPhase,
+        final XPackLicenseState licenseState
+    ) {
         if (phaseDef == null) {
             return null;
         }
 
         final PhaseExecutionInfo phaseExecutionInfo;
-        try (XContentParser parser = JsonXContent.jsonXContent.createParser(xContentRegistry,
-            DeprecationHandler.THROW_UNSUPPORTED_OPERATION, phaseDef)) {
+        try (
+            XContentParser parser = JsonXContent.jsonXContent.createParser(
+                xContentRegistry,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                phaseDef
+            )
+        ) {
             phaseExecutionInfo = PhaseExecutionInfo.parse(parser, currentPhase);
         } catch (Exception e) {
-            logger.trace(new ParameterizedMessage("exception reading step keys checking for refreshability, phase definition: {}",
-                phaseDef), e);
+            logger.trace(
+                new ParameterizedMessage("exception reading step keys checking for refreshability, phase definition: {}", phaseDef),
+                e
+            );
             return null;
         }
 
@@ -242,7 +297,10 @@ public final class PhaseCacheManagement {
             return null;
         }
 
-        return phaseExecutionInfo.getPhase().getActions().values().stream()
+        return phaseExecutionInfo.getPhase()
+            .getActions()
+            .values()
+            .stream()
             .flatMap(a -> a.toSteps(client, phaseExecutionInfo.getPhase().getName(), null, licenseState).stream())
             .map(Step::getKey)
             .collect(Collectors.toCollection(LinkedHashSet::new));

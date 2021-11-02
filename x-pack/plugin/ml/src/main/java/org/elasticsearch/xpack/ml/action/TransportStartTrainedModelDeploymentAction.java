@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -35,7 +34,9 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAllocationAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
@@ -65,8 +66,9 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
-public class TransportStartTrainedModelDeploymentAction
-    extends TransportMasterNodeAction<StartTrainedModelDeploymentAction.Request, CreateTrainedModelAllocationAction.Response> {
+public class TransportStartTrainedModelDeploymentAction extends TransportMasterNodeAction<
+    StartTrainedModelDeploymentAction.Request,
+    CreateTrainedModelAllocationAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportStartTrainedModelDeploymentAction.class);
 
@@ -78,14 +80,30 @@ public class TransportStartTrainedModelDeploymentAction
     protected volatile int maxLazyMLNodes;
 
     @Inject
-    public TransportStartTrainedModelDeploymentAction(TransportService transportService, Client client, ClusterService clusterService,
-                                                      ThreadPool threadPool, ActionFilters actionFilters, XPackLicenseState licenseState,
-                                                      IndexNameExpressionResolver indexNameExpressionResolver, Settings settings,
-                                                      TrainedModelAllocationService trainedModelAllocationService,
-                                                      NamedXContentRegistry xContentRegistry, MlMemoryTracker memoryTracker) {
-        super(StartTrainedModelDeploymentAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            StartTrainedModelDeploymentAction.Request::new, indexNameExpressionResolver, CreateTrainedModelAllocationAction.Response::new,
-            ThreadPool.Names.SAME);
+    public TransportStartTrainedModelDeploymentAction(
+        TransportService transportService,
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        XPackLicenseState licenseState,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Settings settings,
+        TrainedModelAllocationService trainedModelAllocationService,
+        NamedXContentRegistry xContentRegistry,
+        MlMemoryTracker memoryTracker
+    ) {
+        super(
+            StartTrainedModelDeploymentAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            StartTrainedModelDeploymentAction.Request::new,
+            indexNameExpressionResolver,
+            CreateTrainedModelAllocationAction.Response::new,
+            ThreadPool.Names.SAME
+        );
         this.licenseState = Objects.requireNonNull(licenseState);
         this.client = new OriginSettingClient(Objects.requireNonNull(client), ML_ORIGIN);
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
@@ -100,109 +118,108 @@ public class TransportStartTrainedModelDeploymentAction
     }
 
     @Override
-    protected void masterOperation(Task task, StartTrainedModelDeploymentAction.Request request, ClusterState state,
-                                   ActionListener<CreateTrainedModelAllocationAction.Response> listener) throws Exception {
+    protected void masterOperation(
+        Task task,
+        StartTrainedModelDeploymentAction.Request request,
+        ClusterState state,
+        ActionListener<CreateTrainedModelAllocationAction.Response> listener
+    ) throws Exception {
         logger.trace(() -> new ParameterizedMessage("[{}] received deploy request", request.getModelId()));
-        if (licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING) == false) {
+        if (MachineLearningField.ML_API_FEATURE.check(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
             return;
         }
 
-        ActionListener<CreateTrainedModelAllocationAction.Response> waitForDeploymentToStart =
-            ActionListener.wrap(
-                modelAllocation -> waitForDeploymentState(
-                    request.getModelId(),
-                    request.getTimeout(),
-                    request.getWaitForState(),
-                    listener
-                ),
-                e -> {
-                    logger.warn(() -> new ParameterizedMessage("[{}] creating new allocation failed", request.getModelId()), e);
-                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
-                        e = new ElasticsearchStatusException(
-                            "Cannot start deployment [{}] because it has already been started",
-                            RestStatus.CONFLICT,
-                            e,
-                            request.getModelId()
-                        );
-                    }
-                    listener.onFailure(e);
+        ActionListener<CreateTrainedModelAllocationAction.Response> waitForDeploymentToStart = ActionListener.wrap(
+            modelAllocation -> waitForDeploymentState(request.getModelId(), request.getTimeout(), request.getWaitForState(), listener),
+            e -> {
+                logger.warn(() -> new ParameterizedMessage("[{}] creating new allocation failed", request.getModelId()), e);
+                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
+                    e = new ElasticsearchStatusException(
+                        "Cannot start deployment [{}] because it has already been started",
+                        RestStatus.CONFLICT,
+                        e,
+                        request.getModelId()
+                    );
                 }
-            );
-
-        ActionListener<GetTrainedModelsAction.Response> getModelListener = ActionListener.wrap(
-            getModelResponse -> {
-                if (getModelResponse.getResources().results().size() > 1) {
-                    listener.onFailure(ExceptionsHelper.badRequestException(
-                        "cannot deploy more than one models at the same time; [{}] matches [{}] models]",
-                        request.getModelId(), getModelResponse.getResources().results().size()));
-                    return;
-                }
-
-
-                TrainedModelConfig trainedModelConfig = getModelResponse.getResources().results().get(0);
-                if (trainedModelConfig.getModelType() != TrainedModelType.PYTORCH) {
-                    listener.onFailure(ExceptionsHelper.badRequestException(
-                        "model [{}] of type [{}] cannot be deployed. Only PyTorch models can be deployed",
-                        trainedModelConfig.getModelId(), trainedModelConfig.getModelType()));
-                    return;
-                }
-
-                if (trainedModelConfig.getLocation() == null) {
-                    listener.onFailure(ExceptionsHelper.serverError(
-                        "model [{}] does not have location", trainedModelConfig.getModelId()));
-                    return;
-                }
-
-                getModelBytes(trainedModelConfig, ActionListener.wrap(
-                    modelBytes -> {
-                        TaskParams taskParams = new TaskParams(
-                            trainedModelConfig.getModelId(),
-                            modelBytes,
-                            request.getInferenceThreads(),
-                            request.getModelThreads()
-                        );
-                        PersistentTasksCustomMetadata persistentTasks = clusterService.state().getMetadata().custom(
-                            PersistentTasksCustomMetadata.TYPE);
-                        memoryTracker.refresh(persistentTasks, ActionListener.wrap(
-                                aVoid -> trainedModelAllocationService.createNewModelAllocation(
-                                    taskParams,
-                                    waitForDeploymentToStart
-                                ),
-                                listener::onFailure
-                            )
-                        );
-                    },
-                    listener::onFailure
-                ));
-
-            },
-            listener::onFailure
+                listener.onFailure(e);
+            }
         );
+
+        ActionListener<GetTrainedModelsAction.Response> getModelListener = ActionListener.wrap(getModelResponse -> {
+            if (getModelResponse.getResources().results().size() > 1) {
+                listener.onFailure(
+                    ExceptionsHelper.badRequestException(
+                        "cannot deploy more than one models at the same time; [{}] matches [{}] models]",
+                        request.getModelId(),
+                        getModelResponse.getResources().results().size()
+                    )
+                );
+                return;
+            }
+
+            TrainedModelConfig trainedModelConfig = getModelResponse.getResources().results().get(0);
+            if (trainedModelConfig.getModelType() != TrainedModelType.PYTORCH) {
+                listener.onFailure(
+                    ExceptionsHelper.badRequestException(
+                        "model [{}] of type [{}] cannot be deployed. Only PyTorch models can be deployed",
+                        trainedModelConfig.getModelId(),
+                        trainedModelConfig.getModelType()
+                    )
+                );
+                return;
+            }
+
+            if (trainedModelConfig.getLocation() == null) {
+                listener.onFailure(ExceptionsHelper.serverError("model [{}] does not have location", trainedModelConfig.getModelId()));
+                return;
+            }
+
+            getModelBytes(trainedModelConfig, ActionListener.wrap(modelBytes -> {
+                TaskParams taskParams = new TaskParams(
+                    trainedModelConfig.getModelId(),
+                    modelBytes,
+                    request.getInferenceThreads(),
+                    request.getModelThreads(),
+                    request.getQueueCapacity()
+                );
+                PersistentTasksCustomMetadata persistentTasks = clusterService.state()
+                    .getMetadata()
+                    .custom(PersistentTasksCustomMetadata.TYPE);
+                memoryTracker.refresh(
+                    persistentTasks,
+                    ActionListener.wrap(
+                        aVoid -> trainedModelAllocationService.createNewModelAllocation(taskParams, waitForDeploymentToStart),
+                        listener::onFailure
+                    )
+                );
+            }, listener::onFailure));
+
+        }, listener::onFailure);
 
         GetTrainedModelsAction.Request getModelRequest = new GetTrainedModelsAction.Request(request.getModelId());
         client.execute(GetTrainedModelsAction.INSTANCE, getModelRequest, getModelListener);
     }
 
     private void getModelBytes(TrainedModelConfig trainedModelConfig, ActionListener<Long> listener) {
-        ChunkedTrainedModelRestorer restorer = new ChunkedTrainedModelRestorer(trainedModelConfig.getModelId(),
-            client, threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME), xContentRegistry);
+        ChunkedTrainedModelRestorer restorer = new ChunkedTrainedModelRestorer(
+            trainedModelConfig.getModelId(),
+            client,
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
+            xContentRegistry
+        );
         restorer.setSearchIndex(trainedModelConfig.getLocation().getResourceName());
         restorer.setSearchSize(1);
-        restorer.restoreModelDefinition(
-            doc -> {
-                // The in-memory size of the model was found to be approximately equal
-                // to the size of the model on disk in experiments for BERT models. However,
-                // this might not always be the case.
-                // TODO Improve heuristic for in-memory model size.
-                listener.onResponse(doc.getTotalDefinitionLength());
+        restorer.restoreModelDefinition(doc -> {
+            // The in-memory size of the model was found to be approximately equal
+            // to the size of the model on disk in experiments for BERT models. However,
+            // this might not always be the case.
+            // TODO Improve heuristic for in-memory model size.
+            listener.onResponse(doc.getTotalDefinitionLength());
 
-                // Return false to stop the restorer as we only need the first doc
-                return false;
-            },
-            success -> { /* nothing to do */ },
-            listener::onFailure
-        );
+            // Return false to stop the restorer as we only need the first doc
+            return false;
+        }, success -> { /* nothing to do */ }, listener::onFailure);
     }
 
     private void waitForDeploymentState(
@@ -212,7 +229,10 @@ public class TransportStartTrainedModelDeploymentAction
         ActionListener<CreateTrainedModelAllocationAction.Response> listener
     ) {
         DeploymentStartedPredicate predicate = new DeploymentStartedPredicate(modelId, state, maxLazyMLNodes);
-        trainedModelAllocationService.waitForAllocationCondition(modelId, predicate, timeout,
+        trainedModelAllocationService.waitForAllocationCondition(
+            modelId,
+            predicate,
+            timeout,
             new TrainedModelAllocationService.WaitForAllocationListener() {
                 @Override
                 public void onResponse(TrainedModelAllocation allocation) {
@@ -227,7 +247,8 @@ public class TransportStartTrainedModelDeploymentAction
                 public void onFailure(Exception e) {
                     listener.onFailure(e);
                 }
-            });
+            }
+        );
     }
 
     private void deleteFailedDeployment(
@@ -235,20 +256,17 @@ public class TransportStartTrainedModelDeploymentAction
         Exception exception,
         ActionListener<CreateTrainedModelAllocationAction.Response> listener
     ) {
-        trainedModelAllocationService.deleteModelAllocation(modelId, ActionListener.wrap(
-            pTask -> listener.onFailure(exception),
-            e -> {
-                logger.error(
-                    new ParameterizedMessage(
-                        "[{}] Failed to delete model allocation that had failed with the reason [{}]",
-                        modelId,
-                        exception.getMessage()
-                    ),
-                    e
-                );
-                listener.onFailure(exception);
-            }
-        ));
+        trainedModelAllocationService.deleteModelAllocation(modelId, ActionListener.wrap(pTask -> listener.onFailure(exception), e -> {
+            logger.error(
+                new ParameterizedMessage(
+                    "[{}] Failed to delete model allocation that had failed with the reason [{}]",
+                    modelId,
+                    exception.getMessage()
+                ),
+                e
+            );
+            listener.onFailure(exception);
+        }));
 
     }
 
@@ -284,9 +302,7 @@ public class TransportStartTrainedModelDeploymentAction
                 return true;
             }
 
-            final Set<Map.Entry<String, RoutingStateAndReason>> nodesAndState = trainedModelAllocation
-                .getNodeRoutingTable()
-                .entrySet();
+            final Set<Map.Entry<String, RoutingStateAndReason>> nodesAndState = trainedModelAllocation.getNodeRoutingTable().entrySet();
 
             Map<String, String> nodeFailuresAndReasons = new HashMap<>();
             Set<String> nodesStillInitializing = new LinkedHashSet<>();

@@ -9,14 +9,14 @@ package org.elasticsearch.legacygeo.parsers;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.legacygeo.builders.ShapeBuilder;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.support.MapXContentParser;
 
 import java.io.IOException;
 import java.util.Collections;

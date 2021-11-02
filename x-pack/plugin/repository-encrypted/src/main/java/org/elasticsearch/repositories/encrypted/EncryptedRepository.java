@@ -28,7 +28,6 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Tuple;
@@ -41,6 +40,7 @@ import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.io.InputStream;

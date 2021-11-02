@@ -248,11 +248,7 @@ public class TransformIndexerTests extends ESTestCase {
             --numberOfLoops;
             // pretend that we processed 10k documents for each call
             getStats().incrementNumDocuments(10_000);
-            return new IterationResult<>(
-                Stream.of(new IndexRequest()),
-                new TransformIndexerPosition(null, null),
-                numberOfLoops == 0
-            );
+            return new IterationResult<>(Stream.of(new IndexRequest()), new TransformIndexerPosition(null, null), numberOfLoops == 0);
         }
 
         @Override
@@ -300,6 +296,7 @@ public class TransformIndexerTests extends ESTestCase {
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             null,
+            null,
             TimeRetentionPolicyConfigTests.randomTimeRetentionPolicyConfig(),
             null,
             null
@@ -341,6 +338,7 @@ public class TransformIndexerTests extends ESTestCase {
             randomPivotConfig(),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            null,
             null,
             null,
             null,
@@ -394,6 +392,7 @@ public class TransformIndexerTests extends ESTestCase {
             randomPivotConfig(),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            null,
             null,
             null,
             null,

@@ -45,7 +45,7 @@ public class SearchableSnapshotIndexFoldersDeletionListener implements IndexStor
     }
 
     @Override
-    public void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, Path indexPath) {
+    public void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, Path[] indexPaths) {
         if (isSearchableSnapshotStore(indexSettings.getSettings())) {
             for (int shard = 0; shard < indexSettings.getNumberOfShards(); shard++) {
                 markShardAsEvictedInCache(new ShardId(index, shard), indexSettings);
@@ -54,7 +54,7 @@ public class SearchableSnapshotIndexFoldersDeletionListener implements IndexStor
     }
 
     @Override
-    public void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path shardPath) {
+    public void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path[] shardPaths) {
         if (isSearchableSnapshotStore(indexSettings.getSettings())) {
             markShardAsEvictedInCache(shardId, indexSettings);
         }

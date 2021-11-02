@@ -18,18 +18,18 @@ import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.LongValuesSource;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.TermsSetQueryScript;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.AbstractList;
@@ -177,15 +177,19 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
                 if (TERMS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     values = TermsQueryBuilder.parseValues(parser);
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] query does not support ["
-                            + currentFieldName + "]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[" + NAME + "] query does not support [" + currentFieldName + "]"
+                    );
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (MINIMUM_SHOULD_MATCH_SCRIPT.match(currentFieldName, parser.getDeprecationHandler())) {
                     minimumShouldMatchScript = Script.parse(parser);
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] query does not support ["
-                            + currentFieldName + "]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[" + NAME + "] query does not support [" + currentFieldName + "]"
+                    );
                 }
             } else if (token.isValue()) {
                 if (MINIMUM_SHOULD_MATCH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -195,12 +199,16 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
                 } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     queryName = parser.text();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] query does not support ["
-                            + currentFieldName + "]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[" + NAME + "] query does not support [" + currentFieldName + "]"
+                    );
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] unknown token [" + token +
-                        "] after [" + currentFieldName + "]");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "[" + NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]"
+                );
             }
         }
 
@@ -209,8 +217,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
             throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] unknown token [" + token + "]");
         }
 
-        TermsSetQueryBuilder queryBuilder = new TermsSetQueryBuilder(fieldName, values, false)
-                .queryName(queryName).boost(boost);
+        TermsSetQueryBuilder queryBuilder = new TermsSetQueryBuilder(fieldName, values, false).queryName(queryName).boost(boost);
         if (minimumShouldMatchField != null) {
             queryBuilder.setMinimumShouldMatchField(minimumShouldMatchField);
         }
@@ -262,8 +269,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
             IndexNumericFieldData fieldData = context.getForField(msmFieldType);
             longValuesSource = new FieldValuesSource(fieldData);
         } else if (minimumShouldMatchScript != null) {
-            TermsSetQueryScript.Factory factory = context.compile(minimumShouldMatchScript,
-                TermsSetQueryScript.CONTEXT);
+            TermsSetQueryScript.Factory factory = context.compile(minimumShouldMatchScript, TermsSetQueryScript.CONTEXT);
             Map<String, Object> params = new HashMap<>();
             params.putAll(minimumShouldMatchScript.getParams());
             params.put("num_terms", values.size());
@@ -351,6 +357,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
             public int size() {
                 return list.size();
             }
+
             @Override
             public Object get(int index) {
                 return maybeConvertToString(list.get(index));

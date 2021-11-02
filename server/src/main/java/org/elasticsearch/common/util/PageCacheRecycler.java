@@ -28,30 +28,55 @@ import static org.elasticsearch.common.recycler.Recyclers.none;
 /** A recycler of fixed-size pages. */
 public class PageCacheRecycler {
 
-    public static final Setting<Type> TYPE_SETTING =
-        new Setting<>("cache.recycler.page.type", Type.CONCURRENT.name(), Type::parse, Property.NodeScope);
-    public static final Setting<ByteSizeValue> LIMIT_HEAP_SETTING  =
-        Setting.memorySizeSetting("cache.recycler.page.limit.heap", "10%", Property.NodeScope);
-    public static final Setting<Double> WEIGHT_BYTES_SETTING  =
-        Setting.doubleSetting("cache.recycler.page.weight.bytes", 1d, 0d, Property.NodeScope);
-    public static final Setting<Double> WEIGHT_LONG_SETTING  =
-        Setting.doubleSetting("cache.recycler.page.weight.longs", 1d, 0d, Property.NodeScope);
-    public static final Setting<Double> WEIGHT_INT_SETTING  =
-        Setting.doubleSetting("cache.recycler.page.weight.ints", 1d, 0d, Property.NodeScope);
+    public static final Setting<Type> TYPE_SETTING = new Setting<>(
+        "cache.recycler.page.type",
+        Type.CONCURRENT.name(),
+        Type::parse,
+        Property.NodeScope
+    );
+    public static final Setting<ByteSizeValue> LIMIT_HEAP_SETTING = Setting.memorySizeSetting(
+        "cache.recycler.page.limit.heap",
+        "10%",
+        Property.NodeScope
+    );
+    public static final Setting<Double> WEIGHT_BYTES_SETTING = Setting.doubleSetting(
+        "cache.recycler.page.weight.bytes",
+        1d,
+        0d,
+        Property.NodeScope
+    );
+    public static final Setting<Double> WEIGHT_LONG_SETTING = Setting.doubleSetting(
+        "cache.recycler.page.weight.longs",
+        1d,
+        0d,
+        Property.NodeScope,
+        Property.Deprecated
+    );
+    public static final Setting<Double> WEIGHT_INT_SETTING = Setting.doubleSetting(
+        "cache.recycler.page.weight.ints",
+        1d,
+        0d,
+        Property.NodeScope,
+        Property.Deprecated
+    );
     // object pages are less useful to us so we give them a lower weight by default
-    public static final Setting<Double> WEIGHT_OBJECTS_SETTING  =
-        Setting.doubleSetting("cache.recycler.page.weight.objects", 0.1d, 0d, Property.NodeScope);
+    public static final Setting<Double> WEIGHT_OBJECTS_SETTING = Setting.doubleSetting(
+        "cache.recycler.page.weight.objects",
+        0.1d,
+        0d,
+        Property.NodeScope
+    );
 
     /** Page size in bytes: 16KB */
     public static final int PAGE_SIZE_IN_BYTES = 1 << 14;
     public static final int OBJECT_PAGE_SIZE = PAGE_SIZE_IN_BYTES / RamUsageEstimator.NUM_BYTES_OBJECT_REF;
     public static final int LONG_PAGE_SIZE = PAGE_SIZE_IN_BYTES / Long.BYTES;
     public static final int INT_PAGE_SIZE = PAGE_SIZE_IN_BYTES / Integer.BYTES;
+    public static final int FLOAT_PAGE_SIZE = PAGE_SIZE_IN_BYTES / Float.BYTES;
+    public static final int DOUBLE_PAGE_SIZE = PAGE_SIZE_IN_BYTES / Double.BYTES;
     public static final int BYTE_PAGE_SIZE = PAGE_SIZE_IN_BYTES;
 
     private final Recycler<byte[]> bytePage;
-    private final Recycler<int[]> intPage;
-    private final Recycler<long[]> longPage;
     private final Recycler<Object[]> objectPage;
 
     public static final PageCacheRecycler NON_RECYCLING_INSTANCE;
@@ -67,23 +92,10 @@ public class PageCacheRecycler {
 
         // We have a global amount of memory that we need to divide across data types.
         // Since some types are more useful than other ones we give them different weights.
-        // Trying to store all of them in a single stack would be problematic because eg.
-        // a work load could fill the recycler with only byte[] pages and then another
-        // workload that would work with double[] pages couldn't recycle them because there
-        // is no space left in the stack/queue. LRU/LFU policies are not an option either
-        // because they would make obtain/release too costly: we really need constant-time
-        // operations.
-        // Ultimately a better solution would be to only store one kind of data and have the
-        // ability to interpret it either as a source of bytes, doubles, longs, etc. eg. thanks
-        // to direct ByteBuffers or sun.misc.Unsafe on a byte[] but this would have other issues
-        // that would need to be addressed such as garbage collection of native memory or safety
-        // of Unsafe writes.
-        final double bytesWeight = WEIGHT_BYTES_SETTING .get(settings);
-        final double intsWeight = WEIGHT_INT_SETTING .get(settings);
-        final double longsWeight = WEIGHT_LONG_SETTING .get(settings);
-        final double objectsWeight = WEIGHT_OBJECTS_SETTING .get(settings);
+        final double bytesWeight = WEIGHT_BYTES_SETTING.get(settings);
+        final double objectsWeight = WEIGHT_OBJECTS_SETTING.get(settings);
 
-        final double totalWeight = bytesWeight + intsWeight + longsWeight + objectsWeight;
+        final double totalWeight = bytesWeight + objectsWeight;
         final int maxPageCount = (int) Math.min(Integer.MAX_VALUE, limit / PAGE_SIZE_IN_BYTES);
 
         final int maxBytePageCount = (int) (bytesWeight * maxPageCount / totalWeight);
@@ -92,32 +104,9 @@ public class PageCacheRecycler {
             public byte[] newInstance() {
                 return new byte[BYTE_PAGE_SIZE];
             }
+
             @Override
             public void recycle(byte[] value) {
-                // nothing to do
-            }
-        });
-
-        final int maxIntPageCount = (int) (intsWeight * maxPageCount / totalWeight);
-        intPage = build(type, maxIntPageCount, allocatedProcessors, new AbstractRecyclerC<int[]>() {
-            @Override
-            public int[] newInstance() {
-                return new int[INT_PAGE_SIZE];
-            }
-            @Override
-            public void recycle(int[] value) {
-                // nothing to do
-            }
-        });
-
-        final int maxLongPageCount = (int) (longsWeight * maxPageCount / totalWeight);
-        longPage = build(type, maxLongPageCount, allocatedProcessors, new AbstractRecyclerC<long[]>() {
-            @Override
-            public long[] newInstance() {
-                return new long[LONG_PAGE_SIZE];
-            }
-            @Override
-            public void recycle(long[] value) {
                 // nothing to do
             }
         });
@@ -128,35 +117,20 @@ public class PageCacheRecycler {
             public Object[] newInstance() {
                 return new Object[OBJECT_PAGE_SIZE];
             }
+
             @Override
             public void recycle(Object[] value) {
                 Arrays.fill(value, null); // we need to remove the strong refs on the objects stored in the array
             }
         });
 
-        assert PAGE_SIZE_IN_BYTES * (maxBytePageCount + maxIntPageCount + maxLongPageCount + maxObjectPageCount) <= limit;
+        assert PAGE_SIZE_IN_BYTES * (maxBytePageCount + maxObjectPageCount) <= limit;
     }
 
     public Recycler.V<byte[]> bytePage(boolean clear) {
         final Recycler.V<byte[]> v = bytePage.obtain();
         if (v.isRecycled() && clear) {
             Arrays.fill(v.v(), (byte) 0);
-        }
-        return v;
-    }
-
-    public Recycler.V<int[]> intPage(boolean clear) {
-        final Recycler.V<int[]> v = intPage.obtain();
-        if (v.isRecycled() && clear) {
-            Arrays.fill(v.v(), 0);
-        }
-        return v;
-    }
-
-    public Recycler.V<long[]> longPage(boolean clear) {
-        final Recycler.V<long[]> v = longPage.obtain();
-        if (v.isRecycled() && clear) {
-            Arrays.fill(v.v(), 0L);
         }
         return v;
     }

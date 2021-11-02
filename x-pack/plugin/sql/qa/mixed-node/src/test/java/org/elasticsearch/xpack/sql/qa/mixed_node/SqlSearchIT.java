@@ -16,9 +16,9 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.ql.TestNode;
 import org.elasticsearch.xpack.ql.TestNodes;
 import org.junit.After;
@@ -86,89 +86,85 @@ public class SqlSearchIT extends ESRestTestCase {
     }
 
     public void testAllTypesWithRequestToOldNodes() throws Exception {
-        Map<String, Object> expectedResponse = prepareTestData(
-            columns -> {
-                columns.add(columnInfo("geo_point_field", "geo_point"));
-                columns.add(columnInfo("float_field", "float"));
-                columns.add(columnInfo("half_float_field", "half_float"));
-            },
-            (builder, fieldValues) -> {
-                Float randomFloat = randomFloat();
-                // before "fields" API being added to QL, numbers were re-parsed from _source with a similar approach to
-                // indexing docvalues and for floating point numbers this may be different from the actual value passed in the _source
-                // floats were indexed as Doubles and the values returned had a greater precision and more decimals
-                builder.append(",");
-                if (isBwcNodeBeforeFieldsApiInQL) {
-                    builder.append("\"geo_point_field\":{\"lat\":\"37.386483\", \"lon\":\"-122.083843\"},");
-                    fieldValues.put("geo_point_field", "POINT (-122.08384302444756 37.38648299127817)");
-                    builder.append("\"float_field\":" + randomFloat + ",");
-                    fieldValues.put("float_field", Double.valueOf(randomFloat));
-                    builder.append("\"half_float_field\":123.456");
-                    fieldValues.put("half_float_field", 123.45600128173828d);
-                } else {
-                    builder.append("\"geo_point_field\":{\"lat\":\"37.386483\", \"lon\":\"-122.083843\"},");
-                    fieldValues.put("geo_point_field", "POINT (-122.083843 37.386483)");
-                    builder.append("\"float_field\":" + randomFloat + ",");
-                    /*
-                     * Double.valueOf(float.toString) gets a `double` representing
-                     * the `float` that we'd get by going through json which is
-                     * base 10. just casting the `float` to a `double` will get
-                     * a lower number with a lot more trailing digits because
-                     * the cast adds *binary* 0s to the end. And those binary
-                     * 0s don't translate the same as json's decimal 0s.
-                     */
-                    fieldValues.put("float_field", Double.valueOf(Float.valueOf(randomFloat).toString()));
-                    float roundedHalfFloat = HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(randomFloat));
-                    builder.append("\"half_float_field\":\"" + randomFloat + "\"");
-                    fieldValues.put("half_float_field", Double.valueOf(Float.toString(roundedHalfFloat)));
-                }
+        Map<String, Object> expectedResponse = prepareTestData(columns -> {
+            columns.add(columnInfo("geo_point_field", "geo_point"));
+            columns.add(columnInfo("float_field", "float"));
+            columns.add(columnInfo("half_float_field", "half_float"));
+        }, (builder, fieldValues) -> {
+            Float randomFloat = randomFloat();
+            // before "fields" API being added to QL, numbers were re-parsed from _source with a similar approach to
+            // indexing docvalues and for floating point numbers this may be different from the actual value passed in the _source
+            // floats were indexed as Doubles and the values returned had a greater precision and more decimals
+            builder.append(",");
+            if (isBwcNodeBeforeFieldsApiInQL) {
+                builder.append("\"geo_point_field\":{\"lat\":\"37.386483\", \"lon\":\"-122.083843\"},");
+                fieldValues.put("geo_point_field", "POINT (-122.08384302444756 37.38648299127817)");
+                builder.append("\"float_field\":" + randomFloat + ",");
+                fieldValues.put("float_field", Double.valueOf(randomFloat));
+                builder.append("\"half_float_field\":123.456");
+                fieldValues.put("half_float_field", 123.45600128173828d);
+            } else {
+                builder.append("\"geo_point_field\":{\"lat\":\"37.386483\", \"lon\":\"-122.083843\"},");
+                fieldValues.put("geo_point_field", "POINT (-122.083843 37.386483)");
+                builder.append("\"float_field\":" + randomFloat + ",");
+                /*
+                 * Double.valueOf(float.toString) gets a `double` representing
+                 * the `float` that we'd get by going through json which is
+                 * base 10. just casting the `float` to a `double` will get
+                 * a lower number with a lot more trailing digits because
+                 * the cast adds *binary* 0s to the end. And those binary
+                 * 0s don't translate the same as json's decimal 0s.
+                 */
+                fieldValues.put("float_field", Double.valueOf(Float.valueOf(randomFloat).toString()));
+                float roundedHalfFloat = HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(randomFloat));
+                builder.append("\"half_float_field\":\"" + randomFloat + "\"");
+                fieldValues.put("half_float_field", Double.valueOf(Float.toString(roundedHalfFloat)));
             }
-        );
+        });
         assertAllTypesWithNodes(expectedResponse, bwcNodes);
     }
 
     public void testAllTypesWithRequestToUpgradedNodes() throws Exception {
-        Map<String, Object> expectedResponse = prepareTestData(
-            columns -> {
-                columns.add(columnInfo("geo_point_field", "geo_point"));
-                columns.add(columnInfo("float_field", "float"));
-                columns.add(columnInfo("half_float_field", "half_float"));
-            },
-            (builder, fieldValues) -> {
-                Float randomFloat = randomFloat();
-                builder.append(",");
-                if (isBwcNodeBeforeFieldsApiInQL) {
-                    builder.append("\"geo_point_field\":{\"lat\":\"37.386483\", \"lon\":\"-122.083843\"},");
-                    fieldValues.put("geo_point_field", "POINT (-122.08384302444756 37.38648299127817)");
-                    builder.append("\"float_field\":" + randomFloat + ",");
-                    fieldValues.put("float_field", Double.valueOf(randomFloat));
-                    builder.append("\"half_float_field\":123.456");
-                    fieldValues.put("half_float_field", 123.45600128173828d);
-                } else {
-                    builder.append("\"geo_point_field\":{\"lat\":\"37.386483\", \"lon\":\"-122.083843\"},");
-                    fieldValues.put("geo_point_field", "POINT (-122.083843 37.386483)");
-                    builder.append("\"float_field\":" + randomFloat + ",");
-                    /*
-                     * Double.valueOf(float.toString) gets a `double` representing
-                     * the `float` that we'd get by going through json which is
-                     * base 10. just casting the `float` to a `double` will get
-                     * a lower number with a lot more trailing digits because
-                     * the cast adds *binary* 0s to the end. And those binary
-                     * 0s don't translate the same as json's decimal 0s.
-                     */
-                    fieldValues.put("float_field", Double.valueOf(Float.valueOf(randomFloat).toString()));
-                    float roundedHalfFloat = HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(randomFloat));
-                    builder.append("\"half_float_field\":\"" + randomFloat + "\"");
-                    fieldValues.put("half_float_field", Double.valueOf(Float.toString(roundedHalfFloat)));
-                }
+        Map<String, Object> expectedResponse = prepareTestData(columns -> {
+            columns.add(columnInfo("geo_point_field", "geo_point"));
+            columns.add(columnInfo("float_field", "float"));
+            columns.add(columnInfo("half_float_field", "half_float"));
+        }, (builder, fieldValues) -> {
+            Float randomFloat = randomFloat();
+            builder.append(",");
+            if (isBwcNodeBeforeFieldsApiInQL) {
+                builder.append("\"geo_point_field\":{\"lat\":\"37.386483\", \"lon\":\"-122.083843\"},");
+                fieldValues.put("geo_point_field", "POINT (-122.08384302444756 37.38648299127817)");
+                builder.append("\"float_field\":" + randomFloat + ",");
+                fieldValues.put("float_field", Double.valueOf(randomFloat));
+                builder.append("\"half_float_field\":123.456");
+                fieldValues.put("half_float_field", 123.45600128173828d);
+            } else {
+                builder.append("\"geo_point_field\":{\"lat\":\"37.386483\", \"lon\":\"-122.083843\"},");
+                fieldValues.put("geo_point_field", "POINT (-122.083843 37.386483)");
+                builder.append("\"float_field\":" + randomFloat + ",");
+                /*
+                 * Double.valueOf(float.toString) gets a `double` representing
+                 * the `float` that we'd get by going through json which is
+                 * base 10. just casting the `float` to a `double` will get
+                 * a lower number with a lot more trailing digits because
+                 * the cast adds *binary* 0s to the end. And those binary
+                 * 0s don't translate the same as json's decimal 0s.
+                 */
+                fieldValues.put("float_field", Double.valueOf(Float.valueOf(randomFloat).toString()));
+                float roundedHalfFloat = HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(randomFloat));
+                builder.append("\"half_float_field\":\"" + randomFloat + "\"");
+                fieldValues.put("half_float_field", Double.valueOf(Float.toString(roundedHalfFloat)));
             }
-        );
+        });
         assertAllTypesWithNodes(expectedResponse, newNodes);
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> prepareTestData(Consumer<List<Map<String, Object>>> additionalColumns,
-        BiConsumer<StringBuilder, Map<String, Object>> additionalValues) throws IOException {
+    private Map<String, Object> prepareTestData(
+        Consumer<List<Map<String, Object>>> additionalColumns,
+        BiConsumer<StringBuilder, Map<String, Object>> additionalValues
+    ) throws IOException {
         Map<String, Object> expectedResponse = new HashMap<>();
         List<Map<String, Object>> columns = new ArrayList<>();
         columns.add(columnInfo("interval_year", "interval_year"));
@@ -214,8 +210,9 @@ public class SqlSearchIT extends ESRestTestCase {
             builder.append("\"ip_field\":\"" + fieldValues.computeIfAbsent("ip_field", v -> "123.123.123.123") + "\",");
             builder.append("\"text_field\": \"" + fieldValues.computeIfAbsent("text_field", v -> randomAlphaOfLength(5)) + "\",");
             builder.append("\"keyword_field\": \"" + fieldValues.computeIfAbsent("keyword_field", v -> randomAlphaOfLength(5)) + "\",");
-            builder.append("\"constant_keyword_field\": \"" + fieldValues.computeIfAbsent("constant_keyword_field",
-                v -> constantKeywordValue) + "\",");
+            builder.append(
+                "\"constant_keyword_field\": \"" + fieldValues.computeIfAbsent("constant_keyword_field", v -> constantKeywordValue) + "\","
+            );
             builder.append("\"wildcard_field\": \"" + fieldValues.computeIfAbsent("wildcard_field", v -> randomAlphaOfLength(5)) + "\",");
             builder.append("\"geo_point_no_dv_field\":{\"lat\":\"40.123456\", \"lon\":\"100.234567\"},");
             fieldValues.put("geo_point_no_dv_field", "POINT (100.234567 40.123456)");
@@ -243,11 +240,12 @@ public class SqlSearchIT extends ESRestTestCase {
         return unmodifiableMap(column);
     }
 
-    private void assertAllTypesWithNodes(Map<String, Object> expectedResponse, List<TestNode> nodesList)
-        throws Exception {
+    private void assertAllTypesWithNodes(Map<String, Object> expectedResponse, List<TestNode> nodesList) throws Exception {
         try (
-            RestClient client = buildClient(restClientSettings(),
-                nodesList.stream().map(TestNode::getPublishAddress).toArray(HttpHost[]::new))
+            RestClient client = buildClient(
+                restClientSettings(),
+                nodesList.stream().map(TestNode::getPublishAddress).toArray(HttpHost[]::new)
+            )
         ) {
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> columns = (List<Map<String, Object>>) expectedResponse.get("columns");
@@ -266,9 +264,7 @@ public class SqlSearchIT extends ESRestTestCase {
 
             Request request = new Request("POST", "_sql");
             request.setJsonEntity(SqlCompatIT.sqlQueryEntityWithOptionalMode(query, bwcVersion));
-            assertBusy(() -> {
-                assertResponse(expectedResponse, dropDisplaySizes(runSql(client, request)));
-            });
+            assertBusy(() -> { assertResponse(expectedResponse, dropDisplaySizes(runSql(client, request))); });
         }
     }
 

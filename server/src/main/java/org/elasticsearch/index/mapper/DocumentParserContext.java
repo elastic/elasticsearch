@@ -10,9 +10,9 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -87,7 +87,6 @@ public abstract class DocumentParserContext {
     private final Function<DateFormatter, MappingParserContext> parserContextFunction;
     private final SourceToParse sourceToParse;
     private final Set<String> ignoredFields;
-    private final Set<String> fieldNameFields;
     private final List<Mapper> dynamicMappers;
     private final Set<String> newFieldsSeen;
     private final Map<String, ObjectMapper> dynamicObjectMappers;
@@ -102,7 +101,6 @@ public abstract class DocumentParserContext {
         this.parserContextFunction = in.parserContextFunction;
         this.sourceToParse = in.sourceToParse;
         this.ignoredFields = in.ignoredFields;
-        this.fieldNameFields = in.fieldNameFields;
         this.dynamicMappers = in.dynamicMappers;
         this.newFieldsSeen = in.newFieldsSeen;
         this.dynamicObjectMappers = in.dynamicObjectMappers;
@@ -111,18 +109,19 @@ public abstract class DocumentParserContext {
         this.seqID = in.seqID;
     }
 
-    protected DocumentParserContext(MappingLookup mappingLookup,
-                                    IndexSettings indexSettings,
-                                    IndexAnalyzers indexAnalyzers,
-                                    Function<DateFormatter, MappingParserContext> parserContextFunction,
-                                    SourceToParse source) {
+    protected DocumentParserContext(
+        MappingLookup mappingLookup,
+        IndexSettings indexSettings,
+        IndexAnalyzers indexAnalyzers,
+        Function<DateFormatter, MappingParserContext> parserContextFunction,
+        SourceToParse source
+    ) {
         this.mappingLookup = mappingLookup;
         this.indexSettings = indexSettings;
         this.indexAnalyzers = indexAnalyzers;
         this.parserContextFunction = parserContextFunction;
         this.sourceToParse = source;
         this.ignoredFields = new HashSet<>();
-        this.fieldNameFields = new HashSet<>();
         this.dynamicMappers = new ArrayList<>();
         this.newFieldsSeen = new HashSet<>();
         this.dynamicObjectMappers = new HashMap<>();
@@ -178,14 +177,10 @@ public abstract class DocumentParserContext {
      * or norms.
      */
     public final void addToFieldNames(String field) {
-        fieldNameFields.add(field);
-    }
-
-    /**
-     * Return the collection of fields to be added to the _field_names field
-     */
-    public final Collection<String> getFieldNames() {
-        return Collections.unmodifiableCollection(fieldNameFields);
+        FieldNamesFieldMapper fieldNamesFieldMapper = (FieldNamesFieldMapper) getMetadataMapper(FieldNamesFieldMapper.NAME);
+        if (fieldNamesFieldMapper != null) {
+            fieldNamesFieldMapper.addFieldNames(this, field);
+        }
     }
 
     public final Field version() {
@@ -211,13 +206,13 @@ public abstract class DocumentParserContext {
         // eagerly check field name limit here to avoid OOM errors
         // only check fields that are not already mapped or tracked in order to avoid hitting field limit too early via double-counting
         // note that existing fields can also receive dynamic mapping updates (e.g. constant_keyword to fix the value)
-        if (mappingLookup.getMapper(mapper.name()) == null &&
-            mappingLookup.objectMappers().containsKey(mapper.name()) == false &&
-            newFieldsSeen.add(mapper.name())) {
+        if (mappingLookup.getMapper(mapper.name()) == null
+            && mappingLookup.objectMappers().containsKey(mapper.name()) == false
+            && newFieldsSeen.add(mapper.name())) {
             mappingLookup.checkFieldLimit(indexSettings().getMappingTotalFieldsLimit(), newFieldsSeen.size());
         }
         if (mapper instanceof ObjectMapper) {
-            dynamicObjectMappers.put(mapper.name(), (ObjectMapper)mapper);
+            dynamicObjectMappers.put(mapper.name(), (ObjectMapper) mapper);
         }
         dynamicMappers.add(mapper);
     }
@@ -364,7 +359,8 @@ public abstract class DocumentParserContext {
         }
         if (matchTemplateName != null) {
             throw new MapperParsingException(
-                "Can't find dynamic template for dynamic template name [" + matchTemplateName + "] of field [" + pathAsString + "]");
+                "Can't find dynamic template for dynamic template name [" + matchTemplateName + "] of field [" + pathAsString + "]"
+            );
         }
         return null;
     }

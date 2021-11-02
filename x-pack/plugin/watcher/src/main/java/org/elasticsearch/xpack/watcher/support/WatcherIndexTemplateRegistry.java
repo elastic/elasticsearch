@@ -10,8 +10,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
@@ -30,24 +30,34 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
         WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME,
         "/watch-history.json",
         WatcherIndexTemplateRegistryField.INDEX_TEMPLATE_VERSION,
-        WATCHER_TEMPLATE_VERSION_VARIABLE);
+        WATCHER_TEMPLATE_VERSION_VARIABLE
+    );
     public static final IndexTemplateConfig TEMPLATE_CONFIG_WATCH_HISTORY_NO_ILM = new IndexTemplateConfig(
         WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_NO_ILM,
         "/watch-history-no-ilm.json",
         WatcherIndexTemplateRegistryField.INDEX_TEMPLATE_VERSION,
-        WATCHER_TEMPLATE_VERSION_VARIABLE);
+        WATCHER_TEMPLATE_VERSION_VARIABLE
+    );
 
-    public static final LifecyclePolicyConfig POLICY_WATCH_HISTORY = new LifecyclePolicyConfig("watch-history-ilm-policy",
-        "/watch-history-ilm-policy.json");
+    public static final LifecyclePolicyConfig POLICY_WATCH_HISTORY = new LifecyclePolicyConfig(
+        "watch-history-ilm-policy",
+        "/watch-history-ilm-policy.json"
+    );
 
     private final List<IndexTemplateConfig> templatesToUse;
 
-    public WatcherIndexTemplateRegistry(Settings nodeSettings, ClusterService clusterService, ThreadPool threadPool, Client client,
-                                        NamedXContentRegistry xContentRegistry) {
+    public WatcherIndexTemplateRegistry(
+        Settings nodeSettings,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        Client client,
+        NamedXContentRegistry xContentRegistry
+    ) {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
         boolean ilmManagementEnabled = Watcher.USE_ILM_INDEX_MANAGEMENT.get(nodeSettings);
-        templatesToUse = Collections.singletonList(ilmManagementEnabled ? TEMPLATE_CONFIG_WATCH_HISTORY :
-            TEMPLATE_CONFIG_WATCH_HISTORY_NO_ILM);
+        templatesToUse = Collections.singletonList(
+            ilmManagementEnabled ? TEMPLATE_CONFIG_WATCH_HISTORY : TEMPLATE_CONFIG_WATCH_HISTORY_NO_ILM
+        );
     }
 
     @Override
@@ -72,13 +82,14 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
     }
 
     public static boolean validate(ClusterState state) {
-        return state.getMetadata().templatesV2().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME) ||
-            state.getMetadata().templatesV2().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_NO_ILM) ||
+        return state.getMetadata().templatesV2().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME)
+            || state.getMetadata().templatesV2().containsKey(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_NO_ILM)
+            ||
             // Template versions 12 or 13 are also ok to have (no breaking changes). At some point these will be upgraded to version 14.
-            state.getMetadata().templatesV2().containsKey(".watch-history-12") ||
-            state.getMetadata().templatesV2().containsKey(".watch-history-no-ilm-12") ||
-            state.getMetadata().templatesV2().containsKey(".watch-history-13") ||
-            state.getMetadata().templatesV2().containsKey(".watch-history-no-ilm-13");
+            state.getMetadata().templatesV2().containsKey(".watch-history-12")
+            || state.getMetadata().templatesV2().containsKey(".watch-history-no-ilm-12")
+            || state.getMetadata().templatesV2().containsKey(".watch-history-13")
+            || state.getMetadata().templatesV2().containsKey(".watch-history-no-ilm-13");
     }
 
     @Override

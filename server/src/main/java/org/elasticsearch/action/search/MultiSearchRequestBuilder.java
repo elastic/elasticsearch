@@ -17,7 +17,6 @@ import org.elasticsearch.client.ElasticsearchClient;
  */
 public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchRequest, MultiSearchResponse> {
 
-
     public MultiSearchRequestBuilder(ElasticsearchClient client, MultiSearchAction action) {
         super(client, action, new MultiSearchRequest());
     }
@@ -45,7 +44,7 @@ public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchR
      */
     public MultiSearchRequestBuilder add(SearchRequestBuilder request) {
         if (request.request().indicesOptions().equals(SearchRequest.DEFAULT_INDICES_OPTIONS)
-                && request().indicesOptions().equals(SearchRequest.DEFAULT_INDICES_OPTIONS) == false) {
+            && request().indicesOptions().equals(SearchRequest.DEFAULT_INDICES_OPTIONS) == false) {
             request.request().indicesOptions(request().indicesOptions());
         }
 

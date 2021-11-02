@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.InferenceConfigItemTestCase;
 
 import java.io.IOException;
@@ -52,16 +52,18 @@ public class TextClassificationConfigTests extends InferenceConfigItemTestCase<T
     }
 
     public void testInvalidClassificationLabels() {
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> new TextClassificationConfig(null, null, null, null, null));
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> new TextClassificationConfig(null, null, null, null, null)
+        );
 
-        assertThat(e.getMessage(),
-            containsString("[text_classification] requires at least 2 [classification_labels]; provided null"));
+        assertThat(e.getMessage(), containsString("[text_classification] requires at least 2 [classification_labels]; provided null"));
 
-        e = expectThrows(ElasticsearchStatusException.class,
-            () -> new TextClassificationConfig(null, null, List.of("too-few"), null, null));
-        assertThat(e.getMessage(),
-            containsString("[text_classification] requires at least 2 [classification_labels]; provided [too-few]"));
+        e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> new TextClassificationConfig(null, null, List.of("too-few"), null, null)
+        );
+        assertThat(e.getMessage(), containsString("[text_classification] requires at least 2 [classification_labels]; provided [too-few]"));
     }
 
     public static TextClassificationConfig createRandom() {

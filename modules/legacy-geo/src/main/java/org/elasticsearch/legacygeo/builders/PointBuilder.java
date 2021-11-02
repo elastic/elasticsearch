@@ -9,9 +9,9 @@
 package org.elasticsearch.legacygeo.builders;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.legacygeo.GeoShapeType;
 import org.elasticsearch.legacygeo.parsers.ShapeParser;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.spatial4j.shape.Point;
 

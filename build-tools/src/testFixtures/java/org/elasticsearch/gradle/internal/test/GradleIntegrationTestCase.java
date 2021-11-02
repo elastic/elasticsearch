@@ -66,12 +66,14 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        return new InternalAwareGradleRunner(GradleRunner.create()
-            .withProjectDir(getProjectDir())
-            .withPluginClasspath()
-            .withTestKitDir(testkit)
-            .forwardOutput()
-            .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments().toString().indexOf("-agentlib:jdwp") > 0));
+        return new InternalAwareGradleRunner(
+            GradleRunner.create()
+                .withProjectDir(getProjectDir())
+                .withPluginClasspath()
+                .withTestKitDir(testkit)
+                .forwardOutput()
+                .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments().toString().indexOf("-agentlib:jdwp") > 0)
+        );
     }
 
     protected File getBuildDir(String name) {

@@ -18,15 +18,21 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.watcher.WatcherConstants;
+import org.elasticsearch.xpack.core.watcher.WatcherField;
 
-abstract class WatcherTransportAction<Request extends ActionRequest, Response extends ActionResponse>
-        extends HandledTransportAction<Request, Response> {
+abstract class WatcherTransportAction<Request extends ActionRequest, Response extends ActionResponse> extends HandledTransportAction<
+    Request,
+    Response> {
 
     protected final XPackLicenseState licenseState;
 
-    WatcherTransportAction(String actionName, TransportService transportService, ActionFilters actionFilters,
-                           XPackLicenseState licenseState, Writeable.Reader<Request> request) {
+    WatcherTransportAction(
+        String actionName,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        XPackLicenseState licenseState,
+        Writeable.Reader<Request> request
+    ) {
         super(actionName, transportService, actionFilters, request);
         this.licenseState = licenseState;
     }
@@ -37,7 +43,7 @@ abstract class WatcherTransportAction<Request extends ActionRequest, Response ex
 
     @Override
     protected final void doExecute(Task task, final Request request, ActionListener<Response> listener) {
-        if (WatcherConstants.WATCHER_FEATURE.check(licenseState)) {
+        if (WatcherField.WATCHER_FEATURE.check(licenseState)) {
             doExecute(request, listener);
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.WATCHER));

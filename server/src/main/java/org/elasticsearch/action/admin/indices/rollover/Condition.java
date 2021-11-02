@@ -11,7 +11,7 @@ package org.elasticsearch.action.admin.indices.rollover;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentFragment;
 
 import java.util.Objects;
 
@@ -46,8 +46,7 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
             return false;
         }
         Condition<?> condition = (Condition<?>) o;
-        return Objects.equals(value, condition.value) &&
-                Objects.equals(name, condition.name);
+        return Objects.equals(value, condition.value) && Objects.equals(name, condition.name);
     }
 
     @Override

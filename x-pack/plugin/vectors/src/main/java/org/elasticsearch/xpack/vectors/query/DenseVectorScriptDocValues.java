@@ -5,12 +5,10 @@
  * 2.0.
  */
 
-
 package org.elasticsearch.xpack.vectors.query;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.script.field.Field;
 
 public abstract class DenseVectorScriptDocValues extends ScriptDocValues<BytesRef> {
     public static final String MISSING_VECTOR_FIELD_MESSAGE = "A document doesn't have a value for a vector field!";
@@ -36,18 +34,16 @@ public abstract class DenseVectorScriptDocValues extends ScriptDocValues<BytesRe
     public abstract float getMagnitude();
 
     public abstract double dotProduct(float[] queryVector);
+
     public abstract double l1Norm(float[] queryVector);
+
     public abstract double l2Norm(float[] queryVector);
 
     @Override
     public BytesRef get(int index) {
-        throw new UnsupportedOperationException("accessing a vector field's value through 'get' or 'value' is not supported!" +
-            "Use 'vectorValue' or 'magnitude' instead!'");
-    }
-
-    @Override
-    public Field<BytesRef> toField(String fieldName) {
-        throw new IllegalStateException("not implemented");
+        throw new UnsupportedOperationException(
+            "accessing a vector field's value through 'get' or 'value' is not supported!" + "Use 'vectorValue' or 'magnitude' instead!'"
+        );
     }
 
     public static DenseVectorScriptDocValues empty(int dims) {

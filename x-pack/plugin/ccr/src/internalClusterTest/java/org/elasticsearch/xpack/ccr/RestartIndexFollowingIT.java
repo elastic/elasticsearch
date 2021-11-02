@@ -15,10 +15,10 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequ
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
@@ -72,9 +72,9 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
             leaderClient().prepareIndex("index1").setId(Integer.toString(i)).setSource(source, XContentType.JSON).get();
         }
 
-        assertBusy(() -> {
-            assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value, equalTo(firstBatchNumDocs));
-        });
+        assertBusy(
+            () -> { assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value, equalTo(firstBatchNumDocs)); }
+        );
 
         getFollowerCluster().fullRestart();
         ensureFollowerGreen("index2");
@@ -95,16 +95,21 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
             leaderClient().prepareIndex("index1").setSource("{}", XContentType.JSON).get();
         }
 
-        assertBusy(() -> assertThat(
+        assertBusy(
+            () -> assertThat(
                 followerClient().prepareSearch("index2").get().getHits().getTotalHits().value,
-                equalTo(firstBatchNumDocs + secondBatchNumDocs + thirdBatchNumDocs)));
+                equalTo(firstBatchNumDocs + secondBatchNumDocs + thirdBatchNumDocs)
+            )
+        );
 
         cleanRemoteCluster();
         assertAcked(followerClient().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("index2")).actionGet());
         assertAcked(followerClient().admin().indices().prepareClose("index2"));
 
-        final ActionFuture<AcknowledgedResponse> unfollowFuture
-                = followerClient().execute(UnfollowAction.INSTANCE, new UnfollowAction.Request("index2"));
+        final ActionFuture<AcknowledgedResponse> unfollowFuture = followerClient().execute(
+            UnfollowAction.INSTANCE,
+            new UnfollowAction.Request("index2")
+        );
         final ElasticsearchException elasticsearchException = expectThrows(ElasticsearchException.class, unfollowFuture::actionGet);
         assertThat(elasticsearchException.getMessage(), containsString("no such remote cluster"));
         assertThat(elasticsearchException.getMetadataKeys(), hasItem("es.failed_to_remove_retention_leases"));
@@ -115,8 +120,7 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
         String address = getLeaderCluster().getMasterNodeInstance(TransportService.class).boundAddress().publishAddress().toString();
         updateSettingsRequest.persistentSettings(Settings.builder().put("cluster.remote.leader_cluster.seeds", address));
         assertAcked(followerClient().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
-        List<RemoteConnectionInfo> infos =
-            followerClient().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).get().getInfos();
+        List<RemoteConnectionInfo> infos = followerClient().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).get().getInfos();
         assertThat(infos.size(), equalTo(1));
         assertTrue(infos.get(0).isConnected());
     }
@@ -127,8 +131,9 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
         assertAcked(followerClient().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
         assertBusy(() -> {
-            List<RemoteConnectionInfo> infos =
-                followerClient().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).get().getInfos();
+            List<RemoteConnectionInfo> infos = followerClient().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest())
+                .get()
+                .getInfos();
             assertThat(infos.size(), equalTo(0));
         });
     }

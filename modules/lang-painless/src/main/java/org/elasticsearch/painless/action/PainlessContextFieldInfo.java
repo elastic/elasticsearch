@@ -8,16 +8,16 @@
 
 package org.elasticsearch.painless.action;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.painless.lookup.PainlessField;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -29,13 +29,8 @@ public class PainlessContextFieldInfo implements Writeable, ToXContentObject {
     public static final ParseField TYPE = new ParseField("type");
 
     private static final ConstructingObjectParser<PainlessContextFieldInfo, Void> PARSER = new ConstructingObjectParser<>(
-            PainlessContextFieldInfo.class.getCanonicalName(),
-            (v) ->
-                    new PainlessContextFieldInfo(
-                        (String)v[0],
-                        (String)v[1],
-                        (String)v[2]
-                    )
+        PainlessContextFieldInfo.class.getCanonicalName(),
+        (v) -> new PainlessContextFieldInfo((String) v[0], (String) v[1], (String) v[2])
     );
 
     static {
@@ -50,9 +45,9 @@ public class PainlessContextFieldInfo implements Writeable, ToXContentObject {
 
     public PainlessContextFieldInfo(PainlessField painlessField) {
         this(
-                painlessField.javaField.getDeclaringClass().getName(),
-                painlessField.javaField.getName(),
-                PainlessContextTypeInfo.getType(painlessField.typeParameter.getName())
+            painlessField.javaField.getDeclaringClass().getName(),
+            painlessField.javaField.getName(),
+            PainlessContextTypeInfo.getType(painlessField.typeParameter.getName())
         );
     }
 
@@ -99,9 +94,7 @@ public class PainlessContextFieldInfo implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PainlessContextFieldInfo that = (PainlessContextFieldInfo) o;
-        return Objects.equals(declaring, that.declaring) &&
-                Objects.equals(name, that.name) &&
-                Objects.equals(type, that.type);
+        return Objects.equals(declaring, that.declaring) && Objects.equals(name, that.name) && Objects.equals(type, that.type);
     }
 
     @Override
@@ -111,11 +104,7 @@ public class PainlessContextFieldInfo implements Writeable, ToXContentObject {
 
     @Override
     public String toString() {
-        return "PainlessContextFieldInfo{" +
-                "declaring='" + declaring + '\'' +
-                ", name='" + name + '\'' +
-                ", type='" + type + '\'' +
-                '}';
+        return "PainlessContextFieldInfo{" + "declaring='" + declaring + '\'' + ", name='" + name + '\'' + ", type='" + type + '\'' + '}';
     }
 
     public String getDeclaring() {

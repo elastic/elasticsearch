@@ -8,6 +8,8 @@
 
 package org.elasticsearch.rest.action.cat;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
@@ -16,19 +18,14 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResp
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
 
-import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -36,9 +33,7 @@ public class RestTemplatesAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, "/_cat/templates"),
-            new Route(GET, "/_cat/templates/{name}"));
+        return List.of(new Route(GET, "/_cat/templates"), new Route(GET, "/_cat/templates/{name}"));
     }
 
     @Override
@@ -53,17 +48,21 @@ public class RestTemplatesAction extends AbstractCatAction {
 
     @Override
     protected RestChannelConsumer doCatRequest(final RestRequest request, NodeClient client) {
-        final String[] templateNames = Strings.splitStringByCommaToArray(request.param("name", ""));
+        final String matchPattern = request.hasParam("name") ? request.param("name") : null;
 
-        final GetIndexTemplatesRequest getIndexTemplatesRequest = new GetIndexTemplatesRequest(templateNames);
+        final GetIndexTemplatesRequest getIndexTemplatesRequest = matchPattern == null
+            ? new GetIndexTemplatesRequest()
+            : new GetIndexTemplatesRequest(matchPattern);
         getIndexTemplatesRequest.local(request.paramAsBoolean("local", getIndexTemplatesRequest.local()));
         getIndexTemplatesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getIndexTemplatesRequest.masterNodeTimeout()));
 
-        final GetComposableIndexTemplateAction.Request getComposableTemplatesRequest
-            = new GetComposableIndexTemplateAction.Request();
+        final GetComposableIndexTemplateAction.Request getComposableTemplatesRequest = new GetComposableIndexTemplateAction.Request(
+            matchPattern
+        );
         getComposableTemplatesRequest.local(request.paramAsBoolean("local", getComposableTemplatesRequest.local()));
         getComposableTemplatesRequest.masterNodeTimeout(
-            request.paramAsTime("master_timeout", getComposableTemplatesRequest.masterNodeTimeout()));
+            request.paramAsTime("master_timeout", getComposableTemplatesRequest.masterNodeTimeout())
+        );
 
         return channel -> {
 
@@ -71,7 +70,17 @@ public class RestTemplatesAction extends AbstractCatAction {
             client.admin().indices().getTemplates(getIndexTemplatesRequest, getIndexTemplatesStep);
 
             final StepListener<GetComposableIndexTemplateAction.Response> getComposableTemplatesStep = new StepListener<>();
-            client.execute(GetComposableIndexTemplateAction.INSTANCE, getComposableTemplatesRequest, getComposableTemplatesStep);
+            client.execute(
+                GetComposableIndexTemplateAction.INSTANCE,
+                getComposableTemplatesRequest,
+                getComposableTemplatesStep.delegateResponse((l, e) -> {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+                        l.onResponse(new GetComposableIndexTemplateAction.Response(Collections.emptyMap()));
+                    } else {
+                        l.onFailure(e);
+                    }
+                })
+            );
 
             final ActionListener<Table> tableListener = new RestResponseListener<>(channel) {
                 @Override
@@ -80,15 +89,16 @@ public class RestTemplatesAction extends AbstractCatAction {
                 }
             };
 
-            getIndexTemplatesStep.whenComplete(getIndexTemplatesResponse ->
-                getComposableTemplatesStep.whenComplete(getComposableIndexTemplatesResponse ->
-                    ActionListener.completeWith(tableListener, () -> buildTable(
-                        request,
-                        getIndexTemplatesResponse,
-                        getComposableIndexTemplatesResponse,
-                        templateNames)
-                    ), tableListener::onFailure
-                ), tableListener::onFailure);
+            getIndexTemplatesStep.whenComplete(
+                getIndexTemplatesResponse -> getComposableTemplatesStep.whenComplete(
+                    getComposableIndexTemplatesResponse -> ActionListener.completeWith(
+                        tableListener,
+                        () -> buildTable(request, getIndexTemplatesResponse, getComposableIndexTemplatesResponse)
+                    ),
+                    tableListener::onFailure
+                ),
+                tableListener::onFailure
+            );
         };
     }
 
@@ -108,14 +118,10 @@ public class RestTemplatesAction extends AbstractCatAction {
     private Table buildTable(
         RestRequest request,
         GetIndexTemplatesResponse getIndexTemplatesResponse,
-        GetComposableIndexTemplateAction.Response getComposableIndexTemplatesResponse,
-        String[] requestedNames
+        GetComposableIndexTemplateAction.Response getComposableIndexTemplatesResponse
     ) {
-        final Predicate<String> namePredicate = getNamePredicate(requestedNames);
-
         final Table table = getTableWithHeader(request);
         for (IndexTemplateMetadata indexData : getIndexTemplatesResponse.getIndexTemplates()) {
-            assert namePredicate.test(indexData.getName());
             table.startRow();
             table.addCell(indexData.name());
             table.addCell("[" + String.join(", ", indexData.patterns()) + "]");
@@ -127,52 +133,16 @@ public class RestTemplatesAction extends AbstractCatAction {
 
         for (Map.Entry<String, ComposableIndexTemplate> entry : getComposableIndexTemplatesResponse.indexTemplates().entrySet()) {
             final String name = entry.getKey();
-            if (namePredicate.test(name)) {
-                final ComposableIndexTemplate template = entry.getValue();
-                table.startRow();
-                table.addCell(name);
-                table.addCell("[" + String.join(", ", template.indexPatterns()) + "]");
-                table.addCell(template.priorityOrZero());
-                table.addCell(template.version());
-                table.addCell("[" + String.join(", ", template.composedOf()) + "]");
-                table.endRow();
-            }
+            final ComposableIndexTemplate template = entry.getValue();
+            table.startRow();
+            table.addCell(name);
+            table.addCell("[" + String.join(", ", template.indexPatterns()) + "]");
+            table.addCell(template.priorityOrZero());
+            table.addCell(template.version());
+            table.addCell("[" + String.join(", ", template.composedOf()) + "]");
+            table.endRow();
         }
 
         return table;
-    }
-
-    private Predicate<String> getNamePredicate(String[] requestedNames) {
-        if (requestedNames.length == 0) {
-            return name -> true;
-        }
-
-        final Set<String> exactMatches = new HashSet<>();
-        final List<String> patterns = new ArrayList<>();
-        for (String requestedName : requestedNames) {
-            if (Regex.isMatchAllPattern(requestedName)) {
-                return name -> true;
-            } else if (Regex.isSimpleMatchPattern(requestedName)) {
-                patterns.add(requestedName);
-            } else {
-                exactMatches.add(requestedName);
-            }
-        }
-
-        if (patterns.isEmpty()) {
-            return exactMatches::contains;
-        }
-
-        return name -> {
-            if (exactMatches.contains(name)) {
-                return true;
-            }
-            for (String pattern : patterns) {
-                if (Regex.simpleMatch(pattern, name)) {
-                    return true;
-                }
-            }
-            return false;
-        };
     }
 }

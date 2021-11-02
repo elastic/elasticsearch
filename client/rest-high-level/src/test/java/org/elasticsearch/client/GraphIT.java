@@ -10,13 +10,13 @@ package org.elasticsearch.client;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.client.graph.GraphExploreRequest;
 import org.elasticsearch.client.graph.GraphExploreResponse;
 import org.elasticsearch.client.graph.Hop;
 import org.elasticsearch.client.graph.Vertex;
 import org.elasticsearch.client.graph.VertexRequest;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -50,7 +50,6 @@ public class GraphIT extends ESRestHighLevelClientTestCase {
         doc5.setJsonEntity("{\"num\":[2,4], \"const\":\"foo\"}");
         client().performRequest(doc5);
 
-
         client().performRequest(new Request(HttpPost.METHOD_NAME, "/_refresh"));
     }
 
@@ -63,7 +62,7 @@ public class GraphIT extends ESRestHighLevelClientTestCase {
             QueryBuilder guidingQuery = null;
             if (i == 0) {
                 guidingQuery = new TermQueryBuilder("const.keyword", "start");
-            } else if (randomBoolean()){
+            } else if (randomBoolean()) {
                 guidingQuery = new TermQueryBuilder("const.keyword", "foo");
             }
             Hop hop = graphExploreRequest.createNextHop(guidingQuery);
@@ -89,7 +88,7 @@ public class GraphIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testBadExplore() throws Exception {
-        //Explore indices where lack of fielddata=true on one index leads to partial failures
+        // Explore indices where lack of fielddata=true on one index leads to partial failures
         GraphExploreRequest graphExploreRequest = new GraphExploreRequest();
         graphExploreRequest.indices("index1", "index2", "index_no_field_data");
         graphExploreRequest.useSignificance(false);
@@ -98,7 +97,7 @@ public class GraphIT extends ESRestHighLevelClientTestCase {
             QueryBuilder guidingQuery = null;
             if (i == 0) {
                 guidingQuery = new TermQueryBuilder("const.keyword", "start");
-            } else if (randomBoolean()){
+            } else if (randomBoolean()) {
                 guidingQuery = new TermQueryBuilder("const.keyword", "foo");
             }
             Hop hop = graphExploreRequest.createNextHop(guidingQuery);
@@ -123,6 +122,5 @@ public class GraphIT extends ESRestHighLevelClientTestCase {
         assertTrue(failures[0].reason().contains("Text fields are not optimised for operations that require per-document field data"));
 
     }
-
 
 }

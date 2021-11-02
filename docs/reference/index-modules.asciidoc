@@ -36,7 +36,7 @@ specific index module:
 
 [[index-number-of-shards]]
 // tag::index-number-of-shards-tag[]
-`index.number_of_shards` {ess-icon}::
+`index.number_of_shards`::
 The number of primary shards that an index should have. Defaults to `1`. This setting can only be set at index creation time. It cannot be changed on a closed index.
 +
 NOTE: The number of shards are limited to `1024` per index. This limitation is a safety limit to prevent accidental creation of indices that can destabilize a cluster due to resource allocation. The limit can be modified by specifying `export ES_JAVA_OPTS="-Des.index.max_number_of_shards=128"` system property on every node that is part of the cluster.
@@ -313,24 +313,25 @@ Defaults to `*`, which matches all fields eligible for
 [[index-default-pipeline]]
  `index.default_pipeline`::
 
-    The default <<ingest,ingest node>> pipeline for this index. Index requests will fail
+    Default <<ingest,ingest pipeline>> for the index. Index requests will fail
     if the default pipeline is set and the pipeline does not exist. The default may be
     overridden using the `pipeline` parameter. The special pipeline name `_none` indicates
     no ingest pipeline should be run.
 
 [[index-final-pipeline]]
- `index.final_pipeline`::
-The final <<ingest,ingest node>> pipeline for this index. Indexing requests
+`index.final_pipeline`::
+Final <<ingest,ingest pipeline>> for the index. Indexing requests
 will fail if the final pipeline is set and the pipeline does not exist.
 The final pipeline always runs after the request pipeline (if specified) and
 the default pipeline (if it exists). The special pipeline name `_none`
 indicates no ingest pipeline will run.
 +
-NOTE: You can't use a final pipelines to change the `_index` field. If the
+NOTE: You can't use a final pipeline to change the `_index` field. If the
 pipeline attempts to change the `_index` field, the indexing request will fail.
 
 [[index-mapping-dimension-fields-limit]]
 `index.mapping.dimension_fields.limit`::
+experimental:[] 
 For internal use by Elastic only. Maximum number of time series dimensions for
 the index. Defaults to `16`.
 +

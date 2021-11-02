@@ -10,9 +10,9 @@ package org.elasticsearch.client.ccr;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.util.AbstractMap;
 import java.util.List;
@@ -23,8 +23,9 @@ public final class AutoFollowStats {
 
     static final ParseField NUMBER_OF_SUCCESSFUL_INDICES_AUTO_FOLLOWED = new ParseField("number_of_successful_follow_indices");
     static final ParseField NUMBER_OF_FAILED_INDICES_AUTO_FOLLOWED = new ParseField("number_of_failed_follow_indices");
-    static final ParseField NUMBER_OF_FAILED_REMOTE_CLUSTER_STATE_REQUESTS =
-        new ParseField("number_of_failed_remote_cluster_state_requests");
+    static final ParseField NUMBER_OF_FAILED_REMOTE_CLUSTER_STATE_REQUESTS = new ParseField(
+        "number_of_failed_remote_cluster_state_requests"
+    );
     static final ParseField RECENT_AUTO_FOLLOW_ERRORS = new ParseField("recent_auto_follow_errors");
     static final ParseField LEADER_INDEX = new ParseField("leader_index");
     static final ParseField TIMESTAMP = new ParseField("timestamp");
@@ -42,25 +43,26 @@ public final class AutoFollowStats {
             (Long) args[0],
             (Long) args[1],
             (Long) args[2],
-            ((List<Map.Entry<String, Tuple<Long, ElasticsearchException>>>) args[3])
-                .stream()
+            ((List<Map.Entry<String, Tuple<Long, ElasticsearchException>>>) args[3]).stream()
                 .collect(Maps.toUnmodifiableSortedMap(Map.Entry::getKey, Map.Entry::getValue)),
-            ((List<Map.Entry<String, AutoFollowedCluster>>) args[4])
-                .stream()
+            ((List<Map.Entry<String, AutoFollowedCluster>>) args[4]).stream()
                 .collect(Maps.toUnmodifiableSortedMap(Map.Entry::getKey, Map.Entry::getValue))
-        ));
+        )
+    );
 
     static final ConstructingObjectParser<Map.Entry<String, Tuple<Long, ElasticsearchException>>, Void> AUTO_FOLLOW_EXCEPTIONS_PARSER =
         new ConstructingObjectParser<>(
             "auto_follow_stats_errors",
             true,
-            args -> new AbstractMap.SimpleEntry<>((String) args[0], Tuple.tuple((Long) args[1], (ElasticsearchException) args[2])));
+            args -> new AbstractMap.SimpleEntry<>((String) args[0], Tuple.tuple((Long) args[1], (ElasticsearchException) args[2]))
+        );
 
     private static final ConstructingObjectParser<Map.Entry<String, AutoFollowedCluster>, Void> AUTO_FOLLOWED_CLUSTERS_PARSER =
         new ConstructingObjectParser<>(
             "auto_followed_clusters",
             true,
-            args -> new AbstractMap.SimpleEntry<>((String) args[0], new AutoFollowedCluster((Long) args[1], (Long) args[2])));
+            args -> new AbstractMap.SimpleEntry<>((String) args[0], new AutoFollowedCluster((Long) args[1], (Long) args[2]))
+        );
 
     static {
         AUTO_FOLLOW_EXCEPTIONS_PARSER.declareString(ConstructingObjectParser.constructorArg(), LEADER_INDEX);
@@ -68,7 +70,8 @@ public final class AutoFollowStats {
         AUTO_FOLLOW_EXCEPTIONS_PARSER.declareObject(
             ConstructingObjectParser.constructorArg(),
             (p, c) -> ElasticsearchException.fromXContent(p),
-            AUTO_FOLLOW_EXCEPTION);
+            AUTO_FOLLOW_EXCEPTION
+        );
 
         AUTO_FOLLOWED_CLUSTERS_PARSER.declareString(ConstructingObjectParser.constructorArg(), CLUSTER_NAME);
         AUTO_FOLLOWED_CLUSTERS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), TIME_SINCE_LAST_CHECK_MILLIS);
@@ -77,10 +80,12 @@ public final class AutoFollowStats {
         STATS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_FAILED_INDICES_AUTO_FOLLOWED);
         STATS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_FAILED_REMOTE_CLUSTER_STATE_REQUESTS);
         STATS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), NUMBER_OF_SUCCESSFUL_INDICES_AUTO_FOLLOWED);
-        STATS_PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), AUTO_FOLLOW_EXCEPTIONS_PARSER,
-            RECENT_AUTO_FOLLOW_ERRORS);
-        STATS_PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), AUTO_FOLLOWED_CLUSTERS_PARSER,
-            AUTO_FOLLOWED_CLUSTERS);
+        STATS_PARSER.declareObjectArray(
+            ConstructingObjectParser.constructorArg(),
+            AUTO_FOLLOW_EXCEPTIONS_PARSER,
+            RECENT_AUTO_FOLLOW_ERRORS
+        );
+        STATS_PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), AUTO_FOLLOWED_CLUSTERS_PARSER, AUTO_FOLLOWED_CLUSTERS);
     }
 
     private final long numberOfFailedFollowIndices;
@@ -89,11 +94,13 @@ public final class AutoFollowStats {
     private final NavigableMap<String, Tuple<Long, ElasticsearchException>> recentAutoFollowErrors;
     private final NavigableMap<String, AutoFollowedCluster> autoFollowedClusters;
 
-    AutoFollowStats(long numberOfFailedFollowIndices,
-                    long numberOfFailedRemoteClusterStateRequests,
-                    long numberOfSuccessfulFollowIndices,
-                    NavigableMap<String, Tuple<Long, ElasticsearchException>> recentAutoFollowErrors,
-                    NavigableMap<String, AutoFollowedCluster> autoFollowedClusters) {
+    AutoFollowStats(
+        long numberOfFailedFollowIndices,
+        long numberOfFailedRemoteClusterStateRequests,
+        long numberOfSuccessfulFollowIndices,
+        NavigableMap<String, Tuple<Long, ElasticsearchException>> recentAutoFollowErrors,
+        NavigableMap<String, AutoFollowedCluster> autoFollowedClusters
+    ) {
         this.numberOfFailedFollowIndices = numberOfFailedFollowIndices;
         this.numberOfFailedRemoteClusterStateRequests = numberOfFailedRemoteClusterStateRequests;
         this.numberOfSuccessfulFollowIndices = numberOfSuccessfulFollowIndices;

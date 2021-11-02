@@ -9,7 +9,6 @@
 package org.elasticsearch.gradle.plugin;
 
 import org.gradle.api.Project;
-import org.gradle.api.file.RegularFile;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 
@@ -142,9 +141,9 @@ public class PluginPropertiesExtension {
 
     public void setLicenseFile(File licenseFile) {
         ExtraPropertiesExtension extraProperties = this.project.getExtensions().getExtraProperties();
-        RegularFileProperty regularFileProperty = extraProperties.has("licenseFile") ?
-                (RegularFileProperty)extraProperties.get("licenseFile") :
-                project.getObjects().fileProperty();
+        RegularFileProperty regularFileProperty = extraProperties.has("licenseFile")
+            ? (RegularFileProperty) extraProperties.get("licenseFile")
+            : project.getObjects().fileProperty();
         regularFileProperty.set(licenseFile);
         this.licenseFile = licenseFile;
     }
@@ -155,9 +154,9 @@ public class PluginPropertiesExtension {
 
     public void setNoticeFile(File noticeFile) {
         ExtraPropertiesExtension extraProperties = this.project.getExtensions().getExtraProperties();
-        RegularFileProperty regularFileProperty = extraProperties.has("noticeFile") ?
-                (RegularFileProperty)extraProperties.get("noticeFile") :
-                project.getObjects().fileProperty();
+        RegularFileProperty regularFileProperty = extraProperties.has("noticeFile")
+            ? (RegularFileProperty) extraProperties.get("noticeFile")
+            : project.getObjects().fileProperty();
         regularFileProperty.set(noticeFile);
         this.noticeFile = noticeFile;
     }

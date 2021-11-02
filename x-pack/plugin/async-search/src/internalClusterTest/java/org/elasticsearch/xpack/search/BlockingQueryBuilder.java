@@ -14,9 +14,9 @@ import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.Closeable;
 import java.io.IOException;

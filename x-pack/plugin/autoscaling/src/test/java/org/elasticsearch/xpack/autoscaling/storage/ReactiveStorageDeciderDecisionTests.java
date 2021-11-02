@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -189,8 +190,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
         // start (to be) warm shards. Only use primary shards for simplicity.
         withRoutingAllocation(
-            allocation -> allocation.routingNodes()
-                .shardsWithState(ShardRoutingState.INITIALIZING)
+            allocation -> RoutingNodesHelper.shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING)
                 .stream()
                 .filter(ShardRouting::primary)
                 .filter(s -> warmShards.contains(s.shardId()))
@@ -206,8 +206,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
         // relocate warm shards to warm nodes and start them
         withRoutingAllocation(
-            allocation -> allocation.routingNodes()
-                .shardsWithState(ShardRoutingState.STARTED)
+            allocation -> RoutingNodesHelper.shardsWithState(allocation.routingNodes(), ShardRoutingState.STARTED)
                 .stream()
                 .filter(ShardRouting::primary)
                 .filter(s -> warmShards.contains(s.shardId()))
@@ -253,8 +252,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
         // start shards.
         withRoutingAllocation(
-            allocation -> allocation.routingNodes()
-                .shardsWithState(ShardRoutingState.INITIALIZING)
+            allocation -> RoutingNodesHelper.shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING)
                 .stream()
                 .filter(ShardRouting::primary)
                 .forEach(shard -> allocation.routingNodes().startShard(logger, shard, allocation.changes()))
@@ -311,8 +309,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
         // the remain check only assumes the smallest shard need to move off. More detailed testing of AllocationState.unmovableSize in
         // {@link ReactiveStorageDeciderServiceTests#testUnmovableSize}
-        long nodes = state.routingTable()
-            .shardsWithState(ShardRoutingState.STARTED)
+        long nodes = RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED)
             .stream()
             .filter(s -> subjectShards.contains(s.shardId()))
             .map(ShardRouting::currentNodeId)
@@ -413,8 +410,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     }
 
     private boolean hasStartedSubjectShard() {
-        return state.getRoutingNodes()
-            .shardsWithState(ShardRoutingState.STARTED)
+        return RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED)
             .stream()
             .filter(ShardRouting::primary)
             .map(ShardRouting::shardId)
@@ -457,7 +453,10 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
     private void startRandomShards() {
         withRoutingAllocation(allocation -> {
-            List<ShardRouting> initializingShards = allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING);
+            List<ShardRouting> initializingShards = RoutingNodesHelper.shardsWithState(
+                allocation.routingNodes(),
+                ShardRoutingState.INITIALIZING
+            );
             initializingShards.sort(Comparator.comparing(ShardRouting::shardId).thenComparing(ShardRouting::primary, Boolean::compare));
             List<ShardRouting> shards = randomSubsetOf(Math.min(randomIntBetween(1, 100), initializingShards.size()), initializingShards);
 
@@ -472,7 +471,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
             // ensure progress by only relocating a shard if we started more than one shard.
             if (shards.size() > 1 && randomBoolean()) {
-                List<ShardRouting> started = allocation.routingNodes().shardsWithState(ShardRoutingState.STARTED);
+                List<ShardRouting> started = RoutingNodesHelper.shardsWithState(allocation.routingNodes(), ShardRoutingState.STARTED);
                 if (started.isEmpty() == false) {
                     ShardRouting toMove = randomFrom(started);
                     Set<RoutingNode> candidates = StreamSupport.stream(allocation.routingNodes().spliterator(), false)

@@ -14,9 +14,9 @@ import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.script.field.DocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
@@ -73,8 +73,8 @@ public class UnsignedLongLeafFieldData implements LeafNumericFieldData {
     }
 
     @Override
-    public ScriptDocValues<?> getScriptValues() {
-        return new UnsignedLongScriptDocValues(getLongValues());
+    public DocValuesField<?> getScriptField(String name) {
+        return new UnsignedLongDocValuesField(getLongValues(), name);
     }
 
     @Override

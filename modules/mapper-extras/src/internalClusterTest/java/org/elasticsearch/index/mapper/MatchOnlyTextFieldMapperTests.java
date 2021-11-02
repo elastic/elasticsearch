@@ -16,12 +16,12 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.mapper.extras.MatchOnlyTextFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -53,9 +53,10 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
-        checker.registerUpdateCheck(b -> {
-            b.field("meta", Collections.singletonMap("format", "mysql.access"));
-        }, m -> assertEquals(Collections.singletonMap("format", "mysql.access"), m.fieldType().meta()));
+        checker.registerUpdateCheck(
+            b -> { b.field("meta", Collections.singletonMap("format", "mysql.access")); },
+            m -> assertEquals(Collections.singletonMap("format", "mysql.access"), m.fieldType().meta())
+        );
     }
 
     @Override
@@ -106,12 +107,7 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         assertThat(mapperService.documentMapper().mappers().getMapper("field"), instanceOf(MatchOnlyTextFieldMapper.class));
 
         XContentBuilder newField = mapping(b -> {
-            b.startObject("field")
-                .field("type", "match_only_text")
-                .startObject("meta")
-                .field("key", "value")
-                .endObject()
-                .endObject();
+            b.startObject("field").field("type", "match_only_text").startObject("meta").field("key", "value").endObject().endObject();
             b.startObject("other_field").field("type", "keyword").endObject();
         });
         merge(mapperService, newField);

@@ -9,6 +9,7 @@
 package org.elasticsearch.client;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -23,9 +24,9 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -39,10 +40,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.fieldFromSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasProperty;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.either;
@@ -59,8 +60,10 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
 
     private static BulkProcessor.Builder initBulkProcessorBuilder(BulkProcessor.Listener listener) {
         return BulkProcessor.builder(
-                (request, bulkListener) -> highLevelClient().bulkAsync(request, RequestOptions.DEFAULT,
-                       bulkListener), listener, "BulkProcessorIT");
+            (request, bulkListener) -> highLevelClient().bulkAsync(request, RequestOptions.DEFAULT, bulkListener),
+            listener,
+            "BulkProcessorIT"
+        );
     }
 
     public void testThatBulkProcessorCountIsCorrect() throws Exception {
@@ -68,11 +71,15 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
         BulkProcessorTestListener listener = new BulkProcessorTestListener(latch);
 
         int numDocs = randomIntBetween(10, 100);
-        try (BulkProcessor processor = initBulkProcessorBuilder(listener)
-                //let's make sure that the bulk action limit trips, one single execution will index all the documents
-                .setConcurrentRequests(randomIntBetween(0, 1)).setBulkActions(numDocs)
-                .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
-                .build()) {
+        try (
+            BulkProcessor processor = initBulkProcessorBuilder(listener)
+                // let's make sure that the bulk action limit trips, one single execution will index all the documents
+                .setConcurrentRequests(randomIntBetween(0, 1))
+                .setBulkActions(numDocs)
+                .setFlushInterval(TimeValue.timeValueHours(24))
+                .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
+                .build()
+        ) {
 
             MultiGetRequest multiGetRequest = indexDocs(processor, numDocs);
 
@@ -92,15 +99,20 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
 
         int numDocs = randomIntBetween(10, 100);
 
-        try (BulkProcessor processor = initBulkProcessorBuilder(listener)
-                //let's make sure that this bulk won't be automatically flushed
-                .setConcurrentRequests(randomIntBetween(0, 10)).setBulkActions(numDocs + randomIntBetween(1, 100))
-                .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB)).build()) {
+        try (
+            BulkProcessor processor = initBulkProcessorBuilder(listener)
+                // let's make sure that this bulk won't be automatically flushed
+                .setConcurrentRequests(randomIntBetween(0, 10))
+                .setBulkActions(numDocs + randomIntBetween(1, 100))
+                .setFlushInterval(TimeValue.timeValueHours(24))
+                .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
+                .build()
+        ) {
 
             MultiGetRequest multiGetRequest = indexDocs(processor, numDocs);
 
             assertThat(latch.await(randomInt(500), TimeUnit.MILLISECONDS), equalTo(false));
-            //we really need an explicit flush as none of the bulk thresholds was reached
+            // we really need an explicit flush as none of the bulk thresholds was reached
             processor.flush();
             latch.await();
 
@@ -127,10 +139,14 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
 
         MultiGetRequest multiGetRequest;
 
-        try (BulkProcessor processor = initBulkProcessorBuilder(listener)
-                .setConcurrentRequests(concurrentRequests).setBulkActions(bulkActions)
-                //set interval and size to high values
-                .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB)).build()) {
+        try (
+            BulkProcessor processor = initBulkProcessorBuilder(listener).setConcurrentRequests(concurrentRequests)
+                .setBulkActions(bulkActions)
+                // set interval and size to high values
+                .setFlushInterval(TimeValue.timeValueHours(24))
+                .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
+                .build()
+        ) {
 
             multiGetRequest = indexDocs(processor, numDocs);
 
@@ -153,9 +169,9 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
         for (BulkItemResponse bulkItemResponse : listener.bulkItems) {
             assertThat(bulkItemResponse.getFailureMessage(), bulkItemResponse.isFailed(), equalTo(false));
             assertThat(bulkItemResponse.getIndex(), equalTo("test"));
-            //with concurrent requests > 1 we can't rely on the order of the bulk requests
+            // with concurrent requests > 1 we can't rely on the order of the bulk requests
             assertThat(Integer.valueOf(bulkItemResponse.getId()), both(greaterThan(0)).and(lessThanOrEqualTo(numDocs)));
-            //we do want to check that we don't get duplicate ids back
+            // we do want to check that we don't get duplicate ids back
             assertThat(ids.add(bulkItemResponse.getId()), equalTo(true));
         }
 
@@ -167,11 +183,12 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
 
         int numDocs = randomIntBetween(10, 100);
         BulkProcessor processor = initBulkProcessorBuilder(listener)
-                //let's make sure that the bulk action limit trips, one single execution will index all the documents
-                .setConcurrentRequests(randomIntBetween(0, 1)).setBulkActions(numDocs)
-                .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(randomIntBetween(1, 10),
-                        RandomPicks.randomFrom(random(), ByteSizeUnit.values())))
-                .build();
+            // let's make sure that the bulk action limit trips, one single execution will index all the documents
+            .setConcurrentRequests(randomIntBetween(0, 1))
+            .setBulkActions(numDocs)
+            .setFlushInterval(TimeValue.timeValueHours(24))
+            .setBulkSize(new ByteSizeValue(randomIntBetween(1, 10), RandomPicks.randomFrom(random(), ByteSizeUnit.values())))
+            .build();
 
         MultiGetRequest multiGetRequest = indexDocs(processor, numDocs);
         assertThat(processor.awaitClose(1, TimeUnit.MINUTES), is(true));
@@ -195,14 +212,16 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
 
     public void testBulkProcessorConcurrentRequestsReadOnlyIndex() throws Exception {
         Request request = new Request("PUT", "/test-ro");
-        request.setJsonEntity("{\n" +
-                "    \"settings\" : {\n" +
-                "        \"index\" : {\n" +
-                "            \"blocks.write\" : true\n" +
-                "        }\n" +
-                "    }\n" +
-                "    \n" +
-                "}");
+        request.setJsonEntity(
+            "{\n"
+                + "    \"settings\" : {\n"
+                + "        \"index\" : {\n"
+                + "            \"blocks.write\" : true\n"
+                + "        }\n"
+                + "    }\n"
+                + "    \n"
+                + "}"
+        );
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
 
@@ -221,22 +240,26 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
         MultiGetRequest multiGetRequest = new MultiGetRequest();
         BulkProcessorTestListener listener = new BulkProcessorTestListener(latch, closeLatch);
 
-        try (BulkProcessor processor = initBulkProcessorBuilder(listener)
-                .setConcurrentRequests(concurrentRequests).setBulkActions(bulkActions)
-                //set interval and size to high values
-                .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB)).build()) {
+        try (
+            BulkProcessor processor = initBulkProcessorBuilder(listener).setConcurrentRequests(concurrentRequests)
+                .setBulkActions(bulkActions)
+                // set interval and size to high values
+                .setFlushInterval(TimeValue.timeValueHours(24))
+                .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
+                .build()
+        ) {
 
             for (int i = 1; i <= numDocs; i++) {
                 // let's make sure we get at least 1 item in the MultiGetRequest regardless of the randomising roulette
                 if (randomBoolean() || multiGetRequest.getItems().size() == 0) {
                     testDocs++;
-                    processor.add(new IndexRequest("test").id(Integer.toString(testDocs))
-                            .source(XContentType.JSON, "field", "value"));
+                    processor.add(new IndexRequest("test").id(Integer.toString(testDocs)).source(XContentType.JSON, "field", "value"));
                     multiGetRequest.add("test", Integer.toString(testDocs));
                 } else {
                     testReadOnlyDocs++;
-                    processor.add(new IndexRequest("test-ro").id(Integer.toString(testReadOnlyDocs))
-                            .source(XContentType.JSON, "field", "value"));
+                    processor.add(
+                        new IndexRequest("test-ro").id(Integer.toString(testReadOnlyDocs)).source(XContentType.JSON, "field", "value")
+                    );
                 }
             }
         }
@@ -254,15 +277,15 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
             assertThat(bulkItemResponse.getIndex(), either(equalTo("test")).or(equalTo("test-ro")));
             if (bulkItemResponse.getIndex().equals("test")) {
                 assertThat(bulkItemResponse.isFailed(), equalTo(false));
-                //with concurrent requests > 1 we can't rely on the order of the bulk requests
+                // with concurrent requests > 1 we can't rely on the order of the bulk requests
                 assertThat(Integer.valueOf(bulkItemResponse.getId()), both(greaterThan(0)).and(lessThanOrEqualTo(testDocs)));
-                //we do want to check that we don't get duplicate ids back
+                // we do want to check that we don't get duplicate ids back
                 assertThat(ids.add(bulkItemResponse.getId()), equalTo(true));
             } else {
                 assertThat(bulkItemResponse.isFailed(), equalTo(true));
-                //with concurrent requests > 1 we can't rely on the order of the bulk requests
+                // with concurrent requests > 1 we can't rely on the order of the bulk requests
                 assertThat(Integer.valueOf(bulkItemResponse.getId()), both(greaterThan(0)).and(lessThanOrEqualTo(testReadOnlyDocs)));
-                //we do want to check that we don't get duplicate ids back
+                // we do want to check that we don't get duplicate ids back
                 assertThat(readOnlyIds.add(bulkItemResponse.getId()), equalTo(true));
             }
         }
@@ -297,7 +320,6 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
         assertThat(hits, everyItem(hasProperty(fieldFromSource("user"), equalTo("some user"))));
         assertThat(hits, everyItem(hasProperty(fieldFromSource("fieldNameXYZ"), equalTo("valueXYZ"))));
 
-
         Iterable<SearchHit> blogs = searchAll(new SearchRequest("blogs").routing("routing"));
         assertThat(blogs, everyItem(hasProperty(fieldFromSource("title"), equalTo("some title"))));
         assertThat(blogs, everyItem(hasProperty(fieldFromSource("fieldNameXYZ"), equalTo("valueXYZ"))));
@@ -312,14 +334,18 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
         {
             final CountDownLatch latch = new CountDownLatch(1);
             BulkProcessorTestListener listener = new BulkProcessorTestListener(latch);
-            try (BulkProcessor processor = initBulkProcessorBuilder(listener)
-                    //let's make sure that the bulk action limit trips, one single execution will index all the documents
-                    .setConcurrentRequests(randomIntBetween(0, 1)).setBulkActions(numDocs)
-                    .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
+            try (
+                BulkProcessor processor = initBulkProcessorBuilder(listener)
+                    // let's make sure that the bulk action limit trips, one single execution will index all the documents
+                    .setConcurrentRequests(randomIntBetween(0, 1))
+                    .setBulkActions(numDocs)
+                    .setFlushInterval(TimeValue.timeValueHours(24))
+                    .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
                     .setGlobalIndex("test")
                     .setGlobalRouting("routing")
                     .setGlobalPipeline("pipeline_id")
-                    .build()) {
+                    .build()
+            ) {
 
                 indexDocs(processor, numDocs, null, "test", "pipeline_id");
                 latch.await();
@@ -340,19 +366,18 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
 
     @SuppressWarnings("unchecked")
     private Matcher<SearchHit>[] expectedIds(int numDocs) {
-        return IntStream.rangeClosed(1, numDocs)
-            .boxed()
-            .map(n -> hasId(n.toString()))
-            .<Matcher<SearchHit>>toArray(Matcher[]::new);
+        return IntStream.rangeClosed(1, numDocs).boxed().map(n -> hasId(n.toString())).<Matcher<SearchHit>>toArray(Matcher[]::new);
     }
 
-    private MultiGetRequest indexDocs(BulkProcessor processor, int numDocs, String localIndex,
-                                      String globalIndex, String globalPipeline) throws Exception {
+    private MultiGetRequest indexDocs(BulkProcessor processor, int numDocs, String localIndex, String globalIndex, String globalPipeline)
+        throws Exception {
         MultiGetRequest multiGetRequest = new MultiGetRequest();
         for (int i = 1; i <= numDocs; i++) {
             if (randomBoolean()) {
-                processor.add(new IndexRequest(localIndex).id(Integer.toString(i))
-                    .source(XContentType.JSON, "field", randomRealisticUnicodeOfLengthBetween(1, 30)));
+                processor.add(
+                    new IndexRequest(localIndex).id(Integer.toString(i))
+                        .source(XContentType.JSON, "field", randomRealisticUnicodeOfLengthBetween(1, 30))
+                );
             } else {
                 BytesArray data = bytesBulkRequest(localIndex, i);
                 processor.add(data, globalIndex, globalPipeline, XContentType.JSON);
@@ -372,10 +397,7 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
         action.field("_id", Integer.toString(id));
         action.endObject().endObject();
 
-        XContentBuilder source = jsonBuilder()
-            .startObject()
-                .field("field", randomRealisticUnicodeOfLengthBetween(1, 30))
-            .endObject();
+        XContentBuilder source = jsonBuilder().startObject().field("field", randomRealisticUnicodeOfLengthBetween(1, 30)).endObject();
 
         String request = Strings.toString(action) + "\n" + Strings.toString(source) + "\n";
         return new BytesArray(request);
@@ -391,8 +413,11 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
         for (BulkItemResponse bulkItemResponse : bulkItemResponses) {
             assertThat(bulkItemResponse.getIndex(), equalTo("test"));
             assertThat(bulkItemResponse.getId(), equalTo(Integer.toString(i++)));
-            assertThat("item " + i + " failed with cause: " + bulkItemResponse.getFailureMessage(),
-                    bulkItemResponse.isFailed(), equalTo(false));
+            assertThat(
+                "item " + i + " failed with cause: " + bulkItemResponse.getFailureMessage(),
+                bulkItemResponse.isFailed(),
+                equalTo(false)
+            );
         }
     }
 
@@ -440,6 +465,5 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
             }
         }
     }
-
 
 }

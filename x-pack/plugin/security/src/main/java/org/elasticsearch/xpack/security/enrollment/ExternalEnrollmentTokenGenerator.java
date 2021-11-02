@@ -14,17 +14,17 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.CommandLineHttpClient;
 import org.elasticsearch.xpack.core.security.EnrollmentToken;
+import org.elasticsearch.xpack.core.security.HttpResponse;
 import org.elasticsearch.xpack.core.security.action.enrollment.KibanaEnrollmentAction;
 import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentAction;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.core.security.CommandLineHttpClient;
-import org.elasticsearch.xpack.core.security.HttpResponse;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -33,6 +33,7 @@ import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -70,7 +71,7 @@ public class ExternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
         if (XPackSettings.ENROLLMENT_ENABLED.get(environment.settings()) != true) {
             throw new IllegalStateException("[xpack.security.enrollment.enabled] must be set to `true` to create an enrollment token");
         }
-        final String fingerprint = getCaFingerprint(sslService);
+        final String fingerprint = getHttpsCaFingerprint(sslService);
         final String apiKey = getApiKeyCredentials(user, password, action);
         final Tuple<List<String>, String> httpInfo = getNodeInfo(user, password);
         return new EnrollmentToken(apiKey, fingerprint, httpInfo.v2(), httpInfo.v1());
@@ -101,7 +102,10 @@ public class ExternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
         nodesInfo = (Map<?, ?>) nodesInfo.get("nodes");
         Map<?, ?> nodeInfo = (Map<?, ?>) nodesInfo.values().iterator().next();
         Map<?, ?> http = (Map<?, ?>) nodeInfo.get("http");
-        return (ArrayList<String>) http.get("bound_address");
+        final List<String> addresses = new ArrayList<>();
+        addresses.addAll((Collection<? extends String>) http.get("bound_address"));
+        addresses.add(getIpFromPublishAddress((String) http.get("publish_address")));
+        return addresses;
     }
 
     static String getVersion(Map<?, ?> nodesInfo) {
@@ -126,15 +130,21 @@ public class ExternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
         };
 
         final URL createApiKeyUrl = createAPIKeyUrl();
-        final HttpResponse httpResponseApiKey = client.execute("POST", createApiKeyUrl, user, password,
-            createApiKeyRequestBodySupplier, is -> responseBuilder(is));
+        final HttpResponse httpResponseApiKey = client.execute(
+            "POST",
+            createApiKeyUrl,
+            user,
+            password,
+            createApiKeyRequestBodySupplier,
+            is -> responseBuilder(is)
+        );
         final int httpCode = httpResponseApiKey.getHttpStatus();
 
         if (httpCode != HttpURLConnection.HTTP_OK) {
-            logger.error("Error " + httpCode + "when calling GET " + createApiKeyUrl + ". ResponseBody: " +
-                httpResponseApiKey.getResponseBody());
-            throw new IllegalStateException("Unexpected response code [" + httpCode + "] from calling POST "
-                + createApiKeyUrl);
+            logger.error(
+                "Error " + httpCode + "when calling GET " + createApiKeyUrl + ". ResponseBody: " + httpResponseApiKey.getResponseBody()
+            );
+            throw new IllegalStateException("Unexpected response code [" + httpCode + "] from calling POST " + createApiKeyUrl);
         }
 
         final String apiKey = Objects.toString(httpResponseApiKey.getResponseBody().get("api_key"), "");
@@ -151,15 +161,18 @@ public class ExternalEnrollmentTokenGenerator extends BaseEnrollmentTokenGenerat
         final int httpCode = httpResponseHttp.getHttpStatus();
 
         if (httpCode != HttpURLConnection.HTTP_OK) {
-            logger.error("Error " + httpCode + "when calling GET " + httpInfoUrl + ". ResponseBody: " +
-                httpResponseHttp.getResponseBody());
+            logger.error("Error " + httpCode + "when calling GET " + httpInfoUrl + ". ResponseBody: " + httpResponseHttp.getResponseBody());
             throw new IllegalStateException("Unexpected response code [" + httpCode + "] from calling GET " + httpInfoUrl);
         }
 
         final List<String> addresses = getBoundAddresses(httpResponseHttp.getResponseBody());
         if (addresses == null || addresses.isEmpty()) {
-            logger.error("No bound addresses found in response from calling GET " + httpInfoUrl + ". ResponseBody: " +
-                httpResponseHttp.getResponseBody());
+            logger.error(
+                "No bound addresses found in response from calling GET "
+                    + httpInfoUrl
+                    + ". ResponseBody: "
+                    + httpResponseHttp.getResponseBody()
+            );
             throw new IllegalStateException("No bound addresses found in response from calling GET " + httpInfoUrl);
         }
         final List<String> filteredAddresses = getFilteredAddresses(addresses);

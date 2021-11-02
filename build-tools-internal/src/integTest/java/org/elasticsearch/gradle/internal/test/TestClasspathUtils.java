@@ -8,8 +8,6 @@
 
 package org.elasticsearch.gradle.internal.test;
 
-import java.io.File;
-import java.io.IOException;
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.description.modifier.Ownership;
 import net.bytebuddy.description.modifier.Visibility;
@@ -21,6 +19,9 @@ import net.bytebuddy.implementation.FixedValue;
 import net.bytebuddy.implementation.Implementation;
 import net.bytebuddy.implementation.bytecode.ByteCodeAppender;
 
+import java.io.File;
+import java.io.IOException;
+
 import static org.junit.Assert.fail;
 
 public class TestClasspathUtils {
@@ -30,18 +31,16 @@ public class TestClasspathUtils {
     }
 
     public static void setupJarJdkClasspath(File projectRoot, String errorMessage) {
-        generateJdkJarHellCheck(projectRoot,
-                ExceptionMethod.throwing(IllegalStateException.class, errorMessage));
+        generateJdkJarHellCheck(projectRoot, ExceptionMethod.throwing(IllegalStateException.class, errorMessage));
     }
 
     private static void generateJdkJarHellCheck(File projectRoot, Implementation mainImplementation) {
-        DynamicType.Unloaded<?> dynamicType = new ByteBuddy()
-                    .subclass(Object.class)
-                    .name("org.elasticsearch.jdk.JdkJarHellCheck")
-                .defineMethod("main",   void.class, Visibility.PUBLIC, Ownership.STATIC)
-                .withParameters(String[].class)
-                .intercept(mainImplementation)
-                .make();
+        DynamicType.Unloaded<?> dynamicType = new ByteBuddy().subclass(Object.class)
+            .name("org.elasticsearch.jdk.JdkJarHellCheck")
+            .defineMethod("main", void.class, Visibility.PUBLIC, Ownership.STATIC)
+            .withParameters(String[].class)
+            .intercept(mainImplementation)
+            .make();
         try {
             dynamicType.toJar(targetFile(projectRoot));
         } catch (IOException e) {
@@ -52,14 +51,13 @@ public class TestClasspathUtils {
 
     private static File targetFile(File projectRoot) {
         File targetFile = new File(
-                projectRoot,
-                "sample_jars/build/testrepo/org/elasticsearch/elasticsearch-core/current/elasticsearch-core-current.jar"
+            projectRoot,
+            "sample_jars/build/testrepo/org/elasticsearch/elasticsearch-core/current/elasticsearch-core-current.jar"
         );
 
         targetFile.getParentFile().mkdirs();
         return targetFile;
     }
-
 
     private static class InconsistentParameterReferenceMethod implements net.bytebuddy.implementation.Implementation {
         @Override

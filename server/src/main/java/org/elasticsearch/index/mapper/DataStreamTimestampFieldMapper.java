@@ -12,10 +12,10 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -23,7 +23,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 /**
  * FieldMapper for the data-stream's timestamp meta-field.
@@ -32,12 +32,16 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_data_stream_timestamp";
-    private static final String DEFAULT_PATH = "@timestamp";
+    public static final String DEFAULT_PATH = "@timestamp";
 
-    private static final DataStreamTimestampFieldMapper ENABLED_INSTANCE =
-        new DataStreamTimestampFieldMapper(TimestampFieldType.INSTANCE, true);
-    private static final DataStreamTimestampFieldMapper DISABLED_INSTANCE =
-        new DataStreamTimestampFieldMapper(TimestampFieldType.INSTANCE, false);
+    public static final DataStreamTimestampFieldMapper ENABLED_INSTANCE = new DataStreamTimestampFieldMapper(
+        TimestampFieldType.INSTANCE,
+        true
+    );
+    private static final DataStreamTimestampFieldMapper DISABLED_INSTANCE = new DataStreamTimestampFieldMapper(
+        TimestampFieldType.INSTANCE,
+        false
+    );
 
     // For now the field shouldn't be useable in searches.
     // In the future it should act as an alias to the actual data stream timestamp field.
@@ -95,10 +99,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new ConfigurableTypeParser(
-        c -> DISABLED_INSTANCE,
-        c -> new Builder()
-    );
+    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> DISABLED_INSTANCE, c -> new Builder());
 
     private final boolean enabled;
 

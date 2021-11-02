@@ -101,12 +101,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   tasks.named("javaRestTest").configure {
     systemProperty "tests.fromOld", "false"
   }
-} else if(false) {
-  // DISABLE
-  //  RENE: We disable those tests for now due to failing on ci
-  //  See https://github.com/elastic/elasticsearch/issues/79898
-
-
+} else {
   /* Set up tasks to unzip and run the old versions of ES before running the
    * integration tests. */
   def versions = ['2', '1', '090']
@@ -161,6 +156,12 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   }
 }
 
+tasks.named("javaRestTest").configure {
+  //  DISABLE
+  //  RENE: We disable those tests for now due to failing on ci
+  //  See https://github.com/elastic/elasticsearch/issues/79898
+  enabled = false
+}
 tasks.named("yamlRestTestV7CompatTransform").configure { task ->
     task.skipTest("reindex/20_validation/reindex without source gives useful error message", "exception with a type. Not much benefit adding _doc there.")
     task.skipTest("update_by_query/20_validation/update_by_query without source gives useful error message", "exception with a type. Not much benefit adding _doc there.")

@@ -1,9 +1,3 @@
-package org.elasticsearch.painless;
-
-import java.util.Collections;
-
-import static java.util.Collections.singletonMap;
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -11,6 +5,12 @@ import static java.util.Collections.singletonMap;
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
+
+package org.elasticsearch.painless;
+
+import java.util.Collections;
+
+import static java.util.Collections.singletonMap;
 
 public class BasicExpressionTests extends ScriptTestCase {
 

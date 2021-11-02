@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -74,11 +73,7 @@ public class RevertModelSnapshotAction extends ActionType<RevertModelSnapshotAct
             jobId = in.readString();
             snapshotId = in.readString();
             deleteInterveningResults = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
-                force = in.readBoolean();
-            } else {
-                force = false;
-            }
+            force = in.readBoolean();
         }
 
         public Request(String jobId, String snapshotId) {
@@ -121,9 +116,7 @@ public class RevertModelSnapshotAction extends ActionType<RevertModelSnapshotAct
             out.writeString(jobId);
             out.writeString(snapshotId);
             out.writeBoolean(deleteInterveningResults);
-            if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
-                out.writeBoolean(force);
-            }
+            out.writeBoolean(force);
         }
 
         @Override

@@ -24,6 +24,7 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
@@ -59,6 +60,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -144,7 +146,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
             mappingLookup,
             similarityService,
             scriptService,
-            xContentRegistry,
+            // TODO pass the parser configuration into this method?
+            XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE).withRegistry(xContentRegistry),
             namedWriteableRegistry,
             client,
             searcher,
@@ -156,7 +159,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             ),
             allowExpensiveQueries,
             valuesSourceRegistry,
-            parseRuntimeMappings(runtimeMappings, mapperService),
+            parseRuntimeMappings(runtimeMappings, mapperService, indexSettings, mappingLookup),
             null
         );
     }
@@ -172,7 +175,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             source.mappingLookup,
             source.similarityService,
             source.scriptService,
-            source.getXContentRegistry(),
+            source.getParserConfig(),
             source.getWriteableRegistry(),
             source.client,
             source.searcher,
@@ -196,7 +199,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         MappingLookup mappingLookup,
         SimilarityService similarityService,
         ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
+        XContentParserConfiguration parserConfig,
         NamedWriteableRegistry namedWriteableRegistry,
         Client client,
         IndexSearcher searcher,
@@ -208,7 +211,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         Map<String, MappedFieldType> runtimeMappings,
         Predicate<String> allowedFields
     ) {
-        super(xContentRegistry, namedWriteableRegistry, client, nowInMillis);
+        super(parserConfig, namedWriteableRegistry, client, nowInMillis);
         this.shardId = shardId;
         this.shardRequestIndex = shardRequestIndex;
         this.similarityService = similarityService;
@@ -227,13 +230,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.valuesSourceRegistry = valuesSourceRegistry;
         this.runtimeMappings = runtimeMappings;
         this.allowedFields = allowedFields;
-        if (false == indexSettings.getIndexMetadata().getRoutingPaths().isEmpty()) {
-            for (String r : runtimeMappings.keySet()) {
-                if (Regex.simpleMatch(indexSettings.getIndexMetadata().getRoutingPaths(), r)) {
-                    throw new IllegalArgumentException("runtime fields may not match [routing_path] but [" + r + "] matched");
-                }
-            }
-        }
     }
 
     private void reset() {
@@ -659,14 +655,28 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return fullyQualifiedIndex;
     }
 
-    private static Map<String, MappedFieldType> parseRuntimeMappings(Map<String, Object> runtimeMappings, MapperService mapperService) {
+    private static Map<String, MappedFieldType> parseRuntimeMappings(
+        Map<String, Object> runtimeMappings,
+        MapperService mapperService,
+        IndexSettings indexSettings,
+        MappingLookup lookup
+    ) {
         if (runtimeMappings.isEmpty()) {
             return Collections.emptyMap();
         }
         // TODO add specific tests to SearchExecutionTests similar to the ones in FieldTypeLookupTests
         MappingParserContext parserContext = mapperService.parserContext();
         Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(new HashMap<>(runtimeMappings), parserContext, false);
-        return RuntimeField.collectFieldTypes(runtimeFields.values());
+        Map<String, MappedFieldType> runtimeFieldTypes = RuntimeField.collectFieldTypes(runtimeFields.values());
+        if (false == indexSettings.getIndexMetadata().getRoutingPaths().isEmpty()) {
+            for (String r : runtimeMappings.keySet()) {
+                if (Regex.simpleMatch(indexSettings.getIndexMetadata().getRoutingPaths(), r)) {
+                    throw new IllegalArgumentException("runtime fields may not match [routing_path] but [" + r + "] matched");
+                }
+            }
+        }
+        runtimeFieldTypes.keySet().forEach(lookup::validateDoesNotShadow);
+        return runtimeFieldTypes;
     }
 
     /**

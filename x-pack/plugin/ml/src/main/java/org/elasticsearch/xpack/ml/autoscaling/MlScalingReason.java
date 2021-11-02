@@ -53,7 +53,6 @@ public class MlScalingReason implements AutoscalingDeciderResult.Reason {
             this.waitingModels = List.of();
         }
         this.passedConfiguration = Settings.readSettingsFromStream(in);
-        ;
         this.currentMlCapacity = new AutoscalingCapacity(in);
         this.requiredCapacity = in.readOptionalWriteable(AutoscalingCapacity::new);
         this.largestWaitingAnalyticsJob = in.readOptionalVLong();

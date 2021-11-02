@@ -213,7 +213,12 @@ public class NerProcessor implements NlpTask.Processor {
                     ? tokenization.getTokenizations().get(0).getInput().toLowerCase(Locale.ROOT)
                     : tokenization.getTokenizations().get(0).getInput()
             );
-            return new NerResults(resultsField, buildAnnotatedText(tokenization.getTokenizations().get(0).getInput(), entities), entities);
+            return new NerResults(
+                resultsField,
+                buildAnnotatedText(tokenization.getTokenizations().get(0).getInput(), entities),
+                entities,
+                tokenization.anyTruncated()
+            );
         }
 
         /**

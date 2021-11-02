@@ -20,7 +20,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.stream.Collectors;
 
 public class DiscoveryNodeFilters {
 
@@ -52,7 +51,7 @@ public class DiscoveryNodeFilters {
         Map<String, String[]> bFilters = new HashMap<>();
         for (Map.Entry<String, String> entry : filters.entrySet()) {
             String[] values = Strings.tokenizeToStringArray(entry.getValue(), ",");
-            if (values.length > 0) {
+            if (values.length > 0 && entry.getKey() != null) {
                 bFilters.put(entry.getKey(), values);
             }
         }
@@ -66,9 +65,13 @@ public class DiscoveryNodeFilters {
 
     private final OpType opType;
 
-    DiscoveryNodeFilters(OpType opType, Map<String, String[]> filters) {
+    @Nullable
+    private final DiscoveryNodeFilters withoutTierPreferences;
+
+    private DiscoveryNodeFilters(OpType opType, Map<String, String[]> filters) {
         this.opType = opType;
-        this.filters = filters;
+        this.filters = Map.copyOf(filters);
+        this.withoutTierPreferences = doTrimTier(this);
     }
 
     private boolean matchByIP(String[] values, @Nullable String hostIp, @Nullable String publishIp) {
@@ -89,24 +92,17 @@ public class DiscoveryNodeFilters {
      */
     @Nullable
     public static DiscoveryNodeFilters trimTier(@Nullable DiscoveryNodeFilters original) {
-        if (original == null) {
-            return null;
-        }
+        return original == null ? null : original.withoutTierPreferences;
+    }
 
-        Map<String, String[]> newFilters = original.filters.entrySet()
-            .stream()
-            // Remove all entries that use "_tier_preference", as these will be handled elsewhere
-            .filter(entry -> {
-                String attr = entry.getKey();
-                return attr != null && attr.equals("_tier_preference") == false;
-            })
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-
-        if (newFilters.size() == 0) {
-            return null;
-        } else {
-            return new DiscoveryNodeFilters(original.opType, newFilters);
+    private static DiscoveryNodeFilters doTrimTier(DiscoveryNodeFilters original) {
+        if (original.filters.containsKey("_tier_preference") == false) {
+            return original;
         }
+        final Map<String, String[]> newFilters = new HashMap<>(original.filters);
+        final String[] removed = newFilters.remove("_tier_preference");
+        assert removed != null;
+        return newFilters.isEmpty() ? null : new DiscoveryNodeFilters(original.opType, newFilters);
     }
 
     public boolean match(DiscoveryNode node) {

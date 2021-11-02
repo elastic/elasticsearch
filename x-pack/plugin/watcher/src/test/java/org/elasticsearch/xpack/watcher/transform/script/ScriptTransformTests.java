@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.ArgumentMatchers.anyObject;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -156,7 +156,7 @@ public class ScriptTransformTests extends ESTestCase {
             "whatever",
             "whatever"
         );
-        when(scriptService.compile(anyObject(), eq(WatcherTransformScript.CONTEXT))).thenThrow(scriptException);
+        when(scriptService.compile(any(), eq(WatcherTransformScript.CONTEXT))).thenThrow(scriptException);
 
         ScriptTransformFactory transformFactory = new ScriptTransformFactory(scriptService);
 

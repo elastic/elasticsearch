@@ -248,7 +248,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.put("dutch_stem", DutchStemTokenFilterFactory::new);
         filters.put("edge_ngram", EdgeNGramTokenFilterFactory::new);
         filters.put("edgeNGram", (IndexSettings indexSettings, Environment environment, String name, Settings settings) -> {
-            deprecationLogger.critical(
+                        deprecationLogger.warn(
                 DeprecationCategory.ANALYSIS,
                 "edgeNGram_deprecation",
                 "The [edgeNGram] token filter name is deprecated and will be removed in a future version. "
@@ -276,7 +276,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.put("multiplexer", MultiplexerTokenFilterFactory::new);
         filters.put("ngram", NGramTokenFilterFactory::new);
         filters.put("nGram", (IndexSettings indexSettings, Environment environment, String name, Settings settings) -> {
-            deprecationLogger.critical(
+                        deprecationLogger.warn(
                 DeprecationCategory.ANALYSIS,
                 "nGram_deprecation",
                 "The [nGram] token filter name is deprecated and will be removed in a future version. "
@@ -330,7 +330,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         tokenizers.put("thai", ThaiTokenizerFactory::new);
         tokenizers.put("nGram", (IndexSettings indexSettings, Environment environment, String name, Settings settings) -> {
             if (indexSettings.getIndexVersionCreated().onOrAfter(org.elasticsearch.Version.V_7_6_0)) {
-                deprecationLogger.critical(
+                deprecationLogger.warn(
                     DeprecationCategory.ANALYSIS,
                     "nGram_tokenizer_deprecation",
                     "The [nGram] tokenizer name is deprecated and will be removed in a future version. "
@@ -342,7 +342,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         tokenizers.put("ngram", NGramTokenizerFactory::new);
         tokenizers.put("edgeNGram", (IndexSettings indexSettings, Environment environment, String name, Settings settings) -> {
             if (indexSettings.getIndexVersionCreated().onOrAfter(org.elasticsearch.Version.V_7_6_0)) {
-                deprecationLogger.critical(
+                deprecationLogger.warn(
                     DeprecationCategory.ANALYSIS,
                     "edgeNGram_tokenizer_deprecation",
                     "The [edgeNGram] tokenizer name is deprecated and will be removed in a future version. "
@@ -645,7 +645,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         // Temporary shim for aliases. TODO deprecate after they are moved
         tokenizers.add(PreConfiguredTokenizer.elasticsearchVersion("nGram", (version) -> {
             if (version.onOrAfter(org.elasticsearch.Version.V_7_6_0)) {
-                deprecationLogger.critical(
+                deprecationLogger.warn(
                     DeprecationCategory.ANALYSIS,
                     "nGram_tokenizer_deprecation",
                     "The [nGram] tokenizer name is deprecated and will be removed in a future version. "
@@ -656,7 +656,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         }));
         tokenizers.add(PreConfiguredTokenizer.elasticsearchVersion("edgeNGram", (version) -> {
             if (version.onOrAfter(org.elasticsearch.Version.V_7_6_0)) {
-                deprecationLogger.critical(
+                deprecationLogger.warn(
                     DeprecationCategory.ANALYSIS,
                     "edgeNGram_tokenizer_deprecation",
                     "The [edgeNGram] tokenizer name is deprecated and will be removed in a future version. "

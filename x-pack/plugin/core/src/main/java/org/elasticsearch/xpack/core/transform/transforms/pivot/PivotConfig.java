@@ -88,7 +88,7 @@ public class PivotConfig implements Writeable, ToXContentObject {
         this.maxPageSearchSize = maxPageSearchSize;
 
         if (maxPageSearchSize != null) {
-            deprecationLogger.critical(
+            deprecationLogger.warn(
                 DeprecationCategory.API,
                 TransformField.MAX_PAGE_SEARCH_SIZE.getPreferredName(),
                 TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED

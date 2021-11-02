@@ -972,7 +972,7 @@ public class ApiKeyService {
         @Override
         public void usedDeprecatedName(String parserName, Supplier<XContentLocation> location, String usedName, String modernName) {
             String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-            deprecationLogger.critical(
+            deprecationLogger.warn(
                 DeprecationCategory.SECURITY,
                 "api_key_field",
                 "{}Deprecated field [{}] used in api key [{}], expected [{}] instead",
@@ -986,7 +986,7 @@ public class ApiKeyService {
         @Override
         public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName, String replacedWith) {
             String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-            deprecationLogger.critical(
+            deprecationLogger.warn(
                 DeprecationCategory.SECURITY,
                 "api_key_field",
                 "{}Deprecated field [{}] used in api key [{}], replaced by [{}]",
@@ -1000,7 +1000,7 @@ public class ApiKeyService {
         @Override
         public void usedDeprecatedField(String parserName, Supplier<XContentLocation> location, String usedName) {
             String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
-            deprecationLogger.critical(
+            deprecationLogger.warn(
                 DeprecationCategory.SECURITY,
                 "api_key_field",
                 "{}Deprecated field [{}] used in api key [{}], which is unused and will be removed entirely",

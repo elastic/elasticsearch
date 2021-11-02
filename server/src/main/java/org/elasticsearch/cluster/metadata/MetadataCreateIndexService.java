@@ -220,7 +220,7 @@ public class MetadataCreateIndexService {
             } else if (isHidden) {
                 logger.trace("index [{}] is a hidden index", index);
             } else {
-                DEPRECATION_LOGGER.critical(
+                DEPRECATION_LOGGER.warn(
                     DeprecationCategory.INDICES,
                     "index_name_starts_with_dot",
                     "index name [{}] starts with a dot '.', in the next major version, index names "
@@ -401,7 +401,7 @@ public class MetadataCreateIndexService {
                 );
 
                 if (v1Templates.size() > 1) {
-                    DEPRECATION_LOGGER.critical(
+                    deprecationLogger.critical(
                         DeprecationCategory.TEMPLATES,
                         "index_template_multiple_match",
                         "index [{}] matches multiple legacy templates [{}], composable templates will only match a single template",
@@ -1585,7 +1585,7 @@ public class MetadataCreateIndexService {
         if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexSettings)
             && (IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(indexSettings)
                 || IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(indexSettings))) {
-            DEPRECATION_LOGGER.critical(
+            deprecationLogger.critical(
                 DeprecationCategory.SETTINGS,
                 "translog_retention",
                 "Translog retention settings [index.translog.retention.age] "
@@ -1598,7 +1598,7 @@ public class MetadataCreateIndexService {
     public static void validateStoreTypeSetting(Settings indexSettings) {
         final String storeType = IndexModule.INDEX_STORE_TYPE_SETTING.get(indexSettings);
         if (IndexModule.Type.SIMPLEFS.match(storeType)) {
-            DEPRECATION_LOGGER.critical(
+            deprecationLogger.critical(
                 DeprecationCategory.SETTINGS,
                 "store_type_setting",
                 "[simplefs] is deprecated and will be removed in 8.0. Use [niofs] or other file systems instead. "

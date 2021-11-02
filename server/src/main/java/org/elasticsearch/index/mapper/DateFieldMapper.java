@@ -311,7 +311,7 @@ public final class DateFieldMapper extends FieldMapper {
             try {
                 return fieldType.parse(nullValue.getValue());
             } catch (Exception e) {
-                DEPRECATION_LOGGER.critical(
+                DEPRECATION_LOGGER.warn(
                     DeprecationCategory.MAPPINGS,
                     "date_mapper_null_field",
                     "Error parsing ["

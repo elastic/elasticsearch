@@ -353,7 +353,7 @@ public class AnalysisRegistryTests extends ESTestCase {
                 @Override
                 public TokenStream create(TokenStream tokenStream) {
                     if (indexSettings.getIndexVersionCreated().equals(Version.CURRENT)) {
-                        deprecationLogger.critical(
+                        deprecationLogger.warn(
                             DeprecationCategory.OTHER,
                             "deprecated_token_filter",
                             "Using deprecated token filter [deprecated]"
@@ -385,7 +385,11 @@ public class AnalysisRegistryTests extends ESTestCase {
 
                 @Override
                 public TokenStream create(TokenStream tokenStream) {
-                    deprecationLogger.critical(DeprecationCategory.OTHER, "unused_token_filter", "Using deprecated token filter [unused]");
+                    deprecationLogger.warn(
+                        DeprecationCategory.ANALYSIS,
+                        "unused_token_filter",
+                        "Using deprecated token filter [unused]"
+                    );
                     return tokenStream;
                 }
             }
@@ -398,7 +402,7 @@ public class AnalysisRegistryTests extends ESTestCase {
 
                 @Override
                 public TokenStream create(TokenStream tokenStream) {
-                    deprecationLogger.critical(
+                    deprecationLogger.warn(
                         DeprecationCategory.OTHER,
                         "deprecated_normalizer",
                         "Using deprecated token filter [deprecated_normalizer]"

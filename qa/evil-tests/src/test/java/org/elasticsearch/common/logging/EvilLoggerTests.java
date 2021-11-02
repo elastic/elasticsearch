@@ -115,7 +115,7 @@ public class EvilLoggerTests extends ESTestCase {
                 }
                 for (int j = 0; j < iterations; j++) {
                     for (final Integer id : ids) {
-                        deprecationLogger.critical(
+                        deprecationLogger.warn(
                             DeprecationCategory.OTHER,
                             Integer.toString(id),
                             "This is a maybe logged deprecation message" + id

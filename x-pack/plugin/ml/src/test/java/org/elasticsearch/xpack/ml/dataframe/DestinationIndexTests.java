@@ -72,7 +72,6 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class DestinationIndexTests extends ESTestCase {
@@ -380,7 +379,7 @@ public class DestinationIndexTests extends ESTestCase {
             equalTo("A field that matches the dest.results_field [ml] already exists; please set a different results_field")
         );
 
-        verifyZeroInteractions(client);
+        verifyNoMoreInteractions(client);
     }
 
     public void testReadMetadata_GivenNoMeta() {

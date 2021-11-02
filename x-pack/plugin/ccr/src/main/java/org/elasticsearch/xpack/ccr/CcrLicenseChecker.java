@@ -38,7 +38,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -242,7 +241,7 @@ public class CcrLicenseChecker {
         final Function<Exception, ElasticsearchStatusException> unknownLicense
     ) {
         // we have to check the license on the remote cluster
-        new RemoteClusterLicenseChecker(client, XPackLicenseState::isCcrAllowedForOperationMode).checkRemoteClusterLicenses(
+        new RemoteClusterLicenseChecker(client, CcrConstants.CCR_FEATURE).checkRemoteClusterLicenses(
             Collections.singletonList(clusterAlias),
             new ActionListener<RemoteClusterLicenseChecker.LicenseCheck>() {
 
@@ -450,11 +449,7 @@ public class CcrLicenseChecker {
             clusterAlias,
             leaderIndex,
             clusterAlias,
-            RemoteClusterLicenseChecker.buildErrorMessage(
-                "ccr",
-                licenseCheck.remoteClusterLicenseInfo(),
-                RemoteClusterLicenseChecker::isAllowedByLicense
-            )
+            RemoteClusterLicenseChecker.buildErrorMessage(CcrConstants.CCR_FEATURE, licenseCheck.remoteClusterLicenseInfo())
         );
         return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
     }
@@ -467,11 +462,7 @@ public class CcrLicenseChecker {
             Locale.ROOT,
             "can not fetch remote cluster state as the remote cluster [%s] is not licensed for [ccr]; %s",
             clusterAlias,
-            RemoteClusterLicenseChecker.buildErrorMessage(
-                "ccr",
-                licenseCheck.remoteClusterLicenseInfo(),
-                RemoteClusterLicenseChecker::isAllowedByLicense
-            )
+            RemoteClusterLicenseChecker.buildErrorMessage(CcrConstants.CCR_FEATURE, licenseCheck.remoteClusterLicenseInfo())
         );
         return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
     }

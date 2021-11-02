@@ -925,6 +925,22 @@ Specifies if the tokenization lower case the text sequence when building the
 tokens.
 end::inference-config-nlp-tokenization-bert-do-lower-case[]
 
+tag::inference-config-nlp-tokenization-bert-truncate[]
+Indicates how tokens are truncated when they exceed `max_sequence_length`.
+The default value is `none`.
++
+--
+* `none`: No truncation occurs; the inference request receives an error.
+* `first`: Only the first sequence is truncated.
+* `second`: Only the second sequence is truncated. If there is just one sequence,
+					 that sequence is truncated.
+--
+
+NOTE: For `zero_shot_classification`, the hypothesis sequence is always the second 
+sequence. Therefore, do not use `second` in this case.
+
+end::inference-config-nlp-tokenization-bert-truncate[]
+
 tag::inference-config-nlp-tokenization-bert-with-special-tokens[]
 Tokenize with special tokens. The tokens typically included in BERT-style tokenization are:
 +

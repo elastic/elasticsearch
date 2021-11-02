@@ -42,7 +42,7 @@ public class GetDeploymentStatsActionResponseTests extends AbstractWireSerializi
         for (var i = 0; i < numStats; i++) {
             stats.add(randomDeploymentStats());
         }
-        stats.sort(Comparator.comparing(s -> s.getModelId()));
+        stats.sort(Comparator.comparing(GetDeploymentStatsAction.Response.AllocationStats::getModelId));
         return new GetDeploymentStatsAction.Response(Collections.emptyList(), Collections.emptyList(), stats, stats.size());
     }
 
@@ -90,6 +90,7 @@ public class GetDeploymentStatsActionResponseTests extends AbstractWireSerializi
                 nodes.get("node1"),
                 randomNonNegativeLong(),
                 randomDoubleBetween(0.0, 100.0, true),
+                randomIntBetween(0, 100),
                 Instant.now()
             )
         );
@@ -98,6 +99,7 @@ public class GetDeploymentStatsActionResponseTests extends AbstractWireSerializi
                 nodes.get("node2"),
                 randomNonNegativeLong(),
                 randomDoubleBetween(0.0, 100.0, true),
+                randomIntBetween(0, 100),
                 Instant.now()
             )
         );
@@ -139,6 +141,7 @@ public class GetDeploymentStatsActionResponseTests extends AbstractWireSerializi
                 nodes.get("node1"),
                 randomNonNegativeLong(),
                 randomDoubleBetween(0.0, 100.0, true),
+                randomIntBetween(0, 100),
                 Instant.now()
             )
         );
@@ -147,6 +150,7 @@ public class GetDeploymentStatsActionResponseTests extends AbstractWireSerializi
                 nodes.get("node2"),
                 randomNonNegativeLong(),
                 randomDoubleBetween(0.0, 100.0, true),
+                randomIntBetween(0, 100),
                 Instant.now()
             )
         );
@@ -198,7 +202,8 @@ public class GetDeploymentStatsActionResponseTests extends AbstractWireSerializi
                     GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forStartedState(
                         node,
                         randomNonNegativeLong(),
-                        randomDoubleBetween(0.0, 100.0, true),
+                        randomBoolean() ? randomDoubleBetween(0.0, 100.0, true) : null,
+                        randomIntBetween(0, 100),
                         Instant.now()
                     )
                 );

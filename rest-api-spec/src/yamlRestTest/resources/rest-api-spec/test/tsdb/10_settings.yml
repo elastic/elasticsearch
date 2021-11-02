@@ -171,8 +171,8 @@ routing required:
 ---
 set start_time and end_time:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
   - do:
       indices.create:
         index: test_index
@@ -209,8 +209,8 @@ set start_time and end_time:
 ---
 set start_time and end_time without timeseries mode:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
   - do:
       catch: /index.time_series.start_time need to be used for time_series mode/
       indices.create:

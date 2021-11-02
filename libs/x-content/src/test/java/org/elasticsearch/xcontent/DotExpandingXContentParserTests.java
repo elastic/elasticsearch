@@ -94,10 +94,7 @@ public class DotExpandingXContentParserTests extends ESTestCase {
 
     public void testEmbeddedValue() throws IOException {
 
-        XContentParser parser = createParser(
-            JsonXContent.jsonXContent,
-            "{ \"test.with.dots\" : \"value\", \"nodots\" : \"value2\" }"
-        );
+        XContentParser parser = createParser(JsonXContent.jsonXContent, "{ \"test.with.dots\" : \"value\", \"nodots\" : \"value2\" }");
 
         parser.nextToken();     // start object
         parser.nextToken();     // test.with.dots fieldname
@@ -128,10 +125,7 @@ public class DotExpandingXContentParserTests extends ESTestCase {
     }
 
     public void testSkipChildren() throws IOException {
-        XContentParser parser = createParser(
-            JsonXContent.jsonXContent,
-            "{ \"test.with.dots\" : \"value\", \"nodots\" : \"value2\" }"
-        );
+        XContentParser parser = createParser(JsonXContent.jsonXContent, "{ \"test.with.dots\" : \"value\", \"nodots\" : \"value2\" }");
 
         parser.nextToken();     // start object
         parser.nextToken();     // test.with.dots fieldname

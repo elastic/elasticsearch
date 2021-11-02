@@ -325,17 +325,13 @@ public class DocumentParserTests extends MapperServiceTestCase {
             assertNotNull(doc.rootDoc().getField("blub"));
         }
         {
-<<<<<<< HEAD
             ParsedDocument doc = mapper.parse(source(b -> b.field("field.bar", 111)));
-=======
-            ParsedDocument doc = mapper.parse(source(b -> b.field("field.bar", new int[] { 1, 2, 3 })));
->>>>>>> origin/master
             assertNull(doc.rootDoc().getField("field"));
             assertNull(doc.rootDoc().getField("bar"));
             assertNull(doc.rootDoc().getField("field.bar"));
         }
         {
-            ParsedDocument doc = mapper.parse(source(b -> b.field("field.bar", new int[]{1, 2, 3})));
+            ParsedDocument doc = mapper.parse(source(b -> b.field("field.bar", new int[] { 1, 2, 3 })));
             assertNull(doc.rootDoc().getField("field"));
             assertNull(doc.rootDoc().getField("bar"));
             assertNull(doc.rootDoc().getField("field.bar"));
@@ -404,16 +400,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-<<<<<<< HEAD
         ParsedDocument doc = mapper.parse(source(b -> b.field("field.bar", 123)));
         assertEquals(123, doc.docs().get(0).getNumericValue("field.bar"));
-=======
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field("field.bar", 123))));
-        assertEquals(
-            "Cannot add a value for field [field.bar] since one of the intermediate objects is mapped as a nested object: [field]",
-            e.getMessage()
-        );
->>>>>>> origin/master
     }
 
     public void testUnexpectedFieldMappingType() throws Exception {
@@ -449,13 +437,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.endArray();
         }));
 
-<<<<<<< HEAD
         ParsedDocument doc = mapper.parse(source(b -> b.field("foo.bar", 42)));
         assertEquals(42L, doc.docs().get(0).getNumericValue("foo.bar"));
-=======
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field("foo.bar", 42))));
-        assertEquals("It is forbidden to create dynamic nested objects ([foo]) through `copy_to` or dots in field names", e.getMessage());
->>>>>>> origin/master
     }
 
     public void testNestedHaveIdAndTypeFields() throws Exception {
@@ -1209,21 +1192,11 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.endArray();
         }));
         String field = randomFrom("foo.bar", "foo.bar.baz");
-<<<<<<< HEAD
-        MapperParsingException error = expectThrows(MapperParsingException.class,
-            () -> mapper.parse(source("1", b -> b.field(field, "true"), null, Map.of("foo", "booleans"))));
-        assertThat(error.getMessage(),
-            containsString("failed to parse field [foo] of type [boolean]"));
-=======
         MapperParsingException error = expectThrows(
             MapperParsingException.class,
             () -> mapper.parse(source("1", b -> b.field(field, "true"), null, Map.of("foo", "booleans")))
         );
-        assertThat(
-            error.getMessage(),
-            containsString("Field [foo] must be an object; but it's configured as [boolean] in dynamic template [booleans]")
-        );
->>>>>>> origin/master
+        assertThat(error.getMessage(), containsString("failed to parse field [foo] of type [boolean]"));
 
         ParsedDocument doc = mapper.parse(source("1", b -> b.field(field, "true"), null, Map.of(field, "booleans")));
         IndexableField[] fields = doc.rootDoc().getFields(field);
@@ -1253,14 +1226,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             MapperParsingException.class,
             () -> mapper.parse(source(b -> b.startArray("field.bar.baz").value(0).value(1).endArray()))
         );
-        assertThat(exception.getMessage(), containsString(
-            "failed to parse field [field] of type [long]"
-        ));
-        assertEquals(
-            "Could not dynamically add mapping for field [field.bar.baz]. "
-                + "Existing mapping for [field] must be of type object but found [long].",
-            exception.getMessage()
-        );
+        assertThat(exception.getMessage(), containsString("failed to parse field [field] of type [long]"));
     }
 
     public void testDynamicFalseDottedFieldNameLongArray() throws Exception {
@@ -1341,21 +1307,11 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     public void testDynamicDottedFieldNameLongWithExistingParentWrongType() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "long")));
-<<<<<<< HEAD
-        MapperParsingException exception = expectThrows(MapperParsingException.class,
-                () -> mapper.parse(source(b -> b.field("field.bar.baz", 0))));
-        assertThat(exception.getMessage(), containsString("failed to parse field [field] of type [long]"));
-=======
         MapperParsingException exception = expectThrows(
             MapperParsingException.class,
             () -> mapper.parse(source(b -> b.field("field.bar.baz", 0)))
         );
-        assertEquals(
-            "Could not dynamically add mapping for field [field.bar.baz]. "
-                + "Existing mapping for [field] must be of type object but found [long].",
-            exception.getMessage()
-        );
->>>>>>> origin/master
+        assertThat(exception.getMessage(), containsString("failed to parse field [field] of type [long]"));
     }
 
     public void testDynamicFalseDottedFieldNameLong() throws Exception {
@@ -1446,21 +1402,11 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     public void testDynamicDottedFieldNameObjectWithExistingParentWrongType() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "long")));
-<<<<<<< HEAD
-        MapperParsingException exception = expectThrows(MapperParsingException.class,
-                () -> mapper.parse(source(b -> b.startObject("field.bar.baz").field("a", 0).endObject())));
-        assertThat(exception.getMessage(), containsString("failed to parse field [field] of type [long]"));
-=======
         MapperParsingException exception = expectThrows(
             MapperParsingException.class,
             () -> mapper.parse(source(b -> b.startObject("field.bar.baz").field("a", 0).endObject()))
         );
-        assertEquals(
-            "Could not dynamically add mapping for field [field.bar.baz]. "
-                + "Existing mapping for [field] must be of type object but found [long].",
-            exception.getMessage()
-        );
->>>>>>> origin/master
+        assertThat(exception.getMessage(), containsString("failed to parse field [field] of type [long]"));
     }
 
     public void testDynamicFalseDottedFieldNameObject() throws Exception {
@@ -1821,28 +1767,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     public void testDynamicFieldsStartingAndEndingWithDot() throws Exception {
         MapperService mapperService = createMapperService(mapping(b -> {}));
-<<<<<<< HEAD
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> mapperService.documentMapper().parse(source(b -> {
-=======
-        merge(mapperService, dynamicMapping(mapperService.documentMapper().parse(source(b -> {
-            b.startArray("top.");
-            {
-                b.startObject();
-                {
-                    b.startArray("foo.");
-                    {
-                        b.startObject().field("thing", "bah").endObject();
-                    }
-                    b.endArray();
-                }
-                b.endObject();
-            }
-            b.endArray();
-        })).dynamicMappingsUpdate()));
-
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> mapperService.documentMapper().parse(source(b -> {
->>>>>>> origin/master
             b.startArray("top.");
             {
                 b.startObject();
@@ -1866,36 +1791,17 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.endArray();
         })));
 
-<<<<<<< HEAD
-        assertThat(e.getMessage(),
-                containsString("object field starting or ending with a [.] makes object resolution ambiguous: [top..foo.]"));
-=======
         assertThat(
             e.getMessage(),
-            containsString("object field starting or ending with a [.] makes object resolution ambiguous: [top..foo..bar]")
+            containsString("object field starting or ending with a [.] makes object resolution ambiguous: [top..foo.]")
         );
->>>>>>> origin/master
     }
 
     public void testDynamicFieldsEmptyName() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
 
-<<<<<<< HEAD
-        IllegalArgumentException emptyFieldNameException = expectThrows(IllegalArgumentException.class,
-                () -> mapper.parse(source(b -> {
-                    b.startArray("top");
-                    {
-                        b.startObject();
-                        {
-                            b.startObject("aoeu").field("a", 1).field(" ", 2).endObject();
-                        }
-                        b.endObject();
-                    }
-                    b.endArray();
-                })));
-=======
         IllegalArgumentException emptyFieldNameException = expectThrows(IllegalArgumentException.class, () -> mapper.parse(source(b -> {
-            b.startArray("top.");
+            b.startArray("top");
             {
                 b.startObject();
                 {
@@ -1905,7 +1811,6 @@ public class DocumentParserTests extends MapperServiceTestCase {
             }
             b.endArray();
         })));
->>>>>>> origin/master
 
         assertThat(emptyFieldNameException.getMessage(), containsString("object field cannot contain only whitespace: ['top.aoeu. ']"));
     }
@@ -1994,15 +1899,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             () -> mapper.parse(source(b -> b.startObject("alias-field.dynamic-field").field("type", "keyword").endObject()))
         );
 
-<<<<<<< HEAD
         assertEquals("Cannot write to a field alias [alias-field].", exception.getMessage());
-=======
-        assertEquals(
-            "Could not dynamically add mapping for field [alias-field.dynamic-field]. "
-                + "Existing mapping for [alias-field] must be of type object but found [alias].",
-            exception.getMessage()
-        );
->>>>>>> origin/master
     }
 
     public void testMultifieldOverwriteFails() throws Exception {
@@ -2023,22 +1920,11 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-<<<<<<< HEAD
-        MapperParsingException exception = expectThrows(MapperParsingException.class,
-            () -> mapper.parse(source(b -> b.field("message", "original").field("message.text", "overwrite"))));
-        assertThat(exception.getMessage(), containsString("failed to parse field [message] of type [keyword]"));
-=======
         MapperParsingException exception = expectThrows(
             MapperParsingException.class,
             () -> mapper.parse(source(b -> b.field("message", "original").field("message.text", "overwrite")))
         );
-
-        assertEquals(
-            "Could not dynamically add mapping for field [message.text]. "
-                + "Existing mapping for [message] must be of type object but found [keyword].",
-            exception.getMessage()
-        );
->>>>>>> origin/master
+        assertThat(exception.getMessage(), containsString("failed to parse field [message] of type [keyword]"));
     }
 
     public void testTypeless() throws IOException {

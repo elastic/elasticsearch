@@ -46,7 +46,11 @@ public class DotExpandingXContentParser extends FilterXContentParser {
         return new DotExpandingXContentParser(new SingletonValueXContentParser(in), in, subpaths);
     }
 
-    private enum State { PRE, DURING, POST }
+    private enum State {
+        PRE,
+        DURING,
+        POST
+    }
 
     final String[] subPaths;
     final XContentParser subparser;

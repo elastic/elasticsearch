@@ -24,6 +24,16 @@ public class RestCompatibleVersionHelperTests extends ESTestCase {
     int PREVIOUS_VERSION = RestApiVersion.current().major - 1;
     int OBSOLETE_VERSION = RestApiVersion.current().major - 2;
 
+    // public void testCompatibleOnUnkownMediaType() {
+    // RestRequest.MediaTypeHeaderException e = expectThrows(
+    // RestRequest.MediaTypeHeaderException.class,
+    // () -> requestWith(acceptHeader("wrong/type;compatible-with=7"), contentTypeHeader(null), bodyPresent())
+    // );
+    // assertThat(
+    // e.getMessage(),
+    // equalTo("Unknown media type Accept=wrong/type;compatible-with=")
+    // );
+    // }
     public void testAcceptAndContentTypeCombinations() {
         assertThat(requestWith(acceptHeader(PREVIOUS_VERSION), contentTypeHeader(PREVIOUS_VERSION), bodyPresent()), isCompatible());
 

@@ -30,6 +30,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.TransportActions;
@@ -79,6 +80,10 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.Stats;
+import org.elasticsearch.search.aggregations.metrics.StatsAggregationBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -136,7 +141,6 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
 import javax.crypto.Cipher;
 import javax.crypto.CipherInputStream;
 import javax.crypto.CipherOutputStream;
@@ -178,7 +182,7 @@ public final class TokenService {
     private static final String EXPIRED_TOKEN_WWW_AUTH_VALUE = "Bearer realm=\""
         + XPackField.SECURITY
         + "\", error=\"invalid_token\", error_description=\"The access token expired\"";
-    private static final String MALFORMED_TOKEN_WWW_AUTH_VALUE = "Bearer realm=\""
+    private static final String zMALFORMED_TOKEN_WWW_AUTH_VALUE = "Bearer realm=\""
         + XPackField.SECURITY
         + "\", error=\"invalid_token\", error_description=\"The access token is malformed\"";
     private static final BackoffPolicy DEFAULT_BACKOFF = BackoffPolicy.exponentialBackoff();
@@ -2234,6 +2238,59 @@ public final class TokenService {
 
     boolean isExpirationInProgress() {
         return expiredTokenRemover.isExpirationInProgress();
+    }
+
+    public void usageStats(ActionListener<Map<String, Object>> listener) {
+        if (enabled == false) {
+            listener.onResponse(Map.of("enabled", false));
+            return;
+        }
+        final Map<String, Object> stats = new HashMap<>();
+        stats.put("enabled", true);
+
+        if (securityTokensIndex.isAvailable() == false) {
+            if (securityTokensIndex.indexExists()) {
+                // Use a null size to indicate that the index exists but isn't available
+                stats.put("size", null);
+            } else {
+                stats.put("size", 0L);
+            }
+            listener.onResponse(stats);
+            return;
+        }
+
+        stats.put(
+            "last_expiration",
+            lastExpirationRunMs == 0L ? null : TimeValue.timeValueMillis(client.threadPool().relativeTimeInMillis() - lastExpirationRunMs)
+        );
+
+        SearchRequestBuilder search = client.prepareSearch(securityTokensIndex.aliasName())
+            .setSize(0)
+            .setFetchSource(false)
+            .setTrackTotalHits(true)
+            .setQuery(QueryBuilders.termQuery("doc_type", TOKEN_DOC_TYPE))
+            .addAggregation(new StatsAggregationBuilder("creation_time_stats").field("creation_time"))
+            .addAggregation(new TermsAggregationBuilder("invalidated_terms").field("access_token.invalidated"));
+
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(SECURITY_ORIGIN)) {
+            securityTokensIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
+                search.execute(ActionListener.wrap(searchResponse -> {
+                    stats.put("size", searchResponse.getHits().getTotalHits().value);
+                    final Terms invalidatedTerms = searchResponse.getAggregations().get("invalidated_terms");
+                    final Terms.Bucket bucket = invalidatedTerms.getBucketByKey("true");
+                    stats.put("invalidated", bucket == null ? 0L : bucket.getDocCount());
+                    final Stats creationTimeStats = searchResponse.getAggregations().get("creation_time_stats");
+                    stats.put(
+                        "creation_time",
+                        Map.ofEntries(
+                            Map.entry("min", Instant.ofEpochMilli((long) creationTimeStats.getMin())),
+                            Map.entry("max", Instant.ofEpochMilli((long) creationTimeStats.getMax()))
+                        )
+                    );
+                    listener.onResponse(stats);
+                }, listener::onFailure));
+            });
+        }
     }
 
     public static final class CreateTokenResult {

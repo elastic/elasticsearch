@@ -29,6 +29,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -64,6 +65,10 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.Stats;
+import org.elasticsearch.search.aggregations.metrics.StatsAggregationBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.InstantiatingObjectParser;
@@ -586,6 +591,59 @@ public class ApiKeyService {
             }
         }
         return new Tuple<>((String) metadata.get(AuthenticationField.API_KEY_ID_KEY), bytesReference);
+    }
+
+    public void usageStats(ActionListener<Map<String, Object>> listener) {
+        if (enabled == false) {
+            listener.onResponse(Map.of("enabled", false));
+            return;
+        }
+        final Map<String, Object> stats = new HashMap<>();
+        stats.put("enabled", true);
+
+        if (securityIndex.isAvailable() == false) {
+            if (securityIndex.indexExists()) {
+                // Use a null size to indicate that the index exists but isn't available
+                stats.put("size", null);
+            } else {
+                stats.put("size", 0L);
+            }
+            listener.onResponse(stats);
+            return;
+        }
+
+        stats.put(
+            "last_expiration",
+            lastExpirationRunMs == 0L ? null : TimeValue.timeValueMillis(client.threadPool().relativeTimeInMillis() - lastExpirationRunMs)
+        );
+
+        SearchRequestBuilder search = client.prepareSearch(securityIndex.aliasName())
+            .setSize(0)
+            .setFetchSource(false)
+            .setTrackTotalHits(true)
+            .setQuery(QueryBuilders.termQuery("doc_type", "api_key"))
+            .addAggregation(new StatsAggregationBuilder("creation_time_stats").field("creation_time"))
+            .addAggregation(new TermsAggregationBuilder("invalidated_terms").field("api_key_invalidated"));
+
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(SECURITY_ORIGIN)) {
+            securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
+                search.execute(ActionListener.wrap(searchResponse -> {
+                    stats.put("size", searchResponse.getHits().getTotalHits().value);
+                    final Terms invalidatedTerms = searchResponse.getAggregations().get("invalidated_terms");
+                    final Terms.Bucket bucket = invalidatedTerms.getBucketByKey("true");
+                    stats.put("invalidated", bucket == null ? 0L : bucket.getDocCount());
+                    final Stats creationTimeStats = searchResponse.getAggregations().get("creation_time_stats");
+                    stats.put(
+                        "creation_time",
+                        Map.ofEntries(
+                            Map.entry("min", Instant.ofEpochMilli((long) creationTimeStats.getMin())),
+                            Map.entry("max", Instant.ofEpochMilli((long) creationTimeStats.getMax()))
+                        )
+                    );
+                    listener.onResponse(stats);
+                }, listener::onFailure));
+            });
+        }
     }
 
     public static class ApiKeyRoleDescriptors {

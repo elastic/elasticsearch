@@ -6,6 +6,9 @@
  */
 package org.elasticsearch.xpack.security;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
@@ -27,7 +30,9 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.security.SecurityFeatureSetUsage;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.Realms;
+import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
@@ -37,7 +42,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
@@ -54,6 +59,8 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
     private final CompositeRolesStore rolesStore;
     private final NativeRoleMappingStore roleMappingStore;
     private final IPFilter ipFilter;
+    private final TokenService tokenService;
+    private final ApiKeyService apiKeyService;
 
     @Inject
     public SecurityUsageTransportAction(
@@ -80,6 +87,8 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
         this.rolesStore = securityServices.rolesStore;
         this.roleMappingStore = securityServices.roleMappingStore;
         this.ipFilter = securityServices.ipFilter;
+        this.tokenService = securityServices.tokenService;
+        this.apiKeyService = securityServices.apiKeyService;
     }
 
     @Override
@@ -89,78 +98,54 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        Map<String, Object> sslUsage = sslUsage(settings);
-        Map<String, Object> tokenServiceUsage = tokenServiceUsage(settings);
-        Map<String, Object> apiKeyServiceUsage = apiKeyServiceUsage(settings);
-        Map<String, Object> auditUsage = auditUsage(settings);
-        Map<String, Object> ipFilterUsage = ipFilterUsage(ipFilter);
-        Map<String, Object> anonymousUsage = singletonMap("enabled", AnonymousUser.isAnonymousEnabled(settings));
-        Map<String, Object> fips140Usage = fips140Usage(settings);
-        Map<String, Object> operatorPrivilegesUsage = Map.of(
-            "available",
-            Security.OPERATOR_PRIVILEGES_FEATURE.checkWithoutTracking(licenseState),
-            "enabled",
-            OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED.get(settings)
+        final boolean enabled = XPackSettings.SECURITY_ENABLED.get(settings);
+        final Builder builder = new Builder(enabled, usage -> listener.onResponse(new XPackUsageFeatureResponse(usage)));
+
+        builder.setSslUsage(sslUsage(settings));
+        builder.setAuditUsage(auditUsage(settings));
+        builder.setIpFilterUsage(ipFilterUsage(ipFilter));
+        builder.setAnonymousUsage(Map.of("enabled", AnonymousUser.isAnonymousEnabled(settings)));
+        builder.setFips140Usage(fips140Usage(settings));
+        builder.setOperatorPrivilegesUsage(
+            Map.of(
+                "available",
+                Security.OPERATOR_PRIVILEGES_FEATURE.checkWithoutTracking(licenseState),
+                "enabled",
+                OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED.get(settings)
+            )
         );
 
-        final AtomicReference<Map<String, Object>> rolesUsageRef = new AtomicReference<>();
-        final AtomicReference<Map<String, Object>> roleMappingUsageRef = new AtomicReference<>();
-        final AtomicReference<Map<String, Object>> realmsUsageRef = new AtomicReference<>();
-
-        final boolean enabled = XPackSettings.SECURITY_ENABLED.get(settings);
-        final CountDown countDown = new CountDown(3);
-        final Runnable doCountDown = () -> {
-            if (countDown.countDown()) {
-                var usage = new SecurityFeatureSetUsage(
-                    enabled,
-                    realmsUsageRef.get(),
-                    rolesUsageRef.get(),
-                    roleMappingUsageRef.get(),
-                    sslUsage,
-                    auditUsage,
-                    ipFilterUsage,
-                    anonymousUsage,
-                    tokenServiceUsage,
-                    apiKeyServiceUsage,
-                    fips140Usage,
-                    operatorPrivilegesUsage
-                );
-                listener.onResponse(new XPackUsageFeatureResponse(usage));
-            }
-        };
-
-        final ActionListener<Map<String, Object>> rolesStoreUsageListener = ActionListener.wrap(rolesStoreUsage -> {
-            rolesUsageRef.set(rolesStoreUsage);
-            doCountDown.run();
-        }, listener::onFailure);
-
-        final ActionListener<Map<String, Object>> roleMappingStoreUsageListener = ActionListener.wrap(nativeRoleMappingStoreUsage -> {
-            Map<String, Object> usage = singletonMap("native", nativeRoleMappingStoreUsage);
-            roleMappingUsageRef.set(usage);
-            doCountDown.run();
-        }, listener::onFailure);
-
-        final ActionListener<Map<String, Object>> realmsUsageListener = ActionListener.wrap(realmsUsage -> {
-            realmsUsageRef.set(realmsUsage);
-            doCountDown.run();
-        }, listener::onFailure);
-
         if (rolesStore == null || enabled == false) {
-            rolesStoreUsageListener.onResponse(Collections.emptyMap());
+            builder.setRolesStoreUsage(Map.of());
         } else {
-            rolesStore.usageStats(rolesStoreUsageListener);
-        }
-        if (roleMappingStore == null || enabled == false) {
-            roleMappingStoreUsageListener.onResponse(Collections.emptyMap());
-        } else {
-            roleMappingStore.usageStats(roleMappingStoreUsageListener);
-        }
-        if (realms == null || enabled == false) {
-            realmsUsageListener.onResponse(Collections.emptyMap());
-        } else {
-            realms.usageStats(realmsUsageListener);
+            rolesStore.usageStats(ActionListener.wrap(builder::setRolesStoreUsage, listener::onFailure));
         }
 
+        if (roleMappingStore == null || enabled == false) {
+            builder.setRoleMappingStoreUsage(Map.of("native", Map.of()));
+        } else {
+            roleMappingStore.usageStats(
+                ActionListener.wrap(usage -> builder.setRoleMappingStoreUsage(Map.of("native", usage)), listener::onFailure)
+            );
+        }
+
+        if (realms == null || enabled == false) {
+            builder.setRealmsUsage(Map.of());
+        } else {
+            realms.usageStats(ActionListener.wrap(builder::setRealmsUsage, listener::onFailure));
+        }
+
+        if (tokenService == null || enabled == false) {
+            builder.setTokenServiceUsage(Map.of());
+        } else {
+            tokenService.usageStats(ActionListener.wrap(builder::setTokenServiceUsage, listener::onFailure));
+        }
+
+        if (apiKeyService == null || enabled == false) {
+            builder.setApiKeyServiceUsage(Map.of());
+        } else {
+            apiKeyService.usageStats(ActionListener.wrap(builder::setApiKeyServiceUsage, listener::onFailure));
+        }
     }
 
     static Map<String, Object> sslUsage(Settings settings) {
@@ -203,5 +188,106 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
 
     static Map<String, Object> fips140Usage(Settings settings) {
         return singletonMap("enabled", FIPS_MODE_ENABLED.get(settings));
+    }
+
+    private static class Builder {
+
+        private final CountDown countDown;
+        private final boolean enabled;
+        private final Consumer<SecurityFeatureSetUsage> callback;
+
+        private final SetOnce<Map<String, Object>> realmsUsage = new SetOnce<>();
+        private final SetOnce<Map<String, Object>> rolesStoreUsage = new SetOnce<>();
+        private final SetOnce<Map<String, Object>> roleMappingStoreUsage = new SetOnce<>();
+        private final SetOnce<Map<String, Object>> sslUsage = new SetOnce<>();
+        private final SetOnce<Map<String, Object>> auditUsage = new SetOnce<>();
+        private final SetOnce<Map<String, Object>> ipFilterUsage = new SetOnce<>();
+        private final SetOnce<Map<String, Object>> anonymousUsage = new SetOnce<>();
+        private final SetOnce<Map<String, Object>> tokenServiceUsage = new SetOnce<>();
+        private final SetOnce<Map<String, Object>> apiKeyServiceUsage = new SetOnce<>();
+        private final SetOnce<Map<String, Object>> fips140Usage = new SetOnce<>();
+        private final SetOnce<Map<String, Object>> operatorPrivilegesUsage = new SetOnce<>();
+
+        Builder(boolean enabled, Consumer<SecurityFeatureSetUsage> callback) {
+            this.enabled = enabled;
+            this.callback = callback;
+            this.countDown = new CountDown(11);
+        }
+
+        public void setRealmsUsage(Map<String, Object> realmsUsage) {
+            this.realmsUsage.set(realmsUsage);
+            countDown();
+        }
+
+        public void setRolesStoreUsage(Map<String, Object> rolesStoreUsage) {
+            this.rolesStoreUsage.set(rolesStoreUsage);
+            countDown();
+        }
+
+        public void setRoleMappingStoreUsage(Map<String, Object> roleMappingStoreUsage) {
+            this.roleMappingStoreUsage.set(roleMappingStoreUsage);
+            countDown();
+        }
+
+        public void setSslUsage(Map<String, Object> sslUsage) {
+            this.sslUsage.set(sslUsage);
+            countDown();
+        }
+
+        public void setAuditUsage(Map<String, Object> auditUsage) {
+            this.auditUsage.set(auditUsage);
+            countDown();
+        }
+
+        public void setIpFilterUsage(Map<String, Object> ipFilterUsage) {
+            this.ipFilterUsage.set(ipFilterUsage);
+            countDown();
+        }
+
+        public void setAnonymousUsage(Map<String, Object> anonymousUsage) {
+            this.anonymousUsage.set(anonymousUsage);
+            countDown();
+        }
+
+        public void setTokenServiceUsage(Map<String, Object> tokenServiceUsage) {
+            this.tokenServiceUsage.set(tokenServiceUsage);
+            countDown();
+        }
+
+        public void setApiKeyServiceUsage(Map<String, Object> apiKeyServiceUsage) {
+            this.apiKeyServiceUsage.set(apiKeyServiceUsage);
+            countDown();
+        }
+
+        public void setFips140Usage(Map<String, Object> fips140Usage) {
+            this.fips140Usage.set(fips140Usage);
+            countDown();
+        }
+
+        public void setOperatorPrivilegesUsage(Map<String, Object> operatorPrivilegesUsage) {
+            this.operatorPrivilegesUsage.set(operatorPrivilegesUsage);
+            countDown();
+        }
+
+        private void countDown() {
+            if (this.countDown.countDown()) {
+                callback.accept(
+                    new SecurityFeatureSetUsage(
+                        this.enabled,
+                        this.realmsUsage.get(),
+                        this.rolesStoreUsage.get(),
+                        this.roleMappingStoreUsage.get(),
+                        this.sslUsage.get(),
+                        this.auditUsage.get(),
+                        this.ipFilterUsage.get(),
+                        this.anonymousUsage.get(),
+                        this.tokenServiceUsage.get(),
+                        this.apiKeyServiceUsage.get(),
+                        this.fips140Usage.get(),
+                        this.operatorPrivilegesUsage.get()
+                    )
+                );
+            }
+        }
     }
 }

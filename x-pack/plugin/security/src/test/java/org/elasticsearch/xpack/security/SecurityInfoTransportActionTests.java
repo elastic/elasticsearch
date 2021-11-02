@@ -26,7 +26,9 @@ import org.elasticsearch.xpack.core.security.SecurityFeatureSetUsage;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.Realms;
+import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -66,7 +68,9 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
         ipFilter = mock(IPFilter.class);
         rolesStore = mock(CompositeRolesStore.class);
         roleMappingStore = mock(NativeRoleMappingStore.class);
-        securityServices = new SecurityUsageServices(realms, rolesStore, roleMappingStore, ipFilter);
+        TokenService tokenService = mock(TokenService.class);
+        ApiKeyService apiKeyService = mock(ApiKeyService.class);
+        securityServices = new SecurityUsageServices(realms, rolesStore, roleMappingStore, ipFilter, tokenService, apiKeyService);
     }
 
     public void testAvailable() {

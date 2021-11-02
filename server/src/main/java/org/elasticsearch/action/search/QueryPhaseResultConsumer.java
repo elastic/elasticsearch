@@ -264,7 +264,9 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             } finally {
                 // Clean up any delayed aggregations we haven't processed.
                 Releasables.close(
-                    buffer.stream().filter(b -> b.aggregations() != null).map(b -> b.aggregations()).collect(Collectors.toList())
+                    (Iterable<DelayableWriteable<InternalAggregations>>) (() -> buffer.stream()
+                        .map(QuerySearchResult::aggregations)
+                        .iterator())
                 );
             }
         }

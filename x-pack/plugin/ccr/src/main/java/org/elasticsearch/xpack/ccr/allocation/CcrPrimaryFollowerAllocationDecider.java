@@ -36,17 +36,28 @@ public final class CcrPrimaryFollowerAllocationDecider extends AllocationDecider
         }
         final RecoverySource recoverySource = shardRouting.recoverySource();
         if (recoverySource == null || recoverySource.getType() != RecoverySource.Type.SNAPSHOT) {
-            return allocation.decision(Decision.YES, NAME,
-                "shard is a primary follower but was bootstrapped already; hence is not under the purview of this decider");
+            return allocation.decision(
+                Decision.YES,
+                NAME,
+                "shard is a primary follower but was bootstrapped already; hence is not under the purview of this decider"
+            );
         }
         if (node.node().isRemoteClusterClient()) {
-            return allocation.decision(Decision.YES, NAME,
-                "shard is a primary follower and node has the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role");
+            return allocation.decision(
+                Decision.YES,
+                NAME,
+                "shard is a primary follower and node has the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role"
+            );
         }
         if (node.node().getVersion().before(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE_VERSION)) {
             return allocation.decision(Decision.YES, NAME, "shard is a primary follower and node has only the legacy roles");
         }
-        return allocation.decision(Decision.NO, NAME, "shard is a primary follower and being bootstrapped, but node does not have the "
-            + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role");
+        return allocation.decision(
+            Decision.NO,
+            NAME,
+            "shard is a primary follower and being bootstrapped, but node does not have the "
+                + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName()
+                + " role"
+        );
     }
 }

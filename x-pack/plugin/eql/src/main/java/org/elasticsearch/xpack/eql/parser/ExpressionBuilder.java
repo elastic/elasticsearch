@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.eql.parser;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.elasticsearch.xpack.eql.expression.OptionalUnresolvedAttribute;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionResolution;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.Match;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.Wildcard;
@@ -60,7 +61,6 @@ import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
-
 
 public class ExpressionBuilder extends IdentifierBuilder {
 
@@ -222,7 +222,10 @@ public class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public UnresolvedAttribute visitDereference(DereferenceContext ctx) {
-        return new UnresolvedAttribute(source(ctx), visitQualifiedName(ctx.qualifiedName()));
+        Source source = source(ctx);
+        EqlBaseParser.QualifiedNameContext qContext = ctx.qualifiedName();
+        String name = visitQualifiedName(qContext);
+        return qContext.OPTIONAL() != null ? new OptionalUnresolvedAttribute(source, name) : new UnresolvedAttribute(source, name);
     }
 
     @Override
@@ -254,8 +257,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
             // if it's too large, then quietly try to parse as a float instead
             try {
                 return new Literal(source, Double.valueOf(StringUtils.parseDouble(text)), DataTypes.DOUBLE);
-            } catch (QlIllegalArgumentException ignored) {
-            }
+            } catch (QlIllegalArgumentException ignored) {}
 
             throw new ParsingException(source, siae.getMessage());
         }

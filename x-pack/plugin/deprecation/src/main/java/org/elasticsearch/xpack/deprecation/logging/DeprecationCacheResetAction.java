@@ -113,18 +113,16 @@ public class DeprecationCacheResetAction extends ActionType<DeprecationCacheRese
             super(in);
         }
 
-        public NodeRequest(Request request) {
-        }
+        public NodeRequest(Request request) {}
     }
 
     public static class NodeResponse extends BaseNodeResponse {
-
 
         protected NodeResponse(StreamInput in) throws IOException {
             super(in);
         }
 
-        protected NodeResponse(DiscoveryNode node ) {
+        protected NodeResponse(DiscoveryNode node) {
             super(node);
 
         }

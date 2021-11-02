@@ -15,10 +15,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -52,11 +52,9 @@ public class RootObjectMapper extends ObjectMapper {
     static final String TOXCONTENT_SKIP_RUNTIME = "skip_runtime";
 
     public static class Defaults {
-        public static final DateFormatter[] DYNAMIC_DATE_TIME_FORMATTERS =
-                new DateFormatter[]{
-                        DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
-                        DateFormatter.forPattern("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis")
-                };
+        public static final DateFormatter[] DYNAMIC_DATE_TIME_FORMATTERS = new DateFormatter[] {
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+            DateFormatter.forPattern("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||epoch_millis") };
         public static final boolean DATE_DETECTION = true;
         public static final boolean NUMERIC_DETECTION = false;
     }
@@ -96,11 +94,17 @@ public class RootObjectMapper extends ObjectMapper {
 
         @Override
         public RootObjectMapper build(MapperBuilderContext context) {
-            return new RootObjectMapper(name, enabled, dynamic, buildMappers(true, context),
+            return new RootObjectMapper(
+                name,
+                enabled,
+                dynamic,
+                buildMappers(true, context),
                 runtimeFields == null ? Collections.emptyMap() : runtimeFields,
                 dynamicDateTimeFormatters,
                 dynamicTemplates,
-                dateDetection, numericDetection);
+                dateDetection,
+                numericDetection
+            );
         }
     }
 
@@ -155,15 +159,18 @@ public class RootObjectMapper extends ObjectMapper {
         }
 
         @SuppressWarnings("unchecked")
-        private boolean processField(RootObjectMapper.Builder builder,
-                                     String fieldName, Object fieldNode,
-                                     MappingParserContext parserContext) {
+        private boolean processField(
+            RootObjectMapper.Builder builder,
+            String fieldName,
+            Object fieldNode,
+            MappingParserContext parserContext
+        ) {
             if (fieldName.equals("date_formats") || fieldName.equals("dynamic_date_formats")) {
                 if (fieldNode instanceof List) {
                     List<DateFormatter> formatters = new ArrayList<>();
                     for (Object formatter : (List<?>) fieldNode) {
                         if (formatter.toString().startsWith("epoch_")) {
-                            throw new MapperParsingException("Epoch ["+ formatter +"] is not supported as dynamic date format");
+                            throw new MapperParsingException("Epoch [" + formatter + "] is not supported as dynamic date format");
                         }
                         formatters.add(parseDateTimeFormatter(formatter));
                     }
@@ -175,15 +182,15 @@ public class RootObjectMapper extends ObjectMapper {
                 }
                 return true;
             } else if (fieldName.equals("dynamic_templates")) {
-                //  "dynamic_templates" : [
-                //      {
-                //          "template_1" : {
-                //              "match" : "*_test",
-                //              "match_mapping_type" : "string",
-                //              "mapping" : { "type" : "keyword", "store" : "yes" }
-                //          }
-                //      }
-                //  ]
+                // "dynamic_templates" : [
+                // {
+                // "template_1" : {
+                // "match" : "*_test",
+                // "match_mapping_type" : "string",
+                // "mapping" : { "type" : "keyword", "store" : "yes" }
+                // }
+                // }
+                // ]
                 if ((fieldNode instanceof List) == false) {
                     throw new MapperParsingException("Dynamic template syntax error. An array of named objects is expected.");
                 }
@@ -234,10 +241,17 @@ public class RootObjectMapper extends ObjectMapper {
     private Explicit<DynamicTemplate[]> dynamicTemplates;
     private Map<String, RuntimeField> runtimeFields;
 
-    RootObjectMapper(String name, Explicit<Boolean> enabled, Dynamic dynamic, Map<String, Mapper> mappers,
-                     Map<String, RuntimeField> runtimeFields,
-                     Explicit<DateFormatter[]> dynamicDateTimeFormatters, Explicit<DynamicTemplate[]> dynamicTemplates,
-                     Explicit<Boolean> dateDetection, Explicit<Boolean> numericDetection) {
+    RootObjectMapper(
+        String name,
+        Explicit<Boolean> enabled,
+        Dynamic dynamic,
+        Map<String, Mapper> mappers,
+        Map<String, RuntimeField> runtimeFields,
+        Explicit<DateFormatter[]> dynamicDateTimeFormatters,
+        Explicit<DynamicTemplate[]> dynamicTemplates,
+        Explicit<Boolean> dateDetection,
+        Explicit<Boolean> numericDetection
+    ) {
         super(name, name, enabled, dynamic, mappers);
         this.runtimeFields = runtimeFields;
         this.dynamicTemplates = dynamicTemplates;
@@ -263,7 +277,7 @@ public class RootObjectMapper extends ObjectMapper {
         copy.dynamicDateTimeFormatters = new Explicit<>(Defaults.DYNAMIC_DATE_TIME_FORMATTERS, false);
         copy.dateDetection = new Explicit<>(Defaults.DATE_DETECTION, false);
         copy.numericDetection = new Explicit<>(Defaults.NUMERIC_DETECTION, false);
-        //also no need to carry the already defined runtime fields, only new ones need to be added
+        // also no need to carry the already defined runtime fields, only new ones need to be added
         copy.runtimeFields.clear();
         return copy;
     }
@@ -388,8 +402,10 @@ public class RootObjectMapper extends ObjectMapper {
 
         if (runtimeFields.size() > 0 && params.paramAsBoolean(TOXCONTENT_SKIP_RUNTIME, false) == false) {
             builder.startObject("runtime");
-            List<RuntimeField> sortedRuntimeFields = runtimeFields.values().stream().sorted(
-                Comparator.comparing(RuntimeField::name)).collect(Collectors.toList());
+            List<RuntimeField> sortedRuntimeFields = runtimeFields.values()
+                .stream()
+                .sorted(Comparator.comparing(RuntimeField::name))
+                .collect(Collectors.toList());
             for (RuntimeField fieldType : sortedRuntimeFields) {
                 fieldType.toXContent(builder, params);
             }
@@ -397,8 +413,7 @@ public class RootObjectMapper extends ObjectMapper {
         }
     }
 
-    private static void validateDynamicTemplate(MappingParserContext parserContext,
-                                                DynamicTemplate template) {
+    private static void validateDynamicTemplate(MappingParserContext parserContext, DynamicTemplate template) {
 
         if (containsSnippet(template.getMapping(), "{name}")) {
             // Can't validate template, because field names can't be guessed up front.
@@ -424,8 +439,11 @@ public class RootObjectMapper extends ObjectMapper {
                     if (typeParser == null) {
                         throw new IllegalArgumentException("No mapper found for type [" + mappingType + "]");
                     }
-                    validate(template, dynamicType, (name, mapping) ->
-                        typeParser.parse(name, mapping, parserContext).build(MapperBuilderContext.ROOT));
+                    validate(
+                        template,
+                        dynamicType,
+                        (name, mapping) -> typeParser.parse(name, mapping, parserContext).build(MapperBuilderContext.ROOT)
+                    );
                 }
                 lastError = null; // ok, the template is valid for at least one type
                 break;
@@ -435,17 +453,21 @@ public class RootObjectMapper extends ObjectMapper {
         }
         final boolean shouldEmitDeprecationWarning = parserContext.indexVersionCreated().onOrAfter(Version.V_7_7_0);
         if (lastError != null && shouldEmitDeprecationWarning) {
-            String format = "dynamic template [%s] has invalid content [%s], " +
-                "attempted to validate it with the following match_mapping_type: %s, caused by [%s]";
-            String message = String.format(Locale.ROOT, format,
-                template.getName(), Strings.toString(template), Arrays.toString(types), lastError.getMessage());
+            String format = "dynamic template [%s] has invalid content [%s], "
+                + "attempted to validate it with the following match_mapping_type: %s, caused by [%s]";
+            String message = String.format(
+                Locale.ROOT,
+                format,
+                template.getName(),
+                Strings.toString(template),
+                Arrays.toString(types),
+                lastError.getMessage()
+            );
             DEPRECATION_LOGGER.critical(DeprecationCategory.TEMPLATES, "invalid_dynamic_template", message);
         }
     }
 
-    private static void validate(DynamicTemplate template,
-                                 String dynamicType,
-                                 BiConsumer<String, Map<String, Object>> mappingConsumer) {
+    private static void validate(DynamicTemplate template, String dynamicType, BiConsumer<String, Map<String, Object>> mappingConsumer) {
         String templateName = "__dynamic__" + template.name();
         Map<String, Object> fieldTypeConfig = template.mappingForName(templateName, dynamicType);
         mappingConsumer.accept(templateName, fieldTypeConfig);

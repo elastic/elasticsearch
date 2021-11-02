@@ -118,8 +118,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
     }
 
     @Override
-    protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener)
-        throws Exception {
+    protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
         TransformNodes.warnIfNoTransformNodes(state);
 
         // do not allow in mixed clusters

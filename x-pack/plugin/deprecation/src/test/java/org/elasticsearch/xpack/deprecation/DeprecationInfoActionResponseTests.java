@@ -51,19 +51,23 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
     @Override
     protected DeprecationInfoAction.Response createTestInstance() {
         List<DeprecationIssue> clusterIssues = Stream.generate(DeprecationInfoActionResponseTests::createTestDeprecationIssue)
-            .limit(randomIntBetween(0, 10)).collect(Collectors.toList());
+            .limit(randomIntBetween(0, 10))
+            .collect(Collectors.toList());
         List<DeprecationIssue> nodeIssues = Stream.generate(DeprecationInfoActionResponseTests::createTestDeprecationIssue)
-            .limit(randomIntBetween(0, 10)).collect(Collectors.toList());
+            .limit(randomIntBetween(0, 10))
+            .collect(Collectors.toList());
         Map<String, List<DeprecationIssue>> indexIssues = new HashMap<>();
         for (int i = 0; i < randomIntBetween(0, 10); i++) {
             List<DeprecationIssue> perIndexIssues = Stream.generate(DeprecationInfoActionResponseTests::createTestDeprecationIssue)
-                .limit(randomIntBetween(0, 10)).collect(Collectors.toList());
+                .limit(randomIntBetween(0, 10))
+                .collect(Collectors.toList());
             indexIssues.put(randomAlphaOfLength(10), perIndexIssues);
         }
         Map<String, List<DeprecationIssue>> pluginIssues = new HashMap<>();
         for (int i = 0; i < randomIntBetween(0, 10); i++) {
             List<DeprecationIssue> perPluginIssues = Stream.generate(DeprecationInfoActionResponseTests::createTestDeprecationIssue)
-                .limit(randomIntBetween(0, 10)).collect(Collectors.toList());
+                .limit(randomIntBetween(0, 10))
+                .collect(Collectors.toList());
             pluginIssues.put(randomAlphaOfLength(10), perPluginIssues);
         }
         return new DeprecationInfoAction.Response(clusterIssues, nodeIssues, indexIssues, pluginIssues);
@@ -79,47 +83,55 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         mapping.field("enabled", false);
         mapping.endObject().endObject();
 
-        Metadata metadata = Metadata.builder().put(IndexMetadata.builder("test")
-            .putMapping("testUnderscoreAll", Strings.toString(mapping))
-            .settings(settings(Version.CURRENT))
-            .numberOfShards(1)
-            .numberOfReplicas(0))
+        Metadata metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder("test")
+                    .putMapping("testUnderscoreAll", Strings.toString(mapping))
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+            )
             .build();
 
-        DiscoveryNode discoveryNode = DiscoveryNode.createLocal(Settings.EMPTY,
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300), "test");
+        DiscoveryNode discoveryNode = DiscoveryNode.createLocal(
+            Settings.EMPTY,
+            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
+            "test"
+        );
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
         boolean clusterIssueFound = randomBoolean();
         boolean nodeIssueFound = randomBoolean();
         boolean indexIssueFound = randomBoolean();
         DeprecationIssue foundIssue = createTestDeprecationIssue();
-        List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks =
-            Collections.unmodifiableList(Arrays.asList(
-                (s) -> clusterIssueFound ? foundIssue : null
-            ));
-        List<BiFunction<ClusterState, IndexMetadata, DeprecationIssue>> indexSettingsChecks =
-            Collections.unmodifiableList(Arrays.asList(
-                (cs, idx) -> indexIssueFound ? foundIssue : null
-            ));
+        List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks = Collections.unmodifiableList(
+            Arrays.asList((s) -> clusterIssueFound ? foundIssue : null)
+        );
+        List<BiFunction<ClusterState, IndexMetadata, DeprecationIssue>> indexSettingsChecks = Collections.unmodifiableList(
+            Arrays.asList((cs, idx) -> indexIssueFound ? foundIssue : null)
+        );
 
         NodesDeprecationCheckResponse nodeDeprecationIssues = new NodesDeprecationCheckResponse(
             new ClusterName(randomAlphaOfLength(5)),
             nodeIssueFound
                 ? Collections.singletonList(
-                    new NodesDeprecationCheckAction.NodeResponse(discoveryNode, Collections.singletonList(foundIssue)))
+                    new NodesDeprecationCheckAction.NodeResponse(discoveryNode, Collections.singletonList(foundIssue))
+                )
                 : emptyList(),
-            emptyList());
+            emptyList()
+        );
 
         DeprecationInfoAction.Request request = new DeprecationInfoAction.Request(Strings.EMPTY_ARRAY);
-        DeprecationInfoAction.Response response = DeprecationInfoAction.Response.from(state,
+        DeprecationInfoAction.Response response = DeprecationInfoAction.Response.from(
+            state,
             resolver,
             request,
             nodeDeprecationIssues,
             indexSettingsChecks,
             clusterSettingsChecks,
             Collections.emptyMap(),
-            Collections.emptyList());
+            Collections.emptyList()
+        );
 
         if (clusterIssueFound) {
             assertThat(response.getClusterSettingsIssues(), equalTo(Collections.singletonList(foundIssue)));
@@ -129,17 +141,21 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
 
         if (nodeIssueFound) {
             String details = foundIssue.getDetails() != null ? foundIssue.getDetails() + " " : "";
-            DeprecationIssue mergedFoundIssue = new DeprecationIssue(foundIssue.getLevel(), foundIssue.getMessage(), foundIssue.getUrl(),
-                details + "(nodes impacted: [" + discoveryNode.getName() + "])", foundIssue.isResolveDuringRollingUpgrade(),
-                foundIssue.getMeta());
+            DeprecationIssue mergedFoundIssue = new DeprecationIssue(
+                foundIssue.getLevel(),
+                foundIssue.getMessage(),
+                foundIssue.getUrl(),
+                details + "(nodes impacted: [" + discoveryNode.getName() + "])",
+                foundIssue.isResolveDuringRollingUpgrade(),
+                foundIssue.getMeta()
+            );
             assertThat(response.getNodeSettingsIssues(), equalTo(Collections.singletonList(mergedFoundIssue)));
         } else {
             assertTrue(response.getNodeSettingsIssues().isEmpty());
         }
 
         if (indexIssueFound) {
-            assertThat(response.getIndexSettingsIssues(), equalTo(Collections.singletonMap("test",
-                Collections.singletonList(foundIssue))));
+            assertThat(response.getIndexSettingsIssues(), equalTo(Collections.singletonMap("test", Collections.singletonList(foundIssue))));
         } else {
             assertTrue(response.getIndexSettingsIssues().isEmpty());
         }
@@ -153,46 +169,43 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         settingsBuilder.put("some.undeprecated.property", "someValue3");
         settingsBuilder.putList("some.undeprecated.list.property", org.elasticsearch.core.List.of("someValue4", "someValue5"));
         Settings inputSettings = settingsBuilder.build();
-        Metadata metadata = Metadata.builder().put(IndexMetadata.builder("test")
-            .settings(inputSettings)
-            .numberOfShards(1)
-            .numberOfReplicas(0))
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(inputSettings).numberOfShards(1).numberOfReplicas(0))
             .persistentSettings(inputSettings)
             .build();
 
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
         AtomicReference<Settings> visibleClusterSettings = new AtomicReference<>();
-        List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks =
-            Collections.unmodifiableList(Arrays.asList(
-                (s) -> {
-                    visibleClusterSettings.set(s.getMetadata().settings());
-                    return null;
-                }
-            ));
+        List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks = Collections.unmodifiableList(Arrays.asList((s) -> {
+            visibleClusterSettings.set(s.getMetadata().settings());
+            return null;
+        }));
         AtomicReference<Settings> visibleIndexSettings = new AtomicReference<>();
-        List<BiFunction<ClusterState, IndexMetadata, DeprecationIssue>> indexSettingsChecks =
-            Collections.unmodifiableList(Arrays.asList(
-                (cs, idx) -> {
-                    visibleIndexSettings.set(idx.getSettings());
-                    return null;
-                }
-            ));
+        List<BiFunction<ClusterState, IndexMetadata, DeprecationIssue>> indexSettingsChecks = Collections.unmodifiableList(
+            Arrays.asList((cs, idx) -> {
+                visibleIndexSettings.set(idx.getSettings());
+                return null;
+            })
+        );
 
         NodesDeprecationCheckResponse nodeDeprecationIssues = new NodesDeprecationCheckResponse(
             new ClusterName(randomAlphaOfLength(5)),
             emptyList(),
-            emptyList());
+            emptyList()
+        );
 
         DeprecationInfoAction.Request request = new DeprecationInfoAction.Request(Strings.EMPTY_ARRAY);
-        DeprecationInfoAction.Response.from(state,
+        DeprecationInfoAction.Response.from(
+            state,
             resolver,
             request,
             nodeDeprecationIssues,
             indexSettingsChecks,
             clusterSettingsChecks,
             Collections.emptyMap(),
-            org.elasticsearch.core.List.of("some.deprecated.property", "some.other.*.deprecated.property"));
+            org.elasticsearch.core.List.of("some.deprecated.property", "some.other.*.deprecated.property")
+        );
 
         settingsBuilder = settings(Version.CURRENT);
         settingsBuilder.put("some.undeprecated.property", "someValue3");
@@ -204,8 +217,10 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         Settings resultIndexSettings = visibleIndexSettings.get();
         Assert.assertNotNull(resultIndexSettings);
         Assert.assertTrue(resultIndexSettings.get("some.undeprecated.property").equals("someValue3"));
-        Assert.assertTrue(resultIndexSettings.getAsList("some.undeprecated.list.property")
-            .equals(org.elasticsearch.core.List.of("someValue4", "someValue5")));
+        Assert.assertTrue(
+            resultIndexSettings.getAsList("some.undeprecated.list.property")
+                .equals(org.elasticsearch.core.List.of("someValue4", "someValue5"))
+        );
         Assert.assertFalse(resultIndexSettings.hasValue("some.deprecated.property"));
         Assert.assertFalse(resultIndexSettings.hasValue("some.other.bad.deprecated.property"));
     }
@@ -215,9 +230,8 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             .limit(10)
             .collect(Collectors.toMap(Function.identity(), (_k) -> Collections.emptyList()));
         Set<String> shouldCauseFailure = new HashSet<>(RESERVED_NAMES);
-        for(int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
-            Map<String, List<DeprecationIssue>> pluginSettingsIssues = randomSubsetOf(3, shouldCauseFailure)
-                .stream()
+        for (int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
+            Map<String, List<DeprecationIssue>> pluginSettingsIssues = randomSubsetOf(3, shouldCauseFailure).stream()
                 .collect(Collectors.toMap(Function.identity(), (_k) -> Collections.emptyList()));
             expectThrows(
                 ElasticsearchStatusException.class,

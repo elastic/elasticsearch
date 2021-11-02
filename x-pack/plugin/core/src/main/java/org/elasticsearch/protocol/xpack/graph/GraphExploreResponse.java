@@ -11,17 +11,17 @@ import com.carrotsearch.hppc.ObjectIntHashMap;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.protocol.xpack.graph.Connection.ConnectionId;
 import org.elasticsearch.protocol.xpack.graph.Connection.UnresolvedConnection;
 import org.elasticsearch.protocol.xpack.graph.Vertex.VertexId;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -85,8 +85,14 @@ public class GraphExploreResponse extends ActionResponse implements ToXContentOb
 
     }
 
-    public GraphExploreResponse(long tookInMillis, boolean timedOut, ShardOperationFailedException[] shardFailures,
-                                Map<VertexId, Vertex> vertices, Map<ConnectionId, Connection> connections, boolean returnDetailedInfo) {
+    public GraphExploreResponse(
+        long tookInMillis,
+        boolean timedOut,
+        ShardOperationFailedException[] shardFailures,
+        Map<VertexId, Vertex> vertices,
+        Map<ConnectionId, Connection> connections,
+        boolean returnDetailedInfo
+    ) {
         this.tookInMillis = tookInMillis;
         this.timedOut = timedOut;
         this.shardFailures = shardFailures;
@@ -94,7 +100,6 @@ public class GraphExploreResponse extends ActionResponse implements ToXContentOb
         this.connections = connections;
         this.returnDetailedInfo = returnDetailedInfo;
     }
-
 
     public TimeValue getTook() {
         return new TimeValue(tookInMillis);
@@ -111,6 +116,7 @@ public class GraphExploreResponse extends ActionResponse implements ToXContentOb
     public boolean isTimedOut() {
         return this.timedOut;
     }
+
     public ShardOperationFailedException[] getShardFailures() {
         return shardFailures;
     }
@@ -198,36 +204,38 @@ public class GraphExploreResponse extends ActionResponse implements ToXContentOb
     }
 
     private static final ConstructingObjectParser<GraphExploreResponse, Void> PARSER = new ConstructingObjectParser<>(
-            "GraphExploreResponsenParser", true,
-            args -> {
-                GraphExploreResponse result = new GraphExploreResponse();
-                result.vertices = new HashMap<>();
-                result.connections = new HashMap<>();
+        "GraphExploreResponsenParser",
+        true,
+        args -> {
+            GraphExploreResponse result = new GraphExploreResponse();
+            result.vertices = new HashMap<>();
+            result.connections = new HashMap<>();
 
-                result.tookInMillis = (Long) args[0];
-                result.timedOut = (Boolean) args[1];
+            result.tookInMillis = (Long) args[0];
+            result.timedOut = (Boolean) args[1];
 
-                @SuppressWarnings("unchecked")
-                List<Vertex> vertices = (List<Vertex>) args[2];
-                @SuppressWarnings("unchecked")
-                List<UnresolvedConnection> unresolvedConnections = (List<UnresolvedConnection>) args[3];
-                @SuppressWarnings("unchecked")
-                List<ShardSearchFailure> failures = (List<ShardSearchFailure>) args[4];
-                for (Vertex vertex : vertices) {
-                    // reverse-engineer if detailed stats were requested -
-                    // mainly here for testing framework's equality tests
-                    result.returnDetailedInfo = result.returnDetailedInfo || vertex.getFg() > 0;
-                    result.vertices.put(vertex.getId(), vertex);
-                }
-                for (UnresolvedConnection unresolvedConnection : unresolvedConnections) {
-                    Connection resolvedConnection = unresolvedConnection.resolve(vertices);
-                    result.connections.put(resolvedConnection.getId(), resolvedConnection);
-                }
-                if (failures.size() > 0) {
-                    result.shardFailures = failures.toArray(new ShardSearchFailure[failures.size()]);
-                }
-                return result;
-            });
+            @SuppressWarnings("unchecked")
+            List<Vertex> vertices = (List<Vertex>) args[2];
+            @SuppressWarnings("unchecked")
+            List<UnresolvedConnection> unresolvedConnections = (List<UnresolvedConnection>) args[3];
+            @SuppressWarnings("unchecked")
+            List<ShardSearchFailure> failures = (List<ShardSearchFailure>) args[4];
+            for (Vertex vertex : vertices) {
+                // reverse-engineer if detailed stats were requested -
+                // mainly here for testing framework's equality tests
+                result.returnDetailedInfo = result.returnDetailedInfo || vertex.getFg() > 0;
+                result.vertices.put(vertex.getId(), vertex);
+            }
+            for (UnresolvedConnection unresolvedConnection : unresolvedConnections) {
+                Connection resolvedConnection = unresolvedConnection.resolve(vertices);
+                result.connections.put(resolvedConnection.getId(), resolvedConnection);
+            }
+            if (failures.size() > 0) {
+                result.shardFailures = failures.toArray(new ShardSearchFailure[failures.size()]);
+            }
+            return result;
+        }
+    );
 
     static {
         PARSER.declareLong(constructorArg(), TOOK);

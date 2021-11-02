@@ -12,8 +12,9 @@ import org.elasticsearch.client.ElasticsearchClient;
 /**
  * Request builder for populating a {@link OpenIdConnectAuthenticateRequest}
  */
-public class OpenIdConnectAuthenticateRequestBuilder
-    extends ActionRequestBuilder<OpenIdConnectAuthenticateRequest, OpenIdConnectAuthenticateResponse> {
+public class OpenIdConnectAuthenticateRequestBuilder extends ActionRequestBuilder<
+    OpenIdConnectAuthenticateRequest,
+    OpenIdConnectAuthenticateResponse> {
 
     public OpenIdConnectAuthenticateRequestBuilder(ElasticsearchClient client) {
         super(client, OpenIdConnectAuthenticateAction.INSTANCE, new OpenIdConnectAuthenticateRequest());

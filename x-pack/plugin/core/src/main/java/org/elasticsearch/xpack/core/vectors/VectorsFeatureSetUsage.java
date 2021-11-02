@@ -43,8 +43,7 @@ public class VectorsFeatureSetUsage extends XPackFeatureSet.Usage {
         out.writeVInt(avgDenseVectorDims);
     }
 
-    public VectorsFeatureSetUsage(int numDenseVectorFields, int numSparseVectorFields,
-                                  int avgDenseVectorDims) {
+    public VectorsFeatureSetUsage(int numDenseVectorFields, int numSparseVectorFields, int avgDenseVectorDims) {
         super(XPackField.VECTORS, true, true);
         this.numDenseVectorFields = numDenseVectorFields;
         this.numSparseVectorFields = numSparseVectorFields;
@@ -67,9 +66,11 @@ public class VectorsFeatureSetUsage extends XPackFeatureSet.Usage {
     public int numDenseVectorFields() {
         return numDenseVectorFields;
     }
+
     public int numSparseVectorFields() {
         return numSparseVectorFields;
     }
+
     public int avgDenseVectorDims() {
         return avgDenseVectorDims;
     }
@@ -83,7 +84,10 @@ public class VectorsFeatureSetUsage extends XPackFeatureSet.Usage {
     public boolean equals(Object obj) {
         if (obj instanceof VectorsFeatureSetUsage == false) return false;
         VectorsFeatureSetUsage other = (VectorsFeatureSetUsage) obj;
-        return available == other.available && enabled == other.enabled && numDenseVectorFields == other.numDenseVectorFields
-            && numSparseVectorFields == other.numSparseVectorFields && avgDenseVectorDims == other.avgDenseVectorDims;
+        return available == other.available
+            && enabled == other.enabled
+            && numDenseVectorFields == other.numDenseVectorFields
+            && numSparseVectorFields == other.numSparseVectorFields
+            && avgDenseVectorDims == other.avgDenseVectorDims;
     }
 }

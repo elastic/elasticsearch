@@ -25,12 +25,12 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig.ESTIMATED_HEAP_MEMORY_USAGE_BYTES;
 
-
 public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Response> {
 
     public static final String DEFER_DEFINITION_DECOMPRESSION = "defer_definition_decompression";
     public static final PutTrainedModelAction INSTANCE = new PutTrainedModelAction();
     public static final String NAME = "cluster:admin/xpack/ml/inference/put";
+
     private PutTrainedModelAction() {
         super(NAME, Response::new);
     }
@@ -44,10 +44,14 @@ public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Resp
                 builder.setModelId(modelId).build();
             } else if (Strings.isNullOrEmpty(modelId) == false && modelId.equals(builder.getModelId()) == false) {
                 // If we have model_id in both URI and body, they must be identical
-                throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID,
-                    TrainedModelConfig.MODEL_ID.getPreferredName(),
-                    builder.getModelId(),
-                    modelId));
+                throw new IllegalArgumentException(
+                    Messages.getMessage(
+                        Messages.INCONSISTENT_ID,
+                        TrainedModelConfig.MODEL_ID.getPreferredName(),
+                        builder.getModelId(),
+                        modelId
+                    )
+                );
             }
             // Validations are done against the builder so we can build the full config object.
             // This allows us to not worry about serializing a builder class between nodes.
@@ -78,14 +82,14 @@ public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Resp
 
         @Override
         public ActionRequestValidationException validate() {
-            if (deferDefinitionDecompression
-                && config.getEstimatedHeapMemory() == 0
-                && config.getCompressedDefinitionIfSet() != null) {
+            if (deferDefinitionDecompression && config.getEstimatedHeapMemory() == 0 && config.getCompressedDefinitionIfSet() != null) {
                 ActionRequestValidationException validationException = new ActionRequestValidationException();
                 validationException.addValidationError(
                     "when ["
                         + DEFER_DEFINITION_DECOMPRESSION
-                        + "] is true and a compressed definition is provided, " + ESTIMATED_HEAP_MEMORY_USAGE_BYTES + " must be set"
+                        + "] is true and a compressed definition is provided, "
+                        + ESTIMATED_HEAP_MEMORY_USAGE_BYTES
+                        + " must be set"
                 );
                 return validationException;
             }

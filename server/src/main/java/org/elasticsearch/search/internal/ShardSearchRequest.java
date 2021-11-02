@@ -82,7 +82,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     private boolean canReturnNullResponseIfMatchNoDocs;
     private SearchSortValuesAndFormats bottomSortValues;
 
-    //these are the only mutable fields, as they are subject to rewriting
+    // these are the only mutable fields, as they are subject to rewriting
     private AliasFilter aliasFilter;
     private SearchSourceBuilder source;
     private final ShardSearchContextId readerId;
@@ -90,31 +90,47 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
     private final Version channelVersion;
 
-    public ShardSearchRequest(OriginalIndices originalIndices,
-                              SearchRequest searchRequest,
-                              ShardId shardId,
-                              int shardRequestIndex,
-                              int numberOfShards,
-                              AliasFilter aliasFilter,
-                              float indexBoost,
-                              long nowInMillis,
-                              @Nullable String clusterAlias) {
-        this(originalIndices, searchRequest, shardId, shardRequestIndex, numberOfShards, aliasFilter,
-            indexBoost, nowInMillis, clusterAlias, null, null);
+    public ShardSearchRequest(
+        OriginalIndices originalIndices,
+        SearchRequest searchRequest,
+        ShardId shardId,
+        int shardRequestIndex,
+        int numberOfShards,
+        AliasFilter aliasFilter,
+        float indexBoost,
+        long nowInMillis,
+        @Nullable String clusterAlias
+    ) {
+        this(
+            originalIndices,
+            searchRequest,
+            shardId,
+            shardRequestIndex,
+            numberOfShards,
+            aliasFilter,
+            indexBoost,
+            nowInMillis,
+            clusterAlias,
+            null,
+            null
+        );
     }
 
-    public ShardSearchRequest(OriginalIndices originalIndices,
-                              SearchRequest searchRequest,
-                              ShardId shardId,
-                              int shardRequestIndex,
-                              int numberOfShards,
-                              AliasFilter aliasFilter,
-                              float indexBoost,
-                              long nowInMillis,
-                              @Nullable String clusterAlias,
-                              ShardSearchContextId readerId,
-                              TimeValue keepAlive) {
-        this(originalIndices,
+    public ShardSearchRequest(
+        OriginalIndices originalIndices,
+        SearchRequest searchRequest,
+        ShardId shardId,
+        int shardRequestIndex,
+        int numberOfShards,
+        AliasFilter aliasFilter,
+        float indexBoost,
+        long nowInMillis,
+        @Nullable String clusterAlias,
+        ShardSearchContextId readerId,
+        TimeValue keepAlive
+    ) {
+        this(
+            originalIndices,
             shardId,
             shardRequestIndex,
             numberOfShards,
@@ -131,7 +147,8 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             readerId,
             keepAlive,
             computeWaitForCheckpoint(searchRequest.getWaitForCheckpoints(), shardId, shardRequestIndex),
-            searchRequest.getWaitForCheckpointsTimeout());
+            searchRequest.getWaitForCheckpointsTimeout()
+        );
         // If allowPartialSearchResults is unset (ie null), the cluster-level default should have been substituted
         // at this stage. Any NPEs in the above are therefore an error in request preparation logic.
         assert searchRequest.allowPartialSearchResults() != null;
@@ -152,32 +169,49 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         return waitForCheckpoint;
     }
 
-    public ShardSearchRequest(ShardId shardId,
-                              String[] types,
-                              long nowInMillis,
-                              AliasFilter aliasFilter) {
-        this(OriginalIndices.NONE, shardId, -1, -1, SearchType.QUERY_THEN_FETCH, null, types, null,
-            aliasFilter, 1.0f, true, null, nowInMillis, null, null, null, SequenceNumbers.UNASSIGNED_SEQ_NO, SearchService.NO_TIMEOUT);
+    public ShardSearchRequest(ShardId shardId, String[] types, long nowInMillis, AliasFilter aliasFilter) {
+        this(
+            OriginalIndices.NONE,
+            shardId,
+            -1,
+            -1,
+            SearchType.QUERY_THEN_FETCH,
+            null,
+            types,
+            null,
+            aliasFilter,
+            1.0f,
+            true,
+            null,
+            nowInMillis,
+            null,
+            null,
+            null,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            SearchService.NO_TIMEOUT
+        );
     }
 
-    public ShardSearchRequest(OriginalIndices originalIndices,
-                               ShardId shardId,
-                               int shardRequestIndex,
-                               int numberOfShards,
-                               SearchType searchType,
-                               SearchSourceBuilder source,
-                               String[] types,
-                               Boolean requestCache,
-                               AliasFilter aliasFilter,
-                               float indexBoost,
-                               boolean allowPartialSearchResults,
-                               Scroll scroll,
-                               long nowInMillis,
-                               @Nullable String clusterAlias,
-                               ShardSearchContextId readerId,
-                               TimeValue keepAlive,
-                               long waitForCheckpoint,
-                               TimeValue waitForCheckpointsTimeout) {
+    public ShardSearchRequest(
+        OriginalIndices originalIndices,
+        ShardId shardId,
+        int shardRequestIndex,
+        int numberOfShards,
+        SearchType searchType,
+        SearchSourceBuilder source,
+        String[] types,
+        Boolean requestCache,
+        AliasFilter aliasFilter,
+        float indexBoost,
+        boolean allowPartialSearchResults,
+        Scroll scroll,
+        long nowInMillis,
+        @Nullable String clusterAlias,
+        ShardSearchContextId readerId,
+        TimeValue keepAlive,
+        long waitForCheckpoint,
+        TimeValue waitForCheckpointsTimeout
+    ) {
         this.shardId = shardId;
         this.shardRequestIndex = shardRequestIndex;
         this.numberOfShards = numberOfShards;
@@ -330,8 +364,14 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             out.writeLong(waitForCheckpoint);
             out.writeTimeValue(waitForCheckpointsTimeout);
         } else if (waitForCheckpoint != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-            throw new IllegalArgumentException("Remote node version [" + out.getVersion() + " incompatible with " +
-                "wait_for_checkpoints. All nodes must be version [" + waitForCheckpointsVersion + "] or greater.");
+            throw new IllegalArgumentException(
+                "Remote node version ["
+                    + out.getVersion()
+                    + " incompatible with "
+                    + "wait_for_checkpoints. All nodes must be version ["
+                    + waitForCheckpointsVersion
+                    + "] or greater."
+            );
         }
     }
 
@@ -519,14 +559,12 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
             FieldSortBuilder primarySort = FieldSortBuilder.getPrimaryFieldSortOrNull(newSource);
             if (searchExecutionContext != null
-                    && primarySort != null
-                    && primarySort.isBottomSortShardDisjoint(searchExecutionContext, request.getBottomSortValues())) {
+                && primarySort != null
+                && primarySort.isBottomSortShardDisjoint(searchExecutionContext, request.getBottomSortValues())) {
                 assert newSource != null : "source should contain a primary sort field";
                 newSource = newSource.shallowCopy();
                 int trackTotalHitsUpTo = SearchRequest.resolveTrackTotalHitsUpTo(request.scroll, request.source);
-                if (trackTotalHitsUpTo == TRACK_TOTAL_HITS_DISABLED
-                        && newSource.suggest() == null
-                        && newSource.aggregations() == null) {
+                if (trackTotalHitsUpTo == TRACK_TOTAL_HITS_DISABLED && newSource.suggest() == null && newSource.aggregations() == null) {
                     newSource.query(new MatchNoneQueryBuilder());
                 } else {
                     newSource.size(0);
@@ -551,8 +589,11 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
      * The list of filtering aliases should be obtained by calling Metadata.filteringAliases.
      * Returns {@code null} if no filtering is required.</p>
      */
-    public static QueryBuilder parseAliasFilter(CheckedFunction<BytesReference, QueryBuilder, IOException> filterParser,
-                                                IndexMetadata metadata, String... aliasNames) {
+    public static QueryBuilder parseAliasFilter(
+        CheckedFunction<BytesReference, QueryBuilder, IOException> filterParser,
+        IndexMetadata metadata,
+        String... aliasNames
+    ) {
         if (aliasNames == null || aliasNames.length == 0) {
             return null;
         }
@@ -582,8 +623,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
                 AliasMetadata alias = aliases.get(aliasName);
                 if (alias == null) {
                     // This shouldn't happen unless alias disappeared after filteringAliases was called.
-                    throw new InvalidAliasNameException(index, aliasNames[0],
-                        "Unknown alias name was passed to alias Filter");
+                    throw new InvalidAliasNameException(index, aliasNames[0], "Unknown alias name was passed to alias Filter");
                 }
                 QueryBuilder parsedFilter = parserFunction.apply(alias);
                 if (parsedFilter != null) {

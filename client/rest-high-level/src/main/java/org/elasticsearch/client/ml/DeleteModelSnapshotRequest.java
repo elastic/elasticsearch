@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.client.ml.job.process.ModelSnapshot;
 
-
 import java.util.Objects;
 
 /**
@@ -38,7 +37,7 @@ public class DeleteModelSnapshotRequest extends ActionRequest {
 
     @Override
     public ActionRequestValidationException validate() {
-       return null;
+        return null;
     }
 
     @Override

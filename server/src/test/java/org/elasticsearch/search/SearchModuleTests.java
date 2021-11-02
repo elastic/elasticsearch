@@ -14,9 +14,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -66,6 +63,9 @@ import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContex
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -100,8 +100,14 @@ public class SearchModuleTests extends ESTestCase {
         SearchPlugin registersDupeSuggester = new SearchPlugin() {
             @Override
             public List<SearchPlugin.SuggesterSpec<?>> getSuggesters() {
-                return singletonList(new SuggesterSpec<>(TermSuggestionBuilder.SUGGESTION_NAME,
-                    TermSuggestionBuilder::new, TermSuggestionBuilder::fromXContent, TermSuggestion::new));
+                return singletonList(
+                    new SuggesterSpec<>(
+                        TermSuggestionBuilder.SUGGESTION_NAME,
+                        TermSuggestionBuilder::new,
+                        TermSuggestionBuilder::fromXContent,
+                        TermSuggestion::new
+                    )
+                );
             }
         };
         expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeSuggester));
@@ -109,8 +115,13 @@ public class SearchModuleTests extends ESTestCase {
         SearchPlugin registersDupeScoreFunction = new SearchPlugin() {
             @Override
             public List<ScoreFunctionSpec<?>> getScoreFunctions() {
-                return singletonList(new ScoreFunctionSpec<>(GaussDecayFunctionBuilder.NAME, GaussDecayFunctionBuilder::new,
-                    GaussDecayFunctionBuilder.PARSER));
+                return singletonList(
+                    new ScoreFunctionSpec<>(
+                        GaussDecayFunctionBuilder.NAME,
+                        GaussDecayFunctionBuilder::new,
+                        GaussDecayFunctionBuilder.PARSER
+                    )
+                );
             }
         };
         expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeScoreFunction));
@@ -150,8 +161,9 @@ public class SearchModuleTests extends ESTestCase {
         SearchPlugin registersDupeAggregation = new SearchPlugin() {
             @Override
             public List<AggregationSpec> getAggregations() {
-                return singletonList(new AggregationSpec(TermsAggregationBuilder.NAME, TermsAggregationBuilder::new,
-                    TermsAggregationBuilder.PARSER));
+                return singletonList(
+                    new AggregationSpec(TermsAggregationBuilder.NAME, TermsAggregationBuilder::new, TermsAggregationBuilder.PARSER)
+                );
             }
         };
         expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeAggregation));
@@ -159,12 +171,14 @@ public class SearchModuleTests extends ESTestCase {
         SearchPlugin registersDupePipelineAggregation = new SearchPlugin() {
             @Override
             public List<PipelineAggregationSpec> getPipelineAggregations() {
-                return singletonList(new PipelineAggregationSpec(
-                    DerivativePipelineAggregationBuilder.NAME,
-                    DerivativePipelineAggregationBuilder::new,
-                    DerivativePipelineAggregator::new,
-                    DerivativePipelineAggregationBuilder::parse)
-                    .addResultReader(InternalDerivative::new));
+                return singletonList(
+                    new PipelineAggregationSpec(
+                        DerivativePipelineAggregationBuilder.NAME,
+                        DerivativePipelineAggregationBuilder::new,
+                        DerivativePipelineAggregator::new,
+                        DerivativePipelineAggregationBuilder::parse
+                    ).addResultReader(InternalDerivative::new)
+                );
             }
         };
         expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupePipelineAggregation));
@@ -173,7 +187,8 @@ public class SearchModuleTests extends ESTestCase {
             @Override
             public List<RescorerSpec<?>> getRescorers() {
                 return singletonList(
-                    new RescorerSpec<>(QueryRescorerBuilder.NAME, QueryRescorerBuilder::new, QueryRescorerBuilder::fromXContent));
+                    new RescorerSpec<>(QueryRescorerBuilder.NAME, QueryRescorerBuilder::new, QueryRescorerBuilder::fromXContent)
+                );
             }
         };
         expectThrows(IllegalArgumentException.class, registryForPlugin(registersDupeRescorer));
@@ -192,40 +207,91 @@ public class SearchModuleTests extends ESTestCase {
                         TestSuggestionBuilder.SUGGESTION_NAME,
                         TestSuggestionBuilder::new,
                         TestSuggestionBuilder::fromXContent,
-                        TestSuggestion::new));
+                        TestSuggestion::new
+                    )
+                );
             }
         }));
 
-        assertEquals(1, module.getNamedXContents().stream()
-            .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) &&
-                e.name.match("term", LoggingDeprecationHandler.INSTANCE)).count());
-        assertEquals(1, module.getNamedXContents().stream()
-            .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) &&
-                e.name.match("phrase", LoggingDeprecationHandler.INSTANCE)).count());
-        assertEquals(1, module.getNamedXContents().stream()
-            .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) &&
-                e.name.match("completion", LoggingDeprecationHandler.INSTANCE)).count());
-        assertEquals(1, module.getNamedXContents().stream()
-            .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) &&
-                e.name.match("test", LoggingDeprecationHandler.INSTANCE)).count());
+        assertEquals(
+            1,
+            module.getNamedXContents()
+                .stream()
+                .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) && e.name.match("term", LoggingDeprecationHandler.INSTANCE))
+                .count()
+        );
+        assertEquals(
+            1,
+            module.getNamedXContents()
+                .stream()
+                .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) && e.name.match("phrase", LoggingDeprecationHandler.INSTANCE))
+                .count()
+        );
+        assertEquals(
+            1,
+            module.getNamedXContents()
+                .stream()
+                .filter(
+                    e -> e.categoryClass.equals(SuggestionBuilder.class) && e.name.match("completion", LoggingDeprecationHandler.INSTANCE)
+                )
+                .count()
+        );
+        assertEquals(
+            1,
+            module.getNamedXContents()
+                .stream()
+                .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) && e.name.match("test", LoggingDeprecationHandler.INSTANCE))
+                .count()
+        );
 
-        assertEquals(1, module.getNamedWriteables().stream()
-            .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) && e.name.equals("term")).count());
-        assertEquals(1, module.getNamedWriteables().stream()
-            .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) && e.name.equals("phrase")).count());
-        assertEquals(1, module.getNamedWriteables().stream()
-            .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) && e.name.equals("completion")).count());
-        assertEquals(1, module.getNamedWriteables().stream()
-            .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) && e.name.equals("test")).count());
+        assertEquals(
+            1,
+            module.getNamedWriteables()
+                .stream()
+                .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) && e.name.equals("term"))
+                .count()
+        );
+        assertEquals(
+            1,
+            module.getNamedWriteables()
+                .stream()
+                .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) && e.name.equals("phrase"))
+                .count()
+        );
+        assertEquals(
+            1,
+            module.getNamedWriteables()
+                .stream()
+                .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) && e.name.equals("completion"))
+                .count()
+        );
+        assertEquals(
+            1,
+            module.getNamedWriteables()
+                .stream()
+                .filter(e -> e.categoryClass.equals(SuggestionBuilder.class) && e.name.equals("test"))
+                .count()
+        );
 
-        assertEquals(1, module.getNamedWriteables().stream()
-            .filter(e -> e.categoryClass.equals(Suggestion.class) && e.name.equals("term")).count());
-        assertEquals(1, module.getNamedWriteables().stream()
-            .filter(e -> e.categoryClass.equals(Suggestion.class) && e.name.equals("phrase")).count());
-        assertEquals(1, module.getNamedWriteables().stream()
-            .filter(e -> e.categoryClass.equals(Suggestion.class) && e.name.equals("completion")).count());
-        assertEquals(1, module.getNamedWriteables().stream()
-            .filter(e -> e.categoryClass.equals(Suggestion.class) && e.name.equals("test")).count());
+        assertEquals(
+            1,
+            module.getNamedWriteables().stream().filter(e -> e.categoryClass.equals(Suggestion.class) && e.name.equals("term")).count()
+        );
+        assertEquals(
+            1,
+            module.getNamedWriteables().stream().filter(e -> e.categoryClass.equals(Suggestion.class) && e.name.equals("phrase")).count()
+        );
+        assertEquals(
+            1,
+            module.getNamedWriteables()
+                .stream()
+                .filter(e -> e.categoryClass.equals(Suggestion.class) && e.name.equals("completion"))
+                .count()
+        );
+        assertEquals(
+            1,
+            module.getNamedWriteables().stream().filter(e -> e.categoryClass.equals(Suggestion.class) && e.name.equals("test")).count()
+        );
     }
 
     public void testRegisterHighlighter() {
@@ -250,12 +316,14 @@ public class SearchModuleTests extends ESTestCase {
         Collections.addAll(allSupportedQueries, DEPRECATED_QUERIES);
         SearchModule module = new SearchModule(Settings.EMPTY, false, emptyList());
 
-        Set<String> registeredNonDeprecated = module.getNamedXContents().stream()
+        Set<String> registeredNonDeprecated = module.getNamedXContents()
+            .stream()
             .filter(e -> e.categoryClass.equals(QueryBuilder.class))
             .filter(e -> e.name.getAllReplacedWith() == null)
             .map(e -> e.name.getPreferredName())
             .collect(toSet());
-        Set<String> registeredAll = module.getNamedXContents().stream()
+        Set<String> registeredAll = module.getNamedXContents()
+            .stream()
             .filter(e -> e.categoryClass.equals(QueryBuilder.class))
             .flatMap(e -> Arrays.stream(e.name.getAllNamesIncludedDeprecated()))
             .collect(toSet());
@@ -273,28 +341,42 @@ public class SearchModuleTests extends ESTestCase {
         }));
 
         assertThat(
-            module.getNamedXContents().stream()
-                .filter(entry -> entry.categoryClass.equals(BaseAggregationBuilder.class) &&
-                    entry.name.match("test", LoggingDeprecationHandler.INSTANCE))
+            module.getNamedXContents()
+                .stream()
+                .filter(
+                    entry -> entry.categoryClass.equals(BaseAggregationBuilder.class)
+                        && entry.name.match("test", LoggingDeprecationHandler.INSTANCE)
+                )
                 .collect(toList()),
-            hasSize(1));
+            hasSize(1)
+        );
     }
 
     public void testRegisterPipelineAggregation() {
         SearchModule module = new SearchModule(Settings.EMPTY, false, singletonList(new SearchPlugin() {
             @Override
             public List<PipelineAggregationSpec> getPipelineAggregations() {
-                return singletonList(new PipelineAggregationSpec("test",
-                    TestPipelineAggregationBuilder::new, TestPipelineAggregator::new, TestPipelineAggregationBuilder::fromXContent));
+                return singletonList(
+                    new PipelineAggregationSpec(
+                        "test",
+                        TestPipelineAggregationBuilder::new,
+                        TestPipelineAggregator::new,
+                        TestPipelineAggregationBuilder::fromXContent
+                    )
+                );
             }
         }));
 
         assertThat(
-            module.getNamedXContents().stream()
-                .filter(entry -> entry.categoryClass.equals(BaseAggregationBuilder.class) &&
-                    entry.name.match("test", LoggingDeprecationHandler.INSTANCE))
+            module.getNamedXContents()
+                .stream()
+                .filter(
+                    entry -> entry.categoryClass.equals(BaseAggregationBuilder.class)
+                        && entry.name.match("test", LoggingDeprecationHandler.INSTANCE)
+                )
                 .collect(toList()),
-            hasSize(1));
+            hasSize(1)
+        );
     }
 
     public void testRegisterRescorer() {
@@ -305,11 +387,15 @@ public class SearchModuleTests extends ESTestCase {
             }
         }));
         assertThat(
-            module.getNamedXContents().stream()
-                .filter(entry -> entry.categoryClass.equals(RescorerBuilder.class) &&
-                    entry.name.match("test", LoggingDeprecationHandler.INSTANCE))
+            module.getNamedXContents()
+                .stream()
+                .filter(
+                    entry -> entry.categoryClass.equals(RescorerBuilder.class)
+                        && entry.name.match("test", LoggingDeprecationHandler.INSTANCE)
+                )
                 .collect(toList()),
-            hasSize(1));
+            hasSize(1)
+        );
     }
 
     public void testRegisterNullRequestCacheKeyDifferentiator() {
@@ -318,7 +404,7 @@ public class SearchModuleTests extends ESTestCase {
     }
 
     public void testRegisterRequestCacheKeyDifferentiator() {
-        final CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator = (r, o) -> { };
+        final CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator = (r, o) -> {};
         final SearchModule module = new SearchModule(Settings.EMPTY, false, org.elasticsearch.core.List.of(new SearchPlugin() {
             @Override
             public CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> getRequestCacheKeyDifferentiator() {
@@ -331,19 +417,20 @@ public class SearchModuleTests extends ESTestCase {
     public void testCannotRegisterMultipleRequestCacheKeyDifferentiators() {
         final CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> differentiator1 = (r, o) -> {};
         final CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> differentiator2 = (r, o) -> {};
-        final IllegalArgumentException e =
-            expectThrows(IllegalArgumentException.class, () -> new SearchModule(Settings.EMPTY, false, org.elasticsearch.core.List.of(
-                new SearchPlugin() {
-                    @Override
-                    public CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> getRequestCacheKeyDifferentiator() {
-                        return differentiator1;
-                    }
-                }, new SearchPlugin() {
-                    @Override
-                    public CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> getRequestCacheKeyDifferentiator() {
-                        return differentiator2;
-                    }
-                })));
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new SearchModule(Settings.EMPTY, false, org.elasticsearch.core.List.of(new SearchPlugin() {
+                @Override
+                public CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> getRequestCacheKeyDifferentiator() {
+                    return differentiator1;
+                }
+            }, new SearchPlugin() {
+                @Override
+                public CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> getRequestCacheKeyDifferentiator() {
+                    return differentiator2;
+                }
+            }))
+        );
         assertThat(e.getMessage(), containsString("Cannot have more than one plugin providing a request cache key differentiator"));
     }
 
@@ -393,18 +480,16 @@ public class SearchModuleTests extends ESTestCase {
         "type",
         "wildcard",
         "wrapper",
-        "distance_feature"
-    };
+        "distance_feature" };
 
-    //add here deprecated queries to make sure we log a deprecation warnings when they are used
-    private static final String[] DEPRECATED_QUERIES = new String[] {"common", "field_masking_span", "geo_polygon"};
+    // add here deprecated queries to make sure we log a deprecation warnings when they are used
+    private static final String[] DEPRECATED_QUERIES = new String[] { "common", "field_masking_span", "geo_polygon" };
 
     /**
      * Dummy test {@link AggregationBuilder} used to test registering aggregation builders.
      */
     private static class TestAggregationBuilder extends ValuesSourceAggregationBuilder<TestAggregationBuilder> {
-        protected TestAggregationBuilder(TestAggregationBuilder clone,
-                                         Builder factoriesBuilder, Map<String, Object> metadata) {
+        protected TestAggregationBuilder(TestAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
             super(clone, factoriesBuilder, metadata);
         }
 
@@ -417,6 +502,7 @@ public class SearchModuleTests extends ESTestCase {
         protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
             return new TestAggregationBuilder(this, factoriesBuilder, metadata);
         }
+
         /**
          * Read from a stream.
          */
@@ -435,8 +521,7 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
-        protected void innerWriteTo(StreamOutput out) throws IOException {
-        }
+        protected void innerWriteTo(StreamOutput out) throws IOException {}
 
         @Override
         public BucketCardinality bucketCardinality() {
@@ -444,10 +529,12 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
-        protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
-                                                           ValuesSourceConfig config,
-                                                           AggregatorFactory parent,
-                                                           Builder subFactoriesBuilder) throws IOException {
+        protected ValuesSourceAggregatorFactory innerBuild(
+            AggregationContext context,
+            ValuesSourceConfig config,
+            AggregatorFactory parent,
+            Builder subFactoriesBuilder
+        ) throws IOException {
             return null;
         }
 
@@ -478,8 +565,7 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
-        protected void doWriteTo(StreamOutput out) throws IOException {
-        }
+        protected void doWriteTo(StreamOutput out) throws IOException {}
 
         @Override
         protected PipelineAggregator createInternal(Map<String, Object> metadata) {
@@ -509,14 +595,14 @@ public class SearchModuleTests extends ESTestCase {
         TestPipelineAggregator(StreamInput in) throws IOException {
             super(in);
         }
+
         @Override
         public String getWriteableName() {
             return "test";
         }
 
         @Override
-        protected void doWriteTo(StreamOutput out) throws IOException {
-        }
+        protected void doWriteTo(StreamOutput out) throws IOException {}
 
         @Override
         public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
@@ -544,12 +630,10 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
-        protected void doWriteTo(StreamOutput out) throws IOException {
-        }
+        protected void doWriteTo(StreamOutput out) throws IOException {}
 
         @Override
-        protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        }
+        protected void doXContent(XContentBuilder builder, Params params) throws IOException {}
 
         @Override
         public RescoreContext innerBuildContext(int windowSize, SearchExecutionContext context) throws IOException {
@@ -564,13 +648,17 @@ public class SearchModuleTests extends ESTestCase {
             String name,
             SuggestionSearchContext.SuggestionContext suggestion,
             IndexSearcher searcher,
-            CharsRefBuilder spare) throws IOException {
+            CharsRefBuilder spare
+        ) throws IOException {
             return null;
         }
 
         @Override
-        protected Suggestion<? extends Entry<? extends Option>> emptySuggestion(String name, SuggestionContext suggestion,
-                                                                                CharsRefBuilder spare) throws IOException {
+        protected Suggestion<? extends Entry<? extends Option>> emptySuggestion(
+            String name,
+            SuggestionContext suggestion,
+            CharsRefBuilder spare
+        ) throws IOException {
             return null;
         }
     }

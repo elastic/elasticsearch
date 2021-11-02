@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.ml.rest.dataframe;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 
@@ -24,9 +24,7 @@ public class RestPutDataFrameAnalyticsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.core.List.of(
-            new Route(PUT, BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID + "}")
-        );
+        return org.elasticsearch.core.List.of(new Route(PUT, BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID + "}"));
     }
 
     @Override

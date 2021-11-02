@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.ql.querydsl.query;
 
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -48,7 +48,6 @@ public class MatchQuery extends LeafQuery {
     private final Object text;
     private final MatchQueryPredicate predicate;
     private final Map<String, String> options;
-
 
     public MatchQuery(Source source, String name, Object text) {
         this(source, name, text, null);
@@ -99,9 +98,7 @@ public class MatchQuery extends LeafQuery {
         }
 
         MatchQuery other = (MatchQuery) obj;
-        return Objects.equals(text, other.text)
-                && Objects.equals(name, other.name)
-                && Objects.equals(predicate, other.predicate);
+        return Objects.equals(text, other.text) && Objects.equals(name, other.name) && Objects.equals(predicate, other.predicate);
     }
 
     @Override

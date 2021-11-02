@@ -15,10 +15,10 @@ import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -171,8 +171,18 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
 
     @Override
     public String toString() {
-        return "[" + Arrays.toString(indices) + "]" + Arrays.toString(types) + ", query[" + query + "], explain:" + explain +
-                ", rewrite:" + rewrite + ", all_shards:" + allShards;
+        return "["
+            + Arrays.toString(indices)
+            + "]"
+            + Arrays.toString(types)
+            + ", query["
+            + query
+            + "], explain:"
+            + explain
+            + ", rewrite:"
+            + rewrite
+            + ", all_shards:"
+            + allShards;
     }
 
     @Override

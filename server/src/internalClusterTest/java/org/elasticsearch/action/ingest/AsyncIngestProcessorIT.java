@@ -18,8 +18,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.ingest.AbstractProcessor;
@@ -32,6 +30,8 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -65,11 +65,7 @@ public class AsyncIngestProcessorIT extends ESSingleNodeTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         int numDocs = randomIntBetween(8, 256);
         for (int i = 0; i < numDocs; i++) {
-            bulkRequest.add(new IndexRequest("foobar")
-                .id(Integer.toString(i))
-                .source("{}", XContentType.JSON)
-                .setPipeline("_id")
-            );
+            bulkRequest.add(new IndexRequest("foobar").id(Integer.toString(i)).source("{}", XContentType.JSON).setPipeline("_id"));
         }
         BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
         assertThat(bulkResponse.getItems().length, equalTo(numDocs));
@@ -89,12 +85,19 @@ public class AsyncIngestProcessorIT extends ESSingleNodeTestCase {
         private ThreadPool threadPool;
 
         @Override
-        public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-                                                   ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                                   NamedXContentRegistry xContentRegistry, Environment environment,
-                                                   NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                                   IndexNameExpressionResolver expressionResolver,
-                                                   Supplier<RepositoriesService> repositoriesServiceSupplier) {
+        public Collection<Object> createComponents(
+            Client client,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            ResourceWatcherService resourceWatcherService,
+            ScriptService scriptService,
+            NamedXContentRegistry xContentRegistry,
+            Environment environment,
+            NodeEnvironment nodeEnvironment,
+            NamedWriteableRegistry namedWriteableRegistry,
+            IndexNameExpressionResolver expressionResolver,
+            Supplier<RepositoriesService> repositoriesServiceSupplier
+        ) {
             this.threadPool = threadPool;
             return Collections.emptyList();
         }

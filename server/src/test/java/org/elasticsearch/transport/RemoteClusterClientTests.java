@@ -40,14 +40,21 @@ public class RemoteClusterClientTests extends ESTestCase {
 
     public void testConnectAndExecuteRequest() throws Exception {
         Settings remoteSettings = Settings.builder().put(ClusterName.CLUSTER_NAME_SETTING.getKey(), "foo_bar_cluster").build();
-        try (MockTransportService remoteTransport = startTransport("remote_node", Collections.emptyList(), Version.CURRENT, threadPool,
-            remoteSettings)) {
+        try (
+            MockTransportService remoteTransport = startTransport(
+                "remote_node",
+                Collections.emptyList(),
+                Version.CURRENT,
+                threadPool,
+                remoteSettings
+            )
+        ) {
             DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();
 
             Settings localSettings = Settings.builder()
                 .put(onlyRole(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE))
-                .put("cluster.remote.test.seeds",
-                    remoteNode.getAddress().getAddress() + ":" + remoteNode.getAddress().getPort()).build();
+                .put("cluster.remote.test.seeds", remoteNode.getAddress().getAddress() + ":" + remoteNode.getAddress().getPort())
+                .build();
             try (MockTransportService service = MockTransportService.createNewService(localSettings, Version.CURRENT, threadPool, null)) {
                 service.start();
                 // following two log lines added to investigate #41745, can be removed once issue is closed
@@ -61,8 +68,10 @@ public class RemoteClusterClientTests extends ESTestCase {
                 assertNotNull(clusterStateResponse);
                 assertEquals("foo_bar_cluster", clusterStateResponse.getState().getClusterName().value());
                 // also test a failure, there is no handler for scroll registered
-                ActionNotFoundTransportException ex = expectThrows(ActionNotFoundTransportException.class,
-                    () -> client.prepareSearchScroll("").get());
+                ActionNotFoundTransportException ex = expectThrows(
+                    ActionNotFoundTransportException.class,
+                    () -> client.prepareSearchScroll("").get()
+                );
                 assertEquals("No handler for action [indices:data/read/scroll]", ex.getMessage());
             }
         }
@@ -70,16 +79,24 @@ public class RemoteClusterClientTests extends ESTestCase {
 
     @TestLogging(
         value = "org.elasticsearch.transport.SniffConnectionStrategy:TRACE,org.elasticsearch.transport.ClusterConnectionManager:TRACE",
-        reason = "debug intermittent test failure")
+        reason = "debug intermittent test failure"
+    )
     public void testEnsureWeReconnect() throws Exception {
         Settings remoteSettings = Settings.builder().put(ClusterName.CLUSTER_NAME_SETTING.getKey(), "foo_bar_cluster").build();
-        try (MockTransportService remoteTransport = startTransport("remote_node", Collections.emptyList(), Version.CURRENT, threadPool,
-            remoteSettings)) {
+        try (
+            MockTransportService remoteTransport = startTransport(
+                "remote_node",
+                Collections.emptyList(),
+                Version.CURRENT,
+                threadPool,
+                remoteSettings
+            )
+        ) {
             DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();
             Settings localSettings = Settings.builder()
                 .put(onlyRole(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE))
-                .put("cluster.remote.test.seeds",
-                    remoteNode.getAddress().getAddress() + ":" + remoteNode.getAddress().getPort()).build();
+                .put("cluster.remote.test.seeds", remoteNode.getAddress().getAddress() + ":" + remoteNode.getAddress().getPort())
+                .build();
             try (MockTransportService service = MockTransportService.createNewService(localSettings, Version.CURRENT, threadPool, null)) {
                 service.start();
                 // this test is not perfect since we might reconnect concurrently but it will fail most of the time if we don't have
@@ -113,8 +130,10 @@ public class RemoteClusterClientTests extends ESTestCase {
             service.start();
             service.acceptIncomingRequests();
             final RemoteClusterService remoteClusterService = service.getRemoteClusterService();
-            final IllegalArgumentException e =
-                expectThrows(IllegalArgumentException.class, () -> remoteClusterService.getRemoteClusterClient(threadPool, "test"));
+            final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> remoteClusterService.getRemoteClusterClient(threadPool, "test")
+            );
             assertThat(e.getMessage(), equalTo("this node does not have the remote_cluster_client role"));
         }
     }

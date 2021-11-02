@@ -53,7 +53,7 @@ public final class PutPrivilegesResponse {
             throw new IllegalArgumentException("privilege name is required");
         }
         if (applicationPrivilegesCreatedOrUpdated.get(applicationName) == null
-                || applicationPrivilegesCreatedOrUpdated.get(applicationName).get(privilegeName) == null) {
+            || applicationPrivilegesCreatedOrUpdated.get(applicationName).get(privilegeName) == null) {
             throw new IllegalArgumentException("application name or privilege name not found in the response");
         }
         return applicationPrivilegesCreatedOrUpdated.get(applicationName).get(privilegeName);
@@ -69,8 +69,10 @@ public final class PutPrivilegesResponse {
         final Map<String, Object> appNameToPrivStatus = parser.map();
         for (Entry<String, Object> entry : appNameToPrivStatus.entrySet()) {
             if (entry.getValue() instanceof Map) {
-                final Map<String, Boolean> privilegeToStatus = applicationPrivilegesCreatedOrUpdated.computeIfAbsent(entry.getKey(),
-                        (a) -> new HashMap<>());
+                final Map<String, Boolean> privilegeToStatus = applicationPrivilegesCreatedOrUpdated.computeIfAbsent(
+                    entry.getKey(),
+                    (a) -> new HashMap<>()
+                );
                 final Map<String, Object> createdOrUpdated = (Map<String, Object>) entry.getValue();
                 for (String privilegeName : createdOrUpdated.keySet()) {
                     if (createdOrUpdated.get(privilegeName) instanceof Map) {

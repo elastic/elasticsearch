@@ -16,8 +16,8 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.node.ReportingService;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -65,8 +65,8 @@ public class HttpInfo implements ReportingService.Info {
             deprecationLogger.critical(
                 DeprecationCategory.SETTINGS,
                 "cname_in_publish_address",
-                "es.http.cname_in_publish_address system property is deprecated and no longer affects http.publish_address " +
-                    "formatting. Remove this property to get rid of this deprecation warning."
+                "es.http.cname_in_publish_address system property is deprecated and no longer affects http.publish_address "
+                    + "formatting. Remove this property to get rid of this deprecation warning."
             );
         }
         if (InetAddresses.isInetAddress(hostString) == false) {

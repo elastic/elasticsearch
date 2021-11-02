@@ -14,10 +14,10 @@ import org.elasticsearch.cluster.service.ClusterStateUpdateStats;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.discovery.zen.PendingClusterStateStats;
 import org.elasticsearch.discovery.zen.PublishClusterStateStats;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -32,7 +32,8 @@ public class DiscoveryStats implements Writeable, ToXContentFragment {
         PendingClusterStateStats queueStats,
         PublishClusterStateStats publishStats,
         ClusterStateUpdateStats clusterStateUpdateStats,
-        ClusterApplierRecordingService.Stats applierRecordingStats) {
+        ClusterApplierRecordingService.Stats applierRecordingStats
+    ) {
         this.queueStats = queueStats;
         this.publishStats = publishStats;
         this.clusterStateUpdateStats = clusterStateUpdateStats;

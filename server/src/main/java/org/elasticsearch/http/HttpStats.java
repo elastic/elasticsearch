@@ -157,7 +157,8 @@ public class HttpStats implements Writeable, ToXContentFragment {
             this.requestSizeBytes = in.readLong();
         }
 
-        @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(Fields.CLIENT_ID, id);
             if (agent != null) {

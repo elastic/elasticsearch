@@ -13,12 +13,12 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.get.GetActionIT.indexOrAlias;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class LegacyGetActionIT extends ESIntegTestCase {
@@ -29,28 +29,25 @@ public class LegacyGetActionIT extends ESIntegTestCase {
     }
 
     public void testGetFieldsMetadataWithRouting() throws Exception {
-        assertAcked(prepareCreate("test")
-                .addMapping("_doc", "field1", "type=keyword,store=true")
+        assertAcked(
+            prepareCreate("test").addMapping("_doc", "field1", "type=keyword,store=true")
                 .addAlias(new Alias("alias"))
                 .setSettings(
-                        Settings.builder()
-                                .put("index.refresh_interval", -1)
-                                .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.V_6_0_0))); // multi-types in 6.0.0
+                    Settings.builder()
+                        .put("index.refresh_interval", -1)
+                        .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.V_6_0_0)
+                )
+        ); // multi-types in 6.0.0
 
         try (XContentBuilder source = jsonBuilder().startObject().field("field1", "value").endObject()) {
-            client()
-                    .prepareIndex("test", "_doc", "1")
-                    .setRouting("1")
-                    .setSource(source)
-                    .get();
+            client().prepareIndex("test", "_doc", "1").setRouting("1").setSource(source).get();
         }
 
         {
-            final GetResponse getResponse = client()
-                    .prepareGet(indexOrAlias(), "_doc", "1")
-                    .setRouting("1")
-                    .setStoredFields("field1")
-                    .get();
+            final GetResponse getResponse = client().prepareGet(indexOrAlias(), "_doc", "1")
+                .setRouting("1")
+                .setStoredFields("field1")
+                .get();
             assertThat(getResponse.isExists(), equalTo(true));
             assertThat(getResponse.getField("field1").getValue().toString(), equalTo("value"));
             assertThat(getResponse.getField("_routing").getValue().toString(), equalTo("1"));
@@ -59,11 +56,10 @@ public class LegacyGetActionIT extends ESIntegTestCase {
         flush();
 
         {
-            final GetResponse getResponse = client()
-                    .prepareGet(indexOrAlias(), "_doc", "1")
-                    .setStoredFields("field1")
-                    .setRouting("1")
-                    .get();
+            final GetResponse getResponse = client().prepareGet(indexOrAlias(), "_doc", "1")
+                .setStoredFields("field1")
+                .setRouting("1")
+                .get();
             assertThat(getResponse.isExists(), equalTo(true));
             assertThat(getResponse.getField("field1").getValue().toString(), equalTo("value"));
             assertThat(getResponse.getField("_routing").getValue().toString(), equalTo("1"));

@@ -11,10 +11,10 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -76,8 +76,7 @@ public class GetInfluencersAction extends ActionType<GetInfluencersAction.Respon
         private String sort = Influencer.INFLUENCER_SCORE.getPreferredName();
         private boolean descending = true;
 
-        public Request() {
-        }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -202,13 +201,14 @@ public class GetInfluencersAction extends ActionType<GetInfluencersAction.Respon
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(jobId, other.jobId) && Objects.equals(start, other.start)
-                    && Objects.equals(end, other.end)
-                    && Objects.equals(excludeInterim, other.excludeInterim)
-                    && Objects.equals(pageParams, other.pageParams)
-                    && Objects.equals(influencerScore, other.influencerScore)
-                    && Objects.equals(descending, other.descending)
-                    && Objects.equals(sort, other.sort);
+            return Objects.equals(jobId, other.jobId)
+                && Objects.equals(start, other.start)
+                && Objects.equals(end, other.end)
+                && Objects.equals(excludeInterim, other.excludeInterim)
+                && Objects.equals(pageParams, other.pageParams)
+                && Objects.equals(influencerScore, other.influencerScore)
+                && Objects.equals(descending, other.descending)
+                && Objects.equals(sort, other.sort);
         }
     }
 
@@ -221,8 +221,7 @@ public class GetInfluencersAction extends ActionType<GetInfluencersAction.Respon
 
     public static class Response extends AbstractGetResourcesResponse<Influencer> implements ToXContentObject {
 
-        public Response() {
-        }
+        public Response() {}
 
         public Response(StreamInput in) throws IOException {
             super(in);

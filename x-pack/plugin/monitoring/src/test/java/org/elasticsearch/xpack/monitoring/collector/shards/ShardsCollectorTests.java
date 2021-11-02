@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.shards;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -32,7 +33,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -40,7 +41,7 @@ import static org.mockito.Mockito.when;
 public class ShardsCollectorTests extends BaseCollectorTestCase {
 
     /** Used to match no indices when collecting shards information **/
-    private static final String[] NONE = new String[]{"_none"};
+    private static final String[] NONE = new String[] { "_none" };
 
     public void testShouldCollectReturnsFalseIfNotMaster() {
         // this controls the blockage
@@ -77,7 +78,7 @@ public class ShardsCollectorTests extends BaseCollectorTestCase {
         final String stateUUID = UUID.randomUUID().toString();
         when(clusterState.stateUUID()).thenReturn(stateUUID);
 
-        final String[] indices = randomFrom(NONE, Strings.EMPTY_ARRAY, new String[]{"_all"}, new String[]{"_index*"});
+        final String[] indices = randomFrom(NONE, Strings.EMPTY_ARRAY, new String[] { "_all" }, new String[] { "_index*" });
         withCollectionIndices(indices);
 
         final RoutingTable routingTable = mockRoutingTable();
@@ -122,8 +123,11 @@ public class ShardsCollectorTests extends BaseCollectorTestCase {
 
         }
 
-        assertWarnings("[xpack.monitoring.collection.indices] setting was deprecated in Elasticsearch and will be removed in a" +
-            " future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(
+            Level.WARN,
+            "[xpack.monitoring.collection.indices] setting was deprecated in Elasticsearch and will be removed "
+                + "in a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     private static RoutingTable mockRoutingTable() {

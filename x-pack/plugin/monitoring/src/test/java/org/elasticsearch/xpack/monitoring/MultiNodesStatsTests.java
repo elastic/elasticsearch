@@ -30,9 +30,9 @@ public class MultiNodesStatsTests extends MonitoringIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal, otherSettings))
-                .put("xpack.monitoring.exporters.default_local.type", "local")
-                .build();
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put("xpack.monitoring.exporters.default_local.type", "local")
+            .build();
     }
 
     @After
@@ -59,7 +59,7 @@ public class MultiNodesStatsTests extends MonitoringIntegTestCase {
 
         n = randomIntBetween(1, 2);
         // starting one by one to allow moving , for example, from a 2 node cluster to a 4 one while updating min_master_nodes
-        for (int i=0;i<n;i++) {
+        for (int i = 0; i < n; i++) {
             internalCluster().startNode();
         }
         nodes += n;
@@ -78,18 +78,19 @@ public class MultiNodesStatsTests extends MonitoringIntegTestCase {
             refresh();
 
             SearchResponse response = client().prepareSearch(ALL_MONITORING_INDICES)
-                    .setQuery(QueryBuilders.termQuery("type", NodeStatsMonitoringDoc.TYPE))
-                    .setSize(0)
-                    .addAggregation(AggregationBuilders.terms("nodes_ids").field("node_stats.node_id"))
-                    .get();
+                .setQuery(QueryBuilders.termQuery("type", NodeStatsMonitoringDoc.TYPE))
+                .setSize(0)
+                .addAggregation(AggregationBuilders.terms("nodes_ids").field("node_stats.node_id"))
+                .get();
 
             for (Aggregation aggregation : response.getAggregations()) {
                 assertThat(aggregation, instanceOf(StringTerms.class));
                 assertThat(((StringTerms) aggregation).getBuckets().size(), equalTo(nbNodes));
 
                 for (String nodeName : internalCluster().getNodeNames()) {
-                    StringTerms.Bucket bucket = ((StringTerms) aggregation)
-                            .getBucketByKey(internalCluster().clusterService(nodeName).localNode().getId());
+                    StringTerms.Bucket bucket = ((StringTerms) aggregation).getBucketByKey(
+                        internalCluster().clusterService(nodeName).localNode().getId()
+                    );
                     // At least 1 doc must exist per node, but it can be more than 1
                     // because the first node may have already collected many node stats documents
                     // whereas the last node just started to collect node stats.

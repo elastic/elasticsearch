@@ -9,14 +9,14 @@
 package org.elasticsearch.search.builder;
 
 import org.elasticsearch.action.search.SearchContextId;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -36,9 +36,12 @@ public final class PointInTimeBuilder implements Writeable, ToXContentObject {
     static {
         PARSER = new ObjectParser<>(SearchSourceBuilder.POINT_IN_TIME.getPreferredName(), XContentParams::new);
         PARSER.declareString((params, id) -> params.encodedId = id, ID_FIELD);
-        PARSER.declareField((params, keepAlive) -> params.keepAlive = keepAlive,
+        PARSER.declareField(
+            (params, keepAlive) -> params.keepAlive = keepAlive,
             (p, c) -> TimeValue.parseTimeValue(p.text(), KEEP_ALIVE_FIELD.getPreferredName()),
-            KEEP_ALIVE_FIELD, ObjectParser.ValueType.STRING);
+            KEEP_ALIVE_FIELD,
+            ObjectParser.ValueType.STRING
+        );
     }
 
     private static final class XContentParams {

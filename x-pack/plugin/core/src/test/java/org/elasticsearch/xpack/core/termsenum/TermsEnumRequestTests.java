@@ -12,12 +12,12 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ArrayUtils;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.termsenum.action.TermsEnumAction;
 import org.elasticsearch.xpack.core.termsenum.action.TermsEnumRequest;
 
@@ -42,7 +42,7 @@ public class TermsEnumRequestTests extends AbstractSerializingTestCase<TermsEnum
 
     @Override
     protected TermsEnumRequest createTestInstance() {
-        TermsEnumRequest request =  new TermsEnumRequest();
+        TermsEnumRequest request = new TermsEnumRequest();
         request.size(randomIntBetween(1, 20));
         request.field(randomAlphaOfLengthBetween(3, 10));
         request.caseInsensitive(randomBoolean());
@@ -91,16 +91,16 @@ public class TermsEnumRequestTests extends AbstractSerializingTestCase<TermsEnum
     @Override
     protected TermsEnumRequest mutateInstance(TermsEnumRequest instance) throws IOException {
         List<Consumer<TermsEnumRequest>> mutators = new ArrayList<>();
-        mutators.add(request -> {
-            request.field(randomAlphaOfLengthBetween(3, 10));
-        });
+        mutators.add(request -> { request.field(randomAlphaOfLengthBetween(3, 10)); });
         mutators.add(request -> {
             String[] indices = ArrayUtils.concat(instance.indices(), generateRandomStringArray(5, 10, false, false));
             request.indices(indices);
         });
         mutators.add(request -> {
-            IndicesOptions indicesOptions = randomValueOtherThan(request.indicesOptions(),
-                () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+            IndicesOptions indicesOptions = randomValueOtherThan(
+                request.indicesOptions(),
+                () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean())
+            );
             request.indicesOptions(indicesOptions);
         });
         mutators.add(

@@ -61,10 +61,16 @@ import java.util.concurrent.Executor;
  * {@link org.elasticsearch.index.cache.query.QueryCache} should be used instead.
  */
 public final class BitsetFilterCache extends AbstractIndexComponent
-        implements IndexReader.ClosedListener, RemovalListener<IndexReader.CacheKey, Cache<Query, BitsetFilterCache.Value>>, Closeable {
+    implements
+        IndexReader.ClosedListener,
+        RemovalListener<IndexReader.CacheKey, Cache<Query, BitsetFilterCache.Value>>,
+        Closeable {
 
-    public static final Setting<Boolean> INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING =
-        Setting.boolSetting("index.load_fixed_bitset_filters_eagerly", true, Property.IndexScope);
+    public static final Setting<Boolean> INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING = Setting.boolSetting(
+        "index.load_fixed_bitset_filters_eagerly",
+        true,
+        Property.IndexScope
+    );
 
     private final boolean loadRandomAccessFiltersEagerly;
     private final Cache<IndexReader.CacheKey, Cache<Query, Value>> loadedFilters;
@@ -97,7 +103,6 @@ public final class BitsetFilterCache extends AbstractIndexComponent
         return new BitSetProducerWarmer(threadPool);
     }
 
-
     public BitSetProducer getBitSetProducer(Query query) {
         return new QueryWrapperBitSetProducer(query);
     }
@@ -125,13 +130,16 @@ public final class BitsetFilterCache extends AbstractIndexComponent
         final IndexReader.CacheKey coreCacheReader = cacheHelper.getKey();
         final ShardId shardId = ShardUtils.extractShardId(context.reader());
         if (shardId == null) {
-            throw new IllegalStateException("Null shardId. If you got here from a test, you need to wrap the directory reader. " +
-                "see for example AggregatorTestCase#wrapInMockESDirectoryReader.  If you got here in production, please file a bug.");
+            throw new IllegalStateException(
+                "Null shardId. If you got here from a test, you need to wrap the directory reader. "
+                    + "see for example AggregatorTestCase#wrapInMockESDirectoryReader.  If you got here in production, please file a bug."
+            );
         }
         if (indexSettings.getIndex().equals(shardId.getIndex()) == false) {
             // insanity
-            throw new IllegalStateException("Trying to load bit set for index " + shardId.getIndex()
-                    + " with cache of index " + indexSettings.getIndex());
+            throw new IllegalStateException(
+                "Trying to load bit set for index " + shardId.getIndex() + " with cache of index " + indexSettings.getIndex()
+            );
         }
         Cache<Query, Value> filterToFbs = loadedFilters.computeIfAbsent(coreCacheReader, key -> {
             cacheHelper.addClosedListener(BitsetFilterCache.this);
@@ -243,12 +251,18 @@ public final class BitsetFilterCache extends AbstractIndexComponent
                             final long start = System.nanoTime();
                             getAndLoadIfNotPresent(filterToWarm, ctx);
                             if (indexShard.warmerService().logger().isTraceEnabled()) {
-                                indexShard.warmerService().logger().trace("warmed bitset for [{}], took [{}]",
-                                    filterToWarm, TimeValue.timeValueNanos(System.nanoTime() - start));
+                                indexShard.warmerService()
+                                    .logger()
+                                    .trace(
+                                        "warmed bitset for [{}], took [{}]",
+                                        filterToWarm,
+                                        TimeValue.timeValueNanos(System.nanoTime() - start)
+                                    );
                             }
                         } catch (Exception e) {
-                            indexShard.warmerService().logger().warn(() -> new ParameterizedMessage("failed to load " +
-                                "bitset for [{}]", filterToWarm), e);
+                            indexShard.warmerService()
+                                .logger()
+                                .warn(() -> new ParameterizedMessage("failed to load " + "bitset for [{}]", filterToWarm), e);
                         } finally {
                             latch.countDown();
                         }
@@ -274,6 +288,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent
          * @param accountable the bitsets ram representation
          */
         void onCache(ShardId shardId, Accountable accountable);
+
         /**
          * Called for each cached bitset on the removal event.
          * @param shardId the shard id the bitset was cached for. This can be <code>null</code>

@@ -9,7 +9,6 @@
 package org.elasticsearch.common.blobstore.url;
 
 import org.apache.http.ConnectionClosedException;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.url.http.URLHttpClient;
@@ -18,6 +17,7 @@ import org.elasticsearch.common.blobstore.url.http.URLHttpClientSettings;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
 import org.hamcrest.Matcher;
@@ -67,14 +67,17 @@ public class URLBlobContainerRetriesTests extends AbstractBlobContainerRetriesTe
         // If the timeout is too tight it's possible that an URLHttpClientIOException is thrown as that
         // exception is thrown before reading data from the response body.
         return either(instanceOf(SocketTimeoutException.class)).or(instanceOf(ConnectionClosedException.class))
-            .or(instanceOf(RuntimeException.class)).or(instanceOf(URLHttpClientIOException.class));
+            .or(instanceOf(RuntimeException.class))
+            .or(instanceOf(URLHttpClientIOException.class));
     }
 
     @Override
-    protected BlobContainer createBlobContainer(Integer maxRetries,
-                                                TimeValue readTimeout,
-                                                Boolean disableChunkedEncoding,
-                                                ByteSizeValue bufferSize) {
+    protected BlobContainer createBlobContainer(
+        Integer maxRetries,
+        TimeValue readTimeout,
+        Boolean disableChunkedEncoding,
+        ByteSizeValue bufferSize
+    ) {
         Settings.Builder settingsBuilder = Settings.builder();
 
         if (maxRetries != null) {
@@ -88,8 +91,12 @@ public class URLBlobContainerRetriesTests extends AbstractBlobContainerRetriesTe
         try {
             final Settings settings = settingsBuilder.build();
             final URLHttpClientSettings httpClientSettings = URLHttpClientSettings.fromSettings(settings);
-            URLBlobStore urlBlobStore =
-                new URLBlobStore(settings, new URL(getEndpointForServer()), factory.create(httpClientSettings), httpClientSettings);
+            URLBlobStore urlBlobStore = new URLBlobStore(
+                settings,
+                new URL(getEndpointForServer()),
+                factory.create(httpClientSettings),
+                httpClientSettings
+            );
             return urlBlobStore.blobContainer(BlobPath.EMPTY);
         } catch (MalformedURLException e) {
             throw new RuntimeException("Unable to create URLBlobStore", e);

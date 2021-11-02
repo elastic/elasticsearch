@@ -7,13 +7,13 @@
 package org.elasticsearch.xpack.core.monitoring.action;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
@@ -32,13 +32,15 @@ public class MonitoringBulkDoc implements Writeable {
     private final BytesReference source;
     private final XContentType xContentType;
 
-    public MonitoringBulkDoc(final MonitoredSystem system,
-                             final String type,
-                             @Nullable final String id,
-                             final long timestamp,
-                             final long intervalMillis,
-                             final BytesReference source,
-                             final XContentType xContentType) {
+    public MonitoringBulkDoc(
+        final MonitoredSystem system,
+        final String type,
+        @Nullable final String id,
+        final long timestamp,
+        final long intervalMillis,
+        final BytesReference source,
+        final XContentType xContentType
+    ) {
 
         this.system = Objects.requireNonNull(system);
         this.type = Objects.requireNonNull(type);
@@ -50,7 +52,7 @@ public class MonitoringBulkDoc implements Writeable {
         this.xContentType = Objects.requireNonNull(xContentType);
     }
 
-    public MonitoringBulkDoc (StreamInput in) throws IOException {
+    public MonitoringBulkDoc(StreamInput in) throws IOException {
         this.system = MonitoredSystem.fromSystem(in.readOptionalString());
 
         if (in.getVersion().before(Version.V_6_0_0_rc1)) {
@@ -138,12 +140,12 @@ public class MonitoringBulkDoc implements Writeable {
         }
         MonitoringBulkDoc that = (MonitoringBulkDoc) o;
         return timestamp == that.timestamp
-                && intervalMillis == that.intervalMillis
-                && system == that.system
-                && Objects.equals(type, that.type)
-                && Objects.equals(id, that.id)
-                && Objects.equals(source, that.source)
-                && xContentType == that.xContentType;
+            && intervalMillis == that.intervalMillis
+            && system == that.system
+            && Objects.equals(type, that.type)
+            && Objects.equals(id, that.id)
+            && Objects.equals(source, that.source)
+            && xContentType == that.xContentType;
     }
 
     @Override

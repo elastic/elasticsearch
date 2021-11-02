@@ -58,9 +58,7 @@ public class LocalStateMonitoring extends LocalStateCompositeXPackPlugin {
 
             @Override
             public Collection<Module> createGuiceModules() {
-                return XPackPlugin.transportClientMode(settings) ?
-                    Collections.emptyList() :
-                    super.createGuiceModules();
+                return XPackPlugin.transportClientMode(settings) ? Collections.emptyList() : super.createGuiceModules();
             }
         });
         plugins.add(new IndexLifecycle(settings));

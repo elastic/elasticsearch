@@ -17,7 +17,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
@@ -27,6 +26,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -58,9 +58,10 @@ public class TypeFieldMapperTests extends ESSingleNodeTestCase {
         w.close();
 
         MappedFieldType ft = mapperService.fieldType(TypeFieldMapper.NAME);
-        IndexOrdinalsFieldData fd = (IndexOrdinalsFieldData) ft.fielddataBuilder("test", () -> {
-            throw new UnsupportedOperationException();
-        }).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
+        IndexOrdinalsFieldData fd = (IndexOrdinalsFieldData) ft.fielddataBuilder(
+            "test",
+            () -> { throw new UnsupportedOperationException(); }
+        ).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
         LeafOrdinalsFieldData afd = fd.load(r.leaves().get(0));
         SortedSetDocValues values = afd.getOrdinalsValues();
         assertTrue(values.advanceExact(0));

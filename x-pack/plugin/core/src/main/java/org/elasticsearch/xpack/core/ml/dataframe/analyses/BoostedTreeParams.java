@@ -7,12 +7,12 @@
 package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.AbstractObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -42,8 +42,9 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
     public static final ParseField SOFT_TREE_DEPTH_LIMIT = new ParseField("soft_tree_depth_limit");
     public static final ParseField SOFT_TREE_DEPTH_TOLERANCE = new ParseField("soft_tree_depth_tolerance");
     public static final ParseField DOWNSAMPLE_FACTOR = new ParseField("downsample_factor");
-    public static final ParseField MAX_OPTIMIZATION_ROUNDS_PER_HYPERPARAMETER =
-        new ParseField("max_optimization_rounds_per_hyperparameter");
+    public static final ParseField MAX_OPTIMIZATION_ROUNDS_PER_HYPERPARAMETER = new ParseField(
+        "max_optimization_rounds_per_hyperparameter"
+    );
 
     static void declareFields(AbstractObjectParser<?, Void> parser) {
         parser.declareDouble(optionalConstructorArg(), LAMBDA);
@@ -73,18 +74,20 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
     private final Double downsampleFactor;
     private final Integer maxOptimizationRoundsPerHyperparameter;
 
-    public BoostedTreeParams(@Nullable Double lambda,
-                             @Nullable Double gamma,
-                             @Nullable Double eta,
-                             @Nullable Integer maxTrees,
-                             @Nullable Double featureBagFraction,
-                             @Nullable Integer numTopFeatureImportanceValues,
-                             @Nullable Double alpha,
-                             @Nullable Double etaGrowthRatePerTree,
-                             @Nullable Double softTreeDepthLimit,
-                             @Nullable Double softTreeDepthTolerance,
-                             @Nullable Double downsampleFactor,
-                             @Nullable Integer maxOptimizationRoundsPerHyperparameter) {
+    public BoostedTreeParams(
+        @Nullable Double lambda,
+        @Nullable Double gamma,
+        @Nullable Double eta,
+        @Nullable Integer maxTrees,
+        @Nullable Double featureBagFraction,
+        @Nullable Integer numTopFeatureImportanceValues,
+        @Nullable Double alpha,
+        @Nullable Double etaGrowthRatePerTree,
+        @Nullable Double softTreeDepthLimit,
+        @Nullable Double softTreeDepthTolerance,
+        @Nullable Double downsampleFactor,
+        @Nullable Integer maxOptimizationRoundsPerHyperparameter
+    ) {
         if (lambda != null && lambda < 0) {
             throw ExceptionsHelper.badRequestException("[{}] must be a non-negative double", LAMBDA.getPreferredName());
         }
@@ -101,8 +104,10 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
             throw ExceptionsHelper.badRequestException("[{}] must be a double in (0, 1]", FEATURE_BAG_FRACTION.getPreferredName());
         }
         if (numTopFeatureImportanceValues != null && numTopFeatureImportanceValues < 0) {
-            throw ExceptionsHelper.badRequestException("[{}] must be a non-negative integer",
-                NUM_TOP_FEATURE_IMPORTANCE_VALUES.getPreferredName());
+            throw ExceptionsHelper.badRequestException(
+                "[{}] must be a non-negative integer",
+                NUM_TOP_FEATURE_IMPORTANCE_VALUES.getPreferredName()
+            );
         }
         if (alpha != null && alpha < 0) {
             throw ExceptionsHelper.badRequestException("[{}] must be a non-negative double", ALPHA.getPreferredName());
@@ -114,16 +119,20 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
             throw ExceptionsHelper.badRequestException("[{}] must be a non-negative double", SOFT_TREE_DEPTH_LIMIT.getPreferredName());
         }
         if (softTreeDepthTolerance != null && softTreeDepthTolerance < 0.01) {
-            throw ExceptionsHelper.badRequestException("[{}] must be a double greater than or equal to 0.01",
-                SOFT_TREE_DEPTH_TOLERANCE.getPreferredName());
+            throw ExceptionsHelper.badRequestException(
+                "[{}] must be a double greater than or equal to 0.01",
+                SOFT_TREE_DEPTH_TOLERANCE.getPreferredName()
+            );
         }
         if (downsampleFactor != null && (downsampleFactor <= 0 || downsampleFactor > 1.0)) {
             throw ExceptionsHelper.badRequestException("[{}] must be a double in (0, 1]", DOWNSAMPLE_FACTOR.getPreferredName());
         }
         if (maxOptimizationRoundsPerHyperparameter != null
-                && (maxOptimizationRoundsPerHyperparameter < 0 || maxOptimizationRoundsPerHyperparameter > 20)) {
-            throw ExceptionsHelper.badRequestException("[{}] must be an integer in [0, 20]",
-                MAX_OPTIMIZATION_ROUNDS_PER_HYPERPARAMETER.getPreferredName());
+            && (maxOptimizationRoundsPerHyperparameter < 0 || maxOptimizationRoundsPerHyperparameter > 20)) {
+            throw ExceptionsHelper.badRequestException(
+                "[{}] must be an integer in [0, 20]",
+                MAX_OPTIMIZATION_ROUNDS_PER_HYPERPARAMETER.getPreferredName()
+            );
         }
         this.lambda = lambda;
         this.gamma = gamma;
@@ -338,8 +347,20 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(lambda, gamma, eta, maxTrees, featureBagFraction, numTopFeatureImportanceValues, alpha, etaGrowthRatePerTree,
-            softTreeDepthLimit, softTreeDepthTolerance, downsampleFactor, maxOptimizationRoundsPerHyperparameter);
+        return Objects.hash(
+            lambda,
+            gamma,
+            eta,
+            maxTrees,
+            featureBagFraction,
+            numTopFeatureImportanceValues,
+            alpha,
+            etaGrowthRatePerTree,
+            softTreeDepthLimit,
+            softTreeDepthTolerance,
+            downsampleFactor,
+            maxOptimizationRoundsPerHyperparameter
+        );
     }
 
     public static Builder builder() {
@@ -439,8 +460,20 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
         }
 
         public BoostedTreeParams build() {
-            return new BoostedTreeParams(lambda, gamma, eta, maxTrees, featureBagFraction, numTopFeatureImportanceValues, alpha,
-                etaGrowthRatePerTree, softTreeDepthLimit, softTreeDepthTolerance, downsampleFactor, maxOptimizationRoundsPerHyperparameter);
+            return new BoostedTreeParams(
+                lambda,
+                gamma,
+                eta,
+                maxTrees,
+                featureBagFraction,
+                numTopFeatureImportanceValues,
+                alpha,
+                etaGrowthRatePerTree,
+                softTreeDepthLimit,
+                softTreeDepthTolerance,
+                downsampleFactor,
+                maxOptimizationRoundsPerHyperparameter
+            );
         }
     }
 }

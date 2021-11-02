@@ -10,14 +10,14 @@ package org.elasticsearch.action.get;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.VersionType;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
@@ -45,17 +45,13 @@ public class MultiGetRequestTests extends ESTestCase {
         builder.endObject();
         try (XContentParser parser = createParser(builder)) {
             final MultiGetRequest mgr = new MultiGetRequest();
-            final ParsingException e = expectThrows(
-                ParsingException.class,
-                () -> {
-                    final String defaultIndex = randomAlphaOfLength(5);
-                    final String defaultType = randomAlphaOfLength(3);
-                    final FetchSourceContext fetchSource = FetchSourceContext.FETCH_SOURCE;
-                    mgr.add(defaultIndex, defaultType, null, fetchSource, null, parser, true);
-                });
-            assertThat(
-                e.toString(),
-                containsString("unknown key [doc] for a START_ARRAY, expected [docs] or [ids]"));
+            final ParsingException e = expectThrows(ParsingException.class, () -> {
+                final String defaultIndex = randomAlphaOfLength(5);
+                final String defaultType = randomAlphaOfLength(3);
+                final FetchSourceContext fetchSource = FetchSourceContext.FETCH_SOURCE;
+                mgr.add(defaultIndex, defaultType, null, fetchSource, null, parser, true);
+            });
+            assertThat(e.toString(), containsString("unknown key [doc] for a START_ARRAY, expected [docs] or [ids]"));
         }
     }
 
@@ -73,37 +69,32 @@ public class MultiGetRequestTests extends ESTestCase {
         builder.endObject();
         final XContentParser parser = createParser(builder);
         final MultiGetRequest mgr = new MultiGetRequest();
-        final ParsingException e = expectThrows(
-                ParsingException.class,
-                () -> {
-                    final String defaultIndex = randomAlphaOfLength(5);
-                    final String defaultType = randomAlphaOfLength(3);
-                    final FetchSourceContext fetchSource = FetchSourceContext.FETCH_SOURCE;
-                    mgr.add(defaultIndex, defaultType, null, fetchSource, null, parser, true);
-                });
-        assertThat(
-                e.toString(),
-                containsString(
-                        "unexpected token [START_OBJECT], expected [FIELD_NAME] or [START_ARRAY]"));
+        final ParsingException e = expectThrows(ParsingException.class, () -> {
+            final String defaultIndex = randomAlphaOfLength(5);
+            final String defaultType = randomAlphaOfLength(3);
+            final FetchSourceContext fetchSource = FetchSourceContext.FETCH_SOURCE;
+            mgr.add(defaultIndex, defaultType, null, fetchSource, null, parser, true);
+        });
+        assertThat(e.toString(), containsString("unexpected token [START_OBJECT], expected [FIELD_NAME] or [START_ARRAY]"));
     }
 
     public void testAddWithValidSourceValueIsAccepted() throws Exception {
-        XContentParser parser = createParser(XContentFactory.jsonBuilder()
-            .startObject()
+        XContentParser parser = createParser(
+            XContentFactory.jsonBuilder()
+                .startObject()
                 .startArray("docs")
-                    .startObject()
-                        .field("_source", randomFrom("false", "true"))
-                    .endObject()
-                    .startObject()
-                        .field("_source", randomBoolean())
-                    .endObject()
+                .startObject()
+                .field("_source", randomFrom("false", "true"))
+                .endObject()
+                .startObject()
+                .field("_source", randomBoolean())
+                .endObject()
                 .endArray()
-            .endObject()
+                .endObject()
         );
 
         MultiGetRequest multiGetRequest = new MultiGetRequest();
-        multiGetRequest.add(
-            randomAlphaOfLength(5), randomAlphaOfLength(3), null, FetchSourceContext.FETCH_SOURCE, null, parser, true);
+        multiGetRequest.add(randomAlphaOfLength(5), randomAlphaOfLength(3), null, FetchSourceContext.FETCH_SOURCE, null, parser, true);
 
         assertEquals(2, multiGetRequest.getItems().size());
     }
@@ -142,8 +133,11 @@ public class MultiGetRequestTests extends ESTestCase {
             if (randomBoolean()) {
                 FetchSourceContext fetchSourceContext;
                 if (randomBoolean()) {
-                    fetchSourceContext = new FetchSourceContext(true, generateRandomStringArray(16, 8, false),
-                            generateRandomStringArray(5, 4, false));
+                    fetchSourceContext = new FetchSourceContext(
+                        true,
+                        generateRandomStringArray(16, 8, false),
+                        generateRandomStringArray(5, 4, false)
+                    );
                 } else {
                     fetchSourceContext = new FetchSourceContext(false);
                 }

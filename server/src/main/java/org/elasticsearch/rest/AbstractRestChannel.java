@@ -9,10 +9,10 @@ package org.elasticsearch.rest;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -88,8 +88,11 @@ public abstract class AbstractRestChannel implements RestChannel {
      * is {@code null}.
      */
     @Override
-    public XContentBuilder newBuilder(@Nullable XContentType requestContentType, @Nullable XContentType responseContentType,
-            boolean useFiltering) throws IOException {
+    public XContentBuilder newBuilder(
+        @Nullable XContentType requestContentType,
+        @Nullable XContentType responseContentType,
+        boolean useFiltering
+    ) throws IOException {
         if (responseContentType == null) {
             responseContentType = XContentType.fromMediaTypeOrFormat(format);
         }
@@ -115,8 +118,12 @@ public abstract class AbstractRestChannel implements RestChannel {
         }
 
         OutputStream unclosableOutputStream = Streams.flushOnCloseStream(bytesOutput());
-        XContentBuilder builder =
-            new XContentBuilder(XContentFactory.xContent(responseContentType), unclosableOutputStream, includes, excludes);
+        XContentBuilder builder = new XContentBuilder(
+            XContentFactory.xContent(responseContentType),
+            unclosableOutputStream,
+            includes,
+            excludes
+        );
         if (pretty) {
             builder.prettyPrint().lfAtEnd();
         }

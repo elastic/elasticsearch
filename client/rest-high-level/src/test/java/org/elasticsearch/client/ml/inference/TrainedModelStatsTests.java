@@ -9,13 +9,13 @@ package org.elasticsearch.client.ml.inference;
 
 import org.elasticsearch.client.ml.inference.trainedmodel.InferenceStatsTests;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.ingest.IngestStats;
+import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.ingest.IngestStats;
-import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.List;
@@ -24,7 +24,6 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 
 public class TrainedModelStatsTests extends AbstractXContentTestCase<TrainedModelStats> {
 
@@ -49,18 +48,20 @@ public class TrainedModelStatsTests extends AbstractXContentTestCase<TrainedMode
             randomAlphaOfLength(10),
             randomBoolean() ? null : randomIngestStats(),
             randomInt(),
-            randomBoolean() ? null : InferenceStatsTests.randomInstance());
+            randomBoolean() ? null : InferenceStatsTests.randomInstance()
+        );
     }
 
     private Map<String, Object> randomIngestStats() {
         try {
-            List<String> pipelineIds = Stream.generate(()-> randomAlphaOfLength(10))
+            List<String> pipelineIds = Stream.generate(() -> randomAlphaOfLength(10))
                 .limit(randomIntBetween(0, 10))
                 .collect(Collectors.toList());
             IngestStats stats = new IngestStats(
                 new IngestStats.Stats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
                 pipelineIds.stream().map(id -> new IngestStats.PipelineStat(id, randomStats())).collect(Collectors.toList()),
-                pipelineIds.stream().collect(Collectors.toMap(Function.identity(), (v) -> randomProcessorStats())));
+                pipelineIds.stream().collect(Collectors.toMap(Function.identity(), (v) -> randomProcessorStats()))
+            );
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
                 builder.startObject();
                 stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -73,7 +74,7 @@ public class TrainedModelStatsTests extends AbstractXContentTestCase<TrainedMode
         }
     }
 
-    private IngestStats.Stats randomStats(){
+    private IngestStats.Stats randomStats() {
         return new IngestStats.Stats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
     }
 

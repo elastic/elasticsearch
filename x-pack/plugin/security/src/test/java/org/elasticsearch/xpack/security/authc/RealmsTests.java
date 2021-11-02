@@ -256,12 +256,16 @@ public class RealmsTests extends ESTestCase {
         assertThat(realms.getUnlicensedRealms(), empty());
         assertThat(realms.getUnlicensedRealms(), sameInstance(realms.getUnlicensedRealms()));
 
-        assertWarnings("Found multiple realms configured with the same order: [1: "
-            + nameToRealmId.entrySet().stream()
-                .map(e -> "xpack.security.authc.realms.type_" + e.getValue() + "." + e.getKey() + ".order")
-                .sorted().collect(Collectors.joining(","))
-            + "]. "
-            + "In next major release, node will fail to start with duplicated realm order.");
+        assertWarnings(
+            "Found multiple realms configured with the same order: [1: "
+                + nameToRealmId.entrySet()
+                    .stream()
+                    .map(e -> "xpack.security.authc.realms.type_" + e.getValue() + "." + e.getKey() + ".order")
+                    .sorted()
+                    .collect(Collectors.joining(","))
+                + "]. "
+                + "In next major release, node will fail to start with duplicated realm order."
+        );
     }
 
     public void testWithSettingsWithMultipleInternalRealmsOfSameType() throws Exception {
@@ -513,9 +517,9 @@ public class RealmsTests extends ESTestCase {
         assertThat(factories.get("type_0"), notNullValue());
         String ldapRealmName = randomAlphaOfLengthBetween(3, 8);
         Settings.Builder builder = Settings.builder()
-                .put("path.home", createTempDir())
-                .put("xpack.security.authc.realms.ldap." + ldapRealmName + ".order", "0")
-                .put("xpack.security.authc.realms.type_0.custom.order", "1");
+            .put("path.home", createTempDir())
+            .put("xpack.security.authc.realms.ldap." + ldapRealmName + ".order", "0")
+            .put("xpack.security.authc.realms.type_0.custom.order", "1");
         disableFileAndNativeRealms(builder);
         Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
@@ -584,9 +588,9 @@ public class RealmsTests extends ESTestCase {
         factories.put(LdapRealmSettings.LDAP_TYPE, config -> new DummyRealm(config));
         final String type = randomFrom(FileRealmSettings.TYPE, NativeRealmSettings.TYPE);
         Settings.Builder builder = Settings.builder()
-                .put("path.home", createTempDir())
-                .put("xpack.security.authc.realms.ldap.foo.order", "0")
-                .put("xpack.security.authc.realms." + type + ".native.order", "1");
+            .put("path.home", createTempDir())
+            .put("xpack.security.authc.realms.ldap.foo.order", "0")
+            .put("xpack.security.authc.realms." + type + ".native.order", "1");
         disableFileAndNativeRealms(builder);
         Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
@@ -650,8 +654,8 @@ public class RealmsTests extends ESTestCase {
         final LicensedFeature.Persistent feature = InternalRealms.getLicensedFeature(selectedRealmType);
         String realmName = randomAlphaOfLengthBetween(3, 8);
         Settings.Builder builder = Settings.builder()
-                .put("path.home", createTempDir())
-                .put("xpack.security.authc.realms." + selectedRealmType + "." + realmName + ".order", "0");
+            .put("path.home", createTempDir())
+            .put("xpack.security.authc.realms." + selectedRealmType + "." + realmName + ".order", "0");
         disableFileAndNativeRealms(builder);
         Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
@@ -717,8 +721,7 @@ public class RealmsTests extends ESTestCase {
     }
 
     public void testDisabledRealmsAreNotAdded() throws Exception {
-        Settings.Builder builder = Settings.builder()
-                .put("path.home", createTempDir());
+        Settings.Builder builder = Settings.builder().put("path.home", createTempDir());
         disableFileAndNativeRealms(builder);
         List<Integer> orders = new ArrayList<>(randomRealmTypesCount);
         for (int i = 0; i < randomRealmTypesCount; i++) {
@@ -741,9 +744,11 @@ public class RealmsTests extends ESTestCase {
         Environment env = TestEnvironment.newEnvironment(settings);
         Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
         if (false == anyEnabled) {
-            assertWarnings("Found explicitly disabled basic realms: [file,native]. " +
-                "But they will be enabled because no other realms are configured or enabled. " +
-                "In next major release, explicitly disabled basic realms will remain disabled.");
+            assertWarnings(
+                "Found explicitly disabled basic realms: [file,native]. "
+                    + "But they will be enabled because no other realms are configured or enabled. "
+                    + "In next major release, explicitly disabled basic realms will remain disabled."
+            );
         }
         Iterator<Realm> iterator = realms.iterator();
         Realm realm = iterator.next();
@@ -781,8 +786,8 @@ public class RealmsTests extends ESTestCase {
 
     public void testAuthcAuthzDisabled() throws Exception {
         Settings.Builder builder = Settings.builder()
-                .put("path.home", createTempDir())
-                .put("xpack.security.authc.realms." + FileRealmSettings.TYPE + ".realm_1.order", 0);
+            .put("path.home", createTempDir())
+            .put("xpack.security.authc.realms." + FileRealmSettings.TYPE + ".realm_1.order", 0);
         disableFileAndNativeRealms(builder);
         final Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
@@ -799,9 +804,9 @@ public class RealmsTests extends ESTestCase {
     public void testUsageStats() throws Exception {
         // test realms with duplicate values
         Settings.Builder builder = Settings.builder()
-                .put("path.home", createTempDir())
-                .put("xpack.security.authc.realms.type_0.foo.order", "0")
-                .put("xpack.security.authc.realms.type_0.bar.order", "1");
+            .put("path.home", createTempDir())
+            .put("xpack.security.authc.realms.type_0.foo.order", "0")
+            .put("xpack.security.authc.realms.type_0.bar.order", "1");
         disableFileAndNativeRealms(builder);
         Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
@@ -860,30 +865,42 @@ public class RealmsTests extends ESTestCase {
         builder.put("xpack.security.authc.realms.kerberos.realm_2.order", 2);
         final Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
-        final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
-                () -> new Realms(settings, env, factories, licenseState, threadContext, reservedRealm));
-        assertThat(iae.getMessage(), is(equalTo(
-                "multiple realms [realm_1, realm_2] configured of type [kerberos], [kerberos] can only have one such realm configured")));
+        final IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> new Realms(settings, env, factories, licenseState, threadContext, reservedRealm)
+        );
+        assertThat(
+            iae.getMessage(),
+            is(
+                equalTo(
+                    "multiple realms [realm_1, realm_2] configured of type [kerberos], [kerberos] can only have one such realm configured"
+                )
+            )
+        );
     }
 
     public void testWarningForMissingRealmOrder() throws Exception {
         final int realmTypeId = randomIntBetween(0, randomRealmTypesCount - 1);
         final String realmName = randomAlphaOfLengthBetween(4, 12);
         final Settings.Builder builder = Settings.builder()
-                .put("path.home", createTempDir())
-                .put("xpack.security.authc.realms.type_" + realmTypeId + ".realm_" + realmName + ".enabled", true);
+            .put("path.home", createTempDir())
+            .put("xpack.security.authc.realms.type_" + realmTypeId + ".realm_" + realmName + ".enabled", true);
         disableFileAndNativeRealms(builder);
         final Settings settings = builder.build();
 
         new Realms(settings, TestEnvironment.newEnvironment(settings), factories, licenseState, threadContext, reservedRealm);
-        assertWarnings("Found realms without order config: [xpack.security.authc.realms.type_"
-            + realmTypeId + ".realm_" + realmName + ".order]. "
-            + "In next major release, node will fail to start with missing realm order.");
+        assertWarnings(
+            "Found realms without order config: [xpack.security.authc.realms.type_"
+                + realmTypeId
+                + ".realm_"
+                + realmName
+                + ".order]. "
+                + "In next major release, node will fail to start with missing realm order."
+        );
     }
 
     public void testWarningsForImplicitlyDisabledBasicRealms() throws Exception {
-        final Settings.Builder builder = Settings.builder()
-            .put("path.home", createTempDir());
+        final Settings.Builder builder = Settings.builder().put("path.home", createTempDir());
         final boolean otherRealmConfigured = randomBoolean();
         final boolean otherRealmEnabled = randomBoolean();
         if (otherRealmConfigured) {
@@ -918,22 +935,34 @@ public class RealmsTests extends ESTestCase {
             }
         }
         final Settings settings = builder.build();
-        final Realms realms =
-            new Realms(settings, TestEnvironment.newEnvironment(settings), factories, licenseState, threadContext, reservedRealm);
+        final Realms realms = new Realms(
+            settings,
+            TestEnvironment.newEnvironment(settings),
+            factories,
+            licenseState,
+            threadContext,
+            reservedRealm
+        );
 
         if (otherRealmConfigured && otherRealmEnabled) {
             if (false == fileRealmConfigured && false == nativeRealmConfigured) {
-                assertWarnings("Found implicitly disabled basic realms: [file,native]. " +
-                    "They are disabled because there are other explicitly configured realms. " +
-                    "In next major release, basic realms will always be enabled unless explicitly disabled.");
+                assertWarnings(
+                    "Found implicitly disabled basic realms: [file,native]. "
+                        + "They are disabled because there are other explicitly configured realms. "
+                        + "In next major release, basic realms will always be enabled unless explicitly disabled."
+                );
             } else if (false == fileRealmConfigured) {
-                assertWarnings("Found implicitly disabled basic realm: [file]. " +
-                    "It is disabled because there are other explicitly configured realms. " +
-                    "In next major release, basic realms will always be enabled unless explicitly disabled.");
+                assertWarnings(
+                    "Found implicitly disabled basic realm: [file]. "
+                        + "It is disabled because there are other explicitly configured realms. "
+                        + "In next major release, basic realms will always be enabled unless explicitly disabled."
+                );
             } else if (false == nativeRealmConfigured) {
-                assertWarnings("Found implicitly disabled basic realm: [native]. " +
-                    "It is disabled because there are other explicitly configured realms. " +
-                    "In next major release, basic realms will always be enabled unless explicitly disabled.");
+                assertWarnings(
+                    "Found implicitly disabled basic realm: [native]. "
+                        + "It is disabled because there are other explicitly configured realms. "
+                        + "In next major release, basic realms will always be enabled unless explicitly disabled."
+                );
             }
         } else {
             if (false == fileRealmConfigured && false == nativeRealmConfigured) {
@@ -942,33 +971,43 @@ public class RealmsTests extends ESTestCase {
                 assertNotNull(realms.realm(NativeRealmSettings.DEFAULT_NAME));
             } else if (false == fileRealmConfigured) {
                 if (nativeRealmEnabled) {
-                    assertWarnings("Found implicitly disabled basic realm: [file]. " +
-                        "It is disabled because there are other explicitly configured realms. " +
-                        "In next major release, basic realms will always be enabled unless explicitly disabled.");
+                    assertWarnings(
+                        "Found implicitly disabled basic realm: [file]. "
+                            + "It is disabled because there are other explicitly configured realms. "
+                            + "In next major release, basic realms will always be enabled unless explicitly disabled."
+                    );
                 } else {
-                    assertWarnings("Found explicitly disabled basic realm: [native]. " +
-                        "But it will be enabled because no other realms are configured or enabled. " +
-                        "In next major release, explicitly disabled basic realms will remain disabled.");
+                    assertWarnings(
+                        "Found explicitly disabled basic realm: [native]. "
+                            + "But it will be enabled because no other realms are configured or enabled. "
+                            + "In next major release, explicitly disabled basic realms will remain disabled."
+                    );
                     assertNotNull(realms.realm(FileRealmSettings.DEFAULT_NAME));
                     assertNotNull(realms.realm(NativeRealmSettings.DEFAULT_NAME));
                 }
             } else if (false == nativeRealmConfigured) {
                 if (fileRealmEnabled) {
-                    assertWarnings("Found implicitly disabled basic realm: [native]. " +
-                        "It is disabled because there are other explicitly configured realms. " +
-                        "In next major release, basic realms will always be enabled unless explicitly disabled.");
+                    assertWarnings(
+                        "Found implicitly disabled basic realm: [native]. "
+                            + "It is disabled because there are other explicitly configured realms. "
+                            + "In next major release, basic realms will always be enabled unless explicitly disabled."
+                    );
                 } else {
-                    assertWarnings("Found explicitly disabled basic realm: [file]. " +
-                        "But it will be enabled because no other realms are configured or enabled. " +
-                        "In next major release, explicitly disabled basic realms will remain disabled.");
+                    assertWarnings(
+                        "Found explicitly disabled basic realm: [file]. "
+                            + "But it will be enabled because no other realms are configured or enabled. "
+                            + "In next major release, explicitly disabled basic realms will remain disabled."
+                    );
                     assertNotNull(realms.realm(FileRealmSettings.DEFAULT_NAME));
                     assertNotNull(realms.realm(NativeRealmSettings.DEFAULT_NAME));
                 }
             } else {
                 if (false == fileRealmEnabled && false == nativeRealmEnabled) {
-                    assertWarnings("Found explicitly disabled basic realms: [file,native]. " +
-                        "But they will be enabled because no other realms are configured or enabled. " +
-                        "In next major release, explicitly disabled basic realms will remain disabled.");
+                    assertWarnings(
+                        "Found explicitly disabled basic realms: [file,native]. "
+                            + "But they will be enabled because no other realms are configured or enabled. "
+                            + "In next major release, explicitly disabled basic realms will remain disabled."
+                    );
                     assertNotNull(realms.realm(FileRealmSettings.DEFAULT_NAME));
                     assertNotNull(realms.realm(NativeRealmSettings.DEFAULT_NAME));
                 }

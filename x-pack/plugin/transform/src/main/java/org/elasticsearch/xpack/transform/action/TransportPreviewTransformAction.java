@@ -26,11 +26,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.license.License;
@@ -39,6 +35,10 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
@@ -134,7 +134,8 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
             transportService.getRemoteClusterService(),
             DiscoveryNode.isRemoteClusterClient(settings)
                 /* transforms are BASIC so always allowed, no need to check license */
-                ? new RemoteClusterLicenseChecker(client, mode -> true) : null,
+                ? new RemoteClusterLicenseChecker(client, null)
+                : null,
             ingestService,
             clusterService.getNodeName(),
             License.OperationMode.BASIC.description()
@@ -150,7 +151,15 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         if (clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_7_13_0)) {
             boolean requiresRemote = request.getConfig().getSource().requiresRemoteCluster();
             if (TransformNodes.redirectToAnotherNodeIfNeeded(
-                    clusterState, nodeSettings, requiresRemote, transportService, actionName, request, Response::new, listener)) {
+                clusterState,
+                nodeSettings,
+                requiresRemote,
+                transportService,
+                actionName,
+                request,
+                Response::new,
+                listener
+            )) {
                 return;
             }
         }
@@ -159,43 +168,35 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
         final Function function = FunctionFactory.create(config);
 
         // <4> Validate transform query
-        ActionListener<Boolean> validateConfigListener = ActionListener.wrap(
-            validateConfigResponse -> {
-                getPreview(
-                    config.getId(), // note: @link{PreviewTransformAction} sets an id, so this is never null
-                    function,
-                    config.getSource(),
-                    config.getDestination().getPipeline(),
-                    config.getDestination().getIndex(),
-                    config.getSyncConfig(),
-                    listener
-                );
-            },
-            listener::onFailure
-        );
+        ActionListener<Boolean> validateConfigListener = ActionListener.wrap(validateConfigResponse -> {
+            getPreview(
+                config.getId(), // note: @link{PreviewTransformAction} sets an id, so this is never null
+                function,
+                config.getSource(),
+                config.getDestination().getPipeline(),
+                config.getDestination().getIndex(),
+                config.getSyncConfig(),
+                listener
+            );
+        }, listener::onFailure);
 
         // <3> Validate transform function config
         ActionListener<Boolean> validateSourceDestListener = ActionListener.wrap(
-            validateSourceDestResponse -> {
-                function.validateConfig(validateConfigListener);
-            },
+            validateSourceDestResponse -> { function.validateConfig(validateConfigListener); },
             listener::onFailure
         );
 
         // <2> Validate source and destination indices
-        ActionListener<Void> checkPrivilegesListener = ActionListener.wrap(
-            aVoid -> {
-                sourceDestValidator.validate(
-                    clusterState,
-                    config.getSource().getIndex(),
-                    config.getDestination().getIndex(),
-                    config.getDestination().getPipeline(),
-                    SourceDestValidations.getValidationsForPreview(config.getAdditionalSourceDestValidations()),
-                    validateSourceDestListener
-                );
-            },
-            listener::onFailure
-        );
+        ActionListener<Void> checkPrivilegesListener = ActionListener.wrap(aVoid -> {
+            sourceDestValidator.validate(
+                clusterState,
+                config.getSource().getIndex(),
+                config.getDestination().getIndex(),
+                config.getDestination().getPipeline(),
+                SourceDestValidations.getValidationsForPreview(config.getAdditionalSourceDestValidations()),
+                validateSourceDestListener
+            );
+        }, listener::onFailure);
 
         // <1> Early check to verify that the user can create the destination index and can read from the source
         if (licenseState.isSecurityEnabled()) {
@@ -248,55 +249,48 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
             listener.onResponse(new Response(docs, generatedDestIndexSettings));
         }, listener::onFailure);
 
-        ActionListener<List<Map<String, Object>>> previewListener = ActionListener.wrap(
-            docs -> {
-                if (pipeline == null) {
-                    TransformDestIndexSettings generatedDestIndexSettings = TransformIndex.createTransformDestIndexSettings(
-                        mappings.get(),
-                        transformId,
-                        Clock.systemUTC()
-                    );
-                    List<String> warnings = TransformConfigLinter.getWarnings(function, source, syncConfig);
-                    warnings.forEach(warning -> HeaderWarning.addWarning(DeprecationLogger.CRITICAL, warning));
-                    listener.onResponse(new Response(docs, generatedDestIndexSettings));
-                } else {
-                    List<Map<String, Object>> results = docs.stream().map(doc -> {
-                        Map<String, Object> src = new HashMap<>();
-                        String id = (String) doc.get(TransformField.DOCUMENT_ID_FIELD);
-                        src.put("_source", doc);
-                        src.put("_id", id);
-                        src.put("_index", dest);
-                        return src;
-                    }).collect(Collectors.toList());
-
-                    try (XContentBuilder builder = jsonBuilder()) {
-                        builder.startObject();
-                        builder.field("docs", results);
-                        builder.endObject();
-                        SimulatePipelineRequest pipelineRequest =
-                            new SimulatePipelineRequest(BytesReference.bytes(builder), XContentType.JSON);
-                        pipelineRequest.setId(pipeline);
-                        client.execute(SimulatePipelineAction.INSTANCE, pipelineRequest, pipelineResponseActionListener);
-                    }
-                }
-            },
-            listener::onFailure
-        );
-
-        ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(
-            deducedMappings -> {
-                mappings.set(deducedMappings);
-                function.preview(
-                    client,
-                    ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders()),
-                    source,
-                    deducedMappings,
-                    NUMBER_OF_PREVIEW_BUCKETS,
-                    previewListener
+        ActionListener<List<Map<String, Object>>> previewListener = ActionListener.wrap(docs -> {
+            if (pipeline == null) {
+                TransformDestIndexSettings generatedDestIndexSettings = TransformIndex.createTransformDestIndexSettings(
+                    mappings.get(),
+                    transformId,
+                    Clock.systemUTC()
                 );
-            },
-            listener::onFailure
-        );
+                List<String> warnings = TransformConfigLinter.getWarnings(function, source, syncConfig);
+                warnings.forEach(warning -> HeaderWarning.addWarning(DeprecationLogger.CRITICAL, warning));
+                listener.onResponse(new Response(docs, generatedDestIndexSettings));
+            } else {
+                List<Map<String, Object>> results = docs.stream().map(doc -> {
+                    Map<String, Object> src = new HashMap<>();
+                    String id = (String) doc.get(TransformField.DOCUMENT_ID_FIELD);
+                    src.put("_source", doc);
+                    src.put("_id", id);
+                    src.put("_index", dest);
+                    return src;
+                }).collect(Collectors.toList());
+
+                try (XContentBuilder builder = jsonBuilder()) {
+                    builder.startObject();
+                    builder.field("docs", results);
+                    builder.endObject();
+                    SimulatePipelineRequest pipelineRequest = new SimulatePipelineRequest(BytesReference.bytes(builder), XContentType.JSON);
+                    pipelineRequest.setId(pipeline);
+                    client.execute(SimulatePipelineAction.INSTANCE, pipelineRequest, pipelineResponseActionListener);
+                }
+            }
+        }, listener::onFailure);
+
+        ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(deducedMappings -> {
+            mappings.set(deducedMappings);
+            function.preview(
+                client,
+                ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders()),
+                source,
+                deducedMappings,
+                NUMBER_OF_PREVIEW_BUCKETS,
+                previewListener
+            );
+        }, listener::onFailure);
 
         function.deduceMappings(client, source, deduceMappingsListener);
     }

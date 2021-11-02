@@ -12,10 +12,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,9 +28,13 @@ import static org.hamcrest.Matchers.equalTo;
 public class ScriptStatsTests extends ESTestCase {
     public void testXContent() throws IOException {
         List<ScriptContextStats> contextStats = org.elasticsearch.core.List.of(
-            new ScriptContextStats("contextB", 100, 201, 302,
-                    new ScriptContextStats.TimeSeries(1000, 1001, 1002),
-                    new ScriptContextStats.TimeSeries(2000, 2001, 2002)
+            new ScriptContextStats(
+                "contextB",
+                100,
+                201,
+                302,
+                new ScriptContextStats.TimeSeries(1000, 1001, 1002),
+                new ScriptContextStats.TimeSeries(2000, 2001, 2002)
             ),
             new ScriptContextStats("contextA", 1000, 2010, 3020, null, new ScriptContextStats.TimeSeries(0, 0, 0))
         );
@@ -40,13 +44,13 @@ public class ScriptStatsTests extends ESTestCase {
         stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
 
-        String expected = "{\n" +
-            "  \"script\" : {\n" +
-            "    \"compilations\" : 1100,\n" +
-            "    \"cache_evictions\" : 2211,\n" +
-            "    \"compilation_limit_triggered\" : 3322\n" +
-            "  }\n" +
-            "}";
+        String expected = "{\n"
+            + "  \"script\" : {\n"
+            + "    \"compilations\" : 1100,\n"
+            + "    \"cache_evictions\" : 2211,\n"
+            + "    \"compilation_limit_triggered\" : 3322\n"
+            + "  }\n"
+            + "}";
         assertThat(Strings.toString(builder), equalTo(expected));
     }
 
@@ -57,34 +61,38 @@ public class ScriptStatsTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
-        String expected  =
-                "{\n" +
-                "  \"context\" : \"c\",\n" +
-                "  \"compilations\" : 1111,\n" +
-                "  \"cache_evictions\" : 2222,\n" +
-                "  \"compilation_limit_triggered\" : 3333\n" +
-                "}";
+        String expected = "{\n"
+            + "  \"context\" : \"c\",\n"
+            + "  \"compilations\" : 1111,\n"
+            + "  \"cache_evictions\" : 2222,\n"
+            + "  \"compilation_limit_triggered\" : 3333\n"
+            + "}";
 
         assertThat(Strings.toString(builder), equalTo(expected));
     }
 
     public void testSerializeTimeSeries() throws IOException {
-        Function<ScriptContextStats.TimeSeries, ScriptContextStats> mkContextStats =
-            (ts) -> new ScriptContextStats("c", 1111, 2222, 3333, null, ts);
+        Function<ScriptContextStats.TimeSeries, ScriptContextStats> mkContextStats = (ts) -> new ScriptContextStats(
+            "c",
+            1111,
+            2222,
+            3333,
+            null,
+            ts
+        );
 
         ScriptContextStats.TimeSeries series = new ScriptContextStats.TimeSeries(0, 0, 5);
-        String format =
-                "{\n" +
-                "  \"context\" : \"c\",\n" +
-                "  \"compilations\" : 1111,\n" +
-                "  \"cache_evictions\" : 2222,\n" +
-                "  \"cache_evictions_history\" : {\n" +
-                "    \"5m\" : %d,\n" +
-                "    \"15m\" : %d,\n" +
-                "    \"24h\" : %d\n" +
-                "  },\n" +
-                "  \"compilation_limit_triggered\" : 3333\n" +
-                "}";
+        String format = "{\n"
+            + "  \"context\" : \"c\",\n"
+            + "  \"compilations\" : 1111,\n"
+            + "  \"cache_evictions\" : 2222,\n"
+            + "  \"cache_evictions_history\" : {\n"
+            + "    \"5m\" : %d,\n"
+            + "    \"15m\" : %d,\n"
+            + "    \"24h\" : %d\n"
+            + "  },\n"
+            + "  \"compilation_limit_triggered\" : 3333\n"
+            + "}";
 
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         mkContextStats.apply(series).toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -139,7 +147,7 @@ public class ScriptStatsTests extends ESTestCase {
     }
 
     public ScriptContextStats randomStats() {
-        long[] histStats = {randomLongBetween(0, 2048), randomLongBetween(0, 2048)};
+        long[] histStats = { randomLongBetween(0, 2048), randomLongBetween(0, 2048) };
         List<ScriptContextStats.TimeSeries> timeSeries = new ArrayList<>();
         for (int j = 0; j < 2; j++) {
             if (randomBoolean() && histStats[j] > 0) {

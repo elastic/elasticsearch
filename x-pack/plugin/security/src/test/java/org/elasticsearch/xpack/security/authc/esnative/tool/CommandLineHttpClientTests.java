@@ -58,13 +58,18 @@ public class CommandLineHttpClientTests extends ESTestCase {
     }
 
     public void testCommandLineHttpClientCanExecuteAndReturnCorrectResultUsingSSLSettings() throws Exception {
-        Settings settings = getHttpSslSettings()
-            .put("xpack.security.http.ssl.certificate_authorities", certPath.toString())
+        Settings settings = getHttpSslSettings().put("xpack.security.http.ssl.certificate_authorities", certPath.toString())
             .put("xpack.security.http.ssl.verification_mode", VerificationMode.CERTIFICATE)
             .build();
         CommandLineHttpClient client = new CommandLineHttpClient(settings, environment);
-        HttpResponse httpResponse = client.execute("GET", new URL("https://localhost:" + webServer.getPort() + "/test"), "u1",
-                new SecureString(new char[]{'p'}), () -> null, is -> responseBuilder(is));
+        HttpResponse httpResponse = client.execute(
+            "GET",
+            new URL("https://localhost:" + webServer.getPort() + "/test"),
+            "u1",
+            new SecureString(new char[] { 'p' }),
+            () -> null,
+            is -> responseBuilder(is)
+        );
 
         assertNotNull("Should have http response", httpResponse);
         assertEquals("Http status code does not match", 200, httpResponse.getHttpStatus());
@@ -76,12 +81,12 @@ public class CommandLineHttpClientTests extends ESTestCase {
         if (inFipsJvm()) {
             builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
         }
-        Settings settings = builder
-            .put("network.host", "_ec2:privateIpv4_")
-            .build();
+        Settings settings = builder.put("network.host", "_ec2:privateIpv4_").build();
         CommandLineHttpClient client = new CommandLineHttpClient(settings, environment);
-        assertThat(expectThrows(IllegalStateException.class, () -> client.getDefaultURL()).getMessage(),
-            containsString("unable to determine default URL from settings, please use the -u option to explicitly provide the url"));
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> client.getDefaultURL()).getMessage(),
+            containsString("unable to determine default URL from settings, please use the -u option to explicitly provide the url")
+        );
     }
 
     private MockWebServer createMockWebServer() {
@@ -97,8 +102,7 @@ public class CommandLineHttpClientTests extends ESTestCase {
         if (inFipsJvm()) {
             builder.put(XPackSettings.DIAGNOSE_TRUST_EXCEPTIONS_SETTING.getKey(), false);
         }
-        return builder
-            .put("xpack.security.http.ssl.enabled", true)
+        return builder.put("xpack.security.http.ssl.enabled", true)
             .put("xpack.security.http.ssl.key", keyPath.toString())
             .put("xpack.security.http.ssl.certificate", certPath.toString())
             .setSecureSettings(secureSettings);

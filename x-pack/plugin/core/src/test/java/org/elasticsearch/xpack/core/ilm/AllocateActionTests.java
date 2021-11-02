@@ -62,7 +62,6 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
         return new AllocateAction(numberOfReplicas, totalShardsPerNode, includes, excludes, requires);
     }
 
-
     @Override
     protected Reader<AllocateAction> instanceReader() {
         return AllocateAction::new;
@@ -76,23 +75,23 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
         Integer numberOfReplicas = instance.getNumberOfReplicas();
         Integer totalShardsPerNode = instance.getTotalShardsPerNode();
         switch (randomIntBetween(0, 3)) {
-        case 0:
-            include = new HashMap<>(include);
-            include.put(randomAlphaOfLengthBetween(11, 15), randomAlphaOfLengthBetween(1, 20));
-            break;
-        case 1:
-            exclude = new HashMap<>(exclude);
-            exclude.put(randomAlphaOfLengthBetween(11, 15), randomAlphaOfLengthBetween(1, 20));
-            break;
-        case 2:
-            require = new HashMap<>(require);
-            require.put(randomAlphaOfLengthBetween(11, 15), randomAlphaOfLengthBetween(1, 20));
-            break;
-        case 3:
-            numberOfReplicas = randomIntBetween(11, 20);
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 0:
+                include = new HashMap<>(include);
+                include.put(randomAlphaOfLengthBetween(11, 15), randomAlphaOfLengthBetween(1, 20));
+                break;
+            case 1:
+                exclude = new HashMap<>(exclude);
+                exclude.put(randomAlphaOfLengthBetween(11, 15), randomAlphaOfLengthBetween(1, 20));
+                break;
+            case 2:
+                require = new HashMap<>(require);
+                require.put(randomAlphaOfLengthBetween(11, 15), randomAlphaOfLengthBetween(1, 20));
+                break;
+            case 3:
+                numberOfReplicas = randomIntBetween(11, 20);
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
         return new AllocateAction(numberOfReplicas, totalShardsPerNode, include, exclude, require);
     }
@@ -101,19 +100,31 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
         Map<String, String> include = randomBoolean() ? null : Collections.emptyMap();
         Map<String, String> exclude = randomBoolean() ? null : Collections.emptyMap();
         Map<String, String> require = randomBoolean() ? null : Collections.emptyMap();
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> new AllocateAction(null, null, include, exclude, require));
-        assertEquals("At least one of " + AllocateAction.INCLUDE_FIELD.getPreferredName() + ", "
-                + AllocateAction.EXCLUDE_FIELD.getPreferredName() + " or " + AllocateAction.REQUIRE_FIELD.getPreferredName()
-                + "must contain attributes for action " + AllocateAction.NAME, exception.getMessage());
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new AllocateAction(null, null, include, exclude, require)
+        );
+        assertEquals(
+            "At least one of "
+                + AllocateAction.INCLUDE_FIELD.getPreferredName()
+                + ", "
+                + AllocateAction.EXCLUDE_FIELD.getPreferredName()
+                + " or "
+                + AllocateAction.REQUIRE_FIELD.getPreferredName()
+                + "must contain attributes for action "
+                + AllocateAction.NAME,
+            exception.getMessage()
+        );
     }
 
     public void testInvalidNumberOfReplicas() {
         Map<String, String> include = randomAllocationRoutingMap(1, 5);
         Map<String, String> exclude = randomBoolean() ? null : Collections.emptyMap();
         Map<String, String> require = randomBoolean() ? null : Collections.emptyMap();
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> new AllocateAction(randomIntBetween(-1000, -1), randomIntBetween(0, 300), include, exclude, require));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new AllocateAction(randomIntBetween(-1000, -1), randomIntBetween(0, 300), include, exclude, require)
+        );
         assertEquals("[" + AllocateAction.NUMBER_OF_REPLICAS_FIELD.getPreferredName() + "] must be >= 0", exception.getMessage());
     }
 
@@ -121,8 +132,10 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
         Map<String, String> include = randomAllocationRoutingMap(1, 5);
         Map<String, String> exclude = randomBoolean() ? null : Collections.emptyMap();
         Map<String, String> require = randomBoolean() ? null : Collections.emptyMap();
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> new AllocateAction(randomIntBetween(0, 300), randomIntBetween(-1000, -2), include, exclude, require));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new AllocateAction(randomIntBetween(0, 300), randomIntBetween(-1000, -2), include, exclude, require)
+        );
         assertEquals("[" + AllocateAction.TOTAL_SHARDS_PER_NODE_FIELD.getPreferredName() + "] must be >= -1", exception.getMessage());
     }
 
@@ -130,11 +143,11 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
         Map<String, String> map = new HashMap<>();
         int numIncludes = randomIntBetween(minEntries, maxEntries);
         for (int i = 0; i < numIncludes; i++) {
-            String attributeName =
-                randomValueOtherThanMany(DiscoveryNodeRole.BUILT_IN_ROLES.stream().map(DiscoveryNodeRole::roleName)
-                        .collect(Collectors.toList())::contains,
+            String attributeName = randomValueOtherThanMany(
+                DiscoveryNodeRole.BUILT_IN_ROLES.stream().map(DiscoveryNodeRole::roleName).collect(Collectors.toList())::contains,
                 // use a high number of chars so we don't clash with the additional roles available - `ml` for eg
-                () -> randomAlphaOfLengthBetween(150, 300));
+                () -> randomAlphaOfLengthBetween(150, 300)
+            );
             map.put(attributeName, randomAlphaOfLengthBetween(2, 20));
         }
         return map;
@@ -143,8 +156,11 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
     public void testToSteps() {
         AllocateAction action = createTestInstance();
         String phase = randomAlphaOfLengthBetween(1, 10);
-        StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
-                randomAlphaOfLengthBetween(1, 10));
+        StepKey nextStepKey = new StepKey(
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10)
+        );
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
         assertNotNull(steps);
         assertEquals(2, steps.size());
@@ -157,12 +173,12 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
         if (action.getNumberOfReplicas() != null) {
             expectedSettings.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, action.getNumberOfReplicas());
         }
-        action.getInclude().forEach(
-            (key, value) -> expectedSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + key, value));
-        action.getExclude().forEach(
-            (key, value) -> expectedSettings.put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + key, value));
-        action.getRequire().forEach(
-            (key, value) -> expectedSettings.put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + key, value));
+        action.getInclude()
+            .forEach((key, value) -> expectedSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + key, value));
+        action.getExclude()
+            .forEach((key, value) -> expectedSettings.put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + key, value));
+        action.getRequire()
+            .forEach((key, value) -> expectedSettings.put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + key, value));
         if (action.getTotalShardsPerNode() != null) {
             expectedSettings.put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), action.getTotalShardsPerNode());
         }
@@ -178,8 +194,11 @@ public class AllocateActionTests extends AbstractActionTestCase<AllocateAction> 
         Integer numberOfReplicas = randomIntBetween(0, 4);
         AllocateAction action = new AllocateAction(numberOfReplicas, totalShardsPerNode, null, null, null);
         String phase = randomAlphaOfLengthBetween(1, 10);
-        StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
-            randomAlphaOfLengthBetween(1, 10));
+        StepKey nextStepKey = new StepKey(
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10)
+        );
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
         UpdateSettingsStep firstStep = (UpdateSettingsStep) steps.get(0);
         assertEquals(totalShardsPerNode, firstStep.getSettings().getAsInt(INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), null));

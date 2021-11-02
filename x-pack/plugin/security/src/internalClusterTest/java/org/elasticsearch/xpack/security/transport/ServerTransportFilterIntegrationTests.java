@@ -68,11 +68,13 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder settingsBuilder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
-        String randomClientPortRange = randomClientPort + "-" + (randomClientPort+100);
+        String randomClientPortRange = randomClientPort + "-" + (randomClientPort + 100);
         addSSLSettingsForNodePEMFiles(settingsBuilder, "transport.profiles.client.xpack.security.", true);
         Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
-        settingsBuilder.putList("transport.profiles.client.xpack.security.ssl.certificate_authorities",
-            Collections.singletonList(certPath.toString())) // settings for client truststore
+        settingsBuilder.putList(
+            "transport.profiles.client.xpack.security.ssl.certificate_authorities",
+            Collections.singletonList(certPath.toString())
+        ) // settings for client truststore
             .put("transport.profiles.client.xpack.security.type", "client")
             .put("transport.profiles.client.port", randomClientPortRange)
             // make sure this is "localhost", no matter if ipv4 or ipv6, but be consistent
@@ -96,8 +98,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
         String unicastHost = NetworkAddress.format(transportAddress.address());
 
         // test that starting up a node works
-        Settings.Builder nodeSettings = getSettingsBuilder()
-            .put("node.name", "my-test-node")
+        Settings.Builder nodeSettings = getSettingsBuilder().put("node.name", "my-test-node")
             .put("network.host", "localhost")
             .put("cluster.name", internalCluster().getClusterName())
             .put(DISCOVERY_SEED_HOSTS_SETTING.getKey(), unicastHost)
@@ -113,8 +114,11 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem",
             "testnode",
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
-            Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
-                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt"));
+            Arrays.asList(
+                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
+                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt"
+            )
+        );
         try (Node node = new MockNode(nodeSettings.build(), mockPlugins)) {
             node.start();
             ensureStableCluster(cluster().size() + 1);
@@ -134,8 +138,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
         String unicastHost = NetworkAddress.format(transportAddress.address());
 
         // test that starting up a node works
-        Settings.Builder nodeSettings = getSettingsBuilder()
-            .put("xpack.security.authc.realms.file.file.order", 0)
+        Settings.Builder nodeSettings = getSettingsBuilder().put("xpack.security.authc.realms.file.file.order", 0)
             .put("node.name", "my-test-node")
             .put(SecurityField.USER_SETTING.getKey(), "test_user:" + SecuritySettingsSourceField.TEST_PASSWORD)
             .put("cluster.name", internalCluster().getClusterName())
@@ -153,19 +156,29 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem",
             "testnode",
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
-            Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
-                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt"));
+            Arrays.asList(
+                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
+                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt"
+            )
+        );
         try (Node node = new MockNode(nodeSettings.build(), mockPlugins)) {
             node.start();
             TransportService instance = node.injector().getInstance(TransportService.class);
-            try (Transport.Connection connection = instance.openConnection(new DiscoveryNode("theNode", transportAddress, Version.CURRENT),
-                    ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG))) {
+            try (
+                Transport.Connection connection = instance.openConnection(
+                    new DiscoveryNode("theNode", transportAddress, Version.CURRENT),
+                    ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG)
+                )
+            ) {
                 // handshake should be ok
-                final DiscoveryNode handshake =
-                    PlainActionFuture.get(fut -> instance.handshake(connection, TimeValue.timeValueSeconds(10), fut));
+                final DiscoveryNode handshake = PlainActionFuture.get(
+                    fut -> instance.handshake(connection, TimeValue.timeValueSeconds(10), fut)
+                );
                 assertEquals(transport.boundAddress().publishAddress(), handshake.getAddress());
                 CountDownLatch latch = new CountDownLatch(1);
-                instance.sendRequest(connection, TransportNodesListGatewayMetaState.ACTION_NAME,
+                instance.sendRequest(
+                    connection,
+                    TransportNodesListGatewayMetaState.ACTION_NAME,
                     new TransportNodesListGatewayMetaState.Request("foo", "bar", "baz"),
                     TransportRequestOptions.EMPTY,
                     new TransportResponseHandler<TransportResponse>() {
@@ -177,33 +190,36 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                                 latch.countDown();
                             }
                             return null;
-                    }
+                        }
 
-                    @Override
-                    public void handleResponse(TransportResponse response) {
-                        try {
-                            fail("never get that far");
-                        } finally {
-                            latch.countDown();
+                        @Override
+                        public void handleResponse(TransportResponse response) {
+                            try {
+                                fail("never get that far");
+                            } finally {
+                                latch.countDown();
+                            }
+                        }
+
+                        @Override
+                        public void handleException(TransportException exp) {
+                            try {
+                                assertThat(exp.getCause(), instanceOf(ElasticsearchSecurityException.class));
+                                assertThat(
+                                    exp.getCause().getMessage(),
+                                    equalTo("executing internal/shard actions is considered malicious and forbidden")
+                                );
+                            } finally {
+                                latch.countDown();
+                            }
+                        }
+
+                        @Override
+                        public String executor() {
+                            return ThreadPool.Names.SAME;
                         }
                     }
-
-                    @Override
-                    public void handleException(TransportException exp) {
-                        try {
-                            assertThat(exp.getCause(), instanceOf(ElasticsearchSecurityException.class));
-                            assertThat(exp.getCause().getMessage(),
-                                    equalTo("executing internal/shard actions is considered malicious and forbidden"));
-                        } finally {
-                            latch.countDown();
-                        }
-                    }
-
-                    @Override
-                    public String executor() {
-                        return ThreadPool.Names.SAME;
-                    }
-                });
+                );
                 latch.await();
             }
         }

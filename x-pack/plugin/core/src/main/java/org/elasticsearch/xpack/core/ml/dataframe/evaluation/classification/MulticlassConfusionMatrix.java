@@ -8,17 +8,12 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -29,6 +24,11 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.Cardinality;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
@@ -36,8 +36,8 @@ import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -65,9 +65,11 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
     private static final ConstructingObjectParser<MulticlassConfusionMatrix, Void> PARSER = createParser();
 
     private static ConstructingObjectParser<MulticlassConfusionMatrix, Void> createParser() {
-        ConstructingObjectParser<MulticlassConfusionMatrix, Void>  parser =
-            new ConstructingObjectParser<>(
-                NAME.getPreferredName(), true, args -> new MulticlassConfusionMatrix((Integer) args[0], (String) args[1]));
+        ConstructingObjectParser<MulticlassConfusionMatrix, Void> parser = new ConstructingObjectParser<>(
+            NAME.getPreferredName(),
+            true,
+            args -> new MulticlassConfusionMatrix((Integer) args[0], (String) args[1])
+        );
         parser.declareInt(optionalConstructorArg(), SIZE);
         parser.declareString(optionalConstructorArg(), AGG_NAME_PREFIX);
         return parser;
@@ -135,8 +137,10 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
     }
 
     @Override
-    public final Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(EvaluationParameters parameters,
-                                                                                        EvaluationFields fields) {
+    public final Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(
+        EvaluationParameters parameters,
+        EvaluationFields fields
+    ) {
         String actualField = fields.getActualField();
         String predictedField = fields.getPredictedField();
         if (topActualClassNames.get() == null && actualClassesCardinality.get() == null) {  // This is step 1
@@ -146,34 +150,39 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
                         .field(actualField)
                         .order(Arrays.asList(BucketOrder.count(false), BucketOrder.key(true)))
                         .size(size),
-                    AggregationBuilders.cardinality(aggName(STEP_1_CARDINALITY_OF_ACTUAL_CLASS))
-                        .field(actualField)),
-                Collections.emptyList());
+                    AggregationBuilders.cardinality(aggName(STEP_1_CARDINALITY_OF_ACTUAL_CLASS)).field(actualField)
+                ),
+                Collections.emptyList()
+            );
         }
         if (result.get() == null) {  // These are steps 2, 3, 4 etc.
-            KeyedFilter[] keyedFiltersPredicted =
-                topActualClassNames.get().stream()
-                    .map(className -> new KeyedFilter(className, QueryBuilders.matchQuery(predictedField, className).lenient(true)))
-                    .toArray(KeyedFilter[]::new);
+            KeyedFilter[] keyedFiltersPredicted = topActualClassNames.get()
+                .stream()
+                .map(className -> new KeyedFilter(className, QueryBuilders.matchQuery(predictedField, className).lenient(true)))
+                .toArray(KeyedFilter[]::new);
             // Knowing exactly how many buckets does each aggregation use, we can choose the size of the batch so that
             // too_many_buckets_exception exception is not thrown.
             // The only exception is when "search.max_buckets" is set far too low to even have 1 actual class in the batch.
             // In such case, the exception will be thrown telling the user they should increase the value of "search.max_buckets".
             int actualClassesPerBatch = Math.max(parameters.getMaxBuckets() / (topActualClassNames.get().size() + 2), 1);
-            KeyedFilter[] keyedFiltersActual =
-                topActualClassNames.get().stream()
-                    .skip(actualClasses.size())
-                    .limit(actualClassesPerBatch)
-                    .map(className -> new KeyedFilter(className, QueryBuilders.matchQuery(actualField, className).lenient(true)))
-                    .toArray(KeyedFilter[]::new);
+            KeyedFilter[] keyedFiltersActual = topActualClassNames.get()
+                .stream()
+                .skip(actualClasses.size())
+                .limit(actualClassesPerBatch)
+                .map(className -> new KeyedFilter(className, QueryBuilders.matchQuery(actualField, className).lenient(true)))
+                .toArray(KeyedFilter[]::new);
             if (keyedFiltersActual.length > 0) {
                 return Tuple.tuple(
                     Arrays.asList(
                         AggregationBuilders.filters(aggName(STEP_2_AGGREGATE_BY_ACTUAL_CLASS), keyedFiltersActual)
-                            .subAggregation(AggregationBuilders.filters(aggName(STEP_2_AGGREGATE_BY_PREDICTED_CLASS), keyedFiltersPredicted)
-                                .otherBucket(true)
-                                .otherBucketKey(OTHER_BUCKET_KEY))),
-                    Collections.emptyList());
+                            .subAggregation(
+                                AggregationBuilders.filters(aggName(STEP_2_AGGREGATE_BY_PREDICTED_CLASS), keyedFiltersPredicted)
+                                    .otherBucket(true)
+                                    .otherBucketKey(OTHER_BUCKET_KEY)
+                            )
+                    ),
+                    Collections.emptyList()
+                );
             }
         }
         return Tuple.tuple(Collections.emptyList(), Collections.emptyList());
@@ -245,8 +254,7 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         MulticlassConfusionMatrix that = (MulticlassConfusionMatrix) o;
-        return this.size == that.size
-            && Objects.equals(this.aggNamePrefix, that.aggNamePrefix);
+        return this.size == that.size && Objects.equals(this.aggNamePrefix, that.aggNamePrefix);
     }
 
     @Override
@@ -260,9 +268,11 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
         private static final ParseField OTHER_ACTUAL_CLASS_COUNT = new ParseField("other_actual_class_count");
 
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<Result, Void> PARSER =
-            new ConstructingObjectParser<>(
-                "multiclass_confusion_matrix_result", true, a -> new Result((List<ActualClass>) a[0], (long) a[1]));
+        private static final ConstructingObjectParser<Result, Void> PARSER = new ConstructingObjectParser<>(
+            "multiclass_confusion_matrix_result",
+            true,
+            a -> new Result((List<ActualClass>) a[0], (long) a[1])
+        );
 
         static {
             PARSER.declareObjectArray(constructorArg(), ActualClass.PARSER, CONFUSION_MATRIX);
@@ -326,8 +336,7 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Result that = (Result) o;
-            return Objects.equals(this.actualClasses, that.actualClasses)
-                && this.otherActualClassCount == that.otherActualClassCount;
+            return Objects.equals(this.actualClasses, that.actualClasses) && this.otherActualClassCount == that.otherActualClassCount;
         }
 
         @Override
@@ -344,11 +353,11 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
         private static final ParseField OTHER_PREDICTED_CLASS_DOC_COUNT = new ParseField("other_predicted_class_doc_count");
 
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<ActualClass, Void> PARSER =
-            new ConstructingObjectParser<>(
-                "multiclass_confusion_matrix_actual_class",
-                true,
-                a -> new ActualClass((String) a[0], (long) a[1], (List<PredictedClass>) a[2], (long) a[3]));
+        private static final ConstructingObjectParser<ActualClass, Void> PARSER = new ConstructingObjectParser<>(
+            "multiclass_confusion_matrix_actual_class",
+            true,
+            a -> new ActualClass((String) a[0], (long) a[1], (List<PredictedClass>) a[2], (long) a[3])
+        );
 
         static {
             PARSER.declareString(constructorArg(), ACTUAL_CLASS);
@@ -367,7 +376,11 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
         private final long otherPredictedClassDocCount;
 
         public ActualClass(
-                String actualClass, long actualClassDocCount, List<PredictedClass> predictedClasses, long otherPredictedClassDocCount) {
+            String actualClass,
+            long actualClassDocCount,
+            List<PredictedClass> predictedClasses,
+            long otherPredictedClassDocCount
+        ) {
             this.actualClass = ExceptionsHelper.requireNonNull(actualClass, ACTUAL_CLASS);
             this.actualClassDocCount = requireNonNegative(actualClassDocCount, ACTUAL_CLASS_DOC_COUNT);
             this.predictedClasses = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(predictedClasses, PREDICTED_CLASSES));
@@ -439,9 +452,11 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
         private static final ParseField COUNT = new ParseField("count");
 
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<PredictedClass, Void> PARSER =
-            new ConstructingObjectParser<>(
-                "multiclass_confusion_matrix_predicted_class", true, a -> new PredictedClass((String) a[0], (long) a[1]));
+        private static final ConstructingObjectParser<PredictedClass, Void> PARSER = new ConstructingObjectParser<>(
+            "multiclass_confusion_matrix_predicted_class",
+            true,
+            a -> new PredictedClass((String) a[0], (long) a[1])
+        );
 
         static {
             PARSER.declareString(constructorArg(), PREDICTED_CLASS);
@@ -489,8 +504,7 @@ public class MulticlassConfusionMatrix implements EvaluationMetric {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             PredictedClass that = (PredictedClass) o;
-            return Objects.equals(this.predictedClass, that.predictedClass)
-                && this.count == that.count;
+            return Objects.equals(this.predictedClass, that.predictedClass) && this.count == that.count;
         }
 
         @Override

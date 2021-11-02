@@ -24,8 +24,15 @@ import java.util.stream.Collectors;
 
 public class DiscoveryNodeFilters {
 
-    static final Set<String> NON_ATTRIBUTE_NAMES =
-        org.elasticsearch.core.Set.of("_ip", "_host_ip", "_publish_ip", "host", "_id", "_name", "name");
+    static final Set<String> NON_ATTRIBUTE_NAMES = org.elasticsearch.core.Set.of(
+        "_ip",
+        "_host_ip",
+        "_publish_ip",
+        "host",
+        "_id",
+        "_name",
+        "name"
+    );
 
     public enum OpType {
         AND,
@@ -94,7 +101,8 @@ public class DiscoveryNodeFilters {
             return null;
         }
 
-        Map<String, String[]> newFilters = original.filters.entrySet().stream()
+        Map<String, String[]> newFilters = original.filters.entrySet()
+            .stream()
             // Remove all entries that start with "_tier", as these will be handled elsewhere
             .filter(entry -> {
                 String attr = entry.getKey();

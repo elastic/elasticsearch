@@ -16,13 +16,13 @@ import org.elasticsearch.client.transform.transforms.pivot.PivotConfigTests;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.Collections;

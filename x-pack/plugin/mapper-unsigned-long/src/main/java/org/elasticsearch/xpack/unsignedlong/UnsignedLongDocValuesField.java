@@ -107,7 +107,7 @@ public class UnsignedLongDocValuesField implements UnsignedLongField, DocValuesF
     }
 
     @Override
-    public List<BigInteger> getBigIntegers() {
+    public List<BigInteger> asBigIntegers() {
         if (isEmpty()) {
             return Collections.emptyList();
         }
@@ -122,12 +122,12 @@ public class UnsignedLongDocValuesField implements UnsignedLongField, DocValuesF
     }
 
     @Override
-    public BigInteger getBigInteger(BigInteger defaultValue) {
-        return getBigInteger(0, defaultValue);
+    public BigInteger asBigInteger(BigInteger defaultValue) {
+        return asBigInteger(0, defaultValue);
     }
 
     @Override
-    public BigInteger getBigInteger(int index, BigInteger defaultValue) {
+    public BigInteger asBigInteger(int index, BigInteger defaultValue) {
         if (isEmpty() || index < 0 || index >= count) {
             return defaultValue;
         }

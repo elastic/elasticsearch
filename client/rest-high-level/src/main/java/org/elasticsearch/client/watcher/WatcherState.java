@@ -40,4 +40,3 @@ public enum WatcherState {
     }
 
 }
-

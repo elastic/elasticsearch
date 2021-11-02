@@ -77,7 +77,7 @@ public class FrozenCacheService implements Releasable {
         SHARED_CACHE_SETTINGS_PREFIX + "range_size",
         ByteSizeValue.ofMb(16).getStringRep(),
         s -> ByteSizeValue.parseBytesSizeValue(s, SHARED_CACHE_SETTINGS_PREFIX + "range_size"),
-        getPageSizeAlignedByteSizeValueValidator(SHARED_CACHE_SETTINGS_PREFIX + "range_size"),
+        getPositivePageSizeAlignedByteSizeValueValidator(SHARED_CACHE_SETTINGS_PREFIX + "range_size"),
         Setting.Property.NodeScope
     );
 
@@ -85,7 +85,7 @@ public class FrozenCacheService implements Releasable {
         SHARED_CACHE_SETTINGS_PREFIX + "recovery_range_size",
         ByteSizeValue.ofKb(128L).getStringRep(),
         s -> ByteSizeValue.parseBytesSizeValue(s, SHARED_CACHE_SETTINGS_PREFIX + "recovery_range_size"),
-        getPageSizeAlignedByteSizeValueValidator(SHARED_CACHE_SETTINGS_PREFIX + "recovery_range_size"),
+        getPositivePageSizeAlignedByteSizeValueValidator(SHARED_CACHE_SETTINGS_PREFIX + "recovery_range_size"),
         Setting.Property.NodeScope
     );
 
@@ -93,7 +93,7 @@ public class FrozenCacheService implements Releasable {
         SHARED_CACHE_SETTINGS_PREFIX + "region_size",
         SHARED_CACHE_RANGE_SIZE_SETTING,
         s -> ByteSizeValue.parseBytesSizeValue(s, SHARED_CACHE_SETTINGS_PREFIX + "region_size"),
-        getPageSizeAlignedByteSizeValueValidator(SHARED_CACHE_SETTINGS_PREFIX + "region_size"),
+        getPositivePageSizeAlignedByteSizeValueValidator(SHARED_CACHE_SETTINGS_PREFIX + "region_size"),
         Setting.Property.NodeScope
     );
 
@@ -105,6 +105,15 @@ public class FrozenCacheService implements Releasable {
             if (value.getBytes() % SharedBytes.PAGE_SIZE != 0L) {
                 throw new SettingsException("setting [{}] must be multiple of {}", settingName, SharedBytes.PAGE_SIZE);
             }
+        };
+    }
+
+    private static Setting.Validator<ByteSizeValue> getPositivePageSizeAlignedByteSizeValueValidator(String settingName) {
+        return value -> {
+            if (value.getBytes() <= 0L) {
+                throw new SettingsException("setting [{}] must be greater than zero", settingName);
+            }
+            getPageSizeAlignedByteSizeValueValidator(settingName).validate(value);
         };
     }
 

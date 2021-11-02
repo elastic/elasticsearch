@@ -36,11 +36,14 @@ public class RestSearchScrollAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_search/scroll"),
-            new Route(POST, "/_search/scroll"),
-            new Route(GET, "/_search/scroll/{scroll_id}"),
-            new Route(POST, "/_search/scroll/{scroll_id}")));
+        return unmodifiableList(
+            asList(
+                new Route(GET, "/_search/scroll"),
+                new Route(POST, "/_search/scroll"),
+                new Route(GET, "/_search/scroll/{scroll_id}"),
+                new Route(POST, "/_search/scroll/{scroll_id}")
+            )
+        );
     }
 
     @Override
@@ -61,7 +64,8 @@ public class RestSearchScrollAction extends BaseRestHandler {
                 } catch (IOException e) {
                     throw new IllegalArgumentException("Failed to parse request body", e);
                 }
-            }});
+            }
+        });
         return channel -> client.searchScroll(searchScrollRequest, new RestStatusToXContentListener<>(channel));
     }
 

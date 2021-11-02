@@ -64,8 +64,12 @@ public final class ExternalTestCluster extends TestCluster {
     private final int numDataNodes;
     private final int numMasterAndDataNodes;
 
-    public ExternalTestCluster(Path tempDir, Settings additionalSettings, Collection<Class<? extends Plugin>> pluginClasses,
-                               TransportAddress... transportAddresses) {
+    public ExternalTestCluster(
+        Path tempDir,
+        Settings additionalSettings,
+        Collection<Class<? extends Plugin>> pluginClasses,
+        TransportAddress... transportAddresses
+    ) {
         super(0);
         Settings.Builder clientSettingsBuilder = Settings.builder()
             .put(additionalSettings)
@@ -87,7 +91,10 @@ public final class ExternalTestCluster extends TestCluster {
         MockTransportClient client = new MockTransportClient(clientSettings, pluginClasses);
         try {
             client.addTransportAddresses(transportAddresses);
-            NodesInfoResponse nodeInfos = client.admin().cluster().prepareNodesInfo().clear()
+            NodesInfoResponse nodeInfos = client.admin()
+                .cluster()
+                .prepareNodesInfo()
+                .clear()
                 .addMetrics(SETTINGS.metricName(), HTTP.metricName())
                 .get();
             httpAddresses = new InetSocketAddress[nodeInfos.getNodes().size()];
@@ -153,27 +160,47 @@ public final class ExternalTestCluster extends TestCluster {
     @Override
     public void ensureEstimatedStats() {
         if (size() > 0) {
-            NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().clear()
+            NodesStatsResponse nodeStats = client().admin()
+                .cluster()
+                .prepareNodesStats()
+                .clear()
                 .setIndices(true)
                 .addMetric(BREAKER.metricName())
-                .execute().actionGet();
+                .execute()
+                .actionGet();
             for (NodeStats stats : nodeStats.getNodes()) {
-                assertThat("Fielddata breaker not reset to 0 on node: " + stats.getNode(),
-                        stats.getBreaker().getStats(CircuitBreaker.FIELDDATA).getEstimated(), equalTo(0L));
-                assertThat("Accounting breaker not reset to " + stats.getIndices().getSegments().getMemoryInBytes() +
-                                " on node: " + stats.getNode(),
-                        stats.getBreaker().getStats(CircuitBreaker.ACCOUNTING).getEstimated(),
-                        equalTo(stats.getIndices().getSegments().getMemoryInBytes()));
+                assertThat(
+                    "Fielddata breaker not reset to 0 on node: " + stats.getNode(),
+                    stats.getBreaker().getStats(CircuitBreaker.FIELDDATA).getEstimated(),
+                    equalTo(0L)
+                );
+                assertThat(
+                    "Accounting breaker not reset to "
+                        + stats.getIndices().getSegments().getMemoryInBytes()
+                        + " on node: "
+                        + stats.getNode(),
+                    stats.getBreaker().getStats(CircuitBreaker.ACCOUNTING).getEstimated(),
+                    equalTo(stats.getIndices().getSegments().getMemoryInBytes())
+                );
                 // ExternalTestCluster does not check the request breaker,
                 // because checking it requires a network request, which in
                 // turn increments the breaker, making it non-0
 
-                assertThat("Fielddata size must be 0 on node: " +
-                    stats.getNode(), stats.getIndices().getFieldData().getMemorySizeInBytes(), equalTo(0L));
-                assertThat("Query cache size must be 0 on node: " +
-                    stats.getNode(), stats.getIndices().getQueryCache().getMemorySizeInBytes(), equalTo(0L));
-                assertThat("FixedBitSet cache size must be 0 on node: " +
-                    stats.getNode(), stats.getIndices().getSegments().getBitsetMemoryInBytes(), equalTo(0L));
+                assertThat(
+                    "Fielddata size must be 0 on node: " + stats.getNode(),
+                    stats.getIndices().getFieldData().getMemorySizeInBytes(),
+                    equalTo(0L)
+                );
+                assertThat(
+                    "Query cache size must be 0 on node: " + stats.getNode(),
+                    stats.getIndices().getQueryCache().getMemorySizeInBytes(),
+                    equalTo(0L)
+                );
+                assertThat(
+                    "FixedBitSet cache size must be 0 on node: " + stats.getNode(),
+                    stats.getIndices().getSegments().getBitsetMemoryInBytes(),
+                    equalTo(0L)
+                );
             }
         }
     }

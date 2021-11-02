@@ -67,9 +67,13 @@ public class CrossClusterSearchLeakIT extends AbstractMultiClustersTestCase {
      * </ul>
      */
     public void testSearch() throws Exception {
-        assertAcked(client(LOCAL_CLUSTER).admin().indices().prepareCreate("demo")
-            .addMapping("_doc", "f", "type=keyword")
-            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 3))));
+        assertAcked(
+            client(LOCAL_CLUSTER).admin()
+                .indices()
+                .prepareCreate("demo")
+                .addMapping("_doc", "f", "type=keyword")
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 3)))
+        );
         indexDocs(client(LOCAL_CLUSTER), "ignored", "demo");
         final InternalTestCluster remoteCluster = cluster("cluster_a");
         int minRemotes = between(2, 5);
@@ -89,12 +93,27 @@ public class CrossClusterSearchLeakIT extends AbstractMultiClustersTestCase {
             // Provoke using proxy connections
             allocationFilter.put("index.routing.allocation.exclude._name", String.join(",", seedNodes));
         }
-        assertAcked(client("cluster_a").admin().indices().prepareCreate("prod")
-            .addMapping("_doc", "f", "type=keyword")
-            .setSettings(Settings.builder().put(allocationFilter.build())
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 3))));
-        assertFalse(client("cluster_a").admin().cluster().prepareHealth("prod")
-            .setWaitForYellowStatus().setTimeout(TimeValue.timeValueSeconds(10)).get().isTimedOut());
+        assertAcked(
+            client("cluster_a").admin()
+                .indices()
+                .prepareCreate("prod")
+                .addMapping("_doc", "f", "type=keyword")
+                .setSettings(
+                    Settings.builder()
+                        .put(allocationFilter.build())
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 3))
+                )
+        );
+        assertFalse(
+            client("cluster_a").admin()
+                .cluster()
+                .prepareHealth("prod")
+                .setWaitForYellowStatus()
+                .setTimeout(TimeValue.timeValueSeconds(10))
+                .get()
+                .isTimedOut()
+        );
         int docs = indexDocs(client("cluster_a"), "f", "prod");
 
         List<ActionFuture<SearchResponse>> futures = new ArrayList<>();
@@ -103,8 +122,11 @@ public class CrossClusterSearchLeakIT extends AbstractMultiClustersTestCase {
             final SearchRequest searchRequest = new SearchRequest(indices);
             searchRequest.allowPartialSearchResults(false);
             boolean scroll = randomBoolean();
-            searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder())
-                .aggregation(terms("f").field("f").size(docs + between(0, 10))).size(between(scroll ? 1 : 0, 1000)));
+            searchRequest.source(
+                new SearchSourceBuilder().query(new MatchAllQueryBuilder())
+                    .aggregation(terms("f").field("f").size(docs + between(0, 10)))
+                    .size(between(scroll ? 1 : 0, 1000))
+            );
             if (scroll) {
                 searchRequest.scroll("30s");
             }

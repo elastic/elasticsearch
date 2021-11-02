@@ -97,11 +97,15 @@ public class JobDataDeleter {
      */
     public void deleteModelSnapshots(List<ModelSnapshot> modelSnapshots, ActionListener<BulkByScrollResponse> listener) {
         if (modelSnapshots.isEmpty()) {
-            listener.onResponse(new BulkByScrollResponse(TimeValue.ZERO,
-                new BulkByScrollTask.Status(Collections.emptyList(), null),
-                Collections.emptyList(),
-                Collections.emptyList(),
-                false));
+            listener.onResponse(
+                new BulkByScrollResponse(
+                    TimeValue.ZERO,
+                    new BulkByScrollTask.Status(Collections.emptyList(), null),
+                    Collections.emptyList(),
+                    Collections.emptyList(),
+                    false
+                )
+            );
             return;
         }
 
@@ -118,8 +122,7 @@ public class JobDataDeleter {
             indices.add(AnomalyDetectorsIndex.jobResultsAliasedName(modelSnapshot.getJobId()));
         }
 
-        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(indices.toArray(new String[0]))
-            .setRefresh(true)
+        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(indices.toArray(new String[0])).setRefresh(true)
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setQuery(QueryBuilders.idsQuery().addIds(idsToDelete.toArray(new String[0])));
 
@@ -147,14 +150,15 @@ public class JobDataDeleter {
      *                       If {@code null} or empty, no event-related filtering is applied
      * @param listener Response listener
      */
-    public void deleteAnnotations(@Nullable Long fromEpochMs,
-                                  @Nullable Long toEpochMs,
-                                  @Nullable Set<String> eventsToDelete,
-                                  ActionListener<Boolean> listener) {
-        BoolQueryBuilder boolQuery =
-            QueryBuilders.boolQuery()
-                .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
-                .filter(QueryBuilders.termQuery(Annotation.CREATE_USERNAME.getPreferredName(), XPackUser.NAME));
+    public void deleteAnnotations(
+        @Nullable Long fromEpochMs,
+        @Nullable Long toEpochMs,
+        @Nullable Set<String> eventsToDelete,
+        ActionListener<Boolean> listener
+    ) {
+        BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))
+            .filter(QueryBuilders.termQuery(Annotation.CREATE_USERNAME.getPreferredName(), XPackUser.NAME));
         if (fromEpochMs != null || toEpochMs != null) {
             boolQuery.filter(QueryBuilders.rangeQuery(Annotation.TIMESTAMP.getPreferredName()).gte(fromEpochMs).lt(toEpochMs));
         }
@@ -162,8 +166,7 @@ public class JobDataDeleter {
             boolQuery.filter(QueryBuilders.termsQuery(Annotation.EVENT.getPreferredName(), eventsToDelete));
         }
         QueryBuilder query = QueryBuilders.constantScoreQuery(boolQuery);
-        DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(AnnotationIndex.READ_ALIAS_NAME)
-            .setQuery(query)
+        DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(AnnotationIndex.READ_ALIAS_NAME).setQuery(query)
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setAbortOnVersionConflict(false)
             .setRefresh(true)
@@ -177,7 +180,8 @@ public class JobDataDeleter {
             ML_ORIGIN,
             DeleteByQueryAction.INSTANCE,
             dbqRequest,
-            ActionListener.wrap(r -> listener.onResponse(true), listener::onFailure));
+            ActionListener.wrap(r -> listener.onResponse(true), listener::onFailure)
+        );
     }
 
     /**
@@ -190,8 +194,7 @@ public class JobDataDeleter {
         QueryBuilder query = QueryBuilders.boolQuery()
             .filter(QueryBuilders.existsQuery(Result.RESULT_TYPE.getPreferredName()))
             .filter(QueryBuilders.rangeQuery(Result.TIMESTAMP.getPreferredName()).gte(cutoffEpochMs));
-        DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
-            .setQuery(query)
+        DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)).setQuery(query)
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setAbortOnVersionConflict(false)
             .setRefresh(true)
@@ -205,7 +208,8 @@ public class JobDataDeleter {
             ML_ORIGIN,
             DeleteByQueryAction.INSTANCE,
             dbqRequest,
-            ActionListener.wrap(r -> listener.onResponse(true), listener::onFailure));
+            ActionListener.wrap(r -> listener.onResponse(true), listener::onFailure)
+        );
     }
 
     /**
@@ -213,8 +217,7 @@ public class JobDataDeleter {
      */
     public void deleteInterimResults() {
         QueryBuilder query = QueryBuilders.constantScoreQuery(QueryBuilders.termQuery(Result.IS_INTERIM.getPreferredName(), true));
-        DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
-            .setQuery(query)
+        DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)).setQuery(query)
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setAbortOnVersionConflict(false)
             .setRefresh(false)
@@ -236,8 +239,9 @@ public class JobDataDeleter {
      * @param listener Response listener
      */
     public void deleteDatafeedTimingStats(ActionListener<BulkByScrollResponse> listener) {
-        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobResultsAliasedName(jobId))
-            .setRefresh(true)
+        DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobResultsAliasedName(jobId)).setRefresh(
+            true
+        )
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setQuery(QueryBuilders.idsQuery().addIds(DatafeedTimingStats.documentId(jobId)));
 
@@ -250,161 +254,168 @@ public class JobDataDeleter {
     /**
      * Deletes all documents associated with a job except user annotations and notifications
      */
-    public void deleteJobDocuments(JobConfigProvider jobConfigProvider, IndexNameExpressionResolver indexNameExpressionResolver,
-                                   ClusterState clusterState, CheckedConsumer<Boolean, Exception> finishedHandler,
-                                   Consumer<Exception> failureHandler) {
+    public void deleteJobDocuments(
+        JobConfigProvider jobConfigProvider,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ClusterState clusterState,
+        CheckedConsumer<Boolean, Exception> finishedHandler,
+        Consumer<Exception> failureHandler
+    ) {
 
         AtomicReference<String[]> indexNames = new AtomicReference<>();
 
         final ActionListener<AcknowledgedResponse> completionHandler = ActionListener.wrap(
             response -> finishedHandler.accept(response.isAcknowledged()),
-            failureHandler);
+            failureHandler
+        );
 
         // Step 9. If we did not drop the indices and after DBQ state done, we delete the aliases
-        ActionListener<BulkByScrollResponse> dbqHandler = ActionListener.wrap(
-            bulkByScrollResponse -> {
-                if (bulkByScrollResponse == null) { // no action was taken by DBQ, assume indices were deleted
-                    completionHandler.onResponse(AcknowledgedResponse.TRUE);
-                } else {
-                    if (bulkByScrollResponse.isTimedOut()) {
-                        logger.warn("[{}] DeleteByQuery for indices [{}] timed out.", jobId, String.join(", ", indexNames.get()));
-                    }
-                    if (bulkByScrollResponse.getBulkFailures().isEmpty() == false) {
-                        logger.warn("[{}] {} failures and {} conflicts encountered while running DeleteByQuery on indices [{}].",
-                            jobId, bulkByScrollResponse.getBulkFailures().size(), bulkByScrollResponse.getVersionConflicts(),
-                            String.join(", ", indexNames.get()));
-                        for (BulkItemResponse.Failure failure : bulkByScrollResponse.getBulkFailures()) {
-                            logger.warn("DBQ failure: " + failure);
-                        }
-                    }
-                    deleteAliases(jobId, completionHandler);
+        ActionListener<BulkByScrollResponse> dbqHandler = ActionListener.wrap(bulkByScrollResponse -> {
+            if (bulkByScrollResponse == null) { // no action was taken by DBQ, assume indices were deleted
+                completionHandler.onResponse(AcknowledgedResponse.TRUE);
+            } else {
+                if (bulkByScrollResponse.isTimedOut()) {
+                    logger.warn("[{}] DeleteByQuery for indices [{}] timed out.", jobId, String.join(", ", indexNames.get()));
                 }
-            },
-            failureHandler);
+                if (bulkByScrollResponse.getBulkFailures().isEmpty() == false) {
+                    logger.warn(
+                        "[{}] {} failures and {} conflicts encountered while running DeleteByQuery on indices [{}].",
+                        jobId,
+                        bulkByScrollResponse.getBulkFailures().size(),
+                        bulkByScrollResponse.getVersionConflicts(),
+                        String.join(", ", indexNames.get())
+                    );
+                    for (BulkItemResponse.Failure failure : bulkByScrollResponse.getBulkFailures()) {
+                        logger.warn("DBQ failure: " + failure);
+                    }
+                }
+                deleteAliases(jobId, completionHandler);
+            }
+        }, failureHandler);
 
         // Step 8. If we did not delete the indices, we run a delete by query
-        ActionListener<Boolean> deleteByQueryExecutor = ActionListener.wrap(
-            response -> {
-                if (response && indexNames.get().length > 0) {
-                    deleteResultsByQuery(jobId, indexNames.get(), dbqHandler);
-                } else { // We did not execute DBQ, no need to delete aliases or check the response
-                    dbqHandler.onResponse(null);
-                }
-            },
-            failureHandler);
+        ActionListener<Boolean> deleteByQueryExecutor = ActionListener.wrap(response -> {
+            if (response && indexNames.get().length > 0) {
+                deleteResultsByQuery(jobId, indexNames.get(), dbqHandler);
+            } else { // We did not execute DBQ, no need to delete aliases or check the response
+                dbqHandler.onResponse(null);
+            }
+        }, failureHandler);
 
         // Step 7. Handle each multi-search response. There should be one response for each underlying index.
         // For each underlying index that contains results ONLY for the current job, we will delete that index.
         // If there exists at least 1 index that has another job's results, we will run DBQ.
-        ActionListener<MultiSearchResponse> customIndexSearchHandler = ActionListener.wrap(
-            multiSearchResponse -> {
-                if (multiSearchResponse == null) {
-                    deleteByQueryExecutor.onResponse(true); // We need to run DBQ and alias deletion
-                    return;
-                }
-                String defaultSharedIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX +
-                    AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
-                List<String> indicesToDelete = new ArrayList<>();
-                boolean needToRunDBQTemp = false;
-                assert multiSearchResponse.getResponses().length == indexNames.get().length;
-                int i = 0;
-                for (MultiSearchResponse.Item item : multiSearchResponse.getResponses()) {
-                    if (item.isFailure()) {
-                        ++i;
-                        if (ExceptionsHelper.unwrapCause(item.getFailure()) instanceof IndexNotFoundException) {
-                            // index is already deleted, no need to take action against it
-                            continue;
-                        } else {
-                            failureHandler.accept(item.getFailure());
-                            return;
-                        }
-                    }
-                    SearchResponse searchResponse = item.getResponse();
-                    if (searchResponse.getHits().getTotalHits().value > 0 || indexNames.get()[i].equals(defaultSharedIndex)) {
-                        needToRunDBQTemp = true;
-                    } else {
-                        indicesToDelete.add(indexNames.get()[i]);
-                    }
-                    ++i;
-                }
-                final boolean needToRunDBQ = needToRunDBQTemp;
-                if (indicesToDelete.isEmpty()) {
-                    deleteByQueryExecutor.onResponse(needToRunDBQ);
-                    return;
-                }
-                logger.info("[{}] deleting the following indices directly {}", jobId, indicesToDelete);
-                DeleteIndexRequest request = new DeleteIndexRequest(indicesToDelete.toArray(new String[0]));
-                request.indicesOptions(IndicesOptions.lenientExpandOpenHidden());
-                executeAsyncWithOrigin(
-                    client.threadPool().getThreadContext(),
-                    ML_ORIGIN,
-                    request,
-                    ActionListener.<AcknowledgedResponse>wrap(
-                        response -> deleteByQueryExecutor.onResponse(needToRunDBQ), // only run DBQ if there is a shared index
-                        failureHandler),
-                    client.admin().indices()::delete);
-            },
-            failure -> {
-                if (ExceptionsHelper.unwrapCause(failure) instanceof IndexNotFoundException) { // assume the index is already deleted
-                    deleteByQueryExecutor.onResponse(false); // skip DBQ && Alias
-                } else {
-                    failureHandler.accept(failure);
-                }
+        ActionListener<MultiSearchResponse> customIndexSearchHandler = ActionListener.wrap(multiSearchResponse -> {
+            if (multiSearchResponse == null) {
+                deleteByQueryExecutor.onResponse(true); // We need to run DBQ and alias deletion
+                return;
             }
-        );
+            String defaultSharedIndex = AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX
+                + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
+            List<String> indicesToDelete = new ArrayList<>();
+            boolean needToRunDBQTemp = false;
+            assert multiSearchResponse.getResponses().length == indexNames.get().length;
+            int i = 0;
+            for (MultiSearchResponse.Item item : multiSearchResponse.getResponses()) {
+                if (item.isFailure()) {
+                    ++i;
+                    if (ExceptionsHelper.unwrapCause(item.getFailure()) instanceof IndexNotFoundException) {
+                        // index is already deleted, no need to take action against it
+                        continue;
+                    } else {
+                        failureHandler.accept(item.getFailure());
+                        return;
+                    }
+                }
+                SearchResponse searchResponse = item.getResponse();
+                if (searchResponse.getHits().getTotalHits().value > 0 || indexNames.get()[i].equals(defaultSharedIndex)) {
+                    needToRunDBQTemp = true;
+                } else {
+                    indicesToDelete.add(indexNames.get()[i]);
+                }
+                ++i;
+            }
+            final boolean needToRunDBQ = needToRunDBQTemp;
+            if (indicesToDelete.isEmpty()) {
+                deleteByQueryExecutor.onResponse(needToRunDBQ);
+                return;
+            }
+            logger.info("[{}] deleting the following indices directly {}", jobId, indicesToDelete);
+            DeleteIndexRequest request = new DeleteIndexRequest(indicesToDelete.toArray(new String[0]));
+            request.indicesOptions(IndicesOptions.lenientExpandOpenHidden());
+            executeAsyncWithOrigin(
+                client.threadPool().getThreadContext(),
+                ML_ORIGIN,
+                request,
+                ActionListener.<AcknowledgedResponse>wrap(
+                    response -> deleteByQueryExecutor.onResponse(needToRunDBQ), // only run DBQ if there is a shared index
+                    failureHandler
+                ),
+                client.admin().indices()::delete
+            );
+        }, failure -> {
+            if (ExceptionsHelper.unwrapCause(failure) instanceof IndexNotFoundException) { // assume the index is already deleted
+                deleteByQueryExecutor.onResponse(false); // skip DBQ && Alias
+            } else {
+                failureHandler.accept(failure);
+            }
+        });
 
         // Step 6. If we successfully find a job, gather information about its result indices.
         // This will execute a multi-search action for every concrete index behind the job results alias.
         // If there are no concrete indices, take no action and go to the next step.
-        ActionListener<Job.Builder> getJobHandler = ActionListener.wrap(
-            builder -> {
-                indexNames.set(indexNameExpressionResolver.concreteIndexNames(clusterState,
-                    IndicesOptions.lenientExpandOpen(), AnomalyDetectorsIndex.jobResultsAliasedName(jobId)));
-                if (indexNames.get().length == 0) {
-                    // don't bother searching the index any further - it's already been closed or deleted
-                    customIndexSearchHandler.onResponse(null);
-                    return;
-                }
-                MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
-                // It is important that the requests are in the same order as the index names.
-                // This is because responses are ordered according to their requests.
-                for (String indexName : indexNames.get()) {
-                    SearchSourceBuilder source = new SearchSourceBuilder()
-                        .size(0)
-                        // if we have just one hit we cannot delete the index
-                        .trackTotalHitsUpTo(1)
-                        .query(QueryBuilders.boolQuery().filter(
-                            QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId))));
-                    multiSearchRequest.add(new SearchRequest(indexName).source(source));
-                }
-                executeAsyncWithOrigin(client,
-                    ML_ORIGIN,
-                    MultiSearchAction.INSTANCE,
-                    multiSearchRequest,
-                    customIndexSearchHandler);
-            },
-            failureHandler
-        );
+        ActionListener<Job.Builder> getJobHandler = ActionListener.wrap(builder -> {
+            indexNames.set(
+                indexNameExpressionResolver.concreteIndexNames(
+                    clusterState,
+                    IndicesOptions.lenientExpandOpen(),
+                    AnomalyDetectorsIndex.jobResultsAliasedName(jobId)
+                )
+            );
+            if (indexNames.get().length == 0) {
+                // don't bother searching the index any further - it's already been closed or deleted
+                customIndexSearchHandler.onResponse(null);
+                return;
+            }
+            MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
+            // It is important that the requests are in the same order as the index names.
+            // This is because responses are ordered according to their requests.
+            for (String indexName : indexNames.get()) {
+                SearchSourceBuilder source = new SearchSourceBuilder().size(0)
+                    // if we have just one hit we cannot delete the index
+                    .trackTotalHitsUpTo(1)
+                    .query(
+                        QueryBuilders.boolQuery()
+                            .filter(QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobId)))
+                    );
+                multiSearchRequest.add(new SearchRequest(indexName).source(source));
+            }
+            executeAsyncWithOrigin(client, ML_ORIGIN, MultiSearchAction.INSTANCE, multiSearchRequest, customIndexSearchHandler);
+        }, failureHandler);
 
         // Step 5. Get the job as the initial result index name is required
         ActionListener<Boolean> deleteAnnotationsHandler = ActionListener.wrap(
             response -> jobConfigProvider.getJob(jobId, getJobHandler),
-            failureHandler);
+            failureHandler
+        );
 
         // Step 4. Delete annotations associated with the job
         ActionListener<Boolean> deleteCategorizerStateHandler = ActionListener.wrap(
             response -> deleteAllAnnotations(deleteAnnotationsHandler),
-            failureHandler);
+            failureHandler
+        );
 
         // Step 3. Delete quantiles done, delete the categorizer state
         ActionListener<Boolean> deleteQuantilesHandler = ActionListener.wrap(
             response -> deleteCategorizerState(jobId, 1, deleteCategorizerStateHandler),
-            failureHandler);
+            failureHandler
+        );
 
         // Step 2. Delete state done, delete the quantiles
         ActionListener<BulkByScrollResponse> deleteStateHandler = ActionListener.wrap(
             bulkResponse -> deleteQuantiles(jobId, deleteQuantilesHandler),
-            failureHandler);
+            failureHandler
+        );
 
         // Step 1. Delete the model state
         deleteModelState(jobId, deleteStateHandler);
@@ -413,22 +424,17 @@ public class JobDataDeleter {
     private void deleteResultsByQuery(String jobId, String[] indices, ActionListener<BulkByScrollResponse> listener) {
         assert indices.length > 0;
 
-        ActionListener<RefreshResponse> refreshListener = ActionListener.wrap(
-            refreshResponse -> {
-                logger.info("[{}] running delete by query on [{}]", jobId, String.join(", ", indices));
-                ConstantScoreQueryBuilder query =
-                    new ConstantScoreQueryBuilder(new TermQueryBuilder(Job.ID.getPreferredName(), jobId));
-                DeleteByQueryRequest request = new DeleteByQueryRequest(indices)
-                    .setQuery(query)
-                    .setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpenHidden()))
-                    .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
-                    .setAbortOnVersionConflict(false)
-                    .setRefresh(true);
+        ActionListener<RefreshResponse> refreshListener = ActionListener.wrap(refreshResponse -> {
+            logger.info("[{}] running delete by query on [{}]", jobId, String.join(", ", indices));
+            ConstantScoreQueryBuilder query = new ConstantScoreQueryBuilder(new TermQueryBuilder(Job.ID.getPreferredName(), jobId));
+            DeleteByQueryRequest request = new DeleteByQueryRequest(indices).setQuery(query)
+                .setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpenHidden()))
+                .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
+                .setAbortOnVersionConflict(false)
+                .setRefresh(true);
 
-                executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, request, listener);
-            },
-            listener::onFailure
-        );
+            executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, request, listener);
+        }, listener::onFailure);
 
         // First, we refresh the indices to ensure any in-flight docs become visible
         RefreshRequest refreshRequest = new RefreshRequest(indices);
@@ -443,22 +449,29 @@ public class JobDataDeleter {
         // first find the concrete indices associated with the aliases
         GetAliasesRequest aliasesRequest = new GetAliasesRequest().aliases(readAliasName, writeAliasName)
             .indicesOptions(IndicesOptions.lenientExpandOpenHidden());
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, aliasesRequest,
-            ActionListener.<GetAliasesResponse>wrap(
-                getAliasesResponse -> {
-                    // remove the aliases from the concrete indices found in the first step
-                    IndicesAliasesRequest removeRequest = buildRemoveAliasesRequest(getAliasesResponse);
-                    if (removeRequest == null) {
-                        // don't error if the job's aliases have already been deleted - carry on and delete the
-                        // rest of the job's data
-                        finishedHandler.onResponse(AcknowledgedResponse.TRUE);
-                        return;
-                    }
-                    executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, removeRequest,
-                        finishedHandler,
-                        client.admin().indices()::aliases);
-                },
-                finishedHandler::onFailure), client.admin().indices()::getAliases);
+        executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
+            ML_ORIGIN,
+            aliasesRequest,
+            ActionListener.<GetAliasesResponse>wrap(getAliasesResponse -> {
+                // remove the aliases from the concrete indices found in the first step
+                IndicesAliasesRequest removeRequest = buildRemoveAliasesRequest(getAliasesResponse);
+                if (removeRequest == null) {
+                    // don't error if the job's aliases have already been deleted - carry on and delete the
+                    // rest of the job's data
+                    finishedHandler.onResponse(AcknowledgedResponse.TRUE);
+                    return;
+                }
+                executeAsyncWithOrigin(
+                    client.threadPool().getThreadContext(),
+                    ML_ORIGIN,
+                    removeRequest,
+                    finishedHandler,
+                    client.admin().indices()::aliases
+                );
+            }, finishedHandler::onFailure),
+            client.admin().indices()::getAliases
+        );
     }
 
     private IndicesAliasesRequest buildRemoveAliasesRequest(GetAliasesResponse getAliasesResponse) {
@@ -472,58 +485,59 @@ public class JobDataDeleter {
                 entry.value.forEach(metadata -> aliases.add(metadata.getAlias()));
             }
         }
-        return aliases.isEmpty() ? null : new IndicesAliasesRequest().addAliasAction(
-            IndicesAliasesRequest.AliasActions.remove()
-                .aliases(aliases.toArray(new String[aliases.size()]))
-                .indices(indices.toArray(new String[indices.size()])));
+        return aliases.isEmpty()
+            ? null
+            : new IndicesAliasesRequest().addAliasAction(
+                IndicesAliasesRequest.AliasActions.remove()
+                    .aliases(aliases.toArray(new String[aliases.size()]))
+                    .indices(indices.toArray(new String[indices.size()]))
+            );
     }
 
     private void deleteQuantiles(String jobId, ActionListener<Boolean> finishedHandler) {
         // Just use ID here, not type, as trying to delete different types spams the logs with an exception stack trace
         IdsQueryBuilder query = new IdsQueryBuilder().addIds(Quantiles.documentId(jobId));
-        DeleteByQueryRequest request = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexPattern())
-            .setQuery(query)
+        DeleteByQueryRequest request = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexPattern()).setQuery(query)
             .setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()))
             .setAbortOnVersionConflict(false)
             .setRefresh(true);
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, request, ActionListener.wrap(
-            response -> finishedHandler.onResponse(true),
-            ignoreIndexNotFoundException(finishedHandler)));
+        executeAsyncWithOrigin(
+            client,
+            ML_ORIGIN,
+            DeleteByQueryAction.INSTANCE,
+            request,
+            ActionListener.wrap(response -> finishedHandler.onResponse(true), ignoreIndexNotFoundException(finishedHandler))
+        );
     }
 
     private void deleteModelState(String jobId, ActionListener<BulkByScrollResponse> listener) {
         GetModelSnapshotsAction.Request request = new GetModelSnapshotsAction.Request(jobId, null);
         request.setPageParams(new PageParams(0, MAX_SNAPSHOTS_TO_DELETE));
-        executeAsyncWithOrigin(client, ML_ORIGIN, GetModelSnapshotsAction.INSTANCE, request, ActionListener.wrap(
-            response -> {
-                List<ModelSnapshot> deleteCandidates = response.getPage().results();
-                deleteModelSnapshots(deleteCandidates, listener);
-            },
-            listener::onFailure));
+        executeAsyncWithOrigin(client, ML_ORIGIN, GetModelSnapshotsAction.INSTANCE, request, ActionListener.wrap(response -> {
+            List<ModelSnapshot> deleteCandidates = response.getPage().results();
+            deleteModelSnapshots(deleteCandidates, listener);
+        }, listener::onFailure));
     }
 
     private void deleteCategorizerState(String jobId, int docNum, ActionListener<Boolean> finishedHandler) {
         // Just use ID here, not type, as trying to delete different types spams the logs with an exception stack trace
         IdsQueryBuilder query = new IdsQueryBuilder().addIds(CategorizerState.documentId(jobId, docNum));
-        DeleteByQueryRequest request = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexPattern())
-            .setQuery(query)
+        DeleteByQueryRequest request = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexPattern()).setQuery(query)
             .setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()))
             .setAbortOnVersionConflict(false)
             .setRefresh(true);
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, request, ActionListener.wrap(
-            response -> {
-                // If we successfully deleted a document try the next one; if not we're done
-                if (response.getDeleted() > 0) {
-                    // There's an assumption here that there won't be very many categorizer
-                    // state documents, so the recursion won't go more than, say, 5 levels deep
-                    deleteCategorizerState(jobId, docNum + 1, finishedHandler);
-                    return;
-                }
-                finishedHandler.onResponse(true);
-            },
-            ignoreIndexNotFoundException(finishedHandler)));
+        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, request, ActionListener.wrap(response -> {
+            // If we successfully deleted a document try the next one; if not we're done
+            if (response.getDeleted() > 0) {
+                // There's an assumption here that there won't be very many categorizer
+                // state documents, so the recursion won't go more than, say, 5 levels deep
+                deleteCategorizerState(jobId, docNum + 1, finishedHandler);
+                return;
+            }
+            finishedHandler.onResponse(true);
+        }, ignoreIndexNotFoundException(finishedHandler)));
     }
 
     private static Consumer<Exception> ignoreIndexNotFoundException(ActionListener<Boolean> finishedHandler) {

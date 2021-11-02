@@ -8,7 +8,6 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -16,8 +15,9 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.node.ReportingService;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -30,8 +30,10 @@ public class TransportInfo implements ReportingService.Info {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransportInfo.class);
 
     /** Whether to add hostname to publish host field when serializing. */
-    private static final boolean CNAME_IN_PUBLISH_ADDRESS =
-            parseBoolean(System.getProperty("es.transport.cname_in_publish_address"), false);
+    private static final boolean CNAME_IN_PUBLISH_ADDRESS = parseBoolean(
+        System.getProperty("es.transport.cname_in_publish_address"),
+        false
+    );
 
     private final BoundTransportAddress address;
     private Map<String, BoundTransportAddress> profileAddresses;
@@ -41,8 +43,11 @@ public class TransportInfo implements ReportingService.Info {
         this(address, profileAddresses, CNAME_IN_PUBLISH_ADDRESS);
     }
 
-    public TransportInfo(BoundTransportAddress address, @Nullable Map<String, BoundTransportAddress> profileAddresses,
-                         boolean cnameInPublishAddress) {
+    public TransportInfo(
+        BoundTransportAddress address,
+        @Nullable Map<String, BoundTransportAddress> profileAddresses,
+        boolean cnameInPublishAddress
+    ) {
         this.address = address;
         this.profileAddresses = profileAddresses;
         this.cnameInPublishAddress = cnameInPublishAddress;
@@ -85,17 +90,20 @@ public class TransportInfo implements ReportingService.Info {
         static final String PROFILES = "profiles";
     }
 
-    private String formatPublishAddressString(String propertyName, TransportAddress publishAddress){
+    private String formatPublishAddressString(String propertyName, TransportAddress publishAddress) {
         String publishAddressString = publishAddress.toString();
         String hostString = publishAddress.address().getHostString();
         if (InetAddresses.isInetAddress(hostString) == false) {
             if (cnameInPublishAddress) {
                 publishAddressString = hostString + '/' + publishAddress.toString();
             } else {
-                deprecationLogger.critical(DeprecationCategory.SETTINGS, "cname_in_publish_address",
-                        propertyName + " was printed as [ip:port] instead of [hostname/ip:port]. "
-                                + "This format is deprecated and will change to [hostname/ip:port] in a future version. "
-                                + "Use -Des.transport.cname_in_publish_address=true to enforce non-deprecated formatting."
+                deprecationLogger.critical(
+                    DeprecationCategory.SETTINGS,
+                    "cname_in_publish_address",
+                    propertyName
+                        + " was printed as [ip:port] instead of [hostname/ip:port]. "
+                        + "This format is deprecated and will change to [hostname/ip:port] in a future version. "
+                        + "Use -Des.transport.cname_in_publish_address=true to enforce non-deprecated formatting."
                 );
             }
         }

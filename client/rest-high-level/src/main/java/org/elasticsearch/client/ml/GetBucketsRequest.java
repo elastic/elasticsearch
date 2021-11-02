@@ -12,8 +12,8 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.client.ml.job.results.Result;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -242,15 +242,15 @@ public class GetBucketsRequest extends ActionRequest implements ToXContentObject
             return false;
         }
         GetBucketsRequest other = (GetBucketsRequest) obj;
-        return Objects.equals(jobId, other.jobId) &&
-                Objects.equals(timestamp, other.timestamp) &&
-                Objects.equals(expand, other.expand) &&
-                Objects.equals(excludeInterim, other.excludeInterim) &&
-                Objects.equals(anomalyScore, other.anomalyScore) &&
-                Objects.equals(pageParams, other.pageParams) &&
-                Objects.equals(start, other.start) &&
-                Objects.equals(end, other.end) &&
-                Objects.equals(sort, other.sort) &&
-                Objects.equals(descending, other.descending);
+        return Objects.equals(jobId, other.jobId)
+            && Objects.equals(timestamp, other.timestamp)
+            && Objects.equals(expand, other.expand)
+            && Objects.equals(excludeInterim, other.excludeInterim)
+            && Objects.equals(anomalyScore, other.anomalyScore)
+            && Objects.equals(pageParams, other.pageParams)
+            && Objects.equals(start, other.start)
+            && Objects.equals(end, other.end)
+            && Objects.equals(sort, other.sort)
+            && Objects.equals(descending, other.descending);
     }
 }

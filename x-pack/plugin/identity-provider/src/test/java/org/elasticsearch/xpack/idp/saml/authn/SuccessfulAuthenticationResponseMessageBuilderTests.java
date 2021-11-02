@@ -43,8 +43,9 @@ public class SuccessfulAuthenticationResponseMessageBuilderTests extends IdpSaml
         idp = mock(SamlIdentityProvider.class);
         when(idp.getEntityId()).thenReturn("https://cloud.elastic.co/saml/idp");
         when(idp.getSigningCredential()).thenReturn(readCredentials("RSA", 2048));
-        when(idp.getServiceProviderDefaults())
-            .thenReturn(new ServiceProviderDefaults("elastic-cloud", TRANSIENT, Duration.standardMinutes(5)));
+        when(idp.getServiceProviderDefaults()).thenReturn(
+            new ServiceProviderDefaults("elastic-cloud", TRANSIENT, Duration.standardMinutes(5))
+        );
     }
 
     public void testSignedResponseIsValidAgainstXmlSchema() throws Exception {
@@ -54,7 +55,7 @@ public class SuccessfulAuthenticationResponseMessageBuilderTests extends IdpSaml
         validator.validate(xml);
     }
 
-    private Response buildResponse() throws Exception{
+    private Response buildResponse() throws Exception {
         final Clock clock = Clock.systemUTC();
 
         final SamlServiceProvider sp = mock(SamlServiceProvider.class);
@@ -67,16 +68,19 @@ public class SuccessfulAuthenticationResponseMessageBuilderTests extends IdpSaml
 
         final UserServiceAuthentication user = mock(UserServiceAuthentication.class);
         when(user.getPrincipal()).thenReturn(randomAlphaOfLengthBetween(4, 12));
-        when(user.getRoles()).thenReturn(new HashSet<>(Arrays.asList(randomArray(1, 5, String[]::new,
-            () -> randomAlphaOfLengthBetween(4, 12)))));
+        when(user.getRoles()).thenReturn(
+            new HashSet<>(Arrays.asList(randomArray(1, 5, String[]::new, () -> randomAlphaOfLengthBetween(4, 12))))
+        );
         when(user.getEmail()).thenReturn(randomAlphaOfLength(8) + "@elastic.co");
         when(user.getName()).thenReturn(randomAlphaOfLength(6) + " " + randomAlphaOfLength(8));
         when(user.getServiceProvider()).thenReturn(sp);
 
-        final SuccessfulAuthenticationResponseMessageBuilder builder =
-            new SuccessfulAuthenticationResponseMessageBuilder(samlFactory, clock, idp);
+        final SuccessfulAuthenticationResponseMessageBuilder builder = new SuccessfulAuthenticationResponseMessageBuilder(
+            samlFactory,
+            clock,
+            idp
+        );
         return builder.build(user, null);
     }
-
 
 }

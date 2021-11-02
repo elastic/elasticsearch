@@ -46,7 +46,7 @@ public class List {
      */
     @SuppressWarnings("unchecked")
     public static <T> java.util.List<T> of(T e1, T e2) {
-        return List.of((T[]) new Object[]{e1, e2});
+        return List.of((T[]) new Object[] { e1, e2 });
     }
 
     /**

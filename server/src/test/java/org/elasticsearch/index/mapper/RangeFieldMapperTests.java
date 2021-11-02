@@ -11,10 +11,10 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Map;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Map;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -32,7 +32,6 @@ import static org.elasticsearch.index.query.RangeQueryBuilder.LT_FIELD;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 
-
 public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     private static final String FROM_DATE = "2016-10-31";
     private static final String TO_DATE = "2016-11-01 20:00:00";
@@ -46,14 +45,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
     @Override
     protected Set<String> types() {
-        return org.elasticsearch.core.Set.of(
-            "date_range",
-            "ip_range",
-            "float_range",
-            "double_range",
-            "integer_range",
-            "long_range"
-        );
+        return org.elasticsearch.core.Set.of("date_range", "ip_range", "float_range", "double_range", "integer_range", "long_range");
     }
 
     @Override
@@ -92,15 +84,14 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
     @Override
     protected String[] getParseMaximalWarnings() {
-        return new String[]{ "Parameter [boost] on field [field] is deprecated and will be removed in 8.0" };
+        return new String[] { "Parameter [boost] on field [field] is deprecated and will be removed in 8.0" };
     }
 
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
-        checker.registerUpdateCheck(b -> b.field("coerce", false),
-            m -> assertFalse(((RangeFieldMapper)m).coerce()));
+        checker.registerUpdateCheck(b -> b.field("coerce", false), m -> assertFalse(((RangeFieldMapper) m).coerce()));
         checker.registerUpdateCheck(b -> b.field("boost", 2.0), m -> assertEquals(m.fieldType().boost(), 2.0, 0));
     }
 
@@ -212,7 +203,8 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         if (type.equals("date_range")) {
             strVal = "1477872000000";
         } else if (type.equals("ip_range")) {
-            strVal = InetAddresses.toAddrString(InetAddresses.forString("192.168.1.7")) + " : "
+            strVal = InetAddresses.toAddrString(InetAddresses.forString("192.168.1.7"))
+                + " : "
                 + InetAddresses.toAddrString(InetAddresses.forString("2001:db8:0:0:0:0:0:0"));
         }
         assertThat(storedField.stringValue(), containsString(strVal));
@@ -240,8 +232,14 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
                 MapperParsingException.class,
                 () -> mapper2.parse(source(b -> b.startObject("field").field(getFromField(), "5.2").field(getToField(), "10").endObject()))
             );
-            assertThat(e.getCause().getMessage(), anyOf(containsString("passed as String"), containsString("failed to parse date"),
-                    containsString("is not an IP string literal")));
+            assertThat(
+                e.getCause().getMessage(),
+                anyOf(
+                    containsString("passed as String"),
+                    containsString("failed to parse date"),
+                    containsString("is not an IP string literal")
+                )
+            );
         }
     }
 
@@ -279,7 +277,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertEquals(3, doc.rootDoc().getFields("field").length);
         IndexableField[] fields = doc.rootDoc().getFields("field");
         IndexableField storedField = fields[2];
-        String expected = type.equals("ip_range") ? InetAddresses.toAddrString((InetAddress)getMax(type)) : getMax(type) +"";
+        String expected = type.equals("ip_range") ? InetAddresses.toAddrString((InetAddress) getMax(type)) : getMax(type) + "";
         assertThat(storedField.stringValue(), containsString(expected));
 
         // test null max value
@@ -297,7 +295,8 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         if (type.equals("date_range")) {
             strVal = "1477872000000";
         } else if (type.equals("ip_range")) {
-            strVal = InetAddresses.toAddrString(InetAddresses.forString("192.168.1.7")) + " : "
+            strVal = InetAddresses.toAddrString(InetAddresses.forString("192.168.1.7"))
+                + " : "
                 + InetAddresses.toAddrString(InetAddresses.forString("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"));
         }
         assertThat(storedField.stringValue(), containsString(strVal));
@@ -328,7 +327,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertFalse(pointField.fieldType().stored());
         IndexableField storedField = fields[2];
         assertTrue(storedField.fieldType().stored());
-        String expected = type.equals("ip_range") ? InetAddresses.toAddrString((InetAddress)getMax(type)) : getMax(type) +"";
+        String expected = type.equals("ip_range") ? InetAddresses.toAddrString((InetAddress) getMax(type)) : getMax(type) + "";
         assertThat(storedField.stringValue(), containsString(expected));
     }
 

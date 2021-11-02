@@ -15,10 +15,10 @@ import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.reindex.BulkByScrollTask.Status;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -37,8 +37,13 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
     private boolean testExceptions = randomBoolean();
 
     public void testRountTrip() throws IOException {
-        BulkByScrollResponse response = new BulkByScrollResponse(timeValueMillis(randomNonNegativeLong()),
-                BulkByScrollTaskStatusTests.randomStatus(), randomIndexingFailures(), randomSearchFailures(), randomBoolean());
+        BulkByScrollResponse response = new BulkByScrollResponse(
+            timeValueMillis(randomNonNegativeLong()),
+            BulkByScrollTaskStatusTests.randomStatus(),
+            randomIndexingFailures(),
+            randomSearchFailures(),
+            randomBoolean()
+        );
         BulkByScrollResponse tripped;
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             response.writeTo(out);
@@ -50,9 +55,16 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
     }
 
     private List<Failure> randomIndexingFailures() {
-        return usually() ? emptyList()
-                : singletonList(new Failure(randomSimpleString(random()), randomSimpleString(random()),
-                        randomSimpleString(random()), new IllegalArgumentException("test")));
+        return usually()
+            ? emptyList()
+            : singletonList(
+                new Failure(
+                    randomSimpleString(random()),
+                    randomSimpleString(random()),
+                    randomSimpleString(random()),
+                    new IllegalArgumentException("test")
+                )
+            );
     }
 
     private List<ScrollableHitSource.SearchFailure> randomSearchFailures() {
@@ -67,8 +79,11 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
             shardId = randomInt();
             nodeId = usually() ? randomAlphaOfLength(5) : null;
         }
-        ElasticsearchException exception = randomFrom(new ResourceNotFoundException("bar"), new ElasticsearchException("foo"),
-            new NoNodeAvailableException("baz"));
+        ElasticsearchException exception = randomFrom(
+            new ResourceNotFoundException("bar"),
+            new ElasticsearchException("foo"),
+            new NoNodeAvailableException("baz")
+        );
         return singletonList(new ScrollableHitSource.SearchFailure(exception, index, shardId, nodeId));
     }
 
@@ -98,8 +113,12 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
         }
     }
 
-    public static void assertEqualBulkResponse(BulkByScrollResponse expected, BulkByScrollResponse actual, boolean includeUpdated,
-                                               boolean includeCreated) {
+    public static void assertEqualBulkResponse(
+        BulkByScrollResponse expected,
+        BulkByScrollResponse actual,
+        boolean includeUpdated,
+        boolean includeCreated
+    ) {
         assertEquals(expected.getTook(), actual.getTook());
         BulkByScrollTaskStatusTests.assertEqualStatus(expected.getStatus(), actual.getStatus(), includeUpdated, includeCreated);
         assertEquals(expected.getBulkFailures().size(), actual.getBulkFailures().size());
@@ -130,11 +149,21 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
     @Override
     protected BulkByScrollResponse createTestInstance() {
         if (testExceptions) {
-            return new BulkByScrollResponse(timeValueMillis(randomNonNegativeLong()), BulkByScrollTaskStatusTests.randomStatus(),
-                randomIndexingFailures(), randomSearchFailures(), randomBoolean());
+            return new BulkByScrollResponse(
+                timeValueMillis(randomNonNegativeLong()),
+                BulkByScrollTaskStatusTests.randomStatus(),
+                randomIndexingFailures(),
+                randomSearchFailures(),
+                randomBoolean()
+            );
         } else {
-            return new BulkByScrollResponse(timeValueMillis(randomNonNegativeLong()),
-                BulkByScrollTaskStatusTests.randomStatusWithoutException(), emptyList(), emptyList(), randomBoolean());
+            return new BulkByScrollResponse(
+                timeValueMillis(randomNonNegativeLong()),
+                BulkByScrollTaskStatusTests.randomStatusWithoutException(),
+                emptyList(),
+                emptyList(),
+                randomBoolean()
+            );
         }
     }
 

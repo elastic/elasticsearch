@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.monitoring;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.monitoring.MonitoringFeatureSetUsage;
@@ -24,8 +24,7 @@ public class MonitoringFeatureSet implements XPackFeatureSet {
     private final Exporters exporters;
 
     @Inject
-    public MonitoringFeatureSet(@Nullable MonitoringService monitoring,
-                                @Nullable Exporters exporters) {
+    public MonitoringFeatureSet(@Nullable MonitoringService monitoring, @Nullable Exporters exporters) {
         this.monitoring = monitoring;
         this.exporters = exporters;
     }

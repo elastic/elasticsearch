@@ -11,13 +11,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -85,8 +85,7 @@ public class CCRFeatureSet implements XPackFeatureSet {
             lastFollowTimeInMillis = Math.max(0, Instant.now().toEpochMilli() - lastFollowerIndexCreationDate);
         }
 
-        Usage usage =
-            new Usage(available(), enabled(), numberOfFollowerIndices, numberOfAutoFollowPatterns, lastFollowTimeInMillis);
+        Usage usage = new Usage(available(), enabled(), numberOfFollowerIndices, numberOfAutoFollowPatterns, lastFollowTimeInMillis);
         listener.onResponse(usage);
     }
 
@@ -96,11 +95,13 @@ public class CCRFeatureSet implements XPackFeatureSet {
         private final int numberOfAutoFollowPatterns;
         private final Long lastFollowTimeInMillis;
 
-        public Usage(boolean available,
-                     boolean enabled,
-                     int numberOfFollowerIndices,
-                     int numberOfAutoFollowPatterns,
-                     Long lastFollowTimeInMillis) {
+        public Usage(
+            boolean available,
+            boolean enabled,
+            int numberOfFollowerIndices,
+            int numberOfAutoFollowPatterns,
+            Long lastFollowTimeInMillis
+        ) {
             super(XPackField.CCR, available, enabled);
             this.numberOfFollowerIndices = numberOfFollowerIndices;
             this.numberOfAutoFollowPatterns = numberOfAutoFollowPatterns;
@@ -163,9 +164,9 @@ public class CCRFeatureSet implements XPackFeatureSet {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Usage usage = (Usage) o;
-            return numberOfFollowerIndices == usage.numberOfFollowerIndices &&
-                numberOfAutoFollowPatterns == usage.numberOfAutoFollowPatterns &&
-                Objects.equals(lastFollowTimeInMillis, usage.lastFollowTimeInMillis);
+            return numberOfFollowerIndices == usage.numberOfFollowerIndices
+                && numberOfAutoFollowPatterns == usage.numberOfAutoFollowPatterns
+                && Objects.equals(lastFollowTimeInMillis, usage.lastFollowTimeInMillis);
         }
 
         @Override

@@ -13,15 +13,15 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -36,13 +36,17 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestClusterRerouteAction extends BaseRestHandler {
     private static final ObjectParser<ClusterRerouteRequest, Void> PARSER = new ObjectParser<>("cluster_reroute");
     static {
-        PARSER.declareField((p, v, c) -> v.commands(AllocationCommands.fromXContent(p)), new ParseField("commands"),
-                ValueType.OBJECT_ARRAY);
+        PARSER.declareField(
+            (p, v, c) -> v.commands(AllocationCommands.fromXContent(p)),
+            new ParseField("commands"),
+            ValueType.OBJECT_ARRAY
+        );
         PARSER.declareBoolean(ClusterRerouteRequest::dryRun, new ParseField("dry_run"));
     }
 
-    private static final String DEFAULT_METRICS = Strings
-            .arrayToCommaDelimitedString(EnumSet.complementOf(EnumSet.of(ClusterState.Metric.METADATA)).toArray());
+    private static final String DEFAULT_METRICS = Strings.arrayToCommaDelimitedString(
+        EnumSet.complementOf(EnumSet.of(ClusterState.Metric.METADATA)).toArray()
+    );
 
     private final SettingsFilter settingsFilter;
 

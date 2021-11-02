@@ -14,7 +14,7 @@ import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.nullValue;
 
-public class GetRequestTests  extends ESTestCase {
+public class GetRequestTests extends ESTestCase {
 
     public void testValidation() {
         {

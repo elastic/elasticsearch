@@ -47,10 +47,20 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     private final ClusterService clusterService;
 
     @Inject
-    public TransportUpdateByQueryAction(ThreadPool threadPool, ActionFilters actionFilters, Client client,
-                                        TransportService transportService, ScriptService scriptService, ClusterService clusterService) {
-        super(UpdateByQueryAction.NAME, transportService, actionFilters,
-            (Writeable.Reader<UpdateByQueryRequest>) UpdateByQueryRequest::new);
+    public TransportUpdateByQueryAction(
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        Client client,
+        TransportService transportService,
+        ScriptService scriptService,
+        ClusterService clusterService
+    ) {
+        super(
+            UpdateByQueryAction.NAME,
+            transportService,
+            actionFilters,
+            (Writeable.Reader<UpdateByQueryRequest>) UpdateByQueryRequest::new
+        );
         this.threadPool = threadPool;
         this.client = client;
         this.scriptService = scriptService;
@@ -60,14 +70,22 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     @Override
     protected void doExecute(Task task, UpdateByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
         BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
-        BulkByScrollParallelizationHelper.startSlicedAction(request, bulkByScrollTask, UpdateByQueryAction.INSTANCE, listener, client,
+        BulkByScrollParallelizationHelper.startSlicedAction(
+            request,
+            bulkByScrollTask,
+            UpdateByQueryAction.INSTANCE,
+            listener,
+            client,
             clusterService.localNode(),
             () -> {
                 ClusterState state = clusterService.state();
-                ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(),
-                    bulkByScrollTask);
-                new AsyncIndexBySearchAction(bulkByScrollTask, logger, assigningClient, threadPool, scriptService, request, state,
-                    listener).start();
+                ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(
+                    client,
+                    clusterService.localNode(),
+                    bulkByScrollTask
+                );
+                new AsyncIndexBySearchAction(bulkByScrollTask, logger, assigningClient, threadPool, scriptService, request, state, listener)
+                    .start();
             }
         );
     }
@@ -79,15 +97,30 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
 
         private final boolean useSeqNoForCAS;
 
-        AsyncIndexBySearchAction(BulkByScrollTask task, Logger logger, ParentTaskAssigningClient client,
-                                 ThreadPool threadPool, ScriptService scriptService, UpdateByQueryRequest request,
-                                 ClusterState clusterState, ActionListener<BulkByScrollResponse> listener) {
-            super(task,
+        AsyncIndexBySearchAction(
+            BulkByScrollTask task,
+            Logger logger,
+            ParentTaskAssigningClient client,
+            ThreadPool threadPool,
+            ScriptService scriptService,
+            UpdateByQueryRequest request,
+            ClusterState clusterState,
+            ActionListener<BulkByScrollResponse> listener
+        ) {
+            super(
+                task,
                 // not all nodes support sequence number powered optimistic concurrency control, we fall back to version
                 clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0) == false,
                 // all nodes support sequence number powered optimistic concurrency control and we can use it
                 clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0),
-                logger, client, threadPool, request, listener, scriptService, null);
+                logger,
+                client,
+                threadPool,
+                request,
+                listener,
+                scriptService,
+                null
+            );
             useSeqNoForCAS = clusterState.nodes().getMinNodeVersion().onOrAfter(Version.V_6_7_0);
         }
 
@@ -115,8 +148,12 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
 
         class UpdateByQueryScriptApplier extends ScriptApplier {
 
-            UpdateByQueryScriptApplier(WorkerBulkByScrollTaskState taskWorker, ScriptService scriptService, Script script,
-                                       Map<String, Object> params) {
+            UpdateByQueryScriptApplier(
+                WorkerBulkByScrollTaskState taskWorker,
+                ScriptService scriptService,
+                Script script,
+                Map<String, Object> params
+            ) {
                 super(taskWorker, scriptService, script, params);
             }
 

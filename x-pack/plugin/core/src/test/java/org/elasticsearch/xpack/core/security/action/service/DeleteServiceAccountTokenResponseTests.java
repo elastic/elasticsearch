@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.core.security.action.service;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Map;
@@ -41,9 +41,8 @@ public class DeleteServiceAccountTokenResponseTests extends AbstractWireSerializ
         final DeleteServiceAccountTokenResponse response = createTestInstance();
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        final Map<String, Object> responseMap = XContentHelper.convertToMap(
-            BytesReference.bytes(builder),
-            false, builder.contentType()).v2();
+        final Map<String, Object> responseMap = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType())
+            .v2();
         assertThat(responseMap, equalTo(org.elasticsearch.core.Map.of("found", response.found())));
     }
 }

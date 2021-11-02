@@ -80,8 +80,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         List<String> templatesToWaitFor = UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_12_0)
             ? XPackRestTestConstants.ML_POST_V7120_TEMPLATES
             : XPackRestTestConstants.ML_POST_V660_TEMPLATES;
-        return Stream.concat(templatesToWaitFor.stream(),
-            super.templatesToWaitFor().stream()).collect(Collectors.toSet());
+        return Stream.concat(templatesToWaitFor.stream(), super.templatesToWaitFor().stream()).collect(Collectors.toSet());
     }
 
     protected static void waitForPendingUpgraderTasks() throws Exception {
@@ -96,10 +95,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
     public void testSnapshotUpgrader() throws Exception {
         hlrc = new HLRC(client()).machineLearning();
         Request adjustLoggingLevels = new Request("PUT", "/_cluster/settings");
-        adjustLoggingLevels.setJsonEntity(
-            "{\"persistent\": {" +
-                "\"logger.org.elasticsearch.xpack.ml\": \"trace\"" +
-                "}}");
+        adjustLoggingLevels.setJsonEntity("{\"persistent\": {" + "\"logger.org.elasticsearch.xpack.ml\": \"trace\"" + "}}");
         client().performRequest(adjustLoggingLevels);
         switch (CLUSTER_TYPE) {
             case OLD:
@@ -136,9 +132,13 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
             .findFirst()
             .orElseThrow(() -> new ElasticsearchException("Not found snapshot other than " + currentSnapshot));
 
-        assertThat(hlrc.upgradeJobSnapshot(
-            new UpgradeJobModelSnapshotRequest(JOB_ID, snapshot.getSnapshotId(), null, true),
-            RequestOptions.DEFAULT).isCompleted(), is(true));
+        assertThat(
+            hlrc.upgradeJobSnapshot(
+                new UpgradeJobModelSnapshotRequest(JOB_ID, snapshot.getSnapshotId(), null, true),
+                RequestOptions.DEFAULT
+            ).isCompleted(),
+            is(true)
+        );
 
         List<ModelSnapshot> snapshots = getModelSnapshots(job.getId(), snapshot.getSnapshotId()).snapshots();
         assertThat(snapshots, hasSize(1));
@@ -147,21 +147,29 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         assertThat(snapshot.getMinVersion(), equalTo(CPP_COMPATIBILTIY_VERSION));
 
         // Does the snapshot still work?
-        assertThat(hlrc.getJobStats(new GetJobStatsRequest(JOB_ID), RequestOptions.DEFAULT)
+        assertThat(
+            hlrc.getJobStats(new GetJobStatsRequest(JOB_ID), RequestOptions.DEFAULT)
                 .jobStats()
                 .get(0)
-                .getDataCounts().getLatestRecordTimeStamp(),
-            greaterThan(snapshot.getLatestRecordTimeStamp()));
+                .getDataCounts()
+                .getLatestRecordTimeStamp(),
+            greaterThan(snapshot.getLatestRecordTimeStamp())
+        );
         RevertModelSnapshotRequest revertModelSnapshotRequest = new RevertModelSnapshotRequest(JOB_ID, snapshot.getSnapshotId());
         revertModelSnapshotRequest.setDeleteInterveningResults(true);
-        assertThat(hlrc.revertModelSnapshot(revertModelSnapshotRequest, RequestOptions.DEFAULT).getModel().getSnapshotId(),
-            equalTo(snapshot.getSnapshotId()));
+        assertThat(
+            hlrc.revertModelSnapshot(revertModelSnapshotRequest, RequestOptions.DEFAULT).getModel().getSnapshotId(),
+            equalTo(snapshot.getSnapshotId())
+        );
         assertThat(openJob(JOB_ID).isOpened(), is(true));
-        assertThat(hlrc.getJobStats(new GetJobStatsRequest(JOB_ID), RequestOptions.DEFAULT)
+        assertThat(
+            hlrc.getJobStats(new GetJobStatsRequest(JOB_ID), RequestOptions.DEFAULT)
                 .jobStats()
                 .get(0)
-                .getDataCounts().getLatestRecordTimeStamp(),
-            equalTo(snapshot.getLatestRecordTimeStamp()));
+                .getDataCounts()
+                .getLatestRecordTimeStamp(),
+            equalTo(snapshot.getLatestRecordTimeStamp())
+        );
         closeJob(JOB_ID);
     }
 
@@ -172,13 +180,11 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         PutJobResponse jobResponse = buildAndPutJob(JOB_ID, bucketSpan);
         Job job = jobResponse.getResponse();
         openJob(job.getId());
-        DataCounts dataCounts = postData(job.getId(),
-            generateData(startTime,
-                bucketSpan,
-                10,
-                Arrays.asList("foo"),
-                (bucketIndex, series) -> bucketIndex == 5 ? 100.0 : 10.0).stream().collect(Collectors.joining()))
-            .getDataCounts();
+        DataCounts dataCounts = postData(
+            job.getId(),
+            generateData(startTime, bucketSpan, 10, Arrays.asList("foo"), (bucketIndex, series) -> bucketIndex == 5 ? 100.0 : 10.0).stream()
+                .collect(Collectors.joining())
+        ).getDataCounts();
         assertThat(dataCounts.getInvalidDateCount(), equalTo(0L));
         assertThat(dataCounts.getBucketCount(), greaterThan(0L));
         final long lastCount = dataCounts.getBucketCount();
@@ -189,14 +195,12 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         waitUntil(() -> false, 2, TimeUnit.SECONDS);
 
         openJob(job.getId());
-        dataCounts = postData(job.getId(),
-            generateData(
-                startTime + 10 * bucketSpan.getMillis(),
-                bucketSpan,
-                10,
-                Arrays.asList("foo"),
-                (bucketIndex, series) -> 10.0).stream().collect(Collectors.joining()))
-            .getDataCounts();
+        dataCounts = postData(
+            job.getId(),
+            generateData(startTime + 10 * bucketSpan.getMillis(), bucketSpan, 10, Arrays.asList("foo"), (bucketIndex, series) -> 10.0)
+                .stream()
+                .collect(Collectors.joining())
+        ).getDataCounts();
         assertThat(dataCounts.getInvalidDateCount(), equalTo(0L));
         assertThat(dataCounts.getBucketCount(), greaterThan(lastCount));
         flushJob(job.getId());
@@ -227,8 +231,13 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         return putJob(job.build());
     }
 
-    private static List<String> generateData(long timestamp, TimeValue bucketSpan, int bucketCount, List<String> series,
-                                             BiFunction<Integer, String, Double> timeAndSeriesToValueFunction) throws IOException {
+    private static List<String> generateData(
+        long timestamp,
+        TimeValue bucketSpan,
+        int bucketCount,
+        List<String> series,
+        BiFunction<Integer, String, Double> timeAndSeriesToValueFunction
+    ) throws IOException {
         List<String> data = new ArrayList<>();
         long now = timestamp;
         for (int i = 0; i < bucketCount; i++) {
@@ -265,17 +274,19 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
 
     protected PostDataResponse postData(String jobId, String data) throws IOException {
         // Post data is deprecated, so a deprecation warning is possible (depending on the old version)
-        RequestOptions postDataOptions = RequestOptions.DEFAULT.toBuilder()
-            .setWarningsHandler(warnings -> {
-                if (warnings.isEmpty()) {
-                    // No warning is OK - it means we hit an old node where post data is not deprecated
-                    return false;
-                } else if (warnings.size() > 1) {
-                    return true;
-                }
-                return warnings.get(0).equals("Posting data directly to anomaly detection jobs is deprecated, " +
-                    "in a future major version it will be compulsory to use a datafeed") == false;
-            }).build();
+        RequestOptions postDataOptions = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
+            if (warnings.isEmpty()) {
+                // No warning is OK - it means we hit an old node where post data is not deprecated
+                return false;
+            } else if (warnings.size() > 1) {
+                return true;
+            }
+            return warnings.get(0)
+                .equals(
+                    "Posting data directly to anomaly detection jobs is deprecated, "
+                        + "in a future major version it will be compulsory to use a datafeed"
+                ) == false;
+        }).build();
         return hlrc.postData(new PostDataRequest(jobId, XContentType.JSON, new BytesArray(data)), postDataOptions);
     }
 

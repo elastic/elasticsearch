@@ -24,8 +24,7 @@ public class FreezeAction implements LifecycleAction, ToXContentObject {
         return PARSER.apply(parser, null);
     }
 
-    public FreezeAction() {
-    }
+    public FreezeAction() {}
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

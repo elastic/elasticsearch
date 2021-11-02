@@ -42,9 +42,9 @@ public class EcsJsonLayout extends AbstractStringLayout {
     protected EcsJsonLayout(String typeName, Charset charset, String[] esmessagefields) {
         super(charset);
         this.patternLayout = PatternLayout.newBuilder()
-                                          .withPattern(pattern(typeName, esmessagefields))
-                                          .withAlwaysWriteExceptions(false)
-                                          .build();
+            .withPattern(pattern(typeName, esmessagefields))
+            .withAlwaysWriteExceptions(false)
+            .build();
     }
 
     protected String pattern(String dataset, String[] esMessageFields) {
@@ -77,7 +77,6 @@ public class EcsJsonLayout extends AbstractStringLayout {
 
         return createPattern(map, Stream.of(esMessageFields).collect(Collectors.toSet()));
     }
-
 
     protected String createPattern(Map<String, Object> map, Set<String> esMessageFields) {
         StringBuilder sb = new StringBuilder();
@@ -118,9 +117,7 @@ public class EcsJsonLayout extends AbstractStringLayout {
     }
 
     @PluginFactory
-    public static EcsJsonLayout createLayout(String type,
-                                             Charset charset,
-                                             String[] esmessagefields) {
+    public static EcsJsonLayout createLayout(String type, Charset charset, String[] esmessagefields) {
         return new EcsJsonLayout(type, charset, esmessagefields);
     }
 
@@ -129,7 +126,8 @@ public class EcsJsonLayout extends AbstractStringLayout {
     }
 
     public static class Builder<B extends EcsJsonLayout.Builder<B>> extends AbstractStringLayout.Builder<B>
-        implements org.apache.logging.log4j.core.util.Builder<EcsJsonLayout> {
+        implements
+            org.apache.logging.log4j.core.util.Builder<EcsJsonLayout> {
 
         @PluginAttribute("dataset")
         String dataset;
@@ -146,7 +144,7 @@ public class EcsJsonLayout extends AbstractStringLayout {
 
         @Override
         public EcsJsonLayout build() {
-            String[] split = Strings.isNullOrEmpty(esMessageFields) ? new String[]{} : esMessageFields.split(",");
+            String[] split = Strings.isNullOrEmpty(esMessageFields) ? new String[] {} : esMessageFields.split(",");
             return EcsJsonLayout.createLayout(dataset, charset, split);
         }
 

@@ -31,8 +31,7 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
     /** The collapse value for each top doc */
     public final Object[] collapseValues;
 
-    public CollapseTopFieldDocs(String field, TotalHits totalHits, ScoreDoc[] scoreDocs,
-                                SortField[] sortFields, Object[] values) {
+    public CollapseTopFieldDocs(String field, TotalHits totalHits, ScoreDoc[] scoreDocs, SortField[] sortFields, Object[] values) {
         super(totalHits, scoreDocs, sortFields);
         this.field = field;
         this.collapseValues = values;
@@ -62,8 +61,9 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
         int getShardIndex(ScoreDoc scoreDoc) {
             if (useScoreDocIndex) {
                 if (scoreDoc.shardIndex == -1) {
-                    throw new IllegalArgumentException("setShardIndex is false but TopDocs["
-                        + shardIndex + "].scoreDocs[" + hitIndex + "] is not set");
+                    throw new IllegalArgumentException(
+                        "setShardIndex is false but TopDocs[" + shardIndex + "].scoreDocs[" + hitIndex + "] is not set"
+                    );
                 }
                 return scoreDoc.shardIndex;
             } else {
@@ -138,8 +138,7 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
                 final FieldComparator comp = comparators[compIDX];
 
                 @SuppressWarnings("unchecked")
-                final int cmp =
-                    reverseMul[compIDX] * comp.compareValues(firstFD.fields[compIDX], secondFD.fields[compIDX]);
+                final int cmp = reverseMul[compIDX] * comp.compareValues(firstFD.fields[compIDX], secondFD.fields[compIDX]);
 
                 if (cmp != 0) {
                     return cmp < 0;
@@ -153,13 +152,13 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
      * Returns a new CollapseTopDocs, containing topN collapsed results across
      * the provided CollapseTopDocs, sorting by score. Each {@link CollapseTopFieldDocs} instance must be sorted.
      **/
-    public static CollapseTopFieldDocs merge(Sort sort, int start, int size,
-                                             CollapseTopFieldDocs[] shardHits, boolean setShardIndex) {
+    public static CollapseTopFieldDocs merge(Sort sort, int start, int size, CollapseTopFieldDocs[] shardHits, boolean setShardIndex) {
         String collapseField = shardHits[0].field;
         for (int i = 1; i < shardHits.length; i++) {
             if (collapseField.equals(shardHits[i].field) == false) {
-                throw new IllegalArgumentException("collapse field differ across shards [" +
-                    collapseField + "] != [" + shardHits[i].field + "]");
+                throw new IllegalArgumentException(
+                    "collapse field differ across shards [" + collapseField + "] != [" + shardHits[i].field + "]"
+                );
             }
         }
         final PriorityQueue<ShardRef> queue = new MergeSortQueue(sort, shardHits);
@@ -167,7 +166,7 @@ public final class CollapseTopFieldDocs extends TopFieldDocs {
         long totalHitCount = 0;
         int availHitCount = 0;
         TotalHits.Relation totalHitsRelation = TotalHits.Relation.EQUAL_TO;
-        for(int shardIDX=0;shardIDX<shardHits.length;shardIDX++) {
+        for (int shardIDX = 0; shardIDX < shardHits.length; shardIDX++) {
             final CollapseTopFieldDocs shard = shardHits[shardIDX];
             // totalHits can be non-zero even if no hits were
             // collected, when searchAfter was used:

@@ -146,8 +146,7 @@ public final class TransformNodes {
      * @return number of transform nodes
      */
     public static boolean hasAnyTransformNode(DiscoveryNodes nodes) {
-        return StreamSupport.stream(nodes.spliterator(), false)
-            .anyMatch(node -> node.getRoles().contains(Transform.TRANSFORM_ROLE));
+        return StreamSupport.stream(nodes.spliterator(), false).anyMatch(node -> node.getRoles().contains(Transform.TRANSFORM_ROLE));
     }
 
     /**
@@ -200,7 +199,8 @@ public final class TransformNodes {
                     appropriateNode.get(),
                     actionName,
                     request,
-                    new ActionListenerResponseHandler<>(listener, reader));
+                    new ActionListenerResponseHandler<>(listener, reader)
+                );
             } else {
                 Map<String, String> explain = new TreeMap<>();
                 for (DiscoveryNode node : nodes) {
@@ -210,7 +210,9 @@ public final class TransformNodes {
                 listener.onFailure(
                     ExceptionsHelper.badRequestException(
                         "No appropriate node to run on, reasons [{}]",
-                        explain.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining("|"))));
+                        explain.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining("|"))
+                    )
+                );
             }
             return true;
         }
@@ -235,15 +237,19 @@ public final class TransformNodes {
             .findAny();
     }
 
-    public static boolean nodeCanRunThisTransform(DiscoveryNode node,
-                                                  Version minRequiredVersion,
-                                                  boolean requiresRemote,
-                                                  Map<String, String> explain) {
+    public static boolean nodeCanRunThisTransform(
+        DiscoveryNode node,
+        Version minRequiredVersion,
+        boolean requiresRemote,
+        Map<String, String> explain
+    ) {
         // version of the transform run on a node that has at least the same version
         if (node.getVersion().onOrAfter(minRequiredVersion) == false) {
             if (explain != null) {
                 explain.put(
-                    node.getId(), "node has version: " + node.getVersion() + " but transform requires at least " + minRequiredVersion);
+                    node.getId(),
+                    "node has version: " + node.getVersion() + " but transform requires at least " + minRequiredVersion
+                );
             }
             return false;
         }
@@ -268,9 +274,7 @@ public final class TransformNodes {
         return true;
     }
 
-    public static boolean nodeCanRunThisTransformPre77(DiscoveryNode node,
-                                                       Version minRequiredVersion,
-                                                       Map<String, String> explain) {
+    public static boolean nodeCanRunThisTransformPre77(DiscoveryNode node, Version minRequiredVersion, Map<String, String> explain) {
         if (node.canContainData() == false) {
             if (explain != null) {
                 explain.put(node.getId(), "not a data node");

@@ -64,8 +64,9 @@ public class PendingClusterStatesQueue {
             ClusterStateContext context = pendingStates.remove(0);
             logger.warn("dropping pending state [{}]. more than [{}] pending states.", context, maxQueueSize);
             if (context.committed()) {
-                context.listener.onNewClusterStateFailed(new ElasticsearchException("too many pending states ([{}] pending)",
-                    maxQueueSize));
+                context.listener.onNewClusterStateFailed(
+                    new ElasticsearchException("too many pending states ([{}] pending)", maxQueueSize)
+                );
             }
         }
     }
@@ -77,13 +78,15 @@ public class PendingClusterStatesQueue {
     public synchronized ClusterState markAsCommitted(String stateUUID, StateProcessedListener listener) {
         final ClusterStateContext context = findState(stateUUID);
         if (context == null) {
-            listener.onNewClusterStateFailed(new IllegalStateException("can't resolve cluster state with uuid" +
-                " [" + stateUUID + "] to commit"));
+            listener.onNewClusterStateFailed(
+                new IllegalStateException("can't resolve cluster state with uuid" + " [" + stateUUID + "] to commit")
+            );
             return null;
         }
         if (context.committed()) {
-            listener.onNewClusterStateFailed(new IllegalStateException("cluster state with uuid" +
-                " [" + stateUUID + "] is already committed"));
+            listener.onNewClusterStateFailed(
+                new IllegalStateException("cluster state with uuid" + " [" + stateUUID + "] is already committed")
+            );
             return null;
         }
         context.markAsCommitted(listener);
@@ -97,8 +100,9 @@ public class PendingClusterStatesQueue {
     public synchronized void markAsFailed(ClusterState state, Exception reason) {
         final ClusterStateContext failedContext = findState(state.stateUUID());
         if (failedContext == null) {
-            throw new IllegalArgumentException("can't resolve failed cluster state with uuid [" + state.stateUUID()
-                + "], version [" + state.version() + "]");
+            throw new IllegalArgumentException(
+                "can't resolve failed cluster state with uuid [" + state.stateUUID() + "], version [" + state.version() + "]"
+            );
         }
         if (failedContext.committed() == false) {
             throw new IllegalArgumentException("failed cluster state is not committed " + state);
@@ -134,8 +138,9 @@ public class PendingClusterStatesQueue {
      */
     public synchronized void markAsProcessed(ClusterState state) {
         if (findState(state.stateUUID()) == null) {
-            throw new IllegalStateException("can't resolve processed cluster state with uuid [" + state.stateUUID()
-                + "], version [" + state.version() + "]");
+            throw new IllegalStateException(
+                "can't resolve processed cluster state with uuid [" + state.stateUUID() + "], version [" + state.version() + "]"
+            );
         }
         final DiscoveryNode currentMaster = state.nodes().getMasterNode();
         assert currentMaster != null : "processed cluster state mast have a master. " + state;
@@ -151,24 +156,44 @@ public class PendingClusterStatesQueue {
                 contextsToRemove.add(pendingContext);
                 if (pendingContext.committed()) {
                     // this is a committed state , warn
-                    logger.warn("received a cluster state (uuid[{}]/v[{}]) from a different master than the current one,"
-                        + " rejecting (received {}, current {})",
-                            pendingState.stateUUID(), pendingState.version(), pendingMasterNode, currentMaster);
+                    logger.warn(
+                        "received a cluster state (uuid[{}]/v[{}]) from a different master than the current one,"
+                            + " rejecting (received {}, current {})",
+                        pendingState.stateUUID(),
+                        pendingState.version(),
+                        pendingMasterNode,
+                        currentMaster
+                    );
                     pendingContext.listener.onNewClusterStateFailed(
-                            new IllegalStateException("cluster state from a different master than the current one," +
-                                " rejecting (received " + pendingMasterNode + ", current " + currentMaster + ")"));
+                        new IllegalStateException(
+                            "cluster state from a different master than the current one,"
+                                + " rejecting (received "
+                                + pendingMasterNode
+                                + ", current "
+                                + currentMaster
+                                + ")"
+                        )
+                    );
                 } else {
-                    logger.trace("removing non-committed state with uuid[{}]/v[{}] from [{}] - a state from" +
-                            " [{}] was successfully processed",
-                            pendingState.stateUUID(), pendingState.version(), pendingMasterNode, currentMaster);
+                    logger.trace(
+                        "removing non-committed state with uuid[{}]/v[{}] from [{}] - a state from" + " [{}] was successfully processed",
+                        pendingState.stateUUID(),
+                        pendingState.version(),
+                        pendingMasterNode,
+                        currentMaster
+                    );
                 }
             } else if (pendingState.stateUUID().equals(state.stateUUID())) {
                 assert pendingContext.committed() : "processed cluster state is not committed " + state;
                 contextsToRemove.add(pendingContext);
                 pendingContext.listener.onNewClusterStateProcessed();
             } else if (state.version() >= pendingState.version()) {
-                logger.trace("processing pending state uuid[{}]/v[{}] together with state uuid[{}]/v[{}]",
-                        pendingState.stateUUID(), pendingState.version(), state.stateUUID(), state.version()
+                logger.trace(
+                    "processing pending state uuid[{}]/v[{}] together with state uuid[{}]/v[{}]",
+                    pendingState.stateUUID(),
+                    pendingState.version(),
+                    state.stateUUID(),
+                    state.version()
                 );
                 contextsToRemove.add(pendingContext);
                 if (pendingContext.committed()) {
@@ -243,9 +268,16 @@ public class PendingClusterStatesQueue {
         if (coordinationMetadata.getLastAcceptedConfiguration().equals(coordinationMetadata.getLastCommittedConfiguration())) {
             return committedState;
         } else {
-            return ClusterState.builder(committedState).metadata(Metadata.builder(committedState.metadata())
-                .coordinationMetadata(CoordinationMetadata.builder(coordinationMetadata)
-                    .lastCommittedConfiguration(committedState.getLastAcceptedConfiguration()).build())).build();
+            return ClusterState.builder(committedState)
+                .metadata(
+                    Metadata.builder(committedState.metadata())
+                        .coordinationMetadata(
+                            CoordinationMetadata.builder(coordinationMetadata)
+                                .lastCommittedConfiguration(committedState.getLastAcceptedConfiguration())
+                                .build()
+                        )
+                )
+                .build();
         }
     }
 
@@ -283,13 +315,7 @@ public class PendingClusterStatesQueue {
 
         @Override
         public String toString() {
-            return String.format(
-                    Locale.ROOT,
-                    "[uuid[%s], v[%d], m[%s]]",
-                    stateUUID(),
-                    state.version(),
-                    state.nodes().getMasterNodeId()
-            );
+            return String.format(Locale.ROOT, "[uuid[%s], v[%d], m[%s]]", stateUUID(), state.version(), state.nodes().getMasterNodeId());
         }
     }
 

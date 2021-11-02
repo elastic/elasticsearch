@@ -28,8 +28,8 @@ import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
@@ -48,8 +48,9 @@ import java.util.stream.Stream;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class TransportGetTrainedModelsStatsAction extends HandledTransportAction<GetTrainedModelsStatsAction.Request,
-                                                                                 GetTrainedModelsStatsAction.Response> {
+public class TransportGetTrainedModelsStatsAction extends HandledTransportAction<
+    GetTrainedModelsStatsAction.Request,
+    GetTrainedModelsStatsAction.Response> {
 
     private final Client client;
     private final ClusterService clusterService;
@@ -57,12 +58,14 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
     private final TrainedModelProvider trainedModelProvider;
 
     @Inject
-    public TransportGetTrainedModelsStatsAction(TransportService transportService,
-                                                ActionFilters actionFilters,
-                                                ClusterService clusterService,
-                                                IngestService ingestService,
-                                                TrainedModelProvider trainedModelProvider,
-                                                Client client) {
+    public TransportGetTrainedModelsStatsAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ClusterService clusterService,
+        IngestService ingestService,
+        TrainedModelProvider trainedModelProvider,
+        Client client
+    ) {
         super(GetTrainedModelsStatsAction.NAME, transportService, actionFilters, GetTrainedModelsStatsAction.Request::new);
         this.client = client;
         this.clusterService = clusterService;
@@ -71,76 +74,75 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
     }
 
     @Override
-    protected void doExecute(Task task,
-                             GetTrainedModelsStatsAction.Request request,
-                             ActionListener<GetTrainedModelsStatsAction.Response> listener) {
+    protected void doExecute(
+        Task task,
+        GetTrainedModelsStatsAction.Request request,
+        ActionListener<GetTrainedModelsStatsAction.Response> listener
+    ) {
 
         final ModelAliasMetadata currentMetadata = ModelAliasMetadata.fromState(clusterService.state());
         GetTrainedModelsStatsAction.Response.Builder responseBuilder = new GetTrainedModelsStatsAction.Response.Builder();
 
         ActionListener<List<InferenceStats>> inferenceStatsListener = ActionListener.wrap(
-            inferenceStats -> listener.onResponse(responseBuilder.setInferenceStatsByModelId(inferenceStats.stream()
-                    .collect(Collectors.toMap(InferenceStats::getModelId, Function.identity())))
-                    .build()),
+            inferenceStats -> listener.onResponse(
+                responseBuilder.setInferenceStatsByModelId(
+                    inferenceStats.stream().collect(Collectors.toMap(InferenceStats::getModelId, Function.identity()))
+                ).build()
+            ),
             listener::onFailure
         );
 
-        ActionListener<NodesStatsResponse> nodesStatsListener = ActionListener.wrap(
-            nodesStatsResponse -> {
-                Set<String> allPossiblePipelineReferences = responseBuilder.getExpandedIdsWithAliases()
-                    .entrySet()
-                    .stream()
-                    .flatMap(entry -> Stream.concat(entry.getValue().stream(), Stream.of(entry.getKey())))
-                    .collect(Collectors.toSet());
-                Map<String, Set<String>> pipelineIdsByModelIdsOrAliases = pipelineIdsByModelIdsOrAliases(clusterService.state(),
-                    ingestService,
-                    allPossiblePipelineReferences);
-                Map<String, IngestStats> modelIdIngestStats = inferenceIngestStatsByModelId(nodesStatsResponse,
-                    currentMetadata,
-                    pipelineIdsByModelIdsOrAliases
-                );
-                responseBuilder.setIngestStatsByModelId(modelIdIngestStats);
-                trainedModelProvider.getInferenceStats(
-                    responseBuilder.getExpandedIdsWithAliases().keySet().toArray(new String[0]),
-                    inferenceStatsListener
-                );
-            },
-            listener::onFailure
-        );
+        ActionListener<NodesStatsResponse> nodesStatsListener = ActionListener.wrap(nodesStatsResponse -> {
+            Set<String> allPossiblePipelineReferences = responseBuilder.getExpandedIdsWithAliases()
+                .entrySet()
+                .stream()
+                .flatMap(entry -> Stream.concat(entry.getValue().stream(), Stream.of(entry.getKey())))
+                .collect(Collectors.toSet());
+            Map<String, Set<String>> pipelineIdsByModelIdsOrAliases = pipelineIdsByModelIdsOrAliases(
+                clusterService.state(),
+                ingestService,
+                allPossiblePipelineReferences
+            );
+            Map<String, IngestStats> modelIdIngestStats = inferenceIngestStatsByModelId(
+                nodesStatsResponse,
+                currentMetadata,
+                pipelineIdsByModelIdsOrAliases
+            );
+            responseBuilder.setIngestStatsByModelId(modelIdIngestStats);
+            trainedModelProvider.getInferenceStats(
+                responseBuilder.getExpandedIdsWithAliases().keySet().toArray(new String[0]),
+                inferenceStatsListener
+            );
+        }, listener::onFailure);
 
-        ActionListener<Tuple<Long, Map<String, Set<String>>>> idsListener = ActionListener.wrap(
-            tuple -> {
-                responseBuilder.setExpandedIdsWithAliases(tuple.v2()).setTotalModelCount(tuple.v1());
-                String[] ingestNodes = ingestNodes(clusterService.state());
-                NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(ingestNodes).clear()
-                    .addMetric(NodesStatsRequest.Metric.INGEST.metricName());
-                executeAsyncWithOrigin(client, ML_ORIGIN, NodesStatsAction.INSTANCE, nodesStatsRequest, nodesStatsListener);
-            },
-            listener::onFailure
-        );
-        trainedModelProvider.expandIds(request.getResourceId(),
+        ActionListener<Tuple<Long, Map<String, Set<String>>>> idsListener = ActionListener.wrap(tuple -> {
+            responseBuilder.setExpandedIdsWithAliases(tuple.v2()).setTotalModelCount(tuple.v1());
+            String[] ingestNodes = ingestNodes(clusterService.state());
+            NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(ingestNodes).clear()
+                .addMetric(NodesStatsRequest.Metric.INGEST.metricName());
+            executeAsyncWithOrigin(client, ML_ORIGIN, NodesStatsAction.INSTANCE, nodesStatsRequest, nodesStatsListener);
+        }, listener::onFailure);
+        trainedModelProvider.expandIds(
+            request.getResourceId(),
             request.isAllowNoResources(),
             request.getPageParams(),
             Collections.emptySet(),
             currentMetadata,
-            idsListener);
+            idsListener
+        );
     }
 
-    static Map<String, IngestStats> inferenceIngestStatsByModelId(NodesStatsResponse response,
-                                                                  ModelAliasMetadata currentMetadata,
-                                                                  Map<String, Set<String>> modelIdToPipelineId) {
+    static Map<String, IngestStats> inferenceIngestStatsByModelId(
+        NodesStatsResponse response,
+        ModelAliasMetadata currentMetadata,
+        Map<String, Set<String>> modelIdToPipelineId
+    ) {
 
         Map<String, IngestStats> ingestStatsMap = new HashMap<>();
-        Map<String, Set<String>> trueModelIdToPipelines = modelIdToPipelineId.entrySet()
-            .stream()
-            .collect(Collectors.toMap(
-                entry -> {
-                    String maybeModelId = currentMetadata.getModelId(entry.getKey());
-                    return maybeModelId == null ? entry.getKey() : maybeModelId;
-                },
-                Map.Entry::getValue,
-                Sets::union
-            ));
+        Map<String, Set<String>> trueModelIdToPipelines = modelIdToPipelineId.entrySet().stream().collect(Collectors.toMap(entry -> {
+            String maybeModelId = currentMetadata.getModelId(entry.getKey());
+            return maybeModelId == null ? entry.getKey() : maybeModelId;
+        }, Map.Entry::getValue, Sets::union));
         trueModelIdToPipelines.forEach((modelId, pipelineIds) -> {
             List<IngestStats> collectedStats = response.getNodes()
                 .stream()
@@ -164,16 +166,18 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
 
         ingestMetadata.getPipelines().forEach((pipelineId, pipelineConfiguration) -> {
             try {
-                Pipeline pipeline = Pipeline.create(pipelineId,
+                Pipeline pipeline = Pipeline.create(
+                    pipelineId,
                     pipelineConfiguration.getConfigAsMap(),
                     ingestService.getProcessorFactories(),
-                    ingestService.getScriptService());
+                    ingestService.getScriptService()
+                );
                 pipeline.getProcessors().forEach(processor -> {
                     if (processor instanceof InferenceProcessor) {
                         InferenceProcessor inferenceProcessor = (InferenceProcessor) processor;
                         if (modelIds.contains(inferenceProcessor.getModelId())) {
-                            pipelineIdsByModelIds.computeIfAbsent(inferenceProcessor.getModelId(),
-                                                                  m -> new LinkedHashSet<>()).add(pipelineId);
+                            pipelineIdsByModelIds.computeIfAbsent(inferenceProcessor.getModelId(), m -> new LinkedHashSet<>())
+                                .add(pipelineId);
                         }
                     }
                 });
@@ -209,7 +213,8 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
         return new IngestStats(
             new IngestStats.Stats(ingestCount.count(), ingestTimeInMillis.count(), ingestCurrent.count(), ingestFailedCount.count()),
             filteredPipelineStats,
-            filteredProcessorStats);
+            filteredProcessorStats
+        );
     }
 
     private static IngestStats mergeStats(List<IngestStats> ingestStatsList) {
@@ -220,31 +225,35 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
         ingestStatsList.forEach(ingestStats -> {
 
             ingestStats.getPipelineStats()
-                .forEach(pipelineStat ->
-                    pipelineStatsAcc.computeIfAbsent(pipelineStat.getPipelineId(),
-                                                     p -> new IngestStatsAccumulator()).inc(pipelineStat.getStats()));
+                .forEach(
+                    pipelineStat -> pipelineStatsAcc.computeIfAbsent(pipelineStat.getPipelineId(), p -> new IngestStatsAccumulator())
+                        .inc(pipelineStat.getStats())
+                );
 
-            ingestStats.getProcessorStats()
-                .forEach((pipelineId, processorStat) -> {
-                    Map<String, IngestStatsAccumulator> processorAcc = processorStatsAcc.computeIfAbsent(pipelineId,
-                                                                                                         k -> new LinkedHashMap<>());
-                        processorStat.forEach(p ->
-                            processorAcc.computeIfAbsent(p.getName(),
-                                                         k -> new IngestStatsAccumulator(p.getType())).inc(p.getStats()));
-                    });
+            ingestStats.getProcessorStats().forEach((pipelineId, processorStat) -> {
+                Map<String, IngestStatsAccumulator> processorAcc = processorStatsAcc.computeIfAbsent(
+                    pipelineId,
+                    k -> new LinkedHashMap<>()
+                );
+                processorStat.forEach(
+                    p -> processorAcc.computeIfAbsent(p.getName(), k -> new IngestStatsAccumulator(p.getType())).inc(p.getStats())
+                );
+            });
 
             totalStats.inc(ingestStats.getTotalStats());
         });
 
         List<IngestStats.PipelineStat> pipelineStatList = new ArrayList<>(pipelineStatsAcc.size());
-        pipelineStatsAcc.forEach((pipelineId, accumulator) ->
-            pipelineStatList.add(new IngestStats.PipelineStat(pipelineId, accumulator.build())));
+        pipelineStatsAcc.forEach(
+            (pipelineId, accumulator) -> pipelineStatList.add(new IngestStats.PipelineStat(pipelineId, accumulator.build()))
+        );
 
         Map<String, List<IngestStats.ProcessorStat>> processorStatList = new LinkedHashMap<>(processorStatsAcc.size());
         processorStatsAcc.forEach((pipelineId, accumulatorMap) -> {
             List<IngestStats.ProcessorStat> processorStats = new ArrayList<>(accumulatorMap.size());
-            accumulatorMap.forEach((processorName, acc) ->
-                processorStats.add(new IngestStats.ProcessorStat(processorName, acc.type, acc.build())));
+            accumulatorMap.forEach(
+                (processorName, acc) -> processorStats.add(new IngestStats.ProcessorStat(processorName, acc.type, acc.build()))
+            );
             processorStatList.put(pipelineId, processorStats);
         });
 

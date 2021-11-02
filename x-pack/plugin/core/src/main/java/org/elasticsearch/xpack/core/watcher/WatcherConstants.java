@@ -12,8 +12,11 @@ import org.elasticsearch.license.LicensedFeature;
 
 public class WatcherConstants {
 
-    public static final LicensedFeature.Momentary WATCHER_FEATURE =
-        LicensedFeature.momentary(null, "watcher", License.OperationMode.STANDARD);
+    public static final LicensedFeature.Momentary WATCHER_FEATURE = LicensedFeature.momentary(
+        null,
+        "watcher",
+        License.OperationMode.STANDARD
+    );
 
     // no construction
     private WatcherConstants() {}

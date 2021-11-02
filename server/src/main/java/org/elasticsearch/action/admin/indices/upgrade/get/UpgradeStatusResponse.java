@@ -36,8 +36,13 @@ public class UpgradeStatusResponse extends BroadcastResponse {
         }
     }
 
-    UpgradeStatusResponse(ShardUpgradeStatus[] shards, int totalShards, int successfulShards, int failedShards,
-                          List<DefaultShardOperationFailedException> shardFailures) {
+    UpgradeStatusResponse(
+        ShardUpgradeStatus[] shards,
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<DefaultShardOperationFailedException> shardFailures
+    ) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.shards = shards;
     }
@@ -104,8 +109,11 @@ public class UpgradeStatusResponse extends BroadcastResponse {
         builder.startObject();
         builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(getTotalBytes()));
         builder.humanReadableField(Fields.SIZE_TO_UPGRADE_IN_BYTES, Fields.SIZE_TO_UPGRADE, new ByteSizeValue(getToUpgradeBytes()));
-        builder.humanReadableField(Fields.SIZE_TO_UPGRADE_ANCIENT_IN_BYTES, Fields.SIZE_TO_UPGRADE_ANCIENT,
-                new ByteSizeValue(getToUpgradeBytesAncient()));
+        builder.humanReadableField(
+            Fields.SIZE_TO_UPGRADE_ANCIENT_IN_BYTES,
+            Fields.SIZE_TO_UPGRADE_ANCIENT,
+            new ByteSizeValue(getToUpgradeBytesAncient())
+        );
 
         String level = params.param("level", "indices");
         boolean outputShards = "shards".equals(level);
@@ -116,10 +124,16 @@ public class UpgradeStatusResponse extends BroadcastResponse {
                 builder.startObject(indexUpgradeStatus.getIndex());
 
                 builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(indexUpgradeStatus.getTotalBytes()));
-                builder.humanReadableField(Fields.SIZE_TO_UPGRADE_IN_BYTES, Fields.SIZE_TO_UPGRADE,
-                    new ByteSizeValue(indexUpgradeStatus.getToUpgradeBytes()));
-                builder.humanReadableField(Fields.SIZE_TO_UPGRADE_ANCIENT_IN_BYTES, Fields.SIZE_TO_UPGRADE_ANCIENT,
-                    new ByteSizeValue(indexUpgradeStatus.getToUpgradeBytesAncient()));
+                builder.humanReadableField(
+                    Fields.SIZE_TO_UPGRADE_IN_BYTES,
+                    Fields.SIZE_TO_UPGRADE,
+                    new ByteSizeValue(indexUpgradeStatus.getToUpgradeBytes())
+                );
+                builder.humanReadableField(
+                    Fields.SIZE_TO_UPGRADE_ANCIENT_IN_BYTES,
+                    Fields.SIZE_TO_UPGRADE_ANCIENT,
+                    new ByteSizeValue(indexUpgradeStatus.getToUpgradeBytesAncient())
+                );
                 if (outputShards) {
                     builder.startObject(Fields.SHARDS);
                     for (IndexShardUpgradeStatus indexShardUpgradeStatus : indexUpgradeStatus) {
@@ -128,10 +142,16 @@ public class UpgradeStatusResponse extends BroadcastResponse {
                             builder.startObject();
 
                             builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, new ByteSizeValue(getTotalBytes()));
-                            builder.humanReadableField(Fields.SIZE_TO_UPGRADE_IN_BYTES, Fields.SIZE_TO_UPGRADE,
-                                new ByteSizeValue(getToUpgradeBytes()));
-                            builder.humanReadableField(Fields.SIZE_TO_UPGRADE_ANCIENT_IN_BYTES, Fields.SIZE_TO_UPGRADE_ANCIENT,
-                                new ByteSizeValue(getToUpgradeBytesAncient()));
+                            builder.humanReadableField(
+                                Fields.SIZE_TO_UPGRADE_IN_BYTES,
+                                Fields.SIZE_TO_UPGRADE,
+                                new ByteSizeValue(getToUpgradeBytes())
+                            );
+                            builder.humanReadableField(
+                                Fields.SIZE_TO_UPGRADE_ANCIENT_IN_BYTES,
+                                Fields.SIZE_TO_UPGRADE_ANCIENT,
+                                new ByteSizeValue(getToUpgradeBytesAncient())
+                            );
 
                             builder.startObject(Fields.ROUTING);
                             builder.field(Fields.STATE, shardUpgradeStatus.getShardRouting().state());

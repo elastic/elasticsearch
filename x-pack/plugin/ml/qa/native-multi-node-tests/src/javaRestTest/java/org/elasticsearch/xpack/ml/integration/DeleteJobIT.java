@@ -36,8 +36,10 @@ public class DeleteJobIT extends MlNativeAutodetectIntegTestCase {
     private static final String TIME_FIELD = "time";
 
     @Before
-    public void setUpData()  {
-        client().admin().indices().prepareCreate(DATA_INDEX)
+    public void setUpData() {
+        client().admin()
+            .indices()
+            .prepareCreate(DATA_INDEX)
             .addMapping(SINGLE_MAPPING_NAME, TIME_FIELD, "type=date,format=epoch_millis")
             .get();
     }
@@ -90,13 +92,12 @@ public class DeleteJobIT extends MlNativeAutodetectIntegTestCase {
 
     private void runJob(String jobId, String datafeedId) throws Exception {
         Detector.Builder detector = new Detector.Builder().setFunction("count");
-        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()))
-            .setBucketSpan(TimeValue.timeValueHours(1));
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build())).setBucketSpan(
+            TimeValue.timeValueHours(1)
+        );
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField(TIME_FIELD);
-        Job.Builder job = new Job.Builder(jobId)
-            .setAnalysisConfig(analysisConfig)
-            .setDataDescription(dataDescription);
+        Job.Builder job = new Job.Builder(jobId).setAnalysisConfig(analysisConfig).setDataDescription(dataDescription);
 
         putJob(job);
 
@@ -116,8 +117,7 @@ public class DeleteJobIT extends MlNativeAutodetectIntegTestCase {
     private static IndexRequest randomAnnotationIndexRequest(String jobId, String createUsername) throws IOException {
         Annotation annotation = new Annotation.Builder(randomAnnotation(jobId)).setCreateUsername(createUsername).build();
         try (XContentBuilder xContentBuilder = annotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
-            return new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME)
-                .source(xContentBuilder)
+            return new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME).source(xContentBuilder)
                 .setRequireAlias(true)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         }

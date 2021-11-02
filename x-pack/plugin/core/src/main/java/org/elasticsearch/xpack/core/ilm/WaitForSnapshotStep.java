@@ -10,8 +10,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 
@@ -60,8 +60,9 @@ public class WaitForSnapshotStep extends ClusterStateWaitStep {
             throw error(POLICY_NOT_FOUND_MESSAGE, policy);
         }
         SnapshotLifecyclePolicyMetadata snapPolicyMeta = snapMeta.getSnapshotConfigurations().get(policy);
-        if (snapPolicyMeta.getLastSuccess() == null || snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp() == null ||
-            snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp() < actionTime) {
+        if (snapPolicyMeta.getLastSuccess() == null
+            || snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp() == null
+            || snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp() < actionTime) {
             if (snapPolicyMeta.getLastSuccess() == null) {
                 logger.debug("skipping ILM policy execution because there is no last snapshot success, action time: {}", actionTime);
             } else if (snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp() == null) {
@@ -70,20 +71,22 @@ public class WaitForSnapshotStep extends ClusterStateWaitStep {
                  * down before this check could happen. We'll wait until a snapshot is taken on this newer master before passing this check.
                  */
                 logger.debug("skipping ILM policy execution because no last snapshot start date, action time: {}", actionTime);
-            }
-            else {
-                logger.debug("skipping ILM policy execution because snapshot start time {} is before action time {}, snapshot timestamp " +
-                        "is {}",
+            } else {
+                logger.debug(
+                    "skipping ILM policy execution because snapshot start time {} is before action time {}, snapshot timestamp " + "is {}",
                     snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp(),
                     actionTime,
-                    snapPolicyMeta.getLastSuccess().getSnapshotFinishTimestamp());
+                    snapPolicyMeta.getLastSuccess().getSnapshotFinishTimestamp()
+                );
             }
             return new Result(false, notExecutedMessage(actionTime));
         }
-        logger.debug("executing policy because snapshot start time {} is after action time {}, snapshot timestamp is {}",
+        logger.debug(
+            "executing policy because snapshot start time {} is after action time {}, snapshot timestamp is {}",
             snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp(),
             actionTime,
-            snapPolicyMeta.getLastSuccess().getSnapshotFinishTimestamp());
+            snapPolicyMeta.getLastSuccess().getSnapshotFinishTimestamp()
+        );
         return new Result(true, null);
     }
 

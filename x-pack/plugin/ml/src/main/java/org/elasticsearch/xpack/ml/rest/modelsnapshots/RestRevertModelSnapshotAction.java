@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.ml.rest.modelsnapshots;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
@@ -31,8 +31,12 @@ public class RestRevertModelSnapshotAction extends BaseRestHandler {
     public List<Route> routes() {
         return org.elasticsearch.core.List.of(
             Route.builder(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots/{" + SNAPSHOT_ID + "}/_revert")
-                .replaces(POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots/{" + SNAPSHOT_ID + "}/_revert",
-                    RestApiVersion.V_7).build()
+                .replaces(
+                    POST,
+                    PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots/{" + SNAPSHOT_ID + "}/_revert",
+                    RestApiVersion.V_7
+                )
+                .build()
         );
     }
 
@@ -51,8 +55,12 @@ public class RestRevertModelSnapshotAction extends BaseRestHandler {
             request = RevertModelSnapshotAction.Request.parseRequest(jobId, snapshotId, parser);
         } else {
             request = new RevertModelSnapshotAction.Request(jobId, snapshotId);
-            request.setDeleteInterveningResults(restRequest
-                    .paramAsBoolean(RevertModelSnapshotAction.Request.DELETE_INTERVENING.getPreferredName(), DELETE_INTERVENING_DEFAULT));
+            request.setDeleteInterveningResults(
+                restRequest.paramAsBoolean(
+                    RevertModelSnapshotAction.Request.DELETE_INTERVENING.getPreferredName(),
+                    DELETE_INTERVENING_DEFAULT
+                )
+            );
         }
         request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));

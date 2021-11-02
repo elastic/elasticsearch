@@ -35,9 +35,7 @@ public class RestTemplatesAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_cat/templates"),
-            new Route(GET, "/_cat/templates/{name}")));
+        return unmodifiableList(asList(new Route(GET, "/_cat/templates"), new Route(GET, "/_cat/templates/{name}")));
     }
 
     @Override
@@ -54,18 +52,19 @@ public class RestTemplatesAction extends AbstractCatAction {
     protected RestChannelConsumer doCatRequest(final RestRequest request, NodeClient client) {
         final String matchPattern = request.hasParam("name") ? request.param("name") : null;
 
-        final GetIndexTemplatesRequest getIndexTemplatesRequest
-            = matchPattern == null
+        final GetIndexTemplatesRequest getIndexTemplatesRequest = matchPattern == null
             ? new GetIndexTemplatesRequest()
             : new GetIndexTemplatesRequest(matchPattern);
         getIndexTemplatesRequest.local(request.paramAsBoolean("local", getIndexTemplatesRequest.local()));
         getIndexTemplatesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getIndexTemplatesRequest.masterNodeTimeout()));
 
-        final GetComposableIndexTemplateAction.Request getComposableTemplatesRequest
-            = new GetComposableIndexTemplateAction.Request(matchPattern);
+        final GetComposableIndexTemplateAction.Request getComposableTemplatesRequest = new GetComposableIndexTemplateAction.Request(
+            matchPattern
+        );
         getComposableTemplatesRequest.local(request.paramAsBoolean("local", getComposableTemplatesRequest.local()));
         getComposableTemplatesRequest.masterNodeTimeout(
-            request.paramAsTime("master_timeout", getComposableTemplatesRequest.masterNodeTimeout()));
+            request.paramAsTime("master_timeout", getComposableTemplatesRequest.masterNodeTimeout())
+        );
 
         return channel -> {
 
@@ -82,7 +81,8 @@ public class RestTemplatesAction extends AbstractCatAction {
                     } else {
                         l.onFailure(e);
                     }
-                }));
+                })
+            );
 
             final ActionListener<Table> tableListener = new RestResponseListener<Table>(channel) {
                 @Override
@@ -91,14 +91,16 @@ public class RestTemplatesAction extends AbstractCatAction {
                 }
             };
 
-            getIndexTemplatesStep.whenComplete(getIndexTemplatesResponse ->
-                getComposableTemplatesStep.whenComplete(getComposableIndexTemplatesResponse ->
-                    ActionListener.completeWith(tableListener, () -> buildTable(
-                        request,
-                        getIndexTemplatesResponse,
-                        getComposableIndexTemplatesResponse)
-                    ), tableListener::onFailure
-                ), tableListener::onFailure);
+            getIndexTemplatesStep.whenComplete(
+                getIndexTemplatesResponse -> getComposableTemplatesStep.whenComplete(
+                    getComposableIndexTemplatesResponse -> ActionListener.completeWith(
+                        tableListener,
+                        () -> buildTable(request, getIndexTemplatesResponse, getComposableIndexTemplatesResponse)
+                    ),
+                    tableListener::onFailure
+                ),
+                tableListener::onFailure
+            );
         };
     }
 

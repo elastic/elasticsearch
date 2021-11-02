@@ -7,14 +7,14 @@
  */
 package org.elasticsearch.client.ml;
 
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -28,8 +28,11 @@ public class ResetJobResponse implements ToXContentObject {
     private static final ParseField ACKNOWLEDGED = new ParseField("acknowledged");
     private static final ParseField TASK = new ParseField("task");
 
-    public static final ConstructingObjectParser<ResetJobResponse, Void> PARSER = new ConstructingObjectParser<>("reset_job_response",
-            true, a-> new ResetJobResponse((Boolean) a[0], (TaskId) a[1]));
+    public static final ConstructingObjectParser<ResetJobResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "reset_job_response",
+        true,
+        a -> new ResetJobResponse((Boolean) a[0], (TaskId) a[1])
+    );
 
     static {
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ACKNOWLEDGED);

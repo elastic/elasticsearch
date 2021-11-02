@@ -51,9 +51,9 @@ public class SetsTests extends ESTestCase {
         final Tuple<Set<Integer>, Set<Integer>> sets = randomSets(endExclusive);
         final Set<Integer> intersection = Sets.intersection(sets.v1(), sets.v2());
         final Set<Integer> expectedIntersection = IntStream.range(0, endExclusive)
-                .boxed()
-                .filter(i -> (sets.v1().contains(i) && sets.v2().contains(i)))
-                .collect(Collectors.toSet());
+            .boxed()
+            .filter(i -> (sets.v1().contains(i) && sets.v2().contains(i)))
+            .collect(Collectors.toSet());
         assertThat(intersection, containsInAnyOrder(expectedIntersection.toArray(new Integer[0])));
     }
 
@@ -64,8 +64,7 @@ public class SetsTests extends ESTestCase {
      * @param sets         a pair of sets with elements from {@code [0, endExclusive)}
      * @param difference   the difference between the two sets
      */
-    private void assertDifference(
-            final int endExclusive, final Tuple<Set<Integer>, Set<Integer>> sets, final Set<Integer> difference) {
+    private void assertDifference(final int endExclusive, final Tuple<Set<Integer>, Set<Integer>> sets, final Set<Integer> difference) {
         for (int i = 0; i < endExclusive; i++) {
             assertThat(difference.contains(i), equalTo(sets.v1().contains(i) && sets.v2().contains(i) == false));
         }

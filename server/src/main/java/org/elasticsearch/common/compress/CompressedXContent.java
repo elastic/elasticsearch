@@ -188,19 +188,20 @@ public final class CompressedXContent {
 
     // package private for testing
     static boolean equalsWhenUncompressed(byte[] compressed1, byte[] compressed2) {
-        try (InflaterAndBuffer inflaterAndBuffer1 = inflater1.get();
-             InflaterAndBuffer inflaterAndBuffer2 = inflater2.get()) {
+        try (InflaterAndBuffer inflaterAndBuffer1 = inflater1.get(); InflaterAndBuffer inflaterAndBuffer2 = inflater2.get()) {
             final Inflater inf1 = inflaterAndBuffer1.inflater;
             final Inflater inf2 = inflaterAndBuffer2.inflater;
             setInflaterInput(compressed1, inf1);
             setInflaterInput(compressed2, inf2);
             final ByteBuffer buf1 = inflaterAndBuffer1.buffer;
             assert assertBufferIsCleared(buf1);
-            final ByteBuffer buf2 =  inflaterAndBuffer2.buffer;
+            final ByteBuffer buf2 = inflaterAndBuffer2.buffer;
             assert assertBufferIsCleared(buf2);
             while (true) {
-                while (inflate(inf1, buf1) > 0 && buf1.hasRemaining()) ;
-                while (inflate(inf2, buf2) > 0 && buf2.hasRemaining()) ;
+                while (inflate(inf1, buf1) > 0 && buf1.hasRemaining())
+                    ;
+                while (inflate(inf2, buf2) > 0 && buf2.hasRemaining())
+                    ;
                 if (buf1.flip().equals(buf2.flip()) == false) {
                     return false;
                 }

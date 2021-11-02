@@ -48,16 +48,18 @@ public class FieldCapabilitiesIndexRequest extends ActionRequest implements Indi
             originalIndices = OriginalIndices.NONE;
         }
         indexFilter = in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readOptionalNamedWriteable(QueryBuilder.class) : null;
-        nowInMillis =  in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readLong() : 0L;
+        nowInMillis = in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readLong() : 0L;
         runtimeFields = in.getVersion().onOrAfter(Version.V_7_12_0) ? in.readMap() : Collections.emptyMap();
     }
 
-    FieldCapabilitiesIndexRequest(String[] fields,
-                                  ShardId shardId,
-                                  OriginalIndices originalIndices,
-                                  QueryBuilder indexFilter,
-                                  long nowInMillis,
-                                  Map<String, Object> runtimeFields) {
+    FieldCapabilitiesIndexRequest(
+        String[] fields,
+        ShardId shardId,
+        OriginalIndices originalIndices,
+        QueryBuilder indexFilter,
+        long nowInMillis,
+        Map<String, Object> runtimeFields
+    ) {
         if (fields == null || fields.length == 0) {
             throw new IllegalArgumentException("specified fields can't be null or empty");
         }
@@ -103,7 +105,6 @@ public class FieldCapabilitiesIndexRequest extends ActionRequest implements Indi
         return nowInMillis;
     }
 
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -125,7 +126,10 @@ public class FieldCapabilitiesIndexRequest extends ActionRequest implements Indi
             if (false == runtimeFields.isEmpty()) {
                 throw new IllegalArgumentException(
                     "Versions before 7.12.0 don't support [runtime_mappings], but trying to send _field_caps request to a node "
-                    + "with version [" + out.getVersion()+ "]");
+                        + "with version ["
+                        + out.getVersion()
+                        + "]"
+                );
             }
         }
     }

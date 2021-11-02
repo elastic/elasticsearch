@@ -82,7 +82,6 @@ public class AttributeMap<E> implements Map<Attribute, E> {
 
         protected abstract U unwrap(W next);
 
-
         @Override
         public Stream<U> stream() {
             return set.stream().map(this::unwrap);

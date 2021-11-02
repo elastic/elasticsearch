@@ -71,7 +71,9 @@ public final class SamlAuthenticateResponse extends ActionResponse {
         return expiresIn;
     }
 
-    public Authentication getAuthentication() { return authentication; }
+    public Authentication getAuthentication() {
+        return authentication;
+    }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
@@ -87,4 +89,4 @@ public final class SamlAuthenticateResponse extends ActionResponse {
         }
     }
 
-    }
+}

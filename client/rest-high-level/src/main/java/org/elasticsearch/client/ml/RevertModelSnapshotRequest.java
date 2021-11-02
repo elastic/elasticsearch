@@ -11,8 +11,8 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.client.ml.job.process.ModelSnapshot;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -24,12 +24,12 @@ import java.util.Objects;
  */
 public class RevertModelSnapshotRequest extends ActionRequest implements ToXContentObject {
 
-
     public static final ParseField DELETE_INTERVENING = new ParseField("delete_intervening_results");
 
     public static final ConstructingObjectParser<RevertModelSnapshotRequest, Void> PARSER = new ConstructingObjectParser<>(
-        "revert_model_snapshots_request", a -> new RevertModelSnapshotRequest((String) a[0], (String) a[1]));
-
+        "revert_model_snapshots_request",
+        a -> new RevertModelSnapshotRequest((String) a[0], (String) a[1])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);

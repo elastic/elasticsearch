@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.ml;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.FailedNodeException;
@@ -35,7 +36,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -113,7 +114,7 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         final List<JobStats> jobStats = mockJobStats();
 
         @SuppressWarnings("unchecked")
-        final ActionFuture<Response> future = (ActionFuture<Response>)mock(ActionFuture.class);
+        final ActionFuture<Response> future = (ActionFuture<Response>) mock(ActionFuture.class);
         final Response response = new Response(new QueryPage<>(jobStats, jobStats.size(), Job.RESULTS_FIELD));
 
         when(client.getJobsStats(eq(new Request(Metadata.ALL).setTimeout(timeout)))).thenReturn(future);
@@ -128,7 +129,7 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         assertThat(monitoringDocs, hasSize(jobStats.size()));
 
         for (int i = 0; i < monitoringDocs.size(); ++i) {
-            final JobStatsMonitoringDoc jobStatsMonitoringDoc = (JobStatsMonitoringDoc)monitoringDocs.get(i);
+            final JobStatsMonitoringDoc jobStatsMonitoringDoc = (JobStatsMonitoringDoc) monitoringDocs.get(i);
             final JobStats jobStat = jobStats.get(i);
 
             assertThat(jobStatsMonitoringDoc.getCluster(), is(clusterUuid));
@@ -142,8 +143,11 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
             assertThat(jobStatsMonitoringDoc.getJobStats(), is(jobStat));
         }
 
-        assertWarnings("[xpack.monitoring.collection.ml.job.stats.timeout] setting was deprecated in Elasticsearch and will be removed " +
-            "in a future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(
+            Level.WARN,
+            "[xpack.monitoring.collection.ml.job.stats.timeout] setting was deprecated in Elasticsearch "
+                + "and will be removed in a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testDoCollectThrowsTimeoutException() throws Exception {
@@ -163,9 +167,12 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         final List<JobStats> jobStats = mockJobStats();
 
         @SuppressWarnings("unchecked")
-        final ActionFuture<Response> future = (ActionFuture<Response>)mock(ActionFuture.class);
-        final Response response = new Response(Collections.emptyList(), Collections.singletonList(new FailedNodeException("node", "msg",
-                new ElasticsearchTimeoutException("test timeout"))), new QueryPage<>(jobStats, jobStats.size(), Job.RESULTS_FIELD));
+        final ActionFuture<Response> future = (ActionFuture<Response>) mock(ActionFuture.class);
+        final Response response = new Response(
+            Collections.emptyList(),
+            Collections.singletonList(new FailedNodeException("node", "msg", new ElasticsearchTimeoutException("test timeout"))),
+            new QueryPage<>(jobStats, jobStats.size(), Job.RESULTS_FIELD)
+        );
 
         when(client.getJobsStats(eq(new Request(Metadata.ALL).setTimeout(timeout)))).thenReturn(future);
         when(future.actionGet()).thenReturn(response);
@@ -174,8 +181,11 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
 
         expectThrows(ElasticsearchTimeoutException.class, () -> collector.doCollect(node, interval, clusterState));
 
-        assertWarnings("[xpack.monitoring.collection.ml.job.stats.timeout] setting was deprecated in Elasticsearch and will be removed " +
-            "in a future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(
+            Level.WARN,
+            "[xpack.monitoring.collection.ml.job.stats.timeout] setting was deprecated in Elasticsearch "
+                + "and will be removed in a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     private List<JobStats> mockJobStats() {

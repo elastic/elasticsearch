@@ -8,8 +8,8 @@
 
 package org.elasticsearch.client.transform.transforms;
 
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -18,20 +18,22 @@ import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 public class TransformCheckpointStatsTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
-        xContentTester(this::createParser,
+        xContentTester(
+            this::createParser,
             TransformCheckpointStatsTests::randomTransformCheckpointStats,
             TransformCheckpointStatsTests::toXContent,
-            TransformCheckpointStats::fromXContent)
-                .supportsUnknownFields(true)
-                .randomFieldsExcludeFilter(field -> field.startsWith("position"))
-                .test();
+            TransformCheckpointStats::fromXContent
+        ).supportsUnknownFields(true).randomFieldsExcludeFilter(field -> field.startsWith("position")).test();
     }
 
     public static TransformCheckpointStats randomTransformCheckpointStats() {
-        return new TransformCheckpointStats(randomLongBetween(1, 1_000_000),
+        return new TransformCheckpointStats(
+            randomLongBetween(1, 1_000_000),
             randomBoolean() ? null : TransformIndexerPositionTests.randomTransformIndexerPosition(),
             randomBoolean() ? null : TransformProgressTests.randomInstance(),
-            randomLongBetween(1, 1_000_000), randomLongBetween(0, 1_000_000));
+            randomLongBetween(1, 1_000_000),
+            randomLongBetween(0, 1_000_000)
+        );
     }
 
     public static void toXContent(TransformCheckpointStats stats, XContentBuilder builder) throws IOException {

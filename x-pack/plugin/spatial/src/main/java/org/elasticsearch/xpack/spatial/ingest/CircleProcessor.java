@@ -8,14 +8,7 @@ package org.elasticsearch.xpack.spatial.ingest;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeometryParserFormat;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.support.MapXContentParser;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.ShapeType;
@@ -24,6 +17,13 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.support.MapXContentParser;
 import org.elasticsearch.xpack.spatial.SpatialUtils;
 
 import java.util.Arrays;
@@ -46,8 +46,15 @@ public final class CircleProcessor extends AbstractProcessor {
     private final double errorDistance;
     private final CircleShapeFieldType circleShapeFieldType;
 
-    CircleProcessor(String tag, String description, String field, String targetField, boolean ignoreMissing, double errorDistance,
-                    CircleShapeFieldType circleShapeFieldType) {
+    CircleProcessor(
+        String tag,
+        String description,
+        String field,
+        String targetField,
+        boolean ignoreMissing,
+        double errorDistance,
+        CircleShapeFieldType circleShapeFieldType
+    ) {
         super(tag, description);
         this.field = field;
         this.targetField = targetField;
@@ -55,7 +62,6 @@ public final class CircleProcessor extends AbstractProcessor {
         this.errorDistance = errorDistance;
         this.circleShapeFieldType = circleShapeFieldType;
     }
-
 
     @Override
     @SuppressWarnings("unchecked")
@@ -75,8 +81,12 @@ public final class CircleProcessor extends AbstractProcessor {
             throw new IllegalArgumentException("field [" + field + "] must be a WKT Circle or a GeoJSON Circle value");
         }
 
-        MapXContentParser parser = new MapXContentParser(NamedXContentRegistry.EMPTY,
-            DeprecationHandler.THROW_UNSUPPORTED_OPERATION, valueWrapper, XContentType.JSON);
+        MapXContentParser parser = new MapXContentParser(
+            NamedXContentRegistry.EMPTY,
+            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+            valueWrapper,
+            XContentType.JSON
+        );
         try {
             parser.nextToken(); // START_OBJECT
             parser.nextToken(); // "shape" field key
@@ -100,8 +110,8 @@ public final class CircleProcessor extends AbstractProcessor {
                 XContentBuilder newValueBuilder = XContentFactory.jsonBuilder().startObject().field("val");
                 geometryFormat.toXContent(polygonizedCircle, newValueBuilder, ToXContent.EMPTY_PARAMS);
                 newValueBuilder.endObject();
-                Map<String, Object> newObj = XContentHelper.convertToMap(
-                    BytesReference.bytes(newValueBuilder), true, XContentType.JSON).v2();
+                Map<String, Object> newObj = XContentHelper.convertToMap(BytesReference.bytes(newValueBuilder), true, XContentType.JSON)
+                    .v2();
                 ingestDocument.setFieldValue(targetField, newObj.get("val"));
             } else {
                 throw new IllegalArgumentException("found [" + geometry.type() + "] instead of circle");
@@ -139,31 +149,37 @@ public final class CircleProcessor extends AbstractProcessor {
         return Math.min(MAXIMUM_NUMBER_OF_SIDES, Math.max(MINIMUM_NUMBER_OF_SIDES, val));
     }
 
-
     public static final class Factory implements Processor.Factory {
 
-        public CircleProcessor create(Map<String, Processor.Factory> registry, String processorTag, String description,
-                                      Map<String, Object> config) {
+        public CircleProcessor create(
+            Map<String, Processor.Factory> registry,
+            String processorTag,
+            String description,
+            Map<String, Object> config
+        ) {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", field);
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             double radiusDistance = Math.abs(ConfigurationUtils.readDoubleProperty(TYPE, processorTag, config, "error_distance"));
             CircleShapeFieldType circleFieldType = CircleShapeFieldType.parse(
-                ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "shape_type"));
+                ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "shape_type")
+            );
             return new CircleProcessor(processorTag, description, field, targetField, ignoreMissing, radiusDistance, circleFieldType);
         }
     }
 
     enum CircleShapeFieldType {
-        SHAPE, GEO_SHAPE;
+        SHAPE,
+        GEO_SHAPE;
 
         public static CircleShapeFieldType parse(String value) {
             EnumSet<CircleShapeFieldType> validValues = EnumSet.allOf(CircleShapeFieldType.class);
             try {
                 return valueOf(value.toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("illegal [shape_type] value [" + value + "]. valid values are " +
-                    Arrays.toString(validValues.toArray()));
+                throw new IllegalArgumentException(
+                    "illegal [shape_type] value [" + value + "]. valid values are " + Arrays.toString(validValues.toArray())
+                );
             }
         }
     }

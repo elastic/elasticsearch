@@ -82,8 +82,8 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.matchesRegex;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.matches;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.matches;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -616,9 +616,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
 
         assertThat(
             failureMessage.get(),
-            matchesRegex(
-                "task encountered irrecoverable failure: ElasticsearchParseException\\[failed to parse date field\\].*"
-            )
+            matchesRegex("task encountered irrecoverable failure: ElasticsearchParseException\\[failed to parse date field\\].*")
         );
     }
 

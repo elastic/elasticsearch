@@ -40,8 +40,12 @@ public class ZenPingTests extends ESTestCase {
                 masterNode = nodes[randomInt(nodes.length - 1)];
             }
             long clusterStateVersion = randomLong();
-            ZenPing.PingResponse ping = new ZenPing.PingResponse(nodes[node], masterNode, ClusterName.CLUSTER_NAME_SETTING.
-                getDefault(Settings.EMPTY), clusterStateVersion);
+            ZenPing.PingResponse ping = new ZenPing.PingResponse(
+                nodes[node],
+                masterNode,
+                ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY),
+                clusterStateVersion
+            );
             if (rarely()) {
                 // ignore some pings
                 continue;
@@ -73,7 +77,6 @@ public class ZenPingTests extends ESTestCase {
         for (int i = 0; i < maxIdPerNode.length; i++) {
             assertTrue("node " + i + " had pings but it was not found in collection", maxIdPerNode[i] <= 0);
         }
-
 
     }
 }

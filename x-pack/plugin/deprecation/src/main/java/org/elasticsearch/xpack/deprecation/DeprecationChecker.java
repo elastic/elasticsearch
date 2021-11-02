@@ -72,7 +72,6 @@ public interface DeprecationChecker {
             this.clusterState = clusterState;
         }
 
-
         public NamedXContentRegistry xContentRegistry() {
             return xContentRegistry;
         }

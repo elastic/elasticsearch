@@ -52,9 +52,7 @@ public class WatcherParams extends ToXContent.DelegatingMapParams {
     }
 
     public static WatcherParams wrap(ToXContent.Params params) {
-        return params instanceof WatcherParams ?
-                (WatcherParams) params :
-                new WatcherParams(emptyMap(), params);
+        return params instanceof WatcherParams ? (WatcherParams) params : new WatcherParams(emptyMap(), params);
     }
 
     public static Builder builder() {

@@ -32,12 +32,23 @@ public class PutPipelineTransportAction extends AcknowledgedTransportMasterNodeA
     private final OriginSettingClient client;
 
     @Inject
-    public PutPipelineTransportAction(ThreadPool threadPool, TransportService transportService,
-        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-        IngestService ingestService, NodeClient client) {
+    public PutPipelineTransportAction(
+        ThreadPool threadPool,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        IngestService ingestService,
+        NodeClient client
+    ) {
         super(
-            PutPipelineAction.NAME, transportService, ingestService.getClusterService(),
-            threadPool, actionFilters, PutPipelineRequest::new, indexNameExpressionResolver, ThreadPool.Names.SAME
+            PutPipelineAction.NAME,
+            transportService,
+            ingestService.getClusterService(),
+            threadPool,
+            actionFilters,
+            PutPipelineRequest::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
         );
         // This client is only used to perform an internal implementation detail,
         // so uses an internal origin context rather than the user context
@@ -47,17 +58,13 @@ public class PutPipelineTransportAction extends AcknowledgedTransportMasterNodeA
 
     @Override
     protected void masterOperation(PutPipelineRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
-            throws Exception {
-        ingestService.putPipeline(
-            request,
-            listener,
-            (nodeListener) -> {
-                NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
-                nodesInfoRequest.clear();
-                nodesInfoRequest.addMetric(NodesInfoRequest.Metric.INGEST.metricName());
-                client.admin().cluster().nodesInfo(nodesInfoRequest, nodeListener);
-            }
-        );
+        throws Exception {
+        ingestService.putPipeline(request, listener, (nodeListener) -> {
+            NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
+            nodesInfoRequest.clear();
+            nodesInfoRequest.addMetric(NodesInfoRequest.Metric.INGEST.metricName());
+            client.admin().cluster().nodesInfo(nodesInfoRequest, nodeListener);
+        });
     }
 
     @Override

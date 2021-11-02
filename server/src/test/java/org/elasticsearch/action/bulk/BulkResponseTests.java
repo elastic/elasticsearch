@@ -17,10 +17,10 @@ import org.elasticsearch.action.index.IndexResponseTests;
 import org.elasticsearch.action.update.UpdateResponseTests;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
@@ -68,10 +68,12 @@ public class BulkResponseTests extends ESTestCase {
                 Tuple<Throwable, ElasticsearchException> failures = randomExceptions();
 
                 Exception bulkItemCause = (Exception) failures.v1();
-                bulkItems[i] = BulkItemResponse.failure(i, opType,
-                        new BulkItemResponse.Failure(index, type, id, bulkItemCause));
-                expectedBulkItems[i] = BulkItemResponse.failure(i, opType,
-                        new BulkItemResponse.Failure(index, type, id, failures.v2(), ExceptionsHelper.status(bulkItemCause)));
+                bulkItems[i] = BulkItemResponse.failure(i, opType, new BulkItemResponse.Failure(index, type, id, bulkItemCause));
+                expectedBulkItems[i] = BulkItemResponse.failure(
+                    i,
+                    opType,
+                    new BulkItemResponse.Failure(index, type, id, failures.v2(), ExceptionsHelper.status(bulkItemCause))
+                );
             }
         }
 

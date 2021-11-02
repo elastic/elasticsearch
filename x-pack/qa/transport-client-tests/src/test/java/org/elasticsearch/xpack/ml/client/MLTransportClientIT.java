@@ -68,9 +68,9 @@ public class MLTransportClientIT extends ESXPackSmokeClientTestCase {
         AcknowledgedResponse openJobResponse = mlClient.openJob(new OpenJobAction.Request(jobId)).actionGet();
         assertThat(openJobResponse.isAcknowledged(), equalTo(true));
 
-        String content = "{\"time\":1000, \"msg\": \"some categorical message\"}\n" +
-                "{\"time\":11000, \"msg\": \"some categorical message in the second bucket\"}\n" +
-                "{\"time\":21000, \"msg\": \"some categorical message in the third bucket\"}\n";
+        String content = "{\"time\":1000, \"msg\": \"some categorical message\"}\n"
+            + "{\"time\":11000, \"msg\": \"some categorical message in the second bucket\"}\n"
+            + "{\"time\":21000, \"msg\": \"some categorical message in the third bucket\"}\n";
         PostDataAction.Request postRequest = new PostDataAction.Request(jobId);
         postRequest.setContent(new BytesArray(content), XContentType.JSON);
         PostDataAction.Response postResponse = mlClient.postData(postRequest).actionGet();
@@ -87,16 +87,17 @@ public class MLTransportClientIT extends ESXPackSmokeClientTestCase {
         assertThat(getBucketsResponse.getBuckets().count(), equalTo(1L));
 
         // Update a model snapshot
-        GetModelSnapshotsAction.Response getModelSnapshotResponse =
-                mlClient.getModelSnapshots(new GetModelSnapshotsAction.Request(jobId, null)).actionGet();
+        GetModelSnapshotsAction.Response getModelSnapshotResponse = mlClient.getModelSnapshots(
+            new GetModelSnapshotsAction.Request(jobId, null)
+        ).actionGet();
         assertThat(getModelSnapshotResponse.getPage().count(), equalTo(1L));
         String snapshotId = getModelSnapshotResponse.getPage().results().get(0).getSnapshotId();
 
         UpdateModelSnapshotAction.Request updateModelSnapshotRequest = new UpdateModelSnapshotAction.Request(jobId, snapshotId);
         updateModelSnapshotRequest.setDescription("Changed description");
-        UpdateModelSnapshotAction.Response updateModelSnapshotResponse =
-                mlClient.updateModelSnapshot(updateModelSnapshotRequest).actionGet();
-        assertThat(updateModelSnapshotResponse.getModel(),  notNullValue());
+        UpdateModelSnapshotAction.Response updateModelSnapshotResponse = mlClient.updateModelSnapshot(updateModelSnapshotRequest)
+            .actionGet();
+        assertThat(updateModelSnapshotResponse.getModel(), notNullValue());
         assertThat(updateModelSnapshotResponse.getModel().getDescription(), equalTo("Changed description"));
 
         // and delete the job
@@ -121,7 +122,6 @@ public class MLTransportClientIT extends ESXPackSmokeClientTestCase {
         AcknowledgedResponse validateJobResponse = mlClient.validateJobConfig(validateJobRequest).actionGet();
         assertThat(validateJobResponse.isAcknowledged(), equalTo(true));
     }
-
 
     public void testMLTransportClient_DateFeedActions() {
         Client client = getClient();

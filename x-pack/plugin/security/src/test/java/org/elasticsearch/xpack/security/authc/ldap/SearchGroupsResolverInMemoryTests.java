@@ -14,10 +14,11 @@ import com.unboundid.ldap.sdk.LDAPURL;
 import com.unboundid.ldap.sdk.ResultCode;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
 import com.unboundid.ldap.sdk.SingleServerSet;
+
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings;
@@ -62,9 +63,9 @@ public class SearchGroupsResolverInMemoryTests extends LdapTestCase {
         connect(options);
 
         final Settings settings = Settings.builder()
-                .put(getFullSettingKey(REALM_IDENTIFIER, SearchGroupsResolverSettings.BASE_DN), "ou=groups,o=sevenSeas")
-                .put(getFullSettingKey(REALM_IDENTIFIER, SearchGroupsResolverSettings.SCOPE), LdapSearchScope.SUB_TREE)
-                .build();
+            .put(getFullSettingKey(REALM_IDENTIFIER, SearchGroupsResolverSettings.BASE_DN), "ou=groups,o=sevenSeas")
+            .put(getFullSettingKey(REALM_IDENTIFIER, SearchGroupsResolverSettings.SCOPE), LdapSearchScope.SUB_TREE)
+            .build();
         final SearchGroupsResolver resolver = new SearchGroupsResolver(getConfig(settings));
         final PlainActionFuture<List<String>> future = new PlainActionFuture<>();
         resolver.resolve(connection, WILLIAM_BUSH, TimeValue.timeValueSeconds(30), logger, null, future);
@@ -82,9 +83,9 @@ public class SearchGroupsResolverInMemoryTests extends LdapTestCase {
         connect(new LDAPConnectionOptions());
 
         Settings settings = Settings.builder()
-                .put(getFullSettingKey(REALM_IDENTIFIER, SearchGroupsResolverSettings.BASE_DN), "ou=groups,o=sevenSeas")
-                .put(getFullSettingKey(REALM_IDENTIFIER, SearchGroupsResolverSettings.SCOPE), LdapSearchScope.SUB_TREE)
-                .build();
+            .put(getFullSettingKey(REALM_IDENTIFIER, SearchGroupsResolverSettings.BASE_DN), "ou=groups,o=sevenSeas")
+            .put(getFullSettingKey(REALM_IDENTIFIER, SearchGroupsResolverSettings.SCOPE), LdapSearchScope.SUB_TREE)
+            .build();
 
         final List<String> groups = resolveGroups(settings, WILLIAM_BUSH);
         assertThat(groups, iterableWithSize(1));
@@ -98,9 +99,9 @@ public class SearchGroupsResolverInMemoryTests extends LdapTestCase {
         connect(new LDAPConnectionOptions());
 
         Settings settings = Settings.builder()
-                .put(getFullSettingKey(REALM_IDENTIFIER, SearchGroupsResolverSettings.BASE_DN), "ou=groups,o=sevenSeas")
-                .put(getFullSettingKey(REALM_IDENTIFIER.getName(), SearchGroupsResolverSettings.USER_ATTRIBUTE), "dn")
-                .build();
+            .put(getFullSettingKey(REALM_IDENTIFIER, SearchGroupsResolverSettings.BASE_DN), "ou=groups,o=sevenSeas")
+            .put(getFullSettingKey(REALM_IDENTIFIER.getName(), SearchGroupsResolverSettings.USER_ATTRIBUTE), "dn")
+            .build();
 
         final List<String> groups = resolveGroups(settings, WILLIAM_BUSH);
         assertThat(groups, iterableWithSize(1));
@@ -114,9 +115,9 @@ public class SearchGroupsResolverInMemoryTests extends LdapTestCase {
         connect(new LDAPConnectionOptions());
 
         Settings settings = Settings.builder()
-                .put(getFullSettingKey(REALM_IDENTIFIER, SearchGroupsResolverSettings.BASE_DN), "ou=groups,o=sevenSeas")
-                .put(getFullSettingKey(REALM_IDENTIFIER.getName(), SearchGroupsResolverSettings.USER_ATTRIBUTE), "no-such-attribute")
-                .build();
+            .put(getFullSettingKey(REALM_IDENTIFIER, SearchGroupsResolverSettings.BASE_DN), "ou=groups,o=sevenSeas")
+            .put(getFullSettingKey(REALM_IDENTIFIER.getName(), SearchGroupsResolverSettings.USER_ATTRIBUTE), "no-such-attribute")
+            .build();
 
         final List<String> groups = resolveGroups(settings, WILLIAM_BUSH);
         assertThat(groups, iterableWithSize(0));
@@ -125,24 +126,29 @@ public class SearchGroupsResolverInMemoryTests extends LdapTestCase {
     public void testSearchWithConnectionPoolForOneResult() throws Exception {
         final LDAPURL ldapurl = new LDAPURL(ldapUrls()[0]);
 
-        try (LDAPConnectionPool pool =
-                     LdapUtils.privilegedConnect(() -> new LDAPConnectionPool(new SingleServerSet(ldapurl.getHost(), ldapurl.getPort()),
-                             new SimpleBindRequest("cn=Horatio Hornblower,ou=people,o=sevenSeas", "pass"), 0, 20))) {
+        try (
+            LDAPConnectionPool pool = LdapUtils.privilegedConnect(
+                () -> new LDAPConnectionPool(
+                    new SingleServerSet(ldapurl.getHost(), ldapurl.getPort()),
+                    new SimpleBindRequest("cn=Horatio Hornblower,ou=people,o=sevenSeas", "pass"),
+                    0,
+                    20
+                )
+            )
+        ) {
 
             final Settings settings = Settings.builder()
-                    .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.BIND_DN),
-                            "cn=Horatio Hornblower,ou=people,o=sevenSeas")
-                    .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD), "pass")
-                    .put(getFullSettingKey(REALM_IDENTIFIER, SearchGroupsResolverSettings.BASE_DN), "ou=groups,o=sevenSeas")
-                    .put(getFullSettingKey(REALM_IDENTIFIER, SearchGroupsResolverSettings.SCOPE), LdapSearchScope.SUB_TREE)
-                    .build();
+                .put(
+                    getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.BIND_DN),
+                    "cn=Horatio Hornblower,ou=people,o=sevenSeas"
+                )
+                .put(getFullSettingKey(REALM_IDENTIFIER, PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD), "pass")
+                .put(getFullSettingKey(REALM_IDENTIFIER, SearchGroupsResolverSettings.BASE_DN), "ou=groups,o=sevenSeas")
+                .put(getFullSettingKey(REALM_IDENTIFIER, SearchGroupsResolverSettings.SCOPE), LdapSearchScope.SUB_TREE)
+                .build();
             final SearchGroupsResolver resolver = new SearchGroupsResolver(getConfig(settings));
             final PlainActionFuture<List<String>> future = new PlainActionFuture<>();
-            resolver.resolve(pool,
-                    "cn=Moultrie Crystal,ou=people,o=sevenSeas",
-                    TimeValue.timeValueSeconds(30),
-                    logger,
-                    null, future);
+            resolver.resolve(pool, "cn=Moultrie Crystal,ou=people,o=sevenSeas", TimeValue.timeValueSeconds(30), logger, null, future);
             List<String> resolvedDNs = future.actionGet();
             assertEquals(1, resolvedDNs.size());
         }
@@ -150,8 +156,9 @@ public class SearchGroupsResolverInMemoryTests extends LdapTestCase {
 
     private void connect(LDAPConnectionOptions options) throws LDAPException {
         if (connection != null) {
-            throw new IllegalStateException("Already connected (" + connection.getConnectionName() + ' '
-                    + connection.getConnectedAddress() + ')');
+            throw new IllegalStateException(
+                "Already connected (" + connection.getConnectionName() + ' ' + connection.getConnectedAddress() + ')'
+            );
         }
         final LDAPURL ldapurl = new LDAPURL(ldapUrls()[0]);
         this.connection = LdapUtils.privilegedConnect(() -> new LDAPConnection(options, ldapurl.getHost(), ldapurl.getPort()));

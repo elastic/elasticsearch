@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.ccr;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -59,8 +60,10 @@ public class CcrAutoFollowInfoFetcher {
 
             final Index followerIndex = indexMetadata.getIndex();
             if (followedLeaderIndexUUIDs.contains(leaderIndexUUID) && isCurrentlyFollowed(persistentTasks, followerIndex)) {
-                List<AutoFollowedIndex> autoFollowedIndices =
-                    remoteClusterAutoFollowedIndices.computeIfAbsent(remoteCluster, unused -> new ArrayList<>());
+                List<AutoFollowedIndex> autoFollowedIndices = remoteClusterAutoFollowedIndices.computeIfAbsent(
+                    remoteCluster,
+                    unused -> new ArrayList<>()
+                );
 
                 autoFollowedIndices.add(new AutoFollowedIndex(leaderIndexName, followerIndex.getName()));
             }
@@ -72,10 +75,11 @@ public class CcrAutoFollowInfoFetcher {
         }
 
         GroupedActionListener<List<String>> clusterResponsesListener = new GroupedActionListener<>(
-            listener.map((clusterAutoFollowedSystemIndices) ->
-                clusterAutoFollowedSystemIndices.stream()
+            listener.map(
+                (clusterAutoFollowedSystemIndices) -> clusterAutoFollowedSystemIndices.stream()
                     .flatMap(Collection::stream)
-                    .collect(Collectors.toList())),
+                    .collect(Collectors.toList())
+            ),
             remoteClusterAutoFollowedIndices.size()
         );
 
@@ -99,8 +103,9 @@ public class CcrAutoFollowInfoFetcher {
                             final ClusterState clusterState = stateResponse.getState();
                             List<String> autoFollowedSystemIndices = new ArrayList<>();
                             for (AutoFollowedIndex autoFollowedIndex : autoFollowedIndices) {
-                                final IndexAbstraction indexAbstraction =
-                                    clusterState.metadata().getIndicesLookup().get(autoFollowedIndex.remoteIndexName);
+                                final IndexAbstraction indexAbstraction = clusterState.metadata()
+                                    .getIndicesLookup()
+                                    .get(autoFollowedIndex.remoteIndexName);
                                 if (indexAbstraction != null && indexAbstraction.isSystem()) {
                                     autoFollowedSystemIndices.add(autoFollowedIndex.localIndexName);
                                 }
@@ -120,9 +125,11 @@ public class CcrAutoFollowInfoFetcher {
     }
 
     private static boolean isCurrentlyFollowed(PersistentTasksCustomMetadata persistentTasks, Index index) {
-        return persistentTasks != null && persistentTasks.findTasks(ShardFollowTask.NAME, task -> true).stream()
-            .map(task -> (ShardFollowTask) task.getParams())
-            .anyMatch(shardFollowTask -> index.equals(shardFollowTask.getFollowShardId().getIndex()));
+        return persistentTasks != null
+            && persistentTasks.findTasks(ShardFollowTask.NAME, task -> true)
+                .stream()
+                .map(task -> (ShardFollowTask) task.getParams())
+                .anyMatch(shardFollowTask -> index.equals(shardFollowTask.getFollowShardId().getIndex()));
     }
 
     private static boolean areShardFollowTasksRunning(PersistentTasksCustomMetadata persistentTasks) {

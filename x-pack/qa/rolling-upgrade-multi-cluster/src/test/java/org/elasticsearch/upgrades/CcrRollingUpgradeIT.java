@@ -11,8 +11,8 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.xcontent.ObjectPath;
 
 import java.io.IOException;
 import java.util.Map;
@@ -145,8 +145,8 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
                         String followerIndex = "copy-" + leaderIndex1;
                         assertTotalHitCount(followerIndex, 128, followerClient());
                     });
-                    // Auto follow stats are kept in-memory on master elected node
-                    // and if this node get updated then auto follow stats are reset
+                // Auto follow stats are kept in-memory on master elected node
+                // and if this node get updated then auto follow stats are reset
                 {
                     int previousNumberOfSuccessfulFollowedIndices = getNumberOfSuccessfulFollowedIndices();
                     createLeaderIndex(leaderClient(), leaderIndex2);
@@ -157,7 +157,7 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
                         assertTotalHitCount(followerIndex, 64, followerClient());
                     });
                 }
-                break;
+                    break;
                 case TWO_THIRD:
                     index(leaderClient(), leaderIndex1, 64);
                     assertBusy(() -> {
@@ -170,8 +170,8 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
                         assertTotalHitCount(followerIndex, 128, followerClient());
                     });
 
-                    // Auto follow stats are kept in-memory on master elected node
-                    // and if this node get updated then auto follow stats are reset
+                // Auto follow stats are kept in-memory on master elected node
+                // and if this node get updated then auto follow stats are reset
                 {
                     int previousNumberOfSuccessfulFollowedIndices = getNumberOfSuccessfulFollowedIndices();
                     createLeaderIndex(leaderClient(), leaderIndex3);
@@ -182,7 +182,7 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
                         assertTotalHitCount(followerIndex, 64, followerClient());
                     });
                 }
-                break;
+                    break;
                 case ALL:
                     index(leaderClient(), leaderIndex1, 64);
                     assertBusy(() -> {
@@ -220,8 +220,10 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
             createLeaderIndex(followerClient(), "not_supported");
             index(followerClient(), "not_supported", 64);
 
-            ResponseException e = expectThrows(ResponseException.class,
-                () -> followIndex(leaderClient(), "follower", "not_supported", "not_supported"));
+            ResponseException e = expectThrows(
+                ResponseException.class,
+                () -> followIndex(leaderClient(), "follower", "not_supported", "not_supported")
+            );
             assertThat(e.getMessage(), containsString("the snapshot was created with Elasticsearch version ["));
             assertThat(e.getMessage(), containsString("] which is higher than the version of this node ["));
         } else if (clusterName == ClusterName.LEADER) {
@@ -287,7 +289,7 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
                 default:
                     throw new AssertionError("unexpected upgrade_state [" + upgradeState + "]");
             }
-        }  else {
+        } else {
             throw new AssertionError("unexpected cluster_name [" + clusterName + "]");
         }
     }
@@ -308,16 +310,22 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
 
     private static void followIndex(RestClient client, String leaderCluster, String leaderIndex, String followIndex) throws IOException {
         final Request request = new Request("PUT", "/" + followIndex + "/_ccr/follow?wait_for_active_shards=1");
-        request.setJsonEntity("{\"remote_cluster\": \"" + leaderCluster + "\", \"leader_index\": \"" + leaderIndex +
-            "\", \"read_poll_timeout\": \"10ms\"}");
+        request.setJsonEntity(
+            "{\"remote_cluster\": \"" + leaderCluster + "\", \"leader_index\": \"" + leaderIndex + "\", \"read_poll_timeout\": \"10ms\"}"
+        );
         assertOK(client.performRequest(request));
     }
 
     private static void putAutoFollowPattern(RestClient client, String name, String remoteCluster, String pattern) throws IOException {
         Request request = new Request("PUT", "/_ccr/auto_follow/" + name);
-        request.setJsonEntity("{\"leader_index_patterns\": [\"" + pattern + "\"], \"remote_cluster\": \"" +
-            remoteCluster + "\"," +
-            "\"follow_index_pattern\": \"copy-{{leader_index}}\", \"read_poll_timeout\": \"10ms\"}");
+        request.setJsonEntity(
+            "{\"leader_index_patterns\": [\""
+                + pattern
+                + "\"], \"remote_cluster\": \""
+                + remoteCluster
+                + "\","
+                + "\"follow_index_pattern\": \"copy-{{leader_index}}\", \"read_poll_timeout\": \"10ms\"}"
+        );
         assertOK(client.performRequest(request));
     }
 
@@ -348,16 +356,12 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
         }
     }
 
-    private static void assertTotalHitCount(final String index,
-                                            final int expectedTotalHits,
-                                            final RestClient client) throws Exception {
+    private static void assertTotalHitCount(final String index, final int expectedTotalHits, final RestClient client) throws Exception {
         assertOK(client.performRequest(new Request("POST", "/" + index + "/_refresh")));
         assertBusy(() -> verifyTotalHitCount(index, expectedTotalHits, client));
     }
 
-    private static void verifyTotalHitCount(final String index,
-                                            final int expectedTotalHits,
-                                            final RestClient client) throws IOException {
+    private static void verifyTotalHitCount(final String index, final int expectedTotalHits, final RestClient client) throws IOException {
         final Request request = new Request("GET", "/" + index + "/_search");
         request.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
         Map<?, ?> response = toMap(client.performRequest(request));

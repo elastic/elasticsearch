@@ -8,12 +8,12 @@
 package org.elasticsearch.client.indexlifecycle;
 
 import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -58,8 +58,12 @@ public class PhaseTests extends AbstractXContentTestCase<Phase> {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(CollectionUtils.appendToCopy(ClusterModule.getNamedXWriteables(),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse)));
+        return new NamedXContentRegistry(
+            CollectionUtils.appendToCopy(
+                ClusterModule.getNamedXWriteables(),
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse)
+            )
+        );
     }
 
     @Override

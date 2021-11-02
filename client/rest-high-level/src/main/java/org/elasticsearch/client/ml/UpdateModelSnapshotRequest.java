@@ -23,10 +23,10 @@ import java.util.Objects;
  */
 public class UpdateModelSnapshotRequest extends ActionRequest implements ToXContentObject {
 
-
     public static final ConstructingObjectParser<UpdateModelSnapshotRequest, Void> PARSER = new ConstructingObjectParser<>(
-        "update_model_snapshot_request", a -> new UpdateModelSnapshotRequest((String) a[0], (String) a[1]));
-
+        "update_model_snapshot_request",
+        a -> new UpdateModelSnapshotRequest((String) a[0], (String) a[1])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);

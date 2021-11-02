@@ -8,14 +8,14 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.XContentType;
+
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.xcontent.XContentType;
 
 public class SourceToParse {
 
@@ -32,8 +32,15 @@ public class SourceToParse {
     private final XContentType xContentType;
     private final Map<String, String> dynamicTemplates;
 
-    public SourceToParse(String index, String type, String id, BytesReference source, XContentType xContentType, @Nullable String routing,
-                         Map<String, String> dynamicTemplates) {
+    public SourceToParse(
+        String index,
+        String type,
+        String id,
+        BytesReference source,
+        XContentType xContentType,
+        @Nullable String routing,
+        Map<String, String> dynamicTemplates
+    ) {
         this.index = Objects.requireNonNull(index);
         this.type = Objects.requireNonNull(type);
         this.id = Objects.requireNonNull(id);

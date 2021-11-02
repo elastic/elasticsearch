@@ -10,9 +10,9 @@ package org.elasticsearch.client.ml;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -28,15 +28,16 @@ public class StartDatafeedRequest extends ActionRequest implements ToXContentObj
     public static final ParseField END = new ParseField("end");
     public static final ParseField TIMEOUT = new ParseField("timeout");
 
-    public static final ConstructingObjectParser<StartDatafeedRequest, Void> PARSER =
-        new ConstructingObjectParser<>("start_datafeed_request", a -> new StartDatafeedRequest((String)a[0]));
+    public static final ConstructingObjectParser<StartDatafeedRequest, Void> PARSER = new ConstructingObjectParser<>(
+        "start_datafeed_request",
+        a -> new StartDatafeedRequest((String) a[0])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), DatafeedConfig.ID);
         PARSER.declareString(StartDatafeedRequest::setStart, START);
         PARSER.declareString(StartDatafeedRequest::setEnd, END);
-        PARSER.declareString((params, val) ->
-            params.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
+        PARSER.declareString((params, val) -> params.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
     }
 
     private final String datafeedId;
@@ -105,7 +106,7 @@ public class StartDatafeedRequest extends ActionRequest implements ToXContentObj
 
     @Override
     public ActionRequestValidationException validate() {
-       return null;
+        return null;
     }
 
     @Override
@@ -124,10 +125,10 @@ public class StartDatafeedRequest extends ActionRequest implements ToXContentObj
         }
 
         StartDatafeedRequest other = (StartDatafeedRequest) obj;
-        return Objects.equals(datafeedId, other.datafeedId) &&
-            Objects.equals(start, other.start) &&
-            Objects.equals(end, other.end) &&
-            Objects.equals(timeout, other.timeout);
+        return Objects.equals(datafeedId, other.datafeedId)
+            && Objects.equals(start, other.start)
+            && Objects.equals(end, other.end)
+            && Objects.equals(timeout, other.timeout);
     }
 
     @Override

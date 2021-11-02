@@ -13,12 +13,12 @@ import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,8 +48,7 @@ public class GraphExploreRequest implements IndicesRequest.Replaceable, ToXConte
 
     private List<Hop> hops = new ArrayList<>();
 
-    public GraphExploreRequest() {
-    }
+    public GraphExploreRequest() {}
 
     /**
      * Constructs a new graph request to run against the provided indices. No
@@ -290,8 +289,7 @@ public class GraphExploreRequest implements IndicesRequest.Replaceable, ToXConte
             this.boost = boost;
         }
 
-        TermBoost() {
-        }
+        TermBoost() {}
 
         public String getTerm() {
             return term;

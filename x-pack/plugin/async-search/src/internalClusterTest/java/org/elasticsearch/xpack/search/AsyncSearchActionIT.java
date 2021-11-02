@@ -60,9 +60,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         indexName = "test-async";
         numShards = randomIntBetween(1, 20);
         int numDocs = randomIntBetween(100, 1000);
-        createIndex(indexName, Settings.builder()
-            .put("index.number_of_shards", numShards)
-            .build());
+        createIndex(indexName, Settings.builder().put("index.number_of_shards", numShards).build());
         numKeywords = randomIntBetween(50, 100);
         keywordFreqs = new HashMap<>();
         Set<String> keywordSet = new HashSet<>();
@@ -76,14 +74,13 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
             float metric = randomFloat();
             maxMetric = Math.max(metric, maxMetric);
             minMetric = Math.min(metric, minMetric);
-            String keyword = keywords[randomIntBetween(0, numKeywords-1)];
-            keywordFreqs.compute(keyword,
-                (k, v) -> {
-                    if (v == null) {
-                        return new AtomicInteger(1);
-                    }
-                    v.incrementAndGet();
-                    return v;
+            String keyword = keywords[randomIntBetween(0, numKeywords - 1)];
+            keywordFreqs.compute(keyword, (k, v) -> {
+                if (v == null) {
+                    return new AtomicInteger(1);
+                }
+                v.incrementAndGet();
+                return v;
             });
             reqs.add(client().prepareIndex(indexName, "_doc").setSource("terms", keyword, "metric", metric));
         }
@@ -93,11 +90,9 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
     public void testMaxMinAggregation() throws Exception {
         int step = numShards > 2 ? randomIntBetween(2, numShards) : 2;
         int numFailures = randomBoolean() ? randomIntBetween(0, numShards) : 0;
-        SearchSourceBuilder source = new SearchSourceBuilder()
-            .aggregation(AggregationBuilders.min("min").field("metric"))
+        SearchSourceBuilder source = new SearchSourceBuilder().aggregation(AggregationBuilders.min("min").field("metric"))
             .aggregation(AggregationBuilders.max("max").field("metric"));
-        try (SearchResponseIterator it =
-                 assertBlockingIterator(indexName, numShards, source, numFailures, step)) {
+        try (SearchResponseIterator it = assertBlockingIterator(indexName, numShards, source, numFailures, step)) {
             AsyncSearchResponse response = it.next();
             while (it.hasNext()) {
                 response = it.next();
@@ -137,10 +132,10 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
     public void testTermsAggregation() throws Exception {
         int step = numShards > 2 ? randomIntBetween(2, numShards) : 2;
         int numFailures = randomBoolean() ? randomIntBetween(0, numShards) : 0;
-        SearchSourceBuilder source = new SearchSourceBuilder()
-            .aggregation(AggregationBuilders.terms("terms").field("terms.keyword").size(numKeywords));
-        try (SearchResponseIterator it =
-                 assertBlockingIterator(indexName, numShards, source, numFailures, step)) {
+        SearchSourceBuilder source = new SearchSourceBuilder().aggregation(
+            AggregationBuilders.terms("terms").field("terms.keyword").size(numKeywords)
+        );
+        try (SearchResponseIterator it = assertBlockingIterator(indexName, numShards, source, numFailures, step)) {
             AsyncSearchResponse response = it.next();
             while (it.hasNext()) {
                 response = it.next();
@@ -182,8 +177,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
 
     public void testRestartAfterCompletion() throws Exception {
         final AsyncSearchResponse initial;
-        try (SearchResponseIterator it =
-                 assertBlockingIterator(indexName, numShards, new SearchSourceBuilder(), 0, 2)) {
+        try (SearchResponseIterator it = assertBlockingIterator(indexName, numShards, new SearchSourceBuilder(), 0, 2)) {
             initial = it.next();
             while (it.hasNext()) {
                 it.next();
@@ -210,8 +204,9 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
 
     public void testDeleteCancelRunningTask() throws Exception {
         final AsyncSearchResponse initial;
-        try (SearchResponseIterator it =
-                 assertBlockingIterator(indexName, numShards, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2)) {
+        try (
+            SearchResponseIterator it = assertBlockingIterator(indexName, numShards, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2)
+        ) {
             initial = it.next();
             deleteAsyncSearch(initial.getId());
             it.close();
@@ -221,8 +216,9 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
     }
 
     public void testDeleteCleanupIndex() throws Exception {
-        try (SearchResponseIterator it =
-                 assertBlockingIterator(indexName, numShards, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2)) {
+        try (
+            SearchResponseIterator it = assertBlockingIterator(indexName, numShards, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2)
+        ) {
             AsyncSearchResponse response = it.next();
             deleteAsyncSearch(response.getId());
             it.close();
@@ -233,8 +229,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
 
     public void testCleanupOnFailure() throws Exception {
         final AsyncSearchResponse initial;
-        try (SearchResponseIterator it =
-                 assertBlockingIterator(indexName, numShards, new SearchSourceBuilder(), numShards, 2)) {
+        try (SearchResponseIterator it = assertBlockingIterator(indexName, numShards, new SearchSourceBuilder(), numShards, 2)) {
             initial = it.next();
         }
         ensureTaskCompletion(initial.getId());
@@ -258,8 +253,9 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
     }
 
     public void testInvalidId() throws Exception {
-        try (SearchResponseIterator it =
-                 assertBlockingIterator(indexName, numShards, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2)) {
+        try (
+            SearchResponseIterator it = assertBlockingIterator(indexName, numShards, new SearchSourceBuilder(), randomBoolean() ? 1 : 0, 2)
+        ) {
             AsyncSearchResponse response = it.next();
             ExecutionException exc = expectThrows(ExecutionException.class, () -> getAsyncSearch("invalid"));
             assertThat(exc.getMessage(), containsString("invalid id"));
@@ -294,9 +290,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
 
     public void testCancellation() throws Exception {
         SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(indexName);
-        request.getSearchRequest().source(
-            new SearchSourceBuilder().aggregation(new CancellingAggregationBuilder("test", randomLong()))
-        );
+        request.getSearchRequest().source(new SearchSourceBuilder().aggregation(new CancellingAggregationBuilder("test", randomLong())));
         request.setWaitForCompletionTimeout(TimeValue.timeValueMillis(1));
         AsyncSearchResponse response = submitAsyncSearch(request);
         assertNotNull(response.getSearchResponse());
@@ -325,8 +319,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
 
     public void testUpdateRunningKeepAlive() throws Exception {
         SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(indexName);
-        request.getSearchRequest()
-            .source(new SearchSourceBuilder().aggregation(new CancellingAggregationBuilder("test", randomLong())));
+        request.getSearchRequest().source(new SearchSourceBuilder().aggregation(new CancellingAggregationBuilder("test", randomLong())));
         long now = System.currentTimeMillis();
         request.setWaitForCompletionTimeout(TimeValue.timeValueMillis(1));
         AsyncSearchResponse response = submitAsyncSearch(request);
@@ -423,14 +416,13 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         client().admin().indices().prepareDelete(XPackPlugin.ASYNC_RESULTS_INDEX).get();
 
         Exception exc = expectThrows(Exception.class, () -> getAsyncSearch(response.getId()));
-        Throwable cause = exc instanceof ExecutionException ?
-            ExceptionsHelper.unwrapCause(exc.getCause()) : ExceptionsHelper.unwrapCause(exc);
+        Throwable cause = exc instanceof ExecutionException
+            ? ExceptionsHelper.unwrapCause(exc.getCause())
+            : ExceptionsHelper.unwrapCause(exc);
         assertThat(ExceptionsHelper.status(cause).getStatus(), equalTo(404));
 
         SubmitAsyncSearchRequest newReq = new SubmitAsyncSearchRequest(indexName);
-        newReq.getSearchRequest().source(
-            new SearchSourceBuilder().aggregation(new CancellingAggregationBuilder("test", randomLong()))
-        );
+        newReq.getSearchRequest().source(new SearchSourceBuilder().aggregation(new CancellingAggregationBuilder("test", randomLong())));
         newReq.setWaitForCompletionTimeout(TimeValue.timeValueMillis(1)).setKeepAlive(TimeValue.timeValueSeconds(1));
         AsyncSearchResponse newResp = submitAsyncSearch(newReq);
         assertNotNull(newResp.getSearchResponse());
@@ -460,24 +452,31 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
     }
 
     public void testMaxResponseSize() {
-        SearchSourceBuilder source = new SearchSourceBuilder()
-            .query(new MatchAllQueryBuilder())
+        SearchSourceBuilder source = new SearchSourceBuilder().query(new MatchAllQueryBuilder())
             .aggregation(AggregationBuilders.terms("terms").field("terms.keyword").size(numKeywords));
 
-        final SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(source, indexName)
-            .setWaitForCompletionTimeout(TimeValue.timeValueSeconds(10))
-            .setKeepOnCompletion(true);
+        final SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(source, indexName).setWaitForCompletionTimeout(
+            TimeValue.timeValueSeconds(10)
+        ).setKeepOnCompletion(true);
 
         int limit = 1000; // is not big enough to store the response
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
         updateSettingsRequest.persistentSettings(Settings.builder().put("search.max_async_search_response_size", limit + "b"));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
-        ExecutionException e = expectThrows(ExecutionException.class,
-            () -> submitAsyncSearch(request));
+        ExecutionException e = expectThrows(ExecutionException.class, () -> submitAsyncSearch(request));
         assertNotNull(e.getCause());
-        assertThat(e.getMessage(), containsString("Can't store an async search response larger than [" + limit + "] bytes. " +
-                "This limit can be set by changing the [" + MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING.getKey() + "] setting."));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "Can't store an async search response larger than ["
+                    + limit
+                    + "] bytes. "
+                    + "This limit can be set by changing the ["
+                    + MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING.getKey()
+                    + "] setting."
+            )
+        );
 
         updateSettingsRequest = new ClusterUpdateSettingsRequest();
         updateSettingsRequest.persistentSettings(Settings.builder().put("search.max_async_search_response_size", (String) null));

@@ -38,12 +38,15 @@ public class CcrAutoFollowedSystemIndicesChecker implements DeprecationChecker {
     }
 
     private DeprecationIssue createDeprecationIssue(String localIndexName) {
-        return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+        return new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
             "An auto followed index follows a remote system index",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/migrating-7.14.html#breaking_714_ccr_changes",
-            "Auto followed index [" + localIndexName
+            "Auto followed index ["
+                + localIndexName
                 + "] follows a remote system index and this behaviour will change in the next major version.",
-            false, null
+            false,
+            null
         );
     }
 

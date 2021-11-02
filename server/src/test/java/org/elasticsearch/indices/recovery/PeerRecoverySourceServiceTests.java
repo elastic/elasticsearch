@@ -35,16 +35,28 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         when(clusterService.getSettings()).thenReturn(NodeRoles.dataNode());
         when(indicesService.clusterService()).thenReturn(clusterService);
         PeerRecoverySourceService peerRecoverySourceService = new PeerRecoverySourceService(
-            mock(TransportService.class), indicesService,
+            mock(TransportService.class),
+            indicesService,
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
-            mock(SnapshotsRecoveryPlannerService.class));
-        StartRecoveryRequest startRecoveryRequest = new StartRecoveryRequest(primary.shardId(), randomAlphaOfLength(10),
-            getFakeDiscoNode("source"), getFakeDiscoNode("target"), Store.MetadataSnapshot.EMPTY, randomBoolean(), randomLong(),
-            SequenceNumbers.UNASSIGNED_SEQ_NO, true);
+            mock(SnapshotsRecoveryPlannerService.class)
+        );
+        StartRecoveryRequest startRecoveryRequest = new StartRecoveryRequest(
+            primary.shardId(),
+            randomAlphaOfLength(10),
+            getFakeDiscoNode("source"),
+            getFakeDiscoNode("target"),
+            Store.MetadataSnapshot.EMPTY,
+            randomBoolean(),
+            randomLong(),
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            true
+        );
         peerRecoverySourceService.start();
         RecoverySourceHandler handler = peerRecoverySourceService.ongoingRecoveries.addNewRecovery(startRecoveryRequest, primary);
-        DelayRecoveryException delayRecoveryException = expectThrows(DelayRecoveryException.class,
-            () -> peerRecoverySourceService.ongoingRecoveries.addNewRecovery(startRecoveryRequest, primary));
+        DelayRecoveryException delayRecoveryException = expectThrows(
+            DelayRecoveryException.class,
+            () -> peerRecoverySourceService.ongoingRecoveries.addNewRecovery(startRecoveryRequest, primary)
+        );
         assertThat(delayRecoveryException.getMessage(), containsString("recovery with same target already registered"));
         peerRecoverySourceService.ongoingRecoveries.remove(primary, handler);
         // re-adding after removing previous attempt works

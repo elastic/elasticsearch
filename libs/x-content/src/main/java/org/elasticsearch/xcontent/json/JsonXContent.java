@@ -37,6 +37,7 @@ public class JsonXContent implements XContent {
     public static XContentBuilder contentBuilder() throws IOException {
         return XContentBuilder.builder(jsonXContent);
     }
+
     private static final JsonFactory jsonFactory;
 
     public static final JsonXContent jsonXContent;
@@ -52,8 +53,7 @@ public class JsonXContent implements XContent {
         jsonXContent = new JsonXContent();
     }
 
-    private JsonXContent() {
-    }
+    private JsonXContent() {}
 
     @Override
     public XContentType type() {
@@ -71,14 +71,14 @@ public class JsonXContent implements XContent {
     }
 
     @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, String content) throws IOException {
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, String content)
+        throws IOException {
         return new JsonXContentParser(xContentRegistry, deprecationHandler, jsonFactory.createParser(content));
     }
 
     @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, InputStream is) throws IOException {
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, InputStream is)
+        throws IOException {
         return new JsonXContentParser(xContentRegistry, deprecationHandler, jsonFactory.createParser(is));
     }
 
@@ -90,31 +90,33 @@ public class JsonXContent implements XContent {
         FilterPath[] include,
         FilterPath[] exclude
     ) throws IOException {
-        return new JsonXContentParser(
-            xContentRegistry,
-            deprecationHandler,
-            jsonFactory.createParser(is),
-            include,
-            exclude
-        );
+        return new JsonXContentParser(xContentRegistry, deprecationHandler, jsonFactory.createParser(is), include, exclude);
     }
 
     @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, byte[] data) throws IOException {
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, byte[] data)
+        throws IOException {
         return createParser(xContentRegistry, deprecationHandler, data, 0, data.length);
     }
 
     @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, byte[] data, int offset, int length) throws IOException {
-        return new JsonXContentParser(xContentRegistry, deprecationHandler,
-            jsonFactory.createParser(new ByteArrayInputStream(data, offset, length)));
+    public XContentParser createParser(
+        NamedXContentRegistry xContentRegistry,
+        DeprecationHandler deprecationHandler,
+        byte[] data,
+        int offset,
+        int length
+    ) throws IOException {
+        return new JsonXContentParser(
+            xContentRegistry,
+            deprecationHandler,
+            jsonFactory.createParser(new ByteArrayInputStream(data, offset, length))
+        );
     }
 
     @Override
-    public XContentParser createParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, Reader reader) throws IOException {
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, Reader reader)
+        throws IOException {
         return new JsonXContentParser(xContentRegistry, deprecationHandler, jsonFactory.createParser(reader));
     }
 }

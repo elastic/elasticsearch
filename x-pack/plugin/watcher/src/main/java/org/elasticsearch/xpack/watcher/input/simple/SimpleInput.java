@@ -55,8 +55,12 @@ public class SimpleInput implements Input {
 
     public static SimpleInput parse(String watchId, XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. expected an object but found [{}] instead",
-                    TYPE, watchId, parser.currentToken());
+            throw new ElasticsearchParseException(
+                "could not parse [{}] input for watch [{}]. expected an object but found [{}] instead",
+                TYPE,
+                watchId,
+                parser.currentToken()
+            );
         }
         Payload payload = new Payload.Simple(parser.map());
         return new SimpleInput(payload);

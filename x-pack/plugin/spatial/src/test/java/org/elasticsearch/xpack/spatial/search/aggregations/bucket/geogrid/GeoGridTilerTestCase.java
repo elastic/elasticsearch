@@ -112,10 +112,13 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
                 }
             }, () -> boxToGeo(randomBBox())));
 
-            GeoBoundingBox geoBoundingBox = randomValueOtherThanMany(b -> b.right() == -180 && b.left() == 180,() -> randomBBox());
+            GeoBoundingBox geoBoundingBox = randomValueOtherThanMany(b -> b.right() == -180 && b.left() == 180, () -> randomBBox());
             GeoShapeValues.GeoShapeValue value = geoShapeValue(geometry);
-            GeoShapeCellValues cellValues =
-                new GeoShapeCellValues(makeGeoShapeValues(value), getBoundedGridTiler(geoBoundingBox, precision), NOOP_BREAKER);
+            GeoShapeCellValues cellValues = new GeoShapeCellValues(
+                makeGeoShapeValues(value),
+                getBoundedGridTiler(geoBoundingBox, precision),
+                NOOP_BREAKER
+            );
 
             assertTrue(cellValues.advanceExact(0));
             int numBuckets = cellValues.docValueCount();
@@ -130,8 +133,11 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
         Geometry geometry = new Rectangle(-92, 180, 0.99, -89);
         GeoBoundingBox geoBoundingBox = new GeoBoundingBox(new GeoPoint(5, 0.6), new GeoPoint(-5, 0.5));
         GeoShapeValues.GeoShapeValue value = geoShapeValue(geometry);
-        GeoShapeCellValues cellValues =
-            new GeoShapeCellValues(makeGeoShapeValues(value), getBoundedGridTiler(geoBoundingBox, precision), NOOP_BREAKER);
+        GeoShapeCellValues cellValues = new GeoShapeCellValues(
+            makeGeoShapeValues(value),
+            getBoundedGridTiler(geoBoundingBox, precision),
+            NOOP_BREAKER
+        );
 
         assertTrue(cellValues.advanceExact(0));
         int numBuckets = cellValues.docValueCount();
@@ -141,7 +147,7 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
 
     public void testGeoGridSetValuesBoundingBoxes_UnboundedGeoShapeCellValues() throws Exception {
         for (int i = 0; i < 1000; i++) {
-            int precision =  randomIntBetween(0, 3);
+            int precision = randomIntBetween(0, 3);
             GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
             Geometry geometry = indexer.prepareForIndexing(randomValueOtherThanMany(g -> {
                 try {
@@ -153,15 +159,17 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
             }, () -> boxToGeo(randomBBox())));
 
             GeoShapeValues.GeoShapeValue value = geoShapeValue(geometry);
-            GeoShapeCellValues unboundedCellValues =
-                new GeoShapeCellValues(makeGeoShapeValues(value), getUnboundedGridTiler(precision), NOOP_BREAKER);
+            GeoShapeCellValues unboundedCellValues = new GeoShapeCellValues(
+                makeGeoShapeValues(value),
+                getUnboundedGridTiler(precision),
+                NOOP_BREAKER
+            );
             assertTrue(unboundedCellValues.advanceExact(0));
             int numTiles = unboundedCellValues.docValueCount();
             int expected = expectedBuckets(value, precision, null);
             assertThat(numTiles, equalTo(expected));
         }
     }
-
 
     public void testGeoTileShapeContainsBoundDateLine() throws Exception {
         Rectangle tile = new Rectangle(178, -178, 2, -2);
@@ -173,8 +181,7 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
             new GeoPoint(tile.getMinLat(), tile.getMaxLon())
         );
 
-        GeoShapeCellValues values =
-            new GeoShapeCellValues(makeGeoShapeValues(value), getBoundedGridTiler(boundingBox, 4), NOOP_BREAKER);
+        GeoShapeCellValues values = new GeoShapeCellValues(makeGeoShapeValues(value), getBoundedGridTiler(boundingBox, 4), NOOP_BREAKER);
         assertTrue(values.advanceExact(0));
         int numTiles = values.docValueCount();
         int expectedTiles = expectedBuckets(value, 4, boundingBox);
@@ -193,9 +200,10 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
             Math.max(-180, rectangle.getMinX() - 1),
             Math.min(180, rectangle.getMaxX() + 1),
             Math.min(90, rectangle.getMaxY() + 1),
-            Math.max(-90, rectangle.getMinY() - 1));
+            Math.max(-90, rectangle.getMinY() - 1)
+        );
         final GeoShapeValues.GeoShapeValue value = geoShapeValue(other);
-        for (int i = 0;  i < 4; i++) {
+        for (int i = 0; i < 4; i++) {
             final GeoGridTiler bounded = getBoundedGridTiler(box, precision + i);
             final GeoShapeCellValues values = new GeoShapeCellValues(makeGeoShapeValues(value), bounded, NOOP_BREAKER);
             assertTrue(values.advanceExact(0));
@@ -227,9 +235,11 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
             maxNumBytes = oldNumBytes + curNumBytes;
         }
 
-        CircuitBreakerService service = new HierarchyCircuitBreakerService(Settings.EMPTY,
+        CircuitBreakerService service = new HierarchyCircuitBreakerService(
+            Settings.EMPTY,
             Collections.singletonList(new BreakerSettings("limited", maxNumBytes - 1, 1.0)),
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
         CircuitBreaker limitedBreaker = service.getBreaker("limited");
 
         LongConsumer circuitBreakerConsumer = (l) -> limitedBreaker.addEstimateBytesAndMaybeBreak(l, "agg");
@@ -270,19 +280,30 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
     private static Geometry boxToGeo(GeoBoundingBox geoBox) {
         // turn into polygon
         if (geoBox.right() < geoBox.left() && geoBox.right() != -180) {
-            return new MultiPolygon(org.elasticsearch.core.List.of(
-                new Polygon(new LinearRing(
-                    new double[] { -180, geoBox.right(), geoBox.right(), -180, -180 },
-                    new double[] { geoBox.bottom(), geoBox.bottom(), geoBox.top(), geoBox.top(), geoBox.bottom() })),
-                new Polygon(new LinearRing(
-                    new double[] { geoBox.left(), 180, 180, geoBox.left(), geoBox.left() },
-                    new double[] { geoBox.bottom(), geoBox.bottom(), geoBox.top(), geoBox.top(), geoBox.bottom() }))
-            ));
+            return new MultiPolygon(
+                org.elasticsearch.core.List.of(
+                    new Polygon(
+                        new LinearRing(
+                            new double[] { -180, geoBox.right(), geoBox.right(), -180, -180 },
+                            new double[] { geoBox.bottom(), geoBox.bottom(), geoBox.top(), geoBox.top(), geoBox.bottom() }
+                        )
+                    ),
+                    new Polygon(
+                        new LinearRing(
+                            new double[] { geoBox.left(), 180, 180, geoBox.left(), geoBox.left() },
+                            new double[] { geoBox.bottom(), geoBox.bottom(), geoBox.top(), geoBox.top(), geoBox.bottom() }
+                        )
+                    )
+                )
+            );
         } else {
             double right = GeoUtils.normalizeLon(geoBox.right());
-            return new Polygon(new LinearRing(
-                new double[] { geoBox.left(), right, right, geoBox.left(), geoBox.left() },
-                new double[] { geoBox.bottom(), geoBox.bottom(), geoBox.top(), geoBox.top(), geoBox.bottom() }));
+            return new Polygon(
+                new LinearRing(
+                    new double[] { geoBox.left(), right, right, geoBox.left(), geoBox.left() },
+                    new double[] { geoBox.bottom(), geoBox.bottom(), geoBox.top(), geoBox.top(), geoBox.bottom() }
+                )
+            );
         }
     }
 }

@@ -24,7 +24,7 @@ public final class SamlInit {
     private static final AtomicBoolean INITIALISED = new AtomicBoolean(false);
     private static final Logger LOGGER = LogManager.getLogger();
 
-    private SamlInit() { }
+    private SamlInit() {}
 
     /**
      * This is needed in order to initialize the underlying OpenSAML library.

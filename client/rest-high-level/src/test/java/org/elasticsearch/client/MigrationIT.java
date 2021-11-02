@@ -8,7 +8,6 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.migration.DeprecationInfoRequest;
 import org.elasticsearch.client.migration.DeprecationInfoResponse;
@@ -17,6 +16,7 @@ import org.elasticsearch.client.migration.GetFeatureUpgradeStatusResponse;
 import org.elasticsearch.client.migration.PostFeatureUpgradeRequest;
 import org.elasticsearch.client.migration.PostFeatureUpgradeResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.jdk.JavaVersion;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -57,7 +57,8 @@ public class MigrationIT extends ESRestHighLevelClientTestCase {
         GetFeatureUpgradeStatusResponse response = highLevelClient().migration().getFeatureUpgradeStatus(request, RequestOptions.DEFAULT);
         assertThat(response.getUpgradeStatus(), equalTo("NO_MIGRATION_NEEDED"));
         assertThat(response.getFeatureUpgradeStatuses().size(), greaterThanOrEqualTo(1));
-        Optional<GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus> optionalTasksStatus = response.getFeatureUpgradeStatuses().stream()
+        Optional<GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus> optionalTasksStatus = response.getFeatureUpgradeStatuses()
+            .stream()
             .filter(status -> "tasks".equals(status.getFeatureName()))
             .findFirst();
 

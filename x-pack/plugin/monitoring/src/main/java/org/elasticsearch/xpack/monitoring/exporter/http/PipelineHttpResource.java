@@ -49,8 +49,12 @@ public class PipelineHttpResource extends PublishableHttpResource {
      * @param pipelineName The name of the template (e.g., ".pipeline123").
      * @param pipeline The pipeline provider.
      */
-    public PipelineHttpResource(final String resourceOwnerName, @Nullable final TimeValue masterTimeout,
-                                final String pipelineName, final Supplier<byte[]> pipeline) {
+    public PipelineHttpResource(
+        final String resourceOwnerName,
+        @Nullable final TimeValue masterTimeout,
+        final String pipelineName,
+        final Supplier<byte[]> pipeline
+    ) {
         super(resourceOwnerName, masterTimeout, PublishableHttpResource.RESOURCE_VERSION_PARAMETERS);
 
         this.pipelineName = Objects.requireNonNull(pipelineName);
@@ -62,10 +66,18 @@ public class PipelineHttpResource extends PublishableHttpResource {
      */
     @Override
     protected void doCheck(final RestClient client, final ActionListener<Boolean> listener) {
-        versionCheckForResource(client, listener, logger,
-                                "/_ingest/pipeline", pipelineName, "monitoring pipeline",
-                                resourceOwnerName, "monitoring cluster",
-                                XContentType.JSON.xContent(), MonitoringTemplateUtils.LAST_UPDATED_VERSION);
+        versionCheckForResource(
+            client,
+            listener,
+            logger,
+            "/_ingest/pipeline",
+            pipelineName,
+            "monitoring pipeline",
+            resourceOwnerName,
+            "monitoring cluster",
+            XContentType.JSON.xContent(),
+            MonitoringTemplateUtils.LAST_UPDATED_VERSION
+        );
     }
 
     /**
@@ -73,9 +85,18 @@ public class PipelineHttpResource extends PublishableHttpResource {
      */
     @Override
     protected void doPublish(final RestClient client, final ActionListener<ResourcePublishResult> listener) {
-        putResource(client, listener, logger,
-                    "/_ingest/pipeline", pipelineName, Collections.emptyMap(), this::pipelineToHttpEntity, "monitoring pipeline",
-                    resourceOwnerName, "monitoring cluster");
+        putResource(
+            client,
+            listener,
+            logger,
+            "/_ingest/pipeline",
+            pipelineName,
+            Collections.emptyMap(),
+            this::pipelineToHttpEntity,
+            "monitoring pipeline",
+            resourceOwnerName,
+            "monitoring cluster"
+        );
     }
 
     /**

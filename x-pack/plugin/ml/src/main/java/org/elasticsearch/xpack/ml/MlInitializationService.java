@@ -61,7 +61,8 @@ public class MlInitializationService implements ClusterStateListener {
 
     MlInitializationService(Settings settings, ThreadPool threadPool, ClusterService clusterService, Client client,
                             MlAssignmentNotifier mlAssignmentNotifier) {
-        this(client,
+        this(
+            client,
             threadPool,
             new MlDailyMaintenanceService(
                 settings,
@@ -71,7 +72,8 @@ public class MlInitializationService implements ClusterStateListener {
                 clusterService,
                 mlAssignmentNotifier
             ),
-            clusterService);
+            clusterService
+        );
     }
 
     // For testing
@@ -84,10 +86,11 @@ public class MlInitializationService implements ClusterStateListener {
         clusterService.addLifecycleListener(new LifecycleListener() {
             @Override
             public void afterStart() {
-                clusterService.getClusterSettings().addSettingsUpdateConsumer(
-                    MachineLearning.NIGHTLY_MAINTENANCE_REQUESTS_PER_SECOND,
-                    mlDailyMaintenanceService::setDeleteExpiredDataRequestsPerSecond
-                );
+                clusterService.getClusterSettings()
+                    .addSettingsUpdateConsumer(
+                        MachineLearning.NIGHTLY_MAINTENANCE_REQUESTS_PER_SECOND,
+                        mlDailyMaintenanceService::setDeleteExpiredDataRequestsPerSecond
+                    );
             }
 
             @Override
@@ -127,13 +130,15 @@ public class MlInitializationService implements ClusterStateListener {
         // The atomic flag prevents multiple simultaneous attempts to create the
         // index if there is a flurry of cluster state updates in quick succession
         if (this.isMaster && isIndexCreationInProgress.compareAndSet(false, true)) {
-            AnnotationIndex.createAnnotationsIndexIfNecessary(client, event.state(), MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,
-                ActionListener.wrap(
-                    r -> isIndexCreationInProgress.set(false),
-                    e -> {
-                        isIndexCreationInProgress.set(false);
-                        logger.error("Error creating ML annotations index or aliases", e);
-                    }));
+            AnnotationIndex.createAnnotationsIndexIfNecessary(
+                client,
+                event.state(),
+                MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,
+                ActionListener.wrap(r -> isIndexCreationInProgress.set(false), e -> {
+                    isIndexCreationInProgress.set(false);
+                    logger.error("Error creating ML annotations index or aliases", e);
+                })
+            );
         }
     }
 
@@ -244,4 +249,3 @@ public class MlInitializationService implements ClusterStateListener {
         client.admin().indices().getSettings(getSettingsRequest, getSettingsListener);
     }
 }
-

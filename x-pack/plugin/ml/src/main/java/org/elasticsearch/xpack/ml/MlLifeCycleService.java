@@ -17,10 +17,10 @@ import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
+import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.NativeControllerHolder;
-import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -49,9 +49,14 @@ public class MlLifeCycleService {
     private final MlMemoryTracker memoryTracker;
     private volatile Instant shutdownStartTime;
 
-    public MlLifeCycleService(Environment environment, ClusterService clusterService, DatafeedRunner datafeedRunner,
-                              AutodetectProcessManager autodetectProcessManager, DataFrameAnalyticsManager analyticsManager,
-                              MlMemoryTracker memoryTracker) {
+    public MlLifeCycleService(
+        Environment environment,
+        ClusterService clusterService,
+        DatafeedRunner datafeedRunner,
+        AutodetectProcessManager autodetectProcessManager,
+        DataFrameAnalyticsManager analyticsManager,
+        MlMemoryTracker memoryTracker
+    ) {
         this.environment = environment;
         this.clusterService = clusterService;
         this.datafeedRunner = datafeedRunner;
@@ -73,7 +78,7 @@ public class MlLifeCycleService {
                 // down.
                 analyticsManager.markNodeAsShuttingDown();
                 // This prevents datafeeds from sending data to autodetect processes WITHOUT stopping the
-                // datafeeds, so they get reallocated.  We have to do this first, otherwise the datafeeds
+                // datafeeds, so they get reallocated. We have to do this first, otherwise the datafeeds
                 // could fail if they send data to a dead autodetect process.
                 if (datafeedRunner != null) {
                     datafeedRunner.prepareForImmediateShutdown();
@@ -121,8 +126,8 @@ public class MlLifeCycleService {
         // TODO: currently only considering anomaly detection jobs - could extend in the future
         // Ignore failed jobs - the persistent task still exists to remember the failure (because no
         // persistent task means closed), but these don't need to be relocated to another node.
-        return MlTasks.nonFailedJobTasksOnNode(tasks, nodeId).isEmpty() &&
-            MlTasks.nonFailedSnapshotUpgradeTasksOnNode(tasks, nodeId).isEmpty();
+        return MlTasks.nonFailedJobTasksOnNode(tasks, nodeId).isEmpty()
+            && MlTasks.nonFailedSnapshotUpgradeTasksOnNode(tasks, nodeId).isEmpty();
     }
 
     /**
@@ -152,7 +157,8 @@ public class MlLifeCycleService {
                 logger.info("Starting node shutdown sequence for ML");
             }
             datafeedRunner.vacateAllDatafeedsOnThisNode(
-                "previously assigned node [" + state.nodes().getLocalNode().getName() + "] is shutting down");
+                "previously assigned node [" + state.nodes().getLocalNode().getName() + "] is shutting down"
+            );
             autodetectProcessManager.vacateOpenJobsOnThisNode();
         }
     }

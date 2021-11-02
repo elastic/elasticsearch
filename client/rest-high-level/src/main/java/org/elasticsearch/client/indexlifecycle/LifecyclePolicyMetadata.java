@@ -8,8 +8,8 @@
 
 package org.elasticsearch.client.indexlifecycle;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -28,11 +28,13 @@ public class LifecyclePolicyMetadata implements ToXContentObject {
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<LifecyclePolicyMetadata, String> PARSER = new ConstructingObjectParser<>(
-            "policy_metadata", true,
-            a -> {
-                LifecyclePolicy policy = (LifecyclePolicy) a[0];
-                return new LifecyclePolicyMetadata(policy, (long) a[1], ZonedDateTime.parse((String) a[2]).toInstant().toEpochMilli());
-            });
+        "policy_metadata",
+        true,
+        a -> {
+            LifecyclePolicy policy = (LifecyclePolicy) a[0];
+            return new LifecyclePolicyMetadata(policy, (long) a[1], ZonedDateTime.parse((String) a[2]).toInstant().toEpochMilli());
+        }
+    );
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), LifecyclePolicy::parse, POLICY);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), VERSION);
@@ -79,8 +81,10 @@ public class LifecyclePolicyMetadata implements ToXContentObject {
         builder.startObject();
         builder.field(POLICY.getPreferredName(), policy);
         builder.field(VERSION.getPreferredName(), version);
-        builder.field(MODIFIED_DATE.getPreferredName(),
-            ZonedDateTime.ofInstant(Instant.ofEpochMilli(modifiedDate), ZoneOffset.UTC).toString());
+        builder.field(
+            MODIFIED_DATE.getPreferredName(),
+            ZonedDateTime.ofInstant(Instant.ofEpochMilli(modifiedDate), ZoneOffset.UTC).toString()
+        );
         builder.endObject();
         return builder;
     }
@@ -99,9 +103,9 @@ public class LifecyclePolicyMetadata implements ToXContentObject {
             return false;
         }
         LifecyclePolicyMetadata other = (LifecyclePolicyMetadata) obj;
-        return Objects.equals(policy, other.policy) &&
-            Objects.equals(version, other.version) &&
-            Objects.equals(modifiedDate, other.modifiedDate);
+        return Objects.equals(policy, other.policy)
+            && Objects.equals(version, other.version)
+            && Objects.equals(modifiedDate, other.modifiedDate);
     }
 
 }

@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.watcher.actions;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 
@@ -31,16 +31,17 @@ import static org.hamcrest.Matchers.is;
 
 public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
-    public void testTimeThrottle(){
+    public void testTimeThrottle() {
         String id = randomAlphaOfLength(20);
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch()
-                .setId(id)
-                .setSource(watchBuilder()
-                        .trigger(schedule(interval("5s")))
-                        .input(simpleInput())
-                        .addAction("my-logging-action", loggingAction("foo"))
-                        .defaultThrottlePeriod(TimeValue.timeValueSeconds(30)))
-                .get();
+            .setId(id)
+            .setSource(
+                watchBuilder().trigger(schedule(interval("5s")))
+                    .input(simpleInput())
+                    .addAction("my-logging-action", loggingAction("foo"))
+                    .defaultThrottlePeriod(TimeValue.timeValueSeconds(30))
+            )
+            .get();
         assertThat(putWatchResponse.isCreated(), is(true));
 
         timeWarp().trigger(id);
@@ -60,12 +61,13 @@ public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTest
     public void testTimeThrottleDefaults() {
         String id = randomAlphaOfLength(30);
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch()
-                .setId(id)
-                .setSource(watchBuilder()
-                        .trigger(schedule(interval("1s")))
-                        .input(simpleInput())
-                        .addAction("my-logging-action", indexAction("my_watcher_index")))
-                .get();
+            .setId(id)
+            .setSource(
+                watchBuilder().trigger(schedule(interval("1s")))
+                    .input(simpleInput())
+                    .addAction("my-logging-action", indexAction("my_watcher_index"))
+            )
+            .get();
         assertThat(putWatchResponse.isCreated(), is(true));
 
         timeWarp().trigger(id);
@@ -98,11 +100,10 @@ public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTest
         refresh(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*");
 
         SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*")
-                .setSize(1)
-                .setSource(new SearchSourceBuilder().query(QueryBuilders.boolQuery()
-                        .must(termQuery("watch_id", id))))
-                .addSort(SortBuilders.fieldSort("result.execution_time").order(SortOrder.DESC))
-                .get();
+            .setSize(1)
+            .setSource(new SearchSourceBuilder().query(QueryBuilders.boolQuery().must(termQuery("watch_id", id))))
+            .addSort(SortBuilders.fieldSort("result.execution_time").order(SortOrder.DESC))
+            .get();
 
         Map<String, Object> map = searchResponse.getHits().getHits()[0].getSourceAsMap();
         String actionId = ObjectPath.eval("result.actions.0.id", map);
@@ -112,9 +113,9 @@ public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTest
 
     private void assertTotalHistoryEntries(String id, long expectedCount) {
         SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*")
-                .setSize(0)
-                .setSource(new SearchSourceBuilder().query(QueryBuilders.boolQuery().must(termQuery("watch_id", id))))
-                .get();
+            .setSize(0)
+            .setSource(new SearchSourceBuilder().query(QueryBuilders.boolQuery().must(termQuery("watch_id", id))))
+            .get();
 
         assertHitCount(searchResponse, expectedCount);
     }

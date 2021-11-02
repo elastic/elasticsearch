@@ -49,24 +49,25 @@ public class InternalInferModelAction extends ActionType<InternalInferModelActio
             this(modelId, Collections.emptyList(), RegressionConfigUpdate.EMPTY_PARAMS, previouslyLicensed);
         }
 
-        public Request(String modelId,
-                       List<Map<String, Object>> objectsToInfer,
-                       InferenceConfigUpdate inferenceConfig,
-                       boolean previouslyLicensed) {
+        public Request(
+            String modelId,
+            List<Map<String, Object>> objectsToInfer,
+            InferenceConfigUpdate inferenceConfig,
+            boolean previouslyLicensed
+        ) {
             this.modelId = ExceptionsHelper.requireNonNull(modelId, TrainedModelConfig.MODEL_ID);
             this.objectsToInfer = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(objectsToInfer, "objects_to_infer"));
             this.update = ExceptionsHelper.requireNonNull(inferenceConfig, "inference_config");
             this.previouslyLicensed = previouslyLicensed;
         }
 
-        public Request(String modelId,
-                       Map<String, Object> objectToInfer,
-                       InferenceConfigUpdate update,
-                       boolean previouslyLicensed) {
-            this(modelId,
+        public Request(String modelId, Map<String, Object> objectToInfer, InferenceConfigUpdate update, boolean previouslyLicensed) {
+            this(
+                modelId,
                 Collections.singletonList(ExceptionsHelper.requireNonNull(objectToInfer, "objects_to_infer")),
                 update,
-                previouslyLicensed);
+                previouslyLicensed
+            );
         }
 
         public Request(StreamInput in) throws IOException {
@@ -78,9 +79,9 @@ public class InternalInferModelAction extends ActionType<InternalInferModelActio
             } else {
                 InferenceConfig oldConfig = in.readNamedWriteable(InferenceConfig.class);
                 if (oldConfig instanceof RegressionConfig) {
-                    this.update = RegressionConfigUpdate.fromConfig((RegressionConfig)oldConfig);
+                    this.update = RegressionConfigUpdate.fromConfig((RegressionConfig) oldConfig);
                 } else if (oldConfig instanceof ClassificationConfig) {
-                    this.update = ClassificationConfigUpdate.fromConfig((ClassificationConfig)oldConfig);
+                    this.update = ClassificationConfigUpdate.fromConfig((ClassificationConfig) oldConfig);
                 } else {
                     throw new IOException("Unexpected configuration type [" + oldConfig.getName() + "]");
                 }
@@ -123,8 +124,12 @@ public class InternalInferModelAction extends ActionType<InternalInferModelActio
                     // This should never happen there are checks higher up against
                     // sending config update types added after 7.8 to older nodes
                     throw new UnsupportedOperationException(
-                        "inference config of type [" + update.getName() +
-                            "] cannot be serialized to node of version [" + out.getVersion() + "]");
+                        "inference config of type ["
+                            + update.getName()
+                            + "] cannot be serialized to node of version ["
+                            + out.getVersion()
+                            + "]"
+                    );
                 }
             }
             out.writeBoolean(previouslyLicensed);
@@ -148,12 +153,17 @@ public class InternalInferModelAction extends ActionType<InternalInferModelActio
 
         @Override
         public String toString() {
-            return "Request{" +
-                "modelId='" + modelId + '\'' +
-                ", objectsToInfer=" + objectsToInfer +
-                ", update=" + update +
-                ", previouslyLicensed=" + previouslyLicensed +
-                '}';
+            return "Request{"
+                + "modelId='"
+                + modelId
+                + '\''
+                + ", objectsToInfer="
+                + objectsToInfer
+                + ", update="
+                + update
+                + ", previouslyLicensed="
+                + previouslyLicensed
+                + '}';
         }
     }
 

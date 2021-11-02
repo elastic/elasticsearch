@@ -74,6 +74,5 @@ abstract class ResultRowSet<E extends NamedWriteable> extends AbstractRowSet {
         }
     }
 
-
     protected abstract Object extractValue(E e);
 }

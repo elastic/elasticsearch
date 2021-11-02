@@ -41,8 +41,7 @@ public class SpanMatchNoDocsQueryTests extends ESTestCase {
     public void testQuery() throws Exception {
         Directory dir = newDirectory();
         Analyzer analyzer = new MockAnalyzer(random());
-        IndexWriter iw = new IndexWriter(dir,
-            newIndexWriterConfig(analyzer).setMaxBufferedDocs(2).setMergePolicy(newLogMergePolicy()));
+        IndexWriter iw = new IndexWriter(dir, newIndexWriterConfig(analyzer).setMaxBufferedDocs(2).setMergePolicy(newLogMergePolicy()));
         addDoc("one", iw);
         addDoc("two", iw);
         addDoc("three", iw);
@@ -65,10 +64,7 @@ public class SpanMatchNoDocsQueryTests extends ESTestCase {
         hits = searcher.search(orQuery, 1000).scoreDocs;
         assertEquals(0, hits.length);
 
-        orQuery = new SpanOrQuery(
-            new SpanMatchNoDocsQuery("key", "a good reason"),
-            new SpanTermQuery(new Term("key", "one"))
-        );
+        orQuery = new SpanOrQuery(new SpanMatchNoDocsQuery("key", "a good reason"), new SpanTermQuery(new Term("key", "one")));
         assertEquals(searcher.count(orQuery), 1);
         hits = searcher.search(orQuery, 1000).scoreDocs;
         assertEquals(1, hits.length);
@@ -76,8 +72,10 @@ public class SpanMatchNoDocsQueryTests extends ESTestCase {
         assertEquals(rewrite, orQuery);
 
         SpanNearQuery nearQuery = new SpanNearQuery(
-            new SpanQuery[] {new SpanMatchNoDocsQuery("same", ""), new SpanMatchNoDocsQuery("same", "")},
-            0, true);
+            new SpanQuery[] { new SpanMatchNoDocsQuery("same", ""), new SpanMatchNoDocsQuery("same", "") },
+            0,
+            true
+        );
         assertEquals(searcher.count(nearQuery), 0);
         hits = searcher.search(nearQuery, 1000).scoreDocs;
         assertEquals(0, hits.length);

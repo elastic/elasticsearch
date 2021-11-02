@@ -13,9 +13,9 @@ import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -31,10 +31,8 @@ public class GetComponentTemplatesResponseTests extends ESTestCase {
             this::createParser,
             GetComponentTemplatesResponseTests::createTestInstance,
             GetComponentTemplatesResponseTests::toXContent,
-            GetComponentTemplatesResponse::fromXContent)
-            .supportsUnknownFields(true)
-            .randomFieldsExcludeFilter(a -> true)
-            .test();
+            GetComponentTemplatesResponse::fromXContent
+        ).supportsUnknownFields(true).randomFieldsExcludeFilter(a -> true).test();
     }
 
     public static Template randomTemplate() {
@@ -57,8 +55,10 @@ public class GetComponentTemplatesResponseTests extends ESTestCase {
         if (randomBoolean()) {
             return Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(4));
         } else {
-            return Collections.singletonMap(randomAlphaOfLength(5),
-                Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(4)));
+            return Collections.singletonMap(
+                randomAlphaOfLength(5),
+                Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(4))
+            );
         }
     }
 
@@ -118,8 +118,6 @@ public class GetComponentTemplatesResponseTests extends ESTestCase {
     }
 
     private static Settings randomSettings() {
-        return Settings.builder()
-            .put(randomAlphaOfLength(4), randomAlphaOfLength(10))
-            .build();
+        return Settings.builder().put(randomAlphaOfLength(4), randomAlphaOfLength(10)).build();
     }
 }

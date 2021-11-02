@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -21,9 +21,11 @@ public class UpgradeJobModelSnapshotResponse implements ToXContentObject {
     private static final ParseField COMPLETED = new ParseField("completed");
     private static final ParseField NODE = new ParseField("node");
 
-    public static final ConstructingObjectParser<UpgradeJobModelSnapshotResponse, Void> PARSER =
-        new ConstructingObjectParser<>("upgrade_job_snapshot_response", true,
-            (a) -> new UpgradeJobModelSnapshotResponse((Boolean) a[0], (String) a[1]));
+    public static final ConstructingObjectParser<UpgradeJobModelSnapshotResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "upgrade_job_snapshot_response",
+        true,
+        (a) -> new UpgradeJobModelSnapshotResponse((Boolean) a[0], (String) a[1])
+    );
 
     static {
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), COMPLETED);
@@ -66,8 +68,7 @@ public class UpgradeJobModelSnapshotResponse implements ToXContentObject {
         }
 
         UpgradeJobModelSnapshotResponse that = (UpgradeJobModelSnapshotResponse) other;
-        return completed == that.completed
-            && Objects.equals(node, that.node);
+        return completed == that.completed && Objects.equals(node, that.node);
     }
 
     @Override

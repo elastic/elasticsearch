@@ -23,8 +23,11 @@ public class RestSqlStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(Route.builder(GET, Protocol.SQL_STATS_REST_ENDPOINT)
-            .replaces(GET, Protocol.SQL_STATS_DEPRECATED_REST_ENDPOINT, RestApiVersion.V_7).build());
+        return singletonList(
+            Route.builder(GET, Protocol.SQL_STATS_REST_ENDPOINT)
+                .replaces(GET, Protocol.SQL_STATS_DEPRECATED_REST_ENDPOINT, RestApiVersion.V_7)
+                .build()
+        );
     }
 
     @Override

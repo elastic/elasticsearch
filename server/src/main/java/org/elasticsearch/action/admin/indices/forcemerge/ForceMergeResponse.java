@@ -23,12 +23,19 @@ import java.util.List;
  */
 public class ForceMergeResponse extends BroadcastResponse {
 
-    private static final ConstructingObjectParser<ForceMergeResponse, Void> PARSER = new ConstructingObjectParser<>("force_merge",
-        true, arg -> {
-        BroadcastResponse response = (BroadcastResponse) arg[0];
-        return new ForceMergeResponse(response.getTotalShards(), response.getSuccessfulShards(), response.getFailedShards(),
-            Arrays.asList(response.getShardFailures()));
-    });
+    private static final ConstructingObjectParser<ForceMergeResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "force_merge",
+        true,
+        arg -> {
+            BroadcastResponse response = (BroadcastResponse) arg[0];
+            return new ForceMergeResponse(
+                response.getTotalShards(),
+                response.getSuccessfulShards(),
+                response.getFailedShards(),
+                Arrays.asList(response.getShardFailures())
+            );
+        }
+    );
 
     static {
         declareBroadcastFields(PARSER);

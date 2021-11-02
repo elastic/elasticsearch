@@ -14,13 +14,13 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -105,8 +105,10 @@ public class UpdateSettingsRequestTests extends AbstractXContentTestCase<UpdateS
     protected void assertEqualInstances(UpdateSettingsRequest expectedInstance, UpdateSettingsRequest newInstance) {
         // here only the settings should be tested, as this test covers explicitly only the XContent parsing
         // the rest of the request fields are tested by the SerializingTests
-        super.assertEqualInstances(new UpdateSettingsRequest(expectedInstance.settings()),
-                new UpdateSettingsRequest(newInstance.settings()));
+        super.assertEqualInstances(
+            new UpdateSettingsRequest(expectedInstance.settings()),
+            new UpdateSettingsRequest(newInstance.settings())
+        );
     }
 
     @Override
@@ -129,7 +131,8 @@ public class UpdateSettingsRequestTests extends AbstractXContentTestCase<UpdateS
     }
 
     private static void testFromXContent(UpdateSettingsRequestTests test) throws IOException {
-        AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS / 2,
+        AbstractXContentTestCase.testFromXContent(
+            NUMBER_OF_TEST_RUNS / 2,
             test::createTestInstance,
             test.supportsUnknownFields(),
             test.getShuffleFieldsExceptions(),
@@ -138,7 +141,8 @@ public class UpdateSettingsRequestTests extends AbstractXContentTestCase<UpdateS
             test::doParseInstance,
             test::assertEqualInstances,
             test.assertToXContentEquivalence(),
-            test.getToXContentParams());
+            test.getToXContentParams()
+        );
     }
 
     /** Tests that mixed requests, containing both an enclosed settings and top-level fields, generate a log warning message. */
@@ -159,10 +163,18 @@ public class UpdateSettingsRequestTests extends AbstractXContentTestCase<UpdateS
             UpdateSettingsRequestTests test = (new UpdateSettingsRequestTests()).withEnclosedSettings().withUnknownFields();
             UpdateSettingsRequest updateSettingsRequest = test.createTestInstance();
             XContentType xContentType = randomFrom(XContentType.values());
-            BytesReference originalXContent = XContentHelper.toXContent(updateSettingsRequest, xContentType,
-                ToXContent.EMPTY_PARAMS, false);
-            BytesReference updatedXContent = XContentTestUtils.insertRandomFields(xContentType, originalXContent,
-                test.getRandomFieldsExcludeFilter(), random());
+            BytesReference originalXContent = XContentHelper.toXContent(
+                updateSettingsRequest,
+                xContentType,
+                ToXContent.EMPTY_PARAMS,
+                false
+            );
+            BytesReference updatedXContent = XContentTestUtils.insertRandomFields(
+                xContentType,
+                originalXContent,
+                test.getRandomFieldsExcludeFilter(),
+                random()
+            );
             XContentParser parser = test.createParser(XContentFactory.xContent(xContentType), updatedXContent);
             UpdateSettingsRequest parsedRequest = (new UpdateSettingsRequest()).fromXContent(parser);
             test.assertEqualInstances(updateSettingsRequest, parsedRequest);

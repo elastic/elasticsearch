@@ -26,9 +26,7 @@ public class RestPutComposableIndexTemplateAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Arrays.asList(
-            new Route(POST, "/_index_template/{name}"),
-            new Route(PUT, "/_index_template/{name}"));
+        return Arrays.asList(new Route(POST, "/_index_template/{name}"), new Route(PUT, "/_index_template/{name}"));
     }
 
     @Override

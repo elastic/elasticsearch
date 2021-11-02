@@ -11,10 +11,10 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Map;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.core.List;
+import org.elasticsearch.core.Map;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -74,9 +74,9 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
         FeatureField featureField2 = null;
         for (IndexableField field : fields) {
             if (field.stringValue().equals("ten")) {
-                featureField1 = (FeatureField)field;
+                featureField1 = (FeatureField) field;
             } else if (field.stringValue().equals("twenty")) {
-                featureField2 = (FeatureField)field;
+                featureField2 = (FeatureField) field;
             } else {
                 throw new UnsupportedOperationException();
             }
@@ -101,9 +101,9 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
         FeatureField featureField2 = null;
         for (IndexableField field : fields) {
             if (field.stringValue().equals("ten")) {
-                featureField1 = (FeatureField)field;
+                featureField1 = (FeatureField) field;
             } else if (field.stringValue().equals("twenty")) {
-                featureField2 = (FeatureField)field;
+                featureField2 = (FeatureField) field;
             } else {
                 throw new UnsupportedOperationException();
             }
@@ -128,8 +128,10 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
             MapperParsingException.class,
             () -> mapper.parse(source(b -> b.startObject("field").field("foo", Arrays.asList(10, 20)).endObject()))
         );
-        assertEquals("[rank_features] fields take hashes that map a feature to a strictly positive float, but got unexpected token " +
-                "START_ARRAY", e.getCause().getMessage());
+        assertEquals(
+            "[rank_features] fields take hashes that map a feature to a strictly positive float, but got unexpected token " + "START_ARRAY",
+            e.getCause().getMessage()
+        );
 
         e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
             b.startArray("foo");
@@ -139,8 +141,11 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
             }
             b.endArray();
         })));
-        assertEquals("[rank_features] fields do not support indexing multiple values for the same rank feature [foo.field.bar] in " +
-                "the same document", e.getCause().getMessage());
+        assertEquals(
+            "[rank_features] fields do not support indexing multiple values for the same rank feature [foo.field.bar] in "
+                + "the same document",
+            e.getCause().getMessage()
+        );
     }
 
     public void testCannotBeUsedInMultifields() {

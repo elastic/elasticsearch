@@ -15,9 +15,9 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.After;
 import org.junit.Before;
 
@@ -43,8 +43,8 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             // usual case, clients have different versions
             twoClients = clientsByVersion.values();
         } else {
-            assert clientsByVersion.size() == 1 : "A rolling upgrade has a maximum of two distinct node versions, found: "
-                    + clientsByVersion.keySet();
+            assert clientsByVersion.size() == 1
+                : "A rolling upgrade has a maximum of two distinct node versions, found: " + clientsByVersion.keySet();
             // tests assumes exactly two clients to simplify some logic
             twoClients = new ArrayList<>();
             twoClients.add(clientsByVersion.values().iterator().next());
@@ -64,8 +64,11 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assumeTrue("this test should only run against the old cluster", CLUSTER_TYPE == ClusterType.OLD);
         {
             Version minimumIndexCompatibilityVersion = Version.CURRENT.minimumIndexCompatibilityVersion();
-            assertThat("this branch is not needed if we aren't compatible with 6.0",
-                minimumIndexCompatibilityVersion.onOrBefore(Version.V_6_0_0), equalTo(true));
+            assertThat(
+                "this branch is not needed if we aren't compatible with 6.0",
+                minimumIndexCompatibilityVersion.onOrBefore(Version.V_6_0_0),
+                equalTo(true)
+            );
             if (minimumIndexCompatibilityVersion.before(Version.V_7_0_0)) {
                 XContentBuilder template = jsonBuilder();
                 template.startObject();
@@ -92,8 +95,10 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assertNotNull(refreshToken);
 
         storeTokens(client(), 1, accessToken, refreshToken);
-        allowedWarnings("index [token_backwards_compatibility_it] matches multiple legacy templates " +
-            "[gen-tokens-old-cluster-template, global], composable templates will only match a single template");
+        allowedWarnings(
+            "index [token_backwards_compatibility_it] matches multiple legacy templates "
+                + "[gen-tokens-old-cluster-template, global], composable templates will only match a single template"
+        );
 
         responseMap = createTokens(client(), "test_user", "x-pack-test-password");
         accessToken = (String) responseMap.get("access_token");
@@ -109,8 +114,11 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assumeTrue("this test should only run against the old cluster", CLUSTER_TYPE == ClusterType.OLD);
         {
             Version minimumIndexCompatibilityVersion = Version.CURRENT.minimumIndexCompatibilityVersion();
-            assertThat("this branch is not needed if we aren't compatible with 6.0",
-                minimumIndexCompatibilityVersion.onOrBefore(Version.V_6_0_0), equalTo(true));
+            assertThat(
+                "this branch is not needed if we aren't compatible with 6.0",
+                minimumIndexCompatibilityVersion.onOrBefore(Version.V_6_0_0),
+                equalTo(true)
+            );
             if (minimumIndexCompatibilityVersion.before(Version.V_7_0_0)) {
                 XContentBuilder template = jsonBuilder();
                 template.startObject();
@@ -155,8 +163,11 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assumeTrue("this test should only run against the old cluster", CLUSTER_TYPE == ClusterType.OLD);
         {
             Version minimumIndexCompatibilityVersion = Version.CURRENT.minimumIndexCompatibilityVersion();
-            assertThat("this branch is not needed if we aren't compatible with 6.0",
-                minimumIndexCompatibilityVersion.onOrBefore(Version.V_6_0_0), equalTo(true));
+            assertThat(
+                "this branch is not needed if we aren't compatible with 6.0",
+                minimumIndexCompatibilityVersion.onOrBefore(Version.V_6_0_0),
+                equalTo(true)
+            );
             if (minimumIndexCompatibilityVersion.before(Version.V_7_0_0)) {
                 XContentBuilder template = jsonBuilder();
                 template.startObject();
@@ -182,8 +193,10 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         assertNotNull(refreshToken);
 
         storeTokens(client(), 5, accessToken, refreshToken);
-        allowedWarnings("index [token_backwards_compatibility_it] matches multiple legacy templates " +
-            "[global, invalid-tokens-old-cluster-template], composable templates will only match a single template");
+        allowedWarnings(
+            "index [token_backwards_compatibility_it] matches multiple legacy templates "
+                + "[global, invalid-tokens-old-cluster-template], composable templates will only match a single template"
+        );
 
         // invalidate access token
         invalidateAccessToken(client(), accessToken);
@@ -348,8 +361,10 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             ResponseException e = expectThrows(ResponseException.class, () -> client.performRequest(request));
             assertEquals(401, e.getResponse().getStatusLine().getStatusCode());
             Response response = e.getResponse();
-            assertEquals("Bearer realm=\"security\", error=\"invalid_token\", error_description=\"The access token expired\"",
-                    response.getHeader("WWW-Authenticate"));
+            assertEquals(
+                "Bearer realm=\"security\", error=\"invalid_token\", error_description=\"The access token expired\"",
+                response.getHeader("WWW-Authenticate")
+            );
         }
     }
 
@@ -357,10 +372,8 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         for (RestClient client : twoClients) {
             Request refreshTokenRequest = new Request("POST", "/_security/oauth2/token");
             refreshTokenRequest.setJsonEntity(
-                    "{\n" +
-                            "    \"refresh_token\": \"" + refreshToken + "\",\n" +
-                            "    \"grant_type\": \"refresh_token\"\n" +
-                    "}");
+                "{\n" + "    \"refresh_token\": \"" + refreshToken + "\",\n" + "    \"grant_type\": \"refresh_token\"\n" + "}"
+            );
             ResponseException e = expectThrows(ResponseException.class, () -> client.performRequest(refreshTokenRequest));
             assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
             Response response = e.getResponse();
@@ -393,11 +406,16 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     private Map<String, Object> createTokens(RestClient client, String username, String password) throws IOException {
         final Request createTokenRequest = new Request("POST", "/_security/oauth2/token");
         createTokenRequest.setJsonEntity(
-                "{\n" +
-                "    \"username\": \"" + username + "\",\n" +
-                "    \"password\": \"" + password + "\",\n" +
-                "    \"grant_type\": \"password\"\n" +
-                "}");
+            "{\n"
+                + "    \"username\": \""
+                + username
+                + "\",\n"
+                + "    \"password\": \""
+                + password
+                + "\",\n"
+                + "    \"grant_type\": \"password\"\n"
+                + "}"
+        );
         createTokenRequest.setOptions(
             RequestOptions.DEFAULT.toBuilder()
                 .setWarningsHandler(
@@ -414,10 +432,8 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     private void storeTokens(RestClient client, int idx, String accessToken, String refreshToken) throws IOException {
         final Request indexRequest = new Request("PUT", "token_backwards_compatibility_it/_doc/old_cluster_token" + idx);
         indexRequest.setJsonEntity(
-                "{\n" +
-                "    \"token\": \"" + accessToken + "\",\n" +
-                "    \"refresh_token\": \"" + refreshToken + "\"\n" +
-                "}");
+            "{\n" + "    \"token\": \"" + accessToken + "\",\n" + "    \"refresh_token\": \"" + refreshToken + "\"\n" + "}"
+        );
         useIgnoreMultipleMatchingTemplatesWarningsHandler(indexRequest);
         Response indexResponse1 = client.performRequest(indexRequest);
         assertOK(indexResponse1);
@@ -434,10 +450,8 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     private Map<String, Object> refreshToken(RestClient client, String refreshToken) throws IOException {
         final Request refreshTokenRequest = new Request("POST", "/_security/oauth2/token");
         refreshTokenRequest.setJsonEntity(
-                "{\n" +
-                "    \"refresh_token\": \"" + refreshToken + "\",\n" +
-                "    \"grant_type\": \"refresh_token\"\n" +
-                "}");
+            "{\n" + "    \"refresh_token\": \"" + refreshToken + "\",\n" + "    \"grant_type\": \"refresh_token\"\n" + "}"
+        );
         refreshTokenRequest.setOptions(
             RequestOptions.DEFAULT.toBuilder()
                 .setWarningsHandler(

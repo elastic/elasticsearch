@@ -7,15 +7,15 @@
 package org.elasticsearch.xpack.security.rest.action.rolemapping;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingResponse;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
@@ -42,9 +42,11 @@ public class RestPutRoleMappingAction extends SecurityBaseRestHandler {
     public List<Route> routes() {
         return org.elasticsearch.core.List.of(
             Route.builder(POST, "/_security/role_mapping/{name}")
-                .replaces(POST, "/_xpack/security/role_mapping/{name}", RestApiVersion.V_7).build(),
+                .replaces(POST, "/_xpack/security/role_mapping/{name}", RestApiVersion.V_7)
+                .build(),
             Route.builder(PUT, "/_security/role_mapping/{name}")
-                .replaces(PUT, "/_xpack/security/role_mapping/{name}", RestApiVersion.V_7).build()
+                .replaces(PUT, "/_xpack/security/role_mapping/{name}", RestApiVersion.V_7)
+                .build()
         );
     }
 
@@ -56,15 +58,16 @@ public class RestPutRoleMappingAction extends SecurityBaseRestHandler {
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String name = request.param("name");
-        PutRoleMappingRequestBuilder requestBuilder = new SecurityClient(client)
-                .preparePutRoleMapping(name, request.requiredContent(), request.getXContentType())
-                .setRefreshPolicy(request.param("refresh"));
-        return channel -> requestBuilder.execute(
-                new RestBuilderListener<PutRoleMappingResponse>(channel) {
-                    @Override
-                    public RestResponse buildResponse(PutRoleMappingResponse response, XContentBuilder builder) throws Exception {
-                        return new BytesRestResponse(RestStatus.OK, builder.startObject().field("role_mapping", response).endObject());
-                    }
-                });
+        PutRoleMappingRequestBuilder requestBuilder = new SecurityClient(client).preparePutRoleMapping(
+            name,
+            request.requiredContent(),
+            request.getXContentType()
+        ).setRefreshPolicy(request.param("refresh"));
+        return channel -> requestBuilder.execute(new RestBuilderListener<PutRoleMappingResponse>(channel) {
+            @Override
+            public RestResponse buildResponse(PutRoleMappingResponse response, XContentBuilder builder) throws Exception {
+                return new BytesRestResponse(RestStatus.OK, builder.startObject().field("role_mapping", response).endObject());
+            }
+        });
     }
 }

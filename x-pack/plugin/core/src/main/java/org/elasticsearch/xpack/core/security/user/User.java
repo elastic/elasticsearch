@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.core.security.user;
 
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -31,8 +31,10 @@ public class User implements ToXContentObject {
     private final Map<String, Object> metadata;
     private final boolean enabled;
 
-    @Nullable private final String fullName;
-    @Nullable private final String email;
+    @Nullable
+    private final String fullName;
+    @Nullable
+    private final String email;
 
     public User(String username, String... roles) {
         this(username, roles, null, null, null, true);
@@ -50,8 +52,15 @@ public class User implements ToXContentObject {
         this(username, roles, fullName, email, metadata, enabled, null);
     }
 
-    private User(String username, String[] roles, String fullName, String email, Map<String, Object> metadata, boolean enabled,
-                User authenticatedUser) {
+    private User(
+        String username,
+        String[] roles,
+        String fullName,
+        String email,
+        Map<String, Object> metadata,
+        boolean enabled,
+        User authenticatedUser
+    ) {
         this.username = Objects.requireNonNull(username);
         this.roles = roles == null ? Strings.EMPTY_ARRAY : roles;
         this.metadata = metadata != null ? Collections.unmodifiableMap(metadata) : Collections.emptyMap();
@@ -196,7 +205,7 @@ public class User implements ToXContentObject {
 
     public static User readFrom(StreamInput input) throws IOException {
         final boolean isInternalUser = input.readBoolean();
-        assert isInternalUser == false: "should always return false. Internal users should use the InternalUserSerializationHelper";
+        assert isInternalUser == false : "should always return false. Internal users should use the InternalUserSerializationHelper";
         final String username = input.readString();
         return partialReadFrom(username, input);
     }
@@ -218,7 +227,9 @@ public class User implements ToXContentObject {
     }
 
     public static boolean isInternalUsername(String username) {
-        return SystemUser.NAME.equals(username) || XPackUser.NAME.equals(username) || XPackSecurityUser.NAME.equals(username)
+        return SystemUser.NAME.equals(username)
+            || XPackUser.NAME.equals(username)
+            || XPackSecurityUser.NAME.equals(username)
             || AsyncSearchUser.NAME.equals(username);
     }
 
@@ -251,4 +262,3 @@ public class User implements ToXContentObject {
         ParseField TOKEN = new ParseField("token");
     }
 }
-

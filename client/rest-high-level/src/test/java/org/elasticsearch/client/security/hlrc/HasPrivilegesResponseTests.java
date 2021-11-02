@@ -17,11 +17,11 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
@@ -57,8 +57,10 @@ public class HasPrivilegesResponseTests extends AbstractResponseTestCase<
 
     public void testSerializationV63() throws IOException {
         final org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse original = randomResponse();
-        final org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse copy =
-            serializeAndDeserialize(original, Version.V_6_3_0);
+        final org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse copy = serializeAndDeserialize(
+            original,
+            Version.V_6_3_0
+        );
 
         Assert.assertThat(copy.isCompleteMatch(), equalTo(original.isCompleteMatch()));
         Assert.assertThat(copy.getClusterPrivileges().entrySet(), Matchers.emptyIterable());
@@ -68,34 +70,55 @@ public class HasPrivilegesResponseTests extends AbstractResponseTestCase<
 
     public void testToXContent() throws Exception {
         final org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse response =
-            new org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse("daredevil",
-                false, Collections.singletonMap("manage", true),
+            new org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse(
+                "daredevil",
+                false,
+                Collections.singletonMap("manage", true),
                 Arrays.asList(
-                        ResourcePrivileges.builder("staff")
-                                .addPrivileges(MapBuilder.<String, Boolean>newMapBuilder(new LinkedHashMap<>()).put("read", true)
-                                        .put("index", true).put("delete", false).put("manage", false).map())
-                                .build(),
-                        ResourcePrivileges.builder("customers")
-                                .addPrivileges(MapBuilder.<String, Boolean>newMapBuilder(new LinkedHashMap<>()).put("read", true)
-                                        .put("index", true).put("delete", true).put("manage", false).map())
-                                .build()),
-                Collections.emptyMap());
+                    ResourcePrivileges.builder("staff")
+                        .addPrivileges(
+                            MapBuilder.<String, Boolean>newMapBuilder(new LinkedHashMap<>())
+                                .put("read", true)
+                                .put("index", true)
+                                .put("delete", false)
+                                .put("manage", false)
+                                .map()
+                        )
+                        .build(),
+                    ResourcePrivileges.builder("customers")
+                        .addPrivileges(
+                            MapBuilder.<String, Boolean>newMapBuilder(new LinkedHashMap<>())
+                                .put("read", true)
+                                .put("index", true)
+                                .put("delete", true)
+                                .put("manage", false)
+                                .map()
+                        )
+                        .build()
+                ),
+                Collections.emptyMap()
+            );
 
         final XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
         BytesReference bytes = BytesReference.bytes(builder);
 
         final String json = bytes.utf8ToString();
-        Assert.assertThat(json, equalTo("{" +
-            "\"username\":\"daredevil\"," +
-            "\"has_all_requested\":false," +
-            "\"cluster\":{\"manage\":true}," +
-            "\"index\":{" +
-            "\"customers\":{\"read\":true,\"index\":true,\"delete\":true,\"manage\":false}," +
-            "\"staff\":{\"read\":true,\"index\":true,\"delete\":false,\"manage\":false}" +
-            "}," +
-            "\"application\":{}" +
-            "}"));
+        Assert.assertThat(
+            json,
+            equalTo(
+                "{"
+                    + "\"username\":\"daredevil\","
+                    + "\"has_all_requested\":false,"
+                    + "\"cluster\":{\"manage\":true},"
+                    + "\"index\":{"
+                    + "\"customers\":{\"read\":true,\"index\":true,\"delete\":true,\"manage\":false},"
+                    + "\"staff\":{\"read\":true,\"index\":true,\"delete\":false,\"manage\":false}"
+                    + "},"
+                    + "\"application\":{}"
+                    + "}"
+            )
+        );
     }
 
     @Override
@@ -109,13 +132,16 @@ public class HasPrivilegesResponseTests extends AbstractResponseTestCase<
     }
 
     private static List<ResourcePrivileges> toResourcePrivileges(Map<String, Map<String, Boolean>> map) {
-        return map.entrySet().stream()
+        return map.entrySet()
+            .stream()
             .map(e -> ResourcePrivileges.builder(e.getKey()).addPrivileges(e.getValue()).build())
             .collect(Collectors.toList());
     }
 
     private org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse serializeAndDeserialize(
-        org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse original, Version version) throws IOException {
+        org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse original,
+        Version version
+    ) throws IOException {
         logger.info("Test serialize/deserialize with version {}", version);
         final BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(version);
@@ -137,19 +163,22 @@ public class HasPrivilegesResponseTests extends AbstractResponseTestCase<
         }
         final Collection<ResourcePrivileges> index = randomResourcePrivileges();
         final Map<String, Collection<ResourcePrivileges>> application = new HashMap<>();
-        for (String app : randomArray(1, 3, String[]::new,
-            () -> randomAlphaOfLengthBetween(3, 6).toLowerCase(Locale.ROOT))) {
+        for (String app : randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 6).toLowerCase(Locale.ROOT))) {
             application.put(app, randomResourcePrivileges());
         }
-        return new org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse(username, randomBoolean(),
-            cluster, index, application);
+        return new org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse(
+            username,
+            randomBoolean(),
+            cluster,
+            index,
+            application
+        );
     }
 
     private Collection<ResourcePrivileges> randomResourcePrivileges() {
         final Collection<ResourcePrivileges> list = new ArrayList<>();
         // Use hash set to force a unique set of resources
-        for (String resource : Sets.newHashSet(randomArray(1, 3, String[]::new,
-            () -> randomAlphaOfLengthBetween(2, 6)))) {
+        for (String resource : Sets.newHashSet(randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(2, 6)))) {
             final Map<String, Boolean> privileges = new HashMap<>();
             for (String priv : randomArray(1, 5, String[]::new, () -> randomAlphaOfLengthBetween(3, 8))) {
                 privileges.put(priv, randomBoolean());
@@ -160,17 +189,21 @@ public class HasPrivilegesResponseTests extends AbstractResponseTestCase<
     }
 
     @Override
-    protected void assertInstances(org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse serverTestInstance,
-                                   HasPrivilegesResponse hlrc) {
+    protected void assertInstances(
+        org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse serverTestInstance,
+        HasPrivilegesResponse hlrc
+    ) {
         org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse other =
             new org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse(
                 hlrc.getUsername(),
                 hlrc.hasAllRequested(),
                 hlrc.getClusterPrivileges(),
                 toResourcePrivileges(hlrc.getIndexPrivileges()),
-                hlrc.getApplicationPrivileges().entrySet().stream()
+                hlrc.getApplicationPrivileges()
+                    .entrySet()
+                    .stream()
                     .collect(Collectors.toMap(Map.Entry::getKey, e -> toResourcePrivileges(e.getValue())))
-        );
+            );
         assertEquals(serverTestInstance, other);
     }
 }

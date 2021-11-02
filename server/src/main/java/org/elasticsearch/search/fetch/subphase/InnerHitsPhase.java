@@ -55,9 +55,8 @@ public final class InnerHitsPhase implements FetchSubPhase {
         };
     }
 
-    private void hitExecute(Map<String, InnerHitsContext.InnerHitSubContext> innerHits,
-                            SearchHit hit,
-                            SourceLookup rootLookup) throws IOException {
+    private void hitExecute(Map<String, InnerHitsContext.InnerHitSubContext> innerHits, SearchHit hit, SourceLookup rootLookup)
+        throws IOException {
         for (Map.Entry<String, InnerHitsContext.InnerHitSubContext> entry : innerHits.entrySet()) {
             InnerHitsContext.InnerHitSubContext innerHitsContext = entry.getValue();
             TopDocsAndMaxScore topDoc = innerHitsContext.topDocs(hit);

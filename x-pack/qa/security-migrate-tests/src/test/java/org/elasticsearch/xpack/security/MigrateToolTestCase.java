@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.security;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
@@ -70,19 +70,18 @@ public abstract class MigrateToolTestCase extends LuceneTestCase {
         logger.info("--> Starting Elasticsearch Java TransportClient {}, {}", transportAddresses, tempDir);
 
         Settings clientSettings = Settings.builder()
-                .put("cluster.name", "qa_migrate_tests_" + counter.getAndIncrement())
-                .put("client.transport.ignore_cluster_name", true)
-                .put("path.home", tempDir)
-                .put(SecurityField.USER_SETTING.getKey(), "transport_user:x-pack-test-password")
-                .build();
+            .put("cluster.name", "qa_migrate_tests_" + counter.getAndIncrement())
+            .put("client.transport.ignore_cluster_name", true)
+            .put("path.home", tempDir)
+            .put(SecurityField.USER_SETTING.getKey(), "transport_user:x-pack-test-password")
+            .build();
 
         TransportClient client = new PreBuiltXPackTransportClient(clientSettings).addTransportAddresses(transportAddresses);
         Exception clientException = null;
         try {
             logger.info("--> Elasticsearch Java TransportClient started");
             ClusterHealthResponse health = client.admin().cluster().prepareHealth().get();
-            logger.info("--> connected to [{}] cluster which is running [{}] node(s).",
-                    health.getClusterName(), health.getNumberOfNodes());
+            logger.info("--> connected to [{}] cluster which is running [{}] node(s).", health.getClusterName(), health.getNumberOfNodes());
         } catch (Exception e) {
             clientException = e;
         }

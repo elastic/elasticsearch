@@ -29,11 +29,11 @@ import org.elasticsearch.client.transform.transforms.TransformConfigUpdate;
 import org.elasticsearch.client.transform.transforms.TransformConfigUpdateTests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;

@@ -39,8 +39,10 @@ public final class MatchedQueriesPhase implements FetchSubPhase {
         }
         Map<String, Weight> weights = new HashMap<>();
         for (Map.Entry<String, Query> entry : namedQueries.entrySet()) {
-            weights.put(entry.getKey(),
-                context.searcher().createWeight(context.searcher().rewrite(entry.getValue()), ScoreMode.COMPLETE_NO_SCORES, 1));
+            weights.put(
+                entry.getKey(),
+                context.searcher().createWeight(context.searcher().rewrite(entry.getValue()), ScoreMode.COMPLETE_NO_SCORES, 1)
+            );
         }
         return new FetchSubPhaseProcessor() {
 

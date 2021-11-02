@@ -141,7 +141,7 @@ public enum XContentType {
         if (mediaType.contains("vnd.elasticsearch")) {
             return mediaType.replaceAll("vnd.elasticsearch\\+", "")
                 .replaceAll("\\s*;\\s*compatible-with=\\d+", "")
-                .replaceAll("\\s*;\\s*",";"); // to allow matching using startsWith
+                .replaceAll("\\s*;\\s*", ";"); // to allow matching using startsWith
         }
         return mediaType;
     }
@@ -169,9 +169,9 @@ public enum XContentType {
     }
 
     private static boolean isSameMediaTypeOrFormatAs(String stringType, XContentType type) {
-        return type.mediaTypeWithoutParameters().equalsIgnoreCase(stringType) ||
-                stringType.toLowerCase(Locale.ROOT).startsWith(type.mediaTypeWithoutParameters().toLowerCase(Locale.ROOT) + ";") ||
-                type.shortName().equalsIgnoreCase(stringType);
+        return type.mediaTypeWithoutParameters().equalsIgnoreCase(stringType)
+            || stringType.toLowerCase(Locale.ROOT).startsWith(type.mediaTypeWithoutParameters().toLowerCase(Locale.ROOT) + ";")
+            || type.shortName().equalsIgnoreCase(stringType);
     }
 
     private int index;

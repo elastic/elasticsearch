@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.utils.TypedChainTaskExecutor;
 
-
 public class TransportInternalInferModelAction extends HandledTransportAction<Request, Response> {
 
     private final ModelLoadingService modelLoadingService;
@@ -37,12 +36,14 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
     private final TrainedModelProvider trainedModelProvider;
 
     @Inject
-    public TransportInternalInferModelAction(TransportService transportService,
-                                             ActionFilters actionFilters,
-                                             ModelLoadingService modelLoadingService,
-                                             Client client,
-                                             XPackLicenseState licenseState,
-                                             TrainedModelProvider trainedModelProvider) {
+    public TransportInternalInferModelAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ModelLoadingService modelLoadingService,
+        Client client,
+        XPackLicenseState licenseState,
+        TrainedModelProvider trainedModelProvider
+    ) {
         super(InternalInferModelAction.NAME, transportService, actionFilters, InternalInferModelAction.Request::new);
         this.modelLoadingService = modelLoadingService;
         this.client = client;
@@ -54,49 +55,46 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
 
         Response.Builder responseBuilder = Response.builder();
-        ActionListener<LocalModel> getModelListener = ActionListener.wrap(
-            model -> {
-                TypedChainTaskExecutor<InferenceResults> typedChainTaskExecutor =
-                    new TypedChainTaskExecutor<>(client.threadPool().executor(ThreadPool.Names.SAME),
-                    // run through all tasks
-                    r -> true,
-                    // Always fail immediately and return an error
-                    ex -> true);
-                request.getObjectsToInfer().forEach(stringObjectMap ->
-                    typedChainTaskExecutor.add(chainedTask ->
-                        model.infer(stringObjectMap, request.getUpdate(), chainedTask)));
+        ActionListener<LocalModel> getModelListener = ActionListener.wrap(model -> {
+            TypedChainTaskExecutor<InferenceResults> typedChainTaskExecutor = new TypedChainTaskExecutor<>(
+                client.threadPool().executor(ThreadPool.Names.SAME),
+                // run through all tasks
+                r -> true,
+                // Always fail immediately and return an error
+                ex -> true
+            );
+            request.getObjectsToInfer()
+                .forEach(
+                    stringObjectMap -> typedChainTaskExecutor.add(
+                        chainedTask -> model.infer(stringObjectMap, request.getUpdate(), chainedTask)
+                    )
+                );
 
-                typedChainTaskExecutor.execute(ActionListener.wrap(
-                    inferenceResultsInterfaces -> {
-                        model.release();
-                        listener.onResponse(responseBuilder.setInferenceResults(inferenceResultsInterfaces)
-                            .setModelId(model.getModelId())
-                            .build());
-                    },
-                    e -> {
-                        model.release();
-                        listener.onFailure(e);
-                    }
-                ));
-            },
-            listener::onFailure
-        );
+            typedChainTaskExecutor.execute(ActionListener.wrap(inferenceResultsInterfaces -> {
+                model.release();
+                listener.onResponse(responseBuilder.setInferenceResults(inferenceResultsInterfaces).setModelId(model.getModelId()).build());
+            }, e -> {
+                model.release();
+                listener.onFailure(e);
+            }));
+        }, listener::onFailure);
 
         if (MachineLearningField.ML_API_FEATURE.check(licenseState)) {
             responseBuilder.setLicensed(true);
             this.modelLoadingService.getModelForPipeline(request.getModelId(), getModelListener);
         } else {
-            trainedModelProvider.getTrainedModel(request.getModelId(), GetTrainedModelsAction.Includes.empty(), ActionListener.wrap(
-                trainedModelConfig -> {
+            trainedModelProvider.getTrainedModel(
+                request.getModelId(),
+                GetTrainedModelsAction.Includes.empty(),
+                ActionListener.wrap(trainedModelConfig -> {
                     responseBuilder.setLicensed(licenseState.isAllowedByLicense(trainedModelConfig.getLicenseLevel()));
                     if (licenseState.isAllowedByLicense(trainedModelConfig.getLicenseLevel()) || request.isPreviouslyLicensed()) {
                         this.modelLoadingService.getModelForPipeline(request.getModelId(), getModelListener);
                     } else {
                         listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
                     }
-                },
-                listener::onFailure
-            ));
+                }, listener::onFailure)
+            );
         }
     }
 }

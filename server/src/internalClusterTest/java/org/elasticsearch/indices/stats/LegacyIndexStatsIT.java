@@ -13,9 +13,9 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentType;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.greaterThan;
@@ -30,13 +30,14 @@ public class LegacyIndexStatsIT extends ESIntegTestCase {
     }
 
     public void testFieldDataFieldsParam() {
-        assertAcked(client()
-                .admin()
+        assertAcked(
+            client().admin()
                 .indices()
                 .prepareCreate("test1")
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.V_6_0_0))
                 .addMapping("_doc", "bar", "type=text,fielddata=true", "baz", "type=text,fielddata=true")
-                .get());
+                .get()
+        );
 
         ensureGreen();
 

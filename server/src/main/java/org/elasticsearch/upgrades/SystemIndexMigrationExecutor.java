@@ -48,7 +48,8 @@ public class SystemIndexMigrationExecutor extends PersistentTasksExecutor<System
         SystemIndices systemIndices,
         MetadataUpdateSettingsService metadataUpdateSettingsService,
         MetadataCreateIndexService metadataCreateIndexService,
-        IndexScopedSettings indexScopedSettings) {
+        IndexScopedSettings indexScopedSettings
+    ) {
         super(SYSTEM_INDEX_UPGRADE_TASK_NAME, ThreadPool.Names.GENERIC);
         this.client = client;
         this.clusterService = clusterService;
@@ -86,7 +87,8 @@ public class SystemIndexMigrationExecutor extends PersistentTasksExecutor<System
             systemIndices,
             metadataUpdateSettingsService,
             metadataCreateIndexService,
-            indexScopedSettings);
+            indexScopedSettings
+        );
     }
 
     @Override
@@ -108,15 +110,13 @@ public class SystemIndexMigrationExecutor extends PersistentTasksExecutor<System
     }
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return org.elasticsearch.core.List.of(new NamedWriteableRegistry.Entry(
-                PersistentTaskState.class,
-                SYSTEM_INDEX_UPGRADE_TASK_NAME,
-                SystemIndexMigrationTaskState::new
-            ),
+        return org.elasticsearch.core.List.of(
+            new NamedWriteableRegistry.Entry(PersistentTaskState.class, SYSTEM_INDEX_UPGRADE_TASK_NAME, SystemIndexMigrationTaskState::new),
             new NamedWriteableRegistry.Entry(
                 PersistentTaskParams.class,
                 SYSTEM_INDEX_UPGRADE_TASK_NAME,
                 SystemIndexMigrationTaskParams::new
-            ));
+            )
+        );
     }
 }

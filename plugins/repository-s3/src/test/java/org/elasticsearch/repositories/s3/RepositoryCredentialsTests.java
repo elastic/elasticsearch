@@ -11,17 +11,17 @@ package org.elasticsearch.repositories.s3;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
@@ -32,6 +32,7 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.admin.cluster.RestGetRepositoriesAction;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -78,10 +79,7 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
         secureSettings.setString(ACCESS_KEY_SETTING.getConcreteSettingForNamespace("other").getKey(), "secure_other_key");
         secureSettings.setString(SECRET_KEY_SETTING.getConcreteSettingForNamespace("other").getKey(), "secure_other_secret");
 
-        return Settings.builder()
-            .setSecureSettings(secureSettings)
-            .put(super.nodeSettings())
-            .build();
+        return Settings.builder().setSecureSettings(secureSettings).put(super.nodeSettings()).build();
     }
 
     public void testRepositoryCredentialsOverrideSecureCredentials() {
@@ -115,7 +113,8 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
             "Using s3 access/secret key from repository settings. Instead store these in named clients and"
                 + " the elasticsearch keystore for secure settings.",
             "[access_key] setting was deprecated in Elasticsearch and will be removed in a future release!"
-                + " See the breaking changes documentation for the next major version.");
+                + " See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testReinitSecureCredentials() {
@@ -200,16 +199,20 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
                 "Using s3 access/secret key from repository settings. Instead store these in named clients and"
                     + " the elasticsearch keystore for secure settings.",
                 "[access_key] setting was deprecated in Elasticsearch and will be removed in a future release!"
-                    + " See the breaking changes documentation for the next major version.");
+                    + " See the breaking changes documentation for the next major version."
+            );
         }
     }
 
     public void testInsecureRepositoryCredentials() throws Exception {
         final String repositoryName = "repo-insecure-creds";
-        createRepository(repositoryName, Settings.builder()
-            .put(S3Repository.ACCESS_KEY_SETTING.getKey(), "insecure_aws_key")
-            .put(S3Repository.SECRET_KEY_SETTING.getKey(), "insecure_aws_secret")
-            .build());
+        createRepository(
+            repositoryName,
+            Settings.builder()
+                .put(S3Repository.ACCESS_KEY_SETTING.getKey(), "insecure_aws_key")
+                .put(S3Repository.SECRET_KEY_SETTING.getKey(), "insecure_aws_secret")
+                .build()
+        );
 
         final RestRequest fakeRestRequest = new FakeRestRequest();
         fakeRestRequest.params().put("repository", repositoryName);
@@ -238,14 +241,19 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
 
         assertWarnings(
             "Using s3 access/secret key from repository settings. Instead store these in named clients and"
-                + " the elasticsearch keystore for secure settings.");
+                + " the elasticsearch keystore for secure settings."
+        );
     }
 
     private void createRepository(final String name, final Settings repositorySettings) {
-        assertAcked(client().admin().cluster().preparePutRepository(name)
-            .setType(S3Repository.TYPE)
-            .setVerify(false)
-            .setSettings(repositorySettings));
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository(name)
+                .setType(S3Repository.TYPE)
+                .setVerify(false)
+                .setSettings(repositorySettings)
+        );
     }
 
     /**
@@ -258,9 +266,13 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        protected S3Repository createRepository(RepositoryMetadata metadata,
-                                                NamedXContentRegistry registry, ClusterService clusterService, BigArrays bigArrays,
-                                                RecoverySettings recoverySettings) {
+        protected S3Repository createRepository(
+            RepositoryMetadata metadata,
+            NamedXContentRegistry registry,
+            ClusterService clusterService,
+            BigArrays bigArrays,
+            RecoverySettings recoverySettings
+        ) {
             return new S3Repository(metadata, registry, service, clusterService, bigArrays, recoverySettings) {
                 @Override
                 protected void assertSnapshotOrGenericThread() {

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.ccr;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -17,8 +18,8 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 import org.elasticsearch.xpack.core.ccr.CcrConstants;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
-import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
+import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.client.CcrClient;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
@@ -34,7 +35,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -150,8 +151,11 @@ public class StatsCollectorTests extends BaseCollectorTestCase {
         assertThat(document.getId(), nullValue());
         assertThat(document.stats(), is(autoFollowStats));
 
-        assertWarnings("[xpack.monitoring.collection.ccr.stats.timeout] setting was deprecated in Elasticsearch and will be removed in " +
-            "a future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(
+            Level.WARN,
+            "[xpack.monitoring.collection.ccr.stats.timeout] setting was deprecated in Elasticsearch and will "
+                + "be removed in a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     private List<FollowStatsAction.StatsResponse> mockStatuses() {
@@ -169,10 +173,12 @@ public class StatsCollectorTests extends BaseCollectorTestCase {
         return statuses;
     }
 
-    private StatsCollector createCollector(Settings settings,
-                                           ClusterService clusterService,
-                                           XPackLicenseState licenseState,
-                                           Client client) {
+    private StatsCollector createCollector(
+        Settings settings,
+        ClusterService clusterService,
+        XPackLicenseState licenseState,
+        Client client
+    ) {
         return new StatsCollector(settings, clusterService, licenseState, client);
     }
 

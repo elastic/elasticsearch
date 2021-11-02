@@ -15,11 +15,11 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -81,8 +81,7 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
         private FollowParameters parameters = new FollowParameters();
         private ActiveShardCount waitForActiveShards = ActiveShardCount.NONE;
 
-        public Request() {
-        }
+        public Request() {}
 
         public String getFollowerIndex() {
             return followerIndex;
@@ -162,7 +161,7 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
 
         @Override
         public String[] indices() {
-            return new String[]{followerIndex};
+            return new String[] { followerIndex };
         }
 
         @Override
@@ -223,11 +222,11 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(remoteCluster, request.remoteCluster) &&
-                Objects.equals(leaderIndex, request.leaderIndex) &&
-                Objects.equals(followerIndex, request.followerIndex) &&
-                Objects.equals(parameters, request.parameters) &&
-                Objects.equals(waitForActiveShards, request.waitForActiveShards);
+            return Objects.equals(remoteCluster, request.remoteCluster)
+                && Objects.equals(leaderIndex, request.leaderIndex)
+                && Objects.equals(followerIndex, request.followerIndex)
+                && Objects.equals(parameters, request.parameters)
+                && Objects.equals(waitForActiveShards, request.waitForActiveShards);
         }
 
         @Override
@@ -301,9 +300,9 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Response response = (Response) o;
-            return followIndexCreated == response.followIndexCreated &&
-                followIndexShardsAcked == response.followIndexShardsAcked &&
-                indexFollowingStarted == response.indexFollowingStarted;
+            return followIndexCreated == response.followIndexCreated
+                && followIndexShardsAcked == response.followIndexShardsAcked
+                && indexFollowingStarted == response.indexFollowingStarted;
         }
 
         @Override
@@ -313,11 +312,14 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
 
         @Override
         public String toString() {
-            return "PutFollowAction.Response{" +
-                "followIndexCreated=" + followIndexCreated +
-                ", followIndexShardsAcked=" + followIndexShardsAcked +
-                ", indexFollowingStarted=" + indexFollowingStarted +
-                '}';
+            return "PutFollowAction.Response{"
+                + "followIndexCreated="
+                + followIndexCreated
+                + ", followIndexShardsAcked="
+                + followIndexShardsAcked
+                + ", indexFollowingStarted="
+                + indexFollowingStarted
+                + '}';
         }
     }
 

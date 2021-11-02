@@ -11,18 +11,18 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -149,7 +149,6 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
         }
     }
 
-
     @Override
     public String getWriteableName() {
         return NAME;
@@ -197,7 +196,6 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
 
     @Override
     protected boolean doEquals(IdsQueryBuilder other) {
-        return Objects.equals(ids, other.ids) &&
-               Arrays.equals(types, other.types);
+        return Objects.equals(ids, other.ids) && Arrays.equals(types, other.types);
     }
 }

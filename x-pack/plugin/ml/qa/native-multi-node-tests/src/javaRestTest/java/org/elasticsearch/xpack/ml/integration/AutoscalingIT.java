@@ -48,60 +48,61 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
     // and that xpack.ml.use_auto_machine_memory_percent is false
     public void testMLAutoscalingCapacity() throws Exception {
         SortedMap<String, Settings> deciders = new TreeMap<>();
-        deciders.put(MlAutoscalingDeciderService.NAME,
-            Settings.builder().put(MlAutoscalingDeciderService.DOWN_SCALE_DELAY.getKey(), TimeValue.ZERO).build());
+        deciders.put(
+            MlAutoscalingDeciderService.NAME,
+            Settings.builder().put(MlAutoscalingDeciderService.DOWN_SCALE_DELAY.getKey(), TimeValue.ZERO).build()
+        );
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
             "ml_test",
-            new TreeSet<>(Arrays.asList(
-                "transform",
-                "data_frozen",
-                "master",
-                "remote_cluster_client",
-                "data",
-                "ml",
-                "data_content",
-                "data_hot",
-                "data_warm",
-                "data_cold",
-                "ingest"
-            )),
+            new TreeSet<>(
+                Arrays.asList(
+                    "transform",
+                    "data_frozen",
+                    "master",
+                    "remote_cluster_client",
+                    "data",
+                    "ml",
+                    "data_content",
+                    "data_hot",
+                    "data_warm",
+                    "data_cold",
+                    "ingest"
+                )
+            ),
             deciders
         );
         assertAcked(client().execute(PutAutoscalingPolicyAction.INSTANCE, request).actionGet());
 
-        assertBusy(() -> assertMlCapacity(
-            client().execute(
-                GetAutoscalingCapacityAction.INSTANCE,
-                new GetAutoscalingCapacityAction.Request()
-            ).actionGet(),
-            "Requesting scale down as tier and/or node size could be smaller",
-            0L,
-            0L));
+        assertBusy(
+            () -> assertMlCapacity(
+                client().execute(GetAutoscalingCapacityAction.INSTANCE, new GetAutoscalingCapacityAction.Request()).actionGet(),
+                "Requesting scale down as tier and/or node size could be smaller",
+                0L,
+                0L
+            )
+        );
 
         putJob("job1", 100);
         putJob("job2", 200);
         openJob("job1");
         openJob("job2");
-        long expectedTierBytes = (long)Math.ceil(
+        long expectedTierBytes = (long) Math.ceil(
             ByteSizeValue.ofMb(100 + BASELINE_OVERHEAD_MB + 200 + BASELINE_OVERHEAD_MB).getBytes() * 100 / 30.0
         );
-        long expectedNodeBytes = (long)Math.ceil(ByteSizeValue.ofMb(200 + BASELINE_OVERHEAD_MB).getBytes() * 100 / 30.0);
+        long expectedNodeBytes = (long) Math.ceil(ByteSizeValue.ofMb(200 + BASELINE_OVERHEAD_MB).getBytes() * 100 / 30.0);
 
         assertMlCapacity(
-            client().execute(
-                GetAutoscalingCapacityAction.INSTANCE,
-                new GetAutoscalingCapacityAction.Request()
-            ).actionGet(),
+            client().execute(GetAutoscalingCapacityAction.INSTANCE, new GetAutoscalingCapacityAction.Request()).actionGet(),
             "Requesting scale down as tier and/or node size could be smaller",
             expectedTierBytes,
-            expectedNodeBytes);
+            expectedNodeBytes
+        );
 
         putJob("bigjob1", 60_000);
         putJob("bigjob2", 50_000);
         openJob("bigjob1");
         openJob("bigjob2");
-        List<DiscoveryNode> mlNodes = admin()
-            .cluster()
+        List<DiscoveryNode> mlNodes = admin().cluster()
             .prepareNodesInfo()
             .all()
             .get()
@@ -111,49 +112,41 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
             .filter(MachineLearning::isMlNode)
             .collect(Collectors.toList());
         NativeMemoryCapacity currentScale = MlAutoscalingDeciderService.currentScale(mlNodes, 30, false);
-        expectedTierBytes = (long)Math.ceil(
-            (ByteSizeValue.ofMb(50_000 + BASIC_REQUIREMENT_MB + 60_000 + BASELINE_OVERHEAD_MB).getBytes()
-                + currentScale.getTier()
-            ) * 100 / 30.0
+        expectedTierBytes = (long) Math.ceil(
+            (ByteSizeValue.ofMb(50_000 + BASIC_REQUIREMENT_MB + 60_000 + BASELINE_OVERHEAD_MB).getBytes() + currentScale.getTier()) * 100
+                / 30.0
         );
         expectedNodeBytes = (long) (ByteSizeValue.ofMb(60_000 + BASELINE_OVERHEAD_MB).getBytes() * 100 / 30.0);
 
-
         assertMlCapacity(
-            client().execute(
-                GetAutoscalingCapacityAction.INSTANCE,
-                new GetAutoscalingCapacityAction.Request()
-            ).actionGet(),
+            client().execute(GetAutoscalingCapacityAction.INSTANCE, new GetAutoscalingCapacityAction.Request()).actionGet(),
             "requesting scale up as number of jobs in queues exceeded configured limit",
             expectedTierBytes,
-            expectedNodeBytes);
+            expectedNodeBytes
+        );
 
-        expectedTierBytes = (long)Math.ceil(
+        expectedTierBytes = (long) Math.ceil(
             ByteSizeValue.ofMb(100 + BASELINE_OVERHEAD_MB + 200 + BASELINE_OVERHEAD_MB).getBytes() * 100 / 30.0
         );
-        expectedNodeBytes = (long)Math.ceil(ByteSizeValue.ofMb(200 + BASELINE_OVERHEAD_MB).getBytes() * 100 / 30.0);
+        expectedNodeBytes = (long) Math.ceil(ByteSizeValue.ofMb(200 + BASELINE_OVERHEAD_MB).getBytes() * 100 / 30.0);
         closeJob("bigjob1");
         closeJob("bigjob2");
 
         assertMlCapacity(
-            client().execute(
-                GetAutoscalingCapacityAction.INSTANCE,
-                new GetAutoscalingCapacityAction.Request()
-            ).actionGet(),
+            client().execute(GetAutoscalingCapacityAction.INSTANCE, new GetAutoscalingCapacityAction.Request()).actionGet(),
             "Requesting scale down as tier and/or node size could be smaller",
             expectedTierBytes,
-            expectedNodeBytes);
+            expectedNodeBytes
+        );
         closeJob("job1");
         closeJob("job2");
 
         assertMlCapacity(
-            client().execute(
-                GetAutoscalingCapacityAction.INSTANCE,
-                new GetAutoscalingCapacityAction.Request()
-            ).actionGet(),
+            client().execute(GetAutoscalingCapacityAction.INSTANCE, new GetAutoscalingCapacityAction.Request()).actionGet(),
             "Requesting scale down as tier and/or node size could be smaller",
             0L,
-            0L);
+            0L
+        );
     }
 
     private void assertMlCapacity(GetAutoscalingCapacityAction.Response capacity, String reason, long tierBytes, long nodeBytes) {
@@ -168,21 +161,13 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
     }
 
     private void putJob(String jobId, long limitMb) {
-        Job.Builder job =
-            new Job.Builder(jobId)
-                .setAllowLazyOpen(true)
-                .setAnalysisLimits(new AnalysisLimits(limitMb, null))
-                .setAnalysisConfig(
-                    new AnalysisConfig.Builder((List<Detector>) null)
-                        .setBucketSpan(TimeValue.timeValueHours(1))
-                        .setDetectors(
-                            Collections.singletonList(
-                                new Detector.Builder("count", null)
-                                    .setPartitionFieldName("user")
-                                    .build())))
-                .setDataDescription(
-                    new DataDescription.Builder()
-                        .setTimeFormat("epoch"));
+        Job.Builder job = new Job.Builder(jobId).setAllowLazyOpen(true)
+            .setAnalysisLimits(new AnalysisLimits(limitMb, null))
+            .setAnalysisConfig(
+                new AnalysisConfig.Builder((List<Detector>) null).setBucketSpan(TimeValue.timeValueHours(1))
+                    .setDetectors(Collections.singletonList(new Detector.Builder("count", null).setPartitionFieldName("user").build()))
+            )
+            .setDataDescription(new DataDescription.Builder().setTimeFormat("epoch"));
 
         putJob(job);
     }

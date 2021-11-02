@@ -14,10 +14,7 @@ import org.elasticsearch.cloud.azure.classic.management.AzureComputeService.Mana
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST,
-        numDataNodes = 0,
-        transportClientRatio = 0.0,
-        numClientNodes = 0)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0.0, numClientNodes = 0)
 public class AzureTwoStartedNodesTests extends AbstractAzureComputeServiceTestCase {
 
     public void testTwoNodesShouldRunUsingPrivateOrPublicIp() {

@@ -72,7 +72,7 @@ public interface ZenPing extends Releasable {
          * @param master              the current master of the node
          * @param clusterName         the cluster name of the node
          * @param clusterStateVersion the current cluster state version of that node
-*                            ({@link ElectMasterService.MasterCandidate#UNRECOVERED_CLUSTER_VERSION} for not recovered)
+        *                            ({@link ElectMasterService.MasterCandidate#UNRECOVERED_CLUSTER_VERSION} for not recovered)
          */
         public PingResponse(long id, DiscoveryNode node, DiscoveryNode master, ClusterName clusterName, long clusterStateVersion) {
             this.id = id;
@@ -83,9 +83,14 @@ public interface ZenPing extends Releasable {
         }
 
         public PingResponse(DiscoveryNode node, DiscoveryNode master, ClusterState state) {
-            this(node, master, state.getClusterName(),
-                state.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) ?
-                    ElectMasterService.MasterCandidate.UNRECOVERED_CLUSTER_VERSION : state.version());
+            this(
+                node,
+                master,
+                state.getClusterName(),
+                state.blocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
+                    ? ElectMasterService.MasterCandidate.UNRECOVERED_CLUSTER_VERSION
+                    : state.version()
+            );
         }
 
         PingResponse(StreamInput in) throws IOException {
@@ -139,11 +144,20 @@ public interface ZenPing extends Releasable {
 
         @Override
         public String toString() {
-            return "ping_response{node [" + node + "], id[" + id + "], master [" + master + "]," +
-                   "cluster_state_version [" + clusterStateVersion + "], cluster_name[" + clusterName.value() + "]}";
+            return "ping_response{node ["
+                + node
+                + "], id["
+                + id
+                + "], master ["
+                + master
+                + "],"
+                + "cluster_state_version ["
+                + clusterStateVersion
+                + "], cluster_name["
+                + clusterName.value()
+                + "]}";
         }
     }
-
 
     /**
      * a utility collection of pings where only the most recent ping is stored per node

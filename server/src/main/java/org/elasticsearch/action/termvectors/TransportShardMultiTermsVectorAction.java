@@ -26,19 +26,33 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportShardMultiTermsVectorAction extends
-        TransportSingleShardAction<MultiTermVectorsShardRequest, MultiTermVectorsShardResponse> {
+public class TransportShardMultiTermsVectorAction extends TransportSingleShardAction<
+    MultiTermVectorsShardRequest,
+    MultiTermVectorsShardResponse> {
 
     private final IndicesService indicesService;
 
     private static final String ACTION_NAME = MultiTermVectorsAction.NAME + "[shard]";
 
     @Inject
-    public TransportShardMultiTermsVectorAction(ClusterService clusterService, TransportService transportService,
-                                                IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
-                                                IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(ACTION_NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                MultiTermVectorsShardRequest::new, ThreadPool.Names.GET);
+    public TransportShardMultiTermsVectorAction(
+        ClusterService clusterService,
+        TransportService transportService,
+        IndicesService indicesService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            ACTION_NAME,
+            threadPool,
+            clusterService,
+            transportService,
+            actionFilters,
+            indexNameExpressionResolver,
+            MultiTermVectorsShardRequest::new,
+            ThreadPool.Names.GET
+        );
         this.indicesService = indicesService;
     }
 
@@ -60,7 +74,7 @@ public class TransportShardMultiTermsVectorAction extends
     @Override
     protected ShardIterator shards(ClusterState state, InternalRequest request) {
         return clusterService.operationRouting()
-                .getShards(state, request.concreteIndex(), request.request().shardId(), request.request().preference());
+            .getShards(state, request.concreteIndex(), request.request().shardId(), request.request().preference());
     }
 
     @Override
@@ -77,10 +91,19 @@ public class TransportShardMultiTermsVectorAction extends
                 if (TransportActions.isShardNotAvailableException(e)) {
                     throw e;
                 } else {
-                    logger.debug(() -> new ParameterizedMessage("{} failed to execute multi term vectors for [{}]/[{}]",
-                        shardId, termVectorsRequest.type(), termVectorsRequest.id()), e);
-                    response.add(request.locations.get(i),
-                            new MultiTermVectorsResponse.Failure(request.index(), termVectorsRequest.type(), termVectorsRequest.id(), e));
+                    logger.debug(
+                        () -> new ParameterizedMessage(
+                            "{} failed to execute multi term vectors for [{}]/[{}]",
+                            shardId,
+                            termVectorsRequest.type(),
+                            termVectorsRequest.id()
+                        ),
+                        e
+                    );
+                    response.add(
+                        request.locations.get(i),
+                        new MultiTermVectorsResponse.Failure(request.index(), termVectorsRequest.type(), termVectorsRequest.id(), e)
+                    );
                 }
             }
         }
@@ -91,7 +114,8 @@ public class TransportShardMultiTermsVectorAction extends
     @Override
     protected String getExecutor(MultiTermVectorsShardRequest request, ShardId shardId) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        return indexService.getIndexSettings().isSearchThrottled() ? ThreadPool.Names.SEARCH_THROTTLED : super.getExecutor(request,
-            shardId);
+        return indexService.getIndexSettings().isSearchThrottled()
+            ? ThreadPool.Names.SEARCH_THROTTLED
+            : super.getExecutor(request, shardId);
     }
 }

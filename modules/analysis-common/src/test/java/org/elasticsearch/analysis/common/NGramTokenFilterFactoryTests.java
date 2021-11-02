@@ -28,10 +28,11 @@ public class NGramTokenFilterFactoryTests extends ESTokenStreamTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put("index.analysis.filter.my_ngram.type", "ngram")
                 .build(),
-            new CommonAnalysisPlugin());
+            new CommonAnalysisPlugin()
+        );
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_ngram");
         String source = "foo";
-        String[] expected = new String[]{"f", "fo", "o", "oo", "o"};
+        String[] expected = new String[] { "f", "fo", "o", "oo", "o" };
         Tokenizer tokenizer = new StandardTokenizer();
         tokenizer.setReader(new StringReader(source));
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
@@ -44,10 +45,11 @@ public class NGramTokenFilterFactoryTests extends ESTokenStreamTestCase {
                 .put("index.analysis.filter.my_ngram.type", "ngram")
                 .put("index.analysis.filter.my_ngram.preserve_original", true)
                 .build(),
-            new CommonAnalysisPlugin());
+            new CommonAnalysisPlugin()
+        );
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_ngram");
         String source = "foo";
-        String[] expected = new String[]{"f", "fo", "o", "oo", "o", "foo"};
+        String[] expected = new String[] { "f", "fo", "o", "oo", "o", "foo" };
         Tokenizer tokenizer = new StandardTokenizer();
         tokenizer.setReader(new StringReader(source));
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected);

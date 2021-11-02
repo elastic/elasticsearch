@@ -99,16 +99,26 @@ public class CodecTests extends ESTestCase {
     }
 
     private CodecService createCodecService() throws IOException {
-        Settings nodeSettings = Settings.builder()
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-                .build();
+        Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         IndexSettings settings = IndexSettingsModule.newIndexSettings("_na", nodeSettings);
         SimilarityService similarityService = new SimilarityService(settings, null, Collections.emptyMap());
         IndexAnalyzers indexAnalyzers = createTestAnalysis(settings, nodeSettings).indexAnalyzers;
-        MapperRegistry mapperRegistry = new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
-            MapperPlugin.NOOP_FIELD_FILTER);
-        MapperService service = new MapperService(settings, indexAnalyzers, xContentRegistry(), similarityService, mapperRegistry,
-                () -> null, () -> false, ScriptCompiler.NONE);
+        MapperRegistry mapperRegistry = new MapperRegistry(
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            MapperPlugin.NOOP_FIELD_FILTER
+        );
+        MapperService service = new MapperService(
+            settings,
+            indexAnalyzers,
+            xContentRegistry(),
+            similarityService,
+            mapperRegistry,
+            () -> null,
+            () -> false,
+            ScriptCompiler.NONE
+        );
         return new CodecService(service);
     }
 

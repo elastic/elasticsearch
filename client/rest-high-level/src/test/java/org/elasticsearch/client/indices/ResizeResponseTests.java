@@ -14,8 +14,9 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
-public class ResizeResponseTests extends
-    AbstractResponseTestCase<org.elasticsearch.action.admin.indices.shrink.ResizeResponse, ResizeResponse> {
+public class ResizeResponseTests extends AbstractResponseTestCase<
+    org.elasticsearch.action.admin.indices.shrink.ResizeResponse,
+    ResizeResponse> {
 
     @Override
     protected org.elasticsearch.action.admin.indices.shrink.ResizeResponse createServerTestInstance(XContentType xContentType) {
@@ -29,8 +30,10 @@ public class ResizeResponseTests extends
     }
 
     @Override
-    protected void assertInstances(org.elasticsearch.action.admin.indices.shrink.ResizeResponse serverTestInstance,
-                                   ResizeResponse clientInstance) {
+    protected void assertInstances(
+        org.elasticsearch.action.admin.indices.shrink.ResizeResponse serverTestInstance,
+        ResizeResponse clientInstance
+    ) {
         assertEquals(serverTestInstance.isAcknowledged(), clientInstance.isAcknowledged());
         assertEquals(serverTestInstance.isShardsAcknowledged(), clientInstance.isShardsAcknowledged());
         assertEquals(serverTestInstance.index(), clientInstance.index());

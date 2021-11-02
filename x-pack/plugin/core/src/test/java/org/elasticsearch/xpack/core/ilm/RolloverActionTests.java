@@ -34,11 +34,11 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
 
     public static RolloverAction randomInstance() {
         ByteSizeUnit maxSizeUnit = randomFrom(ByteSizeUnit.values());
-        ByteSizeValue maxSize = randomBoolean() ? null :
-            new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
+        ByteSizeValue maxSize = randomBoolean() ? null : new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
         ByteSizeUnit maxPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
-        ByteSizeValue maxPrimaryShardSize = randomBoolean() ? null :
-            new ByteSizeValue(randomNonNegativeLong() / maxPrimaryShardSizeUnit.toBytes(1), maxPrimaryShardSizeUnit);
+        ByteSizeValue maxPrimaryShardSize = randomBoolean()
+            ? null
+            : new ByteSizeValue(randomNonNegativeLong() / maxPrimaryShardSizeUnit.toBytes(1), maxPrimaryShardSizeUnit);
         Long maxDocs = randomBoolean() ? null : randomNonNegativeLong();
         TimeValue maxAge = (maxDocs == null && maxSize == null || randomBoolean())
             ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
@@ -71,8 +71,7 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
                 });
                 break;
             case 2:
-                maxAge = randomValueOtherThan(maxAge,
-                    () -> TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test"));
+                maxAge = randomValueOtherThan(maxAge, () -> TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test"));
                 break;
             case 3:
                 maxDocs = maxDocs == null ? randomNonNegativeLong() : maxDocs + 1;
@@ -84,16 +83,18 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
     }
 
     public void testNoConditions() {
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> new RolloverAction(null, null, null, null));
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new RolloverAction(null, null, null, null));
         assertEquals("At least one rollover condition must be set.", exception.getMessage());
     }
 
     public void testToSteps() {
         RolloverAction action = createTestInstance();
         String phase = randomAlphaOfLengthBetween(1, 10);
-        StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
-            randomAlphaOfLengthBetween(1, 10));
+        StepKey nextStepKey = new StepKey(
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10)
+        );
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
         assertNotNull(steps);
         assertEquals(5, steps.size());

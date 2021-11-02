@@ -82,10 +82,11 @@ public class SecureMockMaker implements MockMaker {
 
     @Override
     public <T> ConstructionMockControl<T> createConstructionMock(
-            Class<T> type,
-            Function<MockedConstruction.Context, MockCreationSettings<T>> settingsFactory,
-            Function<MockedConstruction.Context, MockHandler<T>> handlerFactory,
-            MockedConstruction.MockInitializer<T> mockInitializer) {
+        Class<T> type,
+        Function<MockedConstruction.Context, MockCreationSettings<T>> settingsFactory,
+        Function<MockedConstruction.Context, MockHandler<T>> handlerFactory,
+        MockedConstruction.MockInitializer<T> mockInitializer
+    ) {
         return delegate.createConstructionMock(type, settingsFactory, handlerFactory, mockInitializer);
     }
 

@@ -50,7 +50,6 @@ public class IteratorsTests extends ESTestCase {
         assertSingleton(value, empty(), singletonIterator(value));
     }
 
-
     public void testEmptyAfterSingleton() {
         int value = randomInt();
         assertSingleton(value, singletonIterator(value), empty());
@@ -60,7 +59,7 @@ public class IteratorsTests extends ESTestCase {
         int numberOfIterators = randomIntBetween(1, 1000);
         int singletonIndex = randomIntBetween(0, numberOfIterators - 1);
         int value = randomInt();
-        @SuppressWarnings({"rawtypes", "unchecked"})
+        @SuppressWarnings({ "rawtypes", "unchecked" })
         Iterator<Integer>[] iterators = new Iterator[numberOfIterators];
         for (int i = 0; i < numberOfIterators; i++) {
             iterators[i] = i != singletonIndex ? empty() : singletonIterator(value);
@@ -70,7 +69,7 @@ public class IteratorsTests extends ESTestCase {
 
     public void testRandomIterators() {
         int numberOfIterators = randomIntBetween(1, 1000);
-        @SuppressWarnings({"rawtypes", "unchecked"})
+        @SuppressWarnings({ "rawtypes", "unchecked" })
         Iterator<Integer>[] iterators = new Iterator[numberOfIterators];
         List<Integer> values = new ArrayList<>();
         for (int i = 0; i < numberOfIterators; i++) {
@@ -95,7 +94,7 @@ public class IteratorsTests extends ESTestCase {
 
     public void testNull() {
         try {
-            Iterators.concat((Iterator<?>)null);
+            Iterators.concat((Iterator<?>) null);
             fail("expected " + NullPointerException.class.getSimpleName());
         } catch (NullPointerException e) {
 
@@ -116,7 +115,7 @@ public class IteratorsTests extends ESTestCase {
     }
 
     @SafeVarargs
-    @SuppressWarnings({"unchecked", "varargs"})
+    @SuppressWarnings({ "unchecked", "varargs" })
     private final <T> void assertSingleton(T value, Iterator<T>... iterators) {
         Iterator<T> concat = Iterators.concat(iterators);
         assertContainsInOrder(concat, value);
@@ -137,7 +136,7 @@ public class IteratorsTests extends ESTestCase {
     }
 
     @SafeVarargs
-    @SuppressWarnings({"varargs"})
+    @SuppressWarnings({ "varargs" })
     private final <T> void assertContainsInOrder(Iterator<T> iterator, T... values) {
         for (T value : values) {
             assertTrue(iterator.hasNext());

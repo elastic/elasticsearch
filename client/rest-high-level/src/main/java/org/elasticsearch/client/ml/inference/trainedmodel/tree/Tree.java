@@ -9,10 +9,10 @@ package org.elasticsearch.client.ml.inference.trainedmodel.tree;
 
 import org.elasticsearch.client.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.client.ml.inference.trainedmodel.TrainedModel;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -97,7 +97,7 @@ public class Tree implements TrainedModel {
             builder.field(TARGET_TYPE.getPreferredName(), targetType.toString());
         }
         builder.endObject();
-        return  builder;
+        return builder;
     }
 
     @Override
@@ -220,10 +220,12 @@ public class Tree implements TrainedModel {
         }
 
         public Tree build() {
-            return new Tree(featureNames,
+            return new Tree(
+                featureNames,
                 nodes.stream().map(TreeNode.Builder::build).collect(Collectors.toList()),
                 targetType,
-                classificationLabels);
+                classificationLabels
+            );
         }
     }
 

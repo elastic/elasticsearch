@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.searchablesnapshots.cache.shared;
 
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -385,4 +386,30 @@ public class FrozenCacheServiceTests extends ESTestCase {
             assertEquals(val2.getBytes(), cacheService.getStats().getSize());
         }
     }
+
+    private void assertThatNonPositiveRecoveryRangeSizeRejected(Setting<ByteSizeValue> setting) {
+        final String value = randomFrom(ByteSizeValue.MINUS_ONE, ByteSizeValue.ZERO).getStringRep();
+        final Settings settings = Settings.builder()
+            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(size(100)).getStringRep())
+            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName())
+            .put(setting.getKey(), value)
+            .build();
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> setting.get(settings));
+        assertThat(e.getCause(), notNullValue());
+        assertThat(e.getCause(), instanceOf(SettingsException.class));
+        assertThat(e.getCause().getMessage(), is("setting [" + setting.getKey() + "] must be greater than zero"));
+    }
+
+    public void testNonPositiveRegionSizeRejected() {
+        assertThatNonPositiveRecoveryRangeSizeRejected(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING);
+    }
+
+    public void testNonPositiveRangeSizeRejected() {
+        assertThatNonPositiveRecoveryRangeSizeRejected(FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING);
+    }
+
+    public void testNonPositiveRecoveryRangeSizeRejected() {
+        assertThatNonPositiveRecoveryRangeSizeRejected(FrozenCacheService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING);
+    }
+
 }

@@ -11,12 +11,12 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -31,7 +31,6 @@ import java.util.Collections;
 import java.util.Objects;
 import java.util.SortedSet;
 import java.util.TreeSet;
-
 
 public class UpdateFilterAction extends ActionType<PutFilterAction.Response> {
 
@@ -62,8 +61,9 @@ public class UpdateFilterAction extends ActionType<PutFilterAction.Response> {
                 request.filterId = filterId;
             } else if (Strings.isNullOrEmpty(filterId) == false && filterId.equals(request.filterId) == false) {
                 // If we have both URI and body filter ID, they must be identical
-                throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID, MlFilter.ID.getPreferredName(),
-                        request.filterId, filterId));
+                throw new IllegalArgumentException(
+                    Messages.getMessage(Messages.INCONSISTENT_ID, MlFilter.ID.getPreferredName(), request.filterId, filterId)
+                );
             }
             return request;
         }
@@ -74,8 +74,7 @@ public class UpdateFilterAction extends ActionType<PutFilterAction.Response> {
         private SortedSet<String> addItems = Collections.emptySortedSet();
         private SortedSet<String> removeItems = Collections.emptySortedSet();
 
-        public Request() {
-        }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -167,9 +166,9 @@ public class UpdateFilterAction extends ActionType<PutFilterAction.Response> {
             }
             Request other = (Request) obj;
             return Objects.equals(filterId, other.filterId)
-                    && Objects.equals(description, other.description)
-                    && Objects.equals(addItems, other.addItems)
-                    && Objects.equals(removeItems, other.removeItems);
+                && Objects.equals(description, other.description)
+                && Objects.equals(addItems, other.addItems)
+                && Objects.equals(removeItems, other.removeItems);
         }
     }
 

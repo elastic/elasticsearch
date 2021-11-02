@@ -88,8 +88,8 @@ import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -114,21 +114,27 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
         newState.version(1);
         ClusterState currentCs = currentState.build();
         ClusterState newCs = newState.build();
-        assertTrue("should ignore, because new state's version is lower to current state's version",
-            shouldIgnoreOrRejectNewClusterState(logger, currentCs, newCs));
+        assertTrue(
+            "should ignore, because new state's version is lower to current state's version",
+            shouldIgnoreOrRejectNewClusterState(logger, currentCs, newCs)
+        );
 
         currentState = ClusterState.builder(currentCs).version(1);
         newState = ClusterState.builder(newCs).version(1);
         currentCs = currentState.build();
         newCs = newState.build();
-        assertTrue("should ignore, because new state's version is equal to current state's version",
-            shouldIgnoreOrRejectNewClusterState(logger, currentCs, newCs));
+        assertTrue(
+            "should ignore, because new state's version is equal to current state's version",
+            shouldIgnoreOrRejectNewClusterState(logger, currentCs, newCs)
+        );
         currentState = ClusterState.builder(currentCs).version(1);
         newState = ClusterState.builder(newCs).version(2);
         currentCs = currentState.build();
         newCs = newState.build();
-        assertFalse("should not ignore, because new state's version is higher to current state's version",
-            shouldIgnoreOrRejectNewClusterState(logger, currentCs, newCs));
+        assertFalse(
+            "should not ignore, because new state's version is higher to current state's version",
+            shouldIgnoreOrRejectNewClusterState(logger, currentCs, newCs)
+        );
 
         currentNodes = DiscoveryNodes.builder();
         currentNodes.masterNodeId("b").add(new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT));
@@ -162,8 +168,10 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             currentState.version(1);
             newState = ClusterState.builder(newCs).version(2);
         }
-        assertFalse("should not ignore, because current state doesn't have a master",
-            shouldIgnoreOrRejectNewClusterState(logger, currentState.build(), newState.build()));
+        assertFalse(
+            "should not ignore, because current state doesn't have a master",
+            shouldIgnoreOrRejectNewClusterState(logger, currentState.build(), newState.build())
+        );
     }
 
     public void testFilterNonMasterPingResponse() {
@@ -172,8 +180,14 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
         ArrayList<DiscoveryNode> allNodes = new ArrayList<>();
         for (int i = randomIntBetween(10, 20); i >= 0; i--) {
             Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES));
-            DiscoveryNode node = new DiscoveryNode("node_" + i, "id_" + i, buildNewFakeTransportAddress(), Collections.emptyMap(),
-                    roles, Version.CURRENT);
+            DiscoveryNode node = new DiscoveryNode(
+                "node_" + i,
+                "id_" + i,
+                buildNewFakeTransportAddress(),
+                Collections.emptyMap(),
+                roles,
+                Version.CURRENT
+            );
             responses.add(new ZenPing.PingResponse(node, randomBoolean() ? null : node, new ClusterName("test"), randomLong()));
             allNodes.add(node);
             if (node.isMasterNode()) {
@@ -196,7 +210,8 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
         // randomly make minimum_master_nodes a value higher than we have nodes for, so it will force failure
         int minMasterNodes = randomBoolean() ? 3 : 1;
         Settings settings = Settings.builder()
-                                .put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.toString(minMasterNodes)).build();
+            .put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.toString(minMasterNodes))
+            .build();
 
         ArrayDeque<Closeable> toClose = new ArrayDeque<>();
         try {
@@ -212,11 +227,11 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             toClose.addFirst(masterMasterService);
             // TODO: clustername shouldn't be stored twice in cluster service, but for now, work around it
             state = ClusterState.builder(discoveryState(masterMasterService).getClusterName()).nodes(state.nodes()).build();
-            Settings settingsWithClusterName = Settings.builder().put(settings).put(
-                ClusterName.CLUSTER_NAME_SETTING.getKey(), discoveryState(masterMasterService).getClusterName().value()).build();
-            ZenDiscovery masterZen = buildZenDiscovery(
-                settingsWithClusterName,
-                masterTransport, masterMasterService, threadPool);
+            Settings settingsWithClusterName = Settings.builder()
+                .put(settings)
+                .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), discoveryState(masterMasterService).getClusterName().value())
+                .build();
+            ZenDiscovery masterZen = buildZenDiscovery(settingsWithClusterName, masterTransport, masterMasterService, threadPool);
             masterZen.setCommittedState(state);
             toClose.addFirst(masterZen);
             masterTransport.acceptIncomingRequests();
@@ -227,7 +242,8 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
 
             DiscoveryNode otherNode = otherTransport.getLocalNode();
             final ClusterState otherState = ClusterState.builder(discoveryState(masterMasterService).getClusterName())
-                .nodes(DiscoveryNodes.builder().add(otherNode).localNodeId(otherNode.getId())).build();
+                .nodes(DiscoveryNodes.builder().add(otherNode).localNodeId(otherNode.getId()))
+                .build();
             MasterService otherMasterService = ClusterServiceUtils.createMasterService(threadPool, otherNode);
             toClose.addFirst(otherMasterService);
             ZenDiscovery otherZen = buildZenDiscovery(settingsWithClusterName, otherTransport, otherMasterService, threadPool);
@@ -240,13 +256,19 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
 
             // a new cluster state with a new discovery node (we will test if the cluster state
             // was updated by the presence of this node in NodesFaultDetection)
-            ClusterState newState = ClusterState.builder(discoveryState(masterMasterService)).incrementVersion().nodes(
-                DiscoveryNodes.builder(state.nodes()).add(otherNode).masterNodeId(masterNode.getId())
-            ).build();
+            ClusterState newState = ClusterState.builder(discoveryState(masterMasterService))
+                .incrementVersion()
+                .nodes(DiscoveryNodes.builder(state.nodes()).add(otherNode).masterNodeId(masterNode.getId()))
+                .build();
 
             // publishing a new cluster state
-            ClusterStatePublicationEvent clusterStatePublicationEvent
-                = new ClusterStatePublicationEvent("testing", state, newState, 0L, 0L);
+            ClusterStatePublicationEvent clusterStatePublicationEvent = new ClusterStatePublicationEvent(
+                "testing",
+                state,
+                newState,
+                0L,
+                0L
+            );
             AssertingAckListener listener = new AssertingAckListener(newState.nodes().getSize() - 1);
             expectedFDNodes = masterZen.getFaultDetectionNodes();
             AwaitingPublishListener awaitingPublishListener = new AwaitingPublishListener();
@@ -268,16 +290,19 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             terminate(threadPool);
         }
 
-        assertWarnings("[discovery.zen.minimum_master_nodes] setting was deprecated in Elasticsearch and will be removed in a future " +
-            "release! See the breaking changes documentation for the next major version.");
+        assertWarnings(
+            "[discovery.zen.minimum_master_nodes] setting was deprecated in Elasticsearch and will be removed in a future "
+                + "release! See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testPendingCSQueueIsClearedWhenClusterStatePublished() throws Exception {
         ThreadPool threadPool = new TestThreadPool(getClass().getName());
         // randomly make minimum_master_nodes a value higher than we have nodes for, so it will force failure
-        int minMasterNodes =  randomBoolean() ? 3 : 1;
+        int minMasterNodes = randomBoolean() ? 3 : 1;
         Settings settings = Settings.builder()
-            .put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.toString(minMasterNodes)).build();
+            .put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), Integer.toString(minMasterNodes))
+            .build();
 
         ArrayDeque<Closeable> toClose = new ArrayDeque<>();
         try {
@@ -300,13 +325,19 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
 
             // a new cluster state with a new discovery node (we will test if the cluster state
             // was updated by the presence of this node in NodesFaultDetection)
-            ClusterState newState = ClusterState.builder(discoveryState(masterMasterService)).incrementVersion().nodes(
-                DiscoveryNodes.builder(discoveryState(masterMasterService).nodes()).masterNodeId(masterNode.getId())
-            ).build();
+            ClusterState newState = ClusterState.builder(discoveryState(masterMasterService))
+                .incrementVersion()
+                .nodes(DiscoveryNodes.builder(discoveryState(masterMasterService).nodes()).masterNodeId(masterNode.getId()))
+                .build();
 
             // publishing a new cluster state
-            ClusterStatePublicationEvent clusterStatePublicationEvent
-                = new ClusterStatePublicationEvent("testing", state, newState, 0L, 0L);
+            ClusterStatePublicationEvent clusterStatePublicationEvent = new ClusterStatePublicationEvent(
+                "testing",
+                state,
+                newState,
+                0L,
+                0L
+            );
             AssertingAckListener listener = new AssertingAckListener(newState.nodes().getSize() - 1);
             AwaitingPublishListener awaitingPublishListener = new AwaitingPublishListener();
             masterZen.publish(clusterStatePublicationEvent, awaitingPublishListener, listener);
@@ -322,8 +353,10 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             terminate(threadPool);
         }
 
-        assertWarnings("[discovery.zen.minimum_master_nodes] setting was deprecated in Elasticsearch and will be removed in a future " +
-            "release! See the breaking changes documentation for the next major version.");
+        assertWarnings(
+            "[discovery.zen.minimum_master_nodes] setting was deprecated in Elasticsearch and will be removed in a future "
+                + "release! See the breaking changes documentation for the next major version."
+        );
     }
 
     private class AwaitingPublishListener implements ActionListener<Void> {
@@ -352,8 +385,12 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
         }
     }
 
-    private ZenDiscovery buildZenDiscovery(Settings settings, TransportService service, MasterService masterService,
-                                           ThreadPool threadPool) {
+    private ZenDiscovery buildZenDiscovery(
+        Settings settings,
+        TransportService service,
+        MasterService masterService,
+        ThreadPool threadPool
+    ) {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterApplier clusterApplier = new ClusterApplier() {
             @Override
@@ -371,10 +408,19 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
                 return null;
             }
         };
-        ZenDiscovery zenDiscovery = new ZenDiscovery(settings, threadPool, service,
+        ZenDiscovery zenDiscovery = new ZenDiscovery(
+            settings,
+            threadPool,
+            service,
             new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
-            masterService, clusterApplier, clusterSettings, hostsResolver -> Collections.emptyList(),
-            ESAllocationTestCase.createAllocationService(), Collections.emptyList(), (s, p, r) -> {});
+            masterService,
+            clusterApplier,
+            clusterSettings,
+            hostsResolver -> Collections.emptyList(),
+            ESAllocationTestCase.createAllocationService(),
+            Collections.emptyList(),
+            (s, p, r) -> {}
+        );
         zenDiscovery.start();
         return zenDiscovery;
     }
@@ -394,19 +440,42 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
         final int iters = randomIntBetween(3, 10);
         for (int i = 0; i < iters; i++) {
             ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT);
-            final DiscoveryNode otherNode = new DiscoveryNode("other_node", buildNewFakeTransportAddress(), emptyMap(),
-                DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
-            final DiscoveryNode localNode = new DiscoveryNode("other_node", buildNewFakeTransportAddress(), emptyMap(),
-                DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
-            MembershipAction.ValidateJoinRequestRequestHandler request = new MembershipAction.ValidateJoinRequestRequestHandler
-                (() -> localNode, JoinTaskExecutor.addBuiltInJoinValidators(Collections.emptyList()));
+            final DiscoveryNode otherNode = new DiscoveryNode(
+                "other_node",
+                buildNewFakeTransportAddress(),
+                emptyMap(),
+                DiscoveryNodeRole.BUILT_IN_ROLES,
+                Version.CURRENT
+            );
+            final DiscoveryNode localNode = new DiscoveryNode(
+                "other_node",
+                buildNewFakeTransportAddress(),
+                emptyMap(),
+                DiscoveryNodeRole.BUILT_IN_ROLES,
+                Version.CURRENT
+            );
+            MembershipAction.ValidateJoinRequestRequestHandler request = new MembershipAction.ValidateJoinRequestRequestHandler(
+                () -> localNode,
+                JoinTaskExecutor.addBuiltInJoinValidators(Collections.emptyList())
+            );
             final boolean incompatible = randomBoolean();
-            IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(Settings.builder()
-                .put(SETTING_VERSION_CREATED,
-                    incompatible ? VersionUtils.getPreviousVersion(Version.CURRENT.minimumIndexCompatibilityVersion())
-                        : VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT))
-                .put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(SETTING_CREATION_DATE, System.currentTimeMillis()))
+            IndexMetadata indexMetadata = IndexMetadata.builder("test")
+                .settings(
+                    Settings.builder()
+                        .put(
+                            SETTING_VERSION_CREATED,
+                            incompatible
+                                ? VersionUtils.getPreviousVersion(Version.CURRENT.minimumIndexCompatibilityVersion())
+                                : VersionUtils.randomVersionBetween(
+                                    random(),
+                                    Version.CURRENT.minimumIndexCompatibilityVersion(),
+                                    Version.CURRENT
+                                )
+                        )
+                        .put(SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(SETTING_CREATION_DATE, System.currentTimeMillis())
+                )
                 .state(IndexMetadata.State.OPEN)
                 .build();
             IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetadata.getIndex());
@@ -416,19 +485,34 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
 
             final DiscoveryNode primaryNode = otherNode;
-            indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting("test", 0, primaryNode.getId(), null, true,
-                ShardRoutingState.INITIALIZING, new UnassignedInfo(UnassignedInfo.Reason.INDEX_REOPENED, "getting there")));
+            indexShardRoutingBuilder.addShard(
+                TestShardRouting.newShardRouting(
+                    "test",
+                    0,
+                    primaryNode.getId(),
+                    null,
+                    true,
+                    ShardRoutingState.INITIALIZING,
+                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_REOPENED, "getting there")
+                )
+            );
             indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder.build());
             IndexRoutingTable indexRoutingTable = indexRoutingTableBuilder.build();
             IndexMetadata updatedIndexMetadata = updateActiveAllocations(indexRoutingTable, indexMetadata);
             stateBuilder.metadata(Metadata.builder().put(updatedIndexMetadata, false).generateClusterUuidIfNeeded())
                 .routingTable(RoutingTable.builder().add(indexRoutingTable).build());
             if (incompatible) {
-                IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
-                    request.messageReceived(new ValidateJoinRequest(stateBuilder.build()), null, null));
-                assertEquals("index [test] version not supported: "
-                    + VersionUtils.getPreviousVersion(Version.CURRENT.minimumIndexCompatibilityVersion())
-                    + " minimum compatible index version is: " + Version.CURRENT.minimumIndexCompatibilityVersion(), ex.getMessage());
+                IllegalStateException ex = expectThrows(
+                    IllegalStateException.class,
+                    () -> request.messageReceived(new ValidateJoinRequest(stateBuilder.build()), null, null)
+                );
+                assertEquals(
+                    "index [test] version not supported: "
+                        + VersionUtils.getPreviousVersion(Version.CURRENT.minimumIndexCompatibilityVersion())
+                        + " minimum compatible index version is: "
+                        + Version.CURRENT.minimumIndexCompatibilityVersion(),
+                    ex.getMessage()
+                );
             } else {
                 AtomicBoolean sendResponse = new AtomicBoolean(false);
                 request.messageReceived(new ValidateJoinRequest(stateBuilder.build()), new TransportChannel() {
@@ -461,20 +545,22 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
     public void testIncomingClusterStateValidation() throws Exception {
         ClusterName clusterName = new ClusterName("abc");
 
-        DiscoveryNodes.Builder currentNodes = DiscoveryNodes.builder().add(
-            new DiscoveryNode("a", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT)).localNodeId("a");
+        DiscoveryNodes.Builder currentNodes = DiscoveryNodes.builder()
+            .add(new DiscoveryNode("a", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT))
+            .localNodeId("a");
 
         ClusterState previousState = ClusterState.builder(clusterName).nodes(currentNodes).build();
 
         logger.info("--> testing acceptances of any master when having no master");
         ClusterState state = ClusterState.builder(previousState)
-            .nodes(DiscoveryNodes.builder(previousState.nodes()).masterNodeId(randomAlphaOfLength(10))).incrementVersion().build();
+            .nodes(DiscoveryNodes.builder(previousState.nodes()).masterNodeId(randomAlphaOfLength(10)))
+            .incrementVersion()
+            .build();
         ZenDiscovery.validateIncomingState(logger, state, previousState);
 
         // now set a master node
         previousState = state;
-        state = ClusterState.builder(previousState)
-            .nodes(DiscoveryNodes.builder(previousState.nodes()).masterNodeId("master")).build();
+        state = ClusterState.builder(previousState).nodes(DiscoveryNodes.builder(previousState.nodes()).masterNodeId("master")).build();
         logger.info("--> testing rejection of another master");
         try {
             ZenDiscovery.validateIncomingState(logger, state, previousState);
@@ -485,14 +571,22 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
 
         logger.info("--> test state from the current master is accepted");
         previousState = state;
-        ZenDiscovery.validateIncomingState(logger, ClusterState.builder(previousState)
-            .nodes(DiscoveryNodes.builder(previousState.nodes()).masterNodeId("master")).incrementVersion().build(), previousState);
-
+        ZenDiscovery.validateIncomingState(
+            logger,
+            ClusterState.builder(previousState)
+                .nodes(DiscoveryNodes.builder(previousState.nodes()).masterNodeId("master"))
+                .incrementVersion()
+                .build(),
+            previousState
+        );
 
         logger.info("--> testing rejection of another cluster name");
         try {
-            ZenDiscovery.validateIncomingState(logger, ClusterState.builder(new ClusterName(randomAlphaOfLength(10)))
-                .nodes(previousState.nodes()).build(), previousState);
+            ZenDiscovery.validateIncomingState(
+                logger,
+                ClusterState.builder(new ClusterName(randomAlphaOfLength(10))).nodes(previousState.nodes()).build(),
+                previousState
+            );
             fail("node accepted state with another cluster name");
         } catch (IllegalStateException OK) {
             assertThat(OK.toString(), containsString("received state from a node that is not part of the cluster"));
@@ -502,7 +596,8 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
         try {
             state = ClusterState.builder(previousState)
                 .nodes(DiscoveryNodes.builder(previousState.nodes()).localNodeId("_non_existing_").build())
-                .incrementVersion().build();
+                .incrementVersion()
+                .build();
             ZenDiscovery.validateIncomingState(logger, state, previousState);
             fail("node accepted state with non-existence local node");
         } catch (IllegalStateException OK) {
@@ -511,10 +606,10 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
 
         try {
             DiscoveryNode otherNode = new DiscoveryNode("b", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-            state = ClusterState.builder(previousState).nodes(
-                DiscoveryNodes.builder(previousState.nodes()).add(otherNode)
-                    .localNodeId(otherNode.getId()).build()
-            ).incrementVersion().build();
+            state = ClusterState.builder(previousState)
+                .nodes(DiscoveryNodes.builder(previousState.nodes()).add(otherNode).localNodeId(otherNode.getId()).build())
+                .incrementVersion()
+                .build();
             ZenDiscovery.validateIncomingState(logger, state, previousState);
             fail("node accepted state with existent but wrong local node");
         } catch (IllegalStateException OK) {
@@ -525,8 +620,10 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
         final ClusterState incomingState = previousState;
         previousState = ClusterState.builder(previousState).incrementVersion().build();
         final ClusterState finalPreviousState = previousState;
-        final IllegalStateException e =
-            expectThrows(IllegalStateException.class, () -> ZenDiscovery.validateIncomingState(logger, incomingState, finalPreviousState));
+        final IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> ZenDiscovery.validateIncomingState(logger, incomingState, finalPreviousState)
+        );
         final String message = String.format(
             Locale.ROOT,
             "rejecting cluster state version [%d] uuid [%s] received from [%s]",
@@ -539,7 +636,8 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
         ClusterState higherVersionState = ClusterState.builder(previousState).incrementVersion().build();
         // remove the master of the node (but still have a previous cluster state with it)!
         higherVersionState = ClusterState.builder(higherVersionState)
-            .nodes(DiscoveryNodes.builder(higherVersionState.nodes()).masterNodeId(null)).build();
+            .nodes(DiscoveryNodes.builder(higherVersionState.nodes()).masterNodeId(null))
+            .build();
         // an older version from a *new* master is also OK!
         state = ClusterState.builder(previousState)
             .nodes(DiscoveryNodes.builder(previousState.nodes()).masterNodeId("_new_master_").build())
@@ -559,14 +657,18 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
         final Consumer<String> submitRejoin = source -> rejoinCalled.set(true);
 
         final AtomicReference<ClusterState> remainingNodesClusterState = new AtomicReference<>();
-        final ZenNodeRemovalClusterStateTaskExecutor executor =
-            new ZenNodeRemovalClusterStateTaskExecutor(allocationService, electMasterService, submitRejoin, logger) {
-                @Override
-                protected ClusterState remainingNodesClusterState(ClusterState currentState, DiscoveryNodes.Builder remainingNodesBuilder) {
-                    remainingNodesClusterState.set(super.remainingNodesClusterState(currentState, remainingNodesBuilder));
-                    return remainingNodesClusterState.get();
-                }
-            };
+        final ZenNodeRemovalClusterStateTaskExecutor executor = new ZenNodeRemovalClusterStateTaskExecutor(
+            allocationService,
+            electMasterService,
+            submitRejoin,
+            logger
+        ) {
+            @Override
+            protected ClusterState remainingNodesClusterState(ClusterState currentState, DiscoveryNodes.Builder remainingNodesBuilder) {
+                remainingNodesClusterState.set(super.remainingNodesClusterState(currentState, remainingNodesBuilder));
+                return remainingNodesClusterState.get();
+            }
+        };
 
         final DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         final int nodes = randomIntBetween(2, 16);
@@ -583,8 +685,10 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
         }
         final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(builder).build();
 
-        final ClusterStateTaskExecutor.ClusterTasksResult<NodeRemovalClusterStateTaskExecutor.Task> result =
-            executor.execute(clusterState, tasks);
+        final ClusterStateTaskExecutor.ClusterTasksResult<NodeRemovalClusterStateTaskExecutor.Task> result = executor.execute(
+            clusterState,
+            tasks
+        );
         verify(electMasterService).hasEnoughMasterNodes(eq(remainingNodesClusterState.get().nodes()));
         verify(electMasterService).countMasterNodes(eq(remainingNodesClusterState.get().nodes()));
         verify(electMasterService).minimumMasterNodes();

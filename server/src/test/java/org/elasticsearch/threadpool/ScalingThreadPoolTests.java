@@ -54,7 +54,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
         if (maxBasedOnNumberOfProcessors < core || randomBoolean()) {
             expectedMax = randomIntBetween(Math.max(1, core), 16);
             builder.put("thread_pool." + threadPoolName + ".max", expectedMax);
-        }  else {
+        } else {
             expectedMax = maxBasedOnNumberOfProcessors;
         }
 
@@ -63,14 +63,14 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             keepAlive = randomIntBetween(1, 300);
             builder.put("thread_pool." + threadPoolName + ".keep_alive", keepAlive + "s");
         } else {
-            keepAlive = "generic".equals(threadPoolName) || ThreadPool.Names.SNAPSHOT_META.equals(threadPoolName)
-                    ? 30 : 300; // the defaults
+            keepAlive = "generic".equals(threadPoolName) || ThreadPool.Names.SNAPSHOT_META.equals(threadPoolName) ? 30 : 300; // the
+                                                                                                                              // defaults
         }
 
         runScalingThreadPoolTest(builder.build(), (clusterSettings, threadPool) -> {
             final Executor executor = threadPool.executor(threadPoolName);
             assertThat(executor, instanceOf(EsThreadPoolExecutor.class));
-            final EsThreadPoolExecutor esThreadPoolExecutor = (EsThreadPoolExecutor)executor;
+            final EsThreadPoolExecutor esThreadPoolExecutor = (EsThreadPoolExecutor) executor;
             final ThreadPool.Info info = info(threadPool, threadPoolName);
 
             assertThat(info.getName(), equalTo(threadPoolName));
@@ -89,8 +89,13 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
         });
 
         if (processorsUsed > availableProcessors) {
-            assertWarnings("setting [node.processors] to value [" + processorsUsed +
-                "] which is more than available processors [" + availableProcessors + "] is deprecated");
+            assertWarnings(
+                "setting [node.processors] to value ["
+                    + processorsUsed
+                    + "] which is more than available processors ["
+                    + availableProcessors
+                    + "] is deprecated"
+            );
         }
     }
 
@@ -141,11 +146,10 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
     public void testScalingThreadPoolThreadsAreTerminatedAfterKeepAlive() throws InterruptedException {
         final String threadPoolName = randomThreadPool(ThreadPool.ThreadPoolType.SCALING);
         final int min = "generic".equals(threadPoolName) ? 4 : 1;
-        final Settings settings =
-                Settings.builder()
-                        .put("thread_pool." + threadPoolName + ".max", 128)
-                        .put("thread_pool." + threadPoolName + ".keep_alive", "1ms")
-                        .build();
+        final Settings settings = Settings.builder()
+            .put("thread_pool." + threadPoolName + ".max", 128)
+            .put("thread_pool." + threadPoolName + ".keep_alive", "1ms")
+            .build();
         runScalingThreadPoolTest(settings, ((clusterSettings, threadPool) -> {
             final CountDownLatch latch = new CountDownLatch(1);
             final CountDownLatch taskLatch = new CountDownLatch(128);
@@ -179,9 +183,8 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
         }));
     }
 
-    public void runScalingThreadPoolTest(
-            final Settings settings,
-            final BiConsumer<ClusterSettings, ThreadPool> consumer) throws InterruptedException {
+    public void runScalingThreadPoolTest(final Settings settings, final BiConsumer<ClusterSettings, ThreadPool> consumer)
+        throws InterruptedException {
         ThreadPool threadPool = null;
         try {
             final String test = Thread.currentThread().getStackTrace()[2].getMethodName();

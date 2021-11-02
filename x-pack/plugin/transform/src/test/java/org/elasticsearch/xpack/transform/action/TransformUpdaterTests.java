@@ -67,6 +67,7 @@ public class TransformUpdaterTests extends ESTestCase {
     private Client client;
     private final Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build();
     private final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+
     private static class MyMockClient extends NoOpClient {
 
         MyMockClient(String testName) {

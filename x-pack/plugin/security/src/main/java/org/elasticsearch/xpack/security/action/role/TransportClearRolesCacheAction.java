@@ -23,22 +23,42 @@ import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import java.io.IOException;
 import java.util.List;
 
-public class TransportClearRolesCacheAction extends TransportNodesAction<ClearRolesCacheRequest, ClearRolesCacheResponse,
-        ClearRolesCacheRequest.Node, ClearRolesCacheResponse.Node> {
+public class TransportClearRolesCacheAction extends TransportNodesAction<
+    ClearRolesCacheRequest,
+    ClearRolesCacheResponse,
+    ClearRolesCacheRequest.Node,
+    ClearRolesCacheResponse.Node> {
 
     private final CompositeRolesStore rolesStore;
 
     @Inject
-    public TransportClearRolesCacheAction(ThreadPool threadPool, ClusterService clusterService,
-                                          TransportService transportService, ActionFilters actionFilters, CompositeRolesStore rolesStore) {
-        super(ClearRolesCacheAction.NAME, threadPool, clusterService, transportService, actionFilters, ClearRolesCacheRequest::new,
-            ClearRolesCacheRequest.Node::new, ThreadPool.Names.MANAGEMENT, ClearRolesCacheResponse.Node.class);
+    public TransportClearRolesCacheAction(
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        CompositeRolesStore rolesStore
+    ) {
+        super(
+            ClearRolesCacheAction.NAME,
+            threadPool,
+            clusterService,
+            transportService,
+            actionFilters,
+            ClearRolesCacheRequest::new,
+            ClearRolesCacheRequest.Node::new,
+            ThreadPool.Names.MANAGEMENT,
+            ClearRolesCacheResponse.Node.class
+        );
         this.rolesStore = rolesStore;
     }
 
     @Override
-    protected ClearRolesCacheResponse newResponse(ClearRolesCacheRequest request,
-                                                  List<ClearRolesCacheResponse.Node> responses, List<FailedNodeException> failures) {
+    protected ClearRolesCacheResponse newResponse(
+        ClearRolesCacheRequest request,
+        List<ClearRolesCacheResponse.Node> responses,
+        List<FailedNodeException> failures
+    ) {
         return new ClearRolesCacheResponse(clusterService.getClusterName(), responses, failures);
     }
 

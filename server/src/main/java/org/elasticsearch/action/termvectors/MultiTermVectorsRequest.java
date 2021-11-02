@@ -14,11 +14,11 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,7 +31,10 @@ import java.util.Set;
 // It's not possible to suppress teh warning at #realtime(boolean) at a method-level.
 @SuppressWarnings("unchecked")
 public class MultiTermVectorsRequest extends ActionRequest
-        implements Iterable<TermVectorsRequest>, CompositeIndicesRequest, RealtimeRequest {
+    implements
+        Iterable<TermVectorsRequest>,
+        CompositeIndicesRequest,
+        RealtimeRequest {
 
     String preference;
     List<TermVectorsRequest> requests = new ArrayList<>();
@@ -70,8 +73,10 @@ public class MultiTermVectorsRequest extends ActionRequest
                 TermVectorsRequest termVectorsRequest = requests.get(i);
                 ActionRequestValidationException validationExceptionForDoc = termVectorsRequest.validate();
                 if (validationExceptionForDoc != null) {
-                    validationException = ValidateActions.addValidationError("at multi term vectors for doc " + i,
-                            validationExceptionForDoc);
+                    validationException = ValidateActions.addValidationError(
+                        "at multi term vectors for doc " + i,
+                        validationExceptionForDoc
+                    );
                 }
             }
         }

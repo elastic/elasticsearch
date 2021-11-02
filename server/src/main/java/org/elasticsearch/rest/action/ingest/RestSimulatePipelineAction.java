@@ -12,10 +12,10 @@ import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.List;
@@ -29,11 +29,14 @@ public class RestSimulatePipelineAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_ingest/pipeline/{id}/_simulate"),
-            new Route(POST, "/_ingest/pipeline/{id}/_simulate"),
-            new Route(GET, "/_ingest/pipeline/_simulate"),
-            new Route(POST, "/_ingest/pipeline/_simulate")));
+        return unmodifiableList(
+            asList(
+                new Route(GET, "/_ingest/pipeline/{id}/_simulate"),
+                new Route(POST, "/_ingest/pipeline/{id}/_simulate"),
+                new Route(GET, "/_ingest/pipeline/_simulate"),
+                new Route(POST, "/_ingest/pipeline/_simulate")
+            )
+        );
     }
 
     @Override

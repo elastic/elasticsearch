@@ -27,19 +27,31 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportPutComponentTemplateAction
-    extends AcknowledgedTransportMasterNodeAction<PutComponentTemplateAction.Request> {
+public class TransportPutComponentTemplateAction extends AcknowledgedTransportMasterNodeAction<PutComponentTemplateAction.Request> {
 
     private final MetadataIndexTemplateService indexTemplateService;
     private final IndexScopedSettings indexScopedSettings;
 
     @Inject
-    public TransportPutComponentTemplateAction(TransportService transportService, ClusterService clusterService,
-                                               ThreadPool threadPool, MetadataIndexTemplateService indexTemplateService,
-                                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                               IndexScopedSettings indexScopedSettings) {
-        super(PutComponentTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            PutComponentTemplateAction.Request::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
+    public TransportPutComponentTemplateAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        MetadataIndexTemplateService indexTemplateService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        IndexScopedSettings indexScopedSettings
+    ) {
+        super(
+            PutComponentTemplateAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            PutComponentTemplateAction.Request::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
+        );
         this.indexTemplateService = indexTemplateService;
         this.indexScopedSettings = indexScopedSettings;
     }
@@ -50,8 +62,11 @@ public class TransportPutComponentTemplateAction
     }
 
     @Override
-    protected void masterOperation(final PutComponentTemplateAction.Request request, final ClusterState state,
-                                   final ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(
+        final PutComponentTemplateAction.Request request,
+        final ClusterState state,
+        final ActionListener<AcknowledgedResponse> listener
+    ) {
         ComponentTemplate componentTemplate = request.componentTemplate();
         Template template = componentTemplate.template();
         // Normalize the index settings if necessary
@@ -62,7 +77,13 @@ public class TransportPutComponentTemplateAction
             template = new Template(settings, template.mappings(), template.aliases());
             componentTemplate = new ComponentTemplate(template, componentTemplate.version(), componentTemplate.metadata());
         }
-        indexTemplateService.putComponentTemplate(request.cause(), request.create(), request.name(), request.masterNodeTimeout(),
-            componentTemplate, listener);
+        indexTemplateService.putComponentTemplate(
+            request.cause(),
+            request.create(),
+            request.name(),
+            request.masterNodeTimeout(),
+            componentTemplate,
+            listener
+        );
     }
 }

@@ -20,7 +20,7 @@ import java.util.Arrays;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.Matchers.same;
+import static org.mockito.ArgumentMatchers.same;
 
 public class FieldPermissionsTests extends ESTestCase {
 
@@ -28,9 +28,11 @@ public class FieldPermissionsTests extends ESTestCase {
 
         final FieldPermissions fieldPermissions = FieldPermissions.DEFAULT;
         final FieldPermissions fieldPermissions1 = new FieldPermissions(
-                fieldPermissionDef(new String[] { "f1", "f2", "f3*" }, new String[] { "f3" }));
+            fieldPermissionDef(new String[] { "f1", "f2", "f3*" }, new String[] { "f3" })
+        );
         final FieldPermissions fieldPermissions2 = new FieldPermissions(
-                fieldPermissionDef(new String[] { "f1", "f3*", "f4" }, new String[] { "f3" }));
+            fieldPermissionDef(new String[] { "f1", "f3*", "f4" }, new String[] { "f3" })
+        );
 
         {
             FieldPermissions result = fieldPermissions.limitFieldPermissions(randomFrom(new FieldPermissions(), null));
@@ -87,58 +89,83 @@ public class FieldPermissionsTests extends ESTestCase {
 
         final FieldPermissions fieldPermissions03 = randomFrom(
             FieldPermissions.DEFAULT,
-            new FieldPermissions(fieldPermissionDef(new String[] { "f1", "f2", "f3*" }, new String[] { "f3" })));
+            new FieldPermissions(fieldPermissionDef(new String[] { "f1", "f2", "f3*" }, new String[] { "f3" }))
+        );
         assertThat(fieldPermissions03.limitFieldPermissions(null).getFieldPermissionsDefinition(), notNullValue());
         assertThat(fieldPermissions03.limitFieldPermissions(FieldPermissions.DEFAULT).getFieldPermissionsDefinition(), notNullValue());
-        assertThat(fieldPermissions03.limitFieldPermissions(
-            new FieldPermissions(fieldPermissionDef(new String[] { "f1", "f3*", "f4" }, new String[] { "f3" }))
-        ).getFieldPermissionsDefinition(), notNullValue());
+        assertThat(
+            fieldPermissions03.limitFieldPermissions(
+                new FieldPermissions(fieldPermissionDef(new String[] { "f1", "f3*", "f4" }, new String[] { "f3" }))
+            ).getFieldPermissionsDefinition(),
+            notNullValue()
+        );
     }
 
     public void testWriteCacheKeyWillDistinguishBetweenDefinitionAndLimitedByDefinition() throws IOException {
         // The overall same grant/except sets but are come from either:
-        //   1. Just the definition
-        //   2. Just the limited-by definition
-        //   3. both
+        // 1. Just the definition
+        // 2. Just the limited-by definition
+        // 3. both
         // The cache key should differentiate between them
 
         // Just definition
         final BytesStreamOutput out0 = new BytesStreamOutput();
         final FieldPermissions fieldPermissions0 = new FieldPermissions(
-            new FieldPermissionsDefinition(org.elasticsearch.core.Set.of(
-                new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "x*" }, new String[] { "x2" }),
-                new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "y*" }, new String[] { "y2" }),
-                new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "z*" }, new String[] { "z2" }))));
+            new FieldPermissionsDefinition(
+                org.elasticsearch.core.Set.of(
+                    new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "x*" }, new String[] { "x2" }),
+                    new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "y*" }, new String[] { "y2" }),
+                    new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "z*" }, new String[] { "z2" })
+                )
+            )
+        );
         fieldPermissions0.buildCacheKey(out0, BytesReference::utf8ToString);
 
         // Mixed definition
         final BytesStreamOutput out1 = new BytesStreamOutput();
         final FieldPermissions fieldPermissions1 = new FieldPermissions(
-            new FieldPermissionsDefinition(org.elasticsearch.core.Set.of(
-                new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "x*" }, new String[] { "x2" }),
-                new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "y*" }, new String[] { "y2" }))))
-            .limitFieldPermissions(new FieldPermissions(fieldPermissionDef(new String[] { "z*" }, new String[] { "z2" })));
+            new FieldPermissionsDefinition(
+                org.elasticsearch.core.Set.of(
+                    new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "x*" }, new String[] { "x2" }),
+                    new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "y*" }, new String[] { "y2" })
+                )
+            )
+        ).limitFieldPermissions(new FieldPermissions(fieldPermissionDef(new String[] { "z*" }, new String[] { "z2" })));
         fieldPermissions1.buildCacheKey(out1, BytesReference::utf8ToString);
 
         // Another mixed definition
         final BytesStreamOutput out2 = new BytesStreamOutput();
         final FieldPermissions fieldPermissions2 = new FieldPermissions(
-            new FieldPermissionsDefinition(org.elasticsearch.core.Set.of(
-                new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "x*" }, new String[] { "x2" }))))
-            .limitFieldPermissions(new FieldPermissions(new FieldPermissionsDefinition(org.elasticsearch.core.Set.of(
-                new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "y*" }, new String[] { "y2" }),
-                new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "z*" }, new String[] { "z2" }))
-            )));
+            new FieldPermissionsDefinition(
+                org.elasticsearch.core.Set.of(
+                    new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "x*" }, new String[] { "x2" })
+                )
+            )
+        ).limitFieldPermissions(
+            new FieldPermissions(
+                new FieldPermissionsDefinition(
+                    org.elasticsearch.core.Set.of(
+                        new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "y*" }, new String[] { "y2" }),
+                        new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "z*" }, new String[] { "z2" })
+                    )
+                )
+            )
+        );
         fieldPermissions2.buildCacheKey(out2, BytesReference::utf8ToString);
 
         // Just limited by
         final BytesStreamOutput out3 = new BytesStreamOutput();
         final FieldPermissions fieldPermissions3 = new FieldPermissions().limitFieldPermissions(
             new FieldPermissions(
-                new FieldPermissionsDefinition(org.elasticsearch.core.Set.of(
-                    new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "x*" }, new String[] { "x2" }),
-                    new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "y*" }, new String[] { "y2" }),
-                    new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "z*" }, new String[] { "z2" })))));
+                new FieldPermissionsDefinition(
+                    org.elasticsearch.core.Set.of(
+                        new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "x*" }, new String[] { "x2" }),
+                        new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "y*" }, new String[] { "y2" }),
+                        new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "z*" }, new String[] { "z2" })
+                    )
+                )
+            )
+        );
         fieldPermissions3.buildCacheKey(out3, BytesReference::utf8ToString);
 
         assertThat(Arrays.equals(BytesReference.toBytes(out0.bytes()), BytesReference.toBytes(out1.bytes())), is(false));

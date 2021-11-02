@@ -17,12 +17,12 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
@@ -75,22 +75,28 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
 
     @Before
     public void setupLogging() {
-        client().admin().cluster()
+        client().admin()
+            .cluster()
             .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder()
-                .put("logger.org.elasticsearch.xpack.ml.dataframe", "DEBUG")
-                .put("logger.org.elasticsearch.xpack.core.ml.inference", "DEBUG"))
+            .setPersistentSettings(
+                Settings.builder()
+                    .put("logger.org.elasticsearch.xpack.ml.dataframe", "DEBUG")
+                    .put("logger.org.elasticsearch.xpack.core.ml.inference", "DEBUG")
+            )
             .get();
     }
 
     @After
     public void cleanup() {
         cleanUp();
-        client().admin().cluster()
+        client().admin()
+            .cluster()
             .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder()
-                .putNull("logger.org.elasticsearch.xpack.ml.dataframe")
-                .putNull("logger.org.elasticsearch.xpack.core.ml.inference"))
+            .setPersistentSettings(
+                Settings.builder()
+                    .putNull("logger.org.elasticsearch.xpack.ml.dataframe")
+                    .putNull("logger.org.elasticsearch.xpack.core.ml.inference")
+            )
             .get();
     }
 
@@ -108,31 +114,48 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
         String predictedClassField = NUMERICAL_FIELD + "_prediction";
         indexData(sourceIndex, 300, 50, NUMERICAL_FIELD);
 
-        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
-            .setId(jobId)
-            .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex },
-                QueryProvider.fromParsedQuery(QueryBuilders.matchAllQuery()), null, null))
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder().setId(jobId)
+            .setSource(
+                new DataFrameAnalyticsSource(
+                    new String[] { sourceIndex },
+                    QueryProvider.fromParsedQuery(QueryBuilders.matchAllQuery()),
+                    null,
+                    null
+                )
+            )
             .setDest(new DataFrameAnalyticsDest(destIndex, null))
-            .setAnalysis(new Regression(NUMERICAL_FIELD,
-                BoostedTreeParams.builder().setNumTopFeatureImportanceValues(6).build(),
-                null,
-                null,
-                42L,
-                null,
-                null,
-                Arrays.asList(
-                    new NGram(TEXT_FIELD, "f", new int[]{1}, 0, 2, true),
-                    new Multi(new PreProcessor[]{
-                        new NGram(TEXT_FIELD, "ngram", new int[]{2}, 0, 3, true),
-                        new FrequencyEncoding("ngram.20",
-                            "frequency",
-                            MapBuilder.<String, Double>newMapBuilder().put("ca", 5.0).put("do", 1.0).map(), true),
-                        new OneHotEncoding("ngram.21", MapBuilder.<String, String>newMapBuilder().put("at", "is_cat").map(), true)
-                    },
-                        true)
+            .setAnalysis(
+                new Regression(
+                    NUMERICAL_FIELD,
+                    BoostedTreeParams.builder().setNumTopFeatureImportanceValues(6).build(),
+                    null,
+                    null,
+                    42L,
+                    null,
+                    null,
+                    Arrays.asList(
+                        new NGram(TEXT_FIELD, "f", new int[] { 1 }, 0, 2, true),
+                        new Multi(
+                            new PreProcessor[] {
+                                new NGram(TEXT_FIELD, "ngram", new int[] { 2 }, 0, 3, true),
+                                new FrequencyEncoding(
+                                    "ngram.20",
+                                    "frequency",
+                                    MapBuilder.<String, Double>newMapBuilder().put("ca", 5.0).put("do", 1.0).map(),
+                                    true
+                                ),
+                                new OneHotEncoding(
+                                    "ngram.21",
+                                    MapBuilder.<String, String>newMapBuilder().put("at", "is_cat").map(),
+                                    true
+                                ) },
+                            true
+                        )
                     ),
-                    null))
-            .setAnalyzedFields(new FetchSourceContext(true, new String[]{TEXT_FIELD, NUMERICAL_FIELD}, new String[]{}))
+                    null
+                )
+            )
+            .setAnalyzedFields(new FetchSourceContext(true, new String[] { TEXT_FIELD, NUMERICAL_FIELD }, new String[] {}))
             .build();
         putAnalytics(config);
 
@@ -148,9 +171,11 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
             Map<String, Object> destDoc = getDestDoc(config, hit);
             Map<String, Object> resultsObject = getFieldValue(destDoc, "ml");
             @SuppressWarnings("unchecked")
-            List<Map<String, Object>> importanceArray = (List<Map<String, Object>>)resultsObject.get("feature_importance");
-            assertThat(importanceArray.stream().map(m -> m.get("feature_name").toString()).collect(Collectors.toSet()),
-                everyItem(anyOf(startsWith("f."), startsWith("ngram"), equalTo("is_cat"), equalTo("frequency"))));
+            List<Map<String, Object>> importanceArray = (List<Map<String, Object>>) resultsObject.get("feature_importance");
+            assertThat(
+                importanceArray.stream().map(m -> m.get("feature_name").toString()).collect(Collectors.toSet()),
+                everyItem(anyOf(startsWith("f."), startsWith("ngram"), equalTo("is_cat"), equalTo("frequency")))
+            );
         }
 
         assertProgressComplete(jobId);
@@ -175,39 +200,59 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
     }
 
     private static void createIndex(String index, boolean isDatastream) {
-        String mapping = "{\n" +
-            "      \"properties\": {\n" +
-            "        \"@timestamp\": {\n" +
-            "          \"type\": \"date\"\n" +
-            "        }," +
-            "        \""+ BOOLEAN_FIELD + "\": {\n" +
-            "          \"type\": \"boolean\"\n" +
-            "        }," +
-            "        \""+ NUMERICAL_FIELD + "\": {\n" +
-            "          \"type\": \"double\"\n" +
-            "        }," +
-            "        \""+ DISCRETE_NUMERICAL_FIELD + "\": {\n" +
-            "          \"type\": \"unsigned_long\"\n" +
-            "        }," +
-            "        \""+ TEXT_FIELD + "\": {\n" +
-            "          \"type\": \"text\"\n" +
-            "        }," +
-            "        \""+ KEYWORD_FIELD + "\": {\n" +
-            "          \"type\": \"keyword\"\n" +
-            "        }," +
-            "        \""+ NESTED_FIELD + "\": {\n" +
-            "          \"type\": \"keyword\"\n" +
-            "        }," +
-            "        \""+ ALIAS_TO_KEYWORD_FIELD + "\": {\n" +
-            "          \"type\": \"alias\",\n" +
-            "          \"path\": \"" + KEYWORD_FIELD + "\"\n" +
-            "        }," +
-            "        \""+ ALIAS_TO_NESTED_FIELD + "\": {\n" +
-            "          \"type\": \"alias\",\n" +
-            "          \"path\": \"" + NESTED_FIELD + "\"\n" +
-            "        }" +
-            "      }\n" +
-            "    }";
+        String mapping = "{\n"
+            + "      \"properties\": {\n"
+            + "        \"@timestamp\": {\n"
+            + "          \"type\": \"date\"\n"
+            + "        },"
+            + "        \""
+            + BOOLEAN_FIELD
+            + "\": {\n"
+            + "          \"type\": \"boolean\"\n"
+            + "        },"
+            + "        \""
+            + NUMERICAL_FIELD
+            + "\": {\n"
+            + "          \"type\": \"double\"\n"
+            + "        },"
+            + "        \""
+            + DISCRETE_NUMERICAL_FIELD
+            + "\": {\n"
+            + "          \"type\": \"unsigned_long\"\n"
+            + "        },"
+            + "        \""
+            + TEXT_FIELD
+            + "\": {\n"
+            + "          \"type\": \"text\"\n"
+            + "        },"
+            + "        \""
+            + KEYWORD_FIELD
+            + "\": {\n"
+            + "          \"type\": \"keyword\"\n"
+            + "        },"
+            + "        \""
+            + NESTED_FIELD
+            + "\": {\n"
+            + "          \"type\": \"keyword\"\n"
+            + "        },"
+            + "        \""
+            + ALIAS_TO_KEYWORD_FIELD
+            + "\": {\n"
+            + "          \"type\": \"alias\",\n"
+            + "          \"path\": \""
+            + KEYWORD_FIELD
+            + "\"\n"
+            + "        },"
+            + "        \""
+            + ALIAS_TO_NESTED_FIELD
+            + "\": {\n"
+            + "          \"type\": \"alias\",\n"
+            + "          \"path\": \""
+            + NESTED_FIELD
+            + "\"\n"
+            + "        }"
+            + "      }\n"
+            + "    }";
         if (isDatastream) {
             try {
                 createDataStreamAndTemplate(index, mapping);
@@ -215,53 +260,58 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
                 throw new ElasticsearchException(ex);
             }
         } else {
-            client().admin().indices().prepareCreate(index)
-                .addMapping("_doc", mapping, XContentType.JSON)
-                .get();
+            client().admin().indices().prepareCreate(index).addMapping("_doc", mapping, XContentType.JSON).get();
         }
     }
 
     private static void indexData(String sourceIndex, int numTrainingRows, int numNonTrainingRows, String dependentVariable) {
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < numTrainingRows; i++) {
             List<Object> source = org.elasticsearch.core.List.of(
-                "@timestamp", "2020-12-12",
-                BOOLEAN_FIELD, BOOLEAN_FIELD_VALUES.get(i % BOOLEAN_FIELD_VALUES.size()),
-                NUMERICAL_FIELD, NUMERICAL_FIELD_VALUES.get(i % NUMERICAL_FIELD_VALUES.size()),
-                DISCRETE_NUMERICAL_FIELD, DISCRETE_NUMERICAL_FIELD_VALUES.get(i % DISCRETE_NUMERICAL_FIELD_VALUES.size()),
-                TEXT_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size()),
-                KEYWORD_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size()),
-                NESTED_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size()));
+                "@timestamp",
+                "2020-12-12",
+                BOOLEAN_FIELD,
+                BOOLEAN_FIELD_VALUES.get(i % BOOLEAN_FIELD_VALUES.size()),
+                NUMERICAL_FIELD,
+                NUMERICAL_FIELD_VALUES.get(i % NUMERICAL_FIELD_VALUES.size()),
+                DISCRETE_NUMERICAL_FIELD,
+                DISCRETE_NUMERICAL_FIELD_VALUES.get(i % DISCRETE_NUMERICAL_FIELD_VALUES.size()),
+                TEXT_FIELD,
+                KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size()),
+                KEYWORD_FIELD,
+                KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size()),
+                NESTED_FIELD,
+                KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size())
+            );
             IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray()).opType(DocWriteRequest.OpType.CREATE);
             bulkRequestBuilder.add(indexRequest);
         }
         for (int i = numTrainingRows; i < numTrainingRows + numNonTrainingRows; i++) {
             List<Object> source = new ArrayList<>();
             if (BOOLEAN_FIELD.equals(dependentVariable) == false) {
-                source.addAll(org.elasticsearch.core.List.of(BOOLEAN_FIELD,
-                    BOOLEAN_FIELD_VALUES.get(i % BOOLEAN_FIELD_VALUES.size())));
+                source.addAll(org.elasticsearch.core.List.of(BOOLEAN_FIELD, BOOLEAN_FIELD_VALUES.get(i % BOOLEAN_FIELD_VALUES.size())));
             }
             if (NUMERICAL_FIELD.equals(dependentVariable) == false) {
-                source.addAll(org.elasticsearch.core.List.of(NUMERICAL_FIELD,
-                    NUMERICAL_FIELD_VALUES.get(i % NUMERICAL_FIELD_VALUES.size())));
+                source.addAll(
+                    org.elasticsearch.core.List.of(NUMERICAL_FIELD, NUMERICAL_FIELD_VALUES.get(i % NUMERICAL_FIELD_VALUES.size()))
+                );
             }
             if (DISCRETE_NUMERICAL_FIELD.equals(dependentVariable) == false) {
                 source.addAll(
-                    org.elasticsearch.core.List.of(DISCRETE_NUMERICAL_FIELD,
-                        DISCRETE_NUMERICAL_FIELD_VALUES.get(i % DISCRETE_NUMERICAL_FIELD_VALUES.size())));
+                    org.elasticsearch.core.List.of(
+                        DISCRETE_NUMERICAL_FIELD,
+                        DISCRETE_NUMERICAL_FIELD_VALUES.get(i % DISCRETE_NUMERICAL_FIELD_VALUES.size())
+                    )
+                );
             }
             if (TEXT_FIELD.equals(dependentVariable) == false) {
-                source.addAll(org.elasticsearch.core.List.of(TEXT_FIELD,
-                    KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size())));
+                source.addAll(org.elasticsearch.core.List.of(TEXT_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size())));
             }
             if (KEYWORD_FIELD.equals(dependentVariable) == false) {
-                source.addAll(org.elasticsearch.core.List.of(KEYWORD_FIELD,
-                    KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size())));
+                source.addAll(org.elasticsearch.core.List.of(KEYWORD_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size())));
             }
             if (NESTED_FIELD.equals(dependentVariable) == false) {
-                source.addAll(org.elasticsearch.core.List.of(NESTED_FIELD,
-                    KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size())));
+                source.addAll(org.elasticsearch.core.List.of(NESTED_FIELD, KEYWORD_FIELD_VALUES.get(i % KEYWORD_FIELD_VALUES.size())));
             }
             source.addAll(org.elasticsearch.core.List.of("@timestamp", "2020-12-12"));
             IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source.toArray()).opType(DocWriteRequest.OpType.CREATE);

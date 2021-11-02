@@ -9,8 +9,7 @@ package org.elasticsearch.xpack.watcher.support;
 import java.util.Objects;
 
 public class Strings {
-    private Strings() {
-    }
+    private Strings() {}
 
     public static String join(String delimiter, int... values) {
         Objects.requireNonNull(delimiter);

@@ -19,8 +19,7 @@ public class DisableGraphAttributeImpl extends AttributeImpl implements DisableG
     public void clear() {}
 
     @Override
-    public void reflectWith(AttributeReflector reflector) {
-    }
+    public void reflectWith(AttributeReflector reflector) {}
 
     @Override
     public void copyTo(AttributeImpl target) {}

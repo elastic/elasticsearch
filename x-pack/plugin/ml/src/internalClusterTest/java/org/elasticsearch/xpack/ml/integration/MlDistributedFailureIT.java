@@ -21,14 +21,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -38,6 +31,13 @@ import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -93,7 +93,8 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings))
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(MachineLearning.CONCURRENT_JOB_ALLOCATIONS.getKey(), 4)
             .build();
     }
@@ -102,7 +103,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(3);
         ensureStableCluster();
         run("fail-over-job", () -> {
-            GetJobsStatsAction.Request  request = new GetJobsStatsAction.Request("fail-over-job");
+            GetJobsStatsAction.Request request = new GetJobsStatsAction.Request("fail-over-job");
             GetJobsStatsAction.Response response = client().execute(GetJobsStatsAction.INSTANCE, request).actionGet();
             DiscoveryNode discoveryNode = response.getResponse().results().get(0).getNode();
             internalCluster().stopRandomNode(settings -> discoveryNode.getName().equals(settings.get("node.name")));
@@ -115,9 +116,8 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder()
-                .put("logger.org.elasticsearch.xpack.ml.utils.persistence", "TRACE")
-                .build()).get();
+            .setPersistentSettings(Settings.builder().put("logger.org.elasticsearch.xpack.ml.utils.persistence", "TRACE").build())
+            .get();
     }
 
     @After
@@ -125,9 +125,8 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder()
-                .putNull("logger.org.elasticsearch.xpack.ml.utils.persistence")
-                .build()).get();
+            .setPersistentSettings(Settings.builder().putNull("logger.org.elasticsearch.xpack.ml.utils.persistence").build())
+            .get();
     }
 
     public void testLoseDedicatedMasterNode() throws Exception {
@@ -144,15 +143,11 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             Settings masterDataPathSettings = internalCluster().dataPathSettings(internalCluster().getMasterName());
             internalCluster().stopCurrentMasterNode();
             assertBusy(() -> {
-                ClusterState state = client(mlAndDataNode).admin().cluster().prepareState()
-                        .setLocal(true).get().getState();
+                ClusterState state = client(mlAndDataNode).admin().cluster().prepareState().setLocal(true).get().getState();
                 assertNull(state.nodes().getMasterNodeId());
             });
             logger.info("Restarting dedicated master node");
-            internalCluster().startNode(Settings.builder()
-                    .put(masterDataPathSettings)
-                    .put(masterOnlyNode())
-                    .build());
+            internalCluster().startNode(Settings.builder().put(masterDataPathSettings).put(masterOnlyNode()).build());
             ensureStableCluster();
         });
     }
@@ -171,19 +166,17 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
     public void testCloseUnassignedJobAndDatafeed() throws Exception {
         internalCluster().ensureAtMostNumDataNodes(0);
         logger.info("Starting data and master node...");
-        internalCluster().startNode(onlyRoles(
-            Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)))
-        ));
+        internalCluster().startNode(
+            onlyRoles(Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))))
+        );
         logger.info("Starting ml and data node...");
-        internalCluster().startNode(onlyRoles(
-            Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, MachineLearning.ML_ROLE)))
-        ));
+        internalCluster().startNode(
+            onlyRoles(Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, MachineLearning.ML_ROLE))))
+        );
         ensureStableCluster();
 
         // index some datafeed data
-        client().admin().indices().prepareCreate("data")
-                .addMapping("type", "time", "type=date")
-                .get();
+        client().admin().indices().prepareCreate("data").addMapping("type", "time", "type=date").get();
         long numDocs1 = randomIntBetween(32, 2048);
         long now = System.currentTimeMillis();
         long weekAgo = now - 604800000;
@@ -206,8 +199,8 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         assertEquals(JobState.OPENED, jobStatsResponse.getResponse().results().get(0).getState());
 
         GetDatafeedsStatsAction.Request datafeedStatsRequest = new GetDatafeedsStatsAction.Request(datafeedId);
-        GetDatafeedsStatsAction.Response datafeedStatsResponse =
-                client().execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest).actionGet();
+        GetDatafeedsStatsAction.Response datafeedStatsResponse = client().execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest)
+            .actionGet();
         assertEquals(DatafeedState.STARTED, datafeedStatsResponse.getResponse().results().get(0).getDatafeedState());
 
         // An unassigned datafeed can be stopped either normally or by force
@@ -251,18 +244,18 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         internalCluster().ensureAtMostNumDataNodes(0);
         logger.info("Starting master/data nodes...");
         for (int count = 0; count < 3; ++count) {
-            internalCluster().startNode(onlyRoles(
-                Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)))
-            ));
+            internalCluster().startNode(
+                onlyRoles(
+                    Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)))
+                )
+            );
         }
         logger.info("Starting dedicated ml node...");
         internalCluster().startNode(onlyRole(MachineLearning.ML_ROLE));
         ensureStableCluster();
 
         // index some datafeed data
-        client().admin().indices().prepareCreate("data")
-            .addMapping("type", "time", "type=date")
-            .get();
+        client().admin().indices().prepareCreate("data").addMapping("type", "time", "type=date").get();
         long numDocs1 = randomIntBetween(32, 2048);
         long now = System.currentTimeMillis();
         long weekAgo = now - 604800000;
@@ -288,7 +281,9 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         // (remember it's not a real native process in these internal cluster tests).
         PostDataAction.Request postDataRequest = new PostDataAction.Request(jobId);
         postDataRequest.setContent(
-            new BytesArray("{ \"time\" : \"" + BlackHoleAutodetectProcess.MAGIC_FAILURE_VALUE_AS_DATE + "\" }"), XContentType.JSON);
+            new BytesArray("{ \"time\" : \"" + BlackHoleAutodetectProcess.MAGIC_FAILURE_VALUE_AS_DATE + "\" }"),
+            XContentType.JSON
+        );
         PostDataAction.Response postDataResponse = client().execute(PostDataAction.INSTANCE, postDataRequest).actionGet();
         assertEquals(1L, postDataResponse.getDataCounts().getInputRecordCount());
 
@@ -300,8 +295,8 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         });
 
         // It's impossible to reliably get the datafeed into a stopping state at the point when the ML node is removed from the cluster
-        // using externally accessible actions.  The only way this situation could occur in reality is through extremely unfortunate
-        // timing.  Therefore, to simulate this unfortunate timing we cheat and access internal classes to set the datafeed state to
+        // using externally accessible actions. The only way this situation could occur in reality is through extremely unfortunate
+        // timing. Therefore, to simulate this unfortunate timing we cheat and access internal classes to set the datafeed state to
         // stopping.
         PersistentTasksCustomMetadata tasks = clusterService().state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         PersistentTasksCustomMetadata.PersistentTask<?> task = MlTasks.getDatafeedTask(datafeedId, tasks);
@@ -314,24 +309,33 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             CloseJobAction.Request closeJobRequest = new CloseJobAction.Request(jobId);
             closeJobRequest.setForce(true);
             client().execute(CloseJobAction.INSTANCE, closeJobRequest).actionGet();
-            assumeFalse("The datafeed task is null most likely because the datafeed detected the job had failed. " +
-                "This is expected to happen extremely rarely but the test cannot continue in these circumstances.", task == null);
+            assumeFalse(
+                "The datafeed task is null most likely because the datafeed detected the job had failed. "
+                    + "This is expected to happen extremely rarely but the test cannot continue in these circumstances.",
+                task == null
+            );
         }
 
-        UpdatePersistentTaskStatusAction.Request updatePersistentTaskStatusRequest =
-                new UpdatePersistentTaskStatusAction.Request(task.getId(), task.getAllocationId(), DatafeedState.STOPPING);
-        PersistentTaskResponse updatePersistentTaskStatusResponse =
-                client().execute(UpdatePersistentTaskStatusAction.INSTANCE, updatePersistentTaskStatusRequest).actionGet();
+        UpdatePersistentTaskStatusAction.Request updatePersistentTaskStatusRequest = new UpdatePersistentTaskStatusAction.Request(
+            task.getId(),
+            task.getAllocationId(),
+            DatafeedState.STOPPING
+        );
+        PersistentTaskResponse updatePersistentTaskStatusResponse = client().execute(
+            UpdatePersistentTaskStatusAction.INSTANCE,
+            updatePersistentTaskStatusRequest
+        ).actionGet();
         assertNotNull(updatePersistentTaskStatusResponse.getTask());
 
         // Confirm the datafeed state is now stopping - this may take a while to update in cluster state
         assertBusy(() -> {
             GetDatafeedsStatsAction.Request datafeedStatsRequest = new GetDatafeedsStatsAction.Request(datafeedId);
-            GetDatafeedsStatsAction.Response datafeedStatsResponse =
-                    client().execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest).actionGet();
+            GetDatafeedsStatsAction.Response datafeedStatsResponse = client().execute(
+                GetDatafeedsStatsAction.INSTANCE,
+                datafeedStatsRequest
+            ).actionGet();
             assertEquals(DatafeedState.STOPPING, datafeedStatsResponse.getResponse().results().get(0).getDatafeedState());
         });
-
 
         // Stop the node running the failed job/stopping datafeed
         ensureGreen(); // replicas must be assigned, otherwise we could lose a whole index
@@ -347,8 +351,8 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         // Confirm the datafeed state is now stopped - shouldn't need a busy check here as
         // the stop endpoint shouldn't return until its effects are externally visible
         GetDatafeedsStatsAction.Request datafeedStatsRequest2 = new GetDatafeedsStatsAction.Request(datafeedId);
-        GetDatafeedsStatsAction.Response datafeedStatsResponse2 =
-            client().execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest2).actionGet();
+        GetDatafeedsStatsAction.Response datafeedStatsResponse2 = client().execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest2)
+            .actionGet();
         assertEquals(DatafeedState.STOPPED, datafeedStatsResponse2.getResponse().results().get(0).getDatafeedState());
 
         // We should be allowed to force stop the unassigned failed job
@@ -363,15 +367,13 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         logger.info("Starting dedicated master node...");
         internalCluster().startMasterOnlyNode();
         logger.info("Starting ml and data node...");
-        internalCluster().startNode(onlyRoles(
-            Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, MachineLearning.ML_ROLE)))
-        ));
+        internalCluster().startNode(
+            onlyRoles(Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, MachineLearning.ML_ROLE))))
+        );
         ensureStableCluster();
 
         // index some datafeed data
-        client().admin().indices().prepareCreate("data")
-            .addMapping("type", "time", "type=date")
-            .get();
+        client().admin().indices().prepareCreate("data").addMapping("type", "time", "type=date").get();
         long numDocs1 = randomIntBetween(32, 2048);
         long now = System.currentTimeMillis();
         long weekAgo = now - 604800000;
@@ -384,14 +386,16 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         waitForJobToHaveProcessedExactly(jobId, numDocs1);
 
         GetDatafeedsStatsAction.Request datafeedStatsRequest = new GetDatafeedsStatsAction.Request(datafeedId);
-        GetDatafeedsStatsAction.Response datafeedStatsResponse =
-            client().execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest).actionGet();
+        GetDatafeedsStatsAction.Response datafeedStatsResponse = client().execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest)
+            .actionGet();
         assertEquals(DatafeedState.STARTED, datafeedStatsResponse.getResponse().results().get(0).getDatafeedState());
 
         // Stop the datafeed normally
         StopDatafeedAction.Request stopDatafeedRequest = new StopDatafeedAction.Request(datafeedId);
-        ActionFuture<StopDatafeedAction.Response> normalStopActionFuture
-            = client().execute(StopDatafeedAction.INSTANCE, stopDatafeedRequest);
+        ActionFuture<StopDatafeedAction.Response> normalStopActionFuture = client().execute(
+            StopDatafeedAction.INSTANCE,
+            stopDatafeedRequest
+        );
 
         // Force stop the datafeed without waiting for the normal stop to return first
         stopDatafeedRequest = new StopDatafeedAction.Request(datafeedId);
@@ -413,14 +417,14 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(1);
         ensureStableCluster();
 
-        // Open 4 small jobs.  Since there is only 1 node in the cluster they'll have to go on that node.
+        // Open 4 small jobs. Since there is only 1 node in the cluster they'll have to go on that node.
 
         setupJobWithoutDatafeed("small1", ByteSizeValue.ofMb(2));
         setupJobWithoutDatafeed("small2", ByteSizeValue.ofMb(2));
         setupJobWithoutDatafeed("small3", ByteSizeValue.ofMb(2));
         setupJobWithoutDatafeed("small4", ByteSizeValue.ofMb(2));
 
-        // Expand the cluster to 3 nodes.  The 4 small jobs will stay on the
+        // Expand the cluster to 3 nodes. The 4 small jobs will stay on the
         // same node because we don't rebalance jobs that are happily running.
 
         internalCluster().ensureAtLeastNumDataNodes(3);
@@ -430,7 +434,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
         ensureGreen();
 
-        // Open a big job.  This should go on a different node to the 4 small ones.
+        // Open a big job. This should go on a different node to the 4 small ones.
 
         setupJobWithoutDatafeed("big1", ByteSizeValue.ofMb(500));
 
@@ -439,8 +443,10 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         internalCluster().stopCurrentMasterNode();
         ensureStableCluster();
 
-        PersistentTasksClusterService persistentTasksClusterService =
-            internalCluster().getInstance(PersistentTasksClusterService.class, internalCluster().getMasterName());
+        PersistentTasksClusterService persistentTasksClusterService = internalCluster().getInstance(
+            PersistentTasksClusterService.class,
+            internalCluster().getMasterName()
+        );
         // Speed up rechecks to a rate that is quicker than what settings would allow.
         // The tests would work eventually without doing this, but the assertBusy() below
         // would need to wait 30 seconds, which would make the suite run very slowly.
@@ -450,21 +456,29 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         persistentTasksClusterService.setRecheckInterval(TimeValue.timeValueMillis(200));
 
         // If memory requirements are used to reallocate the 4 small jobs (as we expect) then they should
-        // all reallocate to the same node, that being the one that doesn't have the big job on.  If job counts
+        // all reallocate to the same node, that being the one that doesn't have the big job on. If job counts
         // are used to reallocate the small jobs then this implies the fallback allocation mechanism has been
         // used in a situation we don't want it to be used in, and at least one of the small jobs will be on
-        // the same node as the big job.  (This all relies on xpack.ml.node_concurrent_job_allocations being set
+        // the same node as the big job. (This all relies on xpack.ml.node_concurrent_job_allocations being set
         // to at least 4, which we do in the nodeSettings() method.)
 
         assertBusy(() -> {
-            GetJobsStatsAction.Response statsResponse =
-                client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(Metadata.ALL)).actionGet();
+            GetJobsStatsAction.Response statsResponse = client().execute(
+                GetJobsStatsAction.INSTANCE,
+                new GetJobsStatsAction.Request(Metadata.ALL)
+            ).actionGet();
             QueryPage<JobStats> jobStats = statsResponse.getResponse();
             assertNotNull(jobStats);
-            List<String> smallJobNodes = jobStats.results().stream().filter(s -> s.getJobId().startsWith("small") && s.getNode() != null)
-                .map(s -> s.getNode().getName()).collect(Collectors.toList());
-            List<String> bigJobNodes = jobStats.results().stream().filter(s -> s.getJobId().startsWith("big") && s.getNode() != null)
-                .map(s -> s.getNode().getName()).collect(Collectors.toList());
+            List<String> smallJobNodes = jobStats.results()
+                .stream()
+                .filter(s -> s.getJobId().startsWith("small") && s.getNode() != null)
+                .map(s -> s.getNode().getName())
+                .collect(Collectors.toList());
+            List<String> bigJobNodes = jobStats.results()
+                .stream()
+                .filter(s -> s.getJobId().startsWith("big") && s.getNode() != null)
+                .map(s -> s.getNode().getName())
+                .collect(Collectors.toList());
             logger.info("small job nodes: " + smallJobNodes + ", big job nodes: " + bigJobNodes);
             assertEquals(5, jobStats.count());
             assertEquals(4, smallJobNodes.size());
@@ -480,19 +494,17 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         logger.info("Starting dedicated master node...");
         internalCluster().startMasterOnlyNode();
         logger.info("Starting ml and data node...");
-        internalCluster().startNode(onlyRoles(
-            Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, MachineLearning.ML_ROLE)))
-        ));
+        internalCluster().startNode(
+            onlyRoles(Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, MachineLearning.ML_ROLE))))
+        );
         logger.info("Starting another ml and data node...");
-        internalCluster().startNode(onlyRoles(
-            Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, MachineLearning.ML_ROLE)))
-        ));
+        internalCluster().startNode(
+            onlyRoles(Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, MachineLearning.ML_ROLE))))
+        );
         ensureStableCluster();
 
         // index some datafeed data
-        client().admin().indices().prepareCreate("data")
-            .addMapping("type", "time", "type=date")
-            .get();
+        client().admin().indices().prepareCreate("data").addMapping("type", "time", "type=date").get();
         long numDocs = 80000;
         long now = System.currentTimeMillis();
         long weekAgo = now - 604800000;
@@ -513,13 +525,19 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId()));
 
         assertBusy(() -> {
-            GetJobsStatsAction.Response statsResponse =
-                client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
+            GetJobsStatsAction.Response statsResponse = client().execute(
+                GetJobsStatsAction.INSTANCE,
+                new GetJobsStatsAction.Request(job.getId())
+            ).actionGet();
             assertEquals(JobState.OPENED, statsResponse.getResponse().results().get(0).getState());
         }, 30, TimeUnit.SECONDS);
 
         DiscoveryNode nodeRunningJob = client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId()))
-            .actionGet().getResponse().results().get(0).getNode();
+            .actionGet()
+            .getResponse()
+            .results()
+            .get(0)
+            .getNode();
 
         setMlIndicesDelayedNodeLeftTimeoutToZero();
 
@@ -551,8 +569,10 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId())).actionGet();
         assertBusy(() -> {
-            GetJobsStatsAction.Response statsResponse =
-                client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
+            GetJobsStatsAction.Response statsResponse = client().execute(
+                GetJobsStatsAction.INSTANCE,
+                new GetJobsStatsAction.Request(job.getId())
+            ).actionGet();
             assertEquals(JobState.OPENED, statsResponse.getResponse().results().get(0).getState());
         });
     }
@@ -568,8 +588,10 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId()));
         assertBusy(() -> {
-            GetJobsStatsAction.Response statsResponse =
-                    client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
+            GetJobsStatsAction.Response statsResponse = client().execute(
+                GetJobsStatsAction.INSTANCE,
+                new GetJobsStatsAction.Request(job.getId())
+            ).actionGet();
             assertEquals(JobState.OPENED, statsResponse.getResponse().results().get(0).getState());
         }, 30, TimeUnit.SECONDS);
 
@@ -580,9 +602,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
     }
 
     private void run(String jobId, CheckedRunnable<Exception> disrupt) throws Exception {
-        client().admin().indices().prepareCreate("data")
-                .addMapping("type", "time", "type=date")
-                .get();
+        client().admin().indices().prepareCreate("data").addMapping("type", "time", "type=date").get();
         long numDocs1 = randomIntBetween(32, 2048);
         long now = System.currentTimeMillis();
         long weekAgo = now - 604800000;
@@ -601,8 +621,10 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
         disrupt.run();
 
-        PersistentTasksClusterService persistentTasksClusterService =
-            internalCluster().getInstance(PersistentTasksClusterService.class, internalCluster().getMasterName());
+        PersistentTasksClusterService persistentTasksClusterService = internalCluster().getInstance(
+            PersistentTasksClusterService.class,
+            internalCluster().getMasterName()
+        );
         // Speed up rechecks to a rate that is quicker than what settings would allow.
         // The tests would work eventually without doing this, but the assertBusy() below
         // would need to wait 30 seconds, which would make the suite run very slowly.
@@ -625,14 +647,16 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             }
 
             GetJobsStatsAction.Request jobStatsRequest = new GetJobsStatsAction.Request(jobId);
-            JobStats jobStats = client().execute(GetJobsStatsAction.INSTANCE, jobStatsRequest).actionGet()
-                    .getResponse().results().get(0);
+            JobStats jobStats = client().execute(GetJobsStatsAction.INSTANCE, jobStatsRequest).actionGet().getResponse().results().get(0);
             assertEquals(JobState.OPENED, jobStats.getState());
             assertNotNull(jobStats.getNode());
 
             GetDatafeedsStatsAction.Request datafeedStatsRequest = new GetDatafeedsStatsAction.Request("data_feed_id");
-            DatafeedStats datafeedStats = client().execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest).actionGet()
-                    .getResponse().results().get(0);
+            DatafeedStats datafeedStats = client().execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest)
+                .actionGet()
+                .getResponse()
+                .results()
+                .get(0);
             assertEquals(DatafeedState.STARTED, datafeedStats.getDatafeedState());
             assertNotNull(datafeedStats.getNode());
         }, 20, TimeUnit.SECONDS);
@@ -649,16 +673,22 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
     // are what we expect them to be:
     private static DataCounts getDataCountsFromIndex(String jobId) {
         SearchResponse searchResponse = client().prepareSearch()
-                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
-                .setQuery(QueryBuilders.idsQuery().addIds(DataCounts.documentId(jobId)))
-                .get();
+            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
+            .setQuery(QueryBuilders.idsQuery().addIds(DataCounts.documentId(jobId)))
+            .get();
         if (searchResponse.getHits().getTotalHits().value != 1) {
             return new DataCounts(jobId);
         }
 
         BytesReference source = searchResponse.getHits().getHits()[0].getSourceRef();
-        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
-                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION, source, XContentType.JSON)) {
+        try (
+            XContentParser parser = XContentHelper.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                source,
+                XContentType.JSON
+            )
+        ) {
             return DataCounts.PARSER.apply(parser, null);
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -696,8 +726,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         JobStats jobStats = getJobStats(jobId);
         DataCounts dataCounts = jobStats.getDataCounts();
 
-        ModelSnapshot modelSnapshot = new ModelSnapshot.Builder(jobId)
-            .setLatestResultTimeStamp(dataCounts.getLatestRecordTimeStamp())
+        ModelSnapshot modelSnapshot = new ModelSnapshot.Builder(jobId).setLatestResultTimeStamp(dataCounts.getLatestRecordTimeStamp())
             .setLatestRecordTimeStamp(dataCounts.getLatestRecordTimeStamp())
             .setMinVersion(Version.CURRENT)
             .setSnapshotId(jobId + "_mock_snapshot")

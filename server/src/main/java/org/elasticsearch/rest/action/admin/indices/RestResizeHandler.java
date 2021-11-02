@@ -8,16 +8,16 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -34,8 +34,7 @@ public abstract class RestResizeHandler extends BaseRestHandler {
     private static final Logger logger = LogManager.getLogger(RestResizeHandler.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
-    RestResizeHandler() {
-    }
+    RestResizeHandler() {}
 
     @Override
     public abstract String getName();
@@ -61,8 +60,11 @@ public abstract class RestResizeHandler extends BaseRestHandler {
                     throw new IllegalArgumentException("parameter [copy_settings] can not be explicitly set to [false]");
                 }
             }
-            deprecationLogger.critical(DeprecationCategory.API, "resize_deprecated_parameter",
-                "parameter [copy_settings] is deprecated and will be removed in 8.0.0");
+            deprecationLogger.critical(
+                DeprecationCategory.API,
+                "resize_deprecated_parameter",
+                "parameter [copy_settings] is deprecated and will be removed in 8.0.0"
+            );
         }
         resizeRequest.setCopySettings(copySettings);
         request.applyContentParser(resizeRequest::fromXContent);
@@ -76,9 +78,7 @@ public abstract class RestResizeHandler extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
-            return unmodifiableList(asList(
-                new Route(POST, "/{index}/_shrink/{target}"),
-                new Route(PUT, "/{index}/_shrink/{target}")));
+            return unmodifiableList(asList(new Route(POST, "/{index}/_shrink/{target}"), new Route(PUT, "/{index}/_shrink/{target}")));
         }
 
         @Override
@@ -97,9 +97,7 @@ public abstract class RestResizeHandler extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
-            return unmodifiableList(asList(
-                new Route(POST, "/{index}/_split/{target}"),
-                new Route(PUT, "/{index}/_split/{target}")));
+            return unmodifiableList(asList(new Route(POST, "/{index}/_split/{target}"), new Route(PUT, "/{index}/_split/{target}")));
         }
 
         @Override
@@ -118,9 +116,7 @@ public abstract class RestResizeHandler extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
-            return unmodifiableList(asList(
-                new Route(POST, "/{index}/_clone/{target}"),
-                new Route(PUT, "/{index}/_clone/{target}")));
+            return unmodifiableList(asList(new Route(POST, "/{index}/_clone/{target}"), new Route(PUT, "/{index}/_clone/{target}")));
         }
 
         @Override

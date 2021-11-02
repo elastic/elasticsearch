@@ -10,10 +10,10 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.Netty4Plugin;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.input.http.HttpInput;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -22,8 +22,8 @@ import java.net.InetSocketAddress;
 import java.util.Collection;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.indexAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.chainInput;
@@ -43,9 +43,7 @@ public class ChainIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal, otherSettings))
-                .build();
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).build();
     }
 
     @Override
@@ -59,20 +57,22 @@ public class ChainIntegrationTests extends AbstractWatcherIntegrationTestCase {
         client().prepareIndex().setIndex(index).setId("id").setSource("{}", XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
 
         InetSocketAddress address = internalCluster().httpAddresses()[0];
-        HttpInput.Builder httpInputBuilder = httpInput(HttpRequestTemplate.builder(address.getHostString(), address.getPort())
+        HttpInput.Builder httpInputBuilder = httpInput(
+            HttpRequestTemplate.builder(address.getHostString(), address.getPort())
                 .path("/" + index + "/_search")
-                .body(Strings.toString(jsonBuilder().startObject().field("size", 1).endObject())));
+                .body(Strings.toString(jsonBuilder().startObject().field("size", 1).endObject()))
+        );
 
-        ChainInput.Builder chainedInputBuilder = chainInput()
-                .add("first", simpleInput("url", "/" + index  + "/_search"))
-                .add("second", httpInputBuilder);
+        ChainInput.Builder chainedInputBuilder = chainInput().add("first", simpleInput("url", "/" + index + "/_search"))
+            .add("second", httpInputBuilder);
 
         watcherClient().preparePutWatch("_name")
-                .setSource(watchBuilder()
-                        .trigger(schedule(interval(5, SECONDS)))
-                        .input(chainedInputBuilder)
-                        .addAction("indexAction", indexAction("my-index")))
-                .get();
+            .setSource(
+                watchBuilder().trigger(schedule(interval(5, SECONDS)))
+                    .input(chainedInputBuilder)
+                    .addAction("indexAction", indexAction("my-index"))
+            )
+            .get();
 
         timeWarp().trigger("_name");
         refresh();
@@ -87,7 +87,7 @@ public class ChainIntegrationTests extends AbstractWatcherIntegrationTestCase {
             assertHitCount(searchResponse, 1);
             assertThat(searchResponse.getHits().getAt(0).getSourceAsString(), containsString("the-most-awesome-index-ever"));
         } catch (IndexNotFoundException e) {
-            fail("Index not found: ["+ e.getIndex() + "]");
+            fail("Index not found: [" + e.getIndex() + "]");
         }
     }
 }

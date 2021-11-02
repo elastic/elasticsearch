@@ -17,7 +17,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
@@ -25,6 +24,7 @@ import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.PipelineConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.ilm.FreezeAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
@@ -55,28 +55,29 @@ public class ClusterDeprecationChecks {
     static DeprecationIssue checkUserAgentPipelines(ClusterState state) {
         List<PipelineConfiguration> pipelines = IngestService.getPipelines(state);
 
-        List<String> pipelinesWithDeprecatedEcsConfig = pipelines.stream()
-            .filter(Objects::nonNull)
-            .filter(pipeline -> {
-                Map<String, Object> pipelineConfig = pipeline.getConfigAsMap();
+        List<String> pipelinesWithDeprecatedEcsConfig = pipelines.stream().filter(Objects::nonNull).filter(pipeline -> {
+            Map<String, Object> pipelineConfig = pipeline.getConfigAsMap();
 
-                List<Map<String, Map<String, Object>>> processors =
-                    (List<Map<String, Map<String, Object>>>) pipelineConfig.get("processors");
-                return processors.stream()
-                    .filter(Objects::nonNull)
-                    .filter(processor -> processor.containsKey("user_agent"))
-                    .map(processor -> processor.get("user_agent"))
-                    .anyMatch(processorConfig -> processorConfig.containsKey("ecs"));
-            })
+            List<Map<String, Map<String, Object>>> processors = (List<Map<String, Map<String, Object>>>) pipelineConfig.get("processors");
+            return processors.stream()
+                .filter(Objects::nonNull)
+                .filter(processor -> processor.containsKey("user_agent"))
+                .map(processor -> processor.get("user_agent"))
+                .anyMatch(processorConfig -> processorConfig.containsKey("ecs"));
+        })
             .map(PipelineConfiguration::getId)
             .sorted() // Make the warning consistent for testing purposes
             .collect(Collectors.toList());
         if (pipelinesWithDeprecatedEcsConfig.isEmpty() == false) {
-            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
                 "The User-Agent ingest processor's ecs parameter is deprecated",
                 "https://ela.st/es-deprecation-7-ingest-pipeline-ecs-option",
-                "Remove the ecs parameter from your ingest pipelines. The User-Agent ingest processor always returns Elastic Common " +
-                    "Schema (ECS) fields in 8.0.", false, null);
+                "Remove the ecs parameter from your ingest pipelines. The User-Agent ingest processor always returns Elastic Common "
+                    + "Schema (ECS) fields in 8.0.",
+                false,
+                null
+            );
         }
         return null;
     }
@@ -100,13 +101,23 @@ public class ClusterDeprecationChecks {
         });
 
         if (templatesOverLimit.isEmpty() == false) {
-            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
                 "Fields in index template exceed automatic field expansion limit",
                 "https://ela.st/es-deprecation-7-number-of-auto-expanded-fields",
-                "Index templates " + templatesOverLimit + " have a number of fields which exceeds the automatic field expansion " +
-                    "limit of [" + maxClauseCount + "] and does not have [" + IndexSettings.DEFAULT_FIELD_SETTING.getKey() + "] set, " +
-                    "which may cause queries which use automatic field expansion, such as query_string, simple_query_string, and " +
-                    "multi_match to fail if fields are not explicitly specified in the query.", false, null);
+                "Index templates "
+                    + templatesOverLimit
+                    + " have a number of fields which exceeds the automatic field expansion "
+                    + "limit of ["
+                    + maxClauseCount
+                    + "] and does not have ["
+                    + IndexSettings.DEFAULT_FIELD_SETTING.getKey()
+                    + "] set, "
+                    + "which may cause queries which use automatic field expansion, such as query_string, simple_query_string, and "
+                    + "multi_match to fail if fields are not explicitly specified in the query.",
+                false,
+                null
+            );
         }
         return null;
     }
@@ -136,13 +147,20 @@ public class ClusterDeprecationChecks {
         });
 
         if (templatesContainingFieldNames.isEmpty() == false) {
-            return new DeprecationIssue(DeprecationIssue.Level.WARNING, "Disabling the \"_field_names\" field in a template's index " +
-                "mappings is deprecated",
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "Disabling the \"_field_names\" field in a template's index " + "mappings is deprecated",
                 "https://ela.st/es-deprecation-7-field_names-settings",
-                String.format(Locale.ROOT, "Remove the \"%s\" mapping that configures the enabled setting from the " +
-                    "following templates: \"%s\". There's no longer a need to disable this field to reduce index overhead if you have a " +
-                    "lot of fields.", FieldNamesFieldMapper.NAME, templatesContainingFieldNames.stream().collect(Collectors.joining(","))),
-                false, null);
+                String.format(
+                    Locale.ROOT,
+                    "Remove the \"%s\" mapping that configures the enabled setting from the following templates: \"%s\". "
+                        + "There's no longer a need to disable this field to reduce index overhead if you have a lot of fields.",
+                    FieldNamesFieldMapper.NAME,
+                    templatesContainingFieldNames.stream().collect(Collectors.joining(","))
+                ),
+                false,
+                null
+            );
         }
         return null;
     }
@@ -175,12 +193,19 @@ public class ClusterDeprecationChecks {
         }
 
         if (pollInterval.compareTo(TimeValue.timeValueSeconds(1)) < 0) {
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            return new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
                 "Index Lifecycle Management poll interval is set too low",
                 "https://ela.st/es-deprecation-7-indices-lifecycle-poll-interval-setting",
-                String.format(Locale.ROOT,"The ILM [%s] setting is set to [%s]. Set the interval to at least 1s.",
-                    LIFECYCLE_POLL_INTERVAL_SETTING.getKey(), pollIntervalString),
-                false, null);
+                String.format(
+                    Locale.ROOT,
+                    "The ILM [%s] setting is set to [%s]. Set the interval to at least 1s.",
+                    LIFECYCLE_POLL_INTERVAL_SETTING.getKey(),
+                    pollIntervalString
+                ),
+                false,
+                null
+            );
         }
         return null;
     }
@@ -197,17 +222,21 @@ public class ClusterDeprecationChecks {
         if (templatesWithMultipleTypes.isEmpty()) {
             return null;
         }
-        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+        return new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
             "Multiple mapping types in index templates and indices is not supported",
             "https://ela.st/es-deprecation-7-multiple-types",
-            "Update or remove the following index templates before upgrading to 8.0: " + templatesWithMultipleTypes +
-                ". See https://ela.st/es-deprecation-7-removal-of-types for alternatives to mapping types.",
+            "Update or remove the following index templates before upgrading to 8.0: "
+                + templatesWithMultipleTypes
+                + ". See https://ela.st/es-deprecation-7-removal-of-types for alternatives to mapping types.",
             false,
-            null);
+            null
+        );
     }
 
     static DeprecationIssue checkClusterRoutingAllocationIncludeRelocationsSetting(final ClusterState clusterState) {
-        return checkRemovedSetting(clusterState.metadata().settings(),
+        return checkRemovedSetting(
+            clusterState.metadata().settings(),
             CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING,
             "https://ela.st/es-deprecation-7-cluster-routing-allocation-disk-include-relocations-setting",
             "Relocating shards are always taken into account in 8.0.",
@@ -217,115 +246,165 @@ public class ClusterDeprecationChecks {
 
     @SuppressWarnings("unchecked")
     private static Map<String, List<String>> getComponentTemplatesWithDeprecatedGeoShapeProperties(
-        Map<String, ComponentTemplate> componentTemplates) {
-        Map<String, List<String>> detailsForComponentTemplates =
-            componentTemplates.entrySet().stream().map((templateCursor) -> {
-                String templateName = templateCursor.getKey();
-                ComponentTemplate componentTemplate = templateCursor.getValue();
-                CompressedXContent mappings = componentTemplate.template().mappings();
-                if (mappings != null) {
-                    Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(mappings.uncompressed(), true,
-                        XContentType.JSON);
-                    Map<String, Object> mappingAsMap = tuple.v2();
-                    List<String> messages = mappingAsMap == null ? Collections.emptyList() :
-                        IndexDeprecationChecks.findInPropertiesRecursively(GeoShapeFieldMapper.CONTENT_TYPE,
-                            mappingAsMap,
-                            IndexDeprecationChecks::isGeoShapeFieldWithDeprecatedParam,
-                            IndexDeprecationChecks::formatDeprecatedGeoShapeParamMessage, "[", "]");
-                    return Tuple.tuple(templateName, messages);
-                }
-                return null;
-            }).filter(templateToMessagesTuple -> templateToMessagesTuple != null && templateToMessagesTuple.v2().isEmpty() == false)
-                .collect(Collectors.toMap(Tuple<String, List<String>>::v1, Tuple<String, List<String>>::v2));
+        Map<String, ComponentTemplate> componentTemplates
+    ) {
+        Map<String, List<String>> detailsForComponentTemplates = componentTemplates.entrySet().stream().map((templateCursor) -> {
+            String templateName = templateCursor.getKey();
+            ComponentTemplate componentTemplate = templateCursor.getValue();
+            CompressedXContent mappings = componentTemplate.template().mappings();
+            if (mappings != null) {
+                Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(
+                    mappings.uncompressed(),
+                    true,
+                    XContentType.JSON
+                );
+                Map<String, Object> mappingAsMap = tuple.v2();
+                List<String> messages = mappingAsMap == null
+                    ? Collections.emptyList()
+                    : IndexDeprecationChecks.findInPropertiesRecursively(
+                        GeoShapeFieldMapper.CONTENT_TYPE,
+                        mappingAsMap,
+                        IndexDeprecationChecks::isGeoShapeFieldWithDeprecatedParam,
+                        IndexDeprecationChecks::formatDeprecatedGeoShapeParamMessage,
+                        "[",
+                        "]"
+                    );
+                return Tuple.tuple(templateName, messages);
+            }
+            return null;
+        })
+            .filter(templateToMessagesTuple -> templateToMessagesTuple != null && templateToMessagesTuple.v2().isEmpty() == false)
+            .collect(Collectors.toMap(Tuple<String, List<String>>::v1, Tuple<String, List<String>>::v2));
         return detailsForComponentTemplates;
     }
 
     @SuppressWarnings("unchecked")
     private static Map<String, List<String>> getIndexTemplatesWithDeprecatedGeoShapeProperties(
-        ImmutableOpenMap<String, IndexTemplateMetadata> indexTemplates) {
-        Map<String, List<String>> detailsForIndexTemplates =
-            StreamSupport.stream(indexTemplates.spliterator(), false).map((templateCursor) -> {
+        ImmutableOpenMap<String, IndexTemplateMetadata> indexTemplates
+    ) {
+        Map<String, List<String>> detailsForIndexTemplates = StreamSupport.stream(indexTemplates.spliterator(), false)
+            .map((templateCursor) -> {
                 String templateName = templateCursor.key;
                 IndexTemplateMetadata indexTemplateMetadata = templateCursor.value;
-                List<String> messagesForTemplate =
-                    StreamSupport.stream(indexTemplateMetadata.getMappings().spliterator(), false).map((mappingCursor) -> {
+                List<String> messagesForTemplate = StreamSupport.stream(indexTemplateMetadata.getMappings().spliterator(), false)
+                    .map((mappingCursor) -> {
                         CompressedXContent mapping = mappingCursor.value;
-                        Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(mapping.uncompressed(), true,
-                            XContentType.JSON);
+                        Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(
+                            mapping.uncompressed(),
+                            true,
+                            XContentType.JSON
+                        );
                         Map<String, Object> mappingAsMap = (Map<String, Object>) tuple.v2().get("_doc");
-                        List<String> messages = mappingAsMap == null ? Collections.emptyList() :
-                            IndexDeprecationChecks.findInPropertiesRecursively(GeoShapeFieldMapper.CONTENT_TYPE,
+                        List<String> messages = mappingAsMap == null
+                            ? Collections.emptyList()
+                            : IndexDeprecationChecks.findInPropertiesRecursively(
+                                GeoShapeFieldMapper.CONTENT_TYPE,
                                 mappingAsMap,
                                 IndexDeprecationChecks::isGeoShapeFieldWithDeprecatedParam,
-                                IndexDeprecationChecks::formatDeprecatedGeoShapeParamMessage, "[", "]");
+                                IndexDeprecationChecks::formatDeprecatedGeoShapeParamMessage,
+                                "[",
+                                "]"
+                            );
                         return messages;
-                    }).filter(messages -> messages.isEmpty() == false).flatMap(x -> x.stream()).collect(Collectors.toList());
+                    })
+                    .filter(messages -> messages.isEmpty() == false)
+                    .flatMap(x -> x.stream())
+                    .collect(Collectors.toList());
                 return Tuple.tuple(templateName, messagesForTemplate);
-            }).filter(templateToMessagesTuple -> templateToMessagesTuple != null && templateToMessagesTuple.v2().isEmpty() == false)
-                .collect(Collectors.toMap(Tuple<String, List<String>>::v1, Tuple<String, List<String>>::v2));
+            })
+            .filter(templateToMessagesTuple -> templateToMessagesTuple != null && templateToMessagesTuple.v2().isEmpty() == false)
+            .collect(Collectors.toMap(Tuple<String, List<String>>::v1, Tuple<String, List<String>>::v2));
         return detailsForIndexTemplates;
     }
 
-    private static String getDetailsMessageForTemplatesWithDeprecations(Map<String, List<String>> templateToMessages,
-                                                                        boolean forceIncludeTemplateName) {
+    private static String getDetailsMessageForTemplatesWithDeprecations(
+        Map<String, List<String>> templateToMessages,
+        boolean forceIncludeTemplateName
+    ) {
         final boolean includeTemplateName = forceIncludeTemplateName || templateToMessages.keySet().size() > 1;
-        return templateToMessages.entrySet().stream().filter(entry -> entry.getValue().isEmpty() == false)
-            .map(entry -> {
-                StringBuilder message = new StringBuilder();
-                if (includeTemplateName) {
-                    message.append("[");
-                    message.append(entry.getKey());
-                    message.append(": ");
-                }
-                message.append(entry.getValue().stream().collect(Collectors.joining("; ")));
-                if (includeTemplateName) {
-                    message.append("]");
-                }
-                return message;
-            })
-            .collect(Collectors.joining("; "));
+        return templateToMessages.entrySet().stream().filter(entry -> entry.getValue().isEmpty() == false).map(entry -> {
+            StringBuilder message = new StringBuilder();
+            if (includeTemplateName) {
+                message.append("[");
+                message.append(entry.getKey());
+                message.append(": ");
+            }
+            message.append(entry.getValue().stream().collect(Collectors.joining("; ")));
+            if (includeTemplateName) {
+                message.append("]");
+            }
+            return message;
+        }).collect(Collectors.joining("; "));
     }
 
     @SuppressWarnings("unchecked")
     static DeprecationIssue checkGeoShapeTemplates(final ClusterState clusterState) {
-        Map<String, List<String>> componentTemplatesToMessagesMap =
-            getComponentTemplatesWithDeprecatedGeoShapeProperties(clusterState.getMetadata().componentTemplates());
-        Map<String, List<String>> indexTemplatesToMessagesMap =
-            getIndexTemplatesWithDeprecatedGeoShapeProperties(clusterState.getMetadata().getTemplates());
+        Map<String, List<String>> componentTemplatesToMessagesMap = getComponentTemplatesWithDeprecatedGeoShapeProperties(
+            clusterState.getMetadata().componentTemplates()
+        );
+        Map<String, List<String>> indexTemplatesToMessagesMap = getIndexTemplatesWithDeprecatedGeoShapeProperties(
+            clusterState.getMetadata().getTemplates()
+        );
         boolean deprecationInComponentTemplates = componentTemplatesToMessagesMap.isEmpty() == false;
         boolean deprecationInIndexTemplates = indexTemplatesToMessagesMap.isEmpty() == false;
         String url = "https://ela.st/es-deprecation-7-geo-shape-mappings";
         if (deprecationInComponentTemplates && deprecationInIndexTemplates) {
-            String message = String.format(Locale.ROOT,"[%s] component template%s and [%s] index template%s use deprecated geo_shape " +
-                "properties",
+            String message = String.format(
+                Locale.ROOT,
+                "[%s] component template%s and [%s] index template%s use deprecated geo_shape " + "properties",
                 componentTemplatesToMessagesMap.keySet().stream().collect(Collectors.joining(",")),
                 componentTemplatesToMessagesMap.keySet().size() > 1 ? "s" : "",
                 indexTemplatesToMessagesMap.keySet().stream().collect(Collectors.joining(",")),
-                indexTemplatesToMessagesMap.keySet().size() > 1 ? "s" : "");
-            String details = String.format(Locale.ROOT,
+                indexTemplatesToMessagesMap.keySet().size() > 1 ? "s" : ""
+            );
+            String details = String.format(
+                Locale.ROOT,
                 "Remove the following deprecated geo_shape properties from the mappings: %s; %s.",
                 getDetailsMessageForTemplatesWithDeprecations(componentTemplatesToMessagesMap, true),
-                getDetailsMessageForTemplatesWithDeprecations(indexTemplatesToMessagesMap, true));
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false,
-                null);
-        } if (deprecationInComponentTemplates == false && deprecationInIndexTemplates) {
-            String message = String.format(Locale.ROOT,"[%s] index template%s use%s deprecated geo_shape properties",
+                getDetailsMessageForTemplatesWithDeprecations(indexTemplatesToMessagesMap, true)
+            );
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
+        }
+        if (deprecationInComponentTemplates == false && deprecationInIndexTemplates) {
+            String message = String.format(
+                Locale.ROOT,
+                "[%s] index template%s use%s deprecated geo_shape properties",
                 indexTemplatesToMessagesMap.keySet().stream().collect(Collectors.joining(",")),
                 indexTemplatesToMessagesMap.keySet().size() > 1 ? "s" : "",
-                indexTemplatesToMessagesMap.keySet().size() > 1 ? "" : "s");
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url,
-                String.format(Locale.ROOT,"Remove the following deprecated geo_shape properties from the mappings: %s.",
-                    getDetailsMessageForTemplatesWithDeprecations(indexTemplatesToMessagesMap, false)), false,
-                null);
+                indexTemplatesToMessagesMap.keySet().size() > 1 ? "" : "s"
+            );
+            return new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
+                message,
+                url,
+                String.format(
+                    Locale.ROOT,
+                    "Remove the following deprecated geo_shape properties from the mappings: %s.",
+                    getDetailsMessageForTemplatesWithDeprecations(indexTemplatesToMessagesMap, false)
+                ),
+                false,
+                null
+            );
         } else if (deprecationInIndexTemplates == false && deprecationInComponentTemplates) {
-            String message = String.format(Locale.ROOT,"[%s] component template%s use%s deprecated geo_shape properties",
+            String message = String.format(
+                Locale.ROOT,
+                "[%s] component template%s use%s deprecated geo_shape properties",
                 componentTemplatesToMessagesMap.keySet().stream().collect(Collectors.joining(",")),
                 componentTemplatesToMessagesMap.keySet().size() > 1 ? "s" : "",
-                componentTemplatesToMessagesMap.keySet().size() > 1 ? "" : "s");
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url,
-                String.format(Locale.ROOT,"Remove the following deprecated geo_shape properties from the mappings: %s.",
-                    getDetailsMessageForTemplatesWithDeprecations(componentTemplatesToMessagesMap, false)), false,
-                null);
+                componentTemplatesToMessagesMap.keySet().size() > 1 ? "" : "s"
+            );
+            return new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
+                message,
+                url,
+                String.format(
+                    Locale.ROOT,
+                    "Remove the following deprecated geo_shape properties from the mappings: %s.",
+                    getDetailsMessageForTemplatesWithDeprecations(componentTemplatesToMessagesMap, false)
+                ),
+                false,
+                null
+            );
         } else {
             return null;
         }
@@ -341,97 +420,147 @@ public class ClusterDeprecationChecks {
 
     @SuppressWarnings("unchecked")
     private static Map<String, List<String>> getComponentTemplatesWithDeprecatedSparseVectorProperties(
-        Map<String, ComponentTemplate> componentTemplates) {
-        Map<String, List<String>> detailsForComponentTemplates =
-            componentTemplates.entrySet().stream().map((templateCursor) -> {
-                String templateName = templateCursor.getKey();
-                ComponentTemplate componentTemplate = templateCursor.getValue();
-                CompressedXContent mappings = componentTemplate.template().mappings();
-                if (mappings != null) {
-                    Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(mappings.uncompressed(), true,
-                        XContentType.JSON);
-                    Map<String, Object> mappingAsMap = tuple.v2();
-                    List<String> messages = mappingAsMap == null ? Collections.emptyList() :
-                        IndexDeprecationChecks.findInPropertiesRecursively(SPARSE_VECTOR,
-                            mappingAsMap,
-                            ClusterDeprecationChecks::isSparseVector,
-                            ClusterDeprecationChecks::formatDeprecatedSparseVectorMessage, "[", "]");
-                    if (messages.isEmpty() == false) {
-                        return Tuple.tuple(templateName, messages);
-                    }
+        Map<String, ComponentTemplate> componentTemplates
+    ) {
+        Map<String, List<String>> detailsForComponentTemplates = componentTemplates.entrySet().stream().map((templateCursor) -> {
+            String templateName = templateCursor.getKey();
+            ComponentTemplate componentTemplate = templateCursor.getValue();
+            CompressedXContent mappings = componentTemplate.template().mappings();
+            if (mappings != null) {
+                Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(
+                    mappings.uncompressed(),
+                    true,
+                    XContentType.JSON
+                );
+                Map<String, Object> mappingAsMap = tuple.v2();
+                List<String> messages = mappingAsMap == null
+                    ? Collections.emptyList()
+                    : IndexDeprecationChecks.findInPropertiesRecursively(
+                        SPARSE_VECTOR,
+                        mappingAsMap,
+                        ClusterDeprecationChecks::isSparseVector,
+                        ClusterDeprecationChecks::formatDeprecatedSparseVectorMessage,
+                        "[",
+                        "]"
+                    );
+                if (messages.isEmpty() == false) {
+                    return Tuple.tuple(templateName, messages);
                 }
-                return null;
-            }).filter(templateToMessagesTuple -> templateToMessagesTuple != null && templateToMessagesTuple.v2().isEmpty() == false)
-                .collect(Collectors.toMap(Tuple<String, List<String>>::v1, Tuple<String, List<String>>::v2));
+            }
+            return null;
+        })
+            .filter(templateToMessagesTuple -> templateToMessagesTuple != null && templateToMessagesTuple.v2().isEmpty() == false)
+            .collect(Collectors.toMap(Tuple<String, List<String>>::v1, Tuple<String, List<String>>::v2));
         return detailsForComponentTemplates;
     }
 
     @SuppressWarnings("unchecked")
     private static Map<String, List<String>> getIndexTemplatesWithDeprecatedSparseVectorProperties(
-        ImmutableOpenMap<String, IndexTemplateMetadata> indexTemplates) {
-        Map<String, List<String>> detailsForIndexTemplates =
-            StreamSupport.stream(indexTemplates.spliterator(), false).map((templateCursor) -> {
+        ImmutableOpenMap<String, IndexTemplateMetadata> indexTemplates
+    ) {
+        Map<String, List<String>> detailsForIndexTemplates = StreamSupport.stream(indexTemplates.spliterator(), false)
+            .map((templateCursor) -> {
                 String templateName = templateCursor.key;
                 IndexTemplateMetadata indexTemplateMetadata = templateCursor.value;
-                List<String> messagesForTemplate =
-                    StreamSupport.stream(indexTemplateMetadata.getMappings().spliterator(), false).map((mappingCursor) -> {
+                List<String> messagesForTemplate = StreamSupport.stream(indexTemplateMetadata.getMappings().spliterator(), false)
+                    .map((mappingCursor) -> {
                         CompressedXContent mapping = mappingCursor.value;
-                        Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(mapping.uncompressed(), true,
-                            XContentType.JSON);
+                        Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(
+                            mapping.uncompressed(),
+                            true,
+                            XContentType.JSON
+                        );
                         Map<String, Object> mappingAsMap = (Map<String, Object>) tuple.v2().get("_doc");
-                        List<String> messages = mappingAsMap == null ? Collections.emptyList() :
-                            IndexDeprecationChecks.findInPropertiesRecursively(SPARSE_VECTOR,
+                        List<String> messages = mappingAsMap == null
+                            ? Collections.emptyList()
+                            : IndexDeprecationChecks.findInPropertiesRecursively(
+                                SPARSE_VECTOR,
                                 mappingAsMap,
                                 ClusterDeprecationChecks::isSparseVector,
-                                ClusterDeprecationChecks::formatDeprecatedSparseVectorMessage, "[", "]");
+                                ClusterDeprecationChecks::formatDeprecatedSparseVectorMessage,
+                                "[",
+                                "]"
+                            );
                         return messages;
-                    }).filter(messages -> messages.isEmpty() == false).flatMap(x -> x.stream()).collect(Collectors.toList());
+                    })
+                    .filter(messages -> messages.isEmpty() == false)
+                    .flatMap(x -> x.stream())
+                    .collect(Collectors.toList());
                 return Tuple.tuple(templateName, messagesForTemplate);
-            }).filter(templateToMessagesTuple -> templateToMessagesTuple != null && templateToMessagesTuple.v2().isEmpty() == false)
-                .collect(Collectors.toMap(Tuple<String, List<String>>::v1, Tuple<String, List<String>>::v2));
+            })
+            .filter(templateToMessagesTuple -> templateToMessagesTuple != null && templateToMessagesTuple.v2().isEmpty() == false)
+            .collect(Collectors.toMap(Tuple<String, List<String>>::v1, Tuple<String, List<String>>::v2));
         return detailsForIndexTemplates;
     }
 
     @SuppressWarnings("unchecked")
     static DeprecationIssue checkSparseVectorTemplates(final ClusterState clusterState) {
-        Map<String, List<String>> componentTemplatesToMessagesMap =
-            getComponentTemplatesWithDeprecatedSparseVectorProperties(clusterState.getMetadata().componentTemplates());
-        Map<String, List<String>> indexTemplatesToMessagesMap =
-            getIndexTemplatesWithDeprecatedSparseVectorProperties(clusterState.getMetadata().getTemplates());
+        Map<String, List<String>> componentTemplatesToMessagesMap = getComponentTemplatesWithDeprecatedSparseVectorProperties(
+            clusterState.getMetadata().componentTemplates()
+        );
+        Map<String, List<String>> indexTemplatesToMessagesMap = getIndexTemplatesWithDeprecatedSparseVectorProperties(
+            clusterState.getMetadata().getTemplates()
+        );
         boolean deprecationInComponentTemplates = componentTemplatesToMessagesMap.isEmpty() == false;
         boolean deprecationInIndexTemplates = indexTemplatesToMessagesMap.isEmpty() == false;
         String url = "https://ela.st/es-deprecation-7-sparse-vector";
         if (deprecationInComponentTemplates && deprecationInIndexTemplates) {
-            String message = String.format(Locale.ROOT,"[%s] component template%s and [%s] index template%s use deprecated sparse_vector " +
-                    "properties",
+            String message = String.format(
+                Locale.ROOT,
+                "[%s] component template%s and [%s] index template%s use deprecated sparse_vector " + "properties",
                 componentTemplatesToMessagesMap.keySet().stream().collect(Collectors.joining(",")),
                 componentTemplatesToMessagesMap.keySet().size() > 1 ? "s" : "",
                 indexTemplatesToMessagesMap.keySet().stream().collect(Collectors.joining(",")),
-                indexTemplatesToMessagesMap.keySet().size() > 1 ? "s" : "");
-            String details = String.format(Locale.ROOT,
+                indexTemplatesToMessagesMap.keySet().size() > 1 ? "s" : ""
+            );
+            String details = String.format(
+                Locale.ROOT,
                 "Remove the following deprecated sparse_vector properties from the mappings: %s; %s.",
                 getDetailsMessageForTemplatesWithDeprecations(componentTemplatesToMessagesMap, true),
-                getDetailsMessageForTemplatesWithDeprecations(indexTemplatesToMessagesMap, true));
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false,
-                null);
-        } if (deprecationInComponentTemplates == false && deprecationInIndexTemplates) {
-            String message = String.format(Locale.ROOT,"[%s] index template%s use%s deprecated sparse_vector properties",
+                getDetailsMessageForTemplatesWithDeprecations(indexTemplatesToMessagesMap, true)
+            );
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
+        }
+        if (deprecationInComponentTemplates == false && deprecationInIndexTemplates) {
+            String message = String.format(
+                Locale.ROOT,
+                "[%s] index template%s use%s deprecated sparse_vector properties",
                 indexTemplatesToMessagesMap.keySet().stream().collect(Collectors.joining(",")),
                 indexTemplatesToMessagesMap.keySet().size() > 1 ? "s" : "",
-                indexTemplatesToMessagesMap.keySet().size() > 1 ? "" : "s");
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url,
-                String.format(Locale.ROOT,"Remove the following deprecated sparse_vector properties from the mappings: %s.",
-                    getDetailsMessageForTemplatesWithDeprecations(indexTemplatesToMessagesMap, false)), false,
-                null);
+                indexTemplatesToMessagesMap.keySet().size() > 1 ? "" : "s"
+            );
+            return new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
+                message,
+                url,
+                String.format(
+                    Locale.ROOT,
+                    "Remove the following deprecated sparse_vector properties from the mappings: %s.",
+                    getDetailsMessageForTemplatesWithDeprecations(indexTemplatesToMessagesMap, false)
+                ),
+                false,
+                null
+            );
         } else if (deprecationInIndexTemplates == false && deprecationInComponentTemplates) {
-            String message = String.format(Locale.ROOT,"[%s] component template%s use%s deprecated sparse_vector properties",
+            String message = String.format(
+                Locale.ROOT,
+                "[%s] component template%s use%s deprecated sparse_vector properties",
                 componentTemplatesToMessagesMap.keySet().stream().collect(Collectors.joining(",")),
                 componentTemplatesToMessagesMap.keySet().size() > 1 ? "s" : "",
-                componentTemplatesToMessagesMap.keySet().size() > 1 ? "" : "s");
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url,
-                String.format(Locale.ROOT,"Remove the following deprecated sparse_vector properties from the mappings: %s.",
-                    getDetailsMessageForTemplatesWithDeprecations(componentTemplatesToMessagesMap, false)), false,
-                null);
+                componentTemplatesToMessagesMap.keySet().size() > 1 ? "" : "s"
+            );
+            return new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
+                message,
+                url,
+                String.format(
+                    Locale.ROOT,
+                    "Remove the following deprecated sparse_vector properties from the mappings: %s.",
+                    getDetailsMessageForTemplatesWithDeprecations(componentTemplatesToMessagesMap, false)
+                ),
+                false,
+                null
+            );
         } else {
             return null;
         }
@@ -440,26 +569,32 @@ public class ClusterDeprecationChecks {
     static DeprecationIssue checkILMFreezeActions(ClusterState state) {
         IndexLifecycleMetadata indexLifecycleMetadata = state.getMetadata().custom("index_lifecycle");
         if (indexLifecycleMetadata != null) {
-            List<String> policiesWithFreezeActions =
-                indexLifecycleMetadata.getPolicies().entrySet().stream()
-                    .filter(nameAndPolicy ->
-                        nameAndPolicy.getValue().getPhases().values().stream()
-                            .anyMatch(phase -> phase != null && phase.getActions() != null &&
-                                phase.getActions().containsKey(FreezeAction.NAME)))
-                    .map(nameAndPolicy -> nameAndPolicy.getKey())
-                    .collect(Collectors.toList());
+            List<String> policiesWithFreezeActions = indexLifecycleMetadata.getPolicies()
+                .entrySet()
+                .stream()
+                .filter(
+                    nameAndPolicy -> nameAndPolicy.getValue()
+                        .getPhases()
+                        .values()
+                        .stream()
+                        .anyMatch(phase -> phase != null && phase.getActions() != null && phase.getActions().containsKey(FreezeAction.NAME))
+                )
+                .map(nameAndPolicy -> nameAndPolicy.getKey())
+                .collect(Collectors.toList());
             if (policiesWithFreezeActions.isEmpty() == false) {
                 String details = String.format(
                     Locale.ROOT,
                     "Remove the freeze action from ILM policies: [%s]",
                     policiesWithFreezeActions.stream().sorted().collect(Collectors.joining(","))
                 );
-                return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                return new DeprecationIssue(
+                    DeprecationIssue.Level.WARNING,
                     "ILM policies use the deprecated freeze action",
                     "https://ela.st/es-deprecation-7-frozen-indices",
                     details,
                     false,
-                    null);
+                    null
+                );
             }
         }
         return null;
@@ -467,12 +602,14 @@ public class ClusterDeprecationChecks {
 
     static DeprecationIssue checkTransientSettingsExistence(ClusterState state) {
         if (state.metadata().transientSettings().isEmpty() == false) {
-            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
                 "Transient cluster settings are deprecated",
                 "https://ela.st/es-deprecation-7-transient-cluster-settings",
                 "Use persistent settings to configure your cluster.",
                 false,
-                null);
+                null
+            );
         }
         return null;
     }

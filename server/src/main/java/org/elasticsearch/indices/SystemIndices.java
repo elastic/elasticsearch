@@ -178,14 +178,16 @@ public class SystemIndices {
             });
         }
 
-        return unmodifiableMap(productToSystemIndicesMap.entrySet()
-            .stream()
-            .collect(
-                Collectors.toMap(
-                    Entry::getKey,
-                    entry -> new CharacterRunAutomaton(MinimizationOperations.minimize(entry.getValue(), Integer.MAX_VALUE))
+        return unmodifiableMap(
+            productToSystemIndicesMap.entrySet()
+                .stream()
+                .collect(
+                    Collectors.toMap(
+                        Entry::getKey,
+                        entry -> new CharacterRunAutomaton(MinimizationOperations.minimize(entry.getValue(), Integer.MAX_VALUE))
+                    )
                 )
-            ));
+        );
     }
 
     /**

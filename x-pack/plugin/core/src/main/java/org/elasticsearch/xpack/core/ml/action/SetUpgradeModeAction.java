@@ -12,10 +12,10 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -36,8 +36,10 @@ public class SetUpgradeModeAction extends ActionType<AcknowledgedResponse> {
         private boolean enabled;
 
         private static final ParseField ENABLED = new ParseField("enabled");
-        public static final ConstructingObjectParser<Request, Void> PARSER =
-            new ConstructingObjectParser<>(NAME, a -> new Request((Boolean)a[0]));
+        public static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
+            NAME,
+            a -> new Request((Boolean) a[0])
+        );
 
         static {
             PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), ENABLED);
@@ -52,8 +54,7 @@ public class SetUpgradeModeAction extends ActionType<AcknowledgedResponse> {
             this.enabled = in.readBoolean();
         }
 
-        public Request() {
-        }
+        public Request() {}
 
         public boolean isEnabled() {
             return enabled;

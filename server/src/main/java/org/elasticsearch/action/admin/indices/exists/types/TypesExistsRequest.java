@@ -25,8 +25,7 @@ public class TypesExistsRequest extends MasterNodeReadRequest<TypesExistsRequest
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
 
-    public TypesExistsRequest() {
-    }
+    public TypesExistsRequest() {}
 
     public TypesExistsRequest(String[] indices, String... types) {
         this.indices = indices;

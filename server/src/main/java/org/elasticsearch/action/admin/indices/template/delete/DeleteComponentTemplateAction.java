@@ -41,7 +41,7 @@ public class DeleteComponentTemplateAction extends ActionType<AcknowledgedRespon
             if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
                 names = in.readStringArray();
             } else {
-                names = new String[] {in.readString()};
+                names = new String[] { in.readString() };
             }
         }
 

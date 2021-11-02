@@ -52,8 +52,12 @@ import java.util.function.Function;
  * stats in order to obtain the number of reopens.
  */
 public final class FrozenEngine extends ReadOnlyEngine {
-    public static final Setting<Boolean> INDEX_FROZEN = Setting.boolSetting("index.frozen", false, Setting.Property.IndexScope,
-        Setting.Property.PrivateIndex);
+    public static final Setting<Boolean> INDEX_FROZEN = Setting.boolSetting(
+        "index.frozen",
+        false,
+        Setting.Property.IndexScope,
+        Setting.Property.PrivateIndex
+    );
     private final SegmentsStats segmentsStats;
     private final DocsStats docsStats;
     private volatile ElasticsearchDirectoryReader lastOpenedReader;
@@ -65,9 +69,15 @@ public final class FrozenEngine extends ReadOnlyEngine {
         this(config, null, null, true, Function.identity(), requireCompleteHistory, lazilyLoadSoftDeletes);
     }
 
-    public FrozenEngine(EngineConfig config, SeqNoStats seqNoStats, TranslogStats translogStats, boolean obtainLock,
-                        Function<DirectoryReader, DirectoryReader> readerWrapperFunction, boolean requireCompleteHistory,
-                        boolean lazilyLoadSoftDeletes) {
+    public FrozenEngine(
+        EngineConfig config,
+        SeqNoStats seqNoStats,
+        TranslogStats translogStats,
+        boolean obtainLock,
+        Function<DirectoryReader, DirectoryReader> readerWrapperFunction,
+        boolean requireCompleteHistory,
+        boolean lazilyLoadSoftDeletes
+    ) {
         super(config, seqNoStats, translogStats, obtainLock, readerWrapperFunction, requireCompleteHistory, lazilyLoadSoftDeletes);
         boolean success = false;
         Directory directory = store.directory();
@@ -81,7 +91,9 @@ public final class FrozenEngine extends ReadOnlyEngine {
             }
             this.docsStats = docsStats(reader);
             canMatchReader = ElasticsearchDirectoryReader.wrap(
-                new RewriteCachingDirectoryReader(directory, reader.leaves(), null), config.getShardId());
+                new RewriteCachingDirectoryReader(directory, reader.leaves(), null),
+                config.getShardId()
+            );
             success = true;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -129,8 +141,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
             }
 
             @Override
-            protected void doClose() {
-            }
+            protected void doClose() {}
 
             @Override
             public CacheHelper getReaderCacheHelper() {
@@ -164,7 +175,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
         try {
             reader = getReader();
             if (reader == null) {
-                for (ReferenceManager.RefreshListener listeners : config ().getInternalRefreshListener()) {
+                for (ReferenceManager.RefreshListener listeners : config().getInternalRefreshListener()) {
                     listeners.beforeRefresh();
                 }
                 final DirectoryReader dirReader = openDirectory(store.directory(), engineConfig.getIndexSettings().isSoftDeleteEnabled());
@@ -256,17 +267,35 @@ public final class FrozenEngine extends ReadOnlyEngine {
         if (reader == null) {
             if (CAN_MATCH_SEARCH_SOURCE.equals(source) || FIELD_RANGE_SEARCH_SOURCE.equals(source)) {
                 canMatchReader.incRef();
-                return new Searcher(source, canMatchReader, engineConfig.getSimilarity(), engineConfig.getQueryCache(),
-                    engineConfig.getQueryCachingPolicy(), canMatchReader::decRef);
+                return new Searcher(
+                    source,
+                    canMatchReader,
+                    engineConfig.getSimilarity(),
+                    engineConfig.getQueryCache(),
+                    engineConfig.getQueryCachingPolicy(),
+                    canMatchReader::decRef
+                );
             } else {
                 ReferenceManager<ElasticsearchDirectoryReader> manager = getReferenceManager(scope);
                 ElasticsearchDirectoryReader acquire = manager.acquire();
-                return new Searcher(source, acquire, engineConfig.getSimilarity(), engineConfig.getQueryCache(),
-                    engineConfig.getQueryCachingPolicy(), () -> manager.release(acquire));
+                return new Searcher(
+                    source,
+                    acquire,
+                    engineConfig.getSimilarity(),
+                    engineConfig.getQueryCache(),
+                    engineConfig.getQueryCachingPolicy(),
+                    () -> manager.release(acquire)
+                );
             }
         } else {
-            return new Searcher(source, reader, engineConfig.getSimilarity(), engineConfig.getQueryCache(),
-                engineConfig.getQueryCachingPolicy(), () -> closeReader(reader));
+            return new Searcher(
+                source,
+                reader,
+                engineConfig.getSimilarity(),
+                engineConfig.getQueryCache(),
+                engineConfig.getQueryCachingPolicy(),
+                () -> closeReader(reader)
+            );
         }
     }
 
@@ -287,9 +316,8 @@ public final class FrozenEngine extends ReadOnlyEngine {
     @Override
     protected void closeNoLock(String reason, CountDownLatch closedLatch) {
         super.closeNoLock(reason, closedLatch);
-        synchronized(closedListeners) {
-            IOUtils.closeWhileHandlingException(
-                closedListeners.stream().map(t -> (Closeable) () -> t.onClose(cacheIdentity))::iterator);
+        synchronized (closedListeners) {
+            IOUtils.closeWhileHandlingException(closedListeners.stream().map(t -> (Closeable) () -> t.onClose(cacheIdentity))::iterator);
             closedListeners.clear();
         }
     }

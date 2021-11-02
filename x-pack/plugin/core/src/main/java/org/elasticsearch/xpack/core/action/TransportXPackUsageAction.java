@@ -39,25 +39,42 @@ public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUs
     private final List<XPackFeatureSet> featureSets;
 
     @Inject
-    public TransportXPackUsageAction(ThreadPool threadPool, TransportService transportService,
-                                     ClusterService clusterService, ActionFilters actionFilters,
-                                     IndexNameExpressionResolver indexNameExpressionResolver, Set<XPackFeatureSet> featureSets) {
-        super(XPackUsageAction.NAME, transportService, clusterService, threadPool, actionFilters, XPackUsageRequest::new,
-            indexNameExpressionResolver, XPackUsageResponse::new, ThreadPool.Names.MANAGEMENT);
+    public TransportXPackUsageAction(
+        ThreadPool threadPool,
+        TransportService transportService,
+        ClusterService clusterService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Set<XPackFeatureSet> featureSets
+    ) {
+        super(
+            XPackUsageAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            XPackUsageRequest::new,
+            indexNameExpressionResolver,
+            XPackUsageResponse::new,
+            ThreadPool.Names.MANAGEMENT
+        );
         this.featureSets = Collections.unmodifiableList(new ArrayList<>(featureSets));
     }
 
     @Override
-    protected void masterOperation(final XPackUsageRequest request,
-                                   final ClusterState state,
-                                   final ActionListener<XPackUsageResponse> listener) {
+    protected void masterOperation(
+        final XPackUsageRequest request,
+        final ClusterState state,
+        final ActionListener<XPackUsageResponse> listener
+    ) {
         throw new UnsupportedOperationException("The task parameter is required");
     }
 
     @Override
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageResponse> listener) {
-        final ActionListener<List<XPackFeatureSet.Usage>> usageActionListener =
-                listener.delegateFailure((l, usages) -> l.onResponse(new XPackUsageResponse(usages)));
+        final ActionListener<List<XPackFeatureSet.Usage>> usageActionListener = listener.delegateFailure(
+            (l, usages) -> l.onResponse(new XPackUsageResponse(usages))
+        );
         final AtomicReferenceArray<Usage> featureSetUsages = new AtomicReferenceArray<>(featureSets.size());
         final AtomicInteger position = new AtomicInteger(0);
         final BiConsumer<XPackFeatureSet, ActionListener<List<Usage>>> consumer = (featureSet, iteratingListener) -> {
@@ -71,15 +88,20 @@ public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUs
                 threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(ActionRunnable.supply(iteratingListener, Collections::emptyList));
             }));
         };
-        IteratingActionListener<List<XPackFeatureSet.Usage>, XPackFeatureSet> iteratingActionListener =
-                new IteratingActionListener<>(usageActionListener, consumer, featureSets,
-                        threadPool.getThreadContext(), (ignore) -> {
-                    final List<Usage> usageList = new ArrayList<>(featureSetUsages.length());
-                    for (int i = 0; i < featureSetUsages.length(); i++) {
-                        usageList.add(featureSetUsages.get(i));
-                    }
-                    return usageList;
-                }, (ignore) -> true);
+        IteratingActionListener<List<XPackFeatureSet.Usage>, XPackFeatureSet> iteratingActionListener = new IteratingActionListener<>(
+            usageActionListener,
+            consumer,
+            featureSets,
+            threadPool.getThreadContext(),
+            (ignore) -> {
+                final List<Usage> usageList = new ArrayList<>(featureSetUsages.length());
+                for (int i = 0; i < featureSetUsages.length(); i++) {
+                    usageList.add(featureSetUsages.get(i));
+                }
+                return usageList;
+            },
+            (ignore) -> true
+        );
         iteratingActionListener.run();
     }
 

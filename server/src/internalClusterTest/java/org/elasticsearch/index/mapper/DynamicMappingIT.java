@@ -18,14 +18,11 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -33,6 +30,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -68,14 +68,12 @@ public class DynamicMappingIT extends ESIntegTestCase {
             fail("Indexing request should have failed!");
         } catch (MapperParsingException e) {
             // general case, the parsing code complains that it can't parse "bar" as a "long"
-            assertThat(e.getMessage(),
-                    Matchers.containsString("failed to parse field [foo] of type [long]"));
+            assertThat(e.getMessage(), Matchers.containsString("failed to parse field [foo] of type [long]"));
         } catch (IllegalArgumentException e) {
             // rare case: the node that processes the index request doesn't have the mappings
             // yet and sends a mapping update to the master node to map "bar" as "text". This
             // fails as it had been already mapped as a long by the previous index request.
-            assertThat(e.getMessage(),
-                    Matchers.containsString("mapper [foo] cannot be changed from type [long] to [text]"));
+            assertThat(e.getMessage(), Matchers.containsString("mapper [foo] cannot be changed from type [long] to [text]"));
         }
     }
 
@@ -112,8 +110,10 @@ public class DynamicMappingIT extends ESIntegTestCase {
                 public void run() {
                     try {
                         startLatch.await();
-                        assertEquals(DocWriteResponse.Result.CREATED, client().prepareIndex("index", "type", id)
-                            .setSource("field" + id, "bar").get().getResult());
+                        assertEquals(
+                            DocWriteResponse.Result.CREATED,
+                            client().prepareIndex("index", "type", id).setSource("field" + id, "bar").get().getResult()
+                        );
                     } catch (Exception e) {
                         error.compareAndSet(null, e);
                     }
@@ -143,50 +143,16 @@ public class DynamicMappingIT extends ESIntegTestCase {
         // see testTotalFieldsLimitForDynamicMappingsUpdateCheckedAtDocumentParseTime
         createIndex("index", Settings.builder().put(INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(), 2).build());
         ensureGreen("index");
-        client().prepareIndex("index", MapperService.SINGLE_MAPPING_NAME).setId("1")
-            .setSource("field1", Collections.singletonMap("field2", "value1")).get();
+        client().prepareIndex("index", MapperService.SINGLE_MAPPING_NAME)
+            .setId("1")
+            .setSource("field1", Collections.singletonMap("field2", "value1"))
+            .get();
 
         final CountDownLatch masterBlockedLatch = new CountDownLatch(1);
         final CountDownLatch indexingCompletedLatch = new CountDownLatch(1);
 
-        internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName()).submitStateUpdateTask("block-state-updates",
-            new ClusterStateUpdateTask() {
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                masterBlockedLatch.countDown();
-                indexingCompletedLatch.await();
-                return currentState;
-            }
-
-            @Override
-            public void onFailure(String source, Exception e) {
-                throw new AssertionError("unexpected", e);
-            }
-        });
-
-        masterBlockedLatch.await();
-        final IndexRequestBuilder indexRequestBuilder =
-            client().prepareIndex("index", MapperService.SINGLE_MAPPING_NAME).setId("2").setSource("field1",
-            Collections.singletonMap("field3", Collections.singletonMap("field4", "value2")));
-        try {
-            assertThat(
-                expectThrows(IllegalArgumentException.class, () -> indexRequestBuilder.get(TimeValue.timeValueSeconds(10))).getMessage(),
-                Matchers.containsString("Limit of mapping depth [2] has been exceeded due to object field [field1.field3]"));
-        } finally {
-            indexingCompletedLatch.countDown();
-        }
-    }
-
-    public void testTotalFieldsLimitForDynamicMappingsUpdateCheckedAtDocumentParseTime() throws InterruptedException {
-        createIndex("index", Settings.builder().put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 2).build());
-        ensureGreen("index");
-        client().prepareIndex("index", MapperService.SINGLE_MAPPING_NAME).setId("1").setSource("field1", "value1").get();
-
-        final CountDownLatch masterBlockedLatch = new CountDownLatch(1);
-        final CountDownLatch indexingCompletedLatch = new CountDownLatch(1);
-
-        internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName()).submitStateUpdateTask("block-state-updates",
-            new ClusterStateUpdateTask() {
+        internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName())
+            .submitStateUpdateTask("block-state-updates", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     masterBlockedLatch.countDown();
@@ -202,14 +168,53 @@ public class DynamicMappingIT extends ESIntegTestCase {
 
         masterBlockedLatch.await();
         final IndexRequestBuilder indexRequestBuilder = client().prepareIndex("index", MapperService.SINGLE_MAPPING_NAME)
-            .setId("2").setSource("field2", "value2");
+            .setId("2")
+            .setSource("field1", Collections.singletonMap("field3", Collections.singletonMap("field4", "value2")));
+        try {
+            assertThat(
+                expectThrows(IllegalArgumentException.class, () -> indexRequestBuilder.get(TimeValue.timeValueSeconds(10))).getMessage(),
+                Matchers.containsString("Limit of mapping depth [2] has been exceeded due to object field [field1.field3]")
+            );
+        } finally {
+            indexingCompletedLatch.countDown();
+        }
+    }
+
+    public void testTotalFieldsLimitForDynamicMappingsUpdateCheckedAtDocumentParseTime() throws InterruptedException {
+        createIndex("index", Settings.builder().put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 2).build());
+        ensureGreen("index");
+        client().prepareIndex("index", MapperService.SINGLE_MAPPING_NAME).setId("1").setSource("field1", "value1").get();
+
+        final CountDownLatch masterBlockedLatch = new CountDownLatch(1);
+        final CountDownLatch indexingCompletedLatch = new CountDownLatch(1);
+
+        internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName())
+            .submitStateUpdateTask("block-state-updates", new ClusterStateUpdateTask() {
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    masterBlockedLatch.countDown();
+                    indexingCompletedLatch.await();
+                    return currentState;
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    throw new AssertionError("unexpected", e);
+                }
+            });
+
+        masterBlockedLatch.await();
+        final IndexRequestBuilder indexRequestBuilder = client().prepareIndex("index", MapperService.SINGLE_MAPPING_NAME)
+            .setId("2")
+            .setSource("field2", "value2");
         try {
             Exception e = expectThrows(MapperParsingException.class, () -> indexRequestBuilder.get(TimeValue.timeValueSeconds(10)));
-            assertThat(e.getMessage(),
-                Matchers.containsString("failed to parse"));
+            assertThat(e.getMessage(), Matchers.containsString("failed to parse"));
             assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
-            assertThat(e.getCause().getMessage(),
-                Matchers.containsString("Limit of total fields [2] has been exceeded while adding new fields [1]"));
+            assertThat(
+                e.getCause().getMessage(),
+                Matchers.containsString("Limit of total fields [2] has been exceeded while adding new fields [1]")
+            );
         } finally {
             indexingCompletedLatch.countDown();
         }
@@ -252,19 +257,35 @@ public class DynamicMappingIT extends ESIntegTestCase {
         mappings.endObject();
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("_doc", mappings));
         List<IndexRequest> requests = new ArrayList<>();
-        requests.add(new IndexRequest("test").id("1").source("location", "41.12,-71.34")
-            .setDynamicTemplates(Collections.singletonMap("location", "location")));
-        requests.add(new IndexRequest("test").id("2").source(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("location").field("lat", 41.12).field("lon", -71.34).endObject()
-                .endObject())
-            .setDynamicTemplates(Collections.singletonMap("location", "location")));
-        requests.add(new IndexRequest("test").id("3").source("address.location", "41.12,-71.34")
-            .setDynamicTemplates(Collections.singletonMap("address.location", "location")));
-        requests.add(new IndexRequest("test").id("4").source("location", new double[]{-71.34, 41.12})
-            .setDynamicTemplates(Collections.singletonMap("location", "location")));
-        requests.add(new IndexRequest("test").id("5").source("array_of_numbers", new double[]{-71.34, 41.12}));
+        requests.add(
+            new IndexRequest("test").id("1")
+                .source("location", "41.12,-71.34")
+                .setDynamicTemplates(Collections.singletonMap("location", "location"))
+        );
+        requests.add(
+            new IndexRequest("test").id("2")
+                .source(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("location")
+                        .field("lat", 41.12)
+                        .field("lon", -71.34)
+                        .endObject()
+                        .endObject()
+                )
+                .setDynamicTemplates(Collections.singletonMap("location", "location"))
+        );
+        requests.add(
+            new IndexRequest("test").id("3")
+                .source("address.location", "41.12,-71.34")
+                .setDynamicTemplates(Collections.singletonMap("address.location", "location"))
+        );
+        requests.add(
+            new IndexRequest("test").id("4")
+                .source("location", new double[] { -71.34, 41.12 })
+                .setDynamicTemplates(Collections.singletonMap("location", "location"))
+        );
+        requests.add(new IndexRequest("test").id("5").source("array_of_numbers", new double[] { -71.34, 41.12 }));
 
         Randomness.shuffle(requests);
         BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -315,36 +336,39 @@ public class DynamicMappingIT extends ESIntegTestCase {
 
         BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         bulkRequest.add(
-            new IndexRequest("test").id("1").source(
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .field("my_location", "41.12,-71.34")
-                    .endObject())
+            new IndexRequest("test").id("1")
+                .source(XContentFactory.jsonBuilder().startObject().field("my_location", "41.12,-71.34").endObject())
                 .setDynamicTemplates(Collections.singletonMap("my_location", "foo_bar")),
-            new IndexRequest("test").id("2").source(
-                XContentFactory.jsonBuilder()
-                    .startObject()
-                    .field("address.location", "41.12,-71.34")
-                    .endObject())
+            new IndexRequest("test").id("2")
+                .source(XContentFactory.jsonBuilder().startObject().field("address.location", "41.12,-71.34").endObject())
                 .setDynamicTemplates(Collections.singletonMap("address.location", "bar_foo"))
         );
         final BulkResponse bulkItemResponses = client().bulk(bulkRequest).actionGet();
         assertTrue(bulkItemResponses.hasFailures());
         assertThat(bulkItemResponses.getItems()[0].getFailure().getCause(), instanceOf(MapperParsingException.class));
-        assertThat(bulkItemResponses.getItems()[0].getFailureMessage(),
-            containsString("Can't find dynamic template for dynamic template name [foo_bar] of field [my_location]"));
+        assertThat(
+            bulkItemResponses.getItems()[0].getFailureMessage(),
+            containsString("Can't find dynamic template for dynamic template name [foo_bar] of field [my_location]")
+        );
         assertThat(bulkItemResponses.getItems()[1].getFailure().getCause(), instanceOf(MapperParsingException.class));
-        assertThat(bulkItemResponses.getItems()[1].getFailureMessage(),
-            containsString("Can't find dynamic template for dynamic template name [bar_foo] of field [address.location]"));
+        assertThat(
+            bulkItemResponses.getItems()[1].getFailureMessage(),
+            containsString("Can't find dynamic template for dynamic template name [bar_foo] of field [address.location]")
+        );
     }
 
     public void testDynamicRuntimeNoConflicts() {
-        assertAcked(client().admin().indices().prepareCreate("test")
-            .addMapping("_doc", "{\"_doc\":{\"dynamic\":\"runtime\"}}", XContentType.JSON).get());
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("test")
+                .addMapping("_doc", "{\"_doc\":{\"dynamic\":\"runtime\"}}", XContentType.JSON)
+                .get()
+        );
 
         List<IndexRequest> docs = new ArrayList<>();
-        //the root is mapped dynamic:runtime hence there are no type conflicts
-        docs.add(new IndexRequest("test").source("one.two.three", new int[]{1, 2, 3}));
+        // the root is mapped dynamic:runtime hence there are no type conflicts
+        docs.add(new IndexRequest("test").source("one.two.three", new int[] { 1, 2, 3 }));
         docs.add(new IndexRequest("test").source("one.two", 3.5));
         docs.add(new IndexRequest("test").source("one", "one"));
         docs.add(new IndexRequest("test").source("{\"one\":{\"two\": { \"three\": \"three\"}}}", XContentType.JSON));
@@ -372,13 +396,23 @@ public class DynamicMappingIT extends ESIntegTestCase {
     }
 
     public void testDynamicRuntimeObjectFields() {
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("_doc", "{\"_doc\":{\"properties\":{" +
-            "\"obj\":{\"properties\":{\"runtime\":{\"type\":\"object\",\"dynamic\":\"runtime\"}}}}}}", XContentType.JSON).get());
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("test")
+                .addMapping(
+                    "_doc",
+                    "{\"_doc\":{\"properties\":{"
+                        + "\"obj\":{\"properties\":{\"runtime\":{\"type\":\"object\",\"dynamic\":\"runtime\"}}}}}}",
+                    XContentType.JSON
+                )
+                .get()
+        );
 
         List<IndexRequest> docs = new ArrayList<>();
         docs.add(new IndexRequest("test").source("obj.one", 1));
         docs.add(new IndexRequest("test").source("anything", "anything"));
-        //obj.runtime is mapped dynamic:runtime hence there are no type conflicts
+        // obj.runtime is mapped dynamic:runtime hence there are no type conflicts
         docs.add(new IndexRequest("test").source("obj.runtime.one.two", "test"));
         docs.add(new IndexRequest("test").source("obj.runtime.one", "one"));
         docs.add(new IndexRequest("test").source("{\"obj\":{\"runtime\":{\"one\":{\"two\": 1}}}}", XContentType.JSON));
@@ -405,33 +439,58 @@ public class DynamicMappingIT extends ESIntegTestCase {
         }
         {
             SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(new MatchQueryBuilder("obj.runtime.one.two", "1")).get();
+                .setQuery(new MatchQueryBuilder("obj.runtime.one.two", "1"))
+                .get();
             assertEquals(1, searchResponse.getHits().getTotalHits().value);
         }
 
-        MapperParsingException exception = expectThrows(MapperParsingException.class,
-            () -> client().prepareIndex("test", "_doc").setSource("obj.runtime", "value").get());
-        assertEquals("object mapping for [obj.runtime] tried to parse field [obj.runtime] as object, but found a concrete value",
-            exception.getMessage());
+        MapperParsingException exception = expectThrows(
+            MapperParsingException.class,
+            () -> client().prepareIndex("test", "_doc").setSource("obj.runtime", "value").get()
+        );
+        assertEquals(
+            "object mapping for [obj.runtime] tried to parse field [obj.runtime] as object, but found a concrete value",
+            exception.getMessage()
+        );
 
-        assertAcked(client().admin().indices().preparePutMapping("test").setType("_doc")
-            .setSource("{\"_doc\":{\"properties\":{\"obj\":{\"properties\":{\"runtime\":{\"properties\":" +
-                "{\"dynamic\":{\"type\":\"object\", \"dynamic\":true}}}}}}}}", XContentType.JSON));
+        assertAcked(
+            client().admin()
+                .indices()
+                .preparePutMapping("test")
+                .setType("_doc")
+                .setSource(
+                    "{\"_doc\":{\"properties\":{\"obj\":{\"properties\":{\"runtime\":{\"properties\":"
+                        + "{\"dynamic\":{\"type\":\"object\", \"dynamic\":true}}}}}}}}",
+                    XContentType.JSON
+                )
+        );
 
-        //the parent object has been mapped dynamic:true, hence the field gets indexed
-        assertEquals(RestStatus.CREATED, client().prepareIndex("test", "_doc").setSource("obj.runtime.dynamic.number", 1)
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get().status());
+        // the parent object has been mapped dynamic:true, hence the field gets indexed
+        assertEquals(
+            RestStatus.CREATED,
+            client().prepareIndex("test", "_doc")
+                .setSource("obj.runtime.dynamic.number", 1)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get()
+                .status()
+        );
 
         {
             SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(new MatchQueryBuilder("obj.runtime.dynamic.number", 1)).get();
+                .setQuery(new MatchQueryBuilder("obj.runtime.dynamic.number", 1))
+                .get();
             assertEquals(1, searchResponse.getHits().getTotalHits().value);
         }
 
-        //a doc with the same field but a different type causes a conflict
-        MapperParsingException e = expectThrows(MapperParsingException.class,
-            () -> client().prepareIndex("test", "_doc").setId("id").setSource("obj.runtime.dynamic.number", "string").get());
-        assertEquals("failed to parse field [obj.runtime.dynamic.number] of type [long] in document with id 'id'. " +
-            "Preview of field's value: 'string'", e.getMessage());
+        // a doc with the same field but a different type causes a conflict
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> client().prepareIndex("test", "_doc").setId("id").setSource("obj.runtime.dynamic.number", "string").get()
+        );
+        assertEquals(
+            "failed to parse field [obj.runtime.dynamic.number] of type [long] in document with id 'id'. "
+                + "Preview of field's value: 'string'",
+            e.getMessage()
+        );
     }
 }

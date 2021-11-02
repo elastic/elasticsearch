@@ -8,10 +8,9 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.index.mapper.MapperExtrasPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collection;
 

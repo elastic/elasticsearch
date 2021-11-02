@@ -25,24 +25,22 @@ public class NativeMemoryCapacityTests extends ESTestCase {
     private static final int NUM_TEST_RUNS = 10;
 
     public void testMerge() {
-        NativeMemoryCapacity capacity = new NativeMemoryCapacity(ByteSizeValue.ofGb(1).getBytes(),
+        NativeMemoryCapacity capacity = new NativeMemoryCapacity(
+            ByteSizeValue.ofGb(1).getBytes(),
             ByteSizeValue.ofMb(200).getBytes(),
             ByteSizeValue.ofMb(50).getBytes()
-            );
-        capacity.merge(new NativeMemoryCapacity(ByteSizeValue.ofGb(1).getBytes(),
-            ByteSizeValue.ofMb(100).getBytes()));
+        );
+        capacity.merge(new NativeMemoryCapacity(ByteSizeValue.ofGb(1).getBytes(), ByteSizeValue.ofMb(100).getBytes()));
         assertThat(capacity.getTier(), equalTo(ByteSizeValue.ofGb(1).getBytes() * 2L));
         assertThat(capacity.getNode(), equalTo(ByteSizeValue.ofMb(200).getBytes()));
         assertThat(capacity.getJvmSize(), equalTo(ByteSizeValue.ofMb(50).getBytes()));
 
-        capacity.merge(new NativeMemoryCapacity(ByteSizeValue.ofGb(1).getBytes(),
-            ByteSizeValue.ofMb(300).getBytes()));
+        capacity.merge(new NativeMemoryCapacity(ByteSizeValue.ofGb(1).getBytes(), ByteSizeValue.ofMb(300).getBytes()));
 
         assertThat(capacity.getTier(), equalTo(ByteSizeValue.ofGb(1).getBytes() * 3L));
         assertThat(capacity.getNode(), equalTo(ByteSizeValue.ofMb(300).getBytes()));
         assertThat(capacity.getJvmSize(), is(nullValue()));
     }
-
 
     public void testAutoscalingCapacity() {
         // TODO adjust once future JVM capacity is known
@@ -63,10 +61,7 @@ public class NativeMemoryCapacityTests extends ESTestCase {
             assertThat(autoscalingCapacity.total().memory().getBytes(), equalTo(5343543296L));
         }
         { // auto is true with unknown jvm size
-            capacity = new NativeMemoryCapacity(
-                ByteSizeValue.ofGb(4).getBytes(),
-                ByteSizeValue.ofGb(1).getBytes()
-            );
+            capacity = new NativeMemoryCapacity(ByteSizeValue.ofGb(4).getBytes(), ByteSizeValue.ofGb(1).getBytes());
             AutoscalingCapacity autoscalingCapacity = capacity.autoscalingCapacity(25, true);
             assertThat(autoscalingCapacity.node().memory().getBytes(), equalTo(2139095040L));
             assertThat(autoscalingCapacity.total().memory().getBytes(), equalTo(8556380160L));
@@ -78,21 +73,26 @@ public class NativeMemoryCapacityTests extends ESTestCase {
             AutoscalingCapacity autoscalingCapacity = nativeMemory.autoscalingCapacity(25, true);
             assertThat(autoscalingCapacity.total().memory().getBytes(), greaterThan(nativeMemory.getTier()));
             assertThat(autoscalingCapacity.node().memory().getBytes(), greaterThan(nativeMemory.getNode()));
-            assertThat(autoscalingCapacity.total().memory().getBytes(),
-                greaterThanOrEqualTo(autoscalingCapacity.node().memory().getBytes()));
+            assertThat(
+                autoscalingCapacity.total().memory().getBytes(),
+                greaterThanOrEqualTo(autoscalingCapacity.node().memory().getBytes())
+            );
         };
 
         { // 0 memory
-            assertThat(NativeMemoryCalculator.calculateApproxNecessaryNodeSize(
-                0L,
-                randomLongBetween(0L, ByteSizeValue.ofGb(100).getBytes()),
-                randomIntBetween(0, 100),
-                randomBoolean()
+            assertThat(
+                NativeMemoryCalculator.calculateApproxNecessaryNodeSize(
+                    0L,
+                    randomLongBetween(0L, ByteSizeValue.ofGb(100).getBytes()),
+                    randomIntBetween(0, 100),
+                    randomBoolean()
                 ),
-                equalTo(0L));
+                equalTo(0L)
+            );
             assertThat(
                 NativeMemoryCalculator.calculateApproxNecessaryNodeSize(0L, null, randomIntBetween(0, 100), randomBoolean()),
-                equalTo(0L));
+                equalTo(0L)
+            );
         }
         for (int i = 0; i < NUM_TEST_RUNS; i++) {
             int memoryPercentage = randomIntBetween(5, 200);

@@ -17,7 +17,6 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -28,6 +27,7 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
@@ -68,12 +68,10 @@ public class TransformFeatureSet implements XPackFeatureSet {
      * Each feature corresponds to a field in {@link TransformConfig}.
      * If the field exists in the config then we assume the feature is used.
      */
-    private static final String[] FEATURES =
-        Stream.concat(
-                Stream.of(TransformConfig.Function.values()).map(TransformConfig.Function::getParseField),
-                Stream.of(TransformField.RETENTION_POLICY, TransformField.SYNC))
-            .map(ParseField::getPreferredName)
-            .toArray(String[]::new);
+    private static final String[] FEATURES = Stream.concat(
+        Stream.of(TransformConfig.Function.values()).map(TransformConfig.Function::getParseField),
+        Stream.of(TransformField.RETENTION_POLICY, TransformField.SYNC)
+    ).map(ParseField::getPreferredName).toArray(String[]::new);
 
     public static final String[] PROVIDED_STATS = new String[] {
         TransformIndexerStats.NUM_PAGES.getPreferredName(),

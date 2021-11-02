@@ -102,8 +102,11 @@ public final class AuthorizationUtils {
      * This method knows nothing about listeners so it is important that callers ensure their listeners preserve their
      * context and restore it appropriately.
      */
-    public static void switchUserBasedOnActionOriginAndExecute(ThreadContext threadContext, SecurityContext securityContext,
-                                                               Consumer<ThreadContext.StoredContext> consumer) {
+    public static void switchUserBasedOnActionOriginAndExecute(
+        ThreadContext threadContext,
+        SecurityContext securityContext,
+        Consumer<ThreadContext.StoredContext> consumer
+    ) {
         final String actionOrigin = threadContext.getTransient(ClientHelper.ACTION_ORIGIN_TRANSIENT_NAME);
         if (actionOrigin == null) {
             assert false : "cannot switch user if there is no action origin";

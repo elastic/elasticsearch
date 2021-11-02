@@ -25,7 +25,8 @@ public class AggregateMetricFeatureSetUsage extends XPackFeatureSet.Usage {
         super(XPackField.AGGREGATE_METRIC, true, true);
     }
 
-    @Override public Version getMinimalSupportedVersion() {
+    @Override
+    public Version getMinimalSupportedVersion() {
         return Version.V_7_11_0;
     }
 
@@ -38,8 +39,7 @@ public class AggregateMetricFeatureSetUsage extends XPackFeatureSet.Usage {
             return false;
         }
         AggregateMetricFeatureSetUsage other = (AggregateMetricFeatureSetUsage) obj;
-        return Objects.equals(available, other.available) &&
-            Objects.equals(enabled, other.enabled);
+        return Objects.equals(available, other.available) && Objects.equals(enabled, other.enabled);
     }
 
     @Override

@@ -64,19 +64,34 @@ public class DiscoveryModule {
 
     public static final String SINGLE_NODE_DISCOVERY_TYPE = "single-node";
 
-    public static final Setting<String> DISCOVERY_TYPE_SETTING =
-        new Setting<>("discovery.type", ZEN2_DISCOVERY_TYPE, Function.identity(), Property.NodeScope);
-    public static final Setting<List<String>> LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING =
-        Setting.listSetting("discovery.zen.hosts_provider", Collections.emptyList(), Function.identity(),
-            Property.NodeScope, Property.Deprecated);
-    public static final Setting<List<String>> DISCOVERY_SEED_PROVIDERS_SETTING =
-        Setting.listSetting("discovery.seed_providers", Collections.emptyList(), Function.identity(),
-            Property.NodeScope);
+    public static final Setting<String> DISCOVERY_TYPE_SETTING = new Setting<>(
+        "discovery.type",
+        ZEN2_DISCOVERY_TYPE,
+        Function.identity(),
+        Property.NodeScope
+    );
+    public static final Setting<List<String>> LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING = Setting.listSetting(
+        "discovery.zen.hosts_provider",
+        Collections.emptyList(),
+        Function.identity(),
+        Property.NodeScope,
+        Property.Deprecated
+    );
+    public static final Setting<List<String>> DISCOVERY_SEED_PROVIDERS_SETTING = Setting.listSetting(
+        "discovery.seed_providers",
+        Collections.emptyList(),
+        Function.identity(),
+        Property.NodeScope
+    );
 
     public static final String DEFAULT_ELECTION_STRATEGY = "default";
 
-    public static final Setting<String> ELECTION_STRATEGY_SETTING =
-        new Setting<>("cluster.election.strategy", DEFAULT_ELECTION_STRATEGY, Function.identity(), Property.NodeScope);
+    public static final Setting<String> ELECTION_STRATEGY_SETTING = new Setting<>(
+        "cluster.election.strategy",
+        DEFAULT_ELECTION_STRATEGY,
+        Function.identity(),
+        Property.NodeScope
+    );
 
     private final Discovery discovery;
 
@@ -137,7 +152,9 @@ public class DiscoveryModule {
         }
 
         List<SeedHostsProvider> filteredSeedProviders = seedProviderNames.stream()
-            .map(hostProviders::get).map(Supplier::get).collect(Collectors.toList());
+            .map(hostProviders::get)
+            .map(Supplier::get)
+            .collect(Collectors.toList());
 
         String discoveryType = DISCOVERY_TYPE_SETTING.get(settings);
 
@@ -172,10 +189,22 @@ public class DiscoveryModule {
                 new Random(Randomness.get().nextLong()),
                 rerouteService,
                 electionStrategy,
-                nodeHealthService);
+                nodeHealthService
+            );
         } else if (Assertions.ENABLED && ZEN_DISCOVERY_TYPE.equals(discoveryType)) {
-            discovery = new ZenDiscovery(settings, threadPool, transportService, namedWriteableRegistry, masterService, clusterApplier,
-                clusterSettings, seedHostsProvider, allocationService, joinValidators, rerouteService);
+            discovery = new ZenDiscovery(
+                settings,
+                threadPool,
+                transportService,
+                namedWriteableRegistry,
+                masterService,
+                clusterApplier,
+                clusterSettings,
+                seedHostsProvider,
+                allocationService,
+                joinValidators,
+                rerouteService
+            );
         } else {
             throw new IllegalArgumentException("Unknown discovery type [" + discoveryType + "]");
         }
@@ -186,8 +215,13 @@ public class DiscoveryModule {
     private List<String> getSeedProviderNames(Settings settings) {
         if (LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING.exists(settings)) {
             if (DISCOVERY_SEED_PROVIDERS_SETTING.exists(settings)) {
-                throw new IllegalArgumentException("it is forbidden to set both [" + DISCOVERY_SEED_PROVIDERS_SETTING.getKey() + "] and ["
-                    + LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING.getKey() + "]");
+                throw new IllegalArgumentException(
+                    "it is forbidden to set both ["
+                        + DISCOVERY_SEED_PROVIDERS_SETTING.getKey()
+                        + "] and ["
+                        + LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING.getKey()
+                        + "]"
+                );
             }
             return LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING.get(settings);
         }

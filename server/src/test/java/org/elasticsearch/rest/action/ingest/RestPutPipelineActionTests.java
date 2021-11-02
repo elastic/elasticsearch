@@ -44,26 +44,21 @@ public class RestPutPipelineActionTests extends RestActionTestCase {
         params.put("if_version", invalidValue);
         params.put("id", "my_pipeline");
 
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.PUT)
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
             .withPath("/_ingest/pipeline/my_pipeline")
             .withContent(new BytesArray("{\"processors\":{}}"), XContentType.JSON)
             .withParams(params)
             .build();
 
         Exception ex = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, verifyingClient));
-        assertEquals(
-            "invalid value [" + invalidValue + "] specified for [if_version]. must be an integer value",
-            ex.getMessage()
-        );
+        assertEquals("invalid value [" + invalidValue + "] specified for [if_version]. must be an integer value", ex.getMessage());
     }
 
     public void testMissingIfVersionValue() {
         Map<String, String> params = new HashMap<>();
         params.put("id", "my_pipeline");
 
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.PUT)
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
             .withPath("/_ingest/pipeline/my_pipeline")
             .withContent(new BytesArray("{\"processors\":{}}"), XContentType.JSON)
             .withParams(params)
@@ -82,8 +77,7 @@ public class RestPutPipelineActionTests extends RestActionTestCase {
         params.put("id", "my_pipeline");
         params.put("if_version", Integer.toString(numericValue));
 
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.PUT)
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
             .withPath("/_ingest/pipeline/my_pipeline")
             .withContent(new BytesArray("{\"processors\":{}}"), XContentType.JSON)
             .withParams(params)

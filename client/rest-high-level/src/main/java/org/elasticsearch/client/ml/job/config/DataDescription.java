@@ -7,9 +7,9 @@
  */
 package org.elasticsearch.client.ml.job.config;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -95,8 +95,11 @@ public class DataDescription implements ToXContentObject {
     private final Character fieldDelimiter;
     private final Character quoteCharacter;
 
-    public static final ObjectParser<Builder, Void> PARSER =
-        new ObjectParser<>(DATA_DESCRIPTION_FIELD.getPreferredName(), true, Builder::new);
+    public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(
+        DATA_DESCRIPTION_FIELD.getPreferredName(),
+        true,
+        Builder::new
+    );
 
     static {
         PARSER.declareString(Builder::setFormat, FORMAT_FIELD);
@@ -106,8 +109,13 @@ public class DataDescription implements ToXContentObject {
         PARSER.declareField(Builder::setQuoteCharacter, DataDescription::extractChar, QUOTE_CHARACTER_FIELD, ValueType.STRING);
     }
 
-    public DataDescription(DataFormat dataFormat, String timeFieldName, String timeFormat, Character fieldDelimiter,
-                           Character quoteCharacter) {
+    public DataDescription(
+        DataFormat dataFormat,
+        String timeFieldName,
+        String timeFormat,
+        Character fieldDelimiter,
+        Character quoteCharacter
+    ) {
         this.dataFormat = dataFormat;
         this.timeFieldName = timeFieldName;
         this.timeFormat = timeFormat;
@@ -212,11 +220,11 @@ public class DataDescription implements ToXContentObject {
 
         DataDescription that = (DataDescription) other;
 
-        return this.dataFormat == that.dataFormat &&
-                Objects.equals(this.quoteCharacter, that.quoteCharacter) &&
-                Objects.equals(this.timeFieldName, that.timeFieldName) &&
-                Objects.equals(this.timeFormat, that.timeFormat) &&
-                Objects.equals(this.fieldDelimiter, that.fieldDelimiter);
+        return this.dataFormat == that.dataFormat
+            && Objects.equals(this.quoteCharacter, that.quoteCharacter)
+            && Objects.equals(this.timeFieldName, that.timeFieldName)
+            && Objects.equals(this.timeFormat, that.timeFormat)
+            && Objects.equals(this.fieldDelimiter, that.fieldDelimiter);
     }
 
     @Override

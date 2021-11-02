@@ -6,17 +6,17 @@
  */
 package org.elasticsearch.xpack.security.authc.esnative.tool;
 
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.esnative.tool.HttpResponse.HttpResponseBuilder;
 
-import javax.net.ssl.HttpsURLConnection;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -36,6 +35,8 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Collections;
 import java.util.List;
+
+import javax.net.ssl.HttpsURLConnection;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PORT;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST;
@@ -77,9 +78,14 @@ public class CommandLineHttpClient {
      * @return HTTP protocol response code.
      */
     @SuppressForbidden(reason = "We call connect in doPrivileged and provide SocketPermission")
-    public HttpResponse execute(String method, URL url, String user, SecureString password,
-            CheckedSupplier<String, Exception> requestBodySupplier,
-            CheckedFunction<InputStream, HttpResponseBuilder, Exception> responseHandler) throws Exception {
+    public HttpResponse execute(
+        String method,
+        URL url,
+        String user,
+        SecureString password,
+        CheckedSupplier<String, Exception> requestBodySupplier,
+        CheckedFunction<InputStream, HttpResponseBuilder, Exception> responseHandler
+    ) throws Exception {
         final HttpURLConnection conn;
         // If using SSL, need a custom service because it's likely a self-signed certificate
         if ("https".equalsIgnoreCase(url.getProtocol())) {
@@ -159,8 +165,10 @@ public class CommandLineHttpClient {
             }
             return scheme + "://" + InetAddresses.toUriString(publishAddress) + ":" + port;
         } catch (Exception e) {
-            throw new IllegalStateException("unable to determine default URL from settings, please use the -u option to explicitly " +
-                "provide the url", e);
+            throw new IllegalStateException(
+                "unable to determine default URL from settings, please use the -u option to explicitly " + "provide the url",
+                e
+            );
         }
     }
 

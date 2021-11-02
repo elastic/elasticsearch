@@ -29,7 +29,6 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 
 import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFourthHit;
@@ -38,13 +37,13 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSeco
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThirdHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasIndex;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
-
 
 public class PinnedQueryBuilderIT extends ESIntegTestCase {
 
@@ -54,11 +53,21 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
     }
 
     public void testPinnedPromotions() throws Exception {
-        assertAcked(prepareCreate("test")
-                .addMapping("type1",
-                        jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1")
-                                .field("analyzer", "whitespace").field("type", "text").endObject().endObject().endObject().endObject())
-                .setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", randomIntBetween(2, 5))));
+        assertAcked(
+            prepareCreate("test").addMapping(
+                "type1",
+                jsonBuilder().startObject()
+                    .startObject("type1")
+                    .startObject("properties")
+                    .startObject("field1")
+                    .field("analyzer", "whitespace")
+                    .field("type", "text")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            ).setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", randomIntBetween(2, 5)))
+        );
 
         int numRelevantDocs = randomIntBetween(1, 100);
         for (int i = 0; i < numRelevantDocs; i++) {
@@ -106,7 +115,11 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
     private void assertPinnedPromotions(PinnedQueryBuilder pqb, LinkedHashSet<String> pins, int iter, int numRelevantDocs) {
         int from = randomIntBetween(0, numRelevantDocs);
         int size = randomIntBetween(10, 100);
-        SearchResponse searchResponse = client().prepareSearch().setQuery(pqb).setTrackTotalHits(true).setSize(size).setFrom(from)
+        SearchResponse searchResponse = client().prepareSearch()
+            .setQuery(pqb)
+            .setTrackTotalHits(true)
+            .setSize(size)
+            .setFrom(from)
             .setSearchType(DFS_QUERY_THEN_FETCH)
             .get();
 
@@ -124,8 +137,11 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
         int globalHitNumber = 0;
         for (String id : pins) {
             if (globalHitNumber < size && globalHitNumber >= from) {
-                assertThat("Hit " + globalHitNumber + " in iter " + iter + " wrong" + pins, hits[globalHitNumber - from].getId(),
-                    equalTo(id));
+                assertThat(
+                    "Hit " + globalHitNumber + " in iter " + iter + " wrong" + pins,
+                    hits[globalHitNumber - from].getId(),
+                    equalTo(id)
+                );
             }
             globalHitNumber++;
         }
@@ -150,12 +166,25 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
      * Test scoring the entire set of documents, which uses a slightly different logic when creating scorers.
      */
     public void testExhaustiveScoring() throws Exception {
-        assertAcked(prepareCreate("test")
-                .addMapping("_doc", jsonBuilder().startObject().startObject("_doc").startObject("properties")
-                        .startObject("field1").field("analyzer", "whitespace").field("type", "text").endObject()
-                        .startObject("field2").field("analyzer", "whitespace").field("type", "text").endObject()
-                                .endObject().endObject().endObject())
-                .setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1)));
+        assertAcked(
+            prepareCreate("test").addMapping(
+                "_doc",
+                jsonBuilder().startObject()
+                    .startObject("_doc")
+                    .startObject("properties")
+                    .startObject("field1")
+                    .field("analyzer", "whitespace")
+                    .field("type", "text")
+                    .endObject()
+                    .startObject("field2")
+                    .field("analyzer", "whitespace")
+                    .field("type", "text")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            ).setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1))
+        );
 
         client().prepareIndex("test", "_doc").setId("1").setSource("field1", "foo").get();
         client().prepareIndex("test", "_doc").setId("2").setSource("field1", "foo", "field2", "foo").get();
@@ -168,17 +197,32 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
     }
 
     private void assertExhaustiveScoring(PinnedQueryBuilder pqb) {
-        SearchResponse searchResponse = client().prepareSearch().setQuery(pqb).setTrackTotalHits(true)
-                .setSearchType(DFS_QUERY_THEN_FETCH).get();
+        SearchResponse searchResponse = client().prepareSearch()
+            .setQuery(pqb)
+            .setTrackTotalHits(true)
+            .setSearchType(DFS_QUERY_THEN_FETCH)
+            .get();
 
         long numHits = searchResponse.getHits().getTotalHits().value;
         assertThat(numHits, equalTo(2L));
     }
 
     public void testExplain() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1")
-                        .field("analyzer", "whitespace").field("type", "text").endObject().endObject().endObject().endObject()));
+        assertAcked(
+            prepareCreate("test").addMapping(
+                "type1",
+                jsonBuilder().startObject()
+                    .startObject("type1")
+                    .startObject("properties")
+                    .startObject("field1")
+                    .field("analyzer", "whitespace")
+                    .field("type", "text")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
         ensureGreen();
         client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox").get();
         client().prepareIndex("test", "type1", "2").setSource("field1", "pinned").get();
@@ -192,8 +236,11 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
     }
 
     private void assertExplain(PinnedQueryBuilder pqb) {
-        SearchResponse searchResponse = client().prepareSearch().setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setQuery(pqb)
-                .setExplain(true).get();
+        SearchResponse searchResponse = client().prepareSearch()
+            .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+            .setQuery(pqb)
+            .setExplain(true)
+            .get();
         assertHitCount(searchResponse, 3);
         assertFirstHit(searchResponse, hasId("2"));
         assertSecondHit(searchResponse, hasId("1"));
@@ -206,14 +253,25 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
         assertThat(pinnedExplanation.getDetails()[0].isMatch(), equalTo(true));
         assertThat(pinnedExplanation.getDetails()[0].getDescription(), containsString("ConstantScore"));
 
-
     }
 
     public void testHighlight() throws Exception {
         // Issue raised in https://github.com/elastic/elasticsearch/issues/53699
-        assertAcked(prepareCreate("test").addMapping("type1",
-                jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1")
-                        .field("analyzer", "whitespace").field("type", "text").endObject().endObject().endObject().endObject()));
+        assertAcked(
+            prepareCreate("test").addMapping(
+                "type1",
+                jsonBuilder().startObject()
+                    .startObject("type1")
+                    .startObject("properties")
+                    .startObject("field1")
+                    .field("analyzer", "whitespace")
+                    .field("type", "text")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
         ensureGreen();
         client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox").get();
         refresh();
@@ -227,9 +285,12 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
         HighlightBuilder testHighlighter = new HighlightBuilder();
         testHighlighter.field("field1");
 
-        SearchResponse searchResponse = client().prepareSearch().setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setQuery(pqb)
-                .highlighter(testHighlighter)
-                .setExplain(true).get();
+        SearchResponse searchResponse = client().prepareSearch()
+            .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+            .setQuery(pqb)
+            .highlighter(testHighlighter)
+            .setExplain(true)
+            .get();
         assertHitCount(searchResponse, 1);
         Map<String, HighlightField> highlights = searchResponse.getHits().getHits()[0].getHighlightFields();
         assertThat(highlights.size(), equalTo(1));
@@ -238,17 +299,37 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
     }
 
     public void testMultiIndexDocs() throws Exception {
-        assertAcked(prepareCreate("test1")
-            .addMapping(MapperService.SINGLE_MAPPING_NAME,
-                jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field1")
-                    .field("analyzer", "whitespace").field("type", "text").endObject().endObject().endObject().endObject())
-            .setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", randomIntBetween(2, 5))));
+        assertAcked(
+            prepareCreate("test1").addMapping(
+                MapperService.SINGLE_MAPPING_NAME,
+                jsonBuilder().startObject()
+                    .startObject("_doc")
+                    .startObject("properties")
+                    .startObject("field1")
+                    .field("analyzer", "whitespace")
+                    .field("type", "text")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            ).setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", randomIntBetween(2, 5)))
+        );
 
-        assertAcked(prepareCreate("test2")
-            .addMapping(MapperService.SINGLE_MAPPING_NAME,
-                jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field1")
-                    .field("analyzer", "whitespace").field("type", "text").endObject().endObject().endObject().endObject())
-            .setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", randomIntBetween(2, 5))));
+        assertAcked(
+            prepareCreate("test2").addMapping(
+                MapperService.SINGLE_MAPPING_NAME,
+                jsonBuilder().startObject()
+                    .startObject("_doc")
+                    .startObject("properties")
+                    .startObject("field1")
+                    .field("analyzer", "whitespace")
+                    .field("type", "text")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            ).setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", randomIntBetween(2, 5)))
+        );
 
         client().prepareIndex("test1", MapperService.SINGLE_MAPPING_NAME).setId("a").setSource("field1", "1a bar").get();
         client().prepareIndex("test1", MapperService.SINGLE_MAPPING_NAME).setId("b").setSource("field1", "1b bar").get();
@@ -266,8 +347,11 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
             new Item("test1", "b")
         );
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(pqb).setTrackTotalHits(true)
-            .setSearchType(DFS_QUERY_THEN_FETCH).get();
+        SearchResponse searchResponse = client().prepareSearch()
+            .setQuery(pqb)
+            .setTrackTotalHits(true)
+            .setSearchType(DFS_QUERY_THEN_FETCH)
+            .get();
 
         assertHitCount(searchResponse, 4);
         assertFirstHit(searchResponse, both(hasIndex("test2")).and(hasId("a")));
@@ -277,12 +361,23 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
     }
 
     public void testMultiIndexWithAliases() throws Exception {
-        assertAcked(prepareCreate("test")
-            .addMapping(MapperService.SINGLE_MAPPING_NAME,
-                jsonBuilder().startObject().startObject("_doc").startObject("properties").startObject("field1")
-                    .field("analyzer", "whitespace").field("type", "text").endObject().endObject().endObject().endObject())
-            .setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", randomIntBetween(2, 5)))
-            .addAlias(new Alias("test-alias")));
+        assertAcked(
+            prepareCreate("test").addMapping(
+                MapperService.SINGLE_MAPPING_NAME,
+                jsonBuilder().startObject()
+                    .startObject("_doc")
+                    .startObject("properties")
+                    .startObject("field1")
+                    .field("analyzer", "whitespace")
+                    .field("type", "text")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+                .setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", randomIntBetween(2, 5)))
+                .addAlias(new Alias("test-alias"))
+        );
 
         client().prepareIndex("test", MapperService.SINGLE_MAPPING_NAME).setId("a").setSource("field1", "document a").get();
         client().prepareIndex("test", MapperService.SINGLE_MAPPING_NAME).setId("b").setSource("field1", "document b").get();
@@ -297,8 +392,11 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
             new Item("test", "a")
         );
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(pqb).setTrackTotalHits(true)
-            .setSearchType(DFS_QUERY_THEN_FETCH).get();
+        SearchResponse searchResponse = client().prepareSearch()
+            .setQuery(pqb)
+            .setTrackTotalHits(true)
+            .setSearchType(DFS_QUERY_THEN_FETCH)
+            .get();
 
         assertHitCount(searchResponse, 3);
         assertFirstHit(searchResponse, both(hasIndex("test")).and(hasId("b")));
@@ -306,4 +404,3 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
         assertThirdHit(searchResponse, both(hasIndex("test")).and(hasId("c")));
     }
 }
-

@@ -10,10 +10,10 @@ package org.elasticsearch.client.ml.inference;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.common.TimeUtil;
 import org.elasticsearch.client.ml.inference.trainedmodel.InferenceConfig;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -48,21 +48,19 @@ public class TrainedModelConfig implements ToXContentObject {
     public static final ParseField DEFAULT_FIELD_MAP = new ParseField("default_field_map");
     public static final ParseField INFERENCE_CONFIG = new ParseField("inference_config");
 
-    public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME,
-            true,
-            TrainedModelConfig.Builder::new);
+    public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME, true, TrainedModelConfig.Builder::new);
     static {
         PARSER.declareString(TrainedModelConfig.Builder::setModelId, MODEL_ID);
         PARSER.declareString(TrainedModelConfig.Builder::setCreatedBy, CREATED_BY);
         PARSER.declareString(TrainedModelConfig.Builder::setVersion, VERSION);
         PARSER.declareString(TrainedModelConfig.Builder::setDescription, DESCRIPTION);
-        PARSER.declareField(TrainedModelConfig.Builder::setCreateTime,
+        PARSER.declareField(
+            TrainedModelConfig.Builder::setCreateTime,
             (p, c) -> TimeUtil.parseTimeFieldToInstant(p, CREATE_TIME.getPreferredName()),
             CREATE_TIME,
-            ObjectParser.ValueType.VALUE);
-        PARSER.declareObject(TrainedModelConfig.Builder::setDefinition,
-            (p, c) -> TrainedModelDefinition.fromXContent(p),
-            DEFINITION);
+            ObjectParser.ValueType.VALUE
+        );
+        PARSER.declareObject(TrainedModelConfig.Builder::setDefinition, (p, c) -> TrainedModelDefinition.fromXContent(p), DEFINITION);
         PARSER.declareString(TrainedModelConfig.Builder::setCompressedDefinition, COMPRESSED_DEFINITION);
         PARSER.declareStringArray(TrainedModelConfig.Builder::setTags, TAGS);
         PARSER.declareObject(TrainedModelConfig.Builder::setMetadata, (p, c) -> p.map(), METADATA);
@@ -71,9 +69,11 @@ public class TrainedModelConfig implements ToXContentObject {
         PARSER.declareLong(TrainedModelConfig.Builder::setEstimatedOperations, ESTIMATED_OPERATIONS);
         PARSER.declareString(TrainedModelConfig.Builder::setLicenseLevel, LICENSE_LEVEL);
         PARSER.declareObject(TrainedModelConfig.Builder::setDefaultFieldMap, (p, c) -> p.mapStrings(), DEFAULT_FIELD_MAP);
-        PARSER.declareNamedObject(TrainedModelConfig.Builder::setInferenceConfig,
+        PARSER.declareNamedObject(
+            TrainedModelConfig.Builder::setInferenceConfig,
             (p, c, n) -> p.namedObject(InferenceConfig.class, n, null),
-            INFERENCE_CONFIG);
+            INFERENCE_CONFIG
+        );
     }
 
     public static TrainedModelConfig fromXContent(XContentParser parser) throws IOException {
@@ -96,21 +96,23 @@ public class TrainedModelConfig implements ToXContentObject {
     private final Map<String, String> defaultFieldMap;
     private final InferenceConfig inferenceConfig;
 
-    TrainedModelConfig(String modelId,
-                       String createdBy,
-                       Version version,
-                       String description,
-                       Instant createTime,
-                       TrainedModelDefinition definition,
-                       String compressedDefinition,
-                       List<String> tags,
-                       Map<String, Object> metadata,
-                       TrainedModelInput input,
-                       Long estimatedHeapMemory,
-                       Long estimatedOperations,
-                       String licenseLevel,
-                       Map<String, String> defaultFieldMap,
-                       InferenceConfig inferenceConfig) {
+    TrainedModelConfig(
+        String modelId,
+        String createdBy,
+        Version version,
+        String description,
+        Instant createTime,
+        TrainedModelDefinition definition,
+        String compressedDefinition,
+        List<String> tags,
+        Map<String, Object> metadata,
+        TrainedModelInput input,
+        Long estimatedHeapMemory,
+        Long estimatedOperations,
+        String licenseLevel,
+        Map<String, String> defaultFieldMap,
+        InferenceConfig inferenceConfig
+    ) {
         this.modelId = modelId;
         this.createdBy = createdBy;
         this.version = version;
@@ -258,26 +260,27 @@ public class TrainedModelConfig implements ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         TrainedModelConfig that = (TrainedModelConfig) o;
-        return Objects.equals(modelId, that.modelId) &&
-            Objects.equals(createdBy, that.createdBy) &&
-            Objects.equals(version, that.version) &&
-            Objects.equals(description, that.description) &&
-            Objects.equals(createTime, that.createTime) &&
-            Objects.equals(definition, that.definition) &&
-            Objects.equals(compressedDefinition, that.compressedDefinition) &&
-            Objects.equals(tags, that.tags) &&
-            Objects.equals(input, that.input) &&
-            Objects.equals(estimatedHeapMemory, that.estimatedHeapMemory) &&
-            Objects.equals(estimatedOperations, that.estimatedOperations) &&
-            Objects.equals(licenseLevel, that.licenseLevel) &&
-            Objects.equals(defaultFieldMap, that.defaultFieldMap) &&
-            Objects.equals(inferenceConfig, that.inferenceConfig) &&
-            Objects.equals(metadata, that.metadata);
+        return Objects.equals(modelId, that.modelId)
+            && Objects.equals(createdBy, that.createdBy)
+            && Objects.equals(version, that.version)
+            && Objects.equals(description, that.description)
+            && Objects.equals(createTime, that.createTime)
+            && Objects.equals(definition, that.definition)
+            && Objects.equals(compressedDefinition, that.compressedDefinition)
+            && Objects.equals(tags, that.tags)
+            && Objects.equals(input, that.input)
+            && Objects.equals(estimatedHeapMemory, that.estimatedHeapMemory)
+            && Objects.equals(estimatedOperations, that.estimatedOperations)
+            && Objects.equals(licenseLevel, that.licenseLevel)
+            && Objects.equals(defaultFieldMap, that.defaultFieldMap)
+            && Objects.equals(inferenceConfig, that.inferenceConfig)
+            && Objects.equals(metadata, that.metadata);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId,
+        return Objects.hash(
+            modelId,
             createdBy,
             version,
             createTime,
@@ -291,9 +294,9 @@ public class TrainedModelConfig implements ToXContentObject {
             licenseLevel,
             input,
             inferenceConfig,
-            defaultFieldMap);
+            defaultFieldMap
+        );
     }
-
 
     public static class Builder {
 
@@ -417,7 +420,8 @@ public class TrainedModelConfig implements ToXContentObject {
                 estimatedOperations,
                 licenseLevel,
                 defaultFieldMap,
-                inferenceConfig);
+                inferenceConfig
+            );
         }
     }
 

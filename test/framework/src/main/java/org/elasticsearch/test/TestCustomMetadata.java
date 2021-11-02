@@ -56,7 +56,7 @@ public abstract class TestCustomMetadata extends AbstractNamedDiffable<Metadata.
         return supplier.apply(in.readString());
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(String name, StreamInput in)  throws IOException {
+    public static NamedDiff<Metadata.Custom> readDiffFrom(String name, StreamInput in) throws IOException {
         return readDiffFrom(Metadata.Custom.class, name, in);
     }
 
@@ -99,6 +99,6 @@ public abstract class TestCustomMetadata extends AbstractNamedDiffable<Metadata.
 
     @Override
     public String toString() {
-        return "[" + getWriteableName() + "][" + data +"]";
+        return "[" + getWriteableName() + "][" + data + "]";
     }
 }

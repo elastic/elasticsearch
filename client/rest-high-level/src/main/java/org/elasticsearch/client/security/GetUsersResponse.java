@@ -8,12 +8,12 @@
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.security.user.User;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -84,7 +84,9 @@ public class GetUsersResponse {
     public static final ParseField ENABLED = new ParseField("enabled");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<ParsedUser, String> USER_PARSER = new ConstructingObjectParser<>("user_info", true,
+    public static final ConstructingObjectParser<ParsedUser, String> USER_PARSER = new ConstructingObjectParser<>(
+        "user_info",
+        true,
         (constructorObjects) -> {
             int i = 0;
             final String username = (String) constructorObjects[i++];
@@ -94,7 +96,8 @@ public class GetUsersResponse {
             final String fullName = (String) constructorObjects[i++];
             final String email = (String) constructorObjects[i++];
             return new ParsedUser(username, roles, metadata, enabled, fullName, email);
-        });
+        }
+    );
 
     static {
         USER_PARSER.declareString(constructorArg(), USERNAME);
@@ -109,13 +112,21 @@ public class GetUsersResponse {
         protected User user;
         protected boolean enabled;
 
-        public ParsedUser(String username, Collection<String> roles, Map<String, Object> metadata, Boolean enabled,
-                          @Nullable String fullName, @Nullable String email) {
+        public ParsedUser(
+            String username,
+            Collection<String> roles,
+            Map<String, Object> metadata,
+            Boolean enabled,
+            @Nullable String fullName,
+            @Nullable String email
+        ) {
             String checkedUsername = username = Objects.requireNonNull(username, "`username` is required, cannot be null");
-            Collection<String> checkedRoles = Collections.unmodifiableSet(new HashSet<>(
-                Objects.requireNonNull(roles, "`roles` is required, cannot be null. Pass an empty Collection instead.")));
-            Map<String, Object> checkedMetadata = Collections
-                .unmodifiableMap(Objects.requireNonNull(metadata, "`metadata` is required, cannot be null. Pass an empty map instead."));
+            Collection<String> checkedRoles = Collections.unmodifiableSet(
+                new HashSet<>(Objects.requireNonNull(roles, "`roles` is required, cannot be null. Pass an empty Collection instead."))
+            );
+            Map<String, Object> checkedMetadata = Collections.unmodifiableMap(
+                Objects.requireNonNull(metadata, "`metadata` is required, cannot be null. Pass an empty map instead.")
+            );
             this.user = new User(checkedUsername, checkedRoles, checkedMetadata, fullName, email);
             this.enabled = enabled;
         }

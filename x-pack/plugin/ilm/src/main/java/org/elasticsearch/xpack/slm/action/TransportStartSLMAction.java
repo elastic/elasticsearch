@@ -27,15 +27,27 @@ import org.elasticsearch.xpack.ilm.OperationModeUpdateTask;
 public class TransportStartSLMAction extends AcknowledgedTransportMasterNodeAction<StartSLMAction.Request> {
 
     @Inject
-    public TransportStartSLMAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(StartSLMAction.NAME, transportService, clusterService, threadPool, actionFilters, StartSLMAction.Request::new,
-            indexNameExpressionResolver, ThreadPool.Names.SAME);
+    public TransportStartSLMAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            StartSLMAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            StartSLMAction.Request::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
+        );
     }
 
     @Override
-    protected void masterOperation(StartSLMAction.Request request, ClusterState state,
-                                   ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(StartSLMAction.Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("slm_operation_mode_update", new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {

@@ -8,15 +8,15 @@
 package org.elasticsearch.xpack.idp.saml.sp;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -74,8 +74,7 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             final Privileges that = (Privileges) o;
-            return Objects.equals(resource, that.resource) &&
-                Objects.equals(rolePatterns, that.rolePatterns);
+            return Objects.equals(resource, that.resource) && Objects.equals(rolePatterns, that.rolePatterns);
         }
 
         @Override
@@ -114,10 +113,10 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             final AttributeNames that = (AttributeNames) o;
-            return Objects.equals(principal, that.principal) &&
-                Objects.equals(email, that.email) &&
-                Objects.equals(name, that.name) &&
-                Objects.equals(roles, that.roles);
+            return Objects.equals(principal, that.principal)
+                && Objects.equals(email, that.email)
+                && Objects.equals(name, that.name)
+                && Objects.equals(roles, that.roles);
         }
 
         @Override
@@ -132,20 +131,23 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         public List<String> identityProviderMetadataSigning = Collections.emptyList();
 
         public void setServiceProviderSigning(Collection<String> serviceProviderSigning) {
-            this.serviceProviderSigning = serviceProviderSigning == null ? Collections.emptyList() :
-                serviceProviderSigning.stream().collect(Collectors.collectingAndThen(Collectors.toList(), Collections::unmodifiableList));
+            this.serviceProviderSigning = serviceProviderSigning == null
+                ? Collections.emptyList()
+                : serviceProviderSigning.stream().collect(Collectors.collectingAndThen(Collectors.toList(), Collections::unmodifiableList));
         }
 
         public void setIdentityProviderSigning(Collection<String> identityProviderSigning) {
-            this.identityProviderSigning = identityProviderSigning == null ? Collections.emptyList() :
-                identityProviderSigning.stream().collect(Collectors.collectingAndThen(Collectors.toList(), Collections::unmodifiableList));
+            this.identityProviderSigning = identityProviderSigning == null
+                ? Collections.emptyList()
+                : identityProviderSigning.stream()
+                    .collect(Collectors.collectingAndThen(Collectors.toList(), Collections::unmodifiableList));
         }
 
         public void setIdentityProviderMetadataSigning(Collection<String> identityProviderMetadataSigning) {
-            this.identityProviderMetadataSigning
-                = identityProviderMetadataSigning == null ? Collections.emptyList() :
-                identityProviderMetadataSigning.stream().collect(Collectors.collectingAndThen(Collectors.toList(),
-                    Collections::unmodifiableList));
+            this.identityProviderMetadataSigning = identityProviderMetadataSigning == null
+                ? Collections.emptyList()
+                : identityProviderMetadataSigning.stream()
+                    .collect(Collectors.collectingAndThen(Collectors.toList(), Collections::unmodifiableList));
         }
 
         public void setServiceProviderX509SigningCertificates(Collection<X509Certificate> certificates) {
@@ -173,14 +175,13 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         }
 
         private List<String> encodeCertificates(Collection<X509Certificate> certificates) {
-            return certificates == null ? Collections.emptyList() : certificates.stream()
-                .map(cert -> {
-                    try {
-                        return cert.getEncoded();
-                    } catch (CertificateEncodingException e) {
-                        throw new ElasticsearchException("Cannot read certificate", e);
-                    }
-                })
+            return certificates == null ? Collections.emptyList() : certificates.stream().map(cert -> {
+                try {
+                    return cert.getEncoded();
+                } catch (CertificateEncodingException e) {
+                    throw new ElasticsearchException("Cannot read certificate", e);
+                }
+            })
                 .map(Base64.getEncoder()::encodeToString)
                 .collect(Collectors.collectingAndThen(Collectors.toList(), Collections::unmodifiableList));
         }
@@ -189,8 +190,9 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
             if (encodedCertificates == null || encodedCertificates.isEmpty()) {
                 return Collections.emptyList();
             }
-            return encodedCertificates.stream().map(this::decodeCertificate).collect(Collectors.collectingAndThen(Collectors.toList(),
-                Collections::unmodifiableList));
+            return encodedCertificates.stream()
+                .map(this::decodeCertificate)
+                .collect(Collectors.collectingAndThen(Collectors.toList(), Collections::unmodifiableList));
         }
 
         private X509Certificate decodeCertificate(String base64Cert) {
@@ -219,9 +221,9 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             final Certificates that = (Certificates) o;
-            return Objects.equals(serviceProviderSigning, that.serviceProviderSigning) &&
-                Objects.equals(identityProviderSigning, that.identityProviderSigning) &&
-                Objects.equals(identityProviderMetadataSigning, that.identityProviderMetadataSigning);
+            return Objects.equals(serviceProviderSigning, that.serviceProviderSigning)
+                && Objects.equals(identityProviderSigning, that.identityProviderSigning)
+                && Objects.equals(identityProviderMetadataSigning, that.identityProviderMetadataSigning);
         }
 
         @Override
@@ -255,8 +257,7 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
     public final AttributeNames attributeNames = new AttributeNames();
     public final Certificates certificates = new Certificates();
 
-    public SamlServiceProviderDocument() {
-    }
+    public SamlServiceProviderDocument() {}
 
     public SamlServiceProviderDocument(StreamInput in) throws IOException {
         docId = in.readOptionalString();
@@ -352,8 +353,9 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
     }
 
     public void setSignMessages(Collection<String> signMessages) {
-        this.signMessages = signMessages == null ? Collections.emptySet() :
-            signMessages.stream().collect(Collectors.collectingAndThen(Collectors.toSet(), Collections::unmodifiableSet));
+        this.signMessages = signMessages == null
+            ? Collections.emptySet()
+            : signMessages.stream().collect(Collectors.collectingAndThen(Collectors.toSet(), Collections::unmodifiableSet));
     }
 
     public void setAuthenticationExpiryMillis(Long authenticationExpiryMillis) {
@@ -373,34 +375,48 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         final SamlServiceProviderDocument that = (SamlServiceProviderDocument) o;
-        return Objects.equals(docId, that.docId) &&
-            Objects.equals(name, that.name) &&
-            Objects.equals(entityId, that.entityId) &&
-            Objects.equals(acs, that.acs) &&
-            Objects.equals(enabled, that.enabled) &&
-            Objects.equals(created, that.created) &&
-            Objects.equals(lastModified, that.lastModified) &&
-            Objects.equals(nameIdFormat, that.nameIdFormat) &&
-            Objects.equals(authenticationExpiryMillis, that.authenticationExpiryMillis) &&
-            Objects.equals(certificates, that.certificates) &&
-            Objects.equals(privileges, that.privileges) &&
-            Objects.equals(attributeNames, that.attributeNames);
+        return Objects.equals(docId, that.docId)
+            && Objects.equals(name, that.name)
+            && Objects.equals(entityId, that.entityId)
+            && Objects.equals(acs, that.acs)
+            && Objects.equals(enabled, that.enabled)
+            && Objects.equals(created, that.created)
+            && Objects.equals(lastModified, that.lastModified)
+            && Objects.equals(nameIdFormat, that.nameIdFormat)
+            && Objects.equals(authenticationExpiryMillis, that.authenticationExpiryMillis)
+            && Objects.equals(certificates, that.certificates)
+            && Objects.equals(privileges, that.privileges)
+            && Objects.equals(attributeNames, that.attributeNames);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(docId, name, entityId, acs, enabled, created, lastModified, nameIdFormat,
-            authenticationExpiryMillis, certificates, privileges, attributeNames);
+        return Objects.hash(
+            docId,
+            name,
+            entityId,
+            acs,
+            enabled,
+            created,
+            lastModified,
+            nameIdFormat,
+            authenticationExpiryMillis,
+            certificates,
+            privileges,
+            attributeNames
+        );
     }
 
-    private static final ObjectParser<SamlServiceProviderDocument, SamlServiceProviderDocument> DOC_PARSER
-        = new ObjectParser<>("service_provider_doc", true, SamlServiceProviderDocument::new);
+    private static final ObjectParser<SamlServiceProviderDocument, SamlServiceProviderDocument> DOC_PARSER = new ObjectParser<>(
+        "service_provider_doc",
+        true,
+        SamlServiceProviderDocument::new
+    );
     private static final ObjectParser<Privileges, Void> PRIVILEGES_PARSER = new ObjectParser<>("service_provider_priv", true, null);
     private static final ObjectParser<AttributeNames, Void> ATTRIBUTES_PARSER = new ObjectParser<>("service_provider_attr", true, null);
     private static final ObjectParser<Certificates, Void> CERTIFICATES_PARSER = new ObjectParser<>("service_provider_cert", true, null);
 
-    private static final BiConsumer<SamlServiceProviderDocument, Object> NULL_CONSUMER = (doc, obj) -> {
-    };
+    private static final BiConsumer<SamlServiceProviderDocument, Object> NULL_CONSUMER = (doc, obj) -> {};
 
     static {
         DOC_PARSER.declareString(SamlServiceProviderDocument::setName, Fields.NAME);
@@ -411,9 +427,12 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
         DOC_PARSER.declareLong(SamlServiceProviderDocument::setLastModifiedMillis, Fields.LAST_MODIFIED);
         DOC_PARSER.declareStringOrNull(SamlServiceProviderDocument::setNameIdFormat, Fields.NAME_ID);
         DOC_PARSER.declareStringArray(SamlServiceProviderDocument::setSignMessages, Fields.SIGN_MSGS);
-        DOC_PARSER.declareField(SamlServiceProviderDocument::setAuthenticationExpiryMillis,
+        DOC_PARSER.declareField(
+            SamlServiceProviderDocument::setAuthenticationExpiryMillis,
             parser -> parser.currentToken() == XContentParser.Token.VALUE_NULL ? null : parser.longValue(),
-            Fields.AUTHN_EXPIRY, ObjectParser.ValueType.LONG_OR_NULL);
+            Fields.AUTHN_EXPIRY,
+            ObjectParser.ValueType.LONG_OR_NULL
+        );
 
         DOC_PARSER.declareObject(NULL_CONSUMER, (parser, doc) -> PRIVILEGES_PARSER.parse(parser, doc.privileges, null), Fields.PRIVILEGES);
         PRIVILEGES_PARSER.declareString(Privileges::setResource, Fields.Privileges.RESOURCE);
@@ -457,17 +476,32 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
 
         final Set<String> invalidSignOptions = Sets.difference(signMessages, ALLOWED_SIGN_MESSAGES);
         if (invalidSignOptions.isEmpty() == false) {
-            validation.addValidationError("the values [" + invalidSignOptions + "] are not permitted for [" + Fields.SIGN_MSGS
-                + "] - permitted values are [" + ALLOWED_SIGN_MESSAGES + "]");
+            validation.addValidationError(
+                "the values ["
+                    + invalidSignOptions
+                    + "] are not permitted for ["
+                    + Fields.SIGN_MSGS
+                    + "] - permitted values are ["
+                    + ALLOWED_SIGN_MESSAGES
+                    + "]"
+            );
         }
 
         if (Strings.isNullOrEmpty(privileges.resource)) {
-            validation.addValidationError("field [" + Fields.PRIVILEGES + "." + Fields.Privileges.RESOURCE
-                + "] is required, but was [" + privileges.resource + "]");
+            validation.addValidationError(
+                "field [" + Fields.PRIVILEGES + "." + Fields.Privileges.RESOURCE + "] is required, but was [" + privileges.resource + "]"
+            );
         }
         if (Strings.isNullOrEmpty(attributeNames.principal)) {
-            validation.addValidationError("field [" + Fields.ATTRIBUTES + "." + Fields.Attributes.PRINCIPAL
-                + "] is required, but was [" + attributeNames.principal + "]");
+            validation.addValidationError(
+                "field ["
+                    + Fields.ATTRIBUTES
+                    + "."
+                    + Fields.Attributes.PRINCIPAL
+                    + "] is required, but was ["
+                    + attributeNames.principal
+                    + "]"
+            );
         }
         if (validation.validationErrors().isEmpty()) {
             return null;

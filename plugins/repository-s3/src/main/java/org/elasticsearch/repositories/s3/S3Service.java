@@ -31,7 +31,6 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 
-
 class S3Service implements Closeable {
     private static final Logger logger = LogManager.getLogger(S3Service.class);
 
@@ -41,7 +40,8 @@ class S3Service implements Closeable {
      * Client settings calculated from static configuration and settings in the keystore.
      */
     private volatile Map<String, S3ClientSettings> staticClientSettings = MapBuilder.<String, S3ClientSettings>newMapBuilder()
-        .put("default", S3ClientSettings.getClientSettings(Settings.EMPTY, "default")).immutableMap();
+        .put("default", S3ClientSettings.getClientSettings(Settings.EMPTY, "default"))
+        .immutableMap();
 
     /**
      * Client settings derived from those in {@link #staticClientSettings} by combining them with settings
@@ -116,8 +116,12 @@ class S3Service implements Closeable {
                 return newSettings;
             }
         }
-        throw new IllegalArgumentException("Unknown s3 client name [" + clientName + "]. Existing client configs: "
-            + Strings.collectionToDelimitedString(staticClientSettings.keySet(), ","));
+        throw new IllegalArgumentException(
+            "Unknown s3 client name ["
+                + clientName
+                + "]. Existing client configs: "
+                + Strings.collectionToDelimitedString(staticClientSettings.keySet(), ",")
+        );
     }
 
     // proxy for testing

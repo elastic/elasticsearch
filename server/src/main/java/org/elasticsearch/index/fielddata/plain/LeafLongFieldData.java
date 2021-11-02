@@ -44,16 +44,16 @@ public abstract class LeafLongFieldData implements LeafNumericFieldData {
     @Override
     public final ScriptDocValues<?> getScriptValues() {
         switch (numericType) {
-        // for now, dates and nanoseconds are treated the same, which also means, that the precision is only on millisecond level
-        case DATE:
-            return new ScriptDocValues.Dates(getLongValues(), false);
-        case DATE_NANOSECONDS:
-            assert this instanceof SortedNumericIndexFieldData.NanoSecondFieldData;
-            return new ScriptDocValues.Dates(((SortedNumericIndexFieldData.NanoSecondFieldData) this).getLongValuesAsNanos(), true);
-        case BOOLEAN:
-            return new ScriptDocValues.Booleans(getLongValues());
-        default:
-            return new ScriptDocValues.Longs(getLongValues());
+            // for now, dates and nanoseconds are treated the same, which also means, that the precision is only on millisecond level
+            case DATE:
+                return new ScriptDocValues.Dates(getLongValues(), false);
+            case DATE_NANOSECONDS:
+                assert this instanceof SortedNumericIndexFieldData.NanoSecondFieldData;
+                return new ScriptDocValues.Dates(((SortedNumericIndexFieldData.NanoSecondFieldData) this).getLongValuesAsNanos(), true);
+            case BOOLEAN:
+                return new ScriptDocValues.Booleans(getLongValues());
+            default:
+                return new ScriptDocValues.Longs(getLongValues());
         }
     }
 

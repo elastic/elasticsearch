@@ -14,8 +14,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
-import org.elasticsearch.plugin.analysis.phonetic.AnalysisPhoneticPlugin;
-import org.elasticsearch.plugin.analysis.phonetic.PhoneticTokenFilterFactory;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
 
@@ -47,14 +45,15 @@ public class AnalysisPhoneticFactoryTests extends AnalysisFactoryTestCase {
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
 
-        TokenFilterFactory tff
-            = plugin.getTokenFilters().get("phonetic").get(idxSettings, null, "phonetic", settings);
+        TokenFilterFactory tff = plugin.getTokenFilters().get("phonetic").get(idxSettings, null, "phonetic", settings);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, tff::getSynonymFilter);
         assertEquals("Token filter [phonetic] cannot be used to parse synonyms", e.getMessage());
 
         settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(),
-                Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_0_0)))
+            .put(
+                IndexMetadata.SETTING_VERSION_CREATED,
+                VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_0_0))
+            )
             .put("path.home", createTempDir().toString())
             .build();
         idxSettings = IndexSettingsModule.newIndexSettings("index", settings);

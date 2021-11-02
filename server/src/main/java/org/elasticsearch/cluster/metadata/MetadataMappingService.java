@@ -19,11 +19,11 @@ import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
@@ -62,8 +62,10 @@ public class MetadataMappingService {
 
     class PutMappingExecutor implements ClusterStateTaskExecutor<PutMappingClusterStateUpdateRequest> {
         @Override
-        public ClusterTasksResult<PutMappingClusterStateUpdateRequest>
-        execute(ClusterState currentState, List<PutMappingClusterStateUpdateRequest> tasks) throws Exception {
+        public ClusterTasksResult<PutMappingClusterStateUpdateRequest> execute(
+            ClusterState currentState,
+            List<PutMappingClusterStateUpdateRequest> tasks
+        ) throws Exception {
             Map<Index, MapperService> indexMapperServices = new HashMap<>();
             ClusterTasksResult.Builder<PutMappingClusterStateUpdateRequest> builder = ClusterTasksResult.builder();
             try {
@@ -90,8 +92,11 @@ public class MetadataMappingService {
             }
         }
 
-        private ClusterState applyRequest(ClusterState currentState, PutMappingClusterStateUpdateRequest request,
-                                          Map<Index, MapperService> indexMapperServices) {
+        private ClusterState applyRequest(
+            ClusterState currentState,
+            PutMappingClusterStateUpdateRequest request,
+            Map<Index, MapperService> indexMapperServices
+        ) {
             final CompressedXContent mappingUpdateSource = request.source();
             String mappingType = request.type();
             final Metadata metadata = currentState.metadata();
@@ -111,8 +116,12 @@ public class MetadataMappingService {
 
                 String typeForUpdate = mapperService.getTypeForUpdate(mappingType, mappingUpdateSource);
                 if (existingMapper != null && existingMapper.type().equals(typeForUpdate) == false) {
-                    throw new IllegalArgumentException("Rejecting mapping update to [" + mapperService.index().getName() +
-                        "] as the final mapping would have more than 1 type: " + Arrays.asList(existingMapper.type(), typeForUpdate));
+                    throw new IllegalArgumentException(
+                        "Rejecting mapping update to ["
+                            + mapperService.index().getName()
+                            + "] as the final mapping would have more than 1 type: "
+                            + Arrays.asList(existingMapper.type(), typeForUpdate)
+                    );
                 }
 
                 Mapping newMapping;
@@ -128,15 +137,15 @@ public class MetadataMappingService {
                     mappingType = newMapping.type();
                 } else if (mappingType.equals(newMapping.type()) == false
                     && (isMappingSourceTyped(request.type(), mappingUpdateSource)
-                    || mapperService.resolveDocumentType(mappingType).equals(newMapping.type()) == false)) {
-                    throw new InvalidTypeNameException("Type name provided does not match type name within mapping definition.");
-                }
+                        || mapperService.resolveDocumentType(mappingType).equals(newMapping.type()) == false)) {
+                            throw new InvalidTypeNameException("Type name provided does not match type name within mapping definition.");
+                        }
             }
             assert mappingType != null;
 
             if (MapperService.DEFAULT_MAPPING.equals(mappingType) == false
-                    && MapperService.SINGLE_MAPPING_NAME.equals(mappingType) == false
-                    && mappingType.charAt(0) == '_') {
+                && MapperService.SINGLE_MAPPING_NAME.equals(mappingType) == false
+                && mappingType.charAt(0) == '_') {
                 throw new InvalidTypeNameException("Document mapping type name can't start with '_', found: [" + mappingType + "]");
             }
             Metadata.Builder builder = Metadata.builder(metadata);
@@ -182,8 +191,10 @@ public class MetadataMappingService {
                 IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);
                 // Mapping updates on a single type may have side-effects on other types so we need to
                 // update mapping metadata on all types
-                for (DocumentMapper mapper : Arrays.asList(mapperService.documentMapper(),
-                                                           mapperService.documentMapper(MapperService.DEFAULT_MAPPING))) {
+                for (DocumentMapper mapper : Arrays.asList(
+                    mapperService.documentMapper(),
+                    mapperService.documentMapper(MapperService.DEFAULT_MAPPING)
+                )) {
                     if (mapper != null) {
                         indexMetadataBuilder.putMapping(new MappingMetadata(mapper.mappingSource()));
                     }
@@ -208,7 +219,7 @@ public class MetadataMappingService {
 
         @Override
         public String describeTasks(List<PutMappingClusterStateUpdateRequest> tasks) {
-            return String.join(", ", tasks.stream().map(t -> (CharSequence)t.type())::iterator);
+            return String.join(", ", tasks.stream().map(t -> (CharSequence) t.type())::iterator);
         }
     }
 
@@ -239,36 +250,38 @@ public class MetadataMappingService {
             return;
         }
 
-        clusterService.submitStateUpdateTask("put-mapping " + Strings.arrayToCommaDelimitedString(request.indices()),
-                request,
-                ClusterStateTaskConfig.build(Priority.HIGH, request.masterNodeTimeout()),
-                putMappingExecutor,
-                new AckedClusterStateTaskListener() {
+        clusterService.submitStateUpdateTask(
+            "put-mapping " + Strings.arrayToCommaDelimitedString(request.indices()),
+            request,
+            ClusterStateTaskConfig.build(Priority.HIGH, request.masterNodeTimeout()),
+            putMappingExecutor,
+            new AckedClusterStateTaskListener() {
 
-                    @Override
-                    public void onFailure(String source, Exception e) {
-                        listener.onFailure(e);
-                    }
+                @Override
+                public void onFailure(String source, Exception e) {
+                    listener.onFailure(e);
+                }
 
-                    @Override
-                    public boolean mustAck(DiscoveryNode discoveryNode) {
-                        return true;
-                    }
+                @Override
+                public boolean mustAck(DiscoveryNode discoveryNode) {
+                    return true;
+                }
 
-                    @Override
-                    public void onAllNodesAcked(@Nullable Exception e) {
-                        listener.onResponse(AcknowledgedResponse.of(e == null));
-                    }
+                @Override
+                public void onAllNodesAcked(@Nullable Exception e) {
+                    listener.onResponse(AcknowledgedResponse.of(e == null));
+                }
 
-                    @Override
-                    public void onAckTimeout() {
-                        listener.onResponse(AcknowledgedResponse.FALSE);
-                    }
+                @Override
+                public void onAckTimeout() {
+                    listener.onResponse(AcknowledgedResponse.FALSE);
+                }
 
-                    @Override
-                    public TimeValue ackTimeout() {
-                        return request.ackTimeout();
-                    }
-                });
+                @Override
+                public TimeValue ackTimeout() {
+                    return request.ackTimeout();
+                }
+            }
+        );
     }
 }

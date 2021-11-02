@@ -25,7 +25,7 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
@@ -36,7 +36,9 @@ public class CustomRoleMappingRealmTests extends ESTestCase {
         final UserRoleMapper roleMapper = mock(UserRoleMapper.class);
         final RealmConfig realmConfig = new RealmConfig(
             new RealmConfig.RealmIdentifier(CustomRoleMappingRealm.TYPE, "test"),
-            env.settings(), env, new ThreadContext(env.settings())
+            env.settings(),
+            env,
+            new ThreadContext(env.settings())
         );
         CustomRoleMappingRealm realm = new CustomRoleMappingRealm(realmConfig, roleMapper);
 

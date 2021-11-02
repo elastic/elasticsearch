@@ -10,11 +10,11 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -39,14 +39,17 @@ public class RestSearchTemplateAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(GET, "/_search/template"),
-            new Route(POST, "/_search/template"),
-            new Route(GET, "/{index}/_search/template"),
-            new Route(POST, "/{index}/_search/template"),
-            // Deprecated typed endpoints.
-            new Route(GET, "/{index}/{type}/_search/template"),
-            new Route(POST, "/{index}/{type}/_search/template")));
+        return unmodifiableList(
+            asList(
+                new Route(GET, "/_search/template"),
+                new Route(POST, "/_search/template"),
+                new Route(GET, "/{index}/_search/template"),
+                new Route(POST, "/{index}/_search/template"),
+                // Deprecated typed endpoints.
+                new Route(GET, "/{index}/{type}/_search/template"),
+                new Route(POST, "/{index}/{type}/_search/template")
+            )
+        );
     }
 
     @Override
@@ -59,7 +62,12 @@ public class RestSearchTemplateAction extends BaseRestHandler {
         // Creates the search request with all required params
         SearchRequest searchRequest = new SearchRequest();
         RestSearchAction.parseSearchRequest(
-            searchRequest, request, null, client.getNamedWriteableRegistry(), size -> searchRequest.source().size(size));
+            searchRequest,
+            request,
+            null,
+            client.getNamedWriteableRegistry(),
+            size -> searchRequest.source().size(size)
+        );
 
         // Creates the search template request
         SearchTemplateRequest searchTemplateRequest;

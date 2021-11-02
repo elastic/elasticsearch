@@ -8,12 +8,12 @@
 
 package org.elasticsearch.xcontent;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xcontent.support.MapXContentParser;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -53,7 +53,7 @@ public class MapXContentParserTests extends ESTestCase {
                 builder.endObject();
             }
             builder.endObject();
-            builder.field("bytes", new byte[]{1, 2, 3});
+            builder.field("bytes", new byte[] { 1, 2, 3 });
             builder.nullField("nothing");
             builder.endObject();
         });
@@ -112,8 +112,14 @@ public class MapXContentParserTests extends ESTestCase {
             }
 
             try (XContentParser parser = createParser(xContentType.xContent(), BytesReference.bytes(builder))) {
-                try (XContentParser mapParser = new MapXContentParser(
-                    xContentRegistry(), LoggingDeprecationHandler.INSTANCE, map, xContentType)) {
+                try (
+                    XContentParser mapParser = new MapXContentParser(
+                        xContentRegistry(),
+                        LoggingDeprecationHandler.INSTANCE,
+                        map,
+                        xContentType
+                    )
+                ) {
                     assertEquals(parser.contentType(), mapParser.contentType());
                     XContentParser.Token token;
                     assertEquals(parser.currentToken(), mapParser.currentToken());
@@ -138,8 +144,8 @@ public class MapXContentParserTests extends ESTestCase {
                                 case VALUE_NUMBER:
                                     assertEquals(parser.numberType(), mapParser.numberType());
                                     assertEquals(parser.numberValue(), mapParser.numberValue());
-                                    if (parser.numberType() == XContentParser.NumberType.LONG ||
-                                        parser.numberType() == XContentParser.NumberType.INT) {
+                                    if (parser.numberType() == XContentParser.NumberType.LONG
+                                        || parser.numberType() == XContentParser.NumberType.INT) {
                                         assertEquals(parser.longValue(), mapParser.longValue());
                                         if (parser.longValue() <= Integer.MAX_VALUE && parser.longValue() >= Integer.MIN_VALUE) {
                                             assertEquals(parser.intValue(), mapParser.intValue());

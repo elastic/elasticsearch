@@ -12,8 +12,8 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -22,8 +22,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -43,24 +43,24 @@ public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
             String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
             indexNames.add(indexName);
 
-            int randomInt = randomInt(PreBuiltAnalyzers.values().length-1);
+            int randomInt = randomInt(PreBuiltAnalyzers.values().length - 1);
             PreBuiltAnalyzers preBuiltAnalyzer = PreBuiltAnalyzers.values()[randomInt];
             String name = preBuiltAnalyzer.name().toLowerCase(Locale.ROOT);
 
             Version randomVersion = randomVersion(random());
             if (loadedAnalyzers.containsKey(preBuiltAnalyzer) == false) {
-                 loadedAnalyzers.put(preBuiltAnalyzer, new ArrayList<Version>());
+                loadedAnalyzers.put(preBuiltAnalyzer, new ArrayList<Version>());
             }
             loadedAnalyzers.get(preBuiltAnalyzer).add(randomVersion);
 
             final XContentBuilder mapping = jsonBuilder().startObject()
                 .startObject("type")
-                    .startObject("properties")
-                        .startObject("foo")
-                            .field("type", "text")
-                            .field("analyzer", name)
-                        .endObject()
-                    .endObject()
+                .startObject("properties")
+                .startObject("foo")
+                .field("type", "text")
+                .field("analyzer", name)
+                .endObject()
+                .endObject()
                 .endObject()
                 .endObject();
 
@@ -73,7 +73,7 @@ public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
         final int numDocs = randomIntBetween(10, 100);
         // index some amount of data
         for (int i = 0; i < numDocs; i++) {
-            String randomIndex = indexNames.get(randomInt(indexNames.size()-1));
+            String randomIndex = indexNames.get(randomInt(indexNames.size() - 1));
             String randomId = randomInt() + "";
 
             Map<String, Object> data = new HashMap<>();
@@ -85,7 +85,7 @@ public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
         refresh();
 
         // close some of the indices
-        int amountOfIndicesToClose = randomInt(numIndices-1);
+        int amountOfIndicesToClose = randomInt(numIndices - 1);
         for (int i = 0; i < amountOfIndicesToClose; i++) {
             String indexName = indexNames.get(i);
             client().admin().indices().prepareClose(indexName).execute().actionGet();

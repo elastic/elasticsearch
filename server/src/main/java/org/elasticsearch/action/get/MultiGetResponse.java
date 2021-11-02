@@ -10,15 +10,15 @@ package org.elasticsearch.action.get;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
-import org.elasticsearch.index.get.GetResult;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -186,9 +186,9 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
                 case FIELD_NAME:
                     currentFieldName = parser.currentName();
                     if (INDEX.match(currentFieldName, parser.getDeprecationHandler()) == false
-                            && TYPE.match(currentFieldName, parser.getDeprecationHandler()) == false
-                            && ID.match(currentFieldName, parser.getDeprecationHandler()) == false
-                            && ERROR.match(currentFieldName, parser.getDeprecationHandler()) == false) {
+                        && TYPE.match(currentFieldName, parser.getDeprecationHandler()) == false
+                        && ID.match(currentFieldName, parser.getDeprecationHandler()) == false
+                        && ERROR.match(currentFieldName, parser.getDeprecationHandler()) == false) {
                         getResult = GetResult.fromXContentEmbedded(parser, index, type, id);
                     }
                     break;

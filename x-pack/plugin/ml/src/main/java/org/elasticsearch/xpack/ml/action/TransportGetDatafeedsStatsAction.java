@@ -25,8 +25,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedRunningStateAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
-import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction.Response;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction.Request;
+import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction.Response;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
@@ -49,11 +49,16 @@ public class TransportGetDatafeedsStatsAction extends TransportMasterNodeReadAct
     private final OriginSettingClient client;
 
     @Inject
-    public TransportGetDatafeedsStatsAction(TransportService transportService, ClusterService clusterService,
-                                            ThreadPool threadPool, ActionFilters actionFilters,
-                                            IndexNameExpressionResolver indexNameExpressionResolver,
-                                            DatafeedConfigProvider datafeedConfigProvider, JobResultsProvider jobResultsProvider,
-                                            Client client) {
+    public TransportGetDatafeedsStatsAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        DatafeedConfigProvider datafeedConfigProvider,
+        JobResultsProvider jobResultsProvider,
+        Client client
+    ) {
         super(
             GetDatafeedsStatsAction.NAME,
             transportService,
@@ -71,66 +76,53 @@ public class TransportGetDatafeedsStatsAction extends TransportMasterNodeReadAct
     }
 
     @Override
-    protected void masterOperation(GetDatafeedsStatsAction.Request request, ClusterState state,
-                                   ActionListener<GetDatafeedsStatsAction.Response> listener) throws Exception {
+    protected void masterOperation(
+        GetDatafeedsStatsAction.Request request,
+        ClusterState state,
+        ActionListener<GetDatafeedsStatsAction.Response> listener
+    ) throws Exception {
         logger.debug(() -> new ParameterizedMessage("[{}] get stats for datafeed", request.getDatafeedId()));
         final PersistentTasksCustomMetadata tasksInProgress = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         final Response.Builder responseBuilder = new Response.Builder();
 
         // 5. Build response
-        ActionListener<GetDatafeedRunningStateAction.Response> runtimeStateListener = ActionListener.wrap(
-            runtimeStateResponse -> {
-                responseBuilder.setDatafeedRuntimeState(runtimeStateResponse);
-                listener.onResponse(responseBuilder.build(tasksInProgress, state));
-            },
-            listener::onFailure
-        );
+        ActionListener<GetDatafeedRunningStateAction.Response> runtimeStateListener = ActionListener.wrap(runtimeStateResponse -> {
+            responseBuilder.setDatafeedRuntimeState(runtimeStateResponse);
+            listener.onResponse(responseBuilder.build(tasksInProgress, state));
+        }, listener::onFailure);
 
         // 4. Grab runtime state
-        ActionListener<Map<String, DatafeedTimingStats>> datafeedTimingStatsListener = ActionListener.wrap(
-            timingStatsByJobId -> {
-                responseBuilder.setTimingStatsMap(timingStatsByJobId);
-                client.execute(
-                    GetDatafeedRunningStateAction.INSTANCE,
-                    new GetDatafeedRunningStateAction.Request(responseBuilder.getDatafeedIds()),
-                    runtimeStateListener
-                );
-            },
-            listener::onFailure
-        );
+        ActionListener<Map<String, DatafeedTimingStats>> datafeedTimingStatsListener = ActionListener.wrap(timingStatsByJobId -> {
+            responseBuilder.setTimingStatsMap(timingStatsByJobId);
+            client.execute(
+                GetDatafeedRunningStateAction.INSTANCE,
+                new GetDatafeedRunningStateAction.Request(responseBuilder.getDatafeedIds()),
+                runtimeStateListener
+            );
+        }, listener::onFailure);
 
         // 3. Grab timing stats
-        ActionListener<List<DatafeedConfig.Builder>> expandedConfigsListener = ActionListener.wrap(
-            datafeedBuilders -> {
-                Map<String, String> datafeedIdsToJobIds = datafeedBuilders.stream()
-                    .collect(Collectors.toMap(DatafeedConfig.Builder::getId, DatafeedConfig.Builder::getJobId));
-                responseBuilder.setDatafeedToJobId(datafeedIdsToJobIds);
-                jobResultsProvider.datafeedTimingStats(new ArrayList<>(datafeedIdsToJobIds.values()), datafeedTimingStatsListener);
-            },
-            listener::onFailure
-        );
+        ActionListener<List<DatafeedConfig.Builder>> expandedConfigsListener = ActionListener.wrap(datafeedBuilders -> {
+            Map<String, String> datafeedIdsToJobIds = datafeedBuilders.stream()
+                .collect(Collectors.toMap(DatafeedConfig.Builder::getId, DatafeedConfig.Builder::getJobId));
+            responseBuilder.setDatafeedToJobId(datafeedIdsToJobIds);
+            jobResultsProvider.datafeedTimingStats(new ArrayList<>(datafeedIdsToJobIds.values()), datafeedTimingStatsListener);
+        }, listener::onFailure);
 
         // 2. Now that we have the ids, grab the datafeed configs
-        ActionListener<SortedSet<String>> expandIdsListener = ActionListener.wrap(
-            expandedIds -> {
-                responseBuilder.setDatafeedIds(expandedIds);
-                datafeedConfigProvider.expandDatafeedConfigs(
-                    request.getDatafeedId(),
-                    // Already took into account the request parameter when we expanded the IDs with the tasks earlier
-                    // Should allow for no datafeeds in case the config is gone
-                    true,
-                    expandedConfigsListener
-                );
-            },
-            listener::onFailure
-        );
+        ActionListener<SortedSet<String>> expandIdsListener = ActionListener.wrap(expandedIds -> {
+            responseBuilder.setDatafeedIds(expandedIds);
+            datafeedConfigProvider.expandDatafeedConfigs(
+                request.getDatafeedId(),
+                // Already took into account the request parameter when we expanded the IDs with the tasks earlier
+                // Should allow for no datafeeds in case the config is gone
+                true,
+                expandedConfigsListener
+            );
+        }, listener::onFailure);
 
         // 1. This might also include datafeed tasks that exist but no longer have a config
-        datafeedConfigProvider.expandDatafeedIds(request.getDatafeedId(),
-            request.allowNoMatch(),
-            tasksInProgress,
-            true,
-            expandIdsListener);
+        datafeedConfigProvider.expandDatafeedIds(request.getDatafeedId(), request.allowNoMatch(), tasksInProgress, true, expandIdsListener);
     }
 
     @Override

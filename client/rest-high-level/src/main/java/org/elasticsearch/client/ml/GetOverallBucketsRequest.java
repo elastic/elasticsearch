@@ -10,10 +10,10 @@ package org.elasticsearch.client.ml;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -40,7 +40,9 @@ public class GetOverallBucketsRequest extends ActionRequest implements ToXConten
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<GetOverallBucketsRequest, Void> PARSER = new ConstructingObjectParser<>(
-            "get_overall_buckets_request", a -> new GetOverallBucketsRequest((String) a[0]));
+        "get_overall_buckets_request",
+        a -> new GetOverallBucketsRequest((String) a[0])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
@@ -243,13 +245,13 @@ public class GetOverallBucketsRequest extends ActionRequest implements ToXConten
             return false;
         }
         GetOverallBucketsRequest other = (GetOverallBucketsRequest) obj;
-        return Objects.equals(jobIds, other.jobIds) &&
-                Objects.equals(topN, other.topN) &&
-                Objects.equals(bucketSpan, other.bucketSpan) &&
-                Objects.equals(excludeInterim, other.excludeInterim) &&
-                Objects.equals(overallScore, other.overallScore) &&
-                Objects.equals(start, other.start) &&
-                Objects.equals(end, other.end) &&
-                Objects.equals(allowNoMatch, other.allowNoMatch);
+        return Objects.equals(jobIds, other.jobIds)
+            && Objects.equals(topN, other.topN)
+            && Objects.equals(bucketSpan, other.bucketSpan)
+            && Objects.equals(excludeInterim, other.excludeInterim)
+            && Objects.equals(overallScore, other.overallScore)
+            && Objects.equals(start, other.start)
+            && Objects.equals(end, other.end)
+            && Objects.equals(allowNoMatch, other.allowNoMatch);
     }
 }

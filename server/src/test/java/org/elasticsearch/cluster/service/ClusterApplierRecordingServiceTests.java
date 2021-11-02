@@ -67,8 +67,14 @@ public class ClusterApplierRecordingServiceTests extends ESTestCase {
             }
             service.updateStats(recorder);
             ClusterApplierRecordingService.Stats stats = service.getStats();
-            assertThat(stats.getRecordings().entrySet(), contains(Map.entry("action2", new Recording(1, 37)),
-                Map.entry("action1", new Recording(1, 5)), Map.entry("action3", new Recording(1, 3))));
+            assertThat(
+                stats.getRecordings().entrySet(),
+                contains(
+                    Map.entry("action2", new Recording(1, 37)),
+                    Map.entry("action1", new Recording(1, 5)),
+                    Map.entry("action3", new Recording(1, 3))
+                )
+            );
         }
         {
             long[] currentTime = new long[1];
@@ -84,8 +90,14 @@ public class ClusterApplierRecordingServiceTests extends ESTestCase {
             }
             service.updateStats(recorder);
             ClusterApplierRecordingService.Stats stats = service.getStats();
-            assertThat(stats.getRecordings().entrySet(), contains(Map.entry("action2", new Recording(2, 69)),
-                Map.entry("action3", new Recording(2, 9)), Map.entry("action1", new Recording(2, 8))));
+            assertThat(
+                stats.getRecordings().entrySet(),
+                contains(
+                    Map.entry("action2", new Recording(2, 69)),
+                    Map.entry("action3", new Recording(2, 9)),
+                    Map.entry("action1", new Recording(2, 8))
+                )
+            );
         }
         {
             long[] currentTime = new long[1];
@@ -98,8 +110,10 @@ public class ClusterApplierRecordingServiceTests extends ESTestCase {
             }
             service.updateStats(recorder);
             ClusterApplierRecordingService.Stats stats = service.getStats();
-            assertThat(stats.getRecordings().entrySet(), contains(Map.entry("action3", new Recording(3, 13)),
-                Map.entry("action1", new Recording(3, 10))));
+            assertThat(
+                stats.getRecordings().entrySet(),
+                contains(Map.entry("action3", new Recording(3, 13)), Map.entry("action1", new Recording(3, 10)))
+            );
         }
     }
 

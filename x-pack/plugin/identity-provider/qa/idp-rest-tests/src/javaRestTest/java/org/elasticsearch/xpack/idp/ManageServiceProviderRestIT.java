@@ -36,10 +36,10 @@ public class ManageServiceProviderRestIT extends IdpRestTestCase {
 
     @Before
     public void defineApplicationPrivileges() throws IOException {
-        super.createApplicationPrivileges("elastic-cloud", org.elasticsearch.core.Map.of(
-            "deployment_admin", Set.of("sso:superuser"),
-            "deployment_viewer", Set.of("sso:viewer")
-        ));
+        super.createApplicationPrivileges(
+            "elastic-cloud",
+            org.elasticsearch.core.Map.of("deployment_admin", Set.of("sso:superuser"), "deployment_viewer", Set.of("sso:viewer"))
+        );
     }
 
     public void testCreateAndDeleteServiceProvider() throws Exception {
@@ -67,8 +67,9 @@ public class ManageServiceProviderRestIT extends IdpRestTestCase {
     }
 
     private void deleteServiceProvider(String entityId, DocumentVersion version) throws IOException {
-        final Response response = client().performRequest(new Request("DELETE",
-            "/_idp/saml/sp/" + encode(entityId) + "?refresh=" + RefreshPolicy.IMMEDIATE.getValue()));
+        final Response response = client().performRequest(
+            new Request("DELETE", "/_idp/saml/sp/" + encode(entityId) + "?refresh=" + RefreshPolicy.IMMEDIATE.getValue())
+        );
         final Map<String, Object> map = entityAsMap(response);
 
         assertThat(ObjectPath.eval("document._id", map), equalTo(version.id));

@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.ml.dataframe.evaluation.classification;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -21,8 +21,11 @@ public class PerClassSingleValue implements ToXContentObject {
     private static final ParseField CLASS_NAME = new ParseField("class_name");
     private static final ParseField VALUE = new ParseField("value");
 
-    public static final ConstructingObjectParser<PerClassSingleValue, Void> PARSER =
-        new ConstructingObjectParser<>("per_class_result", true, a -> new PerClassSingleValue((String) a[0], (double) a[1]));
+    public static final ConstructingObjectParser<PerClassSingleValue, Void> PARSER = new ConstructingObjectParser<>(
+        "per_class_result",
+        true,
+        a -> new PerClassSingleValue((String) a[0], (double) a[1])
+    );
 
     static {
         PARSER.declareString(constructorArg(), CLASS_NAME);
@@ -59,8 +62,7 @@ public class PerClassSingleValue implements ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PerClassSingleValue that = (PerClassSingleValue) o;
-        return Objects.equals(this.className, that.className)
-            && this.value == that.value;
+        return Objects.equals(this.className, that.className) && this.value == that.value;
     }
 
     @Override

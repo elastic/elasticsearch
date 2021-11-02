@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.security.authc.saml;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.List;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.util.set.Sets;
 import org.joda.time.DateTime;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -62,7 +62,8 @@ public class SamlLogoutResponseHandlerHttpRedirectTests extends SamlTestCase {
             LOGOUT_URL,
             signingConfiguration,
             List.of(spCredential),
-            Collections.emptyList());
+            Collections.emptyList()
+        );
         samlLogoutResponseHandler = new SamlLogoutResponseHandler(clock, idp, sp, TimeValue.timeValueSeconds(1));
     }
 
@@ -98,8 +99,9 @@ public class SamlLogoutResponseHandlerHttpRedirectTests extends SamlTestCase {
         logoutResponse.setIssuer(issuer);
         final String url = new SamlRedirect(logoutResponse, signingConfiguration).getRedirectUrl();
 
-        final ElasticsearchSecurityException e =
-            expectSamlException(() -> samlLogoutResponseHandler.handle(true, new URI(url).getRawQuery(), List.of(requestId)));
+        final ElasticsearchSecurityException e = expectSamlException(
+            () -> samlLogoutResponseHandler.handle(true, new URI(url).getRawQuery(), List.of(requestId))
+        );
         assertThat(e.getMessage(), containsString("is not a 'success' response"));
     }
 
@@ -117,8 +119,9 @@ public class SamlLogoutResponseHandlerHttpRedirectTests extends SamlTestCase {
         issuer.setValue(IDP_ENTITY_ID);
         logoutResponse.setIssuer(issuer);
         final String url = new SamlRedirect(logoutResponse, signingConfiguration).getRedirectUrl();
-        final ElasticsearchSecurityException e =
-            expectSamlException(() -> samlLogoutResponseHandler.handle(true, new URI(url).getRawQuery(), List.of(requestId)));
+        final ElasticsearchSecurityException e = expectSamlException(
+            () -> samlLogoutResponseHandler.handle(true, new URI(url).getRawQuery(), List.of(requestId))
+        );
         assertThat(e.getMessage(), containsString("Query string is not signed, but is required for HTTP-Redirect binding"));
     }
 

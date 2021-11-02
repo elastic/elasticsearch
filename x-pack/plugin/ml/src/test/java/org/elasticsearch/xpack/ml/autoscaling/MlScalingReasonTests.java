@@ -43,7 +43,7 @@ public class MlScalingReasonTests extends AbstractWireSerializingTestCase<MlScal
             new AutoscalingCapacity(randomAutoscalingResources(), randomAutoscalingResources()),
             randomBoolean() ? null : new AutoscalingCapacity(randomAutoscalingResources(), randomAutoscalingResources()),
             randomAlphaOfLength(10)
-            );
+        );
     }
 
     protected static AutoscalingCapacity.AutoscalingResources randomAutoscalingResources() {
@@ -52,6 +52,7 @@ public class MlScalingReasonTests extends AbstractWireSerializingTestCase<MlScal
             ByteSizeValue.ofBytes(randomLongBetween(10, ByteSizeValue.ofGb(10).getBytes()))
         );
     }
+
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(MlAutoscalingNamedWritableProvider.getNamedWriteables());

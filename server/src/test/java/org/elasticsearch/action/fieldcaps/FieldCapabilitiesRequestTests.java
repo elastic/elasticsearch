@@ -16,14 +16,14 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ArrayUtils;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,7 +44,7 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
 
     @Override
     protected FieldCapabilitiesRequest createTestInstance() {
-        FieldCapabilitiesRequest request =  new FieldCapabilitiesRequest();
+        FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
         int size = randomIntBetween(1, 20);
         String[] randomFields = new String[size];
         for (int i = 0; i < size; i++) {
@@ -89,7 +89,7 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
     protected FieldCapabilitiesRequest mutateInstance(FieldCapabilitiesRequest instance) throws IOException {
         List<Consumer<FieldCapabilitiesRequest>> mutators = new ArrayList<>();
         mutators.add(request -> {
-            String[] fields = ArrayUtils.concat(request.fields(), new String[] {randomAlphaOfLength(10)});
+            String[] fields = ArrayUtils.concat(request.fields(), new String[] { randomAlphaOfLength(10) });
             request.fields(fields);
         });
         mutators.add(request -> {
@@ -97,8 +97,10 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
             request.indices(indices);
         });
         mutators.add(request -> {
-            IndicesOptions indicesOptions = randomValueOtherThan(request.indicesOptions(),
-                () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+            IndicesOptions indicesOptions = randomValueOtherThan(
+                request.indicesOptions(),
+                () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean())
+            );
             request.indicesOptions(indicesOptions);
         });
         mutators.add(request -> request.setMergeResults(request.isMergeResults() == false));
@@ -142,8 +144,7 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
     }
 
     public void testValidation() {
-        FieldCapabilitiesRequest request = new FieldCapabilitiesRequest()
-            .indices("index2");
+        FieldCapabilitiesRequest request = new FieldCapabilitiesRequest().indices("index2");
         ActionRequestValidationException exception = request.validate();
         assertNotNull(exception);
     }
@@ -156,8 +157,15 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
             IllegalArgumentException.class,
             () -> copyWriteable(request, writableRegistry(), FieldCapabilitiesRequest::new, v)
         );
-        assertThat(e.getMessage(), equalTo("Versions before 7.12.0 don't support [runtime_mappings], but trying to send _field_caps "
-            + "request to a node with version [" + v + "]"));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Versions before 7.12.0 don't support [runtime_mappings], but trying to send _field_caps "
+                    + "request to a node with version ["
+                    + v
+                    + "]"
+            )
+        );
     }
 
     public void testGetDescription() {
@@ -165,9 +173,7 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
         assertThat(request.getDescription(), equalTo("indices[], fields[]"));
 
         request.fields("a", "b");
-        assertThat(request.getDescription(), anyOf(
-            equalTo("indices[], fields[a,b]"),
-            equalTo("indices[], fields[b,a]")));
+        assertThat(request.getDescription(), anyOf(equalTo("indices[], fields[a,b]"), equalTo("indices[], fields[b,a]")));
 
         request.indices("x", "y", "z");
         request.fields("a");
@@ -178,26 +184,38 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
             lots[i] = "s" + i;
         }
 
-        request.indices("x","y","z");
+        request.indices("x", "y", "z");
         request.fields(lots);
-        assertThat(request.getDescription(), allOf(
-            startsWith("indices[x,y,z], fields["),
-            containsString("..."),
-            containsString(lots.length + " in total"),
-            containsString("omitted")));
-        assertThat(request.getDescription().length(), lessThanOrEqualTo(
-            1024 + ("indices[x,y,z], fields[" + "s9999,... (9999 in total, 9999 omitted)]").length()));
+        assertThat(
+            request.getDescription(),
+            allOf(
+                startsWith("indices[x,y,z], fields["),
+                containsString("..."),
+                containsString(lots.length + " in total"),
+                containsString("omitted")
+            )
+        );
+        assertThat(
+            request.getDescription().length(),
+            lessThanOrEqualTo(1024 + ("indices[x,y,z], fields[" + "s9999,... (9999 in total, 9999 omitted)]").length())
+        );
 
         request.fields("a");
         request.indices(lots);
-        assertThat(request.getDescription(), allOf(
-            startsWith("indices[s0,s1,s2,s3"),
-            containsString("..."),
-            containsString(lots.length + " in total"),
-            containsString("omitted"),
-            endsWith("], fields[a]")));
-        assertThat(request.getDescription().length(), lessThanOrEqualTo(
-            1024 + ("indices[" + "s9999,... (9999 in total, 9999 omitted)], fields[a]").length()));
+        assertThat(
+            request.getDescription(),
+            allOf(
+                startsWith("indices[s0,s1,s2,s3"),
+                containsString("..."),
+                containsString(lots.length + " in total"),
+                containsString("omitted"),
+                endsWith("], fields[a]")
+            )
+        );
+        assertThat(
+            request.getDescription().length(),
+            lessThanOrEqualTo(1024 + ("indices[" + "s9999,... (9999 in total, 9999 omitted)], fields[a]").length())
+        );
 
         final FieldCapabilitiesRequest randomRequest = createTestInstance();
         final String description = randomRequest.getDescription();

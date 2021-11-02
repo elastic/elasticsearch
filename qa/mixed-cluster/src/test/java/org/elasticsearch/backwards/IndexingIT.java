@@ -15,12 +15,12 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.rest.action.document.RestGetAction;
 import org.elasticsearch.rest.action.document.RestIndexAction;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -76,15 +76,19 @@ public class IndexingIT extends ESRestTestCase {
         final List<String> bwcNamesList = nodes.getBWCNodes().stream().map(Node::getNodeName).collect(Collectors.toList());
         final String bwcNames = bwcNamesList.stream().collect(Collectors.joining(","));
         Settings.Builder settings = Settings.builder()
-                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
-                .put("index.routing.allocation.include._name", bwcNames);
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
+            .put("index.routing.allocation.include._name", bwcNames);
         final String index = "indexversionprop";
         final int minUpdates = 5;
         final int maxUpdates = 10;
         createIndex(index, settings.build());
-        try (RestClient newNodeClient = buildClient(restClientSettings(),
-                nodes.getNewNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))) {
+        try (
+            RestClient newNodeClient = buildClient(
+                restClientSettings(),
+                nodes.getNewNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new)
+            )
+        ) {
 
             int nUpdates = randomIntBetween(minUpdates, maxUpdates);
             logger.info("indexing docs with [{}] concurrent updates initially", nUpdates);
@@ -168,8 +172,12 @@ public class IndexingIT extends ESRestTestCase {
 
         final String index = "test";
         createIndex(index, settings.build());
-        try (RestClient newNodeClient = buildClient(restClientSettings(),
-            nodes.getNewNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))) {
+        try (
+            RestClient newNodeClient = buildClient(
+                restClientSettings(),
+                nodes.getNewNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new)
+            )
+        ) {
             int numDocs = 0;
             final int numberOfInitialDocs = 1 + randomInt(5);
             logger.info("indexing [{}] docs initially", numberOfInitialDocs);
@@ -225,15 +233,18 @@ public class IndexingIT extends ESRestTestCase {
 
         // Create the repository before taking the snapshot.
         Request request = new Request("PUT", "/_snapshot/repo");
-        request.setJsonEntity(Strings
-            .toString(JsonXContent.contentBuilder()
-                .startObject()
+        request.setJsonEntity(
+            Strings.toString(
+                JsonXContent.contentBuilder()
+                    .startObject()
                     .field("type", "fs")
                     .startObject("settings")
-                        .field("compress", randomBoolean())
-                        .field("location", System.getProperty("tests.path.repo"))
+                    .field("compress", randomBoolean())
+                    .field("location", System.getProperty("tests.path.repo"))
                     .endObject()
-                .endObject()));
+                    .endObject()
+            )
+        );
 
         assertOK(client().performRequest(request));
 
@@ -286,8 +297,7 @@ public class IndexingIT extends ESRestTestCase {
         assertThat("version mismatch for doc [" + docId + "] preference [" + preference + "]", actualVersion, equalTo(expectedVersion));
     }
 
-    private void assertSeqNoOnShards(String index, Nodes nodes, int numDocs, RestClient client)
-            throws Exception {
+    private void assertSeqNoOnShards(String index, Nodes nodes, int numDocs, RestClient client) throws Exception {
         assertBusy(() -> {
             try {
                 List<Shard> shards = buildShards(index, nodes, client);
@@ -300,10 +310,16 @@ public class IndexingIT extends ESRestTestCase {
                     final SeqNoStats seqNoStats = shard.getSeqNoStats();
                     logger.info("stats for {}, primary [{}]: [{}]", shard.getNode(), shard.isPrimary(), seqNoStats);
                     assertThat("max_seq no on " + shard.getNode() + " is wrong", seqNoStats.getMaxSeqNo(), equalTo(expectMaxSeqNo));
-                    assertThat("localCheckpoint no on " + shard.getNode() + " is wrong",
-                        seqNoStats.getLocalCheckpoint(), equalTo(expectMaxSeqNo));
-                    assertThat("globalCheckpoint no on " + shard.getNode() + " is wrong",
-                        seqNoStats.getGlobalCheckpoint(), equalTo(expectedGlobalCkp));
+                    assertThat(
+                        "localCheckpoint no on " + shard.getNode() + " is wrong",
+                        seqNoStats.getLocalCheckpoint(),
+                        equalTo(expectMaxSeqNo)
+                    );
+                    assertThat(
+                        "globalCheckpoint no on " + shard.getNode() + " is wrong",
+                        seqNoStats.getGlobalCheckpoint(),
+                        equalTo(expectedGlobalCkp)
+                    );
                 }
             } catch (IOException e) {
                 throw new AssertionError("unexpected io exception", e);
@@ -342,11 +358,14 @@ public class IndexingIT extends ESRestTestCase {
         Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
         Nodes nodes = new Nodes();
         for (String id : nodesAsMap.keySet()) {
-            nodes.add(new Node(
-                id,
-                objectPath.evaluate("nodes." + id + ".name"),
-                Version.fromString(objectPath.evaluate("nodes." + id + ".version")),
-                HttpHost.create(objectPath.evaluate("nodes." + id + ".http.publish_address"))));
+            nodes.add(
+                new Node(
+                    id,
+                    objectPath.evaluate("nodes." + id + ".name"),
+                    Version.fromString(objectPath.evaluate("nodes." + id + ".version")),
+                    HttpHost.create(objectPath.evaluate("nodes." + id + ".http.publish_address"))
+                )
+            );
         }
         response = client.performRequest(new Request("GET", "_cluster/state"));
         nodes.setMasterNodeId(ObjectPath.createFromResponse(response).evaluate("master_node"));
@@ -399,10 +418,12 @@ public class IndexingIT extends ESRestTestCase {
 
         @Override
         public String toString() {
-            return "Nodes{" +
-                "masterNodeId='" + masterNodeId + "'\n" +
-                values().stream().map(Node::toString).collect(Collectors.joining("\n")) +
-                '}';
+            return "Nodes{"
+                + "masterNodeId='"
+                + masterNodeId
+                + "'\n"
+                + values().stream().map(Node::toString).collect(Collectors.joining("\n"))
+                + '}';
         }
     }
 
@@ -437,11 +458,7 @@ public class IndexingIT extends ESRestTestCase {
 
         @Override
         public String toString() {
-            return "Node{" +
-                "id='" + id + '\'' +
-                ", nodeName='" + nodeName + '\'' +
-                ", version=" + version +
-                '}';
+            return "Node{" + "id='" + id + '\'' + ", nodeName='" + nodeName + '\'' + ", version=" + version + '}';
         }
     }
 
@@ -470,11 +487,7 @@ public class IndexingIT extends ESRestTestCase {
 
         @Override
         public String toString() {
-            return "Shard{" +
-                "node=" + node +
-                ", Primary=" + Primary +
-                ", seqNoStats=" + seqNoStats +
-                '}';
+            return "Shard{" + "node=" + node + ", Primary=" + Primary + ", seqNoStats=" + seqNoStats + '}';
         }
     }
 }

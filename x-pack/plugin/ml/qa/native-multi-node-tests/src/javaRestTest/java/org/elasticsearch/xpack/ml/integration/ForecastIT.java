@@ -34,7 +34,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.JOB_FORECAST_NATIVE_PROCESS_KILLED;
 import static org.hamcrest.Matchers.closeTo;
@@ -100,9 +99,10 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
 
         {
             ForecastRequestStats forecastDefaultDurationDefaultExpiry = idToForecastStats.get(forecastIdDefaultDurationDefaultExpiry);
-            assertThat(forecastDefaultDurationDefaultExpiry.getExpiryTime().toEpochMilli(),
-                    equalTo(forecastDefaultDurationDefaultExpiry.getCreateTime().toEpochMilli()
-                            + TimeValue.timeValueHours(14 * 24).getMillis()));
+            assertThat(
+                forecastDefaultDurationDefaultExpiry.getExpiryTime().toEpochMilli(),
+                equalTo(forecastDefaultDurationDefaultExpiry.getCreateTime().toEpochMilli() + TimeValue.timeValueHours(14 * 24).getMillis())
+            );
             List<Forecast> forecasts = getForecasts(job.getId(), forecastDefaultDurationDefaultExpiry);
             assertThat(forecastDefaultDurationDefaultExpiry.getRecordCount(), equalTo(24L));
             assertThat(forecasts.size(), equalTo(24));
@@ -132,9 +132,10 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
 
         {
             ForecastRequestStats forecastDuration3HoursExpiresIn24Hours = idToForecastStats.get(forecastIdDuration3HoursExpiresIn24Hours);
-            assertThat(forecastDuration3HoursExpiresIn24Hours.getExpiryTime().toEpochMilli(),
-                    equalTo(forecastDuration3HoursExpiresIn24Hours.getCreateTime().toEpochMilli()
-                            + TimeValue.timeValueHours(24).getMillis()));
+            assertThat(
+                forecastDuration3HoursExpiresIn24Hours.getExpiryTime().toEpochMilli(),
+                equalTo(forecastDuration3HoursExpiresIn24Hours.getCreateTime().toEpochMilli() + TimeValue.timeValueHours(24).getMillis())
+            );
             List<Forecast> forecasts = getForecasts(job.getId(), forecastDuration3HoursExpiresIn24Hours);
             assertThat(forecastDuration3HoursExpiresIn24Hours.getRecordCount(), equalTo(3L));
             assertThat(forecasts.size(), equalTo(3));
@@ -162,10 +163,11 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
 
         putJob(job);
         openJob(job.getId());
-        ElasticsearchException e = expectThrows(ElasticsearchException.class,() -> forecast(job.getId(),
-                TimeValue.timeValueMinutes(10), null));
-        assertThat(e.getMessage(),
-                equalTo("[duration] must be greater or equal to the bucket span: [10m/1h]"));
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> forecast(job.getId(), TimeValue.timeValueMinutes(10), null)
+        );
+        assertThat(e.getMessage(), equalTo("[duration] must be greater or equal to the bucket span: [10m/1h]"));
     }
 
     public void testNoData() {
@@ -182,10 +184,14 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
 
         putJob(job);
         openJob(job.getId());
-        ElasticsearchException e = expectThrows(ElasticsearchException.class,
-                () -> forecast(job.getId(), TimeValue.timeValueMinutes(120), null));
-        assertThat(e.getMessage(),
-                equalTo("Cannot run forecast: Forecast cannot be executed as job requires data to have been processed and modeled"));
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> forecast(job.getId(), TimeValue.timeValueMinutes(120), null)
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo("Cannot run forecast: Forecast cannot be executed as job requires data to have been processed and modeled")
+        );
     }
 
     public void testMemoryStatus() {
@@ -208,8 +214,10 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         putJob(job);
         openJob(job.getId());
         createDataWithLotsOfClientIps(bucketSpan, job);
-        ElasticsearchException e = expectThrows(ElasticsearchException.class,
-                () -> forecast(job.getId(), TimeValue.timeValueMinutes(120), null));
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> forecast(job.getId(), TimeValue.timeValueMinutes(120), null)
+        );
         assertThat(e.getMessage(), equalTo("Cannot run forecast: Forecast cannot be executed as model memory status is not OK"));
     }
 
@@ -217,8 +225,10 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/44609", Constants.WINDOWS);
         // This test repeatedly fails in encryption-at-rest (EAR) builds, and
         // the only way to detect such a build appears to be the CI job name
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/58806",
-            System.getenv().getOrDefault("JOB_NAME", "not a CI build").contains("EAR"));
+        assumeFalse(
+            "https://github.com/elastic/elasticsearch/issues/58806",
+            System.getenv().getOrDefault("JOB_NAME", "not a CI build").contains("EAR")
+        );
         Detector.Builder detector = new Detector.Builder("mean", "value");
         detector.setByFieldName("clientIP");
 
@@ -244,7 +254,10 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         } catch (ElasticsearchStatusException e) {
             if (e.getMessage().contains("disk space")) {
                 throw new ElasticsearchStatusException(
-                        "Test likely fails due to insufficient disk space on test machine, please free up space.", e.status(), e);
+                    "Test likely fails due to insufficient disk space on test machine, please free up space.",
+                    e.status(),
+                    e
+                );
             }
             throw e;
         }
@@ -268,7 +281,10 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         } catch (ElasticsearchStatusException e) {
             if (e.getMessage().contains("disk space")) {
                 throw new ElasticsearchStatusException(
-                        "Test likely fails due to insufficient disk space on test machine, please free up space.", e.status(), e);
+                    "Test likely fails due to insufficient disk space on test machine, please free up space.",
+                    e.status(),
+                    e
+                );
             }
             throw e;
         }
@@ -329,10 +345,13 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         assertNotNull(getForecastStats(job.getId(), forecastId2Duration1HourNoExpiry2));
 
         {
-            DeleteForecastAction.Request request = new DeleteForecastAction.Request(job.getId(),
-                forecastIdDefaultDurationDefaultExpiry.substring(0, forecastIdDefaultDurationDefaultExpiry.length() - 2) + "*"
+            DeleteForecastAction.Request request = new DeleteForecastAction.Request(
+                job.getId(),
+                forecastIdDefaultDurationDefaultExpiry.substring(0, forecastIdDefaultDurationDefaultExpiry.length() - 2)
+                    + "*"
                     + ","
-                    + forecastIdDuration1HourNoExpiry);
+                    + forecastIdDuration1HourNoExpiry
+            );
             AcknowledgedResponse response = client().execute(DeleteForecastAction.INSTANCE, request).actionGet();
             assertTrue(response.isAcknowledged());
 
@@ -450,8 +469,10 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
         }
 
         {
-            DeleteForecastAction.Request request = new DeleteForecastAction.Request(job.getId(),
-                forecastIdDefaultDurationDefaultExpiry + "," + forecastIdDuration1HourNoExpiry);
+            DeleteForecastAction.Request request = new DeleteForecastAction.Request(
+                job.getId(),
+                forecastIdDefaultDurationDefaultExpiry + "," + forecastIdDuration1HourNoExpiry
+            );
             AcknowledgedResponse response = client().execute(DeleteForecastAction.INSTANCE, request).actionGet();
             assertTrue(response.isAcknowledged());
 
@@ -463,10 +484,11 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
 
         {
             DeleteForecastAction.Request request = new DeleteForecastAction.Request(job.getId(), "forecast-does-not-exist");
-            ElasticsearchException e = expectThrows(ElasticsearchException.class,
-                () -> client().execute(DeleteForecastAction.INSTANCE, request).actionGet());
-            assertThat(e.getMessage(),
-                equalTo("No forecast(s) [forecast-does-not-exist] exists for job [forecast-it-test-delete]"));
+            ElasticsearchException e = expectThrows(
+                ElasticsearchException.class,
+                () -> client().execute(DeleteForecastAction.INSTANCE, request).actionGet()
+            );
+            assertThat(e.getMessage(), equalTo("No forecast(s) [forecast-does-not-exist] exists for job [forecast-it-test-delete]"));
         }
 
         {
@@ -498,10 +520,14 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
 
             DeleteForecastAction.Request request = new DeleteForecastAction.Request(otherJob.getId(), Metadata.ALL);
             request.setAllowNoForecasts(false);
-            ElasticsearchException e = expectThrows(ElasticsearchException.class,
-                () -> client().execute(DeleteForecastAction.INSTANCE, request).actionGet());
-            assertThat(e.getMessage(),
-                equalTo("No forecast(s) [_all] exists for job [forecasts-delete-with-all-and-not-allow-no-forecasts]"));
+            ElasticsearchException e = expectThrows(
+                ElasticsearchException.class,
+                () -> client().execute(DeleteForecastAction.INSTANCE, request).actionGet()
+            );
+            assertThat(
+                e.getMessage(),
+                equalTo("No forecast(s) [_all] exists for job [forecasts-delete-with-all-and-not-allow-no-forecasts]")
+            );
         }
     }
 
@@ -538,10 +564,12 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
 
         closeJob(jobId, true);
         // On force close job, it should always be at least failed or finished
-        waitForecastStatus(jobId,
+        waitForecastStatus(
+            jobId,
             forecastId,
             ForecastRequestStats.ForecastRequestStatus.FAILED,
-            ForecastRequestStats.ForecastRequestStatus.FINISHED);
+            ForecastRequestStats.ForecastRequestStatus.FINISHED
+        );
         ForecastRequestStats forecastStats = getForecastStats(job.getId(), forecastId);
         assertNotNull(forecastStats);
         if (forecastStats.getStatus().equals(ForecastRequestStats.ForecastRequestStatus.FAILED)) {
@@ -578,10 +606,7 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
 
         // Now we can start doing forecast requests
 
-        String forecastId = forecast(job.getId(),
-            TimeValue.timeValueHours(1),
-            TimeValue.ZERO,
-            ByteSizeValue.ofMb(50).getBytes());
+        String forecastId = forecast(job.getId(), TimeValue.timeValueHours(1), TimeValue.ZERO, ByteSizeValue.ofMb(50).getBytes());
 
         waitForecastToFinish(job.getId(), forecastId);
         closeJob(job.getId());
@@ -604,8 +629,14 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
             double value = 10.0 + h;
             for (int i = 1; i < 101; i++) {
                 for (int j = 1; j < 81; j++) {
-                    String json = String.format(Locale.ROOT, "{\"time\": %d, \"value\": %f, \"clientIP\": \"192.168.%d.%d\"}\n",
-                            timestamp, value, i, j);
+                    String json = String.format(
+                        Locale.ROOT,
+                        "{\"time\": %d, \"value\": %f, \"clientIP\": \"192.168.%d.%d\"}\n",
+                        timestamp,
+                        value,
+                        i,
+                        j
+                    );
                     data.add(json);
                 }
             }

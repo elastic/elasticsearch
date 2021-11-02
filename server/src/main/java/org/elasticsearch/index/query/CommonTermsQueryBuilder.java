@@ -18,14 +18,14 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.Version;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -45,8 +45,8 @@ import java.util.Objects;
 @Deprecated
 public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQueryBuilder> {
 
-    public static final String COMMON_TERMS_QUERY_DEPRECATION_MSG = "[match] query which can efficiently " +
-        "skip blocks of documents if the total number of hits is not tracked";
+    public static final String COMMON_TERMS_QUERY_DEPRECATION_MSG = "[match] query which can efficiently "
+        + "skip blocks of documents if the total number of hits is not tracked";
 
     public static final String NAME = "common";
 
@@ -59,8 +59,9 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
     private static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
     private static final ParseField LOW_FREQ_OPERATOR_FIELD = new ParseField("low_freq_operator");
     private static final ParseField HIGH_FREQ_OPERATOR_FIELD = new ParseField("high_freq_operator");
-    private static final ParseField DISABLE_COORD_FIELD = new ParseField("disable_coord")
-            .withAllDeprecated("disable_coord has been removed");
+    private static final ParseField DISABLE_COORD_FIELD = new ParseField("disable_coord").withAllDeprecated(
+        "disable_coord has been removed"
+    );
     private static final ParseField ANALYZER_FIELD = new ParseField("analyzer");
     private static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField HIGH_FREQ_FIELD = new ParseField("high_freq");
@@ -283,19 +284,35 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
                                     } else if (HIGH_FREQ_FIELD.match(innerFieldName, parser.getDeprecationHandler())) {
                                         highFreqMinimumShouldMatch = parser.text();
                                     } else {
-                                        throw new ParsingException(parser.getTokenLocation(), "[" + CommonTermsQueryBuilder.NAME +
-                                                "] query does not support [" + innerFieldName
-                                                + "] for [" + currentFieldName + "]");
+                                        throw new ParsingException(
+                                            parser.getTokenLocation(),
+                                            "["
+                                                + CommonTermsQueryBuilder.NAME
+                                                + "] query does not support ["
+                                                + innerFieldName
+                                                + "] for ["
+                                                + currentFieldName
+                                                + "]"
+                                        );
                                     }
                                 } else {
-                                    throw new ParsingException(parser.getTokenLocation(), "[" + CommonTermsQueryBuilder.NAME +
-                                            "] unexpected token type [" + token
-                                            + "] after [" + innerFieldName + "]");
+                                    throw new ParsingException(
+                                        parser.getTokenLocation(),
+                                        "["
+                                            + CommonTermsQueryBuilder.NAME
+                                            + "] unexpected token type ["
+                                            + token
+                                            + "] after ["
+                                            + innerFieldName
+                                            + "]"
+                                    );
                                 }
                             }
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(), "[" + CommonTermsQueryBuilder.NAME +
-                                    "] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(
+                                parser.getTokenLocation(),
+                                "[" + CommonTermsQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]"
+                            );
                         }
                     } else if (token.isValue()) {
                         if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -317,8 +334,10 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
                         } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             queryName = parser.text();
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(), "[" + CommonTermsQueryBuilder.NAME +
-                                    "] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(
+                                parser.getTokenLocation(),
+                                "[" + CommonTermsQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]"
+                            );
                         }
                     }
                 }
@@ -329,15 +348,14 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
             }
         }
 
-        return new CommonTermsQueryBuilder(fieldName, text)
-                .lowFreqMinimumShouldMatch(lowFreqMinimumShouldMatch)
-                .highFreqMinimumShouldMatch(highFreqMinimumShouldMatch)
-                .analyzer(analyzer)
-                .highFreqOperator(highFreqOperator)
-                .lowFreqOperator(lowFreqOperator)
-                .cutoffFrequency(cutoffFrequency)
-                .boost(boost)
-                .queryName(queryName);
+        return new CommonTermsQueryBuilder(fieldName, text).lowFreqMinimumShouldMatch(lowFreqMinimumShouldMatch)
+            .highFreqMinimumShouldMatch(highFreqMinimumShouldMatch)
+            .analyzer(analyzer)
+            .highFreqOperator(highFreqOperator)
+            .lowFreqOperator(lowFreqOperator)
+            .cutoffFrequency(cutoffFrequency)
+            .boost(boost)
+            .queryName(queryName);
     }
 
     @Override
@@ -370,8 +388,14 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         return parseQueryString(commonsQuery, text, fieldType.name(), analyzerObj, lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch);
     }
 
-    private static Query parseQueryString(ExtendedCommonTermsQuery query, Object queryString, String field, Analyzer analyzer,
-                                         String lowFreqMinimumShouldMatch, String highFreqMinimumShouldMatch) throws IOException {
+    private static Query parseQueryString(
+        ExtendedCommonTermsQuery query,
+        Object queryString,
+        String field,
+        Analyzer analyzer,
+        String lowFreqMinimumShouldMatch,
+        String highFreqMinimumShouldMatch
+    ) throws IOException {
         // Logic similar to QueryParser#getFieldQuery
         try (TokenStream source = analyzer.tokenStream(field, queryString.toString())) {
             source.reset();
@@ -391,19 +415,27 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, text, highFreqOperator, lowFreqOperator, analyzer,
-                lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch, cutoffFrequency);
+        return Objects.hash(
+            fieldName,
+            text,
+            highFreqOperator,
+            lowFreqOperator,
+            analyzer,
+            lowFreqMinimumShouldMatch,
+            highFreqMinimumShouldMatch,
+            cutoffFrequency
+        );
     }
 
     @Override
     protected boolean doEquals(CommonTermsQueryBuilder other) {
-        return Objects.equals(fieldName, other.fieldName) &&
-                Objects.equals(text, other.text) &&
-                Objects.equals(highFreqOperator, other.highFreqOperator) &&
-                Objects.equals(lowFreqOperator, other.lowFreqOperator) &&
-                Objects.equals(analyzer, other.analyzer) &&
-                Objects.equals(lowFreqMinimumShouldMatch, other.lowFreqMinimumShouldMatch) &&
-                Objects.equals(highFreqMinimumShouldMatch, other.highFreqMinimumShouldMatch) &&
-                Objects.equals(cutoffFrequency, other.cutoffFrequency);
+        return Objects.equals(fieldName, other.fieldName)
+            && Objects.equals(text, other.text)
+            && Objects.equals(highFreqOperator, other.highFreqOperator)
+            && Objects.equals(lowFreqOperator, other.lowFreqOperator)
+            && Objects.equals(analyzer, other.analyzer)
+            && Objects.equals(lowFreqMinimumShouldMatch, other.lowFreqMinimumShouldMatch)
+            && Objects.equals(highFreqMinimumShouldMatch, other.highFreqMinimumShouldMatch)
+            && Objects.equals(cutoffFrequency, other.cutoffFrequency);
     }
 }

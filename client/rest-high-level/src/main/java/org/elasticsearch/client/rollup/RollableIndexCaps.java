@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.rollup;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -32,11 +32,14 @@ public class RollableIndexCaps implements ToXContentFragment {
     private static final ParseField ROLLUP_JOBS = new ParseField("rollup_jobs");
 
     public static final ConstructingObjectParser<RollableIndexCaps, String> PARSER = new ConstructingObjectParser<>(
-            ROLLUP_JOBS.getPreferredName(), true, (Object[] args, String indexName) -> {
-                @SuppressWarnings("unchecked")
-                List<RollupJobCaps> caps = (List<RollupJobCaps>) args[0];
-                return new RollableIndexCaps(indexName, caps);
-            });
+        ROLLUP_JOBS.getPreferredName(),
+        true,
+        (Object[] args, String indexName) -> {
+            @SuppressWarnings("unchecked")
+            List<RollupJobCaps> caps = (List<RollupJobCaps>) args[0];
+            return new RollableIndexCaps(indexName, caps);
+        }
+    );
     static {
         PARSER.declareObjectArray(constructorArg(), (p, name) -> RollupJobCaps.PARSER.parse(p, null), ROLLUP_JOBS);
     }
@@ -46,10 +49,9 @@ public class RollableIndexCaps implements ToXContentFragment {
 
     RollableIndexCaps(final String indexName, final List<RollupJobCaps> caps) {
         this.indexName = indexName;
-        this.jobCaps = Collections.unmodifiableList(Objects.requireNonNull(caps)
-            .stream()
-            .sorted(Comparator.comparing(RollupJobCaps::getJobID))
-            .collect(Collectors.toList()));
+        this.jobCaps = Collections.unmodifiableList(
+            Objects.requireNonNull(caps).stream().sorted(Comparator.comparing(RollupJobCaps::getJobID)).collect(Collectors.toList())
+        );
     }
 
     public String getIndexName() {
@@ -81,8 +83,7 @@ public class RollableIndexCaps implements ToXContentFragment {
         }
 
         RollableIndexCaps that = (RollableIndexCaps) other;
-        return Objects.equals(this.jobCaps, that.jobCaps)
-            && Objects.equals(this.indexName, that.indexName);
+        return Objects.equals(this.jobCaps, that.jobCaps) && Objects.equals(this.indexName, that.indexName);
     }
 
     @Override

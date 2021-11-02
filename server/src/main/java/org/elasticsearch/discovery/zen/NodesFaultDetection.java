@@ -17,8 +17,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -65,17 +65,32 @@ public class NodesFaultDetection extends FaultDetection {
 
     private volatile DiscoveryNode localNode;
 
-    public NodesFaultDetection(Settings settings, ThreadPool threadPool, TransportService transportService,
-                               Supplier<ClusterState> clusterStateSupplier, ClusterName clusterName) {
+    public NodesFaultDetection(
+        Settings settings,
+        ThreadPool threadPool,
+        TransportService transportService,
+        Supplier<ClusterState> clusterStateSupplier,
+        ClusterName clusterName
+    ) {
         super(settings, threadPool, transportService, clusterName);
 
         this.clusterStateSupplier = clusterStateSupplier;
 
-        logger.debug("[node  ] uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout,
-            pingRetryCount);
+        logger.debug(
+            "[node  ] uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]",
+            pingInterval,
+            pingRetryTimeout,
+            pingRetryCount
+        );
 
         transportService.registerRequestHandler(
-            PING_ACTION_NAME, ThreadPool.Names.SAME, false, false, PingRequest::new, new PingRequestHandler());
+            PING_ACTION_NAME,
+            ThreadPool.Names.SAME,
+            false,
+            false,
+            PingRequest::new,
+            new PingRequestHandler()
+        );
     }
 
     public void setLocalNode(DiscoveryNode localNode) {
@@ -174,8 +189,14 @@ public class NodesFaultDetection extends FaultDetection {
                 }
             });
         } catch (EsRejectedExecutionException ex) {
-            logger.trace(() -> new ParameterizedMessage(
-                    "[node  ] [{}] ignoring node failure (reason [{}]). Local node is shutting down", node, reason), ex);
+            logger.trace(
+                () -> new ParameterizedMessage(
+                    "[node  ] [{}] ignoring node failure (reason [{}]). Local node is shutting down",
+                    node,
+                    reason
+                ),
+                ex
+            );
         }
     }
 
@@ -191,7 +212,6 @@ public class NodesFaultDetection extends FaultDetection {
 
         });
     }
-
 
     private class NodeFD implements Runnable {
         volatile int retryCount;
@@ -217,53 +237,65 @@ public class NodesFaultDetection extends FaultDetection {
             }
             final TransportRequestOptions options = TransportRequestOptions.of(pingRetryTimeout, TransportRequestOptions.Type.PING);
             transportService.sendRequest(node, PING_ACTION_NAME, newPingRequest(), options, new TransportResponseHandler<PingResponse>() {
-                        @Override
-                        public PingResponse read(StreamInput in) throws IOException {
-                            return new PingResponse(in);
-                        }
+                @Override
+                public PingResponse read(StreamInput in) throws IOException {
+                    return new PingResponse(in);
+                }
 
-                        @Override
-                        public void handleResponse(PingResponse response) {
-                            if (running() == false) {
-                                return;
-                            }
-                            retryCount = 0;
-                            threadPool.schedule(NodeFD.this, pingInterval, ThreadPool.Names.SAME);
-                        }
-
-                        @Override
-                        public void handleException(TransportException exp) {
-                            if (running() == false) {
-                                return;
-                            }
-                            if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
-                                handleTransportDisconnect(node);
-                                return;
-                            }
-
-                            retryCount++;
-                            logger.trace( () -> new ParameterizedMessage(
-                                    "[node  ] failed to ping [{}], retry [{}] out of [{}]", node, retryCount, pingRetryCount), exp);
-                            if (retryCount >= pingRetryCount) {
-                                logger.debug("[node  ] failed to ping [{}], tried [{}] times, each with  maximum [{}] timeout", node,
-                                    pingRetryCount, pingRetryTimeout);
-                                // not good, failure
-                                if (nodesFD.remove(node, NodeFD.this)) {
-                                    notifyNodeFailure(node, "failed to ping, tried [" + pingRetryCount + "] times, each with maximum ["
-                                        + pingRetryTimeout + "] timeout");
-                                }
-                            } else {
-                                // resend the request, not reschedule, rely on send timeout
-                                transportService.sendRequest(node, PING_ACTION_NAME, newPingRequest(), options, this);
-                            }
-                        }
-
-                        @Override
-                        public String executor() {
-                            return ThreadPool.Names.SAME;
-                        }
+                @Override
+                public void handleResponse(PingResponse response) {
+                    if (running() == false) {
+                        return;
                     }
-            );
+                    retryCount = 0;
+                    threadPool.schedule(NodeFD.this, pingInterval, ThreadPool.Names.SAME);
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    if (running() == false) {
+                        return;
+                    }
+                    if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
+                        handleTransportDisconnect(node);
+                        return;
+                    }
+
+                    retryCount++;
+                    logger.trace(
+                        () -> new ParameterizedMessage(
+                            "[node  ] failed to ping [{}], retry [{}] out of [{}]",
+                            node,
+                            retryCount,
+                            pingRetryCount
+                        ),
+                        exp
+                    );
+                    if (retryCount >= pingRetryCount) {
+                        logger.debug(
+                            "[node  ] failed to ping [{}], tried [{}] times, each with  maximum [{}] timeout",
+                            node,
+                            pingRetryCount,
+                            pingRetryTimeout
+                        );
+                        // not good, failure
+                        if (nodesFD.remove(node, NodeFD.this)) {
+                            notifyNodeFailure(
+                                node,
+                                "failed to ping, tried [" + pingRetryCount + "] times, each with maximum [" + pingRetryTimeout + "] timeout"
+                            );
+                        }
+                    } else {
+                        // resend the request, not reschedule, rely on send timeout
+                        transportService.sendRequest(node, PING_ACTION_NAME, newPingRequest(), options, this);
+                    }
+                }
+
+                @Override
+                public String executor() {
+                    return ThreadPool.Names.SAME;
+                }
+            });
         }
     }
 
@@ -273,14 +305,15 @@ public class NodesFaultDetection extends FaultDetection {
             // if we are not the node we are supposed to be pinged, send an exception
             // this can happen when a kill -9 is sent, and another node is started using the same port
             if (localNode.equals(request.targetNode()) == false) {
-                throw new IllegalStateException("Got pinged as node " + request.targetNode() + "], but I am node " + localNode );
+                throw new IllegalStateException("Got pinged as node " + request.targetNode() + "], but I am node " + localNode);
             }
 
             // PingRequest will have clusterName set to null if it came from a node of version <1.4.0
             if (request.clusterName != null && request.clusterName.equals(clusterName) == false) {
                 // Don't introduce new exception for bwc reasons
-                throw new IllegalStateException("Got pinged with cluster name [" + request.clusterName + "], but I'm part of cluster ["
-                    + clusterName + "]");
+                throw new IllegalStateException(
+                    "Got pinged with cluster name [" + request.clusterName + "], but I'm part of cluster [" + clusterName + "]"
+                );
             }
 
             notifyPingReceived(request);
@@ -288,7 +321,6 @@ public class NodesFaultDetection extends FaultDetection {
             channel.sendResponse(new PingResponse());
         }
     }
-
 
     public static class PingRequest extends TransportRequest {
 
@@ -344,8 +376,7 @@ public class NodesFaultDetection extends FaultDetection {
 
     public static class PingResponse extends TransportResponse {
 
-        public PingResponse() {
-        }
+        public PingResponse() {}
 
         public PingResponse(StreamInput in) throws IOException {
             super(in);

@@ -14,13 +14,13 @@ import org.elasticsearch.client.security.user.privileges.Role.ClusterPrivilegeNa
 import org.elasticsearch.client.security.user.privileges.Role.IndexPrivilegeName;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.test.XContentTestUtils;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -34,44 +34,62 @@ public class GrantApiKeyRequestTests extends ESTestCase {
 
     public void testToXContent() throws IOException {
         final Map<String, Object> apiKeyMetadata = CreateApiKeyRequestTests.randomMetadata();
-        final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("api-key",
-            org.elasticsearch.core.List.of(), null, null,
-            apiKeyMetadata);
+        final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(
+            "api-key",
+            org.elasticsearch.core.List.of(),
+            null,
+            null,
+            apiKeyMetadata
+        );
         final GrantApiKeyRequest.Grant grant = GrantApiKeyRequest.Grant.passwordGrant("kamala.khan", "JerseyGirl!".toCharArray());
         final GrantApiKeyRequest grantApiKeyRequest = new GrantApiKeyRequest(grant, createApiKeyRequest);
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         grantApiKeyRequest.toXContent(builder, ToXContent.EMPTY_PARAMS);
         final String output = Strings.toString(builder);
-        final String apiKeyMetadataString = apiKeyMetadata == null ? ""
+        final String apiKeyMetadataString = apiKeyMetadata == null
+            ? ""
             : ",\"metadata\":" + XContentTestUtils.convertToXContent(apiKeyMetadata, XContentType.JSON).utf8ToString();
-        assertThat(output, equalTo(
-            "{" +
-                "\"grant_type\":\"password\"," +
-                "\"username\":\"kamala.khan\"," +
-                "\"password\":\"JerseyGirl!\"," +
-                "\"api_key\":{\"name\":\"api-key\",\"role_descriptors\":{}" + apiKeyMetadataString + "}" +
-                "}"));
+        assertThat(
+            output,
+            equalTo(
+                "{"
+                    + "\"grant_type\":\"password\","
+                    + "\"username\":\"kamala.khan\","
+                    + "\"password\":\"JerseyGirl!\","
+                    + "\"api_key\":{\"name\":\"api-key\",\"role_descriptors\":{}"
+                    + apiKeyMetadataString
+                    + "}"
+                    + "}"
+            )
+        );
     }
 
     public void testEqualsHashCode() {
         final String name = randomAlphaOfLength(5);
-        List<Role> roles = randomList(1, 3, () ->
-            Role.builder()
+        List<Role> roles = randomList(
+            1,
+            3,
+            () -> Role.builder()
                 .name(randomAlphaOfLengthBetween(3, 8))
                 .clusterPrivileges(randomSubsetOf(randomIntBetween(1, 3), ClusterPrivilegeName.ALL_ARRAY))
                 .indicesPrivileges(
-                    IndicesPrivileges
-                        .builder()
+                    IndicesPrivileges.builder()
                         .indices(randomAlphaOfLengthBetween(4, 12))
                         .privileges(randomSubsetOf(randomIntBetween(1, 3), IndexPrivilegeName.ALL_ARRAY))
                         .build()
-                ).build()
+                )
+                .build()
         );
         final TimeValue expiration = randomBoolean() ? null : TimeValue.timeValueHours(randomIntBetween(4, 100));
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
 
-        final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(name, roles, expiration, refreshPolicy,
-            CreateApiKeyRequestTests.randomMetadata());
+        final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(
+            name,
+            roles,
+            expiration,
+            refreshPolicy,
+            CreateApiKeyRequestTests.randomMetadata()
+        );
         final GrantApiKeyRequest.Grant grant = randomBoolean()
             ? GrantApiKeyRequest.Grant.passwordGrant(randomAlphaOfLength(8), randomAlphaOfLengthBetween(6, 12).toCharArray())
             : GrantApiKeyRequest.Grant.accessTokenGrant(randomAlphaOfLength(24));
@@ -80,7 +98,8 @@ public class GrantApiKeyRequestTests extends ESTestCase {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             grantApiKeyRequest,
             original -> new GrantApiKeyRequest(clone(original.getGrant()), clone(original.getApiKeyRequest())),
-            GrantApiKeyRequestTests::mutateTestItem);
+            GrantApiKeyRequestTests::mutateTestItem
+        );
     }
 
     private GrantApiKeyRequest.Grant clone(GrantApiKeyRequest.Grant grant) {
@@ -107,12 +126,15 @@ public class GrantApiKeyRequestTests extends ESTestCase {
     private static GrantApiKeyRequest mutateTestItem(GrantApiKeyRequest original) {
         switch (randomIntBetween(0, 3)) {
             case 0:
-                return new GrantApiKeyRequest(original.getGrant().getGrantType().equals("password")
-                    ? GrantApiKeyRequest.Grant.accessTokenGrant(randomAlphaOfLength(24))
-                    : GrantApiKeyRequest.Grant.passwordGrant(randomAlphaOfLength(8), randomAlphaOfLengthBetween(6, 12).toCharArray()),
-                    original.getApiKeyRequest());
+                return new GrantApiKeyRequest(
+                    original.getGrant().getGrantType().equals("password")
+                        ? GrantApiKeyRequest.Grant.accessTokenGrant(randomAlphaOfLength(24))
+                        : GrantApiKeyRequest.Grant.passwordGrant(randomAlphaOfLength(8), randomAlphaOfLengthBetween(6, 12).toCharArray()),
+                    original.getApiKeyRequest()
+                );
             case 1:
-                return new GrantApiKeyRequest(original.getGrant(),
+                return new GrantApiKeyRequest(
+                    original.getGrant(),
                     new CreateApiKeyRequest(
                         randomAlphaOfLengthBetween(10, 15),
                         original.getApiKeyRequest().getRoles(),
@@ -122,7 +144,8 @@ public class GrantApiKeyRequestTests extends ESTestCase {
                     )
                 );
             case 2:
-                return new GrantApiKeyRequest(original.getGrant(),
+                return new GrantApiKeyRequest(
+                    original.getGrant(),
                     new CreateApiKeyRequest(
                         original.getApiKeyRequest().getName(),
                         Collections.emptyList(), // No role limits
@@ -132,7 +155,8 @@ public class GrantApiKeyRequestTests extends ESTestCase {
                     )
                 );
             case 3:
-                return new GrantApiKeyRequest(original.getGrant(),
+                return new GrantApiKeyRequest(
+                    original.getGrant(),
                     new CreateApiKeyRequest(
                         original.getApiKeyRequest().getName(),
                         original.getApiKeyRequest().getRoles(),
@@ -142,7 +166,8 @@ public class GrantApiKeyRequestTests extends ESTestCase {
                     )
                 );
             default:
-                return new GrantApiKeyRequest(original.getGrant(),
+                return new GrantApiKeyRequest(
+                    original.getGrant(),
                     new CreateApiKeyRequest(
                         original.getApiKeyRequest().getName(),
                         original.getApiKeyRequest().getRoles(),

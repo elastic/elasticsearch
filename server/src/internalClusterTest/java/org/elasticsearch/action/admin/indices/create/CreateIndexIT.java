@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -33,6 +32,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.util.HashMap;
 import java.util.concurrent.CountDownLatch;
@@ -40,10 +40,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -60,8 +60,11 @@ public class CreateIndexIT extends ESIntegTestCase {
             prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_CREATION_DATE, 4L)).get();
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals("unknown setting [index.creation_date] please check that any required plugins are installed, or check the " +
-                "breaking changes documentation for removed settings", ex.getMessage());
+            assertEquals(
+                "unknown setting [index.creation_date] please check that any required plugins are installed, or check the "
+                    + "breaking changes documentation for removed settings",
+                ex.getMessage()
+            );
         }
     }
 
@@ -84,25 +87,20 @@ public class CreateIndexIT extends ESIntegTestCase {
 
     public void testDoubleAddMapping() throws Exception {
         try {
-            prepareCreate("test")
-                    .addMapping("type1", "date", "type=date")
-                    .addMapping("type1", "num", "type=integer");
+            prepareCreate("test").addMapping("type1", "date", "type=date").addMapping("type1", "num", "type=integer");
             fail("did not hit expected exception");
         } catch (IllegalStateException ise) {
             // expected
         }
         try {
-            prepareCreate("test")
-                    .addMapping("type1", new HashMap<String,Object>())
-                    .addMapping("type1", new HashMap<String,Object>());
+            prepareCreate("test").addMapping("type1", new HashMap<String, Object>()).addMapping("type1", new HashMap<String, Object>());
             fail("did not hit expected exception");
         } catch (IllegalStateException ise) {
             // expected
         }
         try {
-            prepareCreate("test")
-                    .addMapping("type1", jsonBuilder().startObject().endObject())
-                    .addMapping("type1", jsonBuilder().startObject().endObject());
+            prepareCreate("test").addMapping("type1", jsonBuilder().startObject().endObject())
+                .addMapping("type1", jsonBuilder().startObject().endObject());
             fail("did not hit expected exception");
         } catch (IllegalStateException ise) {
             // expected
@@ -110,14 +108,19 @@ public class CreateIndexIT extends ESIntegTestCase {
     }
 
     public void testNonNestedMappings() throws Exception {
-        assertAcked(prepareCreate("test")
-            .addMapping("_doc", XContentFactory.jsonBuilder().startObject()
-                .startObject("properties")
+        assertAcked(
+            prepareCreate("test").addMapping(
+                "_doc",
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("properties")
                     .startObject("date")
-                        .field("type", "date")
+                    .field("type", "date")
                     .endObject()
-                .endObject()
-            .endObject()));
+                    .endObject()
+                    .endObject()
+            )
+        );
 
         GetMappingsResponse response = client().admin().indices().prepareGetMappings("test").get();
 
@@ -130,8 +133,7 @@ public class CreateIndexIT extends ESIntegTestCase {
     }
 
     public void testEmptyNestedMappings() throws Exception {
-        assertAcked(prepareCreate("test")
-            .addMapping("_doc", XContentFactory.jsonBuilder().startObject().endObject()));
+        assertAcked(prepareCreate("test").addMapping("_doc", XContentFactory.jsonBuilder().startObject().endObject()));
 
         GetMappingsResponse response = client().admin().indices().prepareGetMappings("test").get();
 
@@ -144,18 +146,23 @@ public class CreateIndexIT extends ESIntegTestCase {
     }
 
     public void testMappingParamAndNestedMismatch() throws Exception {
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> prepareCreate("test")
-                .addMapping("type1", XContentFactory.jsonBuilder().startObject()
-                        .startObject("type2").endObject()
-                    .endObject()).get());
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> prepareCreate("test").addMapping(
+                "type1",
+                XContentFactory.jsonBuilder().startObject().startObject("type2").endObject().endObject()
+            ).get()
+        );
         assertThat(e.getMessage(), startsWith("Failed to parse mapping [type1]: Root mapping definition has unsupported parameters"));
     }
 
     public void testEmptyMappings() throws Exception {
-        assertAcked(prepareCreate("test")
-            .addMapping("_doc", XContentFactory.jsonBuilder().startObject()
-                .startObject("_doc").endObject()
-            .endObject()));
+        assertAcked(
+            prepareCreate("test").addMapping(
+                "_doc",
+                XContentFactory.jsonBuilder().startObject().startObject("_doc").endObject().endObject()
+            )
+        );
 
         GetMappingsResponse response = client().admin().indices().prepareGetMappings("test").get();
 
@@ -170,20 +177,14 @@ public class CreateIndexIT extends ESIntegTestCase {
     public void testInvalidShardCountSettings() throws Exception {
         int value = randomIntBetween(-10, 0);
         try {
-            prepareCreate("test").setSettings(Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, value)
-                    .build())
-            .get();
+            prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, value).build()).get();
             fail("should have thrown an exception about the primary shard count");
         } catch (IllegalArgumentException e) {
             assertEquals("Failed to parse value [" + value + "] for setting [index.number_of_shards] must be >= 1", e.getMessage());
         }
         value = randomIntBetween(-10, -1);
         try {
-            prepareCreate("test").setSettings(Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, value)
-                    .build())
-                    .get();
+            prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, value).build()).get();
             fail("should have thrown an exception about the replica shard count");
         } catch (IllegalArgumentException e) {
             assertEquals("Failed to parse value [" + value + "] for setting [index.number_of_replicas] must be >= 0", e.getMessage());
@@ -208,34 +209,36 @@ public class CreateIndexIT extends ESIntegTestCase {
 
     public void testUnknownSettingFails() {
         try {
-            prepareCreate("test").setSettings(Settings.builder()
-                .put("index.unknown.value", "this must fail")
-                .build())
-                .get();
+            prepareCreate("test").setSettings(Settings.builder().put("index.unknown.value", "this must fail").build()).get();
             fail("should have thrown an exception about the shard count");
         } catch (IllegalArgumentException e) {
-            assertEquals("unknown setting [index.unknown.value] please check that any required plugins are installed, or check the" +
-                " breaking changes documentation for removed settings", e.getMessage());
+            assertEquals(
+                "unknown setting [index.unknown.value] please check that any required plugins are installed, or check the"
+                    + " breaking changes documentation for removed settings",
+                e.getMessage()
+            );
         }
     }
 
     public void testInvalidShardCountSettingsWithoutPrefix() throws Exception {
         int value = randomIntBetween(-10, 0);
         try {
-            prepareCreate("test").setSettings(Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS.substring(IndexMetadata.INDEX_SETTING_PREFIX.length()), value)
-                .build())
-                .get();
+            prepareCreate("test").setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS.substring(IndexMetadata.INDEX_SETTING_PREFIX.length()), value)
+                    .build()
+            ).get();
             fail("should have thrown an exception about the shard count");
         } catch (IllegalArgumentException e) {
             assertEquals("Failed to parse value [" + value + "] for setting [index.number_of_shards] must be >= 1", e.getMessage());
         }
         value = randomIntBetween(-10, -1);
         try {
-            prepareCreate("test").setSettings(Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS.substring(IndexMetadata.INDEX_SETTING_PREFIX.length()), value)
-                .build())
-                .get();
+            prepareCreate("test").setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS.substring(IndexMetadata.INDEX_SETTING_PREFIX.length()), value)
+                    .build()
+            ).get();
             fail("should have thrown an exception about the shard count");
         } catch (IllegalArgumentException e) {
             assertEquals("Failed to parse value [" + value + "] for setting [index.number_of_replicas] must be >= 0", e.getMessage());
@@ -255,42 +258,43 @@ public class CreateIndexIT extends ESIntegTestCase {
             indexVersion.incrementAndGet();
         }
         client().admin().indices().prepareDelete("test").execute(new ActionListener<AcknowledgedResponse>() { // this happens async!!!
-                @Override
-                public void onResponse(AcknowledgedResponse deleteIndexResponse) {
-                    Thread thread = new Thread() {
-                     @Override
+            @Override
+            public void onResponse(AcknowledgedResponse deleteIndexResponse) {
+                Thread thread = new Thread() {
+                    @Override
                     public void run() {
-                         try {
-                             // recreate that index
-                             client().prepareIndex("test", "test").setSource("index_version", indexVersion.get()).get();
-                             synchronized (indexVersionLock) {
-                                 // we sync here since we have to ensure that all indexing operations below for a given ID are done before
-                                 // we increment the index version otherwise a doc that is in-flight could make it into an index that it
-                                 // was supposed to be deleted for and our assertion fail...
-                                 indexVersion.incrementAndGet();
-                             }
-                             // from here on all docs with index_version == 0|1 must be gone!!!! only 2 are ok;
-                             assertAcked(client().admin().indices().prepareDelete("test").get());
-                         } finally {
-                             latch.countDown();
-                         }
-                     }
-                    };
-                    thread.start();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    throw new RuntimeException(e);
-                }
+                        try {
+                            // recreate that index
+                            client().prepareIndex("test", "test").setSource("index_version", indexVersion.get()).get();
+                            synchronized (indexVersionLock) {
+                                // we sync here since we have to ensure that all indexing operations below for a given ID are done before
+                                // we increment the index version otherwise a doc that is in-flight could make it into an index that it
+                                // was supposed to be deleted for and our assertion fail...
+                                indexVersion.incrementAndGet();
+                            }
+                            // from here on all docs with index_version == 0|1 must be gone!!!! only 2 are ok;
+                            assertAcked(client().admin().indices().prepareDelete("test").get());
+                        } finally {
+                            latch.countDown();
+                        }
+                    }
+                };
+                thread.start();
             }
-        );
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
         numDocs = randomIntBetween(100, 200);
         for (int i = 0; i < numDocs; i++) {
             try {
                 synchronized (indexVersionLock) {
-                    client().prepareIndex("test", "test").setSource("index_version", indexVersion.get())
-                        .setTimeout(TimeValue.timeValueSeconds(10)).get();
+                    client().prepareIndex("test", "test")
+                        .setSource("index_version", indexVersion.get())
+                        .setTimeout(TimeValue.timeValueSeconds(10))
+                        .get();
                 }
             } catch (IndexNotFoundException inf) {
                 // fine
@@ -304,16 +308,21 @@ public class CreateIndexIT extends ESIntegTestCase {
 
         // we only really assert that we never reuse segments of old indices or anything like this here and that nothing fails with
         // crazy exceptions
-        SearchResponse expected = client().prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen())
-            .setQuery(new RangeQueryBuilder("index_version").from(indexVersion.get(), true)).get();
+        SearchResponse expected = client().prepareSearch("test")
+            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .setQuery(new RangeQueryBuilder("index_version").from(indexVersion.get(), true))
+            .get();
         SearchResponse all = client().prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
         assertEquals(expected + " vs. " + all, expected.getHits().getTotalHits().value, all.getHits().getTotalHits().value);
         logger.info("total: {}", expected.getHits().getTotalHits().value);
     }
 
     public void testRestartIndexCreationAfterFullClusterRestart() throws Exception {
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("cluster.routing.allocation.enable",
-            "none")).get();
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put("cluster.routing.allocation.enable", "none"))
+            .get();
         client().admin().indices().prepareCreate("test").setWaitForActiveShards(ActiveShardCount.NONE).setSettings(indexSettings()).get();
         internalCluster().fullRestart();
         ensureGreen("test");
@@ -325,15 +334,19 @@ public class CreateIndexIT extends ESIntegTestCase {
             .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
             .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), numReplicas)
             .build();
-        assertAcked(client().admin().indices().prepareCreate("test-idx-1")
-            .setSettings(settings)
-            .addAlias(new Alias("alias1").writeIndex(true))
-            .get());
-
-        assertRequestBuilderThrows(client().admin().indices().prepareCreate("test-idx-2")
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("test-idx-1")
                 .setSettings(settings)
-                .addAlias(new Alias("alias1").writeIndex(true)),
-            IllegalStateException.class);
+                .addAlias(new Alias("alias1").writeIndex(true))
+                .get()
+        );
+
+        assertRequestBuilderThrows(
+            client().admin().indices().prepareCreate("test-idx-2").setSettings(settings).addAlias(new Alias("alias1").writeIndex(true)),
+            IllegalStateException.class
+        );
 
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, internalCluster().getMasterName());
         for (IndexService indexService : indicesService) {
@@ -347,27 +360,23 @@ public class CreateIndexIT extends ESIntegTestCase {
     public void testDefaultWaitForActiveShardsUsesIndexSetting() throws Exception {
         final int numReplicas = internalCluster().numDataNodes();
         Settings settings = Settings.builder()
-                                .put(SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), Integer.toString(numReplicas))
-                                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), numReplicas)
-                                .build();
+            .put(SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), Integer.toString(numReplicas))
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), numReplicas)
+            .build();
         assertAcked(client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get());
 
         // all should fail
-        settings = Settings.builder()
-                       .put(settings)
-                       .put(SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "all")
-                       .build();
-        assertFalse(client().admin().indices().prepareCreate("test-idx-2").setSettings(settings).setTimeout("100ms").get()
-                .isShardsAcknowledged());
+        settings = Settings.builder().put(settings).put(SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "all").build();
+        assertFalse(
+            client().admin().indices().prepareCreate("test-idx-2").setSettings(settings).setTimeout("100ms").get().isShardsAcknowledged()
+        );
 
         // the numeric equivalent of all should also fail
-        settings = Settings.builder()
-                       .put(settings)
-                       .put(SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), Integer.toString(numReplicas + 1))
-                       .build();
-        assertFalse(client().admin().indices().prepareCreate("test-idx-3").setSettings(settings).setTimeout("100ms").get()
-                .isShardsAcknowledged());
+        settings = Settings.builder().put(settings).put(SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), Integer.toString(numReplicas + 1)).build();
+        assertFalse(
+            client().admin().indices().prepareCreate("test-idx-3").setSettings(settings).setTimeout("100ms").get().isShardsAcknowledged()
+        );
     }
 
     public void testInvalidPartitionSize() {
@@ -375,12 +384,12 @@ public class CreateIndexIT extends ESIntegTestCase {
             CreateIndexResponse response;
 
             try {
-                response = prepareCreate("test_" + shards + "_" + partitionSize)
-                    .setSettings(Settings.builder()
+                response = prepareCreate("test_" + shards + "_" + partitionSize).setSettings(
+                    Settings.builder()
                         .put("index.number_of_shards", shards)
                         .put("index.number_of_routing_shards", shards)
-                        .put("index.routing_partition_size", partitionSize))
-                    .execute().actionGet();
+                        .put("index.routing_partition_size", partitionSize)
+                ).execute().actionGet();
             } catch (IllegalStateException | IllegalArgumentException e) {
                 return false;
             }
@@ -399,9 +408,7 @@ public class CreateIndexIT extends ESIntegTestCase {
     }
 
     public void testIndexNameInResponse() {
-        CreateIndexResponse response = prepareCreate("foo")
-            .setSettings(Settings.builder().build())
-            .get();
+        CreateIndexResponse response = prepareCreate("foo").setSettings(Settings.builder().build()).get();
 
         assertEquals("Should have index name in response", "foo", response.index());
     }

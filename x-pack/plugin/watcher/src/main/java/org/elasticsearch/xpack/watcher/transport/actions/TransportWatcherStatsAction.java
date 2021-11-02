@@ -31,27 +31,48 @@ import java.util.List;
 /**
  * Performs the stats operation.
  */
-public class TransportWatcherStatsAction extends TransportNodesAction<WatcherStatsRequest, WatcherStatsResponse,
-        WatcherStatsRequest.Node, WatcherStatsResponse.Node> {
+public class TransportWatcherStatsAction extends TransportNodesAction<
+    WatcherStatsRequest,
+    WatcherStatsResponse,
+    WatcherStatsRequest.Node,
+    WatcherStatsResponse.Node> {
 
     private final ExecutionService executionService;
     private final TriggerService triggerService;
     private final WatcherLifeCycleService lifeCycleService;
 
     @Inject
-    public TransportWatcherStatsAction(TransportService transportService, ClusterService clusterService,
-                                       ThreadPool threadPool, ActionFilters actionFilters, WatcherLifeCycleService lifeCycleService,
-                                       ExecutionService executionService, TriggerService triggerService) {
-        super(WatcherStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
-            WatcherStatsRequest::new, WatcherStatsRequest.Node::new, ThreadPool.Names.MANAGEMENT, WatcherStatsResponse.Node.class);
+    public TransportWatcherStatsAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        WatcherLifeCycleService lifeCycleService,
+        ExecutionService executionService,
+        TriggerService triggerService
+    ) {
+        super(
+            WatcherStatsAction.NAME,
+            threadPool,
+            clusterService,
+            transportService,
+            actionFilters,
+            WatcherStatsRequest::new,
+            WatcherStatsRequest.Node::new,
+            ThreadPool.Names.MANAGEMENT,
+            WatcherStatsResponse.Node.class
+        );
         this.lifeCycleService = lifeCycleService;
         this.executionService = executionService;
         this.triggerService = triggerService;
     }
 
     @Override
-    protected WatcherStatsResponse newResponse(WatcherStatsRequest request, List<WatcherStatsResponse.Node> nodes,
-                                               List<FailedNodeException> failures) {
+    protected WatcherStatsResponse newResponse(
+        WatcherStatsRequest request,
+        List<WatcherStatsResponse.Node> nodes,
+        List<FailedNodeException> failures
+    ) {
         return new WatcherStatsResponse(clusterService.getClusterName(), getWatcherMetadata(), nodes, failures);
     }
 

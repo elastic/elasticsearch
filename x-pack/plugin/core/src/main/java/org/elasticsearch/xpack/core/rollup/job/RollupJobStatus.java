@@ -6,18 +6,17 @@
  */
 package org.elasticsearch.xpack.core.rollup.job;
 
-
 import org.elasticsearch.Version;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 
 import java.io.IOException;
@@ -43,7 +42,7 @@ public class RollupJobStatus implements Task.Status, PersistentTaskState {
     private final TreeMap<String, Object> currentPosition;
 
     // Flag holds the state of the ID scheme, e.g. if it has been upgraded to the
-    // concatenation scheme.  See #32372 for more details
+    // concatenation scheme. See #32372 for more details
     private boolean upgradedDocumentID;
 
     private static final ParseField STATE = new ParseField("job_state");
@@ -51,11 +50,10 @@ public class RollupJobStatus implements Task.Status, PersistentTaskState {
     private static final ParseField UPGRADED_DOC_ID = new ParseField("upgraded_doc_id");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<RollupJobStatus, Void> PARSER =
-            new ConstructingObjectParser<>(NAME,
-                    args -> new RollupJobStatus((IndexerState) args[0],
-                        (HashMap<String, Object>) args[1],
-                        (Boolean)args[2]));
+    public static final ConstructingObjectParser<RollupJobStatus, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        args -> new RollupJobStatus((IndexerState) args[0], (HashMap<String, Object>) args[1], (Boolean) args[2])
+    );
 
     static {
         PARSER.declareString(constructorArg(), IndexerState::fromString, STATE);
@@ -73,11 +71,10 @@ public class RollupJobStatus implements Task.Status, PersistentTaskState {
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), UPGRADED_DOC_ID);
     }
 
-    public RollupJobStatus(IndexerState state, @Nullable Map<String, Object> position,
-                           @Nullable Boolean upgradedDocumentID) {
+    public RollupJobStatus(IndexerState state, @Nullable Map<String, Object> position, @Nullable Boolean upgradedDocumentID) {
         this.state = state;
         this.currentPosition = position == null ? null : new TreeMap<>(position);
-        this.upgradedDocumentID = upgradedDocumentID != null ? upgradedDocumentID : false;  //default to false if missing
+        this.upgradedDocumentID = upgradedDocumentID != null ? upgradedDocumentID : false;  // default to false if missing
     }
 
     public RollupJobStatus(StreamInput in) throws IOException {

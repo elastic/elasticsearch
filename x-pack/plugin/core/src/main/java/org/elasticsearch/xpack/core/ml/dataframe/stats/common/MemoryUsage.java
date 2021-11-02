@@ -7,14 +7,14 @@
 package org.elasticsearch.xpack.core.ml.dataframe.stats.common;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
@@ -39,15 +39,20 @@ public class MemoryUsage implements Writeable, ToXContentObject {
     public static final ConstructingObjectParser<MemoryUsage, Void> LENIENT_PARSER = createParser(true);
 
     private static ConstructingObjectParser<MemoryUsage, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<MemoryUsage, Void> parser = new ConstructingObjectParser<>(TYPE_VALUE,
-            ignoreUnknownFields, a -> new MemoryUsage((String) a[0], (Instant) a[1], (long) a[2], (Status) a[3], (Long) a[4]));
+        ConstructingObjectParser<MemoryUsage, Void> parser = new ConstructingObjectParser<>(
+            TYPE_VALUE,
+            ignoreUnknownFields,
+            a -> new MemoryUsage((String) a[0], (Instant) a[1], (long) a[2], (Status) a[3], (Long) a[4])
+        );
 
         parser.declareString((bucket, s) -> {}, Fields.TYPE);
         parser.declareString(ConstructingObjectParser.constructorArg(), Fields.JOB_ID);
-        parser.declareField(ConstructingObjectParser.constructorArg(),
+        parser.declareField(
+            ConstructingObjectParser.constructorArg(),
             p -> TimeUtils.parseTimeFieldToInstant(p, Fields.TIMESTAMP.getPreferredName()),
             Fields.TIMESTAMP,
-            ObjectParser.ValueType.VALUE);
+            ObjectParser.ValueType.VALUE
+        );
         parser.declareLong(ConstructingObjectParser.constructorArg(), PEAK_USAGE_BYTES);
         parser.declareString(ConstructingObjectParser.optionalConstructorArg(), Status::fromString, STATUS);
         parser.declareLong(ConstructingObjectParser.optionalConstructorArg(), MEMORY_REESTIMATE_BYTES);
@@ -61,7 +66,8 @@ public class MemoryUsage implements Writeable, ToXContentObject {
     private final Instant timestamp;
     private final long peakUsageBytes;
     private final Status status;
-    @Nullable private final Long memoryReestimateBytes;
+    @Nullable
+    private final Long memoryReestimateBytes;
 
     /**
      * Creates a zero usage object
@@ -70,13 +76,19 @@ public class MemoryUsage implements Writeable, ToXContentObject {
         this(jobId, null, 0, null, null);
     }
 
-    public MemoryUsage(String jobId, Instant timestamp, long peakUsageBytes, @Nullable Status status,
-                       @Nullable Long memoryReestimateBytes) {
+    public MemoryUsage(
+        String jobId,
+        Instant timestamp,
+        long peakUsageBytes,
+        @Nullable Status status,
+        @Nullable Long memoryReestimateBytes
+    ) {
         this.jobId = Objects.requireNonNull(jobId);
         // We intend to store this timestamp in millis granularity. Thus we're rounding here to ensure
         // internal representation matches toXContent
-        this.timestamp = timestamp == null ? null : Instant.ofEpochMilli(
-            ExceptionsHelper.requireNonNull(timestamp, Fields.TIMESTAMP).toEpochMilli());
+        this.timestamp = timestamp == null
+            ? null
+            : Instant.ofEpochMilli(ExceptionsHelper.requireNonNull(timestamp, Fields.TIMESTAMP).toEpochMilli());
         this.peakUsageBytes = peakUsageBytes;
         this.status = status == null ? Status.OK : status;
         this.memoryReestimateBytes = memoryReestimateBytes;
@@ -122,8 +134,11 @@ public class MemoryUsage implements Writeable, ToXContentObject {
             builder.field(Fields.JOB_ID.getPreferredName(), jobId);
         }
         if (timestamp != null) {
-            builder.timeField(Fields.TIMESTAMP.getPreferredName(), Fields.TIMESTAMP.getPreferredName() + "_string",
-                timestamp.toEpochMilli());
+            builder.timeField(
+                Fields.TIMESTAMP.getPreferredName(),
+                Fields.TIMESTAMP.getPreferredName() + "_string",
+                timestamp.toEpochMilli()
+            );
         }
         builder.field(PEAK_USAGE_BYTES.getPreferredName(), peakUsageBytes);
         builder.field(STATUS.getPreferredName(), status);
@@ -166,7 +181,7 @@ public class MemoryUsage implements Writeable, ToXContentObject {
         return TYPE_VALUE + "_" + jobId + "_";
     }
 
-    public enum Status implements Writeable  {
+    public enum Status implements Writeable {
         OK,
         HARD_LIMIT;
 

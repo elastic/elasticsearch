@@ -13,7 +13,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -24,12 +23,13 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -78,10 +78,15 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
 
     private final ImmutableOpenMap<String, AliasMetadata> aliases;
 
-    public IndexTemplateMetadata(String name, int order, Integer version,
-                                 List<String> patterns, Settings settings,
-                                 ImmutableOpenMap<String, CompressedXContent> mappings,
-                                 ImmutableOpenMap<String, AliasMetadata> aliases) {
+    public IndexTemplateMetadata(
+        String name,
+        int order,
+        Integer version,
+        List<String> patterns,
+        Settings settings,
+        ImmutableOpenMap<String, CompressedXContent> mappings,
+        ImmutableOpenMap<String, AliasMetadata> aliases
+    ) {
         if (patterns == null || patterns.isEmpty()) {
             throw new IllegalArgumentException("Index patterns must not be null or empty; got " + patterns);
         }
@@ -92,9 +97,12 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
         this.settings = settings;
         this.mappings = mappings;
         if (this.mappings.size() > 1) {
-            deprecationLogger.critical(DeprecationCategory.TEMPLATES, "index-templates",
+            deprecationLogger.critical(
+                DeprecationCategory.TEMPLATES,
+                "index-templates",
                 "Index template {} contains multiple typed mappings; templates in 8x will only support a single mapping",
-                name);
+                name
+            );
         }
         this.aliases = aliases;
     }
@@ -166,8 +174,7 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
         if (settings.equals(that.settings) == false) return false;
         if (patterns.equals(that.patterns) == false) return false;
 
-        return Objects.equals(aliases, that.aliases) &&
-            Objects.equals(version, that.version);
+        return Objects.equals(aliases, that.aliases) && Objects.equals(version, that.version);
     }
 
     @Override
@@ -244,7 +251,13 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
     public static class Builder {
 
         private static final Set<String> VALID_FIELDS = Sets.newHashSet(
-            "order", "mappings", "settings", "index_patterns", "aliases", "version");
+            "order",
+            "mappings",
+            "settings",
+            "index_patterns",
+            "aliases",
+            "version"
+        );
 
         private String name;
 
@@ -292,7 +305,6 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
             return this;
         }
 
-
         public Builder settings(Settings.Builder settings) {
             this.settings = settings.build();
             return this;
@@ -334,9 +346,11 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
          * This method is used for serializing templates before storing them in the cluster metadata,
          * and also in the REST layer when returning a deprecated typed response.
          */
-        public static void toXContentWithTypes(IndexTemplateMetadata indexTemplateMetadata,
-                                               XContentBuilder builder,
-                                               ToXContent.Params params) throws IOException {
+        public static void toXContentWithTypes(
+            IndexTemplateMetadata indexTemplateMetadata,
+            XContentBuilder builder,
+            ToXContent.Params params
+        ) throws IOException {
             builder.startObject(indexTemplateMetadata.name());
             toInnerXContent(indexTemplateMetadata, builder, params, true);
             builder.endObject();
@@ -350,8 +364,12 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
          */
         public static void removeType(IndexTemplateMetadata indexTemplateMetadata, XContentBuilder builder) throws IOException {
             builder.startObject();
-            toInnerXContent(indexTemplateMetadata, builder,
-                new ToXContent.MapParams(Collections.singletonMap("reduce_mappings", "true")), false);
+            toInnerXContent(
+                indexTemplateMetadata,
+                builder,
+                new ToXContent.MapParams(Collections.singletonMap("reduce_mappings", "true")),
+                false
+            );
             builder.endObject();
         }
 
@@ -363,28 +381,28 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
          * and not when directly updating stored templates. Index templates are still stored
          * in the old, typed format, and have yet to be migrated to be typeless.
          */
-        public static void toXContent(IndexTemplateMetadata indexTemplateMetadata,
-                                      XContentBuilder builder,
-                                      ToXContent.Params params) throws IOException {
+        public static void toXContent(IndexTemplateMetadata indexTemplateMetadata, XContentBuilder builder, ToXContent.Params params)
+            throws IOException {
             builder.startObject(indexTemplateMetadata.name());
             toInnerXContent(indexTemplateMetadata, builder, params, false);
             builder.endObject();
         }
 
-
-        static void toInnerXContentWithTypes(IndexTemplateMetadata indexTemplateMetadata,
-                                             XContentBuilder builder,
-                                             ToXContent.Params params) throws IOException {
+        static void toInnerXContentWithTypes(IndexTemplateMetadata indexTemplateMetadata, XContentBuilder builder, ToXContent.Params params)
+            throws IOException {
             toInnerXContent(indexTemplateMetadata, builder, params, true);
         }
 
         @SuppressWarnings("unchecked")
-        private static void toInnerXContent(IndexTemplateMetadata indexTemplateMetadata,
-                                            XContentBuilder builder,
-                                            ToXContent.Params params,
-                                            boolean includeTypeName) throws IOException {
-            Metadata.XContentContext context = params.param(CONTEXT_MODE_PARAM) != null ? Metadata.XContentContext.valueOf(
-                params.param(CONTEXT_MODE_PARAM)) : null;
+        private static void toInnerXContent(
+            IndexTemplateMetadata indexTemplateMetadata,
+            XContentBuilder builder,
+            ToXContent.Params params,
+            boolean includeTypeName
+        ) throws IOException {
+            Metadata.XContentContext context = params.param(CONTEXT_MODE_PARAM) != null
+                ? Metadata.XContentContext.valueOf(params.param(CONTEXT_MODE_PARAM))
+                : null;
 
             builder.field("order", indexTemplateMetadata.order());
             if (indexTemplateMetadata.version() != null) {
@@ -481,8 +499,9 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
                                 currentFieldName = parser.currentName();
                             } else if (token == XContentParser.Token.START_OBJECT) {
                                 String mappingType = currentFieldName;
-                                Map<String, Object> mappingSource =
-                                    MapBuilder.<String, Object>newMapBuilder().put(mappingType, parser.mapOrdered()).map();
+                                Map<String, Object> mappingSource = MapBuilder.<String, Object>newMapBuilder()
+                                    .put(mappingType, parser.mapOrdered())
+                                    .map();
                                 builder.putMapping(mappingType, Strings.toString(XContentFactory.jsonBuilder().map(mappingSource)));
                             }
                         }

@@ -37,7 +37,7 @@ public class DenseVectorFunctionTests extends ESTestCase {
     @Before
     public void setUpVectors() {
         field = "vector";
-        docVector = new float[] {230.0f, 300.33f, -34.8988f, 15.555f, -200.0f};
+        docVector = new float[] { 230.0f, 300.33f, -34.8988f, 15.555f, -200.0f };
         queryVector = Arrays.asList(0.5f, 111.3f, -13.0f, 14.8f, -156.0f);
         invalidQueryVector = Arrays.asList(0.5, 111.3);
     }
@@ -72,8 +72,10 @@ public class DenseVectorFunctionTests extends ESTestCase {
         assertEquals("dotProduct result is not equal to the expected value!", 65425.624, deprecatedResult, 0.001);
         assertWarnings(ScoreScriptUtils.DEPRECATION_MESSAGE);
 
-        IllegalArgumentException e =
-            expectThrows(IllegalArgumentException.class, () -> new DotProduct(scoreScript, invalidQueryVector, field));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new DotProduct(scoreScript, invalidQueryVector, field)
+        );
         assertThat(e.getMessage(), containsString("query vector has a different number of dimensions [2] than the document vectors [5]"));
     }
 
@@ -87,8 +89,10 @@ public class DenseVectorFunctionTests extends ESTestCase {
         assertEquals("cosineSimilarity result is not equal to the expected value!", 0.790, deprecatedResult, 0.001);
         assertWarnings(ScoreScriptUtils.DEPRECATION_MESSAGE);
 
-        IllegalArgumentException e =
-            expectThrows(IllegalArgumentException.class, () -> new CosineSimilarity(scoreScript, invalidQueryVector, field));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new CosineSimilarity(scoreScript, invalidQueryVector, field)
+        );
         assertThat(e.getMessage(), containsString("query vector has a different number of dimensions [2] than the document vectors [5]"));
     }
 
@@ -102,8 +106,7 @@ public class DenseVectorFunctionTests extends ESTestCase {
         assertEquals("l1norm result is not equal to the expected value!", 485.184, deprecatedResult, 0.001);
         assertWarnings(ScoreScriptUtils.DEPRECATION_MESSAGE);
 
-        IllegalArgumentException e =
-            expectThrows(IllegalArgumentException.class,  () -> new L1Norm(scoreScript, invalidQueryVector, field));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new L1Norm(scoreScript, invalidQueryVector, field));
         assertThat(e.getMessage(), containsString("query vector has a different number of dimensions [2] than the document vectors [5]"));
     }
 

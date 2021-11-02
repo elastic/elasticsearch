@@ -9,12 +9,12 @@
 package org.elasticsearch.env;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.gateway.MetadataStateFormat;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -43,8 +43,7 @@ public final class NodeMetadata {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         NodeMetadata that = (NodeMetadata) o;
-        return nodeId.equals(that.nodeId) &&
-            nodeVersion.equals(that.nodeVersion);
+        return nodeId.equals(that.nodeId) && nodeVersion.equals(that.nodeVersion);
     }
 
     @Override
@@ -54,10 +53,7 @@ public final class NodeMetadata {
 
     @Override
     public String toString() {
-        return "NodeMetadata{" +
-            "nodeId='" + nodeId + '\'' +
-            ", nodeVersion=" + nodeVersion +
-            '}';
+        return "NodeMetadata{" + "nodeId='" + nodeId + '\'' + ", nodeVersion=" + nodeVersion + '}';
     }
 
     public String nodeId() {
@@ -76,12 +72,14 @@ public final class NodeMetadata {
 
         if (nodeVersion.before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
             throw new IllegalStateException(
-                "cannot upgrade a node from version [" + nodeVersion + "] directly to version [" + Version.CURRENT + "]");
+                "cannot upgrade a node from version [" + nodeVersion + "] directly to version [" + Version.CURRENT + "]"
+            );
         }
 
         if (nodeVersion.after(Version.CURRENT)) {
             throw new IllegalStateException(
-                "cannot downgrade a node from version [" + nodeVersion + "] to version [" + Version.CURRENT + "]");
+                "cannot downgrade a node from version [" + nodeVersion + "] to version [" + Version.CURRENT + "]"
+            );
         }
 
         return nodeVersion.equals(Version.CURRENT) ? this : new NodeMetadata(nodeId, Version.CURRENT);

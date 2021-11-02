@@ -41,9 +41,7 @@ public class BoundedBreakIteratorScanner extends BreakIterator {
     private int innerStart = -1;
     private int innerEnd = 0;
 
-    private BoundedBreakIteratorScanner(BreakIterator mainBreak,
-                                        BreakIterator innerBreak,
-                                        int maxLen) {
+    private BoundedBreakIteratorScanner(BreakIterator mainBreak, BreakIterator innerBreak, int maxLen) {
         this.mainBreak = mainBreak;
         this.innerBreak = innerBreak;
         this.maxLen = maxLen;
@@ -82,8 +80,7 @@ public class BoundedBreakIteratorScanner extends BreakIterator {
     @Override
     public int preceding(int offset) {
         if (offset < lastPrecedingOffset) {
-            throw new IllegalArgumentException("offset < lastPrecedingOffset: " +
-                "usage doesn't look like UnifiedHighlighter");
+            throw new IllegalArgumentException("offset < lastPrecedingOffset: " + "usage doesn't look like UnifiedHighlighter");
         }
         if (offset > windowStart && offset < windowEnd) {
             innerStart = innerEnd;
@@ -105,14 +102,12 @@ public class BoundedBreakIteratorScanner extends BreakIterator {
             // the current split is too big,
             // so starting from the current term we try to find boundaries on the left first
             if (offset - maxLen > innerStart) {
-                innerStart = Math.max(innerStart,
-                    innerBreak.preceding(offset - maxLen));
+                innerStart = Math.max(innerStart, innerBreak.preceding(offset - maxLen));
             }
             // and then we try to expand the passage to the right with the remaining size
             int remaining = Math.max(0, maxLen - (offset - innerStart));
             if (offset + remaining < windowEnd) {
-                innerEnd = Math.min(windowEnd,
-                    innerBreak.following(offset + remaining));
+                innerEnd = Math.min(windowEnd, innerBreak.following(offset + remaining));
             }
         }
         lastPrecedingOffset = offset - 1;
@@ -126,8 +121,7 @@ public class BoundedBreakIteratorScanner extends BreakIterator {
     @Override
     public int following(int offset) {
         if (offset != lastPrecedingOffset || innerEnd == -1) {
-            throw new IllegalArgumentException("offset != lastPrecedingOffset: " +
-                "usage doesn't look like UnifiedHighlighter");
+            throw new IllegalArgumentException("offset != lastPrecedingOffset: " + "usage doesn't look like UnifiedHighlighter");
         }
         return innerEnd;
     }
@@ -141,7 +135,6 @@ public class BoundedBreakIteratorScanner extends BreakIterator {
         final BreakIterator wBreak = BreakIterator.getWordInstance(locale);
         return new BoundedBreakIteratorScanner(sBreak, wBreak, maxLen);
     }
-
 
     @Override
     public int current() {

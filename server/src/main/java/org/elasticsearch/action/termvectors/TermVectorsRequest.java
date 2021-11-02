@@ -15,8 +15,6 @@ import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -25,12 +23,14 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.action.document.RestTermVectorsAction;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -69,7 +69,6 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     private static final ParseField DFS = new ParseField("dfs");
     private static final ParseField FILTER = new ParseField("filter");
     private static final ParseField DOC = new ParseField("doc");
-
 
     private String type;
 
@@ -111,9 +110,15 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
 
         }
 
-        public FilterSettings(@Nullable Integer maxNumTerms, @Nullable Integer minTermFreq, @Nullable Integer maxTermFreq,
-                              @Nullable Integer minDocFreq, @Nullable Integer maxDocFreq, @Nullable Integer minWordLength,
-                              @Nullable Integer maxWordLength) {
+        public FilterSettings(
+            @Nullable Integer maxNumTerms,
+            @Nullable Integer minTermFreq,
+            @Nullable Integer maxTermFreq,
+            @Nullable Integer minDocFreq,
+            @Nullable Integer maxDocFreq,
+            @Nullable Integer minWordLength,
+            @Nullable Integer maxWordLength
+        ) {
             this.maxNumTerms = maxNumTerms;
             this.minTermFreq = minTermFreq;
             this.maxTermFreq = maxTermFreq;
@@ -144,11 +149,9 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         }
     }
 
-    private EnumSet<Flag> flagsEnum = EnumSet.of(Flag.Positions, Flag.Offsets, Flag.Payloads,
-            Flag.FieldStatistics);
+    private EnumSet<Flag> flagsEnum = EnumSet.of(Flag.Positions, Flag.Offsets, Flag.Payloads, Flag.FieldStatistics);
 
-    public TermVectorsRequest() {
-    }
+    public TermVectorsRequest() {}
 
     TermVectorsRequest(StreamInput in) throws IOException {
         super(in);
@@ -562,7 +565,11 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     public enum Flag {
         // Do not change the order of these flags we use
         // the ordinal for encoding! Only append to the end!
-        Positions, Offsets, Payloads, FieldStatistics, TermStatistics
+        Positions,
+        Offsets,
+        Payloads,
+        FieldStatistics,
+        TermStatistics
     }
 
     /**
@@ -605,18 +612,23 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
                     termVectorsRequest.index = parser.text();
                 } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                     termVectorsRequest.type = parser.text();
-                    deprecationLogger.critical(DeprecationCategory.TYPES, "termvectors_with_types",
-                        RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
+                    deprecationLogger.critical(
+                        DeprecationCategory.TYPES,
+                        "termvectors_with_types",
+                        RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE
+                    );
                 } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (termVectorsRequest.doc != null) {
-                        throw new ElasticsearchParseException("failed to parse term vectors request. " +
-                            "either [id] or [doc] can be specified, but not both!");
+                        throw new ElasticsearchParseException(
+                            "failed to parse term vectors request. " + "either [id] or [doc] can be specified, but not both!"
+                        );
                     }
                     termVectorsRequest.id = parser.text();
                 } else if (DOC.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (termVectorsRequest.id != null) {
-                        throw new ElasticsearchParseException("failed to parse term vectors request. " +
-                            "either [id] or [doc] can be specified, but not both!");
+                        throw new ElasticsearchParseException(
+                            "failed to parse term vectors request. " + "either [id] or [doc] can be specified, but not both!"
+                        );
                     }
                     termVectorsRequest.doc(jsonBuilder().copyCurrentStructure(parser));
                 } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -642,8 +654,11 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
             if (e.getValue() instanceof String) {
                 mapStrStr.put(e.getKey(), (String) e.getValue());
             } else {
-                throw new ElasticsearchParseException("expecting the analyzer at [{}] to be a String, but found [{}] instead",
-                    e.getKey(), e.getValue().getClass());
+                throw new ElasticsearchParseException(
+                    "expecting the analyzer at [{}] to be a String, but found [{}] instead",
+                    e.getKey(),
+                    e.getValue().getClass()
+                );
             }
         }
         return mapStrStr;
@@ -672,8 +687,11 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
                 } else if (currentFieldName.equals("max_word_length")) {
                     settings.maxWordLength = parser.intValue();
                 } else {
-                    throw new ElasticsearchParseException("failed to parse term vectors request. " +
-                        "the field [{}] is not valid for filter parameter for term vector request", currentFieldName);
+                    throw new ElasticsearchParseException(
+                        "failed to parse term vectors request. "
+                            + "the field [{}] is not valid for filter parameter for term vector request",
+                        currentFieldName
+                    );
                 }
             }
         }

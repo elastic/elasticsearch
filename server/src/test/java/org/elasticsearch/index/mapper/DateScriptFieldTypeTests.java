@@ -35,16 +35,16 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.index.fielddata.DateScriptFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.fielddata.DateScriptFieldData;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -148,13 +148,9 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     @Override
     public void testDocValues() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181354]}"))));
             iw.addDocument(
-                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181354]}")))
-            );
-            iw.addDocument(
-                org.elasticsearch.core.List.of(
-                    new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356, 1595432181351]}"))
-                )
+                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356, 1595432181351]}")))
             );
             List<Long> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
@@ -193,15 +189,9 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     @Override
     public void testSort() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(
-                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181354]}")))
-            );
-            iw.addDocument(
-                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181351]}")))
-            );
-            iw.addDocument(
-                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356]}")))
-            );
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181354]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181351]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 DateScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder("test", mockContext()::lookup).build(null, null);
@@ -220,15 +210,9 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     @Override
     public void testUsedInScript() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(
-                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181354]}")))
-            );
-            iw.addDocument(
-                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181351]}")))
-            );
-            iw.addDocument(
-                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356]}")))
-            );
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181354]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181351]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
@@ -259,9 +243,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                 org.elasticsearch.core.List.of(
                     org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181354]}"))),
                     org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181351]}"))),
-                    org.elasticsearch.core.List.of(
-                        new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356, 1]}"))
-                    ),
+                    org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356, 1]}"))),
                     org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": []}")))
                 )
             );
@@ -302,9 +284,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     @Override
     public void testExistsQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(
-                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356]}")))
-            );
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356]}"))));
             iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": []}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
@@ -316,15 +296,9 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     @Override
     public void testRangeQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(
-                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181354]}")))
-            );
-            iw.addDocument(
-                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181351]}")))
-            );
-            iw.addDocument(
-                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356]}")))
-            );
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181354]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181351]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 MappedFieldType ft = simpleMappedFieldType();
@@ -404,12 +378,8 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     @Override
     public void testTermQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(
-                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181354]}")))
-            );
-            iw.addDocument(
-                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181355]}")))
-            );
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181354]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181355]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(searcher.count(simpleMappedFieldType().termQuery("2020-07-22T15:36:21.354Z", mockContext())), equalTo(1));
@@ -418,10 +388,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                 assertThat(searcher.count(simpleMappedFieldType().termQuery(2595432181354L, mockContext())), equalTo(0));
                 assertThat(
                     searcher.count(
-                        build("add_days", org.elasticsearch.core.Map.of("days", 1)).termQuery(
-                            "2020-07-23T15:36:21.354Z",
-                            mockContext()
-                        )
+                        build("add_days", org.elasticsearch.core.Map.of("days", 1)).termQuery("2020-07-23T15:36:21.354Z", mockContext())
                     ),
                     equalTo(1)
                 );
@@ -439,12 +406,8 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     @Override
     public void testTermsQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(
-                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181354]}")))
-            );
-            iw.addDocument(
-                org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181355]}")))
-            );
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181354]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181355]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 MappedFieldType ft = simpleMappedFieldType();
                 IndexSearcher searcher = newSearcher(reader);
@@ -452,18 +415,9 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                     searcher.count(ft.termsQuery(org.elasticsearch.core.List.of("2020-07-22T15:36:21.354Z"), mockContext())),
                     equalTo(1)
                 );
-                assertThat(
-                    searcher.count(ft.termsQuery(org.elasticsearch.core.List.of("1595432181354"), mockContext())),
-                    equalTo(1)
-                );
-                assertThat(
-                    searcher.count(ft.termsQuery(org.elasticsearch.core.List.of(1595432181354L), mockContext())),
-                    equalTo(1)
-                );
-                assertThat(
-                    searcher.count(ft.termsQuery(org.elasticsearch.core.List.of(2595432181354L), mockContext())),
-                    equalTo(0)
-                );
+                assertThat(searcher.count(ft.termsQuery(org.elasticsearch.core.List.of("1595432181354"), mockContext())), equalTo(1));
+                assertThat(searcher.count(ft.termsQuery(org.elasticsearch.core.List.of(1595432181354L), mockContext())), equalTo(1));
+                assertThat(searcher.count(ft.termsQuery(org.elasticsearch.core.List.of(2595432181354L), mockContext())), equalTo(0));
                 assertThat(
                     searcher.count(ft.termsQuery(org.elasticsearch.core.List.of(1595432181354L, 2595432181354L), mockContext())),
                     equalTo(1)

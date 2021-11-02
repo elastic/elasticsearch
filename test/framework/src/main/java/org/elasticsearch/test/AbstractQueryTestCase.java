@@ -25,17 +25,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentParseException;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -43,6 +33,16 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.QueryParsers;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentGenerator;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -65,7 +65,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
-
 
 public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends AbstractBuilderTestCase {
 
@@ -93,8 +92,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
     public void testNegativeBoosts() {
         QB testQuery = createTestQueryBuilder();
-        IllegalArgumentException exc =
-            expectThrows(IllegalArgumentException.class, () -> testQuery.boost(-0.5f));
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> testQuery.boost(-0.5f));
         assertThat(exc.getMessage(), containsString("negative [boost]"));
     }
 
@@ -106,8 +104,13 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         for (int runs = 0; runs < NUMBER_OF_TESTQUERIES; runs++) {
             QB testQuery = createTestQueryBuilder();
             XContentType xContentType = randomFrom(XContentType.values());
-            BytesReference shuffledXContent = toShuffledXContent(testQuery, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean(),
-                    shuffleProtectedFields());
+            BytesReference shuffledXContent = toShuffledXContent(
+                testQuery,
+                xContentType,
+                ToXContent.EMPTY_PARAMS,
+                randomBoolean(),
+                shuffleProtectedFields()
+            );
             assertParsedQuery(createParser(xContentType.xContent(), shuffledXContent), testQuery);
             for (Map.Entry<String, QB> alternateVersion : getAlternateVersions().entrySet()) {
                 String queryAsString = alternateVersion.getKey();
@@ -237,8 +240,11 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 BytesStreamOutput out = new BytesStreamOutput();
                 try (
                     XContentGenerator generator = XContentType.JSON.xContent().createGenerator(out);
-                    XContentParser parser = JsonXContent.jsonXContent
-                        .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, query);
+                    XContentParser parser = JsonXContent.jsonXContent.createParser(
+                        NamedXContentRegistry.EMPTY,
+                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                        query
+                    );
                 ) {
                     int objectIndex = -1;
                     Deque<String> levels = new LinkedList<>();
@@ -341,9 +347,11 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             }
         }
 
-        String testQuery = validQuery.substring(0, insertionPosition) + "[" +
-                validQuery.substring(insertionPosition, endArrayPosition) + "]" +
-                validQuery.substring(endArrayPosition, validQuery.length());
+        String testQuery = validQuery.substring(0, insertionPosition)
+            + "["
+            + validQuery.substring(insertionPosition, endArrayPosition)
+            + "]"
+            + validQuery.substring(endArrayPosition, validQuery.length());
 
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(testQuery));
         assertEquals("[" + queryName + "] query malformed, no start_object after query name", e.getMessage());
@@ -418,20 +426,32 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             Query firstLuceneQuery = rewritten.toQuery(context);
             assertNotNull("toQuery should not return null", firstLuceneQuery);
             assertLuceneQuery(firstQuery, firstLuceneQuery, context);
-            //remove after assertLuceneQuery since the assertLuceneQuery impl might access the context as well
+            // remove after assertLuceneQuery since the assertLuceneQuery impl might access the context as well
             assertTrue(
-                    "query is not equal to its copy after calling toQuery, firstQuery: " + firstQuery + ", secondQuery: " + controlQuery,
-                    firstQuery.equals(controlQuery));
-            assertTrue("equals is not symmetric after calling toQuery, firstQuery: " + firstQuery + ", secondQuery: " + controlQuery,
-                    controlQuery.equals(firstQuery));
-            assertThat("query copy's hashcode is different from original hashcode after calling toQuery, firstQuery: " + firstQuery
-                    + ", secondQuery: " + controlQuery, controlQuery.hashCode(), equalTo(firstQuery.hashCode()));
+                "query is not equal to its copy after calling toQuery, firstQuery: " + firstQuery + ", secondQuery: " + controlQuery,
+                firstQuery.equals(controlQuery)
+            );
+            assertTrue(
+                "equals is not symmetric after calling toQuery, firstQuery: " + firstQuery + ", secondQuery: " + controlQuery,
+                controlQuery.equals(firstQuery)
+            );
+            assertThat(
+                "query copy's hashcode is different from original hashcode after calling toQuery, firstQuery: "
+                    + firstQuery
+                    + ", secondQuery: "
+                    + controlQuery,
+                controlQuery.hashCode(),
+                equalTo(firstQuery.hashCode())
+            );
 
             QB secondQuery = copyQuery(firstQuery);
             // query _name never should affect the result of toQuery, we randomly set it to make sure
             if (randomBoolean()) {
-                secondQuery.queryName(secondQuery.queryName() == null ? randomAlphaOfLengthBetween(1, 30) : secondQuery.queryName()
-                        + randomAlphaOfLengthBetween(1, 10));
+                secondQuery.queryName(
+                    secondQuery.queryName() == null
+                        ? randomAlphaOfLengthBetween(1, 30)
+                        : secondQuery.queryName() + randomAlphaOfLengthBetween(1, 10)
+                );
             }
             context = new SearchExecutionContext(context);
             Query secondLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
@@ -439,17 +459,26 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             assertLuceneQuery(secondQuery, secondLuceneQuery, context);
 
             if (builderGeneratesCacheableQueries()) {
-                assertEquals("two equivalent query builders lead to different lucene queries hashcode",
-                    secondLuceneQuery.hashCode(), firstLuceneQuery.hashCode());
-                assertEquals("two equivalent query builders lead to different lucene queries",
-                    rewrite(secondLuceneQuery), rewrite(firstLuceneQuery));
+                assertEquals(
+                    "two equivalent query builders lead to different lucene queries hashcode",
+                    secondLuceneQuery.hashCode(),
+                    firstLuceneQuery.hashCode()
+                );
+                assertEquals(
+                    "two equivalent query builders lead to different lucene queries",
+                    rewrite(secondLuceneQuery),
+                    rewrite(firstLuceneQuery)
+                );
             }
 
             if (supportsBoost() && firstLuceneQuery instanceof MatchNoDocsQuery == false) {
                 secondQuery.boost(firstQuery.boost() + 1f + randomFloat());
                 Query thirdLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
-                assertNotEquals("modifying the boost doesn't affect the corresponding lucene query", rewrite(firstLuceneQuery),
-                        rewrite(thirdLuceneQuery));
+                assertNotEquals(
+                    "modifying the boost doesn't affect the corresponding lucene query",
+                    rewrite(firstLuceneQuery),
+                    rewrite(thirdLuceneQuery)
+                );
             }
         }
     }
@@ -493,8 +522,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         }
         if (query != null) {
             if (queryBuilder.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-                assertThat(query, either(instanceOf(BoostQuery.class))
-                        .or(instanceOf(MatchNoDocsQuery.class)));
+                assertThat(query, either(instanceOf(BoostQuery.class)).or(instanceOf(MatchNoDocsQuery.class)));
                 if (query instanceof BoostQuery) {
                     BoostQuery boostQuery = (BoostQuery) query;
                     if (boostQuery.getQuery() instanceof MatchNoDocsQuery == false) {
@@ -594,15 +622,18 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     protected QB changeNameOrBoost(QB original) throws IOException {
         QB secondQuery = copyQuery(original);
         if (randomBoolean()) {
-            secondQuery.queryName(secondQuery.queryName() == null ? randomAlphaOfLengthBetween(1, 30) : secondQuery.queryName()
-                    + randomAlphaOfLengthBetween(1, 10));
+            secondQuery.queryName(
+                secondQuery.queryName() == null
+                    ? randomAlphaOfLengthBetween(1, 30)
+                    : secondQuery.queryName() + randomAlphaOfLengthBetween(1, 10)
+            );
         } else {
             secondQuery.boost(original.boost() + 1f + randomFloat());
         }
         return secondQuery;
     }
 
-    //we use the streaming infra to create a copy of the query provided as argument
+    // we use the streaming infra to create a copy of the query provided as argument
     @SuppressWarnings("unchecked")
     private QB copyQuery(QB query) throws IOException {
         Reader<QB> reader = (Reader<QB>) namedWriteableRegistry().getReader(QueryBuilder.class, query.getWriteableName());
@@ -675,13 +706,11 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     protected static String getRandomRewriteMethod() {
         String rewrite;
         if (randomBoolean()) {
-            rewrite = randomFrom(QueryParsers.CONSTANT_SCORE,
-                    QueryParsers.SCORING_BOOLEAN,
-                    QueryParsers.CONSTANT_SCORE_BOOLEAN).getPreferredName();
+            rewrite = randomFrom(QueryParsers.CONSTANT_SCORE, QueryParsers.SCORING_BOOLEAN, QueryParsers.CONSTANT_SCORE_BOOLEAN)
+                .getPreferredName();
         } else {
-            rewrite = randomFrom(QueryParsers.TOP_TERMS,
-                    QueryParsers.TOP_TERMS_BOOST,
-                    QueryParsers.TOP_TERMS_BLENDED_FREQS).getPreferredName() + "1";
+            rewrite = randomFrom(QueryParsers.TOP_TERMS, QueryParsers.TOP_TERMS_BOOST, QueryParsers.TOP_TERMS_BLENDED_FREQS)
+                .getPreferredName() + "1";
         }
         return rewrite;
     }
@@ -733,9 +762,10 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         source.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals(
-                msg(expected, Strings.toString(builder)),
-                expected.replaceAll("\\s+", ""),
-                Strings.toString(builder).replaceAll("\\s+", ""));
+            msg(expected, Strings.toString(builder)),
+            expected.replaceAll("\\s+", ""),
+            Strings.toString(builder).replaceAll("\\s+", "")
+        );
     }
 
     private static String msg(String left, String right) {
@@ -746,18 +776,36 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             if (left.charAt(i) == right.charAt(i)) {
                 builder.append(left.charAt(i));
             } else {
-                builder.append(">> ").append("until offset: ").append(i)
-                        .append(" [").append(left.charAt(i)).append(" vs.").append(right.charAt(i))
-                        .append("] [").append((int) left.charAt(i)).append(" vs.").append((int) right.charAt(i)).append(']');
+                builder.append(">> ")
+                    .append("until offset: ")
+                    .append(i)
+                    .append(" [")
+                    .append(left.charAt(i))
+                    .append(" vs.")
+                    .append(right.charAt(i))
+                    .append("] [")
+                    .append((int) left.charAt(i))
+                    .append(" vs.")
+                    .append((int) right.charAt(i))
+                    .append(']');
                 return builder.toString();
             }
         }
         if (left.length() != right.length()) {
             int leftEnd = Math.max(size, left.length()) - 1;
             int rightEnd = Math.max(size, right.length()) - 1;
-            builder.append(">> ").append("until offset: ").append(size)
-                    .append(" [").append(left.charAt(leftEnd)).append(" vs.").append(right.charAt(rightEnd))
-                    .append("] [").append((int) left.charAt(leftEnd)).append(" vs.").append((int) right.charAt(rightEnd)).append(']');
+            builder.append(">> ")
+                .append("until offset: ")
+                .append(size)
+                .append(" [")
+                .append(left.charAt(leftEnd))
+                .append(" vs.")
+                .append(right.charAt(rightEnd))
+                .append("] [")
+                .append((int) left.charAt(leftEnd))
+                .append(" vs.")
+                .append((int) right.charAt(rightEnd))
+                .append(']');
             return builder.toString();
         }
         return "";

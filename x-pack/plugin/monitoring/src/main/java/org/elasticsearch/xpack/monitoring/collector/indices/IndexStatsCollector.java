@@ -42,9 +42,7 @@ public class IndexStatsCollector extends Collector {
 
     private final Client client;
 
-    public IndexStatsCollector(final ClusterService clusterService,
-                               final XPackLicenseState licenseState,
-                               final Client client) {
+    public IndexStatsCollector(final ClusterService clusterService, final XPackLicenseState licenseState, final Client client) {
         super("index-stats", clusterService, INDEX_STATS_TIMEOUT, licenseState);
         this.client = client;
     }
@@ -55,26 +53,26 @@ public class IndexStatsCollector extends Collector {
     }
 
     @Override
-    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node,
-                                                  final long interval,
-                                                  final ClusterState clusterState) {
+    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node, final long interval, final ClusterState clusterState) {
         final List<MonitoringDoc> results = new ArrayList<>();
-        final IndicesStatsResponse indicesStatsResponse = client.admin().indices().prepareStats()
-                .setIndices(getCollectionIndices())
-                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .clear()
-                .setDocs(true)
-                .setFieldData(true)
-                .setIndexing(true)
-                .setMerge(true)
-                .setSearch(true)
-                .setSegments(true)
-                .setStore(true)
-                .setRefresh(true)
-                .setQueryCache(true)
-                .setRequestCache(true)
-                .setTimeout(getCollectionTimeout())
-                .get();
+        final IndicesStatsResponse indicesStatsResponse = client.admin()
+            .indices()
+            .prepareStats()
+            .setIndices(getCollectionIndices())
+            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .clear()
+            .setDocs(true)
+            .setFieldData(true)
+            .setIndexing(true)
+            .setMerge(true)
+            .setSearch(true)
+            .setSegments(true)
+            .setStore(true)
+            .setRefresh(true)
+            .setQueryCache(true)
+            .setRequestCache(true)
+            .setTimeout(getCollectionTimeout())
+            .get();
 
         ensureNoTimeouts(getCollectionTimeout(), indicesStatsResponse);
 
@@ -92,8 +90,17 @@ public class IndexStatsCollector extends Collector {
                 // The index appears both in the local cluster state and indices stats response
                 indicesStats.add(indexStats);
 
-                results.add(new IndexStatsMonitoringDoc(clusterUuid, timestamp, interval, node, indexStats,
-                        metadata.index(indexName), routingTable.index(indexName)));
+                results.add(
+                    new IndexStatsMonitoringDoc(
+                        clusterUuid,
+                        timestamp,
+                        interval,
+                        node,
+                        indexStats,
+                        metadata.index(indexName),
+                        routingTable.index(indexName)
+                    )
+                );
             }
         }
         results.add(new IndicesStatsMonitoringDoc(clusterUuid, timestamp, interval, node, indicesStats));

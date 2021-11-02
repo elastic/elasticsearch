@@ -10,8 +10,8 @@ package org.elasticsearch.rest;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.rest.RestRequest.Method;
+import org.elasticsearch.xcontent.XContent;
 
 import java.util.Collections;
 import java.util.List;
@@ -81,10 +81,7 @@ public interface RestHandler {
 
         private final Route replacedRoute;
 
-        private Route(Method method, String path,
-                      RestApiVersion restApiVersion,
-                      String deprecationMessage,
-                      Route replacedRoute) {
+        private Route(Method method, String path, RestApiVersion restApiVersion, String deprecationMessage, Route replacedRoute) {
             this.method = Objects.requireNonNull(method);
             this.path = Objects.requireNonNull(path);
             this.restApiVersion = Objects.requireNonNull(restApiVersion);
@@ -106,9 +103,7 @@ public interface RestHandler {
          * @param path   the path, e.g. "/"
          */
         public Route(Method method, String path) {
-            this(method, path, RestApiVersion.current(),
-                null,
-                null);
+            this(method, path, RestApiVersion.current(), null, null);
         }
 
         public static class RouteBuilder {
@@ -163,22 +158,18 @@ public interface RestHandler {
              */
             public RouteBuilder replaces(Method method, String path, RestApiVersion replacedInVersion) {
                 assert this.deprecationMessage == null;
-                this.replacedRoute = new Route(method, path, replacedInVersion,
-                    null, null);
+                this.replacedRoute = new Route(method, path, replacedInVersion, null, null);
                 return this;
             }
 
             public Route build() {
                 if (replacedRoute != null) {
-                    return new Route(method, path, restApiVersion,
-                        null, replacedRoute);
+                    return new Route(method, path, restApiVersion, null, replacedRoute);
                 } else if (deprecationMessage != null) {
-                    return new Route(method, path, restApiVersion,
-                        deprecationMessage, null);
+                    return new Route(method, path, restApiVersion, deprecationMessage, null);
                 } else {
                     // this is a little silly, but perfectly legal
-                    return new Route(method, path, restApiVersion,
-                        null, null);
+                    return new Route(method, path, restApiVersion, null, null);
                 }
             }
         }

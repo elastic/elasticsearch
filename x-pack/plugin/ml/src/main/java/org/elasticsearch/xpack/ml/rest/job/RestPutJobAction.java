@@ -10,10 +10,10 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
@@ -30,7 +30,8 @@ public class RestPutJobAction extends BaseRestHandler {
     public List<Route> routes() {
         return org.elasticsearch.core.List.of(
             Route.builder(PUT, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}")
-                .replaces(PUT, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}", RestApiVersion.V_7).build()
+                .replaces(PUT, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}", RestApiVersion.V_7)
+                .build()
         );
     }
 

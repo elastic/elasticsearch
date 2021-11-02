@@ -88,11 +88,11 @@ class LatLonShapeDocValuesQuery extends Query {
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
-         if (relation == ShapeField.QueryRelation.CONTAINS) {
-             return getContainsWeight(scoreMode, boost);
-         } else {
+        if (relation == ShapeField.QueryRelation.CONTAINS) {
+            return getContainsWeight(scoreMode, boost);
+        } else {
             return getStandardWeight(scoreMode, boost);
-         }
+        }
     }
 
     private ConstantScoreWeight getStandardWeight(ScoreMode scoreMode, float boost) {

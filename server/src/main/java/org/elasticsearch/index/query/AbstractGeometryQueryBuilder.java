@@ -15,8 +15,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.GeometryIO;
@@ -25,12 +23,14 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -41,8 +41,8 @@ import java.util.function.Supplier;
  */
 public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQueryBuilder<QB>> extends AbstractQueryBuilder<QB> {
 
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Types are deprecated in [geo_shape] queries. " +
-        "The type should no longer be specified in the [indexed_shape] section.";
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Types are deprecated in [geo_shape] queries. "
+        + "The type should no longer be specified in the [indexed_shape] section.";
 
     public static final String DEFAULT_SHAPE_INDEX_NAME = "shapes";
     public static final String DEFAULT_SHAPE_FIELD_NAME = "shape";
@@ -134,8 +134,12 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
         this.supplier = null;
     }
 
-    protected AbstractGeometryQueryBuilder(String fieldName, Supplier<Geometry> supplier, String indexedShapeId,
-                                           @Nullable String indexedShapeType) {
+    protected AbstractGeometryQueryBuilder(
+        String fieldName,
+        Supplier<Geometry> supplier,
+        String indexedShapeId,
+        @Nullable String indexedShapeType
+    ) {
         this.fieldName = fieldName;
         this.shape = null;
         this.supplier = supplier;
@@ -214,7 +218,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
             throw new IllegalArgumentException("No geometry defined");
         }
         this.shape = geometry;
-        return (QB)this;
+        return (QB) this;
     }
 
     /**
@@ -251,7 +255,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
     @SuppressWarnings("unchecked")
     public QB indexedShapeIndex(String indexedShapeIndex) {
         this.indexedShapeIndex = indexedShapeIndex;
-        return (QB)this;
+        return (QB) this;
     }
 
     /**
@@ -271,7 +275,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
     @SuppressWarnings("unchecked")
     public QB indexedShapePath(String indexedShapePath) {
         this.indexedShapePath = indexedShapePath;
-        return (QB)this;
+        return (QB) this;
     }
 
     /**
@@ -290,9 +294,8 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
     @SuppressWarnings("unchecked")
     public QB indexedShapeRouting(String indexedShapeRouting) {
         this.indexedShapeRouting = indexedShapeRouting;
-        return (QB)this;
+        return (QB) this;
     }
-
 
     /**
      * @return the optional routing to the indexed Shape that will be used in the
@@ -314,7 +317,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
             throw new IllegalArgumentException("No Shape Relation defined");
         }
         this.relation = relation;
-        return (QB)this;
+        return (QB) this;
     }
 
     /**
@@ -345,14 +348,20 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
 
     /** builds the appropriate lucene shape query */
     protected abstract Query buildShapeQuery(SearchExecutionContext context, MappedFieldType fieldType);
+
     /** writes the xcontent specific to this shape query */
     protected abstract void doShapeQueryXContent(XContentBuilder builder, Params params) throws IOException;
+
     /** creates a new ShapeQueryBuilder from the provided field name and shape builder */
     protected abstract AbstractGeometryQueryBuilder<QB> newShapeQueryBuilder(String fieldName, Geometry shape);
-    /** creates a new ShapeQueryBuilder from the provided field name, supplier, indexed shape id, and indexed shape type */
-    protected abstract AbstractGeometryQueryBuilder<QB> newShapeQueryBuilder(String fieldName, Supplier<Geometry> shapeSupplier,
-                                                                             String indexedShapeId, String indexedShapeType);
 
+    /** creates a new ShapeQueryBuilder from the provided field name, supplier, indexed shape id, and indexed shape type */
+    protected abstract AbstractGeometryQueryBuilder<QB> newShapeQueryBuilder(
+        String fieldName,
+        Supplier<Geometry> shapeSupplier,
+        String indexedShapeId,
+        String indexedShapeType
+    );
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) {
@@ -384,20 +393,26 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
         client.get(getRequest, listener.delegateFailure((l, response) -> {
             try {
                 if (response.isExists() == false) {
-                    throw new IllegalArgumentException("Shape with ID [" + getRequest.id() + "] in type [" + getRequest.type()
-                        + "] not found");
+                    throw new IllegalArgumentException(
+                        "Shape with ID [" + getRequest.id() + "] in type [" + getRequest.type() + "] not found"
+                    );
                 }
                 if (response.isSourceEmpty()) {
-                    throw new IllegalArgumentException("Shape with ID [" + getRequest.id() + "] in type [" + getRequest.type() +
-                        "] source disabled");
+                    throw new IllegalArgumentException(
+                        "Shape with ID [" + getRequest.id() + "] in type [" + getRequest.type() + "] source disabled"
+                    );
                 }
                 String[] pathElements = path.split("\\.");
                 int currentPathSlot = 0;
 
                 // It is safe to use EMPTY here because this never uses namedObject
-                try (XContentParser parser = XContentHelper
-                    .createParser(NamedXContentRegistry.EMPTY,
-                        LoggingDeprecationHandler.INSTANCE, response.getSourceAsBytesRef())) {
+                try (
+                    XContentParser parser = XContentHelper.createParser(
+                        NamedXContentRegistry.EMPTY,
+                        LoggingDeprecationHandler.INSTANCE,
+                        response.getSourceAsBytesRef()
+                    )
+                ) {
                     XContentParser.Token currentToken;
                     while ((currentToken = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (currentToken == XContentParser.Token.FIELD_NAME) {
@@ -431,8 +446,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
             builder.field(SHAPE_FIELD.getPreferredName());
             GeoJson.toXContent(shape, builder, params);
         } else {
-            builder.startObject(INDEXED_SHAPE_FIELD.getPreferredName())
-                .field(SHAPE_ID_FIELD.getPreferredName(), indexedShapeId);
+            builder.startObject(INDEXED_SHAPE_FIELD.getPreferredName()).field(SHAPE_ID_FIELD.getPreferredName(), indexedShapeId);
             if (indexedShapeType != null) {
                 builder.field(SHAPE_TYPE_FIELD.getPreferredName(), indexedShapeType);
             }
@@ -448,7 +462,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
             builder.endObject();
         }
 
-        if(relation != null) {
+        if (relation != null) {
             builder.field(RELATION_FIELD.getPreferredName(), relation.getRelationName());
         }
 
@@ -478,8 +492,18 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, indexedShapeId, indexedShapeIndex,
-            indexedShapePath, indexedShapeType, indexedShapeRouting, relation, shape, ignoreUnmapped, supplier);
+        return Objects.hash(
+            fieldName,
+            indexedShapeId,
+            indexedShapeIndex,
+            indexedShapePath,
+            indexedShapeType,
+            indexedShapeRouting,
+            relation,
+            shape,
+            ignoreUnmapped,
+            supplier
+        );
     }
 
     @Override
@@ -496,7 +520,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
                     getRequest = new GetRequest(indexedShapeIndex, indexedShapeType, indexedShapeId);
                 }
                 getRequest.routing(indexedShapeRouting);
-                fetch(client, getRequest, indexedShapePath, ActionListener.wrap(builder-> {
+                fetch(client, getRequest, indexedShapePath, ActionListener.wrap(builder -> {
                     supplier.set(builder);
                     listener.onResponse(null);
                 }, listener::onFailure));
@@ -567,8 +591,10 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
                                         params.shapeRouting = parser.text();
                                     }
                                 } else {
-                                    throw new ParsingException(parser.getTokenLocation(), "unknown token [" + token
-                                        + "] after [" + currentFieldName + "]");
+                                    throw new ParsingException(
+                                        parser.getTokenLocation(),
+                                        "unknown token [" + token + "] after [" + currentFieldName + "]"
+                                    );
                                 }
                             }
                         } else {

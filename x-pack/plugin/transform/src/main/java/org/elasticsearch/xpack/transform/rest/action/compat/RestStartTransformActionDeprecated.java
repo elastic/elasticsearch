@@ -29,7 +29,8 @@ public class RestStartTransformActionDeprecated extends BaseRestHandler {
     public List<Route> routes() {
         return org.elasticsearch.core.List.of(
             Route.builder(POST, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED + "_start")
-                .deprecated(TransformMessages.REST_DEPRECATED_ENDPOINT, RestApiVersion.V_7).build()
+                .deprecated(TransformMessages.REST_DEPRECATED_ENDPOINT, RestApiVersion.V_7)
+                .build()
         );
     }
 
@@ -39,8 +40,7 @@ public class RestStartTransformActionDeprecated extends BaseRestHandler {
         TimeValue timeout = restRequest.paramAsTime(TransformField.TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
 
         StartTransformAction.Request request = new StartTransformAction.Request(id, timeout);
-        return channel -> client.execute(StartTransformActionDeprecated.INSTANCE, request,
-            new RestToXContentListener<>(channel));
+        return channel -> client.execute(StartTransformActionDeprecated.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 
     @Override

@@ -62,11 +62,11 @@ public class HistoryStore {
      */
     public void forcePut(WatchRecord watchRecord) {
         String index = HistoryStoreField.getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime(), clusterStateSupplier.get());
-            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                watchRecord.toXContent(builder, WatcherParams.HIDE_SECRETS);
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            watchRecord.toXContent(builder, WatcherParams.HIDE_SECRETS);
 
-                IndexRequest request = new IndexRequest(index).id(watchRecord.id().value()).source(builder);
-                bulkProcessor.add(request);
+            IndexRequest request = new IndexRequest(index).id(watchRecord.id().value()).source(builder);
+            bulkProcessor.add(request);
         } catch (IOException ioe) {
             final WatchRecord wr = watchRecord;
             logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to persist watch record [{}]", wr), ioe);
@@ -83,7 +83,8 @@ public class HistoryStore {
     public static boolean validate(ClusterState state) {
         String currentIndex = HistoryStoreField.getHistoryIndexNameForTime(ZonedDateTime.now(ZoneOffset.UTC), state);
         IndexMetadata indexMetadata = WatchStoreUtils.getConcreteIndex(currentIndex, state.metadata());
-        return indexMetadata == null || (indexMetadata.getState() == IndexMetadata.State.OPEN &&
-            state.routingTable().index(indexMetadata.getIndex()).allPrimaryShardsActive());
+        return indexMetadata == null
+            || (indexMetadata.getState() == IndexMetadata.State.OPEN
+                && state.routingTable().index(indexMetadata.getIndex()).allPrimaryShardsActive());
     }
 }

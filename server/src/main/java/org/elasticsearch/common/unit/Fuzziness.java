@@ -9,10 +9,10 @@ package org.elasticsearch.common.unit;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -58,8 +58,9 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
     private Fuzziness(String fuzziness, int lowDistance, int highDistance) {
         this(fuzziness);
         if (lowDistance < 0 || highDistance < 0 || lowDistance > highDistance) {
-            throw new IllegalArgumentException("fuzziness wrongly configured, must be: lowDistance > 0, highDistance" +
-                " > 0 and lowDistance <= highDistance ");
+            throw new IllegalArgumentException(
+                "fuzziness wrongly configured, must be: lowDistance > 0, highDistance" + " > 0 and lowDistance <= highDistance "
+            );
         }
         this.lowDistance = lowDistance;
         this.highDistance = highDistance;
@@ -115,7 +116,7 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
         return new Fuzziness(string);
     }
 
-    private static Fuzziness parseCustomAuto( final String string) {
+    private static Fuzziness parseCustomAuto(final String string) {
         assert string.toUpperCase(Locale.ROOT).startsWith(AUTO.asString() + ":");
         String[] fuzzinessLimit = string.substring(AUTO.asString().length() + 1).split(",");
         if (fuzzinessLimit.length == 2) {
@@ -124,8 +125,7 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
                 int highLimit = Integer.parseInt(fuzzinessLimit[1]);
                 return new Fuzziness("AUTO", lowerLimit, highLimit);
             } catch (NumberFormatException e) {
-                throw new ElasticsearchParseException("failed to parse [{}] as a \"auto:int,int\"", e,
-                    string);
+                throw new ElasticsearchParseException("failed to parse [{}] as a \"auto:int,int\"", e, string);
             }
         } else {
             throw new ElasticsearchParseException("failed to find low and high distance values");
@@ -175,7 +175,7 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
     }
 
     public int asDistance(String text) {
-        if (this.equals(AUTO) || isAutoWithCustomValues()) { //AUTO
+        if (this.equals(AUTO) || isAutoWithCustomValues()) { // AUTO
             final int len = termLen(text);
             if (len < lowDistance) {
                 return 0;
@@ -207,8 +207,7 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
     }
 
     private boolean isAutoWithCustomValues() {
-        return fuzziness.startsWith("AUTO") && (lowDistance != DEFAULT_LOW_DISTANCE ||
-            highDistance != DEFAULT_HIGH_DISTANCE);
+        return fuzziness.startsWith("AUTO") && (lowDistance != DEFAULT_LOW_DISTANCE || highDistance != DEFAULT_HIGH_DISTANCE);
     }
 
     @Override
@@ -220,9 +219,7 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
             return false;
         }
         Fuzziness other = (Fuzziness) obj;
-        return Objects.equals(fuzziness, other.fuzziness) &&
-                lowDistance == other.lowDistance &&
-                highDistance == other.highDistance;
+        return Objects.equals(fuzziness, other.fuzziness) && lowDistance == other.lowDistance && highDistance == other.highDistance;
     }
 
     @Override

@@ -10,24 +10,24 @@ package org.elasticsearch.xpack.spatial.util;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.geo.GeometryNormalizer;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeometryNormalizer;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.geo.GeometryTestUtils;
-import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.xpack.spatial.index.fielddata.CentroidCalculator;
 import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
@@ -51,7 +51,7 @@ public class GeoTestUtils {
     public static BinaryGeoShapeDocValuesField binaryGeoShapeDocValuesField(String name, Geometry geometry) {
         GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, name);
         BinaryGeoShapeDocValuesField field = new BinaryGeoShapeDocValuesField(name);
-        field.add(indexer.indexShape(geometry) , geometry);
+        field.add(indexer.indexShape(geometry), geometry);
         return field;
     }
 
@@ -63,8 +63,10 @@ public class GeoTestUtils {
 
     public static GeoBoundingBox randomBBox() {
         Rectangle rectangle = GeometryTestUtils.randomRectangle();
-        return new GeoBoundingBox(new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
-            new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon()));
+        return new GeoBoundingBox(
+            new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
+            new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon())
+        );
     }
 
     public static double encodeDecodeLat(double lat) {
@@ -82,8 +84,12 @@ public class GeoTestUtils {
     }
 
     public static Geometry fromGeoJsonString(String geoJson) throws Exception {
-        XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-            new BytesArray(geoJson), XContentType.JSON);
+        XContentParser parser = XContentHelper.createParser(
+            NamedXContentRegistry.EMPTY,
+            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+            new BytesArray(geoJson),
+            XContentType.JSON
+        );
         parser.nextToken();
         Geometry geometry = new GeometryParser(true, true, true).parse(parser);
         return GeometryNormalizer.apply(Orientation.CCW, geometry);

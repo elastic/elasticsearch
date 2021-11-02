@@ -1,4 +1,5 @@
-/* @notice
+/*
+ * @notice
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
@@ -87,13 +88,14 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
      * @param topN              How many top groups to keep.
      * @param after             The field values to search after. Can be null.
      */
-    public static SinglePassGroupingCollector<?> createNumeric(String groupField,
-                                                              MappedFieldType groupFieldType,
-                                                              Sort groupSort,
-                                                              int topN,
-                                                              @Nullable FieldDoc after)  {
-        return new SinglePassGroupingCollector<>(new GroupingDocValuesSelector.Numeric(groupFieldType),
-            groupField, groupSort, topN, after);
+    public static SinglePassGroupingCollector<?> createNumeric(
+        String groupField,
+        MappedFieldType groupFieldType,
+        Sort groupSort,
+        int topN,
+        @Nullable FieldDoc after
+    ) {
+        return new SinglePassGroupingCollector<>(new GroupingDocValuesSelector.Numeric(groupFieldType), groupField, groupSort, topN, after);
     }
 
     /**
@@ -109,13 +111,14 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
      * @param topN              How many top groups to keep.
      * @param after             The field values to search after. Can be null.
      */
-    public static SinglePassGroupingCollector<?> createKeyword(String groupField,
-                                                              MappedFieldType groupFieldType,
-                                                              Sort groupSort,
-                                                              int topN,
-                                                              @Nullable FieldDoc after)  {
-        return new SinglePassGroupingCollector<>(new GroupingDocValuesSelector.Keyword(groupFieldType),
-            groupField, groupSort, topN, after);
+    public static SinglePassGroupingCollector<?> createKeyword(
+        String groupField,
+        MappedFieldType groupFieldType,
+        Sort groupSort,
+        int topN,
+        @Nullable FieldDoc after
+    ) {
+        return new SinglePassGroupingCollector<>(new GroupingDocValuesSelector.Keyword(groupFieldType), groupField, groupSort, topN, after);
     }
 
     private final String groupField;
@@ -138,11 +141,13 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
     private int docBase;
     private int spareSlot;
 
-    private SinglePassGroupingCollector(GroupSelector<T> groupSelector,
-                                        String groupField,
-                                        Sort groupSort,
-                                        int topNGroups,
-                                        @Nullable FieldDoc after) {
+    private SinglePassGroupingCollector(
+        GroupSelector<T> groupSelector,
+        String groupField,
+        Sort groupSort,
+        int topNGroups,
+        @Nullable FieldDoc after
+    ) {
         assert after == null || (groupSort.getSort().length == 1 && after.doc == Integer.MAX_VALUE);
         this.groupSelector = groupSelector;
         this.groupField = groupField;
@@ -262,7 +267,7 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
         // Downside: if the number of unique groups is very low, this is
         // wasted effort as we will most likely be updating an existing group.
         if (orderedGroups != null) {
-            for (int compIDX = 0; ; compIDX++) {
+            for (int compIDX = 0;; compIDX++) {
                 final int c = reversed[compIDX] * leafComparators[compIDX].compareBottom(doc);
                 if (c < 0) {
                     // Definitely not competitive. So don't even bother to continue
@@ -353,11 +358,10 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
         }
 
         // Update existing group:
-        for (int compIDX = 0; ; compIDX++) {
+        for (int compIDX = 0;; compIDX++) {
             leafComparators[compIDX].copy(spareSlot, doc);
 
-            final int c =
-                reversed[compIDX] * comparators[compIDX].compare(group.slot, spareSlot);
+            final int c = reversed[compIDX] * comparators[compIDX].compare(group.slot, spareSlot);
             if (c < 0) {
                 // Definitely not competitive.
                 return;
@@ -410,18 +414,17 @@ public class SinglePassGroupingCollector<T> extends SimpleCollector {
     }
 
     private void buildSortedSet() throws IOException {
-        final Comparator<SearchGroup<?>> comparator =
-            (o1, o2) -> {
-                for (int compIDX = 0; ; compIDX++) {
-                    FieldComparator<?> fc = comparators[compIDX];
-                    final int c = reversed[compIDX] * fc.compare(o1.slot, o2.slot);
-                    if (c != 0) {
-                        return c;
-                    } else if (compIDX == compIDXEnd) {
-                        return o1.doc - o2.doc;
-                    }
+        final Comparator<SearchGroup<?>> comparator = (o1, o2) -> {
+            for (int compIDX = 0;; compIDX++) {
+                FieldComparator<?> fc = comparators[compIDX];
+                final int c = reversed[compIDX] * fc.compare(o1.slot, o2.slot);
+                if (c != 0) {
+                    return c;
+                } else if (compIDX == compIDXEnd) {
+                    return o1.doc - o2.doc;
                 }
-            };
+            }
+        };
 
         orderedGroups = new TreeSet<>(comparator);
         orderedGroups.addAll(groupMap.values());

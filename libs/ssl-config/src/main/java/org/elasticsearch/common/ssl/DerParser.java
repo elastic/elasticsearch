@@ -1,22 +1,22 @@
-/* @notice
-  Copyright (c) 1998-2010 AOL Inc.
-
-  Licensed under the Apache License, Version 2.0 (the "License");
-  you may not use this file except in compliance with the License.
-  You may obtain a copy of the License at
-
-      http://www.apache.org/licenses/LICENSE-2.0
-
-  Unless required by applicable law or agreed to in writing, software
-  distributed under the License is distributed on an "AS IS" BASIS,
-  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-  See the License for the specific language governing permissions and
-  limitations under the License.
-
+/*
+ * @notice
+ * Copyright (c) 1998-2010 AOL Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ *
  */
 
 package org.elasticsearch.common.ssl;
-
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -86,14 +86,16 @@ public final class DerParser {
         // getLength() can return any 32 bit integer, so ensure that a corrupted encoding won't
         // force us into allocating a very large array
         if (length > maxAsnObjectLength) {
-            throw new IOException("Invalid DER: size of ASN.1 object to be parsed appears to be larger than the size of the key file " +
-                "itself.");
+            throw new IOException(
+                "Invalid DER: size of ASN.1 object to be parsed appears to be larger than the size of the key file " + "itself."
+            );
         }
         byte[] value = new byte[length];
         int n = derInputStream.read(value);
         if (n < length) {
-            throw new IOException("Invalid DER: stream too short, missing value. " +
-                    "Could only read " + n + " out of " + length + " bytes");
+            throw new IOException(
+                "Invalid DER: stream too short, missing value. " + "Could only read " + n + " out of " + length + " bytes"
+            );
         }
         return new Asn1Object(tag, length, value);
 
@@ -121,28 +123,22 @@ public final class DerParser {
     private int getLength() throws IOException {
 
         int i = derInputStream.read();
-        if (i == -1)
-            throw new IOException("Invalid DER: length missing");
+        if (i == -1) throw new IOException("Invalid DER: length missing");
 
         // A single byte short length
-        if ((i & ~0x7F) == 0)
-            return i;
+        if ((i & ~0x7F) == 0) return i;
 
         int num = i & 0x7F;
 
         // We can't handle length longer than 4 bytes
-        if (i >= 0xFF || num > 4)
-            throw new IOException("Invalid DER: length field too big ("
-                    + i + ")"); //$NON-NLS-1$
+        if (i >= 0xFF || num > 4) throw new IOException("Invalid DER: length field too big (" + i + ")"); //$NON-NLS-2$
 
         byte[] bytes = new byte[num];
         int n = derInputStream.read(bytes);
-        if (n < num)
-            throw new IOException("Invalid DER: length too short");
+        if (n < num) throw new IOException("Invalid DER: length too short");
 
         return new BigInteger(1, bytes).intValue();
     }
-
 
     /**
      * An ASN.1 TLV. The object is not parsed. It can
@@ -224,8 +220,7 @@ public final class DerParser {
          * @return BigInteger
          */
         public BigInteger getInteger() throws IOException {
-            if (type != Type.INTEGER)
-                throw new IOException("Invalid DER: object is not integer"); //$NON-NLS-1$
+            if (type != Type.INTEGER) throw new IOException("Invalid DER: object is not integer"); //$NON-NLS-1$
 
             return new BigInteger(value);
         }
@@ -300,6 +295,7 @@ public final class DerParser {
     }
 
     private static final char[] HEX_DIGITS = "0123456789abcdef".toCharArray();
+
     private static String toHexString(byte[] bytes) {
         Objects.requireNonNull(bytes);
         StringBuilder sb = new StringBuilder(2 * bytes.length);

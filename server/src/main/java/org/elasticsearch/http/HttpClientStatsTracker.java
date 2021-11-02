@@ -82,10 +82,14 @@ public class HttpClientStatsTracker {
             return;
         }
 
-        httpChannelStats.putIfAbsent(httpChannel, new ClientStatsBuilder(
-            System.identityHashCode(httpChannel),
-            formatAddress(httpChannel.getRemoteAddress()),
-            threadPool.absoluteTimeInMillis()));
+        httpChannelStats.putIfAbsent(
+            httpChannel,
+            new ClientStatsBuilder(
+                System.identityHashCode(httpChannel),
+                formatAddress(httpChannel.getRemoteAddress()),
+                threadPool.absoluteTimeInMillis()
+            )
+        );
         httpChannel.addCloseListener(ActionListener.wrap(() -> {
             try {
                 final ClientStatsBuilder disconnectedClientStats = httpChannelStats.remove(httpChannel);

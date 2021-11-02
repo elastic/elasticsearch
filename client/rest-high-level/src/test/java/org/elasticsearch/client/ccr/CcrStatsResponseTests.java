@@ -50,8 +50,10 @@ public class CcrStatsResponseTests extends AbstractResponseTestCase<CcrStatsActi
         final int count = randomIntBetween(0, 16);
         final NavigableMap<String, Tuple<Long, ElasticsearchException>> readExceptions = new TreeMap<>();
         for (int i = 0; i < count; i++) {
-            readExceptions.put("" + i, Tuple.tuple(randomNonNegativeLong(),
-                new ElasticsearchException(new IllegalStateException("index [" + i + "]"))));
+            readExceptions.put(
+                "" + i,
+                Tuple.tuple(randomNonNegativeLong(), new ElasticsearchException(new IllegalStateException("index [" + i + "]")))
+            );
         }
         return readExceptions;
     }
@@ -60,8 +62,10 @@ public class CcrStatsResponseTests extends AbstractResponseTestCase<CcrStatsActi
         final int count = randomIntBetween(0, 16);
         final NavigableMap<String, org.elasticsearch.xpack.core.ccr.AutoFollowStats.AutoFollowedCluster> readExceptions = new TreeMap<>();
         for (int i = 0; i < count; i++) {
-            readExceptions.put("" + i,
-                new org.elasticsearch.xpack.core.ccr.AutoFollowStats.AutoFollowedCluster(randomLong(), randomNonNegativeLong()));
+            readExceptions.put(
+                "" + i,
+                new org.elasticsearch.xpack.core.ccr.AutoFollowStats.AutoFollowedCluster(randomLong(), randomNonNegativeLong())
+            );
         }
         return readExceptions;
     }
@@ -99,7 +103,8 @@ public class CcrStatsResponseTests extends AbstractResponseTestCase<CcrStatsActi
                 randomNonNegativeLong(),
                 Collections.emptyNavigableMap(),
                 randomNonNegativeLong(),
-                randomBoolean() ? new ElasticsearchException("fatal error") : null);
+                randomBoolean() ? new ElasticsearchException("fatal error") : null
+            );
             responses.add(new FollowStatsAction.StatsResponse(status));
         }
         return new FollowStatsAction.StatsResponses(Collections.emptyList(), Collections.emptyList(), responses);
@@ -115,27 +120,38 @@ public class CcrStatsResponseTests extends AbstractResponseTestCase<CcrStatsActi
         {
             AutoFollowStats newAutoFollowStats = clientInstance.getAutoFollowStats();
             org.elasticsearch.xpack.core.ccr.AutoFollowStats expectedAutoFollowStats = serverTestInstance.getAutoFollowStats();
-            assertThat(newAutoFollowStats.getNumberOfSuccessfulFollowIndices(),
-                equalTo(expectedAutoFollowStats.getNumberOfSuccessfulFollowIndices()));
-            assertThat(newAutoFollowStats.getNumberOfFailedRemoteClusterStateRequests(),
-                equalTo(expectedAutoFollowStats.getNumberOfFailedRemoteClusterStateRequests()));
-            assertThat(newAutoFollowStats.getNumberOfFailedFollowIndices(),
-                equalTo(expectedAutoFollowStats.getNumberOfFailedFollowIndices()));
-            assertThat(newAutoFollowStats.getRecentAutoFollowErrors().size(),
-                equalTo(expectedAutoFollowStats.getRecentAutoFollowErrors().size()));
-            assertThat(newAutoFollowStats.getRecentAutoFollowErrors().keySet(),
-                equalTo(expectedAutoFollowStats.getRecentAutoFollowErrors().keySet()));
-            for (final Map.Entry<String, Tuple<Long, ElasticsearchException>> entry :
-                newAutoFollowStats.getRecentAutoFollowErrors().entrySet()) {
+            assertThat(
+                newAutoFollowStats.getNumberOfSuccessfulFollowIndices(),
+                equalTo(expectedAutoFollowStats.getNumberOfSuccessfulFollowIndices())
+            );
+            assertThat(
+                newAutoFollowStats.getNumberOfFailedRemoteClusterStateRequests(),
+                equalTo(expectedAutoFollowStats.getNumberOfFailedRemoteClusterStateRequests())
+            );
+            assertThat(
+                newAutoFollowStats.getNumberOfFailedFollowIndices(),
+                equalTo(expectedAutoFollowStats.getNumberOfFailedFollowIndices())
+            );
+            assertThat(
+                newAutoFollowStats.getRecentAutoFollowErrors().size(),
+                equalTo(expectedAutoFollowStats.getRecentAutoFollowErrors().size())
+            );
+            assertThat(
+                newAutoFollowStats.getRecentAutoFollowErrors().keySet(),
+                equalTo(expectedAutoFollowStats.getRecentAutoFollowErrors().keySet())
+            );
+            for (final Map.Entry<String, Tuple<Long, ElasticsearchException>> entry : newAutoFollowStats.getRecentAutoFollowErrors()
+                .entrySet()) {
                 // x-content loses the exception
-                final Tuple<Long, ElasticsearchException> expected =
-                    expectedAutoFollowStats.getRecentAutoFollowErrors().get(entry.getKey());
+                final Tuple<Long, ElasticsearchException> expected = expectedAutoFollowStats.getRecentAutoFollowErrors()
+                    .get(entry.getKey());
                 assertThat(entry.getValue().v2().getMessage(), containsString(expected.v2().getMessage()));
                 assertThat(entry.getValue().v1(), equalTo(expected.v1()));
                 assertNotNull(entry.getValue().v2().getCause());
                 assertThat(
                     entry.getValue().v2().getCause(),
-                    anyOf(instanceOf(ElasticsearchException.class), instanceOf(IllegalStateException.class)));
+                    anyOf(instanceOf(ElasticsearchException.class), instanceOf(IllegalStateException.class))
+                );
                 assertThat(entry.getValue().v2().getCause().getMessage(), containsString(expected.v2().getCause().getMessage()));
             }
         }
@@ -145,14 +161,11 @@ public class CcrStatsResponseTests extends AbstractResponseTestCase<CcrStatsActi
             // sort by index name, then shard ID
             final Map<String, Map<Integer, FollowStatsAction.StatsResponse>> expectedIndicesFollowStats = new TreeMap<>();
             for (final FollowStatsAction.StatsResponse statsResponse : serverTestInstance.getFollowStats().getStatsResponses()) {
-                expectedIndicesFollowStats.computeIfAbsent(
-                    statsResponse.status().followerIndex(),
-                    k -> new TreeMap<>()).put(statsResponse.status().getShardId(), statsResponse);
+                expectedIndicesFollowStats.computeIfAbsent(statsResponse.status().followerIndex(), k -> new TreeMap<>())
+                    .put(statsResponse.status().getShardId(), statsResponse);
             }
-            assertThat(newIndicesFollowStats.getShardFollowStats().size(),
-                equalTo(expectedIndicesFollowStats.size()));
-            assertThat(newIndicesFollowStats.getShardFollowStats().keySet(),
-                equalTo(expectedIndicesFollowStats.keySet()));
+            assertThat(newIndicesFollowStats.getShardFollowStats().size(), equalTo(expectedIndicesFollowStats.size()));
+            assertThat(newIndicesFollowStats.getShardFollowStats().keySet(), equalTo(expectedIndicesFollowStats.keySet()));
             for (Map.Entry<String, List<ShardFollowStats>> indexEntry : newIndicesFollowStats.getShardFollowStats().entrySet()) {
                 List<ShardFollowStats> newStats = indexEntry.getValue();
                 Map<Integer, FollowStatsAction.StatsResponse> expectedStats = expectedIndicesFollowStats.get(indexEntry.getKey());
@@ -165,46 +178,67 @@ public class CcrStatsResponseTests extends AbstractResponseTestCase<CcrStatsActi
                     assertThat(actualShardFollowStats.getLeaderIndex(), equalTo(expectedShardFollowStats.leaderIndex()));
                     assertThat(actualShardFollowStats.getFollowerIndex(), equalTo(expectedShardFollowStats.followerIndex()));
                     assertThat(actualShardFollowStats.getShardId(), equalTo(expectedShardFollowStats.getShardId()));
-                    assertThat(actualShardFollowStats.getLeaderGlobalCheckpoint(),
-                        equalTo(expectedShardFollowStats.leaderGlobalCheckpoint()));
+                    assertThat(
+                        actualShardFollowStats.getLeaderGlobalCheckpoint(),
+                        equalTo(expectedShardFollowStats.leaderGlobalCheckpoint())
+                    );
                     assertThat(actualShardFollowStats.getLeaderMaxSeqNo(), equalTo(expectedShardFollowStats.leaderMaxSeqNo()));
-                    assertThat(actualShardFollowStats.getFollowerGlobalCheckpoint(),
-                        equalTo(expectedShardFollowStats.followerGlobalCheckpoint()));
+                    assertThat(
+                        actualShardFollowStats.getFollowerGlobalCheckpoint(),
+                        equalTo(expectedShardFollowStats.followerGlobalCheckpoint())
+                    );
                     assertThat(actualShardFollowStats.getLastRequestedSeqNo(), equalTo(expectedShardFollowStats.lastRequestedSeqNo()));
-                    assertThat(actualShardFollowStats.getOutstandingReadRequests(),
-                        equalTo(expectedShardFollowStats.outstandingReadRequests()));
-                    assertThat(actualShardFollowStats.getOutstandingWriteRequests(),
-                        equalTo(expectedShardFollowStats.outstandingWriteRequests()));
-                    assertThat(actualShardFollowStats.getWriteBufferOperationCount(),
-                        equalTo(expectedShardFollowStats.writeBufferOperationCount()));
-                    assertThat(actualShardFollowStats.getFollowerMappingVersion(),
-                        equalTo(expectedShardFollowStats.followerMappingVersion()));
-                    assertThat(actualShardFollowStats.getFollowerSettingsVersion(),
-                        equalTo(expectedShardFollowStats.followerSettingsVersion()));
-                    assertThat(actualShardFollowStats.getFollowerAliasesVersion(),
-                            equalTo(expectedShardFollowStats.followerAliasesVersion()));
-                    assertThat(actualShardFollowStats.getTotalReadTimeMillis(),
-                        equalTo(expectedShardFollowStats.totalReadTimeMillis()));
-                    assertThat(actualShardFollowStats.getSuccessfulReadRequests(),
-                        equalTo(expectedShardFollowStats.successfulReadRequests()));
+                    assertThat(
+                        actualShardFollowStats.getOutstandingReadRequests(),
+                        equalTo(expectedShardFollowStats.outstandingReadRequests())
+                    );
+                    assertThat(
+                        actualShardFollowStats.getOutstandingWriteRequests(),
+                        equalTo(expectedShardFollowStats.outstandingWriteRequests())
+                    );
+                    assertThat(
+                        actualShardFollowStats.getWriteBufferOperationCount(),
+                        equalTo(expectedShardFollowStats.writeBufferOperationCount())
+                    );
+                    assertThat(
+                        actualShardFollowStats.getFollowerMappingVersion(),
+                        equalTo(expectedShardFollowStats.followerMappingVersion())
+                    );
+                    assertThat(
+                        actualShardFollowStats.getFollowerSettingsVersion(),
+                        equalTo(expectedShardFollowStats.followerSettingsVersion())
+                    );
+                    assertThat(
+                        actualShardFollowStats.getFollowerAliasesVersion(),
+                        equalTo(expectedShardFollowStats.followerAliasesVersion())
+                    );
+                    assertThat(actualShardFollowStats.getTotalReadTimeMillis(), equalTo(expectedShardFollowStats.totalReadTimeMillis()));
+                    assertThat(
+                        actualShardFollowStats.getSuccessfulReadRequests(),
+                        equalTo(expectedShardFollowStats.successfulReadRequests())
+                    );
                     assertThat(actualShardFollowStats.getFailedReadRequests(), equalTo(expectedShardFollowStats.failedReadRequests()));
                     assertThat(actualShardFollowStats.getOperationsReads(), equalTo(expectedShardFollowStats.operationsReads()));
                     assertThat(actualShardFollowStats.getBytesRead(), equalTo(expectedShardFollowStats.bytesRead()));
-                    assertThat(actualShardFollowStats.getTotalWriteTimeMillis(),
-                        equalTo(expectedShardFollowStats.totalWriteTimeMillis()));
-                    assertThat(actualShardFollowStats.getSuccessfulWriteRequests(),
-                        equalTo(expectedShardFollowStats.successfulWriteRequests()));
-                    assertThat(actualShardFollowStats.getFailedWriteRequests(),
-                        equalTo(expectedShardFollowStats.failedWriteRequests()));
+                    assertThat(actualShardFollowStats.getTotalWriteTimeMillis(), equalTo(expectedShardFollowStats.totalWriteTimeMillis()));
+                    assertThat(
+                        actualShardFollowStats.getSuccessfulWriteRequests(),
+                        equalTo(expectedShardFollowStats.successfulWriteRequests())
+                    );
+                    assertThat(actualShardFollowStats.getFailedWriteRequests(), equalTo(expectedShardFollowStats.failedWriteRequests()));
                     assertThat(actualShardFollowStats.getOperationWritten(), equalTo(expectedShardFollowStats.operationWritten()));
-                    assertThat(actualShardFollowStats.getReadExceptions().size(),
-                        equalTo(expectedShardFollowStats.readExceptions().size()));
-                    assertThat(actualShardFollowStats.getReadExceptions().keySet(),
-                        equalTo(expectedShardFollowStats.readExceptions().keySet()));
-                    for (final Map.Entry<Long, Tuple<Integer, ElasticsearchException>> entry :
-                        actualShardFollowStats.getReadExceptions().entrySet()) {
-                        final Tuple<Integer, ElasticsearchException> expectedTuple =
-                            expectedShardFollowStats.readExceptions().get(entry.getKey());
+                    assertThat(
+                        actualShardFollowStats.getReadExceptions().size(),
+                        equalTo(expectedShardFollowStats.readExceptions().size())
+                    );
+                    assertThat(
+                        actualShardFollowStats.getReadExceptions().keySet(),
+                        equalTo(expectedShardFollowStats.readExceptions().keySet())
+                    );
+                    for (final Map.Entry<Long, Tuple<Integer, ElasticsearchException>> entry : actualShardFollowStats.getReadExceptions()
+                        .entrySet()) {
+                        final Tuple<Integer, ElasticsearchException> expectedTuple = expectedShardFollowStats.readExceptions()
+                            .get(entry.getKey());
                         assertThat(entry.getValue().v1(), equalTo(expectedTuple.v1()));
                         // x-content loses the exception
                         final ElasticsearchException expected = expectedTuple.v2();
@@ -212,11 +246,14 @@ public class CcrStatsResponseTests extends AbstractResponseTestCase<CcrStatsActi
                         assertNotNull(entry.getValue().v2().getCause());
                         assertThat(
                             entry.getValue().v2().getCause(),
-                            anyOf(instanceOf(ElasticsearchException.class), instanceOf(IllegalStateException.class)));
+                            anyOf(instanceOf(ElasticsearchException.class), instanceOf(IllegalStateException.class))
+                        );
                         assertThat(entry.getValue().v2().getCause().getMessage(), containsString(expected.getCause().getMessage()));
                     }
-                    assertThat(actualShardFollowStats.getTimeSinceLastReadMillis(),
-                        equalTo(expectedShardFollowStats.timeSinceLastReadMillis()));
+                    assertThat(
+                        actualShardFollowStats.getTimeSinceLastReadMillis(),
+                        equalTo(expectedShardFollowStats.timeSinceLastReadMillis())
+                    );
                 }
             }
         }

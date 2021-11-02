@@ -10,8 +10,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.Orientation;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.LinearRing;
@@ -24,6 +22,8 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
@@ -39,9 +39,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -65,7 +65,6 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
             scripts.put("width", this::scriptWidth);
             return scripts;
         }
-
 
         private double scriptHeight(Map<String, Object> vars) {
             Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
@@ -124,8 +123,12 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
 
     @Before
     public void setupTestIndex() throws IOException {
-        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
-            .startObject("properties").startObject("location").field("type", "geo_shape");
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startObject("properties")
+            .startObject("location")
+            .field("type", "geo_shape");
         xContentBuilder.endObject().endObject().endObject().endObject();
         assertAcked(client().admin().indices().prepareCreate("test").setMapping(xContentBuilder));
         ensureGreen();
@@ -145,23 +148,24 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
     }
 
     public void testPolygonDateline() throws Exception {
-        Geometry geometry = new Polygon(new LinearRing(new double[]{170, 190, 190, 170, 170}, new double[]{-5, -5, 5, 5, -5}));
+        Geometry geometry = new Polygon(new LinearRing(new double[] { 170, 190, 190, 170, 170 }, new double[] { -5, -5, 5, 5, -5 }));
         doTestGeometry(geometry);
     }
 
-    private void doTestGeometry(Geometry geometry) throws IOException  {
-        client().prepareIndex("test").setId("1")
-            .setSource(jsonBuilder().startObject()
-                .field("name", "TestPosition")
-                .field("location", WellKnownText.toWKT(geometry))
-                .endObject())
+    private void doTestGeometry(Geometry geometry) throws IOException {
+        client().prepareIndex("test")
+            .setId("1")
+            .setSource(
+                jsonBuilder().startObject().field("name", "TestPosition").field("location", WellKnownText.toWKT(geometry)).endObject()
+            )
             .get();
 
         client().admin().indices().prepareRefresh("test").get();
 
         GeoShapeValues.GeoShapeValue value = GeoTestUtils.geoShapeValue(geometry);
 
-        SearchResponse searchResponse = client().prepareSearch().addStoredField("_source")
+        SearchResponse searchResponse = client().prepareSearch()
+            .addStoredField("_source")
             .addScriptField("lat", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "lat", Collections.emptyMap()))
             .addScriptField("lon", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "lon", Collections.emptyMap()))
             .addScriptField("height", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "height", Collections.emptyMap()))
@@ -176,16 +180,15 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
     }
 
     public void testNullShape() throws Exception {
-        client().prepareIndex("test").setId("1")
-            .setSource(jsonBuilder().startObject()
-                .field("name", "TestPosition")
-                .nullField("location")
-                .endObject())
+        client().prepareIndex("test")
+            .setId("1")
+            .setSource(jsonBuilder().startObject().field("name", "TestPosition").nullField("location").endObject())
             .get();
 
         client().admin().indices().prepareRefresh("test").get();
 
-        SearchResponse searchResponse = client().prepareSearch().addStoredField("_source")
+        SearchResponse searchResponse = client().prepareSearch()
+            .addStoredField("_source")
             .addScriptField("lat", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "lat", Collections.emptyMap()))
             .addScriptField("lon", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "lon", Collections.emptyMap()))
             .addScriptField("height", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "height", Collections.emptyMap()))

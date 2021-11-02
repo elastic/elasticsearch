@@ -39,7 +39,6 @@ public class ListTasksRequestTests extends ESTestCase {
         assertFalse(filterOnDescription.match(taskWithActionDescription("my_action_foo", "not_wanted")));
         assertFalse(filterOnDescription.match(taskWithActionDescription("not_wanted_action", "foo_action")));
 
-
         ListTasksRequest notFilterOnDescription = new ListTasksRequest().setActions("my_action*");
         assertTrue(notFilterOnDescription.match(taskWithActionDescription("my_action_foo", "foo_action")));
         assertTrue(notFilterOnDescription.match(taskWithActionDescription("my_action_bar", "absolute")));

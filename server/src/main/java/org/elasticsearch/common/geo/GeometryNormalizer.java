@@ -50,7 +50,7 @@ public class GeometryNormalizer {
                 if (circle.isEmpty()) {
                     return GeometryCollection.EMPTY;
                 }
-                double[] latlon = new double[]{circle.getX(), circle.getY()};
+                double[] latlon = new double[] { circle.getX(), circle.getY() };
                 normalizePoint(latlon);
                 return new Circle(latlon[0], latlon[1], circle.getRadiusMeters());
             }
@@ -136,7 +136,7 @@ public class GeometryNormalizer {
 
             @Override
             public Geometry visit(Point point) {
-                double[] latlon = new double[]{point.getX(), point.getY()};
+                double[] latlon = new double[] { point.getX(), point.getY() };
                 normalizePoint(latlon);
                 return new Point(latlon[0], latlon[1]);
             }

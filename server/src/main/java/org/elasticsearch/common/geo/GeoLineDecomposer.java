@@ -44,8 +44,8 @@ class GeoLineDecomposer {
         double[] lats = new double[lons.length];
 
         for (int i = 0; i < lons.length; i++) {
-            double[] lonLat = new double[] {line.getX(i), line.getY(i)};
-            normalizePoint(lonLat,false, true);
+            double[] lonLat = new double[] { line.getX(i), line.getY(i) };
+            normalizePoint(lonLat, false, true);
             lons[i] = lonLat[0];
             lats[i] = lonLat[1];
         }

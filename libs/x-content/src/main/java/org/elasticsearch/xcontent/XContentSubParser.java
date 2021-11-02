@@ -104,8 +104,8 @@ public class XContentSubParser implements XContentParser {
     }
 
     @Override
-    public <T> Map<String, T> map(
-            Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser) throws IOException {
+    public <T> Map<String, T> map(Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser)
+        throws IOException {
         return parser.map(mapFactory, mapValueParser);
     }
 

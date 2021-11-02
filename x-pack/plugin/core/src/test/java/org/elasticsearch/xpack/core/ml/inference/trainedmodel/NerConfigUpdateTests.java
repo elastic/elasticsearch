@@ -25,34 +25,36 @@ public class NerConfigUpdateTests extends AbstractBWCSerializationTestCase<NerCo
 
     public void testFromMap() {
         NerConfigUpdate expected = new NerConfigUpdate("ml-results");
-        Map<String, Object> config = new HashMap<>(){{
-            put(NlpConfig.RESULTS_FIELD.getPreferredName(), "ml-results");
-        }};
+        Map<String, Object> config = new HashMap<>() {
+            {
+                put(NlpConfig.RESULTS_FIELD.getPreferredName(), "ml-results");
+            }
+        };
         assertThat(NerConfigUpdate.fromMap(config), equalTo(expected));
     }
 
     public void testFromMapWithUnknownField() {
-        ElasticsearchException ex = expectThrows(ElasticsearchException.class,
-            () -> NerConfigUpdate.fromMap(Collections.singletonMap("some_key", 1)));
+        ElasticsearchException ex = expectThrows(
+            ElasticsearchException.class,
+            () -> NerConfigUpdate.fromMap(Collections.singletonMap("some_key", 1))
+        );
         assertThat(ex.getMessage(), equalTo("Unrecognized fields [some_key]."));
     }
-
 
     public void testApply() {
         NerConfig originalConfig = NerConfigTests.createRandom();
 
         assertThat(originalConfig, sameInstance(new NerConfigUpdate.Builder().build().apply(originalConfig)));
 
-        assertThat(new NerConfig(
+        assertThat(
+            new NerConfig(
                 originalConfig.getVocabularyConfig(),
                 originalConfig.getTokenization(),
                 originalConfig.getClassificationLabels(),
-                "ml-results"),
-            equalTo(new NerConfigUpdate.Builder()
-                .setResultsField("ml-results")
-                .build()
-                .apply(originalConfig)
-            ));
+                "ml-results"
+            ),
+            equalTo(new NerConfigUpdate.Builder().setResultsField("ml-results").build().apply(originalConfig))
+        );
     }
 
     @Override
@@ -79,4 +81,3 @@ public class NerConfigUpdateTests extends AbstractBWCSerializationTestCase<NerCo
         return instance;
     }
 }
-

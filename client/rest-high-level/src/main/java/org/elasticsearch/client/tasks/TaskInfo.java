@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.tasks;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.HashMap;
@@ -154,51 +154,64 @@ public class TaskInfo {
         if (this == o) return true;
         if ((o instanceof TaskInfo) == false) return false;
         TaskInfo taskInfo = (TaskInfo) o;
-        return getStartTime() == taskInfo.getStartTime() &&
-            getRunningTimeNanos() == taskInfo.getRunningTimeNanos() &&
-            isCancellable() == taskInfo.isCancellable() &&
-            isCancelled() == taskInfo.isCancelled() &&
-            Objects.equals(getTaskId(), taskInfo.getTaskId()) &&
-            Objects.equals(getType(), taskInfo.getType()) &&
-            Objects.equals(getAction(), taskInfo.getAction()) &&
-            Objects.equals(getDescription(), taskInfo.getDescription()) &&
-            Objects.equals(getParentTaskId(), taskInfo.getParentTaskId()) &&
-            Objects.equals(status, taskInfo.status) &&
-            Objects.equals(getHeaders(), taskInfo.getHeaders());
+        return getStartTime() == taskInfo.getStartTime()
+            && getRunningTimeNanos() == taskInfo.getRunningTimeNanos()
+            && isCancellable() == taskInfo.isCancellable()
+            && isCancelled() == taskInfo.isCancelled()
+            && Objects.equals(getTaskId(), taskInfo.getTaskId())
+            && Objects.equals(getType(), taskInfo.getType())
+            && Objects.equals(getAction(), taskInfo.getAction())
+            && Objects.equals(getDescription(), taskInfo.getDescription())
+            && Objects.equals(getParentTaskId(), taskInfo.getParentTaskId())
+            && Objects.equals(status, taskInfo.status)
+            && Objects.equals(getHeaders(), taskInfo.getHeaders());
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(
-                getTaskId(),
-                getType(),
-                getAction(),
-                getDescription(),
-                getStartTime(),
-                getRunningTimeNanos(),
-                isCancellable(),
-                isCancelled(),
-                getParentTaskId(),
-                status,
-                getHeaders()
+            getTaskId(),
+            getType(),
+            getAction(),
+            getDescription(),
+            getStartTime(),
+            getRunningTimeNanos(),
+            isCancellable(),
+            isCancelled(),
+            getParentTaskId(),
+            status,
+            getHeaders()
         );
     }
 
-
     @Override
     public String toString() {
-        return "TaskInfo{" +
-            "taskId=" + taskId +
-            ", type='" + type + '\'' +
-            ", action='" + action + '\'' +
-            ", description='" + description + '\'' +
-            ", startTime=" + startTime +
-            ", runningTimeNanos=" + runningTimeNanos +
-            ", cancellable=" + cancellable +
-            ", cancelled=" + cancelled +
-            ", parentTaskId=" + parentTaskId +
-            ", status=" + status +
-            ", headers=" + headers +
-            '}';
+        return "TaskInfo{"
+            + "taskId="
+            + taskId
+            + ", type='"
+            + type
+            + '\''
+            + ", action='"
+            + action
+            + '\''
+            + ", description='"
+            + description
+            + '\''
+            + ", startTime="
+            + startTime
+            + ", runningTimeNanos="
+            + runningTimeNanos
+            + ", cancellable="
+            + cancellable
+            + ", cancelled="
+            + cancelled
+            + ", parentTaskId="
+            + parentTaskId
+            + ", status="
+            + status
+            + ", headers="
+            + headers
+            + '}';
     }
 }

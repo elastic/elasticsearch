@@ -33,7 +33,11 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceCo
 public class NerProcessor implements NlpTask.Processor {
 
     public enum Entity implements Writeable {
-        NONE, MISC, PER, ORG, LOC;
+        NONE,
+        MISC,
+        PER,
+        ORG,
+        LOC;
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
@@ -189,8 +193,7 @@ public class NerProcessor implements NlpTask.Processor {
 
         @Override
         public InferenceResults processResult(TokenizationResult tokenization, PyTorchResult pyTorchResult) {
-            if (tokenization.getTokenizations().isEmpty() ||
-                tokenization.getTokenizations().get(0).getTokens().length == 0) {
+            if (tokenization.getTokenizations().isEmpty() || tokenization.getTokenizations().get(0).getTokens().length == 0) {
                 return new WarningInferenceResults("no valid tokens to build result");
             }
             // TODO - process all results in the batch
@@ -206,11 +209,16 @@ public class NerProcessor implements NlpTask.Processor {
 
             List<NerResults.EntityGroup> entities = groupTaggedTokens(
                 taggedTokens,
-                ignoreCase ?
-                    tokenization.getTokenizations().get(0).getInput().toLowerCase(Locale.ROOT) :
-                    tokenization.getTokenizations().get(0).getInput()
+                ignoreCase
+                    ? tokenization.getTokenizations().get(0).getInput().toLowerCase(Locale.ROOT)
+                    : tokenization.getTokenizations().get(0).getInput()
             );
-            return new NerResults(resultsField, buildAnnotatedText(tokenization.getTokenizations().get(0).getInput(), entities), entities);
+            return new NerResults(
+                resultsField,
+                buildAnnotatedText(tokenization.getTokenizations().get(0).getInput(), entities),
+                entities,
+                tokenization.anyTruncated()
+            );
         }
 
         /**

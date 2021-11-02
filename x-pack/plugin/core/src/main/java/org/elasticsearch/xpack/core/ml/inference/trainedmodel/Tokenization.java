@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
 import java.io.IOException;
@@ -38,7 +38,7 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
         }
     }
 
-    //TODO add global params like never_split, bos_token, eos_token, mask_token, tokenize_chinese_chars, strip_accents, etc.
+    // TODO add global params like never_split, bos_token, eos_token, mask_token, tokenize_chinese_chars, strip_accents, etc.
     public static final ParseField DO_LOWER_CASE = new ParseField("do_lower_case");
     public static final ParseField WITH_SPECIAL_TOKENS = new ParseField("with_special_tokens");
     public static final ParseField MAX_SEQUENCE_LENGTH = new ParseField("max_sequence_length");
@@ -47,7 +47,7 @@ public abstract class Tokenization implements NamedXContentObject, NamedWriteabl
     private static final int DEFAULT_MAX_SEQUENCE_LENGTH = 512;
     private static final boolean DEFAULT_DO_LOWER_CASE = false;
     private static final boolean DEFAULT_WITH_SPECIAL_TOKENS = true;
-    private static final Truncate DEFAULT_TRUNCATION = Truncate.FIRST;
+    private static final Truncate DEFAULT_TRUNCATION = Truncate.NONE;
 
     static <T extends Tokenization> void declareCommonFields(ConstructingObjectParser<T, ?> parser) {
         parser.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), DO_LOWER_CASE);

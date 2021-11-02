@@ -22,8 +22,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
@@ -55,9 +55,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Function;
 
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -69,8 +69,9 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
 
     private final ExecutorService executorService = Executors.newFixedThreadPool(1);
 
-    NamedWriteableRegistry registry = new NamedWriteableRegistry(new SearchModule(Settings.EMPTY,
-        Collections.emptyList()).getNamedWriteables());
+    NamedWriteableRegistry registry = new NamedWriteableRegistry(
+        new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables()
+    );
 
     /**
      * Shutdown the executor so we don't leak threads into other test runs.
@@ -81,9 +82,13 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
     }
 
     private void prepareIndex() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test")
-            .setMapping("val", "type=integer", "event_type", "type=keyword", "@timestamp", "type=date", "i", "type=integer")
-            .get());
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("test")
+                .setMapping("val", "type=integer", "event_type", "type=keyword", "@timestamp", "type=date", "i", "type=integer")
+                .get()
+        );
         createIndex("idx_unmapped");
 
         int numDocs = randomIntBetween(6, 20);
@@ -92,13 +97,17 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
 
         for (int i = 0; i < numDocs; i++) {
             int fieldValue = randomIntBetween(0, 10);
-            builders.add(client().prepareIndex("test").setSource(
-                jsonBuilder().startObject()
-                    .field("val", fieldValue)
-                    .field("event_type", "my_event")
-                    .field("@timestamp", "2020-04-09T12:35:48Z")
-                    .field("i", i)
-                    .endObject()));
+            builders.add(
+                client().prepareIndex("test")
+                    .setSource(
+                        jsonBuilder().startObject()
+                            .field("val", fieldValue)
+                            .field("event_type", "my_event")
+                            .field("@timestamp", "2020-04-09T12:35:48Z")
+                            .field("i", i)
+                            .endObject()
+                    )
+            );
         }
         indexRandom(true, builders);
     }
@@ -108,7 +117,9 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
 
         boolean success = randomBoolean();
         String query = success ? "my_event where i==1" : "my_event where 10/i==1";
-        EqlSearchRequest request = new EqlSearchRequest().indices("test").query(query).eventCategoryField("event_type")
+        EqlSearchRequest request = new EqlSearchRequest().indices("test")
+            .query(query)
+            .eventCategoryField("event_type")
             .waitForCompletionTimeout(TimeValue.timeValueMillis(1));
 
         List<SearchBlockPlugin> plugins = initBlockFactory(true, false);
@@ -125,8 +136,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
 
         if (randomBoolean()) {
             // let's timeout first
-            GetAsyncResultRequest getResultsRequest = new GetAsyncResultRequest(response.id())
-                .setKeepAlive(TimeValue.timeValueMinutes(10))
+            GetAsyncResultRequest getResultsRequest = new GetAsyncResultRequest(response.id()).setKeepAlive(TimeValue.timeValueMinutes(10))
                 .setWaitForCompletionTimeout(TimeValue.timeValueMillis(10));
             EqlSearchResponse responseWithTimeout = client().execute(EqlAsyncGetResultAction.INSTANCE, getResultsRequest).get();
             assertThat(responseWithTimeout.isRunning(), is(true));
@@ -135,8 +145,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
         }
 
         // Now we wait
-        GetAsyncResultRequest getResultsRequest = new GetAsyncResultRequest(response.id())
-            .setKeepAlive(TimeValue.timeValueMinutes(10))
+        GetAsyncResultRequest getResultsRequest = new GetAsyncResultRequest(response.id()).setKeepAlive(TimeValue.timeValueMinutes(10))
             .setWaitForCompletionTimeout(TimeValue.timeValueSeconds(10));
         ActionFuture<EqlSearchResponse> future = client().execute(EqlAsyncGetResultAction.INSTANCE, getResultsRequest);
         disableBlocks(plugins);
@@ -148,8 +157,10 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
             Exception ex = expectThrows(Exception.class, future::actionGet);
             assertThat(ex.getCause().getMessage(), containsString("by zero"));
         }
-        AcknowledgedResponse deleteResponse =
-            client().execute(DeleteAsyncResultAction.INSTANCE, new DeleteAsyncResultRequest(response.id())).actionGet();
+        AcknowledgedResponse deleteResponse = client().execute(
+            DeleteAsyncResultAction.INSTANCE,
+            new DeleteAsyncResultRequest(response.id())
+        ).actionGet();
         assertThat(deleteResponse.isAcknowledged(), equalTo(true));
     }
 
@@ -158,7 +169,9 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
 
         boolean success = randomBoolean();
         String query = success ? "my_event where i==1" : "my_event where 10/i==1";
-        EqlSearchRequest request = new EqlSearchRequest().indices("test").query(query).eventCategoryField("event_type")
+        EqlSearchRequest request = new EqlSearchRequest().indices("test")
+            .query(query)
+            .eventCategoryField("event_type")
             .waitForCompletionTimeout(TimeValue.timeValueMillis(1));
 
         boolean customKeepAlive = randomBoolean();
@@ -175,7 +188,8 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
         String opaqueId = randomAlphaOfLength(10);
         logger.trace("Starting async search");
         EqlSearchResponse response = client().filterWithHeader(Collections.singletonMap(Task.X_OPAQUE_ID, opaqueId))
-            .execute(EqlSearchAction.INSTANCE, request).get();
+            .execute(EqlSearchAction.INSTANCE, request)
+            .get();
         assertThat(response.isRunning(), is(true));
         assertThat(response.isPartial(), is(true));
         assertThat(response.id(), notNullValue());
@@ -193,8 +207,10 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
         assertBusy(() -> assertThat(findTaskWithXOpaqueId(opaqueId, EqlSearchAction.NAME + "[a]"), nullValue()));
         StoredAsyncResponse<EqlSearchResponse> doc = getStoredRecord(id);
         // Make sure that the expiration time is not more than 1 min different from the current time + keep alive
-        assertThat(System.currentTimeMillis() + keepAliveValue.getMillis() - doc.getExpirationTime(),
-            lessThan(doc.getExpirationTime() + TimeValue.timeValueMinutes(1).getMillis()));
+        assertThat(
+            System.currentTimeMillis() + keepAliveValue.getMillis() - doc.getExpirationTime(),
+            lessThan(doc.getExpirationTime() + TimeValue.timeValueMinutes(1).getMillis())
+        );
         if (success) {
             assertThat(doc.getException(), nullValue());
             assertThat(doc.getResponse(), notNullValue());
@@ -211,7 +227,9 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
 
         boolean success = randomBoolean();
         String query = success ? "my_event where i==1" : "my_event where 10/i==1";
-        EqlSearchRequest request = new EqlSearchRequest().indices("test").query(query).eventCategoryField("event_type")
+        EqlSearchRequest request = new EqlSearchRequest().indices("test")
+            .query(query)
+            .eventCategoryField("event_type")
             .waitForCompletionTimeout(TimeValue.timeValueMillis(1));
 
         boolean customKeepAlive = randomBoolean();
@@ -226,7 +244,8 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
         String opaqueId = randomAlphaOfLength(10);
         logger.trace("Starting async search");
         EqlSearchResponse response = client().filterWithHeader(Collections.singletonMap(Task.X_OPAQUE_ID, opaqueId))
-            .execute(EqlSearchAction.INSTANCE, request).get();
+            .execute(EqlSearchAction.INSTANCE, request)
+            .get();
         assertThat(response.isRunning(), is(true));
         assertThat(response.isPartial(), is(true));
         assertThat(response.id(), notNullValue());
@@ -235,8 +254,10 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
         awaitForBlockedSearches(plugins, "test");
         logger.trace("Block is established");
 
-        ActionFuture<AcknowledgedResponse> deleteResponse =
-            client().execute(DeleteAsyncResultAction.INSTANCE, new DeleteAsyncResultRequest(response.id()));
+        ActionFuture<AcknowledgedResponse> deleteResponse = client().execute(
+            DeleteAsyncResultAction.INSTANCE,
+            new DeleteAsyncResultRequest(response.id())
+        );
         disableBlocks(plugins);
         assertThat(deleteResponse.actionGet().isAcknowledged(), equalTo(true));
 
@@ -250,7 +271,9 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
         boolean success = randomBoolean();
         boolean keepOnCompletion = randomBoolean();
         String query = success ? "my_event where i==1" : "my_event where 10/i==1";
-        EqlSearchRequest request = new EqlSearchRequest().indices("test").query(query).eventCategoryField("event_type")
+        EqlSearchRequest request = new EqlSearchRequest().indices("test")
+            .query(query)
+            .eventCategoryField("event_type")
             .waitForCompletionTimeout(TimeValue.timeValueSeconds(10));
         if (keepOnCompletion || randomBoolean()) {
             request.keepOnCompletion(keepOnCompletion);
@@ -268,17 +291,20 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
                 assertThat(doc.getException(), nullValue());
                 assertThat(doc.getResponse(), notNullValue());
                 assertThat(doc.getResponse().hits().events().size(), equalTo(1));
-                EqlSearchResponse storedResponse = client().execute(EqlAsyncGetResultAction.INSTANCE,
-                    new GetAsyncResultRequest(response.id())).actionGet();
+                EqlSearchResponse storedResponse = client().execute(
+                    EqlAsyncGetResultAction.INSTANCE,
+                    new GetAsyncResultRequest(response.id())
+                ).actionGet();
                 assertThat(storedResponse, equalTo(response));
 
-                AcknowledgedResponse deleteResponse =
-                    client().execute(DeleteAsyncResultAction.INSTANCE, new DeleteAsyncResultRequest(response.id())).actionGet();
+                AcknowledgedResponse deleteResponse = client().execute(
+                    DeleteAsyncResultAction.INSTANCE,
+                    new DeleteAsyncResultRequest(response.id())
+                ).actionGet();
                 assertThat(deleteResponse.isAcknowledged(), equalTo(true));
             }
         } else {
-            Exception ex = expectThrows(Exception.class,
-                () -> client().execute(EqlSearchAction.INSTANCE, request).get());
+            Exception ex = expectThrows(Exception.class, () -> client().execute(EqlSearchAction.INSTANCE, request).get());
             assertThat(ex.getMessage(), containsString("by zero"));
         }
     }
@@ -332,8 +358,11 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
         @Override
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
-            scripts.put("InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,X0 -> InternalQlScriptUtils.nullSafeFilter("
-                + "InternalQlScriptUtils.eq(InternalQlScriptUtils.div(params.v1,X0),params.v2)))", FakePainlessScriptPlugin::fail);
+            scripts.put(
+                "InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,X0 -> InternalQlScriptUtils.nullSafeFilter("
+                    + "InternalQlScriptUtils.eq(InternalQlScriptUtils.div(params.v1,X0),params.v2)))",
+                FakePainlessScriptPlugin::fail
+            );
             return scripts;
         }
 

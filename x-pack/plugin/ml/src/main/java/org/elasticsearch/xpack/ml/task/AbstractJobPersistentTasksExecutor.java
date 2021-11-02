@@ -16,10 +16,10 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
@@ -47,13 +47,13 @@ import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIG
 public abstract class AbstractJobPersistentTasksExecutor<Params extends PersistentTaskParams> extends PersistentTasksExecutor<Params> {
 
     private static final Logger logger = LogManager.getLogger(AbstractJobPersistentTasksExecutor.class);
-    public static final PersistentTasksCustomMetadata.Assignment AWAITING_MIGRATION =
-        new PersistentTasksCustomMetadata.Assignment(null, "job cannot be assigned until it has been migrated.");
 
-    public static List<String> verifyIndicesPrimaryShardsAreActive(ClusterState clusterState,
-                                                                   IndexNameExpressionResolver expressionResolver,
-                                                                   boolean allowMissing,
-                                                                   String... indicesOfInterest) {
+    public static List<String> verifyIndicesPrimaryShardsAreActive(
+        ClusterState clusterState,
+        IndexNameExpressionResolver expressionResolver,
+        boolean allowMissing,
+        String... indicesOfInterest
+    ) {
         String[] indices = expressionResolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), indicesOfInterest);
         List<String> unavailableIndices = new ArrayList<>(indices.length);
         for (String index : indices) {
@@ -73,7 +73,6 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
         return unavailableIndices;
     }
 
-
     protected final MlMemoryTracker memoryTracker;
     protected final IndexNameExpressionResolver expressionResolver;
     protected final Cache<String, Long> auditedJobCapacity = CacheBuilder.<String, Long>builder()
@@ -89,12 +88,14 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
     protected volatile long maxNodeMemory;
     protected volatile int maxOpenJobs;
 
-    protected AbstractJobPersistentTasksExecutor(String taskName,
-                                                 String executor,
-                                                 Settings settings,
-                                                 ClusterService clusterService,
-                                                 MlMemoryTracker memoryTracker,
-                                                 IndexNameExpressionResolver expressionResolver) {
+    protected AbstractJobPersistentTasksExecutor(
+        String taskName,
+        String executor,
+        Settings settings,
+        ClusterService clusterService,
+        MlMemoryTracker memoryTracker,
+        IndexNameExpressionResolver expressionResolver
+    ) {
         super(taskName, executor);
         this.memoryTracker = Objects.requireNonNull(memoryTracker);
         this.expressionResolver = Objects.requireNonNull(expressionResolver);
@@ -118,11 +119,13 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
         return getTaskName() + "-" + jobId;
     }
 
-    protected void auditRequireMemoryIfNecessary(String jobId,
-                                                 AbstractAuditor<?> auditor,
-                                                 PersistentTasksCustomMetadata.Assignment assignment,
-                                                 JobNodeSelector jobNodeSelector,
-                                                 boolean isMemoryTrackerRecentlyRefreshed) {
+    protected void auditRequireMemoryIfNecessary(
+        String jobId,
+        AbstractAuditor<?> auditor,
+        PersistentTasksCustomMetadata.Assignment assignment,
+        JobNodeSelector jobNodeSelector,
+        boolean isMemoryTrackerRecentlyRefreshed
+    ) {
         if (assignment.equals(AWAITING_LAZY_ASSIGNMENT)) {
             if (isMemoryTrackerRecentlyRefreshed) {
                 Tuple<NativeMemoryCapacity, Long> capacityAndFreeMemory = jobNodeSelector.perceivedCapacityAndMaxFreeMemory(
@@ -132,12 +135,16 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
                 );
                 Long previouslyAuditedFreeMemory = auditedJobCapacity.get(getUniqueId(jobId));
                 if (capacityAndFreeMemory.v2().equals(previouslyAuditedFreeMemory) == false) {
-                    auditor.info(jobId,
-                        Messages.getMessage(JOB_AUDIT_REQUIRES_MORE_MEMORY_TO_RUN,
+                    auditor.info(
+                        jobId,
+                        Messages.getMessage(
+                            JOB_AUDIT_REQUIRES_MORE_MEMORY_TO_RUN,
                             ByteSizeValue.ofBytes(memoryTracker.getJobMemoryRequirement(getTaskName(), jobId)),
                             ByteSizeValue.ofBytes(capacityAndFreeMemory.v2()),
                             ByteSizeValue.ofBytes(capacityAndFreeMemory.v1().getTier()),
-                            ByteSizeValue.ofBytes(capacityAndFreeMemory.v1().getNode())));
+                            ByteSizeValue.ofBytes(capacityAndFreeMemory.v1().getNode())
+                        )
+                    );
                     auditedJobCapacity.put(getUniqueId(jobId), capacityAndFreeMemory.v2());
                 }
             }
@@ -147,13 +154,18 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
     }
 
     protected abstract String[] indicesOfInterest(Params params);
+
     protected abstract String getJobId(Params params);
+
     protected boolean allowsMissingIndices() {
         return true;
     }
 
-    public Optional<PersistentTasksCustomMetadata.Assignment> getPotentialAssignment(Params params, ClusterState clusterState,
-                                                                                     boolean isMemoryTrackerRecentlyRefreshed) {
+    public Optional<PersistentTasksCustomMetadata.Assignment> getPotentialAssignment(
+        Params params,
+        ClusterState clusterState,
+        boolean isMemoryTrackerRecentlyRefreshed
+    ) {
         // If we are waiting for an upgrade or reset to complete, we should not assign to a node
         if (MlMetadata.getMlMetadata(clusterState).isUpgradeMode()) {
             return Optional.of(AWAITING_UPGRADE);
@@ -163,9 +175,11 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
         }
         String jobId = getJobId(params);
 
-        Optional<PersistentTasksCustomMetadata.Assignment> missingIndices = checkRequiredIndices(jobId,
+        Optional<PersistentTasksCustomMetadata.Assignment> missingIndices = checkRequiredIndices(
+            jobId,
             clusterState,
-            indicesOfInterest(params));
+            indicesOfInterest(params)
+        );
         if (missingIndices.isPresent()) {
             return missingIndices;
         }
@@ -200,16 +214,23 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
         this.maxNodeMemory = maxNodeSize.getBytes();
     }
 
-    public Optional<PersistentTasksCustomMetadata.Assignment> checkRequiredIndices(String jobId,
-                                                                                   ClusterState clusterState,
-                                                                                   String... indicesOfInterest) {
-        List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(clusterState,
+    public Optional<PersistentTasksCustomMetadata.Assignment> checkRequiredIndices(
+        String jobId,
+        ClusterState clusterState,
+        String... indicesOfInterest
+    ) {
+        List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(
+            clusterState,
             expressionResolver,
             allowsMissingIndices(),
-            indicesOfInterest);
+            indicesOfInterest
+        );
         if (unavailableIndices.size() != 0) {
-            String reason = "Not opening [" + jobId + "], because not all primary shards are active for the following indices [" +
-                String.join(",", unavailableIndices) + "]";
+            String reason = "Not opening ["
+                + jobId
+                + "], because not all primary shards are active for the following indices ["
+                + String.join(",", unavailableIndices)
+                + "]";
             logger.debug(reason);
             return Optional.of(new PersistentTasksCustomMetadata.Assignment(null, reason));
         }

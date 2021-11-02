@@ -127,8 +127,8 @@ public class BinaryOptionalMathProcessor implements Processor {
 
         BinaryOptionalMathProcessor other = (BinaryOptionalMathProcessor) obj;
         return Objects.equals(left(), other.left())
-                && Objects.equals(right(), other.right())
-                && Objects.equals(operation(), other.operation());
+            && Objects.equals(right(), other.right())
+            && Objects.equals(operation(), other.operation());
     }
 
     @Override

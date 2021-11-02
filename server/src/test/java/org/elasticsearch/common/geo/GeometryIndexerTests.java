@@ -128,68 +128,87 @@ public class GeometryIndexerTests extends ESTestCase {
     }
 
     public void testPolygon() {
-        Polygon polygon = new Polygon(new LinearRing(new double[]{160, 200, 200, 160, 160}, new double[]{10, 10, 20, 20, 10}));
-        Geometry indexed = new MultiPolygon(Arrays.asList(
-            new Polygon(new LinearRing(new double[]{180, 180, 160, 160, 180}, new double[]{10, 20, 20, 10, 10})),
-            new Polygon(new LinearRing(new double[]{-180, -180, -160, -160, -180}, new double[]{20, 10, 10, 20, 20}))
-        ));
+        Polygon polygon = new Polygon(new LinearRing(new double[] { 160, 200, 200, 160, 160 }, new double[] { 10, 10, 20, 20, 10 }));
+        Geometry indexed = new MultiPolygon(
+            Arrays.asList(
+                new Polygon(new LinearRing(new double[] { 180, 180, 160, 160, 180 }, new double[] { 10, 20, 20, 10, 10 })),
+                new Polygon(new LinearRing(new double[] { -180, -180, -160, -160, -180 }, new double[] { 20, 10, 10, 20, 20 }))
+            )
+        );
 
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, polygon));
 
-        polygon = new Polygon(new LinearRing(new double[]{160, 200, 200, 160, 160}, new double[]{10, 10, 20, 20, 10}),
-            Collections.singletonList(
-                new LinearRing(new double[]{165, 165, 195, 195, 165}, new double[]{12, 18, 18, 12, 12})));
+        polygon = new Polygon(
+            new LinearRing(new double[] { 160, 200, 200, 160, 160 }, new double[] { 10, 10, 20, 20, 10 }),
+            Collections.singletonList(new LinearRing(new double[] { 165, 165, 195, 195, 165 }, new double[] { 12, 18, 18, 12, 12 }))
+        );
 
-        indexed = new MultiPolygon(Arrays.asList(
-            new Polygon(new LinearRing(
-                new double[]{180, 180, 165, 165, 180, 180, 160, 160, 180}, new double[]{10, 12, 12, 18, 18, 20, 20, 10, 10}
-            )),
-            new Polygon(new LinearRing(
-                new double[]{-180, -180, -160, -160, -180, -180, -165, -165, -180}, new double[]{12, 10, 10, 20, 20, 18, 18, 12, 12}
-            ))
-        ));
+        indexed = new MultiPolygon(
+            Arrays.asList(
+                new Polygon(
+                    new LinearRing(
+                        new double[] { 180, 180, 165, 165, 180, 180, 160, 160, 180 },
+                        new double[] { 10, 12, 12, 18, 18, 20, 20, 10, 10 }
+                    )
+                ),
+                new Polygon(
+                    new LinearRing(
+                        new double[] { -180, -180, -160, -160, -180, -180, -165, -165, -180 },
+                        new double[] { 12, 10, 10, 20, 20, 18, 18, 12, 12 }
+                    )
+                )
+            )
+        );
 
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, polygon));
     }
 
     public void testPolygonOrientation() throws IOException, ParseException {
-        assertEquals(expected("POLYGON ((160 10, -160 10, -160 0, 160 0, 160 10))"), // current algorithm shifts edges to left
-            actual("POLYGON ((160 0, 160 10, -160 10, -160 0, 160 0))", randomBoolean())); // In WKT the orientation is ignored
+        assertEquals(
+            expected("POLYGON ((160 10, -160 10, -160 0, 160 0, 160 10))"), // current algorithm shifts edges to left
+            actual("POLYGON ((160 0, 160 10, -160 10, -160 0, 160 0))", randomBoolean())
+        ); // In WKT the orientation is ignored
 
-        assertEquals(expected("POLYGON ((20 10, -20 10, -20 0, 20 0, 20 10)))"),
-            actual("POLYGON ((20 0, 20 10, -20 10, -20 0, 20 0))", randomBoolean()));
+        assertEquals(
+            expected("POLYGON ((20 10, -20 10, -20 0, 20 0, 20 10)))"),
+            actual("POLYGON ((20 0, 20 10, -20 10, -20 0, 20 0))", randomBoolean())
+        );
 
-        assertEquals(expected("POLYGON ((160 10, -160 10, -160 0, 160 0, 160 10))"),
-            actual(polygon(null, 160, 0, 160, 10, -160, 10, -160, 0, 160, 0), true));
+        assertEquals(
+            expected("POLYGON ((160 10, -160 10, -160 0, 160 0, 160 10))"),
+            actual(polygon(null, 160, 0, 160, 10, -160, 10, -160, 0, 160, 0), true)
+        );
 
-        assertEquals(expected("MULTIPOLYGON (((180 0, 180 10, 160 10, 160 0, 180 0)), ((-180 10, -180 0, -160 0, -160 10, -180 10)))"),
-            actual(polygon(randomBoolean() ? null : false, 160, 0, 160, 10, -160, 10, -160, 0, 160, 0), false));
+        assertEquals(
+            expected("MULTIPOLYGON (((180 0, 180 10, 160 10, 160 0, 180 0)), ((-180 10, -180 0, -160 0, -160 10, -180 10)))"),
+            actual(polygon(randomBoolean() ? null : false, 160, 0, 160, 10, -160, 10, -160, 0, 160, 0), false)
+        );
 
-        assertEquals(expected("MULTIPOLYGON (((180 0, 180 10, 160 10, 160 0, 180 0)), ((-180 10, -180 0, -160 0, -160 10, -180 10)))"),
-            actual(polygon(false, 160, 0, 160, 10, -160, 10, -160, 0, 160, 0), true));
+        assertEquals(
+            expected("MULTIPOLYGON (((180 0, 180 10, 160 10, 160 0, 180 0)), ((-180 10, -180 0, -160 0, -160 10, -180 10)))"),
+            actual(polygon(false, 160, 0, 160, 10, -160, 10, -160, 0, 160, 0), true)
+        );
 
-        assertEquals(expected("POLYGON ((20 10, -20 10, -20 0, 20 0, 20 10)))"),
-            actual(polygon(randomBoolean() ? null : randomBoolean(), 20, 0, 20, 10, -20, 10, -20, 0, 20, 0), randomBoolean()));
+        assertEquals(
+            expected("POLYGON ((20 10, -20 10, -20 0, 20 0, 20 10)))"),
+            actual(polygon(randomBoolean() ? null : randomBoolean(), 20, 0, 20, 10, -20, 10, -20, 0, 20, 0), randomBoolean())
+        );
     }
 
     public void testInvalidSelfCrossingPolygon() {
-        Polygon polygon = new Polygon(new LinearRing(
-            new double[]{0, 0, 1, 0.5, 1.5, 1, 2, 2, 0}, new double[]{0, 2, 1.9, 1.8, 1.8, 1.9, 2, 0, 0}
-        ));
+        Polygon polygon = new Polygon(
+            new LinearRing(new double[] { 0, 0, 1, 0.5, 1.5, 1, 2, 2, 0 }, new double[] { 0, 2, 1.9, 1.8, 1.8, 1.9, 2, 0, 0 })
+        );
         Exception e = expectThrows(IllegalArgumentException.class, () -> GeometryNormalizer.apply(Orientation.CCW, polygon));
         assertThat(e.getMessage(), containsString("Self-intersection at or near point ["));
         assertThat(e.getMessage(), not(containsString("NaN")));
     }
 
     public void testCrossingDateline() {
-        Polygon polygon = new Polygon(new LinearRing(
-            new double[]{170, -170, -170, 170, 170}, new double[]{-10, -10, 10, 10, -10}
-        ));
+        Polygon polygon = new Polygon(new LinearRing(new double[] { 170, -170, -170, 170, 170 }, new double[] { -10, -10, 10, 10, -10 }));
         Geometry geometry = GeometryNormalizer.apply(Orientation.CCW, polygon);
         assertTrue(geometry instanceof MultiPolygon);
-        polygon = new Polygon(new LinearRing(
-            new double[]{180, -170, -170, 170, 180}, new double[]{-10, -5, 15, -15, -10}
-        ));
+        polygon = new Polygon(new LinearRing(new double[] { 180, -170, -170, 170, 180 }, new double[] { -10, -5, 15, -15, -10 }));
         geometry = GeometryNormalizer.apply(Orientation.CCW, polygon);
         assertTrue(geometry instanceof MultiPolygon);
     }
@@ -222,7 +241,6 @@ public class GeometryIndexerTests extends ESTestCase {
         Geometry shape = parseGeometry(wkt, rightOrientation);
         return GeometryNormalizer.apply(Orientation.CCW, shape);
     }
-
 
     private Geometry actual(XContentBuilder geoJson, boolean rightOrientation) throws IOException, ParseException {
         Geometry shape = parseGeometry(geoJson, rightOrientation);

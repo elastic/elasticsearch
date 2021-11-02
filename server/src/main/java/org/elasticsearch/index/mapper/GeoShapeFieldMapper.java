@@ -57,7 +57,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
     public static final String CONTENT_TYPE = "geo_shape";
 
     private static Builder builder(FieldMapper in) {
-        return ((GeoShapeFieldMapper)in).builder;
+        return ((GeoShapeFieldMapper) in).builder;
     }
 
     public static class Builder extends FieldMapper.Builder {
@@ -72,7 +72,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name, boolean ignoreMalformedByDefault, boolean coerceByDefault) {
-            super (name);
+            super(name);
             this.ignoreMalformed = ignoreMalformedParam(m -> builder(m).ignoreMalformed.get(), ignoreMalformedByDefault);
             this.coerce = coerceParam(m -> builder(m).coerce.get(), coerceByDefault);
         }
@@ -99,24 +99,31 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
             GeometryParser geometryParser = new GeometryParser(
                 orientation.get().value().getAsBoolean(),
                 coerce.get().value(),
-                ignoreZValue.get().value());
+                ignoreZValue.get().value()
+            );
             GeoShapeParser geoShapeParser = new GeoShapeParser(geometryParser);
             GeoShapeFieldType ft = new GeoShapeFieldType(
                 context.buildFullName(name),
                 indexed.get(),
                 orientation.get().value(),
                 geoShapeParser,
-                meta.get());
-            return new GeoShapeFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(),
+                meta.get()
+            );
+            return new GeoShapeFieldMapper(
+                name,
+                ft,
+                multiFieldsBuilder.build(this, context),
+                copyTo.build(),
                 new GeoShapeIndexer(orientation.get().value(), context.buildFullName(name)),
-                geoShapeParser, this);
+                geoShapeParser,
+                this
+            );
         }
     }
 
     public static class GeoShapeFieldType extends AbstractShapeGeometryFieldType<Geometry> implements GeoShapeQueryable {
 
-        public GeoShapeFieldType(String name, boolean indexed, Orientation orientation,
-                                 Parser<Geometry> parser, Map<String, String> meta) {
+        public GeoShapeFieldType(String name, boolean indexed, Orientation orientation, Parser<Geometry> parser, Map<String, String> meta) {
             super(name, indexed, false, false, parser, orientation, meta);
         }
 
@@ -129,8 +136,10 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
             // CONTAINS queries are not supported by VECTOR strategy for indices created before version 7.5.0 (Lucene 8.3.0)
             if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(Version.V_7_5_0)) {
-                throw new QueryShardException(context,
-                    ShapeRelation.CONTAINS + " query relation not supported for Field [" + fieldName + "].");
+                throw new QueryShardException(
+                    context,
+                    ShapeRelation.CONTAINS + " query relation not supported for Field [" + fieldName + "]."
+                );
             }
             final LatLonGeometry[] luceneGeometries = GeoShapeUtils.toLuceneGeometry(fieldName, context, shape, relation);
             if (luceneGeometries.length == 0) {
@@ -157,11 +166,17 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
     private final Builder builder;
     private final GeoShapeIndexer indexer;
 
-    public GeoShapeFieldMapper(String simpleName, MappedFieldType mappedFieldType,
-                               MultiFields multiFields, CopyTo copyTo,
-                               GeoShapeIndexer indexer,
-                               Parser<Geometry> parser, Builder builder) {
-        super(simpleName,
+    public GeoShapeFieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        GeoShapeIndexer indexer,
+        Parser<Geometry> parser,
+        Builder builder
+    ) {
+        super(
+            simpleName,
             mappedFieldType,
             builder.ignoreMalformed.get(),
             builder.coerce.get(),
@@ -169,18 +184,17 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
             builder.orientation.get(),
             multiFields,
             copyTo,
-            parser);
+            parser
+        );
         this.builder = builder;
         this.indexer = indexer;
     }
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(
-            simpleName(),
-            builder.ignoreMalformed.getDefaultValue().value(),
-            builder.coerce.getDefaultValue().value()
-        ).init(this);
+        return new Builder(simpleName(), builder.ignoreMalformed.getDefaultValue().value(), builder.coerce.getDefaultValue().value()).init(
+            this
+        );
     }
 
     @Override

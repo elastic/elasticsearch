@@ -48,96 +48,113 @@ public class GeometryNormalizerTests extends ESTestCase {
     public void testCollection() {
         assertEquals(GeometryCollection.EMPTY, GeometryNormalizer.apply(Orientation.CCW, GeometryCollection.EMPTY));
 
-        GeometryCollection<Geometry> collection = new GeometryCollection<>(Collections.singletonList(
-            new Point(2, 1)
-        ));
+        GeometryCollection<Geometry> collection = new GeometryCollection<>(Collections.singletonList(new Point(2, 1)));
 
         Geometry indexed = new Point(2, 1);
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, collection));
 
-        collection = new GeometryCollection<>(Arrays.asList(
-            new Point(2, 1), new Point(4, 3), new Line(new double[]{160, 200}, new double[]{10, 20})
-        ));
+        collection = new GeometryCollection<>(
+            Arrays.asList(new Point(2, 1), new Point(4, 3), new Line(new double[] { 160, 200 }, new double[] { 10, 20 }))
+        );
 
-        indexed = new GeometryCollection<>(Arrays.asList(
-            new Point(2, 1), new Point(4, 3),
-            new MultiLine(Arrays.asList(
-                new Line(new double[]{160, 180}, new double[]{10, 15}),
-                new Line(new double[]{-180, -160}, new double[]{15, 20}))
-            ))
+        indexed = new GeometryCollection<>(
+            Arrays.asList(
+                new Point(2, 1),
+                new Point(4, 3),
+                new MultiLine(
+                    Arrays.asList(
+                        new Line(new double[] { 160, 180 }, new double[] { 10, 15 }),
+                        new Line(new double[] { -180, -160 }, new double[] { 15, 20 })
+                    )
+                )
+            )
         );
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, collection));
 
     }
 
     public void testLine() {
-        Line line = new Line(new double[]{3, 4}, new double[]{1, 2});
+        Line line = new Line(new double[] { 3, 4 }, new double[] { 1, 2 });
         Geometry indexed = line;
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, line));
 
-        line = new Line(new double[]{160, 200}, new double[]{10, 20});
-        indexed = new MultiLine(Arrays.asList(
-            new Line(new double[]{160, 180}, new double[]{10, 15}),
-            new Line(new double[]{-180, -160}, new double[]{15, 20}))
+        line = new Line(new double[] { 160, 200 }, new double[] { 10, 20 });
+        indexed = new MultiLine(
+            Arrays.asList(
+                new Line(new double[] { 160, 180 }, new double[] { 10, 15 }),
+                new Line(new double[] { -180, -160 }, new double[] { 15, 20 })
+            )
         );
 
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, line));
 
-        line = new Line(new double[]{200, 160}, new double[]{10, 20});
-        indexed = new MultiLine(Arrays.asList(
-            new Line(new double[]{-160, -180}, new double[]{10, 15}),
-            new Line(new double[]{180, 160}, new double[]{15, 20}))
+        line = new Line(new double[] { 200, 160 }, new double[] { 10, 20 });
+        indexed = new MultiLine(
+            Arrays.asList(
+                new Line(new double[] { -160, -180 }, new double[] { 10, 15 }),
+                new Line(new double[] { 180, 160 }, new double[] { 15, 20 })
+            )
         );
 
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, line));
 
-        line = new Line(new double[]{160, 200, 160}, new double[]{0, 10, 20});
-        indexed = new MultiLine(Arrays.asList(
-            new Line(new double[]{160, 180}, new double[]{0, 5}),
-            new Line(new double[]{-180, -160, -180}, new double[]{5, 10, 15}),
-            new Line(new double[]{180, 160}, new double[]{15, 20})
-        ));
+        line = new Line(new double[] { 160, 200, 160 }, new double[] { 0, 10, 20 });
+        indexed = new MultiLine(
+            Arrays.asList(
+                new Line(new double[] { 160, 180 }, new double[] { 0, 5 }),
+                new Line(new double[] { -180, -160, -180 }, new double[] { 5, 10, 15 }),
+                new Line(new double[] { 180, 160 }, new double[] { 15, 20 })
+            )
+        );
 
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, line));
 
-        line = new Line(new double[]{0, 720}, new double[]{0, 20});
-        indexed = new MultiLine(Arrays.asList(
-            new Line(new double[]{0, 180}, new double[]{0, 5}),
-            new Line(new double[]{-180, 180}, new double[]{5, 15}),
-            new Line(new double[]{-180, 0}, new double[]{15, 20})
-        ));
+        line = new Line(new double[] { 0, 720 }, new double[] { 0, 20 });
+        indexed = new MultiLine(
+            Arrays.asList(
+                new Line(new double[] { 0, 180 }, new double[] { 0, 5 }),
+                new Line(new double[] { -180, 180 }, new double[] { 5, 15 }),
+                new Line(new double[] { -180, 0 }, new double[] { 15, 20 })
+            )
+        );
 
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, line));
 
-        line = new Line(new double[]{160, 180, 180, 200, 160, 140}, new double[]{0, 10, 20, 30, 30, 40});
-        indexed = new MultiLine(Arrays.asList(
-            new Line(new double[]{160, 180}, new double[]{0, 10}),
-            new Line(new double[]{-180, -180, -160, -180}, new double[]{10, 20, 30, 30}),
-            new Line(new double[]{180, 160, 140}, new double[]{30, 30, 40})
-        ));
+        line = new Line(new double[] { 160, 180, 180, 200, 160, 140 }, new double[] { 0, 10, 20, 30, 30, 40 });
+        indexed = new MultiLine(
+            Arrays.asList(
+                new Line(new double[] { 160, 180 }, new double[] { 0, 10 }),
+                new Line(new double[] { -180, -180, -160, -180 }, new double[] { 10, 20, 30, 30 }),
+                new Line(new double[] { 180, 160, 140 }, new double[] { 30, 30, 40 })
+            )
+        );
 
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, line));
 
-        line = new Line(new double[]{-70, 180, 900}, new double[]{0, 0, 4});
+        line = new Line(new double[] { -70, 180, 900 }, new double[] { 0, 0, 4 });
 
-        indexed = new MultiLine(Arrays.asList(
-            new Line(new double[]{-70, 180}, new double[]{0, 0}),
-            new Line(new double[]{-180, 180}, new double[]{0, 2}),
-            new Line(new double[]{-180, 180}, new double[]{2, 4})
-        ));
+        indexed = new MultiLine(
+            Arrays.asList(
+                new Line(new double[] { -70, 180 }, new double[] { 0, 0 }),
+                new Line(new double[] { -180, 180 }, new double[] { 0, 2 }),
+                new Line(new double[] { -180, 180 }, new double[] { 2, 4 })
+            )
+        );
 
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, line));
 
-        line = new Line(new double[]{160, 200, 160, 200, 160, 200}, new double[]{0, 10, 20, 30, 40, 50});
+        line = new Line(new double[] { 160, 200, 160, 200, 160, 200 }, new double[] { 0, 10, 20, 30, 40, 50 });
 
-        indexed = new MultiLine(Arrays.asList(
-            new Line(new double[]{160, 180}, new double[]{0, 5}),
-            new Line(new double[]{-180, -160, -180}, new double[]{5, 10, 15}),
-            new Line(new double[]{180, 160, 180}, new double[]{15, 20, 25}),
-            new Line(new double[]{-180, -160, -180}, new double[]{25, 30, 35}),
-            new Line(new double[]{180, 160, 180}, new double[]{35, 40, 45}),
-            new Line(new double[]{-180, -160}, new double[]{45, 50})
-        ));
+        indexed = new MultiLine(
+            Arrays.asList(
+                new Line(new double[] { 160, 180 }, new double[] { 0, 5 }),
+                new Line(new double[] { -180, -160, -180 }, new double[] { 5, 10, 15 }),
+                new Line(new double[] { 180, 160, 180 }, new double[] { 15, 20, 25 }),
+                new Line(new double[] { -180, -160, -180 }, new double[] { 25, 30, 35 }),
+                new Line(new double[] { 180, 160, 180 }, new double[] { 35, 40, 45 }),
+                new Line(new double[] { -180, -160 }, new double[] { 45, 50 })
+            )
+        );
 
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, line));
     }
@@ -147,10 +164,10 @@ public class GeometryNormalizerTests extends ESTestCase {
      */
     public double length(Line line) {
         double distance = 0;
-        double[] prev = new double[]{line.getLon(0), line.getLat(0)};
+        double[] prev = new double[] { line.getLon(0), line.getLat(0) };
         GeoUtils.normalizePoint(prev, false, true);
         for (int i = 1; i < line.length(); i++) {
-            double[] cur = new double[]{line.getLon(i), line.getLat(i)};
+            double[] cur = new double[] { line.getLon(i), line.getLat(i) };
             GeoUtils.normalizePoint(cur, false, true);
             distance += Math.sqrt((cur[0] - prev[0]) * (cur[0] - prev[0]) + (cur[1] - prev[1]) * (cur[1] - prev[1]));
             prev = cur;
@@ -216,31 +233,50 @@ public class GeometryNormalizerTests extends ESTestCase {
         // Check that normalized linestring generates the same points as the normalized multipoint based on the same set of points
         MultiPoint decomposedViaLines = remove180s(GeometryTestUtils.toMultiPoint(decomposed));
         MultiPoint originalPoints = GeometryTestUtils.toMultiPoint(original);
-        MultiPoint decomposedViaPoint =
-            remove180s(GeometryTestUtils.toMultiPoint(GeometryNormalizer.apply(Orientation.CCW, originalPoints)));
+        MultiPoint decomposedViaPoint = remove180s(
+            GeometryTestUtils.toMultiPoint(GeometryNormalizer.apply(Orientation.CCW, originalPoints))
+        );
         assertEquals(decomposedViaPoint.size(), decomposedViaLines.size());
-        for (int i=0; i<decomposedViaPoint.size(); i++) {
-            assertEquals("Difference between decomposing lines " + decomposedViaLines + " and points " + decomposedViaPoint +
-                " at the position " + i, decomposedViaPoint.get(i).getLat(), decomposedViaLines.get(i).getLat(), 0.0001);
-            assertEquals("Difference between decomposing lines " + decomposedViaLines + " and points " + decomposedViaPoint +
-                " at the position " + i, decomposedViaPoint.get(i).getLon(), decomposedViaLines.get(i).getLon(), 0.0001);
+        for (int i = 0; i < decomposedViaPoint.size(); i++) {
+            assertEquals(
+                "Difference between decomposing lines "
+                    + decomposedViaLines
+                    + " and points "
+                    + decomposedViaPoint
+                    + " at the position "
+                    + i,
+                decomposedViaPoint.get(i).getLat(),
+                decomposedViaLines.get(i).getLat(),
+                0.0001
+            );
+            assertEquals(
+                "Difference between decomposing lines "
+                    + decomposedViaLines
+                    + " and points "
+                    + decomposedViaPoint
+                    + " at the position "
+                    + i,
+                decomposedViaPoint.get(i).getLon(),
+                decomposedViaLines.get(i).getLon(),
+                0.0001
+            );
         }
     }
 
     public void testMultiLine() {
-        Line line = new Line(new double[]{3, 4}, new double[]{1, 2});
+        Line line = new Line(new double[] { 3, 4 }, new double[] { 1, 2 });
         MultiLine multiLine = new MultiLine(Collections.singletonList(line));
         Geometry indexed = line;
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, multiLine));
 
-        multiLine = new MultiLine(Arrays.asList(
-            line, new Line(new double[]{160, 200}, new double[]{10, 20})
-        ));
+        multiLine = new MultiLine(Arrays.asList(line, new Line(new double[] { 160, 200 }, new double[] { 10, 20 })));
 
-        indexed = new MultiLine(Arrays.asList(
-            line,
-            new Line(new double[]{160, 180}, new double[]{10, 15}),
-            new Line(new double[]{-180, -160}, new double[]{15, 20}))
+        indexed = new MultiLine(
+            Arrays.asList(
+                line,
+                new Line(new double[] { 160, 180 }, new double[] { 10, 15 }),
+                new Line(new double[] { -180, -160 }, new double[] { 15, 20 })
+            )
         );
 
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, multiLine));

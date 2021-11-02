@@ -14,6 +14,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
 import org.elasticsearch.xpack.eql.execution.search.SourceGenerator;
+import org.elasticsearch.xpack.eql.expression.OptionalMissingAttribute;
 import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeMap;
@@ -53,13 +54,15 @@ public class QueryContainer {
         this(null, emptyList(), AttributeMap.emptyAttributeMap(), emptyMap(), false, false, null);
     }
 
-    private QueryContainer(Query query,
-                           List<Tuple<FieldExtraction, String>> fields,
-                           AttributeMap<Expression> attributes,
-                           Map<String, Sort> sort,
-                           boolean trackHits,
-                           boolean includeFrozen,
-                           Limit limit) {
+    private QueryContainer(
+        Query query,
+        List<Tuple<FieldExtraction, String>> fields,
+        AttributeMap<Expression> attributes,
+        Map<String, Sort> sort,
+        boolean trackHits,
+        boolean includeFrozen,
+        Limit limit
+    ) {
         this.query = query;
         this.fields = fields;
         this.sort = sort;
@@ -120,6 +123,10 @@ public class QueryContainer {
             return new Tuple<>(this, extractorRegistry.fieldExtraction(expression));
         }
 
+        if (expression instanceof OptionalMissingAttribute) {
+            return new Tuple<>(this, new ComputedRef(new ConstantInput(expression.source(), expression, null)));
+        }
+
         if (expression.foldable()) {
             return new Tuple<>(this, new ComputedRef(new ConstantInput(expression.source(), expression, expression.fold())));
         }
@@ -158,11 +165,11 @@ public class QueryContainer {
 
         QueryContainer other = (QueryContainer) obj;
         return Objects.equals(query, other.query)
-                && Objects.equals(attributes, other.attributes)
-                && Objects.equals(fields, other.fields)
-                && trackHits == other.trackHits
-                && includeFrozen == other.includeFrozen
-                && Objects.equals(limit, other.limit);
+            && Objects.equals(attributes, other.attributes)
+            && Objects.equals(fields, other.fields)
+            && trackHits == other.trackHits
+            && includeFrozen == other.includeFrozen
+            && Objects.equals(limit, other.limit);
     }
 
     @Override

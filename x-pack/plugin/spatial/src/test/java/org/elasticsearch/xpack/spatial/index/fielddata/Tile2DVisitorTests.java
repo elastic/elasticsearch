@@ -39,8 +39,8 @@ public class Tile2DVisitorTests extends ESTestCase {
 
     public void testPacManPolygon() throws Exception {
         // pacman
-        double[] px = {0, 10, 10, 0, -8, -10, -8, 0, 10, 10, 0};
-        double[] py = {0, -5, -9, -10, -9, 0, 9, 10, 9, 5, 0};
+        double[] px = { 0, 10, 10, 0, -8, -10, -8, 0, 10, 10, 0 };
+        double[] py = { 0, -5, -9, -10, -9, 0, 9, 10, 9, 5, 0 };
 
         // test cell crossing poly
         Polygon pacMan = new Polygon(new LinearRing(py, px), Collections.emptyList());
@@ -53,8 +53,10 @@ public class Tile2DVisitorTests extends ESTestCase {
 
     // adapted from org.apache.lucene.geo.TestPolygon2D#testMultiPolygon
     public void testPolygonWithHole() throws Exception {
-        Polygon polyWithHole = new Polygon(new LinearRing(new double[]{-50, 50, 50, -50, -50}, new double[]{-50, -50, 50, 50, -50}),
-            Collections.singletonList(new LinearRing(new double[]{-10, 10, 10, -10, -10}, new double[]{-10, -10, 10, 10, -10})));
+        Polygon polyWithHole = new Polygon(
+            new LinearRing(new double[] { -50, 50, 50, -50, -50 }, new double[] { -50, -50, 50, 50, -50 }),
+            Collections.singletonList(new LinearRing(new double[] { -10, 10, 10, -10, -10 }, new double[] { -10, -10, 10, 10, -10 }))
+        );
 
         GeometryDocValueReader reader = GeoTestUtils.geometryDocValueReader(polyWithHole, CoordinateEncoder.GEO);
 
@@ -67,11 +69,11 @@ public class Tile2DVisitorTests extends ESTestCase {
     }
 
     public void testCombPolygon() throws Exception {
-        double[] px = {0, 10, 10, 20, 20, 30, 30, 40, 40, 50, 50, 0, 0};
-        double[] py = {0, 0, 20, 20, 0, 0, 20, 20, 0, 0, 30, 30, 0};
+        double[] px = { 0, 10, 10, 20, 20, 30, 30, 40, 40, 50, 50, 0, 0 };
+        double[] py = { 0, 0, 20, 20, 0, 0, 20, 20, 0, 0, 30, 30, 0 };
 
-        double[] hx = {21, 21, 29, 29, 21};
-        double[] hy = {1, 20, 20, 1, 1};
+        double[] hx = { 21, 21, 29, 29, 21 };
+        double[] hy = { 1, 20, 20, 1, 1 };
 
         Polygon polyWithHole = new Polygon(new LinearRing(px, py), Collections.singletonList(new LinearRing(hx, hy)));
         GeometryDocValueReader reader = GeoTestUtils.geometryDocValueReader(polyWithHole, CoordinateEncoder.GEO);
@@ -83,8 +85,8 @@ public class Tile2DVisitorTests extends ESTestCase {
 
     public void testPacManClosedLineString() throws Exception {
         // pacman
-        double[] px = {0, 10, 10, 0, -8, -10, -8, 0, 10, 10, 0};
-        double[] py = {0, 5, 9, 10, 9, 0, -9, -10, -9, -5, 0};
+        double[] px = { 0, 10, 10, 0, -8, -10, -8, 0, 10, 10, 0 };
+        double[] py = { 0, 5, 9, 10, 9, 0, -9, -10, -9, -5, 0 };
 
         // test cell crossing poly
         GeometryDocValueReader reader = GeoTestUtils.geometryDocValueReader(new Line(px, py), CoordinateEncoder.GEO);
@@ -96,8 +98,8 @@ public class Tile2DVisitorTests extends ESTestCase {
 
     public void testPacManLineString() throws Exception {
         // pacman
-        double[] px = {0, 10, 10, 0, -8, -10, -8, 0, 10, 10};
-        double[] py = {0, 5, 9, 10, 9, 0, -9, -10, -9, -5};
+        double[] px = { 0, 10, 10, 0, -8, -10, -8, 0, 10, 10 };
+        double[] py = { 0, 5, 9, 10, 9, 0, -9, -10, -9, -5 };
 
         // test cell crossing poly
         GeometryDocValueReader reader = GeoTestUtils.geometryDocValueReader(new Line(px, py), CoordinateEncoder.GEO);
@@ -122,7 +124,6 @@ public class Tile2DVisitorTests extends ESTestCase {
             new Point(-5, 10)
         );
 
-
         // candidate intersects cell
         int xMin = 0;
         int xMax = 11;
@@ -142,19 +143,29 @@ public class Tile2DVisitorTests extends ESTestCase {
 
         for (Line line : geometry) {
             Extent lineExtent = GeoTestUtils.geometryDocValueReader(line, CoordinateEncoder.GEO).getExtent();
-            if (lineExtent.minX() != Integer.MIN_VALUE && lineExtent.maxX() != Integer.MAX_VALUE
-                && lineExtent.minY() != Integer.MIN_VALUE && lineExtent.maxY() != Integer.MAX_VALUE) {
-                assertRelation(GeoRelation.QUERY_CROSSES, reader, Extent.fromPoints(lineExtent.minX() - 1, lineExtent.minY() - 1,
-                    lineExtent.maxX() + 1, lineExtent.maxY() + 1));
+            if (lineExtent.minX() != Integer.MIN_VALUE
+                && lineExtent.maxX() != Integer.MAX_VALUE
+                && lineExtent.minY() != Integer.MIN_VALUE
+                && lineExtent.maxY() != Integer.MAX_VALUE) {
+                assertRelation(
+                    GeoRelation.QUERY_CROSSES,
+                    reader,
+                    Extent.fromPoints(lineExtent.minX() - 1, lineExtent.minY() - 1, lineExtent.maxX() + 1, lineExtent.maxY() + 1)
+                );
             }
         }
 
         // extent that fully encloses the MultiLine
         assertRelation(GeoRelation.QUERY_CROSSES, reader, reader.getExtent());
-        if (readerExtent.minX() != Integer.MIN_VALUE && readerExtent.maxX() != Integer.MAX_VALUE
-            && readerExtent.minY() != Integer.MIN_VALUE && readerExtent.maxY() != Integer.MAX_VALUE) {
-            assertRelation(GeoRelation.QUERY_CROSSES, reader, Extent.fromPoints(readerExtent.minX() - 1, readerExtent.minY() - 1,
-                readerExtent.maxX() + 1, readerExtent.maxY() + 1));
+        if (readerExtent.minX() != Integer.MIN_VALUE
+            && readerExtent.maxX() != Integer.MAX_VALUE
+            && readerExtent.minY() != Integer.MIN_VALUE
+            && readerExtent.maxY() != Integer.MAX_VALUE) {
+            assertRelation(
+                GeoRelation.QUERY_CROSSES,
+                reader,
+                Extent.fromPoints(readerExtent.minX() - 1, readerExtent.minY() - 1, readerExtent.maxX() + 1, readerExtent.maxY() + 1)
+            );
         }
 
     }
@@ -190,10 +201,12 @@ public class Tile2DVisitorTests extends ESTestCase {
     }
 
     private static Extent getExtentFromBox(double bottomLeftX, double bottomLeftY, double topRightX, double topRightY) {
-        return Extent.fromPoints(CoordinateEncoder.GEO.encodeX(bottomLeftX),
+        return Extent.fromPoints(
+            CoordinateEncoder.GEO.encodeX(bottomLeftX),
             CoordinateEncoder.GEO.encodeY(bottomLeftY),
             CoordinateEncoder.GEO.encodeX(topRightX),
-            CoordinateEncoder.GEO.encodeY(topRightY));
+            CoordinateEncoder.GEO.encodeY(topRightY)
+        );
 
     }
 
@@ -205,7 +218,6 @@ public class Tile2DVisitorTests extends ESTestCase {
         GeoTestUtils.geometryDocValueReader(g, CoordinateEncoder.GEO).visit(tile2DVisitor);
         return tile2DVisitor.relation() == GeoRelation.QUERY_CROSSES || tile2DVisitor.relation() == GeoRelation.QUERY_INSIDE;
     }
-
 
     /**
      * Preforms left fold operation on all primitive geometries (points, lines polygons, circles and rectangles).
@@ -244,7 +256,8 @@ public class Tile2DVisitorTests extends ESTestCase {
 
             @Override
             public R visit(MultiPoint multiPoint) throws E {
-                return visit((GeometryCollection<?>) multiPoint);            }
+                return visit((GeometryCollection<?>) multiPoint);
+            }
 
             @Override
             public R visit(MultiPolygon multiPolygon) throws E {

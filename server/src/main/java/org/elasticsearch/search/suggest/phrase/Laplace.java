@@ -11,13 +11,13 @@ package org.elasticsearch.search.suggest.phrase;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.suggest.phrase.WordScorer.WordScorerFactory;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
-import org.elasticsearch.search.suggest.phrase.WordScorer.WordScorerFactory;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -108,7 +108,13 @@ public final class Laplace extends SmoothingModel {
 
     @Override
     public WordScorerFactory buildWordScorerFactory() {
-        return (IndexReader reader, Terms terms, String field, double realWordLikelihood, BytesRef separator)
-                -> new LaplaceScorer(reader, terms,  field, realWordLikelihood, separator, alpha);
+        return (IndexReader reader, Terms terms, String field, double realWordLikelihood, BytesRef separator) -> new LaplaceScorer(
+            reader,
+            terms,
+            field,
+            realWordLikelihood,
+            separator,
+            alpha
+        );
     }
 }

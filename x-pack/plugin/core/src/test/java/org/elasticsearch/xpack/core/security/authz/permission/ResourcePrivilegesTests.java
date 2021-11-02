@@ -40,28 +40,33 @@ public class ResourcePrivilegesTests extends ESTestCase {
     public void testEqualsHashCode() {
         ResourcePrivileges instance = createInstance();
 
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(instance, (original) -> {
-            return ResourcePrivileges.builder(original.getResource()).addPrivileges(original.getPrivileges()).build();
-        });
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(instance, (original) -> {
-            return ResourcePrivileges.builder(original.getResource()).addPrivileges(original.getPrivileges()).build();
-        }, ResourcePrivilegesTests::mutateTestItem);
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            instance,
+            (original) -> { return ResourcePrivileges.builder(original.getResource()).addPrivileges(original.getPrivileges()).build(); }
+        );
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            instance,
+            (original) -> { return ResourcePrivileges.builder(original.getResource()).addPrivileges(original.getPrivileges()).build(); },
+            ResourcePrivilegesTests::mutateTestItem
+        );
     }
 
     private ResourcePrivileges createInstance() {
-        ResourcePrivileges instance = ResourcePrivileges.builder("*").addPrivilege("read", true)
-                .addPrivileges(Collections.singletonMap("write", false)).build();
+        ResourcePrivileges instance = ResourcePrivileges.builder("*")
+            .addPrivilege("read", true)
+            .addPrivileges(Collections.singletonMap("write", false))
+            .build();
         return instance;
     }
 
     private static ResourcePrivileges mutateTestItem(ResourcePrivileges original) {
         switch (randomIntBetween(0, 1)) {
-        case 0:
-            return ResourcePrivileges.builder(randomAlphaOfLength(6)).addPrivileges(original.getPrivileges()).build();
-        case 1:
-            return ResourcePrivileges.builder(original.getResource()).addPrivileges(Collections.emptyMap()).build();
-        default:
-            return ResourcePrivileges.builder(randomAlphaOfLength(6)).addPrivileges(Collections.emptyMap()).build();
+            case 0:
+                return ResourcePrivileges.builder(randomAlphaOfLength(6)).addPrivileges(original.getPrivileges()).build();
+            case 1:
+                return ResourcePrivileges.builder(original.getResource()).addPrivileges(Collections.emptyMap()).build();
+            default:
+                return ResourcePrivileges.builder(randomAlphaOfLength(6)).addPrivileges(Collections.emptyMap()).build();
         }
     }
 

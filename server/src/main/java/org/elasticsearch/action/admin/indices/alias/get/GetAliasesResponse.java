@@ -59,8 +59,7 @@ public class GetAliasesResponse extends ActionResponse {
             return false;
         }
         GetAliasesResponse that = (GetAliasesResponse) o;
-        return Objects.equals(aliases, that.aliases) &&
-            Objects.equals(dataStreamAliases, that.dataStreamAliases);
+        return Objects.equals(aliases, that.aliases) && Objects.equals(dataStreamAliases, that.dataStreamAliases);
     }
 
     @Override

@@ -52,14 +52,12 @@ final class ClusterRequestConverters {
 
     static Request clusterHealth(ClusterHealthRequest healthRequest) {
         String[] indices = healthRequest.indices() == null ? Strings.EMPTY_ARRAY : healthRequest.indices();
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_cluster/health")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_cluster/health")
             .addCommaSeparatedPathParts(indices)
             .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
-        RequestConverters.Params params = new RequestConverters.Params()
-            .withWaitForStatus(healthRequest.waitForStatus())
+        RequestConverters.Params params = new RequestConverters.Params().withWaitForStatus(healthRequest.waitForStatus())
             .withWaitForNoRelocatingShards(healthRequest.waitForNoRelocatingShards())
             .withWaitForNoInitializingShards(healthRequest.waitForNoInitializingShards())
             .withWaitForActiveShards(healthRequest.waitForActiveShards(), ActiveShardCount.NONE)
@@ -79,7 +77,8 @@ final class ClusterRequestConverters {
 
     static Request putComponentTemplate(PutComponentTemplateRequest putComponentTemplateRequest) throws IOException {
         String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_component_template")
-            .addPathPart(putComponentTemplateRequest.name()).build();
+            .addPathPart(putComponentTemplateRequest.name())
+            .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params();
         params.withMasterTimeout(putComponentTemplateRequest.masterNodeTimeout());
@@ -94,9 +93,8 @@ final class ClusterRequestConverters {
         return request;
     }
 
-    static Request getComponentTemplates(GetComponentTemplatesRequest getComponentTemplatesRequest){
-        final String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_component_template")
+    static Request getComponentTemplates(GetComponentTemplatesRequest getComponentTemplatesRequest) {
+        final String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_component_template")
             .addPathPart(getComponentTemplatesRequest.name())
             .build();
         final Request request = new Request(HttpGet.METHOD_NAME, endpoint);
@@ -108,8 +106,7 @@ final class ClusterRequestConverters {
     }
 
     static Request componentTemplatesExist(ComponentTemplatesExistRequest componentTemplatesRequest) {
-        final String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_component_template")
+        final String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_component_template")
             .addPathPart(componentTemplatesRequest.name())
             .build();
         final Request request = new Request(HttpHead.METHOD_NAME, endpoint);

@@ -37,13 +37,20 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
     private final SqlLicenseChecker sqlLicenseChecker;
 
     @Inject
-    public TransportSqlTranslateAction(Settings settings, ClusterService clusterService, TransportService transportService,
-                                       ThreadPool threadPool, ActionFilters actionFilters, PlanExecutor planExecutor,
-                                       SqlLicenseChecker sqlLicenseChecker) {
+    public TransportSqlTranslateAction(
+        Settings settings,
+        ClusterService clusterService,
+        TransportService transportService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        PlanExecutor planExecutor,
+        SqlLicenseChecker sqlLicenseChecker
+    ) {
         super(SqlTranslateAction.NAME, transportService, actionFilters, SqlTranslateRequest::new);
 
-        this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
-                new SecurityContext(settings, threadPool.getThreadContext()) : null;
+        this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
+            ? new SecurityContext(settings, threadPool.getThreadContext())
+            : null;
         this.clusterService = clusterService;
         this.planExecutor = planExecutor;
         this.sqlLicenseChecker = sqlLicenseChecker;
@@ -53,13 +60,33 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
     protected void doExecute(Task task, SqlTranslateRequest request, ActionListener<SqlTranslateResponse> listener) {
         sqlLicenseChecker.checkIfSqlAllowed(request.mode());
 
-        SqlConfiguration cfg = new SqlConfiguration(request.zoneId(), request.catalog(), request.fetchSize(),
-                request.requestTimeout(), request.pageTimeout(), request.filter(), request.runtimeMappings(),
-                request.mode(), request.clientId(), request.version(),
-                username(securityContext), clusterName(clusterService), Protocol.FIELD_MULTI_VALUE_LENIENCY,
-                Protocol.INDEX_INCLUDE_FROZEN);
+        SqlConfiguration cfg = new SqlConfiguration(
+            request.zoneId(),
+            request.catalog(),
+            request.fetchSize(),
+            request.requestTimeout(),
+            request.pageTimeout(),
+            request.filter(),
+            request.runtimeMappings(),
+            request.mode(),
+            request.clientId(),
+            request.version(),
+            username(securityContext),
+            clusterName(clusterService),
+            Protocol.FIELD_MULTI_VALUE_LENIENCY,
+            Protocol.INDEX_INCLUDE_FROZEN,
+            null,
+            null
+        );
 
-        planExecutor.searchSource(cfg, request.query(), request.params(), ActionListener.wrap(
-                searchSourceBuilder -> listener.onResponse(new SqlTranslateResponse(searchSourceBuilder)), listener::onFailure));
+        planExecutor.searchSource(
+            cfg,
+            request.query(),
+            request.params(),
+            ActionListener.wrap(
+                searchSourceBuilder -> listener.onResponse(new SqlTranslateResponse(searchSourceBuilder)),
+                listener::onFailure
+            )
+        );
     }
 }

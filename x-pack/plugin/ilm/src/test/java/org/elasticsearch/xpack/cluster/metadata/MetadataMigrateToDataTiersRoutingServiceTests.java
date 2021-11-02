@@ -73,10 +73,12 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     private static final NamedXContentRegistry REGISTRY;
 
     static {
-        REGISTRY = new NamedXContentRegistry(List.of(
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ShrinkAction.NAME), ShrinkAction::parse),
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(AllocateAction.NAME), AllocateAction::parse)
-        ));
+        REGISTRY = new NamedXContentRegistry(
+            List.of(
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ShrinkAction.NAME), ShrinkAction::parse),
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(AllocateAction.NAME), AllocateAction::parse)
+            )
+        );
     }
 
     private String lifecycleName;
@@ -96,13 +98,26 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         AllocateAction warmAllocateAction = new AllocateAction(null, null, Map.of("data", "warm"), null, Map.of("rack", "rack1"));
         AllocateAction coldAllocateAction = new AllocateAction(0, null, null, null, Map.of("data", "cold"));
         SetPriorityAction warmSetPriority = new SetPriorityAction(100);
-        LifecyclePolicyMetadata policyMetadata = getWarmColdPolicyMeta(warmSetPriority, shrinkAction, warmAllocateAction,
-            coldAllocateAction);
+        LifecyclePolicyMetadata policyMetadata = getWarmColdPolicyMeta(
+            warmSetPriority,
+            shrinkAction,
+            warmAllocateAction,
+            coldAllocateAction
+        );
 
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
-                .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(
-                    Collections.singletonMap(policyMetadata.getName(), policyMetadata), OperationMode.STOPPED))
-                .put(IndexMetadata.builder(indexName).settings(getBaseIndexSettings())).build())
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(
+                Metadata.builder()
+                    .putCustom(
+                        IndexLifecycleMetadata.TYPE,
+                        new IndexLifecycleMetadata(
+                            Collections.singletonMap(policyMetadata.getName(), policyMetadata),
+                            OperationMode.STOPPED
+                        )
+                    )
+                    .put(IndexMetadata.builder(indexName).settings(getBaseIndexSettings()))
+                    .build()
+            )
             .build();
 
         Metadata.Builder newMetadata = Metadata.builder(state.metadata());
@@ -114,8 +129,11 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         IndexLifecycleMetadata updatedLifecycleMetadata = newState.metadata().custom(IndexLifecycleMetadata.TYPE);
         LifecyclePolicy lifecyclePolicy = updatedLifecycleMetadata.getPolicies().get(lifecycleName);
         Map<String, LifecycleAction> warmActions = lifecyclePolicy.getPhases().get("warm").getActions();
-        assertThat("allocate action in the warm phase didn't specify any number of replicas so it must be removed",
-            warmActions.size(), is(2));
+        assertThat(
+            "allocate action in the warm phase didn't specify any number of replicas so it must be removed",
+            warmActions.size(),
+            is(2)
+        );
         assertThat(warmActions.get(shrinkAction.getWriteableName()), is(shrinkAction));
         assertThat(warmActions.get(warmSetPriority.getWriteableName()), is(warmSetPriority));
 
@@ -129,21 +147,45 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     public void testMigrateIlmPolicyFOrPhaseWithDeactivatedMigrateAction() {
         ShrinkAction shrinkAction = new ShrinkAction(2, null);
         AllocateAction warmAllocateAction = new AllocateAction(null, null, Map.of("data", "warm"), null, Map.of("rack", "rack1"));
-        MigrateAction deactivatedMigrateAction = new MigrateAction(false);
 
-        LifecyclePolicy policy = new LifecyclePolicy(lifecycleName,
-            Map.of("warm",
-                new Phase("warm", TimeValue.ZERO, Map.of(shrinkAction.getWriteableName(), shrinkAction,
-                    warmAllocateAction.getWriteableName(), warmAllocateAction, deactivatedMigrateAction.getWriteableName(),
-                    deactivatedMigrateAction))
-            ));
-        LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(policy, Collections.emptyMap(),
-            randomNonNegativeLong(), randomNonNegativeLong());
+        LifecyclePolicy policy = new LifecyclePolicy(
+            lifecycleName,
+            Map.of(
+                "warm",
+                new Phase(
+                    "warm",
+                    TimeValue.ZERO,
+                    Map.of(
+                        shrinkAction.getWriteableName(),
+                        shrinkAction,
+                        warmAllocateAction.getWriteableName(),
+                        warmAllocateAction,
+                        MigrateAction.DISABLED.getWriteableName(),
+                        MigrateAction.DISABLED
+                    )
+                )
+            )
+        );
+        LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(
+            policy,
+            Collections.emptyMap(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
 
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
-                .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(
-                    Collections.singletonMap(policyMetadata.getName(), policyMetadata), OperationMode.STOPPED))
-                .put(IndexMetadata.builder(indexName).settings(getBaseIndexSettings())).build())
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(
+                Metadata.builder()
+                    .putCustom(
+                        IndexLifecycleMetadata.TYPE,
+                        new IndexLifecycleMetadata(
+                            Collections.singletonMap(policyMetadata.getName(), policyMetadata),
+                            OperationMode.STOPPED
+                        )
+                    )
+                    .put(IndexMetadata.builder(indexName).settings(getBaseIndexSettings()))
+                    .build()
+            )
             .build();
 
         Metadata.Builder newMetadata = Metadata.builder(state.metadata());
@@ -155,8 +197,12 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         IndexLifecycleMetadata updatedLifecycleMetadata = newState.metadata().custom(IndexLifecycleMetadata.TYPE);
         LifecyclePolicy lifecyclePolicy = updatedLifecycleMetadata.getPolicies().get(lifecycleName);
         Map<String, LifecycleAction> warmActions = lifecyclePolicy.getPhases().get("warm").getActions();
-        assertThat("allocate action in the warm phase didn't specify any number of replicas so it must be removed, together with the " +
-            "deactivated migrate action", warmActions.size(), is(1));
+        assertThat(
+            "allocate action in the warm phase didn't specify any number of replicas so it must be removed, together with the "
+                + "deactivated migrate action",
+            warmActions.size(),
+            is(1)
+        );
         assertThat(warmActions.get(shrinkAction.getWriteableName()), is(shrinkAction));
     }
 
@@ -166,8 +212,12 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         AllocateAction warmAllocateAction = new AllocateAction(null, null, Map.of("data", "warm"), null, Map.of("rack", "rack1"));
         AllocateAction coldAllocateAction = new AllocateAction(0, null, null, null, Map.of("data", "cold"));
         SetPriorityAction warmSetPriority = new SetPriorityAction(100);
-        LifecyclePolicyMetadata policyMetadata = getWarmColdPolicyMeta(warmSetPriority, shrinkAction, warmAllocateAction,
-            coldAllocateAction);
+        LifecyclePolicyMetadata policyMetadata = getWarmColdPolicyMeta(
+            warmSetPriority,
+            shrinkAction,
+            warmAllocateAction,
+            coldAllocateAction
+        );
 
         {
             // index is in the cold phase and the migrated allocate action is not removed
@@ -178,13 +228,23 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 .setPhaseDefinition(getColdPhaseDefinition())
                 .build();
 
-            IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName).settings(getBaseIndexSettings())
+            IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName)
+                .settings(getBaseIndexSettings())
                 .putCustom(ILM_CUSTOM_METADATA_KEY, preMigrationExecutionState.asMap());
 
-            ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
-                    .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(
-                        Collections.singletonMap(policyMetadata.getName(), policyMetadata), OperationMode.STOPPED))
-                    .put(indexMetadata).build())
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(
+                    Metadata.builder()
+                        .putCustom(
+                            IndexLifecycleMetadata.TYPE,
+                            new IndexLifecycleMetadata(
+                                Collections.singletonMap(policyMetadata.getName(), policyMetadata),
+                                OperationMode.STOPPED
+                            )
+                        )
+                        .put(indexMetadata)
+                        .build()
+                )
                 .build();
 
             Metadata.Builder newMetadata = Metadata.builder(state.metadata());
@@ -216,13 +276,23 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 .setPhaseDefinition(getWarmPhaseDef())
                 .build();
 
-            IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName).settings(getBaseIndexSettings())
+            IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName)
+                .settings(getBaseIndexSettings())
                 .putCustom(ILM_CUSTOM_METADATA_KEY, preMigrationExecutionState.asMap());
 
-            ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
-                    .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(
-                        Collections.singletonMap(policyMetadata.getName(), policyMetadata), OperationMode.STOPPED))
-                    .put(indexMetadata).build())
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(
+                    Metadata.builder()
+                        .putCustom(
+                            IndexLifecycleMetadata.TYPE,
+                            new IndexLifecycleMetadata(
+                                Collections.singletonMap(policyMetadata.getName(), policyMetadata),
+                                OperationMode.STOPPED
+                            )
+                        )
+                        .put(indexMetadata)
+                        .build()
+                )
                 .build();
 
             Metadata.Builder newMetadata = Metadata.builder(state.metadata());
@@ -260,13 +330,23 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 .setPhaseDefinition(getWarmPhaseDef())
                 .build();
 
-            IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName).settings(getBaseIndexSettings())
+            IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName)
+                .settings(getBaseIndexSettings())
                 .putCustom(ILM_CUSTOM_METADATA_KEY, preMigrationExecutionState.asMap());
 
-            ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
-                    .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(
-                        Collections.singletonMap(policyMetadata.getName(), policyMetadata), OperationMode.STOPPED))
-                    .put(indexMetadata).build())
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(
+                    Metadata.builder()
+                        .putCustom(
+                            IndexLifecycleMetadata.TYPE,
+                            new IndexLifecycleMetadata(
+                                Collections.singletonMap(policyMetadata.getName(), policyMetadata),
+                                OperationMode.STOPPED
+                            )
+                        )
+                        .put(indexMetadata)
+                        .build()
+                )
                 .build();
 
             Metadata.Builder newMetadata = Metadata.builder(state.metadata());
@@ -300,13 +380,23 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 .setPhaseDefinition(getWarmPhaseDef())
                 .build();
 
-            IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName).settings(getBaseIndexSettings())
+            IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName)
+                .settings(getBaseIndexSettings())
                 .putCustom(ILM_CUSTOM_METADATA_KEY, preMigrationExecutionState.asMap());
 
-            ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
-                    .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(
-                        Collections.singletonMap(policyMetadata.getName(), policyMetadata), OperationMode.STOPPED))
-                    .put(indexMetadata).build())
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(
+                    Metadata.builder()
+                        .putCustom(
+                            IndexLifecycleMetadata.TYPE,
+                            new IndexLifecycleMetadata(
+                                Collections.singletonMap(policyMetadata.getName(), policyMetadata),
+                                OperationMode.STOPPED
+                            )
+                        )
+                        .put(indexMetadata)
+                        .build()
+                )
                 .build();
 
             Metadata.Builder newMetadata = Metadata.builder(state.metadata());
@@ -344,11 +434,17 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     public void testAllocateActionDefinesRoutingRules() {
         assertThat(allocateActionDefinesRoutingRules("data", new AllocateAction(null, null, Map.of("data", "cold"), null, null)), is(true));
         assertThat(allocateActionDefinesRoutingRules("data", new AllocateAction(null, null, null, Map.of("data", "cold"), null)), is(true));
-        assertThat(allocateActionDefinesRoutingRules("data", new AllocateAction(null, null, Map.of("another_attribute", "rack1"), null,
-            Map.of("data", "cold"))), is(true));
-        assertThat(allocateActionDefinesRoutingRules("data", new AllocateAction(null, null, null, null, Map.of("another_attribute",
-                "cold"))),
-            is(false));
+        assertThat(
+            allocateActionDefinesRoutingRules(
+                "data",
+                new AllocateAction(null, null, Map.of("another_attribute", "rack1"), null, Map.of("data", "cold"))
+            ),
+            is(true)
+        );
+        assertThat(
+            allocateActionDefinesRoutingRules("data", new AllocateAction(null, null, null, null, Map.of("another_attribute", "cold"))),
+            is(false)
+        );
         assertThat(allocateActionDefinesRoutingRules("data", null), is(false));
     }
 
@@ -364,11 +460,11 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     public void testMigrateIndices() {
         {
             // index with `warm` data attribute is migrated to the equivalent _tier_preference routing
-            IndexMetadata.Builder indexWithWarmDataAttribute =
-                IndexMetadata.builder("indexWithWarmDataAttribute").settings(getBaseIndexSettings()
-                    .put(DATA_ROUTING_REQUIRE_SETTING, "warm"));
-            ClusterState state =
-                ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexWithWarmDataAttribute)).build();
+            IndexMetadata.Builder indexWithWarmDataAttribute = IndexMetadata.builder("indexWithWarmDataAttribute")
+                .settings(getBaseIndexSettings().put(DATA_ROUTING_REQUIRE_SETTING, "warm"));
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(Metadata.builder().put(indexWithWarmDataAttribute))
+                .build();
 
             Metadata.Builder mb = Metadata.builder(state.metadata());
 
@@ -384,11 +480,11 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
         {
             // test the migration of the `include.data` configuration to the equivalent _tier_preference routing
-            IndexMetadata.Builder indexWithWarmDataAttribute =
-                IndexMetadata.builder("indexWithWarmDataAttribute").settings(getBaseIndexSettings()
-                    .put(DATA_ROUTING_INCLUDE_SETTING, "warm"));
-            ClusterState state =
-                ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexWithWarmDataAttribute)).build();
+            IndexMetadata.Builder indexWithWarmDataAttribute = IndexMetadata.builder("indexWithWarmDataAttribute")
+                .settings(getBaseIndexSettings().put(DATA_ROUTING_INCLUDE_SETTING, "warm"));
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(Metadata.builder().put(indexWithWarmDataAttribute))
+                .build();
 
             Metadata.Builder mb = Metadata.builder(state.metadata());
 
@@ -405,13 +501,15 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         {
             // since the index has a _tier_preference configuration the migrated index should still contain it and have the `data`
             // attributes routing removed
-            IndexMetadata.Builder indexWithTierPreferenceAndDataAttribute =
-                IndexMetadata.builder("indexWithTierPreferenceAndDataAttribute").settings(getBaseIndexSettings()
-                    .put(DATA_ROUTING_REQUIRE_SETTING, "cold")
-                    .put(DATA_ROUTING_INCLUDE_SETTING, "hot")
-                    .put(TIER_PREFERENCE, "data_warm,data_hot"));
-            ClusterState state =
-                ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexWithTierPreferenceAndDataAttribute)).build();
+            IndexMetadata.Builder indexWithTierPreferenceAndDataAttribute = IndexMetadata.builder("indexWithTierPreferenceAndDataAttribute")
+                .settings(
+                    getBaseIndexSettings().put(DATA_ROUTING_REQUIRE_SETTING, "cold")
+                        .put(DATA_ROUTING_INCLUDE_SETTING, "hot")
+                        .put(TIER_PREFERENCE, "data_warm,data_hot")
+                );
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(Metadata.builder().put(indexWithTierPreferenceAndDataAttribute))
+                .build();
 
             Metadata.Builder mb = Metadata.builder(state.metadata());
 
@@ -429,12 +527,11 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         {
             // like above, test a combination of node attribute and _tier_preference routings configured for the original index, but this
             // time using the `include.data` setting
-            IndexMetadata.Builder indexWithTierPreferenceAndDataAttribute =
-                IndexMetadata.builder("indexWithTierPreferenceAndDataAttribute").settings(getBaseIndexSettings()
-                    .put(DATA_ROUTING_INCLUDE_SETTING, "cold")
-                    .put(TIER_PREFERENCE, "data_warm,data_hot"));
-            ClusterState state =
-                ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexWithTierPreferenceAndDataAttribute)).build();
+            IndexMetadata.Builder indexWithTierPreferenceAndDataAttribute = IndexMetadata.builder("indexWithTierPreferenceAndDataAttribute")
+                .settings(getBaseIndexSettings().put(DATA_ROUTING_INCLUDE_SETTING, "cold").put(TIER_PREFERENCE, "data_warm,data_hot"));
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(Metadata.builder().put(indexWithTierPreferenceAndDataAttribute))
+                .build();
 
             Metadata.Builder mb = Metadata.builder(state.metadata());
 
@@ -450,11 +547,11 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
         {
             // index with an unknown `data` attribute routing value should be migrated
-            IndexMetadata.Builder indexWithUnknownDataAttribute =
-                IndexMetadata.builder("indexWithUnknownDataAttribute").settings(getBaseIndexSettings()
-                    .put(DATA_ROUTING_REQUIRE_SETTING, "something_else"));
-            ClusterState state =
-                ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexWithUnknownDataAttribute)).build();
+            IndexMetadata.Builder indexWithUnknownDataAttribute = IndexMetadata.builder("indexWithUnknownDataAttribute")
+                .settings(getBaseIndexSettings().put(DATA_ROUTING_REQUIRE_SETTING, "something_else"));
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(Metadata.builder().put(indexWithUnknownDataAttribute))
+                .build();
 
             Metadata.Builder mb = Metadata.builder(state.metadata());
             List<String> migratedIndices = migrateIndices(mb, state, "data");
@@ -469,12 +566,11 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         {
             // index with data and another attribute should only see the data attribute removed and the corresponding tier_preference
             // configured
-            IndexMetadata.Builder indexDataAndBoxAttribute =
-                IndexMetadata.builder("indexWithDataAndBoxAttribute").settings(getBaseIndexSettings()
-                    .put(DATA_ROUTING_REQUIRE_SETTING, "warm")
-                    .put(BOX_ROUTING_REQUIRE_SETTING, "box1"));
-            ClusterState state =
-                ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexDataAndBoxAttribute)).build();
+            IndexMetadata.Builder indexDataAndBoxAttribute = IndexMetadata.builder("indexWithDataAndBoxAttribute")
+                .settings(getBaseIndexSettings().put(DATA_ROUTING_REQUIRE_SETTING, "warm").put(BOX_ROUTING_REQUIRE_SETTING, "box1"));
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(Metadata.builder().put(indexDataAndBoxAttribute))
+                .build();
 
             Metadata.Builder mb = Metadata.builder(state.metadata());
             List<String> migratedIndices = migrateIndices(mb, state, "data");
@@ -490,11 +586,9 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
         {
             // index that doesn't have any data attribute routing but has another attribute should be migrated
-            IndexMetadata.Builder indexBoxAttribute =
-                IndexMetadata.builder("indexWithBoxAttribute").settings(getBaseIndexSettings()
-                    .put(BOX_ROUTING_REQUIRE_SETTING, "warm"));
-            ClusterState state =
-                ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexBoxAttribute)).build();
+            IndexMetadata.Builder indexBoxAttribute = IndexMetadata.builder("indexWithBoxAttribute")
+                .settings(getBaseIndexSettings().put(BOX_ROUTING_REQUIRE_SETTING, "warm"));
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexBoxAttribute)).build();
 
             Metadata.Builder mb = Metadata.builder(state.metadata());
             List<String> migratedIndices = migrateIndices(mb, state, "data");
@@ -508,10 +602,11 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         }
 
         {
-            IndexMetadata.Builder indexNoRoutingAttribute =
-                IndexMetadata.builder("indexNoRoutingAttribute").settings(getBaseIndexSettings());
-            ClusterState state =
-                ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexNoRoutingAttribute)).build();
+            IndexMetadata.Builder indexNoRoutingAttribute = IndexMetadata.builder("indexNoRoutingAttribute")
+                .settings(getBaseIndexSettings());
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(Metadata.builder().put(indexNoRoutingAttribute))
+                .build();
 
             Metadata.Builder mb = Metadata.builder(state.metadata());
             List<String> migratedIndices = migrateIndices(mb, state, "data");
@@ -526,15 +621,15 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     }
 
     public void testRequireAttributeIndexSettingTakesPriorityOverInclude() {
-        IndexMetadata.Builder indexWithAllRoutingSettings =
-            IndexMetadata.builder("indexWithAllRoutingSettings")
-                .settings(getBaseIndexSettings()
-                    .put(DATA_ROUTING_REQUIRE_SETTING, "warm")
+        IndexMetadata.Builder indexWithAllRoutingSettings = IndexMetadata.builder("indexWithAllRoutingSettings")
+            .settings(
+                getBaseIndexSettings().put(DATA_ROUTING_REQUIRE_SETTING, "warm")
                     .put(DATA_ROUTING_INCLUDE_SETTING, "cold")
                     .put(DATA_ROUTING_EXCLUDE_SETTING, "hot")
-                );
-        ClusterState state =
-            ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexWithAllRoutingSettings)).build();
+            );
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(indexWithAllRoutingSettings))
+            .build();
 
         Metadata.Builder mb = Metadata.builder(state.metadata());
 
@@ -551,48 +646,97 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     }
 
     public void testMigrateToDataTiersRouting() {
-        AllocateAction allocateActionWithDataAttribute = new AllocateAction(null, null, Map.of("data", "warm"), null, Map.of("rack",
-            "rack1"));
+        AllocateAction allocateActionWithDataAttribute = new AllocateAction(
+            null,
+            null,
+            Map.of("data", "warm"),
+            null,
+            Map.of("rack", "rack1")
+        );
         AllocateAction allocateActionWithOtherAttribute = new AllocateAction(0, null, null, null, Map.of("other", "cold"));
 
-        LifecyclePolicy policyToMigrate = new LifecyclePolicy(lifecycleName,
-            Map.of("warm",
-                new Phase("warm", TimeValue.ZERO, Map.of(allocateActionWithDataAttribute.getWriteableName(),
-                    allocateActionWithDataAttribute))));
-        LifecyclePolicyMetadata policyWithDataAttribute = new LifecyclePolicyMetadata(policyToMigrate, Collections.emptyMap(),
-            randomNonNegativeLong(), randomNonNegativeLong());
+        LifecyclePolicy policyToMigrate = new LifecyclePolicy(
+            lifecycleName,
+            Map.of(
+                "warm",
+                new Phase(
+                    "warm",
+                    TimeValue.ZERO,
+                    Map.of(allocateActionWithDataAttribute.getWriteableName(), allocateActionWithDataAttribute)
+                )
+            )
+        );
+        LifecyclePolicyMetadata policyWithDataAttribute = new LifecyclePolicyMetadata(
+            policyToMigrate,
+            Collections.emptyMap(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
 
-        LifecyclePolicy shouldntBeMigratedPolicy = new LifecyclePolicy("dont-migrate",
-            Map.of("warm",
-                new Phase("warm", TimeValue.ZERO, Map.of(allocateActionWithOtherAttribute.getWriteableName(),
-                    allocateActionWithOtherAttribute))));
-        LifecyclePolicyMetadata policyWithOtherAttribute = new LifecyclePolicyMetadata(shouldntBeMigratedPolicy, Collections.emptyMap(),
-            randomNonNegativeLong(), randomNonNegativeLong());
+        LifecyclePolicy shouldntBeMigratedPolicy = new LifecyclePolicy(
+            "dont-migrate",
+            Map.of(
+                "warm",
+                new Phase(
+                    "warm",
+                    TimeValue.ZERO,
+                    Map.of(allocateActionWithOtherAttribute.getWriteableName(), allocateActionWithOtherAttribute)
+                )
+            )
+        );
+        LifecyclePolicyMetadata policyWithOtherAttribute = new LifecyclePolicyMetadata(
+            shouldntBeMigratedPolicy,
+            Collections.emptyMap(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
 
+        IndexMetadata.Builder indexWithUnknownDataAttribute = IndexMetadata.builder("indexWithUnknownDataAttribute")
+            .settings(getBaseIndexSettings().put(DATA_ROUTING_REQUIRE_SETTING, "something_else"));
+        IndexMetadata.Builder indexWithWarmDataAttribute = IndexMetadata.builder("indexWithWarmDataAttribute")
+            .settings(getBaseIndexSettings().put(DATA_ROUTING_REQUIRE_SETTING, "warm"));
 
-        IndexMetadata.Builder indexWithUnknownDataAttribute =
-            IndexMetadata.builder("indexWithUnknownDataAttribute").settings(getBaseIndexSettings().put(DATA_ROUTING_REQUIRE_SETTING,
-                "something_else"));
-        IndexMetadata.Builder indexWithWarmDataAttribute =
-            IndexMetadata.builder("indexWithWarmDataAttribute").settings(getBaseIndexSettings().put(DATA_ROUTING_REQUIRE_SETTING, "warm"));
-
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
-                .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(
-                    Map.of(policyToMigrate.getName(), policyWithDataAttribute,
-                        shouldntBeMigratedPolicy.getName(), policyWithOtherAttribute),
-                    OperationMode.STOPPED))
-                .put(IndexTemplateMetadata.builder("catch-all").patterns(List.of("*"))
-                    .settings(Settings.builder().put(DATA_ROUTING_REQUIRE_SETTING, "hot"))
-                    .build())
-                .put(IndexTemplateMetadata.builder("other-template").patterns(List.of("other-*"))
-                    .settings(Settings.builder().put(DATA_ROUTING_REQUIRE_SETTING, "hot"))
-                    .build())
-                .put(indexWithUnknownDataAttribute).put(indexWithWarmDataAttribute))
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(
+                Metadata.builder()
+                    .putCustom(
+                        IndexLifecycleMetadata.TYPE,
+                        new IndexLifecycleMetadata(
+                            Map.of(
+                                policyToMigrate.getName(),
+                                policyWithDataAttribute,
+                                shouldntBeMigratedPolicy.getName(),
+                                policyWithOtherAttribute
+                            ),
+                            OperationMode.STOPPED
+                        )
+                    )
+                    .put(
+                        IndexTemplateMetadata.builder("catch-all")
+                            .patterns(List.of("*"))
+                            .settings(Settings.builder().put(DATA_ROUTING_REQUIRE_SETTING, "hot"))
+                            .build()
+                    )
+                    .put(
+                        IndexTemplateMetadata.builder("other-template")
+                            .patterns(List.of("other-*"))
+                            .settings(Settings.builder().put(DATA_ROUTING_REQUIRE_SETTING, "hot"))
+                            .build()
+                    )
+                    .put(indexWithUnknownDataAttribute)
+                    .put(indexWithWarmDataAttribute)
+            )
             .build();
 
         {
-            Tuple<ClusterState, MigratedEntities> migratedEntitiesTuple =
-                migrateToDataTiersRouting(state, "data", "catch-all", REGISTRY, client, null);
+            Tuple<ClusterState, MigratedEntities> migratedEntitiesTuple = migrateToDataTiersRouting(
+                state,
+                "data",
+                "catch-all",
+                REGISTRY,
+                client,
+                null
+            );
 
             MigratedEntities migratedEntities = migratedEntitiesTuple.v2();
             assertThat(migratedEntities.removedIndexTemplateName, is("catch-all"));
@@ -609,8 +753,14 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
         {
             // let's test a null template name to make sure nothing is removed
-            Tuple<ClusterState, MigratedEntities> migratedEntitiesTuple =
-                migrateToDataTiersRouting(state, "data", null, REGISTRY, client, null);
+            Tuple<ClusterState, MigratedEntities> migratedEntitiesTuple = migrateToDataTiersRouting(
+                state,
+                "data",
+                null,
+                REGISTRY,
+                client,
+                null
+            );
 
             MigratedEntities migratedEntities = migratedEntitiesTuple.v2();
             assertThat(migratedEntities.removedIndexTemplateName, nullValue());
@@ -627,8 +777,14 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
         {
             // let's test a null node attribute parameter defaults to "data"
-            Tuple<ClusterState, MigratedEntities> migratedEntitiesTuple =
-                migrateToDataTiersRouting(state, null, null, REGISTRY, client, null);
+            Tuple<ClusterState, MigratedEntities> migratedEntitiesTuple = migrateToDataTiersRouting(
+                state,
+                null,
+                null,
+                REGISTRY,
+                client,
+                null
+            );
 
             MigratedEntities migratedEntities = migratedEntitiesTuple.v2();
             assertThat(migratedEntities.migratedPolicies.size(), is(1));
@@ -646,32 +802,45 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
     public void testMigrateToDataTiersRoutingRequiresILMStopped() {
         {
-            ClusterState ilmRunningState = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
-                    .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(
-                        Map.of(), OperationMode.RUNNING)))
+            ClusterState ilmRunningState = ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(
+                    Metadata.builder().putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(Map.of(), OperationMode.RUNNING))
+                )
                 .build();
-            IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
-                () -> migrateToDataTiersRouting(ilmRunningState, "data", "catch-all", REGISTRY, client, null));
+            IllegalStateException illegalStateException = expectThrows(
+                IllegalStateException.class,
+                () -> migrateToDataTiersRouting(ilmRunningState, "data", "catch-all", REGISTRY, client, null)
+            );
             assertThat(illegalStateException.getMessage(), is("stop ILM before migrating to data tiers, current state is [RUNNING]"));
         }
 
         {
-            ClusterState ilmStoppingState = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
-                    .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(
-                        Map.of(), OperationMode.STOPPING)))
+            ClusterState ilmStoppingState = ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(
+                    Metadata.builder().putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(Map.of(), OperationMode.STOPPING))
+                )
                 .build();
-            IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
-                () -> migrateToDataTiersRouting(ilmStoppingState, "data", "catch-all", REGISTRY, client, null));
+            IllegalStateException illegalStateException = expectThrows(
+                IllegalStateException.class,
+                () -> migrateToDataTiersRouting(ilmStoppingState, "data", "catch-all", REGISTRY, client, null)
+            );
             assertThat(illegalStateException.getMessage(), is("stop ILM before migrating to data tiers, current state is [STOPPING]"));
         }
 
         {
-            ClusterState ilmStoppedState = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
-                    .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(
-                        Map.of(), OperationMode.STOPPED)))
+            ClusterState ilmStoppedState = ClusterState.builder(ClusterName.DEFAULT)
+                .metadata(
+                    Metadata.builder().putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(Map.of(), OperationMode.STOPPED))
+                )
                 .build();
-            Tuple<ClusterState, MigratedEntities> migratedState = migrateToDataTiersRouting(ilmStoppedState, "data", "catch-all",
-                REGISTRY, client, null);
+            Tuple<ClusterState, MigratedEntities> migratedState = migrateToDataTiersRouting(
+                ilmStoppedState,
+                "data",
+                "catch-all",
+                REGISTRY,
+                client,
+                null
+            );
             assertThat(migratedState.v2().migratedIndices, empty());
             assertThat(migratedState.v2().migratedPolicies, empty());
             assertThat(migratedState.v2().removedIndexTemplateName, nullValue());
@@ -679,17 +848,22 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     }
 
     public void testMigrationDoesNotRemoveComposableTemplates() {
-        ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate.Builder()
-            .indexPatterns(Collections.singletonList("*"))
-            .template(new Template(Settings.builder().put(DATA_ROUTING_REQUIRE_SETTING, "hot").build(), null, null))
-            .build();
+        ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate.Builder().indexPatterns(
+            Collections.singletonList("*")
+        ).template(new Template(Settings.builder().put(DATA_ROUTING_REQUIRE_SETTING, "hot").build(), null, null)).build();
 
         String composableTemplateName = "catch-all-composable-template";
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
-                .put(composableTemplateName, composableIndexTemplate).build())
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(composableTemplateName, composableIndexTemplate).build())
             .build();
-        Tuple<ClusterState, MigratedEntities> migratedEntitiesTuple =
-            migrateToDataTiersRouting(clusterState, "data", composableTemplateName, REGISTRY, client, null);
+        Tuple<ClusterState, MigratedEntities> migratedEntitiesTuple = migrateToDataTiersRouting(
+            clusterState,
+            "data",
+            composableTemplateName,
+            REGISTRY,
+            client,
+            null
+        );
         assertThat(migratedEntitiesTuple.v2().removedIndexTemplateName, nullValue());
         assertThat(migratedEntitiesTuple.v1().metadata().templatesV2().get(composableTemplateName), is(composableIndexTemplate));
     }
@@ -716,70 +890,91 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         assertFalse(migratedEntitiesTuple.v1().metadata().transientSettings().keySet().contains(DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE));
     }
 
-    private LifecyclePolicyMetadata getWarmColdPolicyMeta(SetPriorityAction setPriorityAction, ShrinkAction shrinkAction,
-                                                          AllocateAction warmAllocateAction, AllocateAction coldAllocateAction) {
-        LifecyclePolicy policy = new LifecyclePolicy(lifecycleName,
-            Map.of("warm",
-                new Phase("warm", TimeValue.ZERO, Map.of(shrinkAction.getWriteableName(), shrinkAction,
-                    warmAllocateAction.getWriteableName(), warmAllocateAction, setPriorityAction.getWriteableName(), setPriorityAction)),
+    private LifecyclePolicyMetadata getWarmColdPolicyMeta(
+        SetPriorityAction setPriorityAction,
+        ShrinkAction shrinkAction,
+        AllocateAction warmAllocateAction,
+        AllocateAction coldAllocateAction
+    ) {
+        LifecyclePolicy policy = new LifecyclePolicy(
+            lifecycleName,
+            Map.of(
+                "warm",
+                new Phase(
+                    "warm",
+                    TimeValue.ZERO,
+                    Map.of(
+                        shrinkAction.getWriteableName(),
+                        shrinkAction,
+                        warmAllocateAction.getWriteableName(),
+                        warmAllocateAction,
+                        setPriorityAction.getWriteableName(),
+                        setPriorityAction
+                    )
+                ),
                 "cold",
                 new Phase("cold", TimeValue.ZERO, Map.of(coldAllocateAction.getWriteableName(), coldAllocateAction))
-            ));
-        return new LifecyclePolicyMetadata(policy, Collections.emptyMap(),
-            randomNonNegativeLong(), randomNonNegativeLong());
+            )
+        );
+        return new LifecyclePolicyMetadata(policy, Collections.emptyMap(), randomNonNegativeLong(), randomNonNegativeLong());
     }
 
     private String getWarmPhaseDef() {
-        return "{\n" +
-            "        \"policy\" : \"" + lifecycleName + "\",\n" +
-            "        \"phase_definition\" : {\n" +
-            "          \"min_age\" : \"0m\",\n" +
-            "          \"actions\" : {\n" +
-            "            \"allocate\" : {\n" +
-            "              \"number_of_replicas\" : \"0\",\n" +
-            "              \"require\" : {\n" +
-            "                \"data\": \"cold\"\n" +
-            "              }\n" +
-            "            },\n" +
-            "            \"set_priority\": {\n" +
-            "              \"priority\": 100 \n" +
-            "            },\n" +
-            "            \"shrink\": {\n" +
-            "              \"number_of_shards\": 2 \n" +
-            "            }\n" +
-            "          }\n" +
-            "        },\n" +
-            "        \"version\" : 1,\n" +
-            "        \"modified_date_in_millis\" : 1578521007076\n" +
-            "      }";
+        return "{\n"
+            + "        \"policy\" : \""
+            + lifecycleName
+            + "\",\n"
+            + "        \"phase_definition\" : {\n"
+            + "          \"min_age\" : \"0m\",\n"
+            + "          \"actions\" : {\n"
+            + "            \"allocate\" : {\n"
+            + "              \"number_of_replicas\" : \"0\",\n"
+            + "              \"require\" : {\n"
+            + "                \"data\": \"cold\"\n"
+            + "              }\n"
+            + "            },\n"
+            + "            \"set_priority\": {\n"
+            + "              \"priority\": 100 \n"
+            + "            },\n"
+            + "            \"shrink\": {\n"
+            + "              \"number_of_shards\": 2 \n"
+            + "            }\n"
+            + "          }\n"
+            + "        },\n"
+            + "        \"version\" : 1,\n"
+            + "        \"modified_date_in_millis\" : 1578521007076\n"
+            + "      }";
     }
 
     private String getColdPhaseDefinition() {
-        return "{\n" +
-            "        \"policy\" : \"" + lifecycleName + "\",\n" +
-            "        \"phase_definition\" : {\n" +
-            "          \"min_age\" : \"0m\",\n" +
-            "          \"actions\" : {\n" +
-            "            \"allocate\" : {\n" +
-            "              \"number_of_replicas\" : \"0\",\n" +
-            "              \"require\" : {\n" +
-            "                \"data\": \"cold\"\n" +
-            "              }\n" +
-            "            }\n" +
-            "          }\n" +
-            "        },\n" +
-            "        \"version\" : 1,\n" +
-            "        \"modified_date_in_millis\" : 1578521007076\n" +
-            "      }";
+        return "{\n"
+            + "        \"policy\" : \""
+            + lifecycleName
+            + "\",\n"
+            + "        \"phase_definition\" : {\n"
+            + "          \"min_age\" : \"0m\",\n"
+            + "          \"actions\" : {\n"
+            + "            \"allocate\" : {\n"
+            + "              \"number_of_replicas\" : \"0\",\n"
+            + "              \"require\" : {\n"
+            + "                \"data\": \"cold\"\n"
+            + "              }\n"
+            + "            }\n"
+            + "          }\n"
+            + "        },\n"
+            + "        \"version\" : 1,\n"
+            + "        \"modified_date_in_millis\" : 1578521007076\n"
+            + "      }";
     }
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> getPhaseDefinitionAsMap(LifecycleExecutionState newLifecycleState) {
         XContentType entityContentType = XContentType.fromMediaType("application/json");
-        return (Map<String, Object>) XContentHelper.convertToMap(entityContentType.xContent(),
-                new ByteArrayInputStream(newLifecycleState.getPhaseDefinition().getBytes(StandardCharsets.UTF_8)),
-                false)
-            .get("phase_definition");
+        return (Map<String, Object>) XContentHelper.convertToMap(
+            entityContentType.xContent(),
+            new ByteArrayInputStream(newLifecycleState.getPhaseDefinition().getBytes(StandardCharsets.UTF_8)),
+            false
+        ).get("phase_definition");
     }
 
 }

@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.watcher;
 
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -17,13 +17,12 @@ import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 public class DeleteWatchResponseTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
-        xContentTester(this::createParser,
+        xContentTester(
+            this::createParser,
             DeleteWatchResponseTests::createTestInstance,
             DeleteWatchResponseTests::toXContent,
-            DeleteWatchResponse::fromXContent)
-            .supportsUnknownFields(true)
-            .assertToXContentEquivalence(false)
-            .test();
+            DeleteWatchResponse::fromXContent
+        ).supportsUnknownFields(true).assertToXContentEquivalence(false).test();
     }
 
     private static XContentBuilder toXContent(DeleteWatchResponse response, XContentBuilder builder) throws IOException {

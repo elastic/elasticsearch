@@ -22,8 +22,12 @@ public class MigrateToDataTiersResponseTests extends AbstractWireSerializingTest
     @Override
     protected MigrateToDataTiersResponse createTestInstance() {
         boolean dryRun = randomBoolean();
-        return new MigrateToDataTiersResponse(randomAlphaOfLength(10), randomList(1, 5, () -> randomAlphaOfLengthBetween(5, 50)),
-            randomList(1, 5, () -> randomAlphaOfLengthBetween(5, 50)), dryRun);
+        return new MigrateToDataTiersResponse(
+            randomAlphaOfLength(10),
+            randomList(1, 5, () -> randomAlphaOfLengthBetween(5, 50)),
+            randomList(1, 5, () -> randomAlphaOfLengthBetween(5, 50)),
+            dryRun
+        );
     }
 
     @Override
@@ -31,18 +35,33 @@ public class MigrateToDataTiersResponseTests extends AbstractWireSerializingTest
         int i = randomIntBetween(0, 3);
         switch (i) {
             case 0:
-                return new MigrateToDataTiersResponse(randomValueOtherThan(instance.getRemovedIndexTemplateName(),
-                    () -> randomAlphaOfLengthBetween(5, 15)), instance.getMigratedPolicies(), instance.getMigratedIndices(),
-                    instance.isDryRun());
+                return new MigrateToDataTiersResponse(
+                    randomValueOtherThan(instance.getRemovedIndexTemplateName(), () -> randomAlphaOfLengthBetween(5, 15)),
+                    instance.getMigratedPolicies(),
+                    instance.getMigratedIndices(),
+                    instance.isDryRun()
+                );
             case 1:
-                return new MigrateToDataTiersResponse(instance.getRemovedIndexTemplateName(),
-                    randomList(6, 10, () -> randomAlphaOfLengthBetween(5, 50)), instance.getMigratedIndices(), instance.isDryRun());
+                return new MigrateToDataTiersResponse(
+                    instance.getRemovedIndexTemplateName(),
+                    randomList(6, 10, () -> randomAlphaOfLengthBetween(5, 50)),
+                    instance.getMigratedIndices(),
+                    instance.isDryRun()
+                );
             case 2:
-                return new MigrateToDataTiersResponse(instance.getRemovedIndexTemplateName(), instance.getMigratedPolicies(),
-                    randomList(6, 10, () -> randomAlphaOfLengthBetween(5, 50)), instance.isDryRun());
+                return new MigrateToDataTiersResponse(
+                    instance.getRemovedIndexTemplateName(),
+                    instance.getMigratedPolicies(),
+                    randomList(6, 10, () -> randomAlphaOfLengthBetween(5, 50)),
+                    instance.isDryRun()
+                );
             case 3:
-                return new MigrateToDataTiersResponse(instance.getRemovedIndexTemplateName(), instance.getMigratedPolicies(),
-                    instance.getMigratedIndices(), instance.isDryRun() ? false : true);
+                return new MigrateToDataTiersResponse(
+                    instance.getRemovedIndexTemplateName(),
+                    instance.getMigratedPolicies(),
+                    instance.getMigratedIndices(),
+                    instance.isDryRun() ? false : true
+                );
             default:
                 throw new UnsupportedOperationException();
         }

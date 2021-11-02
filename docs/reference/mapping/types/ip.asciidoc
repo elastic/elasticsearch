@@ -50,7 +50,15 @@ The following parameters are accepted by `ip` fields:
     Mapping field-level query time boosting. Accepts a floating point number, defaults
     to `1.0`.
 
+`dimension`::
++
+--
+.For internal use by Elastic only.
+[%collapsible]
+====
 include::keyword.asciidoc[tag=dimension]
+====
+--
 
 <<doc-values,`doc_values`>>::
 

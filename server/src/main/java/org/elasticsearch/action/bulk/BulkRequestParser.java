@@ -32,7 +32,6 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -188,9 +187,9 @@ public final class BulkRequestParser {
                 if (SUPPORTED_ACTIONS.contains(action) == false) {
                     deprecationLogger.compatibleCritical(
                         STRICT_ACTION_PARSING_WARNING_KEY,
-                            "Unsupported action: [{}]. Supported values are [create], [delete], [index], and [update]. "
-                                + "Unsupported actions are currently accepted but will be rejected in a future version.",
-                            action
+                        "Unsupported action: [{}]. Supported values are [create], [delete], [index], and [update]. "
+                            + "Unsupported actions are currently accepted but will be rejected in a future version.",
+                        action
                     );
                 }
 

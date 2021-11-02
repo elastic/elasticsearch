@@ -369,7 +369,7 @@ public class IndexDeprecationChecks {
                 "Remove the [%s] setting. This setting has had no effect since 6.0.",
                 IndexMetadata.INDEX_DATA_PATH_SETTING.getKey()
             );
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING, message, url, details, false, null);
         }
         return null;
     }
@@ -591,7 +591,13 @@ public class IndexDeprecationChecks {
     static DeprecationIssue httpContentTypeRequiredSettingCheck(IndexMetadata indexMetadata) {
         Setting<Boolean> deprecatedSetting = Store.FORCE_RAM_TERM_DICT;
         String url = "https://ela.st/es-deprecation-7-force-memory-term-dictionary-setting";
-        return checkSettingNoReplacement(indexMetadata, deprecatedSetting, url);
+        return checkRemovedSetting(
+            indexMetadata.getSettings(),
+            deprecatedSetting,
+            url,
+            "This setting no longer has any effect.",
+            DeprecationIssue.Level.CRITICAL
+        );
     }
 
     static DeprecationIssue mapperDyamicSettingCheck(IndexMetadata indexMetadata) {

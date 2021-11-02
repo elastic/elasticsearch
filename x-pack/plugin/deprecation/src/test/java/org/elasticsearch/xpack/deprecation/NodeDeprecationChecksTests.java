@@ -769,7 +769,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             issues,
             hasItem(
                 new DeprecationIssue(
-                    DeprecationIssue.Level.WARNING,
+                    DeprecationIssue.Level.CRITICAL,
                     "Setting [cluster.routing.allocation.disk.watermark.enable_for_single_data_node=false] is deprecated",
                     expectedUrl,
                     "Remove the [cluster.routing.allocation.disk.watermark.enable_for_single_data_node] setting. Disk watermarks"
@@ -805,7 +805,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
         final String expectedUrl = "https://ela.st/es-deprecation-7-disk-watermark-enable-for-single-node-setting";
         DeprecationIssue deprecationIssue = new DeprecationIssue(
-            DeprecationIssue.Level.WARNING,
+            DeprecationIssue.Level.CRITICAL,
             "Disabling disk watermarks for single node clusters is deprecated and no longer the default",
             expectedUrl,
             "Disk watermarks are always enabled in 8.0, which will affect the behavior of this single node cluster when you upgrade. You "
@@ -2053,11 +2053,16 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             DeprecationIssue.Level.CRITICAL,
             "Setting [cluster.routing.allocation.shard_state.reroute.priority] is deprecated",
             "https://ela.st/es-deprecation-7-reroute-priority-setting",
-            "Remove the [cluster.routing.allocation.shard_state.reroute.priority] setting.",
+            "Remove the [cluster.routing.allocation.shard_state.reroute.priority] setting. In a future release this setting will have no "
+                + "effect and the priority will always be NORMAL.",
             false,
             null
         );
         assertThat(issues, hasItem(expected));
+        assertWarnings(
+            "[cluster.routing.allocation.shard_state.reroute.priority] setting was deprecated in Elasticsearch and will be "
+                + "removed in a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testZenDiscoverySettings() {
@@ -2110,17 +2115,19 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             DeprecationIssue.Level.CRITICAL,
             "Setting [gateway.auto_import_dangling_indices] is deprecated",
             "https://ela.st/es-deprecation-7-auto-import-dangling-indices-setting",
-            "Remove the [gateway.auto_import_dangling_indices] setting.",
+            "Remove the [gateway.auto_import_dangling_indices] setting. Use of this setting is unsafe.",
             false,
             null
         );
         assertThat(issues, hasItem(expected));
+        assertWarnings(
+            "[gateway.auto_import_dangling_indices] setting was deprecated in Elasticsearch and will be removed in a future "
+                + "release! See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testHttpContentTypeRequiredSetting() {
-        Settings settings = Settings.builder()
-            .put(HttpTransportSettings.SETTING_HTTP_CONTENT_TYPE_REQUIRED.getKey(), randomBoolean())
-            .build();
+        Settings settings = Settings.builder().put(HttpTransportSettings.SETTING_HTTP_CONTENT_TYPE_REQUIRED.getKey(), true).build();
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
         final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
         final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
@@ -2128,11 +2135,15 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             DeprecationIssue.Level.CRITICAL,
             "Setting [http.content_type.required] is deprecated",
             "https://ela.st/es-deprecation-7-http-content-type-required-setting",
-            "Remove the [http.content_type.required] setting.",
+            "Remove the [http.content_type.required] setting. This setting no longer has any effect.",
             false,
             null
         );
         assertThat(issues, hasItem(expected));
+        assertWarnings(
+            "[http.content_type.required] setting was deprecated in Elasticsearch and will be removed in a future release! See"
+                + " the breaking changes documentation for the next major version."
+        );
     }
 
     public void testFsRepositoryCompressionSetting() {
@@ -2225,7 +2236,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             DeprecationIssue.Level.CRITICAL,
             "Setting [xpack.data_frame.enabled] is deprecated",
             "https://ela.st/es-deprecation-7-xpack-dataframe-setting",
-            "Remove the [xpack.data_frame.enabled] setting. " + "As of 7.9.2 basic license level features are always enabled.",
+            "Remove the [xpack.data_frame.enabled] setting. As of 7.9.2 basic license level features are always enabled.",
             false,
             null
         );
@@ -2292,7 +2303,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
             "Setting [xpack.eql.enabled] is deprecated",
-            "https://ela.st/es-deprecation-7-lifecycle-master-timeout-setting",
+            "https://ela.st/es-deprecation-7-eql-enabled-setting",
             "Remove the [xpack.eql.enabled] setting. As of 7.9.2 basic license level features are always enabled.",
             false,
             null

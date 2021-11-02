@@ -657,7 +657,7 @@ class NodeDeprecationChecks {
             && DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.exists(settings)) {
             String key = DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey();
             return new DeprecationIssue(
-                DeprecationIssue.Level.WARNING,
+                DeprecationIssue.Level.CRITICAL,
                 String.format(Locale.ROOT, "Setting [%s=false] is deprecated", key),
                 "https://ela.st/es-deprecation-7-disk-watermark-enable-for-single-node-setting",
                 String.format(
@@ -676,7 +676,7 @@ class NodeDeprecationChecks {
             String key = DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey();
             String disableDiskDecider = DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey();
             return new DeprecationIssue(
-                DeprecationIssue.Level.WARNING,
+                DeprecationIssue.Level.CRITICAL,
                 String.format(
                     Locale.ROOT,
                     "Disabling disk watermarks for single node clusters is deprecated and no longer the default",
@@ -1822,7 +1822,12 @@ class NodeDeprecationChecks {
     ) {
         Setting<Priority> deprecatedSetting = ShardStateAction.FOLLOW_UP_REROUTE_PRIORITY_SETTING;
         String url = "https://ela.st/es-deprecation-7-reroute-priority-setting";
-        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+        return checkRemovedSetting(
+            settings,
+            deprecatedSetting,
+            url,
+            "In a future release this setting will have no effect and the priority will always be NORMAL."
+        );
     }
 
     static DeprecationIssue checkZenBwcPingTimeoutSetting(
@@ -1932,7 +1937,7 @@ class NodeDeprecationChecks {
     ) {
         Setting<Boolean> deprecatedSetting = DanglingIndicesState.AUTO_IMPORT_DANGLING_INDICES_SETTING;
         String url = "https://ela.st/es-deprecation-7-auto-import-dangling-indices-setting";
-        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+        return checkRemovedSetting(settings, deprecatedSetting, url, "Use of this setting is unsafe.");
     }
 
     static DeprecationIssue checkHttpContentTypeRequiredSetting(
@@ -1943,7 +1948,7 @@ class NodeDeprecationChecks {
     ) {
         Setting<Boolean> deprecatedSetting = HttpTransportSettings.SETTING_HTTP_CONTENT_TYPE_REQUIRED;
         String url = "https://ela.st/es-deprecation-7-http-content-type-required-setting";
-        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+        return checkRemovedSetting(settings, deprecatedSetting, url, "This setting no longer has any effect.");
     }
 
     static DeprecationIssue checkFsRepositoryCompressionSetting(
@@ -2091,7 +2096,7 @@ class NodeDeprecationChecks {
             Setting.Property.NodeScope,
             Property.DeprecatedWarning
         );
-        String url = "https://ela.st/es-deprecation-7-lifecycle-master-timeout-setting";
+        String url = "https://ela.st/es-deprecation-7-eql-enabled-setting";
         return checkRemovedSetting(
             settings,
             deprecatedSetting,

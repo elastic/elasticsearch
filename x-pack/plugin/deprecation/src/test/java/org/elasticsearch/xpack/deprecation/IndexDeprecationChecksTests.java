@@ -539,7 +539,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             issues,
             contains(
                 new DeprecationIssue(
-                    DeprecationIssue.Level.CRITICAL,
+                    DeprecationIssue.Level.WARNING,
                     "Setting [index.data_path] is deprecated",
                     expectedUrl,
                     "Remove the [index.data_path] setting. This setting has had no effect since 6.0.",
@@ -890,11 +890,15 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             DeprecationIssue.Level.CRITICAL,
             "Setting [index.force_memory_term_dictionary] is deprecated",
             "https://ela.st/es-deprecation-7-force-memory-term-dictionary-setting",
-            "Remove the [index.force_memory_term_dictionary] setting.",
+            "Remove the [index.force_memory_term_dictionary] setting. This setting no longer has any effect.",
             false,
             null
         );
         assertThat(issues, hasItem(expected));
+        assertWarnings(
+            "[index.force_memory_term_dictionary] setting was deprecated in Elasticsearch and will be removed in a future "
+                + "release! See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testMapperDynamicSetting() {

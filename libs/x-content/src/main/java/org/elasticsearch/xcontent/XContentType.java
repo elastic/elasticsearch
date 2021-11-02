@@ -47,7 +47,11 @@ public enum XContentType implements MediaType {
 
         @Override
         public Set<HeaderValue> headerValues() {
-            return Set.of(new HeaderValue("application/json"), new HeaderValue("application/x-ndjson"), new HeaderValue("application/*"));
+            return Set.of(
+                new HeaderValue("application/json", Map.of(CHARSET, UTF_PATTERN)),
+                new HeaderValue("application/x-ndjson", Map.of(CHARSET, UTF_PATTERN)),
+                new HeaderValue("application/*", Map.of(CHARSET, UTF_PATTERN))
+            );
         }
     },
     /**
@@ -95,7 +99,7 @@ public enum XContentType implements MediaType {
 
         @Override
         public Set<HeaderValue> headerValues() {
-            return Set.of(new HeaderValue("application/yaml"));
+            return Set.of(new HeaderValue("application/yaml", Map.of(CHARSET, UTF_PATTERN)));
         }
     },
     /**
@@ -144,8 +148,14 @@ public enum XContentType implements MediaType {
         @Override
         public Set<HeaderValue> headerValues() {
             return Set.of(
-                new HeaderValue(VENDOR_APPLICATION_PREFIX + "json", Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)),
-                new HeaderValue(VENDOR_APPLICATION_PREFIX + "x-ndjson", Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN))
+                new HeaderValue(
+                    VENDOR_APPLICATION_PREFIX + "json",
+                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN, CHARSET, UTF_PATTERN)
+                ),
+                new HeaderValue(
+                    VENDOR_APPLICATION_PREFIX + "x-ndjson",
+                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN, CHARSET, UTF_PATTERN)
+                )
             );
         }
 
@@ -204,7 +214,12 @@ public enum XContentType implements MediaType {
 
         @Override
         public Set<HeaderValue> headerValues() {
-            return Set.of(new HeaderValue(VENDOR_APPLICATION_PREFIX + "yaml", Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
+            return Set.of(
+                new HeaderValue(
+                    VENDOR_APPLICATION_PREFIX + "yaml",
+                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN, CHARSET, UTF_PATTERN)
+                )
+            );
         }
 
         @Override
@@ -242,6 +257,8 @@ public enum XContentType implements MediaType {
         }
     };
 
+    public static final String CHARSET = "charset";
+    public static final String UTF_PATTERN = "utf-\\d+";
     public static final MediaTypeRegistry<XContentType> MEDIA_TYPE_REGISTRY = new MediaTypeRegistry<XContentType>().register(
         XContentType.values()
     );

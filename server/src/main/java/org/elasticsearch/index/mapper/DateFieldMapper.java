@@ -39,6 +39,9 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.script.field.ToScriptField;
+import org.elasticsearch.script.field.ToScriptField.ToDateMillisScriptField;
+import org.elasticsearch.script.field.ToScriptField.ToDateNanosScriptField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -76,7 +79,7 @@ public final class DateFieldMapper extends FieldMapper {
     private static final DateMathParser EPOCH_MILLIS_PARSER = DateFormatter.forPattern("epoch_millis").toDateMathParser();
 
     public enum Resolution {
-        MILLISECONDS(CONTENT_TYPE, NumericType.DATE) {
+        MILLISECONDS(CONTENT_TYPE, NumericType.DATE, ToDateMillisScriptField.INSTANCE) {
             @Override
             public long convert(Instant instant) {
                 return instant.toEpochMilli();
@@ -112,7 +115,7 @@ public final class DateFieldMapper extends FieldMapper {
                 return LongPoint.newDistanceFeatureQuery(field, boost, origin, pivot.getMillis());
             }
         },
-        NANOSECONDS(DATE_NANOS_CONTENT_TYPE, NumericType.DATE_NANOSECONDS) {
+        NANOSECONDS(DATE_NANOS_CONTENT_TYPE, NumericType.DATE_NANOSECONDS, ToDateNanosScriptField.INSTANCE) {
             @Override
             public long convert(Instant instant) {
                 return toLong(instant);
@@ -156,10 +159,12 @@ public final class DateFieldMapper extends FieldMapper {
 
         private final String type;
         private final NumericType numericType;
+        private final ToScriptField toScriptField;
 
-        Resolution(String type, NumericType numericType) {
+        Resolution(String type, NumericType numericType, ToScriptField toScriptField) {
             this.type = type;
             this.numericType = numericType;
+            this.toScriptField = toScriptField;
         }
 
         public String type() {
@@ -168,6 +173,10 @@ public final class DateFieldMapper extends FieldMapper {
 
         NumericType numericType() {
             return numericType;
+        }
+
+        ToScriptField getDefaultToScriptField() {
+            return toScriptField;
         }
 
         /**
@@ -672,7 +681,7 @@ public final class DateFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(name(), resolution.numericType());
+            return new SortedNumericIndexFieldData.Builder(name(), resolution.numericType(), resolution.getDefaultToScriptField());
         }
 
         @Override

@@ -20,6 +20,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.script.field.ToScriptField.ToHalfFloatScriptField;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -37,8 +38,11 @@ public class HalfFloatFielddataTests extends ESTestCase {
         w.addDocument(doc);
         final DirectoryReader dirReader = DirectoryReader.open(w);
         LeafReader reader = getOnlyLeafReader(dirReader);
-        SortedNumericDoubleValues values = new SortedNumericIndexFieldData.SortedNumericHalfFloatFieldData(reader, "half_float")
-            .getDoubleValues();
+        SortedNumericDoubleValues values = new SortedNumericIndexFieldData.SortedNumericHalfFloatFieldData(
+            reader,
+            "half_float",
+            ToHalfFloatScriptField.INSTANCE
+        ).getDoubleValues();
         assertNotNull(FieldData.unwrapSingleton(values));
         assertTrue(values.advanceExact(0));
         assertEquals(1, values.docValueCount());
@@ -59,8 +63,11 @@ public class HalfFloatFielddataTests extends ESTestCase {
         w.addDocument(doc);
         final DirectoryReader dirReader = DirectoryReader.open(w);
         LeafReader reader = getOnlyLeafReader(dirReader);
-        SortedNumericDoubleValues values = new SortedNumericIndexFieldData.SortedNumericHalfFloatFieldData(reader, "half_float")
-            .getDoubleValues();
+        SortedNumericDoubleValues values = new SortedNumericIndexFieldData.SortedNumericHalfFloatFieldData(
+            reader,
+            "half_float",
+            ToHalfFloatScriptField.INSTANCE
+        ).getDoubleValues();
         assertNull(FieldData.unwrapSingleton(values));
         assertTrue(values.advanceExact(0));
         assertEquals(2, values.docValueCount());

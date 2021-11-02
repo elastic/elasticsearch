@@ -25,7 +25,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
@@ -39,8 +38,9 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.ToScriptField;
+import org.elasticsearch.script.field.ToScriptField.ToScaledFloatScriptField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -262,9 +262,10 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             return (cache, breakerService) -> {
                 final IndexNumericFieldData scaledValues = new SortedNumericIndexFieldData.Builder(
                     name(),
-                    IndexNumericFieldData.NumericType.LONG
+                    IndexNumericFieldData.NumericType.LONG,
+                    ToScaledFloatScriptField.INSTANCE
                 ).build(cache, breakerService);
-                return new ScaledFloatIndexFieldData(scaledValues, scalingFactor);
+                return new ScaledFloatIndexFieldData(scaledValues, scalingFactor, ToScaledFloatScriptField.INSTANCE);
             };
         }
 
@@ -468,10 +469,12 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         private final IndexNumericFieldData scaledFieldData;
         private final double scalingFactor;
+        private final ToScriptField toScriptField;
 
-        ScaledFloatIndexFieldData(IndexNumericFieldData scaledFieldData, double scalingFactor) {
+        ScaledFloatIndexFieldData(IndexNumericFieldData scaledFieldData, double scalingFactor, ToScriptField toScriptField) {
             this.scaledFieldData = scaledFieldData;
             this.scalingFactor = scalingFactor;
+            this.toScriptField = toScriptField;
         }
 
         @Override
@@ -486,12 +489,12 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         @Override
         public LeafNumericFieldData load(LeafReaderContext context) {
-            return new ScaledFloatLeafFieldData(scaledFieldData.load(context), scalingFactor);
+            return new ScaledFloatLeafFieldData(scaledFieldData.load(context), scalingFactor, toScriptField);
         }
 
         @Override
         public LeafNumericFieldData loadDirect(LeafReaderContext context) throws Exception {
-            return new ScaledFloatLeafFieldData(scaledFieldData.loadDirect(context), scalingFactor);
+            return new ScaledFloatLeafFieldData(scaledFieldData.loadDirect(context), scalingFactor, toScriptField);
         }
 
         @Override
@@ -520,15 +523,17 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         private final LeafNumericFieldData scaledFieldData;
         private final double scalingFactorInverse;
+        private final ToScriptField toScriptField;
 
-        ScaledFloatLeafFieldData(LeafNumericFieldData scaledFieldData, double scalingFactor) {
+        ScaledFloatLeafFieldData(LeafNumericFieldData scaledFieldData, double scalingFactor, ToScriptField toScriptField) {
             this.scaledFieldData = scaledFieldData;
             this.scalingFactorInverse = 1d / scalingFactor;
+            this.toScriptField = toScriptField;
         }
 
         @Override
         public DocValuesField<?> getScriptField(String name) {
-            return new DelegateDocValuesField(new ScriptDocValues.Doubles(getDoubleValues()), name);
+            return toScriptField.getScriptField(getDoubleValues(), name);
         }
 
         @Override

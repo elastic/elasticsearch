@@ -39,6 +39,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.unsignedlong.UnsignedLongDocValuesField.ToUnsignedLongScriptField;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -286,7 +287,8 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             return (cache, breakerService) -> {
                 final IndexNumericFieldData signedLongValues = new SortedNumericIndexFieldData.Builder(
                     name(),
-                    IndexNumericFieldData.NumericType.LONG
+                    IndexNumericFieldData.NumericType.LONG,
+                    ToUnsignedLongScriptField.INSTANCE
                 ).build(cache, breakerService);
                 return new UnsignedLongIndexFieldData(signedLongValues);
             };

@@ -13,6 +13,8 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.index.fielddata.plain.LeafDoubleFieldData;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.DoubleFieldScript;
+import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.ToScriptField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -21,24 +23,28 @@ public final class DoubleScriptFieldData extends IndexNumericFieldData {
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final DoubleFieldScript.LeafFactory leafFactory;
+        protected final ToScriptField toScriptField;
 
-        public Builder(String name, DoubleFieldScript.LeafFactory leafFactory) {
+        public Builder(String name, DoubleFieldScript.LeafFactory leafFactory, ToScriptField toScriptField) {
             this.name = name;
             this.leafFactory = leafFactory;
+            this.toScriptField = toScriptField;
         }
 
         @Override
         public DoubleScriptFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new DoubleScriptFieldData(name, leafFactory);
+            return new DoubleScriptFieldData(name, leafFactory, toScriptField);
         }
     }
 
     private final String fieldName;
     DoubleFieldScript.LeafFactory leafFactory;
+    protected final ToScriptField toScriptField;
 
-    private DoubleScriptFieldData(String fieldName, DoubleFieldScript.LeafFactory leafFactory) {
+    private DoubleScriptFieldData(String fieldName, DoubleFieldScript.LeafFactory leafFactory, ToScriptField toScriptField) {
         this.fieldName = fieldName;
         this.leafFactory = leafFactory;
+        this.toScriptField = toScriptField;
     }
 
     @Override
@@ -62,7 +68,7 @@ public final class DoubleScriptFieldData extends IndexNumericFieldData {
 
     @Override
     public DoubleScriptLeafFieldData loadDirect(LeafReaderContext context) {
-        return new DoubleScriptLeafFieldData(new DoubleScriptDocValues(leafFactory.newInstance(context)));
+        return new DoubleScriptLeafFieldData(new DoubleScriptDocValues(leafFactory.newInstance(context)), toScriptField);
     }
 
     @Override
@@ -77,10 +83,12 @@ public final class DoubleScriptFieldData extends IndexNumericFieldData {
 
     public static class DoubleScriptLeafFieldData extends LeafDoubleFieldData {
         private final DoubleScriptDocValues doubleScriptDocValues;
+        protected final ToScriptField toScriptField;
 
-        DoubleScriptLeafFieldData(DoubleScriptDocValues doubleScriptDocValues) {
+        DoubleScriptLeafFieldData(DoubleScriptDocValues doubleScriptDocValues, ToScriptField toScriptField) {
             super(0);
             this.doubleScriptDocValues = doubleScriptDocValues;
+            this.toScriptField = toScriptField;
         }
 
         @Override
@@ -90,5 +98,10 @@ public final class DoubleScriptFieldData extends IndexNumericFieldData {
 
         @Override
         public void close() {}
+
+        @Override
+        public DocValuesField<?> getScriptField(String name) {
+            return toScriptField.getScriptField(getDoubleValues(), name);
+        }
     }
 }

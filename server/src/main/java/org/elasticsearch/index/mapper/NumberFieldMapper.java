@@ -41,6 +41,14 @@ import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.script.field.ToScriptField;
+import org.elasticsearch.script.field.ToScriptField.ToByteScriptField;
+import org.elasticsearch.script.field.ToScriptField.ToDoubleScriptField;
+import org.elasticsearch.script.field.ToScriptField.ToFloatScriptField;
+import org.elasticsearch.script.field.ToScriptField.ToHalfFloatScriptField;
+import org.elasticsearch.script.field.ToScriptField.ToIntScriptField;
+import org.elasticsearch.script.field.ToScriptField.ToLongScriptField;
+import org.elasticsearch.script.field.ToScriptField.ToShortScriptField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -215,7 +223,7 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     public enum NumberType {
-        HALF_FLOAT("half_float", NumericType.HALF_FLOAT) {
+        HALF_FLOAT("half_float", NumericType.HALF_FLOAT, ToHalfFloatScriptField.INSTANCE) {
             @Override
             public Float parse(Object value, boolean coerce) {
                 final float result = parseToFloat(value);
@@ -331,7 +339,7 @@ public class NumberFieldMapper extends FieldMapper {
                 }
             }
         },
-        FLOAT("float", NumericType.FLOAT) {
+        FLOAT("float", NumericType.FLOAT, ToFloatScriptField.INSTANCE) {
             @Override
             public Float parse(Object value, boolean coerce) {
                 final float result;
@@ -433,7 +441,7 @@ public class NumberFieldMapper extends FieldMapper {
                 }
             }
         },
-        DOUBLE("double", NumericType.DOUBLE) {
+        DOUBLE("double", NumericType.DOUBLE, ToDoubleScriptField.INSTANCE) {
             @Override
             public Double parse(Object value, boolean coerce) {
                 double parsed = objectToDouble(value);
@@ -518,7 +526,7 @@ public class NumberFieldMapper extends FieldMapper {
                 }
             }
         },
-        BYTE("byte", NumericType.BYTE) {
+        BYTE("byte", NumericType.BYTE, ToByteScriptField.INSTANCE) {
             @Override
             public Byte parse(Object value, boolean coerce) {
                 double doubleValue = objectToDouble(value);
@@ -584,7 +592,7 @@ public class NumberFieldMapper extends FieldMapper {
                 return value.byteValue();
             }
         },
-        SHORT("short", NumericType.SHORT) {
+        SHORT("short", NumericType.SHORT, ToShortScriptField.INSTANCE) {
             @Override
             public Short parse(Object value, boolean coerce) {
                 double doubleValue = objectToDouble(value);
@@ -646,7 +654,7 @@ public class NumberFieldMapper extends FieldMapper {
                 return value.shortValue();
             }
         },
-        INTEGER("integer", NumericType.INT) {
+        INTEGER("integer", NumericType.INT, ToIntScriptField.INSTANCE) {
             @Override
             public Integer parse(Object value, boolean coerce) {
                 double doubleValue = objectToDouble(value);
@@ -767,7 +775,7 @@ public class NumberFieldMapper extends FieldMapper {
                 return fields;
             }
         },
-        LONG("long", NumericType.LONG) {
+        LONG("long", NumericType.LONG, ToLongScriptField.INSTANCE) {
             @Override
             public Long parse(Object value, boolean coerce) {
                 return objectToLong(value, coerce);
@@ -862,11 +870,13 @@ public class NumberFieldMapper extends FieldMapper {
         private final String name;
         private final NumericType numericType;
         private final TypeParser parser;
+        private final ToScriptField toScriptField;
 
-        NumberType(String name, NumericType numericType) {
+        NumberType(String name, NumericType numericType, ToScriptField toScriptField) {
             this.name = name;
             this.numericType = numericType;
             this.parser = new TypeParser((n, c) -> new Builder(n, this, c.scriptCompiler(), c.getSettings()));
+            this.toScriptField = toScriptField;
         }
 
         /** Get the associated type name. */
@@ -881,6 +891,10 @@ public class NumberFieldMapper extends FieldMapper {
 
         public final TypeParser parser() {
             return parser;
+        }
+
+        public final ToScriptField getToScriptField() {
+            return toScriptField;
         }
 
         public abstract Query termQuery(String field, Object value);
@@ -1165,7 +1179,7 @@ public class NumberFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(name(), type.numericType());
+            return new SortedNumericIndexFieldData.Builder(name(), type.numericType(), type.getToScriptField());
         }
 
         @Override

@@ -66,20 +66,21 @@ public class TestFeatureResetIT extends TransformIntegTestCase {
             .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
             .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
 
-        TransformConfig config =
-            createTransformConfigBuilder(transformId, "reviews-by-user-business-day", QueryBuilders.matchAllQuery(), indexName)
-                .setPivotConfig(createPivotConfig(groups, aggs))
-                .build();
+        TransformConfig config = createTransformConfigBuilder(
+            transformId,
+            "reviews-by-user-business-day",
+            QueryBuilders.matchAllQuery(),
+            indexName
+        ).setPivotConfig(createPivotConfig(groups, aggs)).build();
 
         assertTrue(putTransform(config, RequestOptions.DEFAULT).isAcknowledged());
         assertTrue(startTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
 
         transformId = "continuous-transform-feature-reset";
-        config =
-            createTransformConfigBuilder(transformId, "reviews-by-user-business-day-cont", QueryBuilders.matchAllQuery(), indexName)
-                .setPivotConfig(createPivotConfig(groups, aggs))
-                .setSyncConfig(TimeSyncConfig.builder().setField("timestamp").setDelay(TimeValue.timeValueSeconds(1)).build())
-                .build();
+        config = createTransformConfigBuilder(transformId, "reviews-by-user-business-day-cont", QueryBuilders.matchAllQuery(), indexName)
+            .setPivotConfig(createPivotConfig(groups, aggs))
+            .setSyncConfig(TimeSyncConfig.builder().setField("timestamp").setDelay(TimeValue.timeValueSeconds(1)).build())
+            .build();
 
         assertTrue(putTransform(config, RequestOptions.DEFAULT).isAcknowledged());
         assertTrue(startTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
@@ -87,21 +88,18 @@ public class TestFeatureResetIT extends TransformIntegTestCase {
         highLevelClient.features().resetFeatures(new ResetFeaturesRequest(), RequestOptions.DEFAULT);
 
         Response response = adminClient().performRequest(new Request("GET", "/_cluster/state?metric=metadata"));
-        Map<String, Object> metadata = (Map<String, Object>)ESRestTestCase.entityAsMap(response).get("metadata");
+        Map<String, Object> metadata = (Map<String, Object>) ESRestTestCase.entityAsMap(response).get("metadata");
         assertThat(metadata, is(not(nullValue())));
 
         // after a successful reset we completely remove the transform metadata
-        Map<String, Object> transformMetadata = (Map<String, Object>)metadata.get("transform");
+        Map<String, Object> transformMetadata = (Map<String, Object>) metadata.get("transform");
         assertThat(transformMetadata, is(nullValue()));
 
         // assert transforms are gone
         assertThat(getTransform("_all").getCount(), equalTo(0L));
 
         // assert transform indices are gone
-        assertThat(
-            ESRestTestCase.entityAsMap(adminClient().performRequest(new Request("GET", ".transform-*"))),
-            is(anEmptyMap())
-        );
+        assertThat(ESRestTestCase.entityAsMap(adminClient().performRequest(new Request("GET", ".transform-*"))), is(anEmptyMap()));
     }
 
 }

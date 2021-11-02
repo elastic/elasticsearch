@@ -46,7 +46,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-
 public class SinglePassGroupingCollectorTests extends ESTestCase {
     private static class SegmentSearcher extends IndexSearcher {
         private final List<LeafReaderContext> ctx;
@@ -79,8 +78,11 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         assertSearchCollapse(dvProducers, numeric, false);
     }
 
-    private <T extends Comparable<T>> void assertSearchCollapse(CollapsingDocValuesProducer<T> dvProducers,
-                                                                boolean numeric, boolean multivalued) throws IOException {
+    private <T extends Comparable<T>> void assertSearchCollapse(
+        CollapsingDocValuesProducer<T> dvProducers,
+        boolean numeric,
+        boolean multivalued
+    ) throws IOException {
         final int numDocs = randomIntBetween(1000, 2000);
         int maxGroup = randomIntBetween(2, 500);
         final Directory dir = newDirectory();
@@ -113,15 +115,24 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
 
         final SinglePassGroupingCollector<?> collapsingCollector;
         if (numeric) {
-            collapsingCollector =
-                SinglePassGroupingCollector.createNumeric(collapseField.getField(), fieldType, sort, expectedNumGroups, null);
+            collapsingCollector = SinglePassGroupingCollector.createNumeric(
+                collapseField.getField(),
+                fieldType,
+                sort,
+                expectedNumGroups,
+                null
+            );
         } else {
-            collapsingCollector =
-                SinglePassGroupingCollector.createKeyword(collapseField.getField(), fieldType, sort, expectedNumGroups, null);
+            collapsingCollector = SinglePassGroupingCollector.createKeyword(
+                collapseField.getField(),
+                fieldType,
+                sort,
+                expectedNumGroups,
+                null
+            );
         }
 
-        TopFieldCollector topFieldCollector =
-            TopFieldCollector.create(sort, totalHits, Integer.MAX_VALUE);
+        TopFieldCollector topFieldCollector = TopFieldCollector.create(sort, totalHits, Integer.MAX_VALUE);
         Query query = new MatchAllDocsQuery();
         searcher.search(query, collapsingCollector);
         searcher.search(query, topFieldCollector);
@@ -373,8 +384,13 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
         sortField.setMissingValue(Long.MAX_VALUE);
         Sort sort = new Sort(sortField);
 
-        final SinglePassGroupingCollector<?> collapsingCollector =
-            SinglePassGroupingCollector.createNumeric("group", fieldType, sort, 10, null);
+        final SinglePassGroupingCollector<?> collapsingCollector = SinglePassGroupingCollector.createNumeric(
+            "group",
+            fieldType,
+            sort,
+            10,
+            null
+        );
         searcher.search(new MatchAllDocsQuery(), collapsingCollector);
         TopFieldGroups collapseTopFieldDocs = collapsingCollector.getTopGroups(0);
         assertEquals(4, collapseTopFieldDocs.scoreDocs.length);
@@ -413,8 +429,13 @@ public class SinglePassGroupingCollectorTests extends ESTestCase {
 
         Sort sort = new Sort(new SortField("group", SortField.Type.STRING));
 
-        final SinglePassGroupingCollector<?> collapsingCollector =
-            SinglePassGroupingCollector.createKeyword("group", fieldType, sort, 10, null);
+        final SinglePassGroupingCollector<?> collapsingCollector = SinglePassGroupingCollector.createKeyword(
+            "group",
+            fieldType,
+            sort,
+            10,
+            null
+        );
         searcher.search(new MatchAllDocsQuery(), collapsingCollector);
         TopFieldGroups collapseTopFieldDocs = collapsingCollector.getTopGroups(0);
         assertEquals(4, collapseTopFieldDocs.scoreDocs.length);

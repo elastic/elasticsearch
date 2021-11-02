@@ -12,9 +12,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -119,19 +119,10 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
 
         final Index indexToRemove = new Index(randomAlphaOfLength(4), UUIDs.randomBase64UUID(random()));
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> original.removeBackingIndex(indexToRemove)
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> original.removeBackingIndex(indexToRemove));
         assertThat(
             e.getMessage(),
-            equalTo(
-                String.format(
-                    Locale.ROOT,
-                    "index [%s] is not part of data stream [%s]",
-                    indexToRemove.getName(),
-                    dataStreamName)
-            )
+            equalTo(String.format(Locale.ROOT, "index [%s] is not part of data stream [%s]", indexToRemove.getName(), dataStreamName))
         );
     }
 
@@ -185,12 +176,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         builder.put(original);
         Index indexToAdd = new Index(randomAlphaOfLength(4), UUIDs.randomBase64UUID(random()));
         builder.put(
-            IndexMetadata
-                .builder(indexToAdd.getName())
-                .settings(settings(Version.CURRENT))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .build(),
+            IndexMetadata.builder(indexToAdd.getName()).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1).build(),
             false
         );
 
@@ -312,8 +298,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         builder.put(original);
 
         Index indexToAdd = new Index(randomAlphaOfLength(4), UUIDs.randomBase64UUID(random()));
-        IndexMetadata.Builder b = IndexMetadata
-            .builder(indexToAdd.getName())
+        IndexMetadata.Builder b = IndexMetadata.builder(indexToAdd.getName())
             .settings(settings(Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(1);
@@ -431,10 +416,13 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
             preSnapshotDataStream.getGeneration() + randomIntBetween(0, 5),
             preSnapshotDataStream.getMetadata() == null ? null : new HashMap<>(preSnapshotDataStream.getMetadata()),
             preSnapshotDataStream.isHidden(),
-            preSnapshotDataStream.isReplicated() && randomBoolean(), preSnapshotDataStream.isAllowCustomRouting());
+            preSnapshotDataStream.isReplicated() && randomBoolean(),
+            preSnapshotDataStream.isAllowCustomRouting()
+        );
 
-        var reconciledDataStream =
-            postSnapshotDataStream.snapshot(preSnapshotDataStream.getIndices().stream().map(Index::getName).collect(Collectors.toList()));
+        var reconciledDataStream = postSnapshotDataStream.snapshot(
+            preSnapshotDataStream.getIndices().stream().map(Index::getName).collect(Collectors.toList())
+        );
 
         assertThat(reconciledDataStream.getName(), equalTo(postSnapshotDataStream.getName()));
         assertThat(reconciledDataStream.getTimeStampField(), equalTo(postSnapshotDataStream.getTimeStampField()));
@@ -473,7 +461,8 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
             preSnapshotDataStream.isAllowCustomRouting()
         );
 
-        assertNull(postSnapshotDataStream.snapshot(
-                preSnapshotDataStream.getIndices().stream().map(Index::getName).collect(Collectors.toList())));
+        assertNull(
+            postSnapshotDataStream.snapshot(preSnapshotDataStream.getIndices().stream().map(Index::getName).collect(Collectors.toList()))
+        );
     }
 }

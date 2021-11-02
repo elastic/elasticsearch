@@ -38,8 +38,10 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
     }
 
     public void testDoExecute() {
-        final GetServiceAccountRequest request1 = randomFrom(new GetServiceAccountRequest(null, null),
-            new GetServiceAccountRequest("elastic", null));
+        final GetServiceAccountRequest request1 = randomFrom(
+            new GetServiceAccountRequest(null, null),
+            new GetServiceAccountRequest("elastic", null)
+        );
         final PlainActionFuture<GetServiceAccountResponse> future1 = new PlainActionFuture<>();
         transportGetServiceAccountAction.doExecute(mock(Task.class), request1, future1);
         final GetServiceAccountResponse getServiceAccountResponse1 = future1.actionGet();
@@ -61,7 +63,8 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
         final GetServiceAccountRequest request3 = randomFrom(
             new GetServiceAccountRequest("foo", null),
             new GetServiceAccountRequest("elastic", "foo"),
-            new GetServiceAccountRequest("foo", "bar"));
+            new GetServiceAccountRequest("foo", "bar")
+        );
         final PlainActionFuture<GetServiceAccountResponse> future3 = new PlainActionFuture<>();
         transportGetServiceAccountAction.doExecute(mock(Task.class), request3, future3);
         final GetServiceAccountResponse getServiceAccountResponse3 = future3.actionGet();

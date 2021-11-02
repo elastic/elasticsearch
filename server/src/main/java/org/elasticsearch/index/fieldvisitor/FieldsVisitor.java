@@ -35,9 +35,7 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
  * Base {@link StoredFieldVisitor} that retrieves all non-redundant metadata.
  */
 public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
-    private static final Set<String> BASE_REQUIRED_FIELDS = unmodifiableSet(newHashSet(
-            IdFieldMapper.NAME,
-            RoutingFieldMapper.NAME));
+    private static final Set<String> BASE_REQUIRED_FIELDS = unmodifiableSet(newHashSet(IdFieldMapper.NAME, RoutingFieldMapper.NAME));
 
     private final boolean loadSource;
     private final String sourceFieldName;
@@ -70,9 +68,7 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
         }
         // All these fields are single-valued so we can stop when the set is
         // empty
-        return requiredFields.isEmpty()
-                ? Status.STOP
-                : Status.NO;
+        return requiredFields.isEmpty() ? Status.STOP : Status.NO;
     }
 
     @Override

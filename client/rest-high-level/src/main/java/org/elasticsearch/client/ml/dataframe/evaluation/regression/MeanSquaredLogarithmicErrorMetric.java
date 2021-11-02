@@ -10,8 +10,8 @@ package org.elasticsearch.client.ml.dataframe.evaluation.regression;
 import org.elasticsearch.client.ml.dataframe.Regression.LossFunction;
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -33,8 +33,11 @@ public class MeanSquaredLogarithmicErrorMetric implements EvaluationMetric {
 
     public static final ParseField OFFSET = new ParseField("offset");
 
-    private static final ConstructingObjectParser<MeanSquaredLogarithmicErrorMetric, Void> PARSER =
-        new ConstructingObjectParser<>(NAME, true, args -> new MeanSquaredLogarithmicErrorMetric((Double) args[0]));
+    private static final ConstructingObjectParser<MeanSquaredLogarithmicErrorMetric, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        true,
+        args -> new MeanSquaredLogarithmicErrorMetric((Double) args[0])
+    );
 
     static {
         PARSER.declareDouble(optionalConstructorArg(), OFFSET);
@@ -87,8 +90,11 @@ public class MeanSquaredLogarithmicErrorMetric implements EvaluationMetric {
             return PARSER.apply(parser, null);
         }
 
-        private static final ConstructingObjectParser<Result, Void> PARSER =
-            new ConstructingObjectParser<>(NAME + "_result", true, args -> new Result((double) args[0]));
+        private static final ConstructingObjectParser<Result, Void> PARSER = new ConstructingObjectParser<>(
+            NAME + "_result",
+            true,
+            args -> new Result((double) args[0])
+        );
 
         static {
             PARSER.declareDouble(constructorArg(), VALUE);

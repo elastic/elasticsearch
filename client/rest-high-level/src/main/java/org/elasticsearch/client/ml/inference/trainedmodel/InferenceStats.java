@@ -10,9 +10,9 @@ package org.elasticsearch.client.ml.inference.trainedmodel;
 
 import org.elasticsearch.client.common.TimeUtil;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -32,17 +32,19 @@ public class InferenceStats implements ToXContentObject {
     public static final ConstructingObjectParser<InferenceStats, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         true,
-        a -> new InferenceStats((Long)a[0], (Long)a[1], (Long)a[2], (Long)a[3], (Instant)a[4])
+        a -> new InferenceStats((Long) a[0], (Long) a[1], (Long) a[2], (Long) a[3], (Instant) a[4])
     );
     static {
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), MISSING_ALL_FIELDS_COUNT);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), INFERENCE_COUNT);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), FAILURE_COUNT);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), CACHE_MISS_COUNT);
-        PARSER.declareField(ConstructingObjectParser.constructorArg(),
+        PARSER.declareField(
+            ConstructingObjectParser.constructorArg(),
             p -> TimeUtil.parseTimeFieldToInstant(p, TIMESTAMP.getPreferredName()),
             TIMESTAMP,
-            ObjectParser.ValueType.VALUE);
+            ObjectParser.ValueType.VALUE
+        );
     }
 
     private final long missingAllFieldsCount;
@@ -51,30 +53,24 @@ public class InferenceStats implements ToXContentObject {
     private final long cacheMissCount;
     private final Instant timeStamp;
 
-    private InferenceStats(Long missingAllFieldsCount,
-                           Long inferenceCount,
-                           Long failureCount,
-                           Long cacheMissCount,
-                           Instant instant) {
-        this(unboxOrZero(missingAllFieldsCount),
+    private InferenceStats(Long missingAllFieldsCount, Long inferenceCount, Long failureCount, Long cacheMissCount, Instant instant) {
+        this(
+            unboxOrZero(missingAllFieldsCount),
             unboxOrZero(inferenceCount),
             unboxOrZero(failureCount),
             unboxOrZero(cacheMissCount),
-            instant);
+            instant
+        );
     }
 
-    public InferenceStats(long missingAllFieldsCount,
-                          long inferenceCount,
-                          long failureCount,
-                          long cacheMissCount,
-                          Instant timeStamp) {
+    public InferenceStats(long missingAllFieldsCount, long inferenceCount, long failureCount, long cacheMissCount, Instant timeStamp) {
         this.missingAllFieldsCount = missingAllFieldsCount;
         this.inferenceCount = inferenceCount;
         this.failureCount = failureCount;
         this.cacheMissCount = cacheMissCount;
-        this.timeStamp = timeStamp == null ?
-            Instant.ofEpochMilli(Instant.now().toEpochMilli()) :
-            Instant.ofEpochMilli(timeStamp.toEpochMilli());
+        this.timeStamp = timeStamp == null
+            ? Instant.ofEpochMilli(Instant.now().toEpochMilli())
+            : Instant.ofEpochMilli(timeStamp.toEpochMilli());
     }
 
     /**
@@ -143,13 +139,18 @@ public class InferenceStats implements ToXContentObject {
 
     @Override
     public String toString() {
-        return "InferenceStats{" +
-            "missingAllFieldsCount=" + missingAllFieldsCount +
-            ", inferenceCount=" + inferenceCount +
-            ", failureCount=" + failureCount +
-            ", cacheMissCount=" + cacheMissCount +
-            ", timeStamp=" + timeStamp +
-            '}';
+        return "InferenceStats{"
+            + "missingAllFieldsCount="
+            + missingAllFieldsCount
+            + ", inferenceCount="
+            + inferenceCount
+            + ", failureCount="
+            + failureCount
+            + ", cacheMissCount="
+            + cacheMissCount
+            + ", timeStamp="
+            + timeStamp
+            + '}';
     }
 
     private static long unboxOrZero(@Nullable Long value) {

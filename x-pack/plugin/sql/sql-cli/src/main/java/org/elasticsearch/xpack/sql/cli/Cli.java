@@ -51,12 +51,17 @@ public class Cli extends LoggingAwareCommand {
      */
     public static void main(String[] args) throws Exception {
         configureJLineLogging();
-        final Cli cli = new Cli(new JLineTerminal(TerminalBuilder.builder()
-                .name("Elasticsearch SQL CLI")
-                // remove jansi since it has issues on Windows in closing terminals
-                // the CLI uses JNA anyway
-                .jansi(false)
-                .build(), true));
+        final Cli cli = new Cli(
+            new JLineTerminal(
+                TerminalBuilder.builder()
+                    .name("Elasticsearch SQL CLI")
+                    // remove jansi since it has issues on Windows in closing terminals
+                    // the CLI uses JNA anyway
+                    .jansi(false)
+                    .build(),
+                true
+            )
+        );
         int status = cli.main(args, Terminal.DEFAULT);
         if (status != ExitCodes.OK) {
             exit(status);
@@ -82,20 +87,20 @@ public class Cli extends LoggingAwareCommand {
         super("Elasticsearch SQL CLI");
         this.cliTerminal = cliTerminal;
         parser.acceptsAll(Arrays.asList("d", "debug"), "Enable debug logging");
-        this.binaryCommunication = parser.acceptsAll(Arrays.asList("b", "binary"), "Disable binary communication. "
-                + "Enabled by default. Accepts 'true' or 'false' values.")
-                .withRequiredArg().ofType(Boolean.class)
-                .defaultsTo(Boolean.parseBoolean(System.getProperty("binary", "true")));
+        this.binaryCommunication = parser.acceptsAll(
+            Arrays.asList("b", "binary"),
+            "Disable binary communication. " + "Enabled by default. Accepts 'true' or 'false' values."
+        ).withRequiredArg().ofType(Boolean.class).defaultsTo(Boolean.parseBoolean(System.getProperty("binary", "true")));
         this.keystoreLocation = parser.acceptsAll(
-                Arrays.asList("k", "keystore_location"),
-                "Location of a keystore to use when setting up SSL. "
+            Arrays.asList("k", "keystore_location"),
+            "Location of a keystore to use when setting up SSL. "
                 + "If specified then the CLI will prompt for a keystore password. "
-                + "If specified when the uri isn't https then an error is thrown.")
-                .withRequiredArg().ofType(String.class);
-        this.checkOption = parser.acceptsAll(Arrays.asList("c", "check"),
-                "Enable initial connection check on startup")
-                .withRequiredArg().ofType(Boolean.class)
-                .defaultsTo(Boolean.parseBoolean(System.getProperty("cli.check", "true")));
+                + "If specified when the uri isn't https then an error is thrown."
+        ).withRequiredArg().ofType(String.class);
+        this.checkOption = parser.acceptsAll(Arrays.asList("c", "check"), "Enable initial connection check on startup")
+            .withRequiredArg()
+            .ofType(Boolean.class)
+            .defaultsTo(Boolean.parseBoolean(System.getProperty("cli.check", "true")));
         this.connectionString = parser.nonOptions("uri");
     }
 
@@ -119,12 +124,12 @@ public class Cli extends LoggingAwareCommand {
 
     private void execute(String uri, boolean debug, boolean binary, String keystoreLocation, boolean checkConnection) throws Exception {
         CliCommand cliCommand = new CliCommands(
-                new PrintLogoCommand(),
-                new ClearScreenCliCommand(),
-                new FetchSizeCliCommand(),
-                new FetchSeparatorCliCommand(),
-                new ServerInfoCliCommand(),
-                new ServerQueryCliCommand()
+            new PrintLogoCommand(),
+            new ClearScreenCliCommand(),
+            new FetchSizeCliCommand(),
+            new FetchSeparatorCliCommand(),
+            new ServerInfoCliCommand(),
+            new ServerQueryCliCommand()
         );
         try {
             ConnectionBuilder connectionBuilder = new ConnectionBuilder(cliTerminal);
@@ -152,17 +157,24 @@ public class Cli extends LoggingAwareCommand {
             }
             if (ex.getCause() != null && ex.getCause() instanceof ConnectException) {
                 // Most likely Elasticsearch is not running
-                throw new UserException(ExitCodes.IO_ERROR,
-                        "Cannot connect to the server " + con.connectionString() + " - " + ex.getCause().getMessage());
+                throw new UserException(
+                    ExitCodes.IO_ERROR,
+                    "Cannot connect to the server " + con.connectionString() + " - " + ex.getCause().getMessage()
+                );
             } else if (ex.getCause() != null && ex.getCause() instanceof SQLInvalidAuthorizationSpecException) {
-                throw new UserException(ExitCodes.NOPERM,
-                        "Cannot establish a secure connection to the server " +
-                                con.connectionString() + " - " + ex.getCause().getMessage());
+                throw new UserException(
+                    ExitCodes.NOPERM,
+                    "Cannot establish a secure connection to the server " + con.connectionString() + " - " + ex.getCause().getMessage()
+                );
             } else {
                 // Most likely we connected to something other than Elasticsearch
-                throw new UserException(ExitCodes.DATA_ERROR,
-                        "Cannot communicate with the server " + con.connectionString() +
-                                ". This version of CLI only works with Elasticsearch version " + ClientVersion.CURRENT.toString());
+                throw new UserException(
+                    ExitCodes.DATA_ERROR,
+                    "Cannot communicate with the server "
+                        + con.connectionString()
+                        + ". This version of CLI only works with Elasticsearch version "
+                        + ClientVersion.CURRENT.toString()
+                );
             }
         }
     }

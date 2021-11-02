@@ -31,10 +31,13 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
     private int docId = -1;
 
-    private final Map<String, DocValuesField> localCacheScriptFieldData = new HashMap<>(4);
+    private final Map<String, DocValuesField<?>> localCacheScriptFieldData = new HashMap<>(4);
 
-    LeafDocLookup(Function<String, MappedFieldType> fieldTypeLookup, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup,
-                  LeafReaderContext reader) {
+    LeafDocLookup(
+        Function<String, MappedFieldType> fieldTypeLookup,
+        Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup,
+        LeafReaderContext reader
+    ) {
         this.fieldTypeLookup = fieldTypeLookup;
         this.fieldDataLookup = fieldDataLookup;
         this.reader = reader;
@@ -44,8 +47,8 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         this.docId = docId;
     }
 
-    public DocValuesField getScriptField(String fieldName) {
-        DocValuesField field = localCacheScriptFieldData.get(fieldName);
+    public DocValuesField<?> getScriptField(String fieldName) {
+        DocValuesField<?> field = localCacheScriptFieldData.get(fieldName);
 
         if (field == null) {
             final MappedFieldType fieldType = fieldTypeLookup.apply(fieldName);
@@ -56,9 +59,9 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
             // Load the field data on behalf of the script. Otherwise, it would require
             // additional permissions to deal with pagedbytes/ramusagestimator/etc.
-            field = AccessController.doPrivileged(new PrivilegedAction<DocValuesField>() {
+            field = AccessController.doPrivileged(new PrivilegedAction<DocValuesField<?>>() {
                 @Override
-                public DocValuesField run() {
+                public DocValuesField<?> run() {
                     return fieldDataLookup.apply(fieldType).load(reader).getScriptField(fieldName);
                 }
             });
@@ -84,7 +87,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
     @Override
     public boolean containsKey(Object key) {
         String fieldName = key.toString();
-        DocValuesField docValuesField = localCacheScriptFieldData.get(fieldName);
+        DocValuesField<?> docValuesField = localCacheScriptFieldData.get(fieldName);
         return docValuesField != null || fieldTypeLookup.apply(fieldName) != null;
     }
 

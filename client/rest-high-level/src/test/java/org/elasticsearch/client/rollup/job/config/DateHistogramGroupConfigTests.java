@@ -8,9 +8,9 @@
 package org.elasticsearch.client.rollup.job.config;
 
 import org.elasticsearch.client.ValidationException;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Optional;
@@ -81,14 +81,14 @@ public class DateHistogramGroupConfigTests extends AbstractXContentTestCase<Date
         final String field = randomAlphaOfLength(randomIntBetween(3, 10));
         final DateHistogramInterval delay = randomBoolean() ? new DateHistogramInterval(randomPositiveTimeValue()) : null;
         final String timezone = randomBoolean() ? randomZone().toString() : null;
-        int i = randomIntBetween(0,2);
+        int i = randomIntBetween(0, 2);
         final DateHistogramInterval interval;
         switch (i) {
             case 0:
                 interval = new DateHistogramInterval(randomPositiveTimeValue());
                 return new DateHistogramGroupConfig.FixedInterval(field, interval, delay, timezone);
             case 1:
-                interval = new DateHistogramInterval(randomTimeValue(1,1, "m", "h", "d", "w"));
+                interval = new DateHistogramInterval(randomTimeValue(1, 1, "m", "h", "d", "w"));
                 return new DateHistogramGroupConfig.CalendarInterval(field, interval, delay, timezone);
             default:
                 interval = new DateHistogramInterval(randomPositiveTimeValue());

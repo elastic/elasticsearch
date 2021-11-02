@@ -34,14 +34,14 @@ import java.util.List;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class AuthenticatorChainTests extends ESTestCase {
@@ -87,14 +87,16 @@ public class AuthenticatorChainTests extends ESTestCase {
         authentication = mock(Authentication.class);
         when(authentication.getUser()).thenReturn(user);
         fallbackUser = mock(User.class);
-        authenticatorChain = new AuthenticatorChain(settings,
+        authenticatorChain = new AuthenticatorChain(
+            settings,
             operatorPrivilegesService,
             anonymousUser,
             authenticationContextSerializer,
             serviceAccountAuthenticator,
             oAuth2TokenAuthenticator,
             apiKeyAuthenticator,
-            realmsAuthenticator);
+            realmsAuthenticator
+        );
     }
 
     public void testAuthenticateWillLookForExistingAuthenticationFirst() throws IOException {
@@ -104,10 +106,10 @@ public class AuthenticatorChainTests extends ESTestCase {
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
         authenticatorChain.authenticateAsync(context, future);
         assertThat(future.actionGet(), is(authentication));
-        verifyZeroInteractions(serviceAccountAuthenticator);
-        verifyZeroInteractions(oAuth2TokenAuthenticator);
-        verifyZeroInteractions(apiKeyAuthenticator);
-        verifyZeroInteractions(realmsAuthenticator);
+        verifyNoMoreInteractions(serviceAccountAuthenticator);
+        verifyNoMoreInteractions(oAuth2TokenAuthenticator);
+        verifyNoMoreInteractions(apiKeyAuthenticator);
+        verifyNoMoreInteractions(realmsAuthenticator);
         verify(authenticationContextSerializer, never()).writeToContext(any(), any());
         verify(operatorPrivilegesService, times(1)).maybeMarkOperatorUser(eq(authentication), any());
     }
@@ -128,8 +130,9 @@ public class AuthenticatorChainTests extends ESTestCase {
         final Authenticator.Context context = createAuthenticatorContext();
         when(serviceAccountAuthenticator.extractCredentials(context)).thenReturn(mock(ServiceAccountToken.class));
         doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked") final ActionListener<AuthenticationResult<Authentication>> listener =
-                (ActionListener<AuthenticationResult<Authentication>>) invocationOnMock.getArguments()[1];
+            @SuppressWarnings("unchecked")
+            final ActionListener<AuthenticationResult<Authentication>> listener = (ActionListener<
+                AuthenticationResult<Authentication>>) invocationOnMock.getArguments()[1];
             listener.onResponse(AuthenticationResult.success(authentication));
             return null;
         }).when(serviceAccountAuthenticator).authenticate(eq(context), any());
@@ -137,9 +140,9 @@ public class AuthenticatorChainTests extends ESTestCase {
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
         authenticatorChain.authenticateAsync(context, future);
         assertThat(future.actionGet(), is(authentication));
-        verifyZeroInteractions(oAuth2TokenAuthenticator);
-        verifyZeroInteractions(apiKeyAuthenticator);
-        verifyZeroInteractions(realmsAuthenticator);
+        verifyNoMoreInteractions(oAuth2TokenAuthenticator);
+        verifyNoMoreInteractions(apiKeyAuthenticator);
+        verifyNoMoreInteractions(realmsAuthenticator);
         verify(authenticationContextSerializer).writeToContext(eq(authentication), any());
         verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(authentication), any());
     }
@@ -148,8 +151,9 @@ public class AuthenticatorChainTests extends ESTestCase {
         final Authenticator.Context context = createAuthenticatorContext();
         when(oAuth2TokenAuthenticator.extractCredentials(context)).thenReturn(mock(BearerToken.class));
         doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked") final ActionListener<AuthenticationResult<Authentication>> listener =
-                (ActionListener<AuthenticationResult<Authentication>>) invocationOnMock.getArguments()[1];
+            @SuppressWarnings("unchecked")
+            final ActionListener<AuthenticationResult<Authentication>> listener = (ActionListener<
+                AuthenticationResult<Authentication>>) invocationOnMock.getArguments()[1];
             listener.onResponse(AuthenticationResult.success(authentication));
             return null;
         }).when(oAuth2TokenAuthenticator).authenticate(eq(context), any());
@@ -159,8 +163,8 @@ public class AuthenticatorChainTests extends ESTestCase {
         assertThat(future.actionGet(), is(authentication));
         verify(serviceAccountAuthenticator).extractCredentials(eq(context));
         verify(serviceAccountAuthenticator, never()).authenticate(eq(context), any());
-        verifyZeroInteractions(apiKeyAuthenticator);
-        verifyZeroInteractions(realmsAuthenticator);
+        verifyNoMoreInteractions(apiKeyAuthenticator);
+        verifyNoMoreInteractions(realmsAuthenticator);
         verify(authenticationContextSerializer).writeToContext(eq(authentication), any());
         verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(authentication), any());
     }
@@ -168,10 +172,12 @@ public class AuthenticatorChainTests extends ESTestCase {
     public void testAuthenticateWithApiKey() throws IOException {
         final Authenticator.Context context = createAuthenticatorContext();
         when(apiKeyAuthenticator.extractCredentials(context)).thenReturn(
-            new ApiKeyCredentials(randomAlphaOfLength(20), new SecureString(randomAlphaOfLength(22).toCharArray())));
+            new ApiKeyCredentials(randomAlphaOfLength(20), new SecureString(randomAlphaOfLength(22).toCharArray()))
+        );
         doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked") final ActionListener<AuthenticationResult<Authentication>> listener =
-                (ActionListener<AuthenticationResult<Authentication>>) invocationOnMock.getArguments()[1];
+            @SuppressWarnings("unchecked")
+            final ActionListener<AuthenticationResult<Authentication>> listener = (ActionListener<
+                AuthenticationResult<Authentication>>) invocationOnMock.getArguments()[1];
             listener.onResponse(AuthenticationResult.success(authentication));
             return null;
         }).when(apiKeyAuthenticator).authenticate(eq(context), any());
@@ -183,7 +189,7 @@ public class AuthenticatorChainTests extends ESTestCase {
         verify(serviceAccountAuthenticator, never()).authenticate(eq(context), any());
         verify(oAuth2TokenAuthenticator).extractCredentials(eq(context));
         verify(oAuth2TokenAuthenticator, never()).authenticate(eq(context), any());
-        verifyZeroInteractions(realmsAuthenticator);
+        verifyNoMoreInteractions(realmsAuthenticator);
         verify(authenticationContextSerializer).writeToContext(eq(authentication), any());
         verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(authentication), any());
     }
@@ -192,8 +198,9 @@ public class AuthenticatorChainTests extends ESTestCase {
         final Authenticator.Context context = createAuthenticatorContext();
         when(realmsAuthenticator.extractCredentials(context)).thenReturn(mock(AuthenticationToken.class));
         doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked") final ActionListener<AuthenticationResult<Authentication>> listener =
-                (ActionListener<AuthenticationResult<Authentication>>) invocationOnMock.getArguments()[1];
+            @SuppressWarnings("unchecked")
+            final ActionListener<AuthenticationResult<Authentication>> listener = (ActionListener<
+                AuthenticationResult<Authentication>>) invocationOnMock.getArguments()[1];
             listener.onResponse(AuthenticationResult.success(authentication));
             return null;
         }).when(realmsAuthenticator).authenticate(eq(context), any());
@@ -244,18 +251,21 @@ public class AuthenticatorChainTests extends ESTestCase {
         threadContext.putHeader("Authorization", unsuccessfulApiKey ? "ApiKey key_id:key_secret" : "Bearer some_token_value");
         if (unsuccessfulApiKey) {
             when(apiKeyAuthenticator.extractCredentials(context)).thenReturn(
-                new ApiKeyCredentials(randomAlphaOfLength(20), new SecureString(randomAlphaOfLength(22).toCharArray())));
+                new ApiKeyCredentials(randomAlphaOfLength(20), new SecureString(randomAlphaOfLength(22).toCharArray()))
+            );
             doAnswer(invocationOnMock -> {
-                @SuppressWarnings("unchecked") final ActionListener<AuthenticationResult<Authentication>> listener =
-                    (ActionListener<AuthenticationResult<Authentication>>) invocationOnMock.getArguments()[1];
+                @SuppressWarnings("unchecked")
+                final ActionListener<AuthenticationResult<Authentication>> listener = (ActionListener<
+                    AuthenticationResult<Authentication>>) invocationOnMock.getArguments()[1];
                 listener.onResponse(AuthenticationResult.unsuccessful("unsuccessful api key", null));
                 return null;
             }).when(apiKeyAuthenticator).authenticate(eq(context), any());
         } else {
             when(oAuth2TokenAuthenticator.extractCredentials(context)).thenReturn(mock(BearerToken.class));
             doAnswer(invocationOnMock -> {
-                @SuppressWarnings("unchecked") final ActionListener<AuthenticationResult<Authentication>> listener =
-                    (ActionListener<AuthenticationResult<Authentication>>) invocationOnMock.getArguments()[1];
+                @SuppressWarnings("unchecked")
+                final ActionListener<AuthenticationResult<Authentication>> listener = (ActionListener<
+                    AuthenticationResult<Authentication>>) invocationOnMock.getArguments()[1];
                 listener.onResponse(AuthenticationResult.unsuccessful("unsuccessful bearer token", null));
                 return null;
             }).when(oAuth2TokenAuthenticator).authenticate(eq(context), any());
@@ -263,12 +273,15 @@ public class AuthenticatorChainTests extends ESTestCase {
 
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
         authenticatorChain.authenticateAsync(context, future);
-        final ElasticsearchSecurityException e =
-            expectThrows(ElasticsearchSecurityException.class, future::actionGet);
-        assertThat(e.getMessage(), containsString("" +
-            "unable to authenticate with provided credentials and anonymous access is not allowed for this request"));
-        assertThat(e.getMetadata("es.additional_unsuccessful_credentials"),
-            hasItem(containsString(unsuccessfulApiKey ? "unsuccessful api key" : "unsuccessful bearer token")));
+        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
+        assertThat(
+            e.getMessage(),
+            containsString("" + "unable to authenticate with provided credentials and anonymous access is not allowed for this request")
+        );
+        assertThat(
+            e.getMetadata("es.additional_unsuccessful_credentials"),
+            hasItem(containsString(unsuccessfulApiKey ? "unsuccessful api key" : "unsuccessful bearer token"))
+        );
     }
 
     private Authenticator.Context createAuthenticatorContext() {

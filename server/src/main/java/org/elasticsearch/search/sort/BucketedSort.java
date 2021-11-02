@@ -10,8 +10,6 @@ package org.elasticsearch.search.sort;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.common.util.BigArray;
 import org.elasticsearch.common.util.BigArrays;
@@ -19,6 +17,8 @@ import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.FloatArray;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
@@ -83,10 +83,12 @@ public abstract class BucketedSort implements Releasable {
          * </p>
          */
         void swap(long lhs, long rhs);
+
         /**
          * Prepare to load extra data from a leaf.
          */
         Loader loader(LeafReaderContext ctx) throws IOException;
+
         @FunctionalInterface
         interface Loader {
             /**
@@ -402,8 +404,8 @@ public abstract class BucketedSort implements Releasable {
                 grow(requiredSize);
             }
             int next = getNextGatherOffset(rootIndex);
-            assert 0 <= next && next < bucketSize :
-                "Expected next to be in the range of valid buckets [0 <= " + next + " < " + bucketSize + "]";
+            assert 0 <= next && next < bucketSize
+                : "Expected next to be in the range of valid buckets [0 <= " + next + " < " + bucketSize + "]";
             long index = next + rootIndex;
             setIndexToDocValue(index);
             loader().loadFromDoc(index, doc);
@@ -468,10 +470,14 @@ public abstract class BucketedSort implements Releasable {
         }
 
         @Override
-        public boolean needsScores() { return false; }
+        public boolean needsScores() {
+            return false;
+        }
 
         @Override
-        protected final BigArray values() { return values; }
+        protected final BigArray values() {
+            return values;
+        }
 
         @Override
         protected final void growValues(long minSize) {
@@ -568,7 +574,9 @@ public abstract class BucketedSort implements Releasable {
         }
 
         @Override
-        protected final BigArray values() { return values; }
+        protected final BigArray values() {
+            return values;
+        }
 
         @Override
         protected final void growValues(long minSize) {
@@ -653,10 +661,14 @@ public abstract class BucketedSort implements Releasable {
         }
 
         @Override
-        public final boolean needsScores() { return false; }
+        public final boolean needsScores() {
+            return false;
+        }
 
         @Override
-        protected final BigArray values() { return values; }
+        protected final BigArray values() {
+            return values;
+        }
 
         @Override
         protected final void growValues(long minSize) {

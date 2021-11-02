@@ -22,19 +22,21 @@ public class BucketCorrelationAggregator extends SiblingPipelineAggregator {
 
     private final CorrelationFunction correlationFunction;
 
-    public BucketCorrelationAggregator(String name,
-                                       CorrelationFunction correlationFunction,
-                                       String bucketsPath,
-                                       Map<String, Object> metadata) {
-        super(name, new String[]{ bucketsPath }, metadata);
+    public BucketCorrelationAggregator(
+        String name,
+        CorrelationFunction correlationFunction,
+        String bucketsPath,
+        Map<String, Object> metadata
+    ) {
+        super(name, new String[] { bucketsPath }, metadata);
         this.correlationFunction = correlationFunction;
     }
 
     @Override
     public InternalAggregation doReduce(Aggregations aggregations, InternalAggregation.ReduceContext context) {
         CountCorrelationIndicator bucketPathValue = MlAggsHelper.extractDoubleBucketedValues(bucketsPaths()[0], aggregations)
-            .map(doubleBucketValues ->
-                new CountCorrelationIndicator(
+            .map(
+                doubleBucketValues -> new CountCorrelationIndicator(
                     doubleBucketValues.getValues(),
                     null,
                     LongStream.of(doubleBucketValues.getDocCounts()).sum()

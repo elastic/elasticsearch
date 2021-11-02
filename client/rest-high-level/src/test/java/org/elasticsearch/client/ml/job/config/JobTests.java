@@ -8,15 +8,16 @@
 package org.elasticsearch.client.ml.job.config;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
+
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -27,20 +28,20 @@ import java.util.List;
 
 public class JobTests extends AbstractXContentTestCase<Job> {
 
-    private static final String FUTURE_JOB = "{\n" +
-        "    \"job_id\": \"farequote\",\n" +
-        "    \"create_time\": 1234567890000,\n" +
-        "    \"tomorrows_technology_today\": \"wow\",\n" +
-        "    \"analysis_config\": {\n" +
-        "        \"bucket_span\": \"1h\",\n" +
-        "        \"something_new\": \"gasp\",\n" +
-        "        \"detectors\": [{\"function\": \"metric\", \"field_name\": \"responsetime\", \"by_field_name\": \"airline\"}]\n" +
-        "    },\n" +
-        "    \"data_description\": {\n" +
-        "        \"time_field\": \"time\",\n" +
-        "        \"the_future\": 123\n" +
-        "    }\n" +
-        "}";
+    private static final String FUTURE_JOB = "{\n"
+        + "    \"job_id\": \"farequote\",\n"
+        + "    \"create_time\": 1234567890000,\n"
+        + "    \"tomorrows_technology_today\": \"wow\",\n"
+        + "    \"analysis_config\": {\n"
+        + "        \"bucket_span\": \"1h\",\n"
+        + "        \"something_new\": \"gasp\",\n"
+        + "        \"detectors\": [{\"function\": \"metric\", \"field_name\": \"responsetime\", \"by_field_name\": \"airline\"}]\n"
+        + "    },\n"
+        + "    \"data_description\": {\n"
+        + "        \"time_field\": \"time\",\n"
+        + "        \"the_future\": 123\n"
+        + "    }\n"
+        + "}";
 
     @Override
     protected Job createTestInstance() {

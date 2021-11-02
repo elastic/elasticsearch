@@ -13,7 +13,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.sql.action.SqlQueryTask;
 import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
 import java.time.ZoneId;
@@ -33,9 +32,6 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     private final SqlVersion version;
     private final boolean multiValueFieldLeniency;
     private final boolean includeFrozenIndices;
-    private final TimeValue waitForCompletionTimeout;
-    private final boolean keepOnCompletion;
-    private final TimeValue keepAlive;
 
     @Nullable
     private final TaskId taskId;
@@ -43,22 +39,29 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     private final SqlQueryTask task;
 
     @Nullable
-    private QueryBuilder filter;
+    private final QueryBuilder filter;
 
     @Nullable
-    private Map<String, Object> runtimeMappings;
+    private final Map<String, Object> runtimeMappings;
 
-    public SqlConfiguration(ZoneId zi, @Nullable String catalog, int pageSize, TimeValue requestTimeout, TimeValue pageTimeout,
-                            QueryBuilder filter,
-                         Map<String, Object> runtimeMappings,
-                         Mode mode, String clientId, SqlVersion version,
-                         String username, String clusterName,
-                         boolean multiValueFieldLeniency,
-                         boolean includeFrozen,
-                         @Nullable TaskId taskId,
-                         @Nullable SqlQueryTask task,
-                         TimeValue waitForCompletionTimeout, boolean keepOnCompletion, TimeValue keepAlive) {
-
+    public SqlConfiguration(
+        ZoneId zi,
+        @Nullable String catalog,
+        int pageSize,
+        TimeValue requestTimeout,
+        TimeValue pageTimeout,
+        QueryBuilder filter,
+        Map<String, Object> runtimeMappings,
+        Mode mode,
+        String clientId,
+        SqlVersion version,
+        String username,
+        String clusterName,
+        boolean multiValueFieldLeniency,
+        boolean includeFrozen,
+        @Nullable TaskId taskId,
+        @Nullable SqlQueryTask task
+    ) {
         super(zi, username, clusterName, x -> Collections.emptySet());
 
         this.catalog = catalog;
@@ -74,21 +77,6 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         this.includeFrozenIndices = includeFrozen;
         this.taskId = taskId;
         this.task = task;
-        this.waitForCompletionTimeout = waitForCompletionTimeout;
-        this.keepOnCompletion = keepOnCompletion;
-        this.keepAlive = keepAlive;
-    }
-
-    public SqlConfiguration(ZoneId zi, @Nullable String catalog, int pageSize, TimeValue requestTimeout, TimeValue pageTimeout,
-                            QueryBuilder filter,
-                            Map<String, Object> runtimeMappings,
-                            Mode mode, String clientId, SqlVersion version,
-                            String username, String clusterName,
-                            boolean multiValueFieldLeniency,
-                            boolean includeFrozen) {
-        this(zi, catalog, pageSize, requestTimeout, pageTimeout, filter, runtimeMappings, mode, clientId, version, username, clusterName,
-            multiValueFieldLeniency, includeFrozen, null, null, Protocol.DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT,
-            Protocol.DEFAULT_KEEP_ON_COMPLETION, Protocol.DEFAULT_KEEP_ALIVE);
     }
 
     public String catalog() {
@@ -141,17 +129,5 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
 
     public SqlQueryTask task() {
         return task;
-    }
-
-    public TimeValue waitForCompletionTimeout() {
-        return waitForCompletionTimeout;
-    }
-
-    public boolean keepOnCompletion() {
-        return keepOnCompletion;
-    }
-
-    public TimeValue keepAlive() {
-        return keepAlive;
     }
 }

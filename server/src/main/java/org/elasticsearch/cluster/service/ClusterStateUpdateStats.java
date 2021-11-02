@@ -12,9 +12,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -158,8 +158,8 @@ public class ClusterStateUpdateStats implements Writeable, ToXContentFragment {
         0L,
         0L,
         0L,
-        0L);
-
+        0L
+    );
 
     public long getUnchangedTaskCount() {
         return unchangedTaskCount;
@@ -324,6 +324,7 @@ public class ClusterStateUpdateStats implements Writeable, ToXContentFragment {
             failedCommitElapsedMillis,
             failedCompletionElapsedMillis,
             failedMasterApplyElapsedMillis,
-            failedNotificationElapsedMillis);
+            failedNotificationElapsedMillis
+        );
     }
 }

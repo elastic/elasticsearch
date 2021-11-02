@@ -29,6 +29,7 @@ import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportSettings;
 
@@ -47,17 +48,26 @@ public class NioTransport extends TcpTransport {
     private static final Logger logger = LogManager.getLogger(NioTransport.class);
 
     protected final PageAllocator pageAllocator;
+    protected final BytesRefRecycler bytesRefRecycler;
     private final ConcurrentMap<String, TcpChannelFactory> profileToChannelFactory = newConcurrentMap();
     private final NioGroupFactory groupFactory;
     private volatile NioGroup nioGroup;
     private volatile Function<DiscoveryNode, TcpChannelFactory> clientChannelFactory;
 
-    protected NioTransport(Settings settings, Version version, ThreadPool threadPool, NetworkService networkService,
-                           PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
-                           CircuitBreakerService circuitBreakerService, NioGroupFactory groupFactory) {
+    protected NioTransport(
+        Settings settings,
+        Version version,
+        ThreadPool threadPool,
+        NetworkService networkService,
+        PageCacheRecycler pageCacheRecycler,
+        NamedWriteableRegistry namedWriteableRegistry,
+        CircuitBreakerService circuitBreakerService,
+        NioGroupFactory groupFactory
+    ) {
         super(settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService);
         this.pageAllocator = new PageAllocator(pageCacheRecycler);
         this.groupFactory = groupFactory;
+        this.bytesRefRecycler = new BytesRefRecycler(pageCacheRecycler);
     }
 
     @Override
@@ -130,9 +140,16 @@ public class NioTransport extends TcpTransport {
     protected abstract static class TcpChannelFactory extends ChannelFactory<NioTcpServerChannel, NioTcpChannel> {
 
         protected TcpChannelFactory(ProfileSettings profileSettings) {
-            super(profileSettings.tcpNoDelay, profileSettings.tcpKeepAlive, profileSettings.tcpKeepIdle, profileSettings.tcpKeepInterval,
-                profileSettings.tcpKeepCount, profileSettings.reuseAddress, Math.toIntExact(profileSettings.sendBufferSize.getBytes()),
-                Math.toIntExact(profileSettings.receiveBufferSize.getBytes()));
+            super(
+                profileSettings.tcpNoDelay,
+                profileSettings.tcpKeepAlive,
+                profileSettings.tcpKeepIdle,
+                profileSettings.tcpKeepInterval,
+                profileSettings.tcpKeepCount,
+                profileSettings.reuseAddress,
+                Math.toIntExact(profileSettings.sendBufferSize.getBytes()),
+                Math.toIntExact(profileSettings.receiveBufferSize.getBytes())
+            );
         }
     }
 
@@ -151,16 +168,25 @@ public class NioTransport extends TcpTransport {
         public NioTcpChannel createChannel(NioSelector selector, SocketChannel channel, Config.Socket socketConfig) {
             NioTcpChannel nioChannel = new NioTcpChannel(isClient == false, profileName, channel);
             Consumer<Exception> exceptionHandler = (e) -> onException(nioChannel, e);
-            TcpReadWriteHandler handler = new TcpReadWriteHandler(nioChannel, pageCacheRecycler, NioTransport.this);
-            BytesChannelContext context = new BytesChannelContext(nioChannel, selector, socketConfig, exceptionHandler, handler,
-                new InboundChannelBuffer(pageAllocator));
+            TcpReadWriteHandler handler = new TcpReadWriteHandler(nioChannel, bytesRefRecycler, NioTransport.this);
+            BytesChannelContext context = new BytesChannelContext(
+                nioChannel,
+                selector,
+                socketConfig,
+                exceptionHandler,
+                handler,
+                new InboundChannelBuffer(pageAllocator)
+            );
             nioChannel.setContext(context);
             return nioChannel;
         }
 
         @Override
-        public NioTcpServerChannel createServerChannel(NioSelector selector, ServerSocketChannel channel,
-                                                       Config.ServerSocket socketConfig) {
+        public NioTcpServerChannel createServerChannel(
+            NioSelector selector,
+            ServerSocketChannel channel,
+            Config.ServerSocket socketConfig
+        ) {
             NioTcpServerChannel nioChannel = new NioTcpServerChannel(channel);
             Consumer<Exception> exceptionHandler = (e) -> onServerException(nioChannel, e);
             Consumer<NioSocketChannel> acceptor = NioTransport.this::acceptChannel;

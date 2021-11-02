@@ -31,8 +31,11 @@ public class MockScriptService extends ScriptService {
         return false;
     }
 
-    public static <T> MockScriptService singleContext(ScriptContext<T> context, Function<String, T> compile,
-                                                      Map<String, StoredScriptSource> storedLookup) {
+    public static <T> MockScriptService singleContext(
+        ScriptContext<T> context,
+        Function<String, T> compile,
+        Map<String, StoredScriptSource> storedLookup
+    ) {
         ScriptEngine engine = new ScriptEngine() {
             @Override
             public String getType() {
@@ -40,8 +43,12 @@ public class MockScriptService extends ScriptService {
             }
 
             @Override
-            public <FactoryType> FactoryType compile(String name, String code, ScriptContext<FactoryType> context,
-                                                     Map<String, String> params) {
+            public <FactoryType> FactoryType compile(
+                String name,
+                String code,
+                ScriptContext<FactoryType> context,
+                Map<String, String> params
+            ) {
                 return context.factoryClazz.cast(compile.apply(code));
             }
 

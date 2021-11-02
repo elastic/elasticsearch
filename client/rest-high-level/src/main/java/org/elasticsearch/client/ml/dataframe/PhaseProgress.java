@@ -7,9 +7,9 @@
  */
 package org.elasticsearch.client.ml.dataframe;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.inject.internal.ToStringBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -24,8 +24,11 @@ public class PhaseProgress implements ToXContentObject {
     static final ParseField PHASE = new ParseField("phase");
     static final ParseField PROGRESS_PERCENT = new ParseField("progress_percent");
 
-    public static final ConstructingObjectParser<PhaseProgress, Void> PARSER = new ConstructingObjectParser<>("phase_progress",
-        true, a -> new PhaseProgress((String) a[0], (int) a[1]));
+    public static final ConstructingObjectParser<PhaseProgress, Void> PARSER = new ConstructingObjectParser<>(
+        "phase_progress",
+        true,
+        a -> new PhaseProgress((String) a[0], (int) a[1])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), PHASE);
@@ -63,8 +66,7 @@ public class PhaseProgress implements ToXContentObject {
 
     @Override
     public String toString() {
-        return new ToStringBuilder(getClass())
-            .add(PHASE.getPreferredName(), phase)
+        return new ToStringBuilder(getClass()).add(PHASE.getPreferredName(), phase)
             .add(PROGRESS_PERCENT.getPreferredName(), progressPercent)
             .toString();
     }

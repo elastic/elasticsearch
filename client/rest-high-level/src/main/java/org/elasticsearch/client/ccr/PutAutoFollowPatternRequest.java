@@ -30,16 +30,16 @@ public final class PutAutoFollowPatternRequest extends FollowConfig implements V
     private final List<String> leaderIndexExclusionPatterns;
     private String followIndexNamePattern;
 
-    public PutAutoFollowPatternRequest(String name,
-                                       String remoteCluster,
-                                       List<String> leaderIndexPatterns) {
+    public PutAutoFollowPatternRequest(String name, String remoteCluster, List<String> leaderIndexPatterns) {
         this(name, remoteCluster, leaderIndexPatterns, Collections.emptyList());
     }
 
-    public PutAutoFollowPatternRequest(String name,
-                                       String remoteCluster,
-                                       List<String> leaderIndexPatterns,
-                                       List<String> leaderIndexExclusionPatterns) {
+    public PutAutoFollowPatternRequest(
+        String name,
+        String remoteCluster,
+        List<String> leaderIndexPatterns,
+        List<String> leaderIndexExclusionPatterns
+    ) {
         this.name = Objects.requireNonNull(name);
         this.remoteCluster = Objects.requireNonNull(remoteCluster);
         this.leaderIndexPatterns = Objects.requireNonNull(leaderIndexPatterns);
@@ -92,11 +92,11 @@ public final class PutAutoFollowPatternRequest extends FollowConfig implements V
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
         PutAutoFollowPatternRequest that = (PutAutoFollowPatternRequest) o;
-        return Objects.equals(name, that.name) &&
-            Objects.equals(remoteCluster, that.remoteCluster) &&
-            Objects.equals(leaderIndexPatterns, that.leaderIndexPatterns) &&
-            Objects.equals(leaderIndexExclusionPatterns, that.leaderIndexExclusionPatterns) &&
-            Objects.equals(followIndexNamePattern, that.followIndexNamePattern);
+        return Objects.equals(name, that.name)
+            && Objects.equals(remoteCluster, that.remoteCluster)
+            && Objects.equals(leaderIndexPatterns, that.leaderIndexPatterns)
+            && Objects.equals(leaderIndexExclusionPatterns, that.leaderIndexExclusionPatterns)
+            && Objects.equals(followIndexNamePattern, that.followIndexNamePattern);
     }
 
     @Override

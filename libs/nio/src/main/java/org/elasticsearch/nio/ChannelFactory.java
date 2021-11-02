@@ -32,18 +32,43 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
     /**
      * This will create a {@link ChannelFactory}.
      */
-    protected ChannelFactory(boolean tcpNoDelay, boolean tcpKeepAlive, int tcpKeepIdle, int tcpKeepInterval, int tcpKeepCount,
-                             boolean tcpReuseAddress, int tcpSendBufferSize, int tcpReceiveBufferSize) {
-        this(tcpNoDelay, tcpKeepAlive, tcpKeepIdle, tcpKeepInterval, tcpKeepCount, tcpReuseAddress, tcpSendBufferSize, tcpReceiveBufferSize,
-            new RawChannelFactory());
+    protected ChannelFactory(
+        boolean tcpNoDelay,
+        boolean tcpKeepAlive,
+        int tcpKeepIdle,
+        int tcpKeepInterval,
+        int tcpKeepCount,
+        boolean tcpReuseAddress,
+        int tcpSendBufferSize,
+        int tcpReceiveBufferSize
+    ) {
+        this(
+            tcpNoDelay,
+            tcpKeepAlive,
+            tcpKeepIdle,
+            tcpKeepInterval,
+            tcpKeepCount,
+            tcpReuseAddress,
+            tcpSendBufferSize,
+            tcpReceiveBufferSize,
+            new RawChannelFactory()
+        );
     }
 
     /**
      * This will create a {@link ChannelFactory} using the raw channel factory passed to the constructor.
      */
-    protected ChannelFactory(boolean tcpNoDelay, boolean tcpKeepAlive, int tcpKeepIdle, int tcpKeepInterval, int tcpKeepCount,
-                             boolean tcpReuseAddress, int tcpSendBufferSize, int tcpReceiveBufferSize,
-                             RawChannelFactory rawChannelFactory) {
+    protected ChannelFactory(
+        boolean tcpNoDelay,
+        boolean tcpKeepAlive,
+        int tcpKeepIdle,
+        int tcpKeepInterval,
+        int tcpKeepCount,
+        boolean tcpReuseAddress,
+        int tcpSendBufferSize,
+        int tcpReceiveBufferSize,
+        RawChannelFactory rawChannelFactory
+    ) {
         this.tcpNoDelay = tcpNoDelay;
         this.tcpKeepAlive = tcpKeepAlive;
         this.tcpKeepIdle = tcpKeepIdle;
@@ -179,8 +204,18 @@ public abstract class ChannelFactory<ServerSocket extends NioServerSocketChannel
     }
 
     private Config.Socket createSocketConfig(InetSocketAddress remoteAddress, boolean isAccepted) {
-        return new Config.Socket(tcpNoDelay, tcpKeepAlive, tcpKeepIdle, tcpKeepInterval, tcpKeepCount, tcpReuseAddress, tcpSendBufferSize,
-            tcpReceiveBufferSize, remoteAddress, isAccepted);
+        return new Config.Socket(
+            tcpNoDelay,
+            tcpKeepAlive,
+            tcpKeepIdle,
+            tcpKeepInterval,
+            tcpKeepCount,
+            tcpReuseAddress,
+            tcpSendBufferSize,
+            tcpReceiveBufferSize,
+            remoteAddress,
+            isAccepted
+        );
     }
 
     public static class RawChannelFactory {

@@ -93,7 +93,7 @@ public final class UnaryPipe extends Pipe {
 
         UnaryPipe other = (UnaryPipe) obj;
         return Objects.equals(action, other.action)
-                && Objects.equals(child, other.child)
-                && Objects.equals(expression(), other.expression());
+            && Objects.equals(child, other.child)
+            && Objects.equals(expression(), other.expression());
     }
 }

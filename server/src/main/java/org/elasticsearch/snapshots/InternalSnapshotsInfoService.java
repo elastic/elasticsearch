@@ -127,6 +127,12 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.localNodeMaster()) {
+            if (event.previousState().nodes().isLocalNodeElectedMaster()
+                && event.routingTableChanged() == false
+                && event.nodesChanged() == false) {
+                // we neither just became master nor did the routing table change, nothing to update
+                return;
+            }
             final Set<SnapshotShard> onGoingSnapshotRecoveries = listOfSnapshotShards(event.state());
 
             int unknownShards = 0;

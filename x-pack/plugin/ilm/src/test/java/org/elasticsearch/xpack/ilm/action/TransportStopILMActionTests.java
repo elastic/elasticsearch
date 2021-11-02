@@ -25,8 +25,8 @@ import org.elasticsearch.xpack.core.ilm.action.StopILMAction;
 import org.mockito.ArgumentMatcher;
 
 import static java.util.Collections.emptyMap;
-import static org.mockito.Matchers.argThat;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
@@ -47,10 +47,21 @@ public class TransportStopILMActionTests extends ESTestCase {
     public void testStopILMClusterStatePriorityIsImmediate() {
         ClusterService clusterService = mock(ClusterService.class);
 
-        TransportStopILMAction transportStopILMAction = new TransportStopILMAction(mock(TransportService.class),
-            clusterService, mock(ThreadPool.class), mock(ActionFilters.class), mock(IndexNameExpressionResolver.class));
-        Task task = new Task(randomLong(), "transport", StopILMAction.NAME, "description",
-            new TaskId(randomLong() + ":" + randomLong()), emptyMap());
+        TransportStopILMAction transportStopILMAction = new TransportStopILMAction(
+            mock(TransportService.class),
+            clusterService,
+            mock(ThreadPool.class),
+            mock(ActionFilters.class),
+            mock(IndexNameExpressionResolver.class)
+        );
+        Task task = new Task(
+            randomLong(),
+            "transport",
+            StopILMAction.NAME,
+            "description",
+            new TaskId(randomLong() + ":" + randomLong()),
+            emptyMap()
+        );
         StopILMRequest request = new StopILMRequest();
         transportStopILMAction.masterOperation(task, request, ClusterState.EMPTY_STATE, EMPTY_LISTENER);
 

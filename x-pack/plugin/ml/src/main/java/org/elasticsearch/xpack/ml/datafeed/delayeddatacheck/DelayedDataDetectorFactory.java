@@ -38,15 +38,20 @@ public class DelayedDataDetectorFactory {
      * @param xContentRegistry The current NamedXContentRegistry with which to parse the query
      * @return A new {@link DelayedDataDetector}
      */
-    public static DelayedDataDetector buildDetector(Job job,
-                                                    DatafeedConfig datafeedConfig,
-                                                    Client client,
-                                                    NamedXContentRegistry xContentRegistry) {
+    public static DelayedDataDetector buildDetector(
+        Job job,
+        DatafeedConfig datafeedConfig,
+        Client client,
+        NamedXContentRegistry xContentRegistry
+    ) {
         if (datafeedConfig.getDelayedDataCheckConfig().isEnabled()) {
-            long window = validateAndCalculateWindowLength(job.getAnalysisConfig().getBucketSpan(),
-                datafeedConfig.getDelayedDataCheckConfig().getCheckWindow());
+            long window = validateAndCalculateWindowLength(
+                job.getAnalysisConfig().getBucketSpan(),
+                datafeedConfig.getDelayedDataCheckConfig().getCheckWindow()
+            );
             long bucketSpan = job.getAnalysisConfig().getBucketSpan() == null ? 0 : job.getAnalysisConfig().getBucketSpan().millis();
-            return new DatafeedDelayedDataDetector(bucketSpan,
+            return new DatafeedDelayedDataDetector(
+                bucketSpan,
                 window,
                 job.getId(),
                 job.getDataDescription().getTimeField(),
@@ -54,7 +59,8 @@ public class DelayedDataDetectorFactory {
                 datafeedConfig.getIndices().toArray(new String[0]),
                 datafeedConfig.getIndicesOptions(),
                 datafeedConfig.getRuntimeMappings(),
-                client);
+                client
+            );
         } else {
             return new NullDelayedDataDetector();
         }
@@ -69,12 +75,20 @@ public class DelayedDataDetectorFactory {
         }
         if (currentWindow.compareTo(bucketSpan) < 0) {
             throw new IllegalArgumentException(
-                Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_SMALL, currentWindow.getStringRep(),
-                    bucketSpan.getStringRep()));
+                Messages.getMessage(
+                    Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_SMALL,
+                    currentWindow.getStringRep(),
+                    bucketSpan.getStringRep()
+                )
+            );
         } else if (currentWindow.millis() > bucketSpan.millis() * DelayedDataCheckConfig.MAX_NUMBER_SPANABLE_BUCKETS) {
             throw new IllegalArgumentException(
-                Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_SPANS_TOO_MANY_BUCKETS, currentWindow.getStringRep(),
-                    bucketSpan.getStringRep()));
+                Messages.getMessage(
+                    Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_SPANS_TOO_MANY_BUCKETS,
+                    currentWindow.getStringRep(),
+                    bucketSpan.getStringRep()
+                )
+            );
         }
         return currentWindow.millis();
     }

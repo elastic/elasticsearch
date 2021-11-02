@@ -11,8 +11,8 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequestBuilder;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -28,14 +28,14 @@ public class HasPrivilegesRequestBuilderTests extends ESTestCase {
 
     public void testParseValidJsonWithClusterAndIndexPrivileges() throws Exception {
         String json = "{ "
-                + " \"cluster\":[ \"all\"],"
-                + " \"index\":[ "
-                + " { \"names\": [ \".kibana\", \".reporting\" ], "
-                + "   \"privileges\" : [ \"read\", \"write\" ] }, "
-                + " { \"names\": [ \".security\" ], "
-                + "   \"privileges\" : [ \"manage\" ] } "
-                + " ]"
-                + "}";
+            + " \"cluster\":[ \"all\"],"
+            + " \"index\":[ "
+            + " { \"names\": [ \".kibana\", \".reporting\" ], "
+            + "   \"privileges\" : [ \"read\", \"write\" ] }, "
+            + " { \"names\": [ \".security\" ], "
+            + "   \"privileges\" : [ \"manage\" ] } "
+            + " ]"
+            + "}";
 
         final HasPrivilegesRequestBuilder builder = new HasPrivilegesRequestBuilder(mock(Client.class));
         builder.source("elastic", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
@@ -57,11 +57,11 @@ public class HasPrivilegesRequestBuilderTests extends ESTestCase {
 
     public void testParseValidJsonWithJustIndexPrivileges() throws Exception {
         String json = "{ \"index\":[ "
-                + "{ \"names\": [ \".kibana\", \".reporting\" ], "
-                + " \"privileges\" : [ \"read\", \"write\" ] }, "
-                + "{ \"names\": [ \".security\" ], "
-                + " \"privileges\" : [ \"manage\" ] } "
-                + "] }";
+            + "{ \"names\": [ \".kibana\", \".reporting\" ], "
+            + " \"privileges\" : [ \"read\", \"write\" ] }, "
+            + "{ \"names\": [ \".security\" ], "
+            + " \"privileges\" : [ \"manage\" ] } "
+            + "] }";
 
         final HasPrivilegesRequestBuilder builder = new HasPrivilegesRequestBuilder(mock(Client.class));
         builder.source("elastic", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
@@ -81,10 +81,14 @@ public class HasPrivilegesRequestBuilderTests extends ESTestCase {
 
     public void testParseValidJsonWithJustClusterPrivileges() throws Exception {
         String json = "{ \"cluster\":[ "
-                + "\"manage\","
-                + "\"" + ClusterHealthAction.NAME + "\","
-                + "\"" + ClusterStatsAction.NAME + "\""
-                + "] }";
+            + "\"manage\","
+            + "\""
+            + ClusterHealthAction.NAME
+            + "\","
+            + "\""
+            + ClusterStatsAction.NAME
+            + "\""
+            + "] }";
 
         final HasPrivilegesRequestBuilder builder = new HasPrivilegesRequestBuilder(mock(Client.class));
         builder.source("elastic", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
@@ -96,15 +100,16 @@ public class HasPrivilegesRequestBuilderTests extends ESTestCase {
 
     public void testUseOfFieldLevelSecurityThrowsException() throws Exception {
         String json = "{ \"index\":[ "
-                + "{"
-                + " \"names\": [ \"employees\" ], "
-                + " \"privileges\" : [ \"read\", \"write\" ] ,"
-                + " \"field_security\": { \"grant\": [ \"name\", \"department\", \"title\" ] }"
-                + "} ] }";
+            + "{"
+            + " \"names\": [ \"employees\" ], "
+            + " \"privileges\" : [ \"read\", \"write\" ] ,"
+            + " \"field_security\": { \"grant\": [ \"name\", \"department\", \"title\" ] }"
+            + "} ] }";
 
         final HasPrivilegesRequestBuilder builder = new HasPrivilegesRequestBuilder(mock(Client.class));
-        final ElasticsearchParseException parseException = expectThrows(ElasticsearchParseException.class,
-                () -> builder.source("elastic", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON)
+        final ElasticsearchParseException parseException = expectThrows(
+            ElasticsearchParseException.class,
+            () -> builder.source("elastic", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON)
         );
         assertThat(parseException.getMessage(), containsString("[field_security]"));
     }
@@ -112,8 +117,9 @@ public class HasPrivilegesRequestBuilderTests extends ESTestCase {
     public void testMissingPrivilegesThrowsException() throws Exception {
         String json = "{ }";
         final HasPrivilegesRequestBuilder builder = new HasPrivilegesRequestBuilder(mock(Client.class));
-        final ElasticsearchParseException parseException = expectThrows(ElasticsearchParseException.class,
-                () -> builder.source("elastic", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON)
+        final ElasticsearchParseException parseException = expectThrows(
+            ElasticsearchParseException.class,
+            () -> builder.source("elastic", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON)
         );
         assertThat(parseException.getMessage(), containsString("[cluster,index,applications] are missing"));
     }

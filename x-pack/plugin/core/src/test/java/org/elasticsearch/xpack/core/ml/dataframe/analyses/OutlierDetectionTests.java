@@ -49,12 +49,6 @@ public class OutlierDetectionTests extends AbstractBWCSerializationTestCase<Outl
     }
 
     public static OutlierDetection mutateForVersion(OutlierDetection instance, Version version) {
-        if (version.before(Version.V_7_5_0)) {
-            return new OutlierDetection.Builder(instance).setComputeFeatureInfluence(true)
-                .setOutlierFraction(0.05)
-                .setStandardizationEnabled(true)
-                .build();
-        }
         return instance;
     }
 

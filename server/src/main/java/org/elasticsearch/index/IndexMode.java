@@ -146,8 +146,7 @@ public enum IndexMode {
                         DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
                         context.scriptCompiler(),
                         DateFieldMapper.IGNORE_MALFORMED_SETTING.get(context.getSettings()),
-                        context.getIndexSettings().getIndexVersionCreated(),
-                        context.getIndexSettings().getIndex().getName()
+                        context.getIndexSettings().getIndexVersionCreated()
                     )
                 );
             }

@@ -19,7 +19,6 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -132,7 +131,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                     final String querySource = scriptFactory.newInstance(vars).execute();
                     try (
                         XContentParser parser = XContentFactory.xContent(querySource)
-                            .createParser(searchExecutionContext.getXContentRegistry(), LoggingDeprecationHandler.INSTANCE, querySource)
+                            .createParser(searchExecutionContext.getParserConfig(), querySource)
                     ) {
                         QueryBuilder innerQueryBuilder = AbstractQueryBuilder.parseInnerQueryBuilder(parser);
                         final ParsedQuery parsedQuery = searchExecutionContext.toQuery(innerQueryBuilder);

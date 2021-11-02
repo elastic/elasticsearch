@@ -882,6 +882,10 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             .setSize(page.getSize())
             .setFetchSource(false)
             .addDocValueField(TransformField.ID.getPreferredName())
+            .setQuery(
+                QueryBuilders.boolQuery()
+                    .filter(QueryBuilders.termQuery(TransformField.INDEX_DOC_TYPE.getPreferredName(), TransformConfig.NAME))
+            )
             .request();
 
         executeAsyncWithOrigin(

@@ -123,10 +123,8 @@ public class BasicTokenizerTests extends ESTestCase {
     }
 
     public void testCleanText() {
-        assertEquals("change these chars to spaces",
-            BasicTokenizer.cleanText("change\tthese chars\rto\nspaces"));
-        assertEquals("filter control chars",
-            BasicTokenizer.cleanText("\u0000filter \uFFFDcontrol chars\u0005"));
+        assertEquals("change these chars to spaces", BasicTokenizer.cleanText("change\tthese chars\rto\nspaces"));
+        assertEquals("filter control chars", BasicTokenizer.cleanText("\u0000filter \uFFFDcontrol chars\u0005"));
     }
 
     public void testWhiteSpaceTokenize() {

@@ -32,7 +32,7 @@ public abstract class AbstractAtomicGeoShapeShapeFieldData implements LeafGeoSha
     }
 
     @Override
-    public final DocValuesField getScriptField(String name) {
+    public final DocValuesField<?> getScriptField(String name) {
         return new DelegateDocValuesField(new GeoShapeScriptValues(getGeoShapeValues()), name);
     }
 
@@ -50,8 +50,7 @@ public abstract class AbstractAtomicGeoShapeShapeFieldData implements LeafGeoSha
             }
 
             @Override
-            public void close() {
-            }
+            public void close() {}
 
             @Override
             public GeoShapeValues getGeoShapeValues() {

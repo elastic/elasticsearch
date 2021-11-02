@@ -8,8 +8,8 @@
 
 package org.elasticsearch.client.ccr;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 public final class CcrStatsResponse {
@@ -17,14 +17,11 @@ public final class CcrStatsResponse {
     static final ParseField AUTO_FOLLOW_STATS_FIELD = new ParseField("auto_follow_stats");
     static final ParseField FOLLOW_STATS_FIELD = new ParseField("follow_stats");
 
-    private static final ConstructingObjectParser<CcrStatsResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "indices",
-        true,
-        args -> {
-            AutoFollowStats autoFollowStats = (AutoFollowStats) args[0];
-            IndicesFollowStats indicesFollowStats = (IndicesFollowStats) args[1];
-            return new CcrStatsResponse(autoFollowStats, indicesFollowStats);
-        });
+    private static final ConstructingObjectParser<CcrStatsResponse, Void> PARSER = new ConstructingObjectParser<>("indices", true, args -> {
+        AutoFollowStats autoFollowStats = (AutoFollowStats) args[0];
+        IndicesFollowStats indicesFollowStats = (IndicesFollowStats) args[1];
+        return new CcrStatsResponse(autoFollowStats, indicesFollowStats);
+    });
 
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), AutoFollowStats.STATS_PARSER, AUTO_FOLLOW_STATS_FIELD);

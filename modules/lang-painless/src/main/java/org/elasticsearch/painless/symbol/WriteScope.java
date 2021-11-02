@@ -137,7 +137,7 @@ public class WriteScope {
         this.nextSlot = parent.nextSlot;
     }
 
-     /** Creates a script scope as the top-level scope with no labels and parameters. */
+    /** Creates a script scope as the top-level scope with no labels and parameters. */
     public static WriteScope newScriptScope() {
         return new WriteScope();
     }

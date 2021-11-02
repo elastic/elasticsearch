@@ -55,8 +55,7 @@ class ExposedKeyFactory<T> implements InternalFactory<T>, BindingProcessor.Creat
     }
 
     @Override
-    public T get(Errors errors, InternalContext context, Dependency<?> dependency)
-            throws ErrorsException {
+    public T get(Errors errors, InternalContext context, Dependency<?> dependency) throws ErrorsException {
         return delegate.getInternalFactory().get(errors, context, dependency);
     }
 }

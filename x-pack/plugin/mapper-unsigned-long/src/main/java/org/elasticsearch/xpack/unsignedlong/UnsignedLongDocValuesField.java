@@ -17,11 +17,13 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.PrimitiveIterator;
 
 import static org.elasticsearch.search.DocValueFormat.MASK_2_63;
 import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.BIGINTEGER_2_64_MINUS_ONE;
 
-public class UnsignedLongDocValuesField implements UnsignedLongField, DocValuesField {
+public class UnsignedLongDocValuesField implements UnsignedLongField, DocValuesField<Long> {
 
     private final SortedNumericDocValues input;
     private final String name;
@@ -50,6 +52,11 @@ public class UnsignedLongDocValuesField implements UnsignedLongField, DocValuesF
         }
     }
 
+    private void resize(int newSize) {
+        count = newSize;
+        values = ArrayUtil.grow(values, count);
+    }
+
     @Override
     public ScriptDocValues<?> getScriptDocValues() {
         if (unsignedLongScriptDocValues == null) {
@@ -57,11 +64,6 @@ public class UnsignedLongDocValuesField implements UnsignedLongField, DocValuesF
         }
 
         return unsignedLongScriptDocValues;
-    }
-
-    protected void resize(int newSize) {
-        count = newSize;
-        values = ArrayUtil.grow(values, count);
     }
 
     @Override
@@ -116,12 +118,38 @@ public class UnsignedLongDocValuesField implements UnsignedLongField, DocValuesF
         return toFormatted(index);
     }
 
+    @Override
+    public PrimitiveIterator.OfLong iterator() {
+        return new PrimitiveIterator.OfLong() {
+            private int index = 0;
+
+            @Override
+            public boolean hasNext() {
+                return index < count;
+            }
+
+            @Override
+            public Long next() {
+                return nextLong();
+            }
+
+            @Override
+            public long nextLong() {
+                if (hasNext() == false) {
+                    throw new NoSuchElementException();
+                }
+
+                return toFormatted(index++);
+            }
+        };
+    }
+
     protected BigInteger toBigInteger(int index) {
         return BigInteger.valueOf(toFormatted(index)).and(BIGINTEGER_2_64_MINUS_ONE);
     }
 
     @Override
-    public List<BigInteger> getBigIntegers() {
+    public List<BigInteger> asBigIntegers() {
         if (isEmpty()) {
             return Collections.emptyList();
         }
@@ -136,12 +164,12 @@ public class UnsignedLongDocValuesField implements UnsignedLongField, DocValuesF
     }
 
     @Override
-    public BigInteger getBigInteger(BigInteger defaultValue) {
-        return getBigInteger(0, defaultValue);
+    public BigInteger asBigInteger(BigInteger defaultValue) {
+        return asBigInteger(0, defaultValue);
     }
 
     @Override
-    public BigInteger getBigInteger(int index, BigInteger defaultValue) {
+    public BigInteger asBigInteger(int index, BigInteger defaultValue) {
         if (isEmpty() || index < 0 || index >= count) {
             return defaultValue;
         }

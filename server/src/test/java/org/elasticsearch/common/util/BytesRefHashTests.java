@@ -11,6 +11,7 @@ package org.elasticsearch.common.util;
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.ObjectLongMap;
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
+
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.TestUtil;
@@ -49,7 +50,7 @@ public class BytesRefHashTests extends ESTestCase {
             for (int i = 0; i < iters; ++i) {
                 final BytesRef value = randomFrom(values);
                 if (valueToId.containsKey(value)) {
-                    assertEquals(- 1 - valueToId.get(value), hash.add(value, value.hashCode()));
+                    assertEquals(-1 - valueToId.get(value), hash.add(value, value.hashCode()));
                 } else {
                     assertEquals(valueToId.size(), hash.add(value, value.hashCode()));
                     idToValue[valueToId.size()] = value;
@@ -83,7 +84,7 @@ public class BytesRefHashTests extends ESTestCase {
         BytesRefBuilder ref = new BytesRefBuilder();
         int num = scaledRandomIntBetween(2, 20);
         for (int j = 0; j < num; j++) {
-            final int mod = 1+randomInt(40);
+            final int mod = 1 + randomInt(40);
             for (int i = 0; i < 797; i++) {
                 String str;
                 do {
@@ -97,7 +98,7 @@ public class BytesRefHashTests extends ESTestCase {
                 } else {
                     assertEquals(hash.size(), count + 1);
                 }
-                if(i % mod == 0) {
+                if (i % mod == 0) {
                     hash.close();
                     hash = randomHash();
                 }
@@ -133,7 +134,7 @@ public class BytesRefHashTests extends ESTestCase {
                     uniqueCount++;
                     assertEquals(hash.size(), count + 1);
                 } else {
-                    assertTrue((-key)-1 < count);
+                    assertTrue((-key) - 1 < count);
                     assertEquals(hash.size(), count);
                 }
             }
@@ -169,15 +170,15 @@ public class BytesRefHashTests extends ESTestCase {
                 long count = hash.size();
                 long key = hash.add(ref.get());
 
-                if (key >=0) {
+                if (key >= 0) {
                     assertTrue(strings.add(str));
                     assertEquals(uniqueCount, key);
                     assertEquals(hash.size(), count + 1);
                     uniqueCount++;
                 } else {
                     assertFalse(strings.add(str));
-                    assertTrue((-key)-1 < count);
-                    assertEquals(str, hash.get((-key)-1, scratch).utf8ToString());
+                    assertTrue((-key) - 1 < count);
+                    assertEquals(str, hash.get((-key) - 1, scratch).utf8ToString());
                     assertEquals(count, hash.size());
                 }
             }
@@ -204,7 +205,7 @@ public class BytesRefHashTests extends ESTestCase {
                 } while (str.length() == 0);
                 ref.copyChars(str);
                 long count = hash.size();
-                long key = hash.find(ref.get()); //hash.add(ref);
+                long key = hash.find(ref.get()); // hash.add(ref);
                 if (key >= 0) { // string found in hash
                     assertFalse(strings.add(str));
                     assertTrue(key < count);
@@ -232,11 +233,10 @@ public class BytesRefHashTests extends ESTestCase {
         long count = hash.size();
         for (String string : strings) {
             ref.copyChars(string);
-            long key  =  hash.add(ref.get()); // add again to check duplicates
-            assertEquals(string, hash.get((-key)-1, scratch).utf8ToString());
+            long key = hash.add(ref.get()); // add again to check duplicates
+            assertEquals(string, hash.get((-key) - 1, scratch).utf8ToString());
             assertEquals(count, hash.size());
-            assertTrue("key: " + key + " count: " + count + " string: " + string,
-                    key < count);
+            assertTrue("key: " + key + " count: " + count + " string: " + string, key < count);
         }
     }
 

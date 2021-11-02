@@ -28,8 +28,7 @@ public class DeleteIndexTemplateRequest extends MasterNodeRequest<DeleteIndexTem
         name = in.readString();
     }
 
-    public DeleteIndexTemplateRequest() {
-    }
+    public DeleteIndexTemplateRequest() {}
 
     /**
      * Constructs a new delete index request for the specified name.

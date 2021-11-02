@@ -78,8 +78,9 @@ public class CuckooFilter implements Writeable {
         this.numBuckets = getNumBuckets(capacity, loadFactor, entriesPerBucket);
 
         if ((long) numBuckets * (long) entriesPerBucket > Integer.MAX_VALUE) {
-            throw new IllegalArgumentException("Attempted to create [" + numBuckets * entriesPerBucket
-                + "] entries which is > Integer.MAX_VALUE");
+            throw new IllegalArgumentException(
+                "Attempted to create [" + numBuckets * entriesPerBucket + "] entries which is > Integer.MAX_VALUE"
+            );
         }
         this.data = new PackedArray(numBuckets * entriesPerBucket, bitsPerEntry);
 
@@ -101,8 +102,9 @@ public class CuckooFilter implements Writeable {
 
         // This shouldn't happen, but as a sanity check
         if ((long) numBuckets * (long) entriesPerBucket > Integer.MAX_VALUE) {
-            throw new IllegalArgumentException("Attempted to create [" + numBuckets * entriesPerBucket
-                + "] entries which is > Integer.MAX_VALUE");
+            throw new IllegalArgumentException(
+                "Attempted to create [" + numBuckets * entriesPerBucket + "] entries which is > Integer.MAX_VALUE"
+            );
         }
         // TODO this is probably super slow, but just used for testing atm
         this.data = new PackedArray(numBuckets * entriesPerBucket, bitsPerEntry);
@@ -202,7 +204,7 @@ public class CuckooFilter implements Writeable {
      */
     boolean mightContain(long hash) {
         int bucket = hashToIndex((int) hash, numBuckets);
-        int fingerprint = fingerprint((int) (hash  >>> 32), bitsPerEntry, fingerprintMask);
+        int fingerprint = fingerprint((int) (hash >>> 32), bitsPerEntry, fingerprintMask);
         int alternateIndex = alternateIndex(bucket, fingerprint, numBuckets);
 
         return mightContainFingerprint(bucket, fingerprint, alternateIndex);
@@ -243,7 +245,7 @@ public class CuckooFilter implements Writeable {
     boolean add(long hash) {
         // Each bucket needs 32 bits, so we truncate for the first bucket and shift/truncate for second
         int bucket = hashToIndex((int) hash, numBuckets);
-        int fingerprint = fingerprint((int) (hash  >>> 32), bitsPerEntry, fingerprintMask);
+        int fingerprint = fingerprint((int) (hash >>> 32), bitsPerEntry, fingerprintMask);
         return mergeFingerprint(bucket, fingerprint);
     }
 
@@ -451,7 +453,7 @@ public class CuckooFilter implements Writeable {
         long buckets = Math.round((((double) capacity / loadFactor)) / (double) b);
 
         // Rounds up to nearest power of 2
-        return 1 << -Integer.numberOfLeadingZeros((int)buckets - 1);
+        return 1 << -Integer.numberOfLeadingZeros((int) buckets - 1);
     }
 
     private double log2(double x) {
@@ -515,12 +517,11 @@ public class CuckooFilter implements Writeable {
             this.valueCount = valueCount;
             final int longCount = PackedInts.Format.PACKED.longCount(PackedInts.VERSION_CURRENT, valueCount, bitsPerValue);
             this.blocks = new long[longCount];
-            maskRight = ~0L << (BLOCK_SIZE-bitsPerValue) >>> (BLOCK_SIZE-bitsPerValue);
+            maskRight = ~0L << (BLOCK_SIZE - bitsPerValue) >>> (BLOCK_SIZE - bitsPerValue);
             bpvMinusBlockSize = bitsPerValue - BLOCK_SIZE;
         }
 
-        PackedArray(StreamInput in)
-            throws IOException {
+        PackedArray(StreamInput in) throws IOException {
             this.bitsPerValue = in.readVInt();
             this.valueCount = in.readVInt();
             this.blocks = in.readLongArray();
@@ -540,9 +541,9 @@ public class CuckooFilter implements Writeable {
 
         public long get(final int index) {
             // The abstract index in a bit stream
-            final long majorBitPos = (long)index * bitsPerValue;
+            final long majorBitPos = (long) index * bitsPerValue;
             // The index in the backing long-array
-            final int elementPos = (int)(majorBitPos >>> BLOCK_BITS);
+            final int elementPos = (int) (majorBitPos >>> BLOCK_BITS);
             // The number of value-bits in the second long
             final long endBits = (majorBitPos & MOD_MASK) + bpvMinusBlockSize;
 
@@ -550,9 +551,7 @@ public class CuckooFilter implements Writeable {
                 return (blocks[elementPos] >>> -endBits) & maskRight;
             }
             // Two blocks
-            return ((blocks[elementPos] << endBits)
-                | (blocks[elementPos+1] >>> (BLOCK_SIZE - endBits)))
-                & maskRight;
+            return ((blocks[elementPos] << endBits) | (blocks[elementPos + 1] >>> (BLOCK_SIZE - endBits))) & maskRight;
         }
 
         public int get(int index, long[] arr, int off, int len) {
@@ -578,7 +577,7 @@ public class CuckooFilter implements Writeable {
             // bulk get
             assert index % decoder.longValueCount() == 0;
             int blockIndex = (int) (((long) index * bitsPerValue) >>> BLOCK_BITS);
-            assert (((long)index * bitsPerValue) & MOD_MASK) == 0;
+            assert (((long) index * bitsPerValue) & MOD_MASK) == 0;
             final int iterations = len / decoder.longValueCount();
             decoder.decode(blocks, blockIndex, arr, off, iterations);
             final int gotValues = iterations * decoder.longValueCount();
@@ -606,22 +605,19 @@ public class CuckooFilter implements Writeable {
 
         public void set(final int index, final long value) {
             // The abstract index in a contiguous bit stream
-            final long majorBitPos = (long)index * bitsPerValue;
+            final long majorBitPos = (long) index * bitsPerValue;
             // The index in the backing long-array
-            final int elementPos = (int)(majorBitPos >>> BLOCK_BITS); // / BLOCK_SIZE
+            final int elementPos = (int) (majorBitPos >>> BLOCK_BITS); // / BLOCK_SIZE
             // The number of value-bits in the second long
             final long endBits = (majorBitPos & MOD_MASK) + bpvMinusBlockSize;
 
             if (endBits <= 0) { // Single block
-                blocks[elementPos] = blocks[elementPos] &  ~(maskRight << -endBits)
-                    | (value << -endBits);
+                blocks[elementPos] = blocks[elementPos] & ~(maskRight << -endBits) | (value << -endBits);
                 return;
             }
             // Two blocks
-            blocks[elementPos] = blocks[elementPos] &  ~(maskRight >>> endBits)
-                | (value >>> endBits);
-            blocks[elementPos+1] = blocks[elementPos+1] &  (~0L >>> endBits)
-                | (value << (BLOCK_SIZE - endBits));
+            blocks[elementPos] = blocks[elementPos] & ~(maskRight >>> endBits) | (value >>> endBits);
+            blocks[elementPos + 1] = blocks[elementPos + 1] & (~0L >>> endBits) | (value << (BLOCK_SIZE - endBits));
         }
 
         public int set(int index, long[] arr, int off, int len) {
@@ -648,7 +644,7 @@ public class CuckooFilter implements Writeable {
             // bulk set
             assert index % encoder.longValueCount() == 0;
             int blockIndex = (int) (((long) index * bitsPerValue) >>> BLOCK_BITS);
-            assert (((long)index * bitsPerValue) & MOD_MASK) == 0;
+            assert (((long) index * bitsPerValue) & MOD_MASK) == 0;
             final int iterations = len / encoder.longValueCount();
             encoder.encode(arr, off, blocks, blockIndex, iterations);
             final int setValues = iterations * encoder.longValueCount();
@@ -674,10 +670,10 @@ public class CuckooFilter implements Writeable {
 
         public long ramBytesUsed() {
             return RamUsageEstimator.alignObjectSize(
-                RamUsageEstimator.NUM_BYTES_OBJECT_HEADER
-                + 3 * Integer.BYTES   // bpvMinusBlockSize,valueCount,bitsPerValue
-                + Long.BYTES          // maskRight
-                + RamUsageEstimator.NUM_BYTES_OBJECT_REF) // blocks ref
+                RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + 3 * Integer.BYTES   // bpvMinusBlockSize,valueCount,bitsPerValue
+                    + Long.BYTES          // maskRight
+                    + RamUsageEstimator.NUM_BYTES_OBJECT_REF
+            ) // blocks ref
                 + RamUsageEstimator.sizeOf(blocks);
         }
     }

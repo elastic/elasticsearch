@@ -36,20 +36,25 @@ public class MapXContentParser extends AbstractXContentParser {
         XContentParser parser = new MapXContentParser(
             NamedXContentRegistry.EMPTY,
             DeprecationHandler.IGNORE_DEPRECATIONS,
-            Collections.singletonMap("dummy_field", sourceMap), XContentType.JSON);
+            Collections.singletonMap("dummy_field", sourceMap),
+            XContentType.JSON
+        );
         parser.nextToken(); // start object
         parser.nextToken(); // field name
         parser.nextToken(); // field value
         return parser;
     }
 
-    public MapXContentParser(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler, Map<String, Object> map,
-                             XContentType xContentType) {
+    public MapXContentParser(
+        NamedXContentRegistry xContentRegistry,
+        DeprecationHandler deprecationHandler,
+        Map<String, Object> map,
+        XContentType xContentType
+    ) {
         super(xContentRegistry, deprecationHandler);
         this.xContentType = xContentType;
         this.iterator = new MapIterator(null, null, map);
     }
-
 
     @Override
     protected boolean doBooleanValue() throws IOException {

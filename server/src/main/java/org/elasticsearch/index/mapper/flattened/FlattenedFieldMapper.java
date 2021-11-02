@@ -34,7 +34,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -64,6 +63,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -106,36 +106,56 @@ public final class FlattenedFieldMapper extends FieldMapper {
     }
 
     private static Builder builder(Mapper in) {
-        return ((FlattenedFieldMapper)in).builder;
+        return ((FlattenedFieldMapper) in).builder;
     }
 
     public static class Builder extends FieldMapper.Builder {
 
-        final Parameter<Integer> depthLimit
-            = Parameter.intParam("depth_limit", true, m -> builder(m).depthLimit.get(), Defaults.DEPTH_LIMIT)
-            .addValidator(v -> {
-                if (v < 0) {
-                    throw new IllegalArgumentException("[depth_limit] must be positive, got [" + v + "]");
-                }
-            });
+        final Parameter<Integer> depthLimit = Parameter.intParam(
+            "depth_limit",
+            true,
+            m -> builder(m).depthLimit.get(),
+            Defaults.DEPTH_LIMIT
+        ).addValidator(v -> {
+            if (v < 0) {
+                throw new IllegalArgumentException("[depth_limit] must be positive, got [" + v + "]");
+            }
+        });
 
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> builder(m).indexed.get(), true);
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), true);
 
-        private final Parameter<String> nullValue
-            = Parameter.stringParam("null_value", false, m -> builder(m).nullValue.get(), null).acceptsNull();
+        private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> builder(m).nullValue.get(), null)
+            .acceptsNull();
 
-        private final Parameter<Boolean> eagerGlobalOrdinals
-            = Parameter.boolParam("eager_global_ordinals", true, m -> builder(m).eagerGlobalOrdinals.get(), false);
-        private final Parameter<Integer> ignoreAbove
-            = Parameter.intParam("ignore_above", true, m -> builder(m).ignoreAbove.get(), Integer.MAX_VALUE);
+        private final Parameter<Boolean> eagerGlobalOrdinals = Parameter.boolParam(
+            "eager_global_ordinals",
+            true,
+            m -> builder(m).eagerGlobalOrdinals.get(),
+            false
+        );
+        private final Parameter<Integer> ignoreAbove = Parameter.intParam(
+            "ignore_above",
+            true,
+            m -> builder(m).ignoreAbove.get(),
+            Integer.MAX_VALUE
+        );
 
-        private final Parameter<String> indexOptions
-            = Parameter.restrictedStringParam("index_options", false, m -> builder(m).indexOptions.get(), "docs", "freqs");
+        private final Parameter<String> indexOptions = Parameter.restrictedStringParam(
+            "index_options",
+            false,
+            m -> builder(m).indexOptions.get(),
+            "docs",
+            "freqs"
+        );
         private final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> builder(m).similarity.get());
 
-        private final Parameter<Boolean> splitQueriesOnWhitespace
-            = Parameter.boolParam("split_queries_on_whitespace", true, m -> builder(m).splitQueriesOnWhitespace.get(), false);
+        private final Parameter<Boolean> splitQueriesOnWhitespace = Parameter.boolParam(
+            "split_queries_on_whitespace",
+            true,
+            m -> builder(m).splitQueriesOnWhitespace.get(),
+            false
+        );
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -145,8 +165,18 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(indexed, hasDocValues, depthLimit, nullValue, eagerGlobalOrdinals, ignoreAbove,
-                indexOptions, similarity, splitQueriesOnWhitespace, meta);
+            return Arrays.asList(
+                indexed,
+                hasDocValues,
+                depthLimit,
+                nullValue,
+                eagerGlobalOrdinals,
+                ignoreAbove,
+                indexOptions,
+                similarity,
+                splitQueriesOnWhitespace,
+                meta
+            );
         }
 
         @Override
@@ -165,7 +195,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 hasDocValues.get(),
                 meta.get(),
                 splitQueriesOnWhitespace.get(),
-                eagerGlobalOrdinals.get());
+                eagerGlobalOrdinals.get()
+            );
             return new FlattenedFieldMapper(name, ft, this);
         }
     }
@@ -180,11 +211,22 @@ public final class FlattenedFieldMapper extends FieldMapper {
         private final String key;
         private final String rootName;
 
-        KeyedFlattenedFieldType(String rootName, boolean indexed, boolean hasDocValues, String key,
-                                       boolean splitQueriesOnWhitespace, Map<String, String> meta) {
-            super(rootName + KEYED_FIELD_SUFFIX, indexed, false, hasDocValues,
+        KeyedFlattenedFieldType(
+            String rootName,
+            boolean indexed,
+            boolean hasDocValues,
+            String key,
+            boolean splitQueriesOnWhitespace,
+            Map<String, String> meta
+        ) {
+            super(
+                rootName + KEYED_FIELD_SUFFIX,
+                indexed,
+                false,
+                hasDocValues,
                 splitQueriesOnWhitespace ? TextSearchInfo.WHITESPACE_MATCH_ONLY : TextSearchInfo.SIMPLE_MATCH_ONLY,
-                meta);
+                meta
+            );
             this.key = key;
             this.rootName = rootName;
         }
@@ -209,45 +251,64 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query rangeQuery(Object lowerTerm,
-                                Object upperTerm,
-                                boolean includeLower,
-                                boolean includeUpper,
-                                SearchExecutionContext context) {
+        public Query rangeQuery(
+            Object lowerTerm,
+            Object upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            SearchExecutionContext context
+        ) {
 
             // We require range queries to specify both bounds because an unbounded query could incorrectly match
             // values from other keys. For example, a query on the 'first' key with only a lower bound would become
             // ("first\0value", null), which would also match the value "second\0value" belonging to the key 'second'.
             if (lowerTerm == null || upperTerm == null) {
-                throw new IllegalArgumentException("[range] queries on keyed [" + CONTENT_TYPE +
-                    "] fields must include both an upper and a lower bound.");
+                throw new IllegalArgumentException(
+                    "[range] queries on keyed [" + CONTENT_TYPE + "] fields must include both an upper and a lower bound."
+                );
             }
 
-            return super.rangeQuery(lowerTerm, upperTerm,
-                includeLower, includeUpper, context);
+            return super.rangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, context);
         }
 
         @Override
-        public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
-                                boolean transpositions, SearchExecutionContext context) {
-            throw new UnsupportedOperationException("[fuzzy] queries are not currently supported on keyed " +
-                "[" + CONTENT_TYPE + "] fields.");
+        public Query fuzzyQuery(
+            Object value,
+            Fuzziness fuzziness,
+            int prefixLength,
+            int maxExpansions,
+            boolean transpositions,
+            SearchExecutionContext context
+        ) {
+            throw new UnsupportedOperationException(
+                "[fuzzy] queries are not currently supported on keyed " + "[" + CONTENT_TYPE + "] fields."
+            );
         }
 
         @Override
-        public Query regexpQuery(String value, int syntaxFlags, int matchFlags, int maxDeterminizedStates,
-                                 MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
-            throw new UnsupportedOperationException("[regexp] queries are not currently supported on keyed " +
-                "[" + CONTENT_TYPE + "] fields.");
+        public Query regexpQuery(
+            String value,
+            int syntaxFlags,
+            int matchFlags,
+            int maxDeterminizedStates,
+            MultiTermQuery.RewriteMethod method,
+            SearchExecutionContext context
+        ) {
+            throw new UnsupportedOperationException(
+                "[regexp] queries are not currently supported on keyed " + "[" + CONTENT_TYPE + "] fields."
+            );
         }
 
         @Override
-        public Query wildcardQuery(String value,
-                                   MultiTermQuery.RewriteMethod method,
-                                   boolean caseInsensitive,
-                                   SearchExecutionContext context) {
-            throw new UnsupportedOperationException("[wildcard] queries are not currently supported on keyed " +
-                "[" + CONTENT_TYPE + "] fields.");
+        public Query wildcardQuery(
+            String value,
+            MultiTermQuery.RewriteMethod method,
+            boolean caseInsensitive,
+            SearchExecutionContext context
+        ) {
+            throw new UnsupportedOperationException(
+                "[wildcard] queries are not currently supported on keyed " + "[" + CONTENT_TYPE + "] fields."
+            );
         }
 
         @Override
@@ -290,9 +351,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 return null;
             }
 
-            String stringValue = value instanceof BytesRef
-                ? ((BytesRef) value).utf8ToString()
-                : value.toString();
+            String stringValue = value instanceof BytesRef ? ((BytesRef) value).utf8ToString() : value.toString();
             String keyedValue = FlattenedFieldParser.createKeyedValue(key, stringValue);
             return new BytesRef(keyedValue);
         }
@@ -306,13 +365,13 @@ public final class FlattenedFieldMapper extends FieldMapper {
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
-                throw new IllegalArgumentException("Field [" + rootName + "." + key + "] of type [" + typeName() +
-                    "] doesn't support formats.");
+                throw new IllegalArgumentException(
+                    "Field [" + rootName + "." + key + "] of type [" + typeName() + "] doesn't support formats."
+                );
             }
             return SourceValueFetcher.identity(rootName + "." + key, context, format);
         }
     }
-
 
     // Wraps a raw Lucene TermsEnum to strip values of fieldnames
     static class TranslatingTermsEnum extends TermsEnum {
@@ -342,13 +401,12 @@ public final class FlattenedFieldMapper extends FieldMapper {
             return result;
         }
 
-
         @Override
         public int docFreq() throws IOException {
             return delegate.docFreq();
         }
 
-        //===============  All other TermsEnum methods not supported =================
+        // =============== All other TermsEnum methods not supported =================
 
         @Override
         public AttributeSource attributes() {
@@ -438,17 +496,22 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         @Override
-        public SortField sortField(Object missingValue,
-                                   MultiValueMode sortMode,
-                                   XFieldComparatorSource.Nested nested,
-                                   boolean reverse) {
+        public SortField sortField(Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested, boolean reverse) {
             XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
             return new SortField(getFieldName(), source, reverse);
         }
 
         @Override
-        public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
-                SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
+        public BucketedSort newBucketedSort(
+            BigArrays bigArrays,
+            Object missingValue,
+            MultiValueMode sortMode,
+            Nested nested,
+            SortOrder sortOrder,
+            DocValueFormat format,
+            int bucketSize,
+            BucketedSort.ExtraData extra
+        ) {
             throw new IllegalArgumentException("only supported on numeric fields");
         }
 
@@ -478,8 +541,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         @Override
         public OrdinalMap getOrdinalMap() {
-            throw new UnsupportedOperationException("The field data for the flattened field ["
-                + delegate.getFieldName() + "] does not allow access to the underlying ordinal map.");
+            throw new UnsupportedOperationException(
+                "The field data for the flattened field ["
+                    + delegate.getFieldName()
+                    + "] does not allow access to the underlying ordinal map."
+            );
         }
 
         @Override
@@ -501,7 +567,12 @@ public final class FlattenedFieldMapper extends FieldMapper {
             @Override
             public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
                 IndexOrdinalsFieldData delegate = new SortedSetOrdinalsIndexFieldData(
-                    cache, fieldName, valuesSourceType, breakerService, AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
+                    cache,
+                    fieldName,
+                    valuesSourceType,
+                    breakerService,
+                    AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION
+                );
                 return new KeyedFlattenedFieldData(key, delegate);
             }
         }
@@ -515,10 +586,22 @@ public final class FlattenedFieldMapper extends FieldMapper {
         private final boolean splitQueriesOnWhitespace;
         private final boolean eagerGlobalOrdinals;
 
-        public RootFlattenedFieldType(String name, boolean indexed, boolean hasDocValues, Map<String, String> meta,
-                                      boolean splitQueriesOnWhitespace, boolean eagerGlobalOrdinals) {
-            super(name, indexed, false, hasDocValues,
-                splitQueriesOnWhitespace ? TextSearchInfo.WHITESPACE_MATCH_ONLY : TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
+        public RootFlattenedFieldType(
+            String name,
+            boolean indexed,
+            boolean hasDocValues,
+            Map<String, String> meta,
+            boolean splitQueriesOnWhitespace,
+            boolean eagerGlobalOrdinals
+        ) {
+            super(
+                name,
+                indexed,
+                false,
+                hasDocValues,
+                splitQueriesOnWhitespace ? TextSearchInfo.WHITESPACE_MATCH_ONLY : TextSearchInfo.SIMPLE_MATCH_ONLY,
+                meta
+            );
             this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
             this.eagerGlobalOrdinals = eagerGlobalOrdinals;
         }
@@ -562,13 +645,17 @@ public final class FlattenedFieldMapper extends FieldMapper {
     private final FlattenedFieldParser fieldParser;
     private final Builder builder;
 
-    private FlattenedFieldMapper(String simpleName,
-                                 MappedFieldType mappedFieldType,
-                                 Builder builder) {
+    private FlattenedFieldMapper(String simpleName, MappedFieldType mappedFieldType, Builder builder) {
         super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, MultiFields.empty(), CopyTo.empty());
         this.builder = builder;
-        this.fieldParser = new FlattenedFieldParser(mappedFieldType.name(), mappedFieldType.name() + KEYED_FIELD_SUFFIX,
-            mappedFieldType, builder.depthLimit.get(), builder.ignoreAbove.get(), builder.nullValue.get());
+        this.fieldParser = new FlattenedFieldParser(
+            mappedFieldType.name(),
+            mappedFieldType.name() + KEYED_FIELD_SUFFIX,
+            mappedFieldType,
+            builder.depthLimit.get(),
+            builder.ignoreAbove.get(),
+            builder.nullValue.get()
+        );
     }
 
     @Override

@@ -36,10 +36,17 @@ public class SettingsFilteringIT extends ESIntegTestCase {
     }
 
     public static class SettingsFilteringPlugin extends Plugin {
-        public static final Setting<Boolean> SOME_NODE_SETTING =
-            Setting.boolSetting("some.node.setting", false, Property.NodeScope, Property.Filtered);
-        public static final Setting<Boolean> SOME_OTHER_NODE_SETTING =
-            Setting.boolSetting("some.other.node.setting", false, Property.NodeScope);
+        public static final Setting<Boolean> SOME_NODE_SETTING = Setting.boolSetting(
+            "some.node.setting",
+            false,
+            Property.NodeScope,
+            Property.Filtered
+        );
+        public static final Setting<Boolean> SOME_OTHER_NODE_SETTING = Setting.boolSetting(
+            "some.other.node.setting",
+            false,
+            Property.NodeScope
+        );
 
         @Override
         public Settings additionalSettings() {
@@ -48,9 +55,11 @@ public class SettingsFilteringIT extends ESIntegTestCase {
 
         @Override
         public List<Setting<?>> getSettings() {
-            return Arrays.asList(SOME_NODE_SETTING,
-            SOME_OTHER_NODE_SETTING,
-            Setting.groupSetting("index.filter_test.", Property.IndexScope));
+            return Arrays.asList(
+                SOME_NODE_SETTING,
+                SOME_OTHER_NODE_SETTING,
+                Setting.groupSetting("index.filter_test.", Property.IndexScope)
+            );
         }
 
         @Override
@@ -60,13 +69,21 @@ public class SettingsFilteringIT extends ESIntegTestCase {
     }
 
     public void testSettingsFiltering() {
-        assertAcked(client().admin().indices().prepareCreate("test-idx").setSettings(Settings.builder()
-                .put("filter_test.foo", "test")
-                .put("filter_test.bar1", "test")
-                .put("filter_test.bar2", "test")
-                .put("filter_test.notbar", "test")
-                .put("filter_test.notfoo", "test")
-                .build()).get());
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("test-idx")
+                .setSettings(
+                    Settings.builder()
+                        .put("filter_test.foo", "test")
+                        .put("filter_test.bar1", "test")
+                        .put("filter_test.bar2", "test")
+                        .put("filter_test.notbar", "test")
+                        .put("filter_test.notfoo", "test")
+                        .build()
+                )
+                .get()
+        );
         GetSettingsResponse response = client().admin().indices().prepareGetSettings("test-idx").get();
         Settings settings = response.getIndexToSettings().get("test-idx");
 
@@ -79,7 +96,7 @@ public class SettingsFilteringIT extends ESIntegTestCase {
 
     public void testNodeInfoIsFiltered() {
         NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().clear().setSettings(true).get();
-        for(NodeInfo info : nodeInfos.getNodes()) {
+        for (NodeInfo info : nodeInfos.getNodes()) {
             Settings settings = info.getSettings();
             assertNotNull(settings);
             assertNull(settings.get(SettingsFilteringPlugin.SOME_NODE_SETTING.getKey()));

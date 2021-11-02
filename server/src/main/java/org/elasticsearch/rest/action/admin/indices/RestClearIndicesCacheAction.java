@@ -25,9 +25,7 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(POST, "/_cache/clear"),
-            new Route(POST, "/{index}/_cache/clear"));
+        return List.of(new Route(POST, "/_cache/clear"), new Route(POST, "/{index}/_cache/clear"));
     }
 
     @Override
@@ -38,7 +36,8 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         ClearIndicesCacheRequest clearIndicesCacheRequest = new ClearIndicesCacheRequest(
-                Strings.splitStringByCommaToArray(request.param("index")));
+            Strings.splitStringByCommaToArray(request.param("index"))
+        );
         clearIndicesCacheRequest.indicesOptions(IndicesOptions.fromRequest(request, clearIndicesCacheRequest.indicesOptions()));
         fromRequest(request, clearIndicesCacheRequest);
         return channel -> client.admin().indices().clearCache(clearIndicesCacheRequest, new RestToXContentListener<>(channel));

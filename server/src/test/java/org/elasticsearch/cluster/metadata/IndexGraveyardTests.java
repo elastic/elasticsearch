@@ -13,13 +13,13 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -62,9 +62,14 @@ public class IndexGraveyardTests extends ESTestCase {
         builder.endObject();
         if (graveyard.getTombstones().size() > 0) {
             // check that date properly printed
-            assertThat(Strings.toString(graveyard, false, true),
-                containsString(XContentElasticsearchExtension.DEFAULT_FORMATTER
-                        .format(Instant.ofEpochMilli(graveyard.getTombstones().get(0).getDeleteDateInMillis()))));
+            assertThat(
+                Strings.toString(graveyard, false, true),
+                containsString(
+                    XContentElasticsearchExtension.DEFAULT_FORMATTER.format(
+                        Instant.ofEpochMilli(graveyard.getTombstones().get(0).getDeleteDateInMillis())
+                    )
+                )
+            );
         }
         XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
         parser.nextToken(); // the beginning of the parser

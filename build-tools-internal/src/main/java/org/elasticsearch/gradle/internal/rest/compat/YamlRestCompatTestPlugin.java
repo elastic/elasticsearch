@@ -149,7 +149,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
             task.setDestinationDir(project.getLayout().getBuildDirectory().dir("bundledCompatApis").get().getAsFile());
             task.setIncludeEmptyDirs(false);
             task.from(copyCompatYamlSpecTask.flatMap(t -> t.getOutputResourceDir().map(d -> d.dir(RELATIVE_API_PATH.toString()))));
-            task.from(yamlCompatTestSourceSet.getResources(), s -> {
+            task.from(yamlCompatTestSourceSet.getProcessResourcesTaskName(), s -> {
                 s.include(RELATIVE_API_PATH + "/*");
                 s.eachFile(
                     details -> details.setRelativePath(

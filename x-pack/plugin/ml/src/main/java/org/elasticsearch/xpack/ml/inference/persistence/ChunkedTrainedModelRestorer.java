@@ -16,17 +16,17 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -64,10 +64,12 @@ public class ChunkedTrainedModelRestorer {
     private int searchSize = 10;
     private int numDocsWritten = 0;
 
-    public ChunkedTrainedModelRestorer(String modelId,
-                                       Client client,
-                                       ExecutorService executorService,
-                                       NamedXContentRegistry xContentRegistry) {
+    public ChunkedTrainedModelRestorer(
+        String modelId,
+        Client client,
+        ExecutorService executorService,
+        NamedXContentRegistry xContentRegistry
+    ) {
         this.client = client;
         this.executorService = executorService;
         this.xContentRegistry = xContentRegistry;
@@ -78,7 +80,7 @@ public class ChunkedTrainedModelRestorer {
         if (searchSize > MAX_NUM_DEFINITION_DOCS) {
             throw new IllegalArgumentException("search size [" + searchSize + "] cannot be bigger than [" + MAX_NUM_DEFINITION_DOCS + "]");
         }
-        if (searchSize <=0) {
+        if (searchSize <= 0) {
             throw new IllegalArgumentException("search size [" + searchSize + "] must be greater than 0");
         }
         this.searchSize = searchSize;
@@ -111,9 +113,11 @@ public class ChunkedTrainedModelRestorer {
      * @param successConsumer  Called when all docs have been returned or the loading is cancelled
      * @param errorConsumer    In the event of an error
      */
-    public void restoreModelDefinition(CheckedFunction<TrainedModelDefinitionDoc, Boolean, IOException> modelConsumer,
-                                       Consumer<Boolean> successConsumer,
-                                       Consumer<Exception> errorConsumer) {
+    public void restoreModelDefinition(
+        CheckedFunction<TrainedModelDefinitionDoc, Boolean, IOException> modelConsumer,
+        Consumer<Boolean> successConsumer,
+        Consumer<Exception> errorConsumer
+    ) {
 
         logger.debug("[{}] restoring model", modelId);
         SearchRequest searchRequest = buildSearch(client, modelId, index, searchSize);
@@ -121,101 +125,107 @@ public class ChunkedTrainedModelRestorer {
         executorService.execute(() -> doSearch(searchRequest, modelConsumer, successConsumer, errorConsumer));
     }
 
-    private void doSearch(SearchRequest searchRequest,
-                          CheckedFunction<TrainedModelDefinitionDoc, Boolean, IOException> modelConsumer,
-                          Consumer<Boolean> successConsumer,
-                          Consumer<Exception> errorConsumer) {
+    private void doSearch(
+        SearchRequest searchRequest,
+        CheckedFunction<TrainedModelDefinitionDoc, Boolean, IOException> modelConsumer,
+        Consumer<Boolean> successConsumer,
+        Consumer<Exception> errorConsumer
+    ) {
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(
-            searchResponse -> {
-                if (searchResponse.getHits().getHits().length == 0) {
-                    errorConsumer.accept(new ResourceNotFoundException(
-                        Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)));
-                    return;
-                }
+        executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(searchResponse -> {
+            if (searchResponse.getHits().getHits().length == 0) {
+                errorConsumer.accept(new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)));
+                return;
+            }
 
-                // Set lastNum to a non-zero to prevent an infinite loop of
-                // search after requests in the absolute worse case where
-                // it has all gone wrong.
-                // Docs are numbered 0..N. we must have seen at least
-                // this many docs so far.
-                int lastNum = numDocsWritten -1;
-                for (SearchHit hit : searchResponse.getHits().getHits()) {
-                    try {
-                        TrainedModelDefinitionDoc doc =
-                            parseModelDefinitionDocLenientlyFromSource(hit.getSourceRef(), modelId, xContentRegistry);
-                        lastNum = doc.getDocNum();
+            // Set lastNum to a non-zero to prevent an infinite loop of
+            // search after requests in the absolute worse case where
+            // it has all gone wrong.
+            // Docs are numbered 0..N. we must have seen at least
+            // this many docs so far.
+            int lastNum = numDocsWritten - 1;
+            for (SearchHit hit : searchResponse.getHits().getHits()) {
+                try {
+                    TrainedModelDefinitionDoc doc = parseModelDefinitionDocLenientlyFromSource(
+                        hit.getSourceRef(),
+                        modelId,
+                        xContentRegistry
+                    );
+                    lastNum = doc.getDocNum();
 
-                        boolean continueSearching = modelConsumer.apply(doc);
-                        if (continueSearching == false) {
-                            // signal the search has finished early
-                            successConsumer.accept(Boolean.FALSE);
-                            return;
-                        }
-
-                    } catch (IOException e) {
-                        logger.error(new ParameterizedMessage("[{}] error writing model definition", modelId), e);
-                        errorConsumer.accept(e);
+                    boolean continueSearching = modelConsumer.apply(doc);
+                    if (continueSearching == false) {
+                        // signal the search has finished early
+                        successConsumer.accept(Boolean.FALSE);
                         return;
                     }
-                }
 
-                numDocsWritten += searchResponse.getHits().getHits().length;
-
-                boolean endOfSearch = searchResponse.getHits().getHits().length < searchSize ||
-                    searchResponse.getHits().getTotalHits().value == numDocsWritten;
-
-                if (endOfSearch) {
-                    successConsumer.accept(Boolean.TRUE);
-                } else {
-                    // search again with after
-                    SearchHit lastHit = searchResponse.getHits().getAt(searchResponse.getHits().getHits().length -1);
-                    SearchRequestBuilder searchRequestBuilder = buildSearchBuilder(client, modelId, index, searchSize);
-                    searchRequestBuilder.searchAfter(new Object[]{lastHit.getIndex(), lastNum});
-                    executorService.execute(() ->
-                        doSearch(searchRequestBuilder.request(), modelConsumer, successConsumer, errorConsumer));
-                }
-            },
-            e -> {
-                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
-                    errorConsumer.accept(new ResourceNotFoundException(
-                        Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)));
-                } else {
+                } catch (IOException e) {
+                    logger.error(new ParameterizedMessage("[{}] error writing model definition", modelId), e);
                     errorConsumer.accept(e);
+                    return;
                 }
             }
-        ));
+
+            numDocsWritten += searchResponse.getHits().getHits().length;
+
+            boolean endOfSearch = searchResponse.getHits().getHits().length < searchSize
+                || searchResponse.getHits().getTotalHits().value == numDocsWritten;
+
+            if (endOfSearch) {
+                successConsumer.accept(Boolean.TRUE);
+            } else {
+                // search again with after
+                SearchHit lastHit = searchResponse.getHits().getAt(searchResponse.getHits().getHits().length - 1);
+                SearchRequestBuilder searchRequestBuilder = buildSearchBuilder(client, modelId, index, searchSize);
+                searchRequestBuilder.searchAfter(new Object[] { lastHit.getIndex(), lastNum });
+                executorService.execute(() -> doSearch(searchRequestBuilder.request(), modelConsumer, successConsumer, errorConsumer));
+            }
+        }, e -> {
+            if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+                errorConsumer.accept(new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId)));
+            } else {
+                errorConsumer.accept(e);
+            }
+        }));
     }
 
     private static SearchRequestBuilder buildSearchBuilder(Client client, String modelId, String index, int searchSize) {
         return client.prepareSearch(index)
-            .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders
-                .boolQuery()
-                .filter(QueryBuilders.termQuery(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId))
-                .filter(QueryBuilders.termQuery(InferenceIndexConstants.DOC_TYPE.getPreferredName(),
-                    TrainedModelDefinitionDoc.NAME))))
+            .setQuery(
+                QueryBuilders.constantScoreQuery(
+                    QueryBuilders.boolQuery()
+                        .filter(QueryBuilders.termQuery(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId))
+                        .filter(
+                            QueryBuilders.termQuery(InferenceIndexConstants.DOC_TYPE.getPreferredName(), TrainedModelDefinitionDoc.NAME)
+                        )
+                )
+            )
             .setSize(searchSize)
             .setTrackTotalHits(true)
             // First find the latest index
             .addSort("_index", SortOrder.DESC)
             // Then, sort by doc_num
-            .addSort(SortBuilders.fieldSort(TrainedModelDefinitionDoc.DOC_NUM.getPreferredName())
-                .order(SortOrder.ASC)
-                .unmappedType("long"));
+            .addSort(
+                SortBuilders.fieldSort(TrainedModelDefinitionDoc.DOC_NUM.getPreferredName()).order(SortOrder.ASC).unmappedType("long")
+            );
     }
 
     public static SearchRequest buildSearch(Client client, String modelId, String index, int searchSize) {
         return buildSearchBuilder(client, modelId, index, searchSize).request();
     }
 
-    public static TrainedModelDefinitionDoc parseModelDefinitionDocLenientlyFromSource(BytesReference source,
-                                                                                       String modelId,
-                                                                                       NamedXContentRegistry xContentRegistry)
-        throws IOException {
+    public static TrainedModelDefinitionDoc parseModelDefinitionDocLenientlyFromSource(
+        BytesReference source,
+        String modelId,
+        NamedXContentRegistry xContentRegistry
+    ) throws IOException {
 
-        try (InputStream stream = source.streamInput();
-             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                 .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
+        try (
+            InputStream stream = source.streamInput();
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
+        ) {
             return TrainedModelDefinitionDoc.fromXContent(parser, true).build();
         } catch (IOException e) {
             logger.error(new ParameterizedMessage("[{}] failed to parse model definition", modelId), e);

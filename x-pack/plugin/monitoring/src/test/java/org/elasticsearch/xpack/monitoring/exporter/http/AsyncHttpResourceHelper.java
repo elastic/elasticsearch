@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
-import java.util.List;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -16,9 +15,11 @@ import org.elasticsearch.client.RestClient;
 import org.hamcrest.Matcher;
 import org.mockito.stubbing.Stubber;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.argThat;
-import static org.mockito.Matchers.eq;
+import java.util.List;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
@@ -41,14 +42,14 @@ class AsyncHttpResourceHelper {
 
     static void whenPerformRequestAsyncWith(final RestClient client, final Response response) {
         doAnswer(invocation -> {
-            ((ResponseListener)invocation.getArguments()[1]).onSuccess(response);
+            ((ResponseListener) invocation.getArguments()[1]).onSuccess(response);
             return null;
         }).when(client).performRequestAsync(any(Request.class), any(ResponseListener.class));
     }
 
     static void whenPerformRequestAsyncWith(final RestClient client, final Matcher<Request> request, final Response response) {
         doAnswer(invocation -> {
-            ((ResponseListener)invocation.getArguments()[1]).onSuccess(response);
+            ((ResponseListener) invocation.getArguments()[1]).onSuccess(response);
             return null;
         }).when(client).performRequestAsync(argThat(request::matches), any(ResponseListener.class));
     }
@@ -61,20 +62,24 @@ class AsyncHttpResourceHelper {
         }
     }
 
-    static void whenPerformRequestAsyncWith(final RestClient client,
-                                            final Matcher<Request> request,
-                                            final Response response,
-                                            final Exception exception) {
+    static void whenPerformRequestAsyncWith(
+        final RestClient client,
+        final Matcher<Request> request,
+        final Response response,
+        final Exception exception
+    ) {
         whenPerformRequestAsyncWith(client, request, response, null, exception);
     }
 
-    static void whenPerformRequestAsyncWith(final RestClient client,
-                                            final Matcher<Request> request,
-                                            final Response first,
-                                            final List<Response> responses,
-                                            final Exception exception) {
+    static void whenPerformRequestAsyncWith(
+        final RestClient client,
+        final Matcher<Request> request,
+        final Response first,
+        final List<Response> responses,
+        final Exception exception
+    ) {
         Stubber stub = doAnswer(invocation -> {
-            ((ResponseListener)invocation.getArguments()[1]).onSuccess(first);
+            ((ResponseListener) invocation.getArguments()[1]).onSuccess(first);
             return null;
         });
 
@@ -99,28 +104,28 @@ class AsyncHttpResourceHelper {
 
     static void whenPerformRequestAsyncWith(final RestClient client, final Request request, final Response response) {
         doAnswer(invocation -> {
-            ((ResponseListener)invocation.getArguments()[1]).onSuccess(response);
+            ((ResponseListener) invocation.getArguments()[1]).onSuccess(response);
             return null;
         }).when(client).performRequestAsync(eq(request), any(ResponseListener.class));
     }
 
     static void whenPerformRequestAsyncWith(final RestClient client, final Exception exception) {
         doAnswer(invocation -> {
-            ((ResponseListener)invocation.getArguments()[1]).onFailure(exception);
+            ((ResponseListener) invocation.getArguments()[1]).onFailure(exception);
             return null;
         }).when(client).performRequestAsync(any(Request.class), any(ResponseListener.class));
     }
 
     static void whenPerformRequestAsyncWith(final RestClient client, final Matcher<Request> request, final Exception exception) {
         doAnswer(invocation -> {
-            ((ResponseListener)invocation.getArguments()[1]).onFailure(exception);
+            ((ResponseListener) invocation.getArguments()[1]).onFailure(exception);
             return null;
         }).when(client).performRequestAsync(argThat(request::matches), any(ResponseListener.class));
     }
 
     static void whenPerformRequestAsyncWith(final RestClient client, final Request request, final Exception exception) {
         doAnswer(invocation -> {
-            ((ResponseListener)invocation.getArguments()[1]).onFailure(exception);
+            ((ResponseListener) invocation.getArguments()[1]).onFailure(exception);
             return null;
         }).when(client).performRequestAsync(eq(request), any(ResponseListener.class));
     }

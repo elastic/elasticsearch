@@ -18,6 +18,7 @@ import spock.lang.Unroll
  * Test is ignored on ARM since this test case tests the ability to build certain older BWC branches that we don't support on ARM
  */
 
+//@Ignore("https://github.com/elastic/elasticsearch/issues/79929")
 @IgnoreIf({ Architecture.current() == Architecture.AARCH64 })
 class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleFuncTest {
 

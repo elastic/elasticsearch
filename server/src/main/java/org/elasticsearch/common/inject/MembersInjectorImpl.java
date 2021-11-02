@@ -40,8 +40,12 @@ class MembersInjectorImpl<T> implements MembersInjector<T> {
     private final List<MembersInjector<? super T>> userMembersInjectors;
     private final List<InjectionListener<? super T>> injectionListeners;
 
-    MembersInjectorImpl(InjectorImpl injector, TypeLiteral<T> typeLiteral,
-                        EncounterImpl<T> encounter, List<SingleMemberInjector> memberInjectors) {
+    MembersInjectorImpl(
+        InjectorImpl injector,
+        TypeLiteral<T> typeLiteral,
+        EncounterImpl<T> encounter,
+        List<SingleMemberInjector> memberInjectors
+    ) {
         this.injector = injector;
         this.typeLiteral = typeLiteral;
         this.memberInjectors = memberInjectors;
@@ -116,8 +120,6 @@ class MembersInjectorImpl<T> implements MembersInjector<T> {
     }
 
     public Set<InjectionPoint> getInjectionPoints() {
-        return unmodifiableSet(memberInjectors.stream()
-                .map(SingleMemberInjector::getInjectionPoint)
-                .collect(toSet()));
+        return unmodifiableSet(memberInjectors.stream().map(SingleMemberInjector::getInjectionPoint).collect(toSet()));
     }
 }

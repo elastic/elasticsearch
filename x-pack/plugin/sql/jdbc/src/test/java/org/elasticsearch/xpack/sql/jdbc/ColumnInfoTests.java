@@ -24,10 +24,11 @@ public class ColumnInfoTests extends ESTestCase {
     }
 
     public void testToString() {
-        assertEquals("test.doc.a<type=[KEYWORD] catalog=[as] schema=[ads] label=[lab]>",
-                new JdbcColumnInfo("a", EsType.KEYWORD, "test.doc", "as", "ads", "lab", 0).toString());
-        assertEquals("test.doc.a<type=[KEYWORD]>",
-                new JdbcColumnInfo("a", EsType.KEYWORD, "test.doc", EMPTY, EMPTY, EMPTY, 0).toString());
+        assertEquals(
+            "test.doc.a<type=[KEYWORD] catalog=[as] schema=[ads] label=[lab]>",
+            new JdbcColumnInfo("a", EsType.KEYWORD, "test.doc", "as", "ads", "lab", 0).toString()
+        );
+        assertEquals("test.doc.a<type=[KEYWORD]>", new JdbcColumnInfo("a", EsType.KEYWORD, "test.doc", EMPTY, EMPTY, EMPTY, 0).toString());
         assertEquals("string<type=[KEYWORD]>", varcharInfo("string").toString());
         assertEquals("int<type=[INTEGER]>", intInfo("int").toString());
         assertEquals("d<type=[DOUBLE]>", doubleInfo("d").toString());

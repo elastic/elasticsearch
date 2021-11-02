@@ -106,7 +106,7 @@ For example:
 
 [source,sh]
 ----
-docker exec -ti es-node01 /usr/share/elasticsearch/bin/reset-elastic-password
+docker exec -it es-node01 /usr/share/elasticsearch/bin/reset-elastic-password
 ----
 ====
 
@@ -127,6 +127,33 @@ your Docker container. Enter the password for the `elastic` user when prompted.
 curl --cacert http_ca.crt -u elastic https://localhost:9200
 ----
 // NOTCONSOLE
+
+===== Next steps
+
+You now have a test {es} environment set up. Before you start
+serious development or go into production with {es}, review the
+<<docker-prod-prerequisites,requirements and recommendations>> to apply when running {es} in Docker in production.
+
+[[elasticsearch-security-certificates]]
+===== Security certificates and keys
+
+When you start {es} for the first time, the following certificates and keys are
+generated in the
+`/usr/share/elasticsearch/config/tls_auto_config_initial_node_<timestamp>`
+directory in the Docker container, and allow you to connect a {kib} instance
+to your secured {es} cluster and encrypt internode communication. The files are
+listed here for reference.
+
+`http_ca.crt`::
+The CA certificate that is used to sign the certificates for the HTTP layer of
+this {es} cluster.
+
+`http_keystore_local_node.p12`::
+Keystore that contains the key and certificate for the HTTP layer for this node.
+
+`transport_keystore_all_nodes.p12`::
+Keystore that contains the key and certificate for the transport layer for all
+the nodes in your cluster.
 
 [[docker-compose-file]]
 ==== Start a multi-node cluster with Docker Compose
@@ -237,7 +264,7 @@ The `docker-compose.yml` file defines configuration settings for each of your
 NOTE: This sample `docker-compose.yml` file uses the `ES_JAVA_OPTS`
 environment variable to manually set the heap size to 512MB. We do not recommend
 using `ES_JAVA_OPTS` in production.
-See {es-ref-dir}/docker.html#docker-set-heap-size[Manually set the heap size].
+See <<docker-set-heap-size,manually set the heap size>>.
 
 This configuration exposes port `9200` on all network interfaces. Given how
 Docker manipulates `iptables` on Linux, this means that your {es} cluster is
@@ -316,7 +343,7 @@ curl -X GET "https://localhost:9200/_cat/nodes?v=true&pretty"
 
 Log messages go to the console and are handled by the configured Docker logging
 driver. By default, you can access logs with `docker logs`. If you prefer that
-the {es} container to write logs to disk, set the `ES_LOG_STYLE` environment
+the {es} container write logs to disk, set the `ES_LOG_STYLE` environment
 variable to `file`. This causes {es} to use the same logging configuration as
 other {es} distribution formats.
 
@@ -356,6 +383,12 @@ WARNING: Deleting data volumes will remove the generated security certificates
 for your nodes. You will need to run `docker-compose` and 
 <<docker-generate-certificates,regenerate the security certificates>> before
 starting your cluster.
+
+===== Next steps
+
+You now have a test {es} environment set up. Before you start
+serious development or go into production with {es}, review the
+<<docker-prod-prerequisites,requirements and recommendations>> to apply when running {es} in Docker in production.
 
 [[docker-prod-prerequisites]]
 ==== Using the Docker images in production
@@ -766,27 +799,3 @@ To resolve this error:
   path rather than the keystore file's path. For an example, see
   <<docker-keystore-bind-mount>>.
 . Retry the command.
-
-include::next-steps.asciidoc[]
-
-[discrete]
-[[elasticsearch-security-certificates]]
-=== Security certificates and keys
-
-When you start {es} for the first time, the following certificates and keys are
-generated in the
-`/usr/share/elasticsearch/config/tls_auto_config_initial_node_<timestamp>`
-directory in the Docker container, and allow you to connect a {kib} instance
-to your secured {es} cluster and encrypt internode communication. The files are
-listed here for reference.
-
-`http_ca.crt`::
-The CA certificate that is used to sign the certificates for the HTTP layer of
-this {es} cluster.
-
-`http_keystore_local_node.p12`::
-Keystore that contains the key and certificate for the HTTP layer for this node.
-
-`transport_keystore_all_nodes.p12`::
-Keystore that contains the key and certificate for the transport layer for all
-the nodes in your cluster.

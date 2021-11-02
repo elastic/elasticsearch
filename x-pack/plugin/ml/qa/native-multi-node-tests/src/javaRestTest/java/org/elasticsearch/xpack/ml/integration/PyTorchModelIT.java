@@ -48,6 +48,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -278,6 +279,10 @@ public class PyTorchModelIT extends ESRestTestCase {
         // 2 of the 3 nodes in the cluster are ML nodes
         assertThat(nodes, hasSize(2));
         int inferenceCount = sumInferenceCountOnNodes(nodes);
+        for (var node : nodes) {
+            assertThat(node.get("number_of_pending_requests"), notNullValue());
+            // last_access and average_inference_time_ms may be null if inference wasn't performed on this node
+        }
         assertThat(inferenceCount, equalTo(2));
     }
 

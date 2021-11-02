@@ -163,7 +163,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         for (Map.Entry<ShardId, List<ShardRouting>> entry : routingNodes.assignedShards.entrySet()) {
             this.assignedShards.put(entry.getKey(), new ArrayList<>(entry.getValue()));
         }
-        this.unassignedShards = routingNodes.unassignedShards.copyTo(this);
+        this.unassignedShards = routingNodes.unassignedShards.copyFor(this);
 
         this.inactivePrimaryCount = routingNodes.inactivePrimaryCount;
         this.inactiveShardCount = routingNodes.inactiveShardCount;
@@ -927,7 +927,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             this.ignoredPrimaries = ignoredPrimaries;
         }
 
-        public UnassignedShards copyTo(RoutingNodes newNodes) {
+        public UnassignedShards copyFor(RoutingNodes newNodes) {
             return new UnassignedShards(newNodes, new ArrayList<>(unassigned), new ArrayList<>(ignored), primaries, ignoredPrimaries);
         }
 

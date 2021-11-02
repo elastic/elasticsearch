@@ -81,7 +81,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
         assert invariant();
     }
 
-    public RoutingNode copy() {
+    RoutingNode copy() {
         return new RoutingNode(this);
     }
 

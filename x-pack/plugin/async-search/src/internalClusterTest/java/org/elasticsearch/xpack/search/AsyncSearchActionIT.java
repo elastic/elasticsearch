@@ -461,8 +461,11 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         request.setWaitForCompletionTimeout(TimeValue.timeValueMinutes(10));
         request.getSearchRequest().allowPartialSearchResults(false);
         request.getSearchRequest()
-            .source(new SearchSourceBuilder().query(new ThrowingQueryBuilder(randomLong(), new AlreadyClosedException("boom"),
-                between(0, numShards - 1))));
+            .source(
+                new SearchSourceBuilder().query(
+                    new ThrowingQueryBuilder(randomLong(), new AlreadyClosedException("boom"), between(0, numShards - 1))
+                )
+            );
         request.getSearchRequest().source().aggregation(terms("f").field("f").size(between(1, 10)));
 
         AsyncSearchResponse response = submitAsyncSearch(request);

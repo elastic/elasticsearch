@@ -102,14 +102,17 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
     systemProperty "tests.fromOld", "false"
   }
 } else {
-  /* Set up tasks to unzip and run the old versions of ES before running the
-   * integration tests. */
-  def versions = ['2', '1', '090']
-  if (Os.isFamily(Os.FAMILY_MAC)) {
-    // 0.90 fails sometimes on mac, given that it is so old, let us disable it
-    // see: https://github.com/elastic/elasticsearch/issues/51202
-    versions = ['2', '1']
-  }
+//  RENE: We disable those tests for now due to failing on ci
+//  See https://github.com/elastic/elasticsearch/issues/79898
+//
+//  /* Set up tasks to unzip and run the old versions of ES before running the
+//   * integration tests. */
+//  def versions = ['2', '1', '090']
+//  if (Os.isFamily(Os.FAMILY_MAC)) {
+//    // 0.90 fails sometimes on mac, given that it is so old, let us disable it
+//    // see: https://github.com/elastic/elasticsearch/issues/51202
+//    versions = ['2', '1']
+//  }
   versions.each { version ->
     // TODO Rene: we should be able to replace these unzip tasks with gradle artifact transforms
     TaskProvider<Sync> unzip = tasks.register("unzipEs${version}", Sync) {

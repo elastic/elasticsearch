@@ -34,8 +34,10 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestClusterHealthAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSearchAction.class);
-    private static final String CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG =
-        "the [return_200_for_cluster_health_timeout] parameter is deprecated and will be removed in a future release.";
+    private static final String RETURN_200_FOR_CLUSTER_HEALTH_TIMEOUT = "return_200_for_cluster_health_timeout";
+    private static final String CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG = "the ["
+        + RETURN_200_FOR_CLUSTER_HEALTH_TIMEOUT
+        + "] parameter is deprecated and will be removed in a future release.";
 
     @Override
     public List<Route> routes() {
@@ -88,7 +90,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
         if (request.param("wait_for_events") != null) {
             clusterHealthRequest.waitForEvents(Priority.valueOf(request.param("wait_for_events").toUpperCase(Locale.ROOT)));
         }
-        String return200ForClusterHealthTimeout = request.param("return_200_for_cluster_health_timeout");
+        String return200ForClusterHealthTimeout = request.param(RETURN_200_FOR_CLUSTER_HEALTH_TIMEOUT);
         if (return200ForClusterHealthTimeout != null) {
             deprecationLogger.warn(
                 DeprecationCategory.API,

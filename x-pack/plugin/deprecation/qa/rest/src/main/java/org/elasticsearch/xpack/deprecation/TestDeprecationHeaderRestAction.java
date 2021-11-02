@@ -108,7 +108,7 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
                 deprecationLogger.compatibleCritical("compatible_key", COMPATIBLE_API_USAGE);
                 settings = (List<String>) source.get("deprecated_settings");
             } else if (source.containsKey("deprecated_settings")) {
-                deprecationLogger.critical(DeprecationCategory.SETTINGS, "deprecated_settings", DEPRECATED_USAGE);
+                deprecationLogger.warn(DeprecationCategory.SETTINGS, "deprecated_settings", DEPRECATED_USAGE);
                 settings = (List<String>) source.get("deprecated_settings");
             } else if (source.containsKey("deprecation_warning")) {
                 deprecationLogger.warn(DeprecationCategory.SETTINGS, "deprecated_warn_settings", DEPRECATED_WARN_USAGE);

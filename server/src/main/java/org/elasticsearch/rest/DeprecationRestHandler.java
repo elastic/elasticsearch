@@ -65,7 +65,7 @@ public class DeprecationRestHandler implements RestHandler {
     @Override
     public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         if (compatibleVersionWarning == false) {
-            deprecationLogger.critical(DeprecationCategory.API, deprecationKey, deprecationMessage);
+            deprecationLogger.warn(DeprecationCategory.API, deprecationKey, deprecationMessage);
         } else {
             deprecationLogger.compatibleCritical(deprecationKey, deprecationMessage);
         }

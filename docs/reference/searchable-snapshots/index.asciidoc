@@ -23,7 +23,9 @@ single shard copy will be sufficient. However, if you need to support a higher
 query volume, you can add replicas by adjusting the `index.number_of_replicas`
 index setting.
 
-If a node fails and {search-snap} shards need to be recovered elsewhere, there
+If a node fails and {search-snap} shards need to be 
+
+elsewhere, there
 is a brief window of time while {es} allocates the shards to other nodes where
 the cluster health will not be `green`. Searches that hit these shards may fail
 or return partial results until the shards are reallocated to healthy nodes.
@@ -133,7 +135,7 @@ not yet been retrieved into the local copy. If that happens, {es} will eagerly
 retrieve the data needed to complete the search in parallel with the ongoing
 recovery.
 +
-Indices managed by {ilm-init} are prefixed with `recovered-` when fully mounted.
+Indices managed by {ilm-init} are prefixed with `restored-` when fully mounted.
 
 [[partially-mounted]]
 Partially mounted index::

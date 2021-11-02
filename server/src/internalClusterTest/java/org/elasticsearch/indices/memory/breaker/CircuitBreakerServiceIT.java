@@ -387,7 +387,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             Settings settings = Settings.builder()
                     .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), true)
                     .build();
-            client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get();
+            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
 
             checkLimitSize(client, 0.95);
         }
@@ -396,7 +396,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
                 .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "80%")
                 .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), true)
                 .build();
-            client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get();
+            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
 
             checkLimitSize(client, 0.8);
         }
@@ -404,7 +404,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             Settings settings = Settings.builder()
                     .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
                     .build();
-            client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get();
+            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
             checkLimitSize(client, 0.8);
         }
         {
@@ -412,7 +412,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
                     .putNull(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey())
                     .putNull(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey())
                     .build();
-            client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get();
+            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
         }
     }
 

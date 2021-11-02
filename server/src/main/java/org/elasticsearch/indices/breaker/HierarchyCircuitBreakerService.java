@@ -96,6 +96,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     // Tripped count for when redistribution was attempted but wasn't successful
     private final AtomicLong parentTripCount = new AtomicLong(0);
 
+    private final Function<Boolean, OverLimitStrategy> overLimitStrategyFactory;
     private volatile OverLimitStrategy overLimitStrategy;
 
     public HierarchyCircuitBreakerService(Settings settings, List<BreakerSettings> customBreakers, ClusterSettings clusterSettings) {
@@ -159,19 +160,11 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             (name, updatedValues) -> updateCircuitBreakerSettings(name, updatedValues.v1(), updatedValues.v2()),
             (s, t) -> {});
         clusterSettings.addSettingsUpdateConsumer(
-            (newSettings) -> {
-                this.parentSettings = new BreakerSettings(CircuitBreaker.PARENT,
-                        TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.get(newSettings).getBytes(), 1.0,
-                        CircuitBreaker.Type.PARENT, null);
-                logger.trace(() -> new ParameterizedMessage("parent circuit breaker with settings {}", this.parentSettings));
-
-                this.trackRealMemoryUsage = USE_REAL_MEMORY_USAGE_SETTING.get(newSettings);
-
-                this.overLimitStrategy = overLimitStrategyFactory.apply(this.trackRealMemoryUsage);
-            },
+                this::updateUseRealMemorySetting,
             List.of(USE_REAL_MEMORY_USAGE_SETTING, TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING)
         );
 
+        this.overLimitStrategyFactory = overLimitStrategyFactory;
         this.overLimitStrategy = overLimitStrategyFactory.apply(this.trackRealMemoryUsage);
     }
 
@@ -192,6 +185,25 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     private void setTotalCircuitBreakerLimit(ByteSizeValue byteSizeValue) {
         this.parentSettings = new BreakerSettings(CircuitBreaker.PARENT, byteSizeValue.getBytes(), 1.0,
             CircuitBreaker.Type.PARENT, null);
+    }
+
+    public void updateUseRealMemorySetting(Settings newSettings) {
+        this.parentSettings = new BreakerSettings(CircuitBreaker.PARENT,
+                TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.get(newSettings).getBytes(), 1.0,
+                CircuitBreaker.Type.PARENT, null);
+        logger.trace(() -> new ParameterizedMessage("parent circuit breaker with settings {}", this.parentSettings));
+
+        this.trackRealMemoryUsage = USE_REAL_MEMORY_USAGE_SETTING.get(newSettings);
+
+        this.overLimitStrategy = overLimitStrategyFactory.apply(this.trackRealMemoryUsage);
+    }
+
+    public boolean isTrackRealMemoryUsage() {
+        return trackRealMemoryUsage;
+    }
+
+    public OverLimitStrategy getOverLimitStrategy() {
+        return overLimitStrategy;
     }
 
     /**

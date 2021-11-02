@@ -127,7 +127,21 @@ public class FilterContentBenchmark {
             default:
                 throw new IllegalArgumentException("Unknown type [" + type + "]");
         }
+        parserConfig = buildParseConfig();
+    }
 
+    @Benchmark
+    public BytesReference filterWithParserConfigCreated() throws IOException {
+        return filter(this.parserConfig);
+    }
+
+    @Benchmark
+    public BytesReference filterWithNewParserConfig() throws IOException {
+        XContentParserConfiguration contentParserConfiguration = buildParseConfig();
+        return filter(contentParserConfiguration);
+    }
+
+    private XContentParserConfiguration buildParseConfig() {
         Set<String> includes;
         Set<String> excludes;
         if (inclusive) {
@@ -137,36 +151,12 @@ public class FilterContentBenchmark {
             includes = null;
             excludes = filters;
         }
-        parserConfig = XContentParserConfiguration.EMPTY.withFiltering(includes, excludes);
+        return XContentParserConfiguration.EMPTY.withFiltering(includes, excludes);
     }
 
-    @Benchmark
-    public BytesReference filterWithParserConfigCreated() throws IOException {
+    private BytesReference filter(XContentParserConfiguration contentParserConfiguration) throws IOException {
         try (BytesStreamOutput os = new BytesStreamOutput()) {
             XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), os);
-            try (XContentParser parser = XContentType.JSON.xContent().createParser(parserConfig, source.streamInput())) {
-                builder.copyCurrentStructure(parser);
-                return BytesReference.bytes(builder);
-            } catch (Exception e) {
-                return new BytesArray("");
-            }
-        }
-    }
-
-    @Benchmark
-    public BytesReference filterWithoutParserConfigCreated() throws IOException {
-        try (BytesStreamOutput os = new BytesStreamOutput()) {
-            XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), os);
-            Set<String> includes;
-            Set<String> excludes;
-            if (inclusive) {
-                includes = filters;
-                excludes = null;
-            } else {
-                includes = null;
-                excludes = filters;
-            }
-            XContentParserConfiguration contentParserConfiguration = XContentParserConfiguration.EMPTY.withFiltering(includes, excludes);
             try (XContentParser parser = XContentType.JSON.xContent().createParser(contentParserConfiguration, source.streamInput())) {
                 builder.copyCurrentStructure(parser);
                 return BytesReference.bytes(builder);

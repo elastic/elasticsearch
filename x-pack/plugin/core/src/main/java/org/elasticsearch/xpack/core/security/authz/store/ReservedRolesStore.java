@@ -678,9 +678,17 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 RoleDescriptor.IndicesPrivileges.builder().indices("metrics-endpoint.policy-*").privileges("read").build(),
                 // Endpoint metrics. Kibana requires read access to send telemetry
                 RoleDescriptor.IndicesPrivileges.builder().indices("metrics-endpoint.metrics-*").privileges("read").build(),
-                // Fleet package upgrade
+                // Fleet package install and upgrade
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("logs-*", "synthetics-*", "traces-*", "/metrics-.*&~(metrics-endpoint\\.metadata_current_default)/")
+                    .indices(
+                        "logs-*",
+                        "synthetics-*",
+                        "traces-*",
+                        "/metrics-.*&~(metrics-endpoint\\.metadata_current_default)/",
+                        ".logs-endpoint.action.responses-*",
+                        ".logs-endpoint.diagnostic.collection-*",
+                        ".logs-endpoint.actions-*"
+                    )
                     .privileges(UpdateSettingsAction.NAME, PutMappingAction.NAME, RolloverAction.NAME)
                     .build(),
                 // For src/dest indices of the Endpoint package that ships a transform

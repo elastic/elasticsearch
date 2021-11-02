@@ -102,8 +102,12 @@ public class MlInitializationServiceTests extends ESTestCase {
     public void testNodeGoesFromMasterToNonMasterAndBack() {
         MlDailyMaintenanceService initialDailyMaintenanceService = mock(MlDailyMaintenanceService.class);
 
-        MlInitializationService initializationService =
-            new MlInitializationService(client, threadPool, initialDailyMaintenanceService, clusterService);
+        MlInitializationService initializationService = new MlInitializationService(
+            client,
+            threadPool,
+            initialDailyMaintenanceService,
+            clusterService
+        );
         initializationService.offMaster();
         verify(initialDailyMaintenanceService).stop();
 

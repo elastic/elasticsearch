@@ -59,8 +59,13 @@ public class MlInitializationService implements ClusterStateListener {
 
     private boolean isMaster = false;
 
-    MlInitializationService(Settings settings, ThreadPool threadPool, ClusterService clusterService, Client client,
-                            MlAssignmentNotifier mlAssignmentNotifier) {
+    MlInitializationService(
+        Settings settings,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        Client client,
+        MlAssignmentNotifier mlAssignmentNotifier
+    ) {
         this(
             client,
             threadPool,
@@ -77,8 +82,12 @@ public class MlInitializationService implements ClusterStateListener {
     }
 
     // For testing
-    public MlInitializationService(Client client, ThreadPool threadPool, MlDailyMaintenanceService dailyMaintenanceService,
-                                   ClusterService clusterService) {
+    public MlInitializationService(
+        Client client,
+        ThreadPool threadPool,
+        MlDailyMaintenanceService dailyMaintenanceService,
+        ClusterService clusterService
+    ) {
         this.client = Objects.requireNonNull(client);
         this.threadPool = threadPool;
         this.mlDailyMaintenanceService = dailyMaintenanceService;
@@ -156,105 +165,88 @@ public class MlInitializationService implements ClusterStateListener {
         String[] mlHiddenIndexPatterns = MachineLearning.getMlHiddenIndexPatterns();
 
         // Step 5: Handle errors encountered on the way.
-        ActionListener<AcknowledgedResponse> finalListener = ActionListener.wrap(
-            updateAliasesResponse -> {
-                if (updateAliasesResponse.isAcknowledged() == false) {
-                    logger.error("One or more of the ML internal aliases could not be made hidden.");
-                    return;
-                }
-                mlInternalIndicesHidden.set(true);
-            },
-            e -> logger.error("An error occurred while making ML internal indices and aliases hidden", e)
-        );
+        ActionListener<AcknowledgedResponse> finalListener = ActionListener.wrap(updateAliasesResponse -> {
+            if (updateAliasesResponse.isAcknowledged() == false) {
+                logger.error("One or more of the ML internal aliases could not be made hidden.");
+                return;
+            }
+            mlInternalIndicesHidden.set(true);
+        }, e -> logger.error("An error occurred while making ML internal indices and aliases hidden", e));
 
         // Step 4: Extract ML internal aliases that are not hidden and make them hidden.
-        ActionListener<GetAliasesResponse> getAliasesResponseListener = ActionListener.wrap(
-            getAliasesResponse -> {
-                IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
-                for (ObjectObjectCursor<String, List<AliasMetadata>> entry : getAliasesResponse.getAliases()) {
-                    String index = entry.key;
-                    for (AliasMetadata existingAliasMetadata : entry.value) {
-                        if (existingAliasMetadata.isHidden() == null || existingAliasMetadata.isHidden() == false) {
-                            continue;
-                        }
-                        IndicesAliasesRequest.AliasActions addReplacementAliasAction = IndicesAliasesRequest.AliasActions.add()
-                            .index(index)
-                            .aliases(existingAliasMetadata.getAlias())
-                            .writeIndex(existingAliasMetadata.writeIndex())
-                            .isHidden(true);
-                        // Be sure to preserve all attributes apart from is_hidden
-                        if (existingAliasMetadata.filteringRequired()) {
-                            addReplacementAliasAction.filter(existingAliasMetadata.getFilter().string());
-                        }
-                        if (existingAliasMetadata.indexRouting() != null) {
-                            addReplacementAliasAction.indexRouting(existingAliasMetadata.indexRouting());
-                        }
-                        if (existingAliasMetadata.searchRouting() != null) {
-                            addReplacementAliasAction.searchRouting(existingAliasMetadata.searchRouting());
-                        }
-                        indicesAliasesRequest.addAliasAction(addReplacementAliasAction);
+        ActionListener<GetAliasesResponse> getAliasesResponseListener = ActionListener.wrap(getAliasesResponse -> {
+            IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
+            for (ObjectObjectCursor<String, List<AliasMetadata>> entry : getAliasesResponse.getAliases()) {
+                String index = entry.key;
+                for (AliasMetadata existingAliasMetadata : entry.value) {
+                    if (existingAliasMetadata.isHidden() == null || existingAliasMetadata.isHidden() == false) {
+                        continue;
                     }
+                    IndicesAliasesRequest.AliasActions addReplacementAliasAction = IndicesAliasesRequest.AliasActions.add()
+                        .index(index)
+                        .aliases(existingAliasMetadata.getAlias())
+                        .writeIndex(existingAliasMetadata.writeIndex())
+                        .isHidden(true);
+                    // Be sure to preserve all attributes apart from is_hidden
+                    if (existingAliasMetadata.filteringRequired()) {
+                        addReplacementAliasAction.filter(existingAliasMetadata.getFilter().string());
+                    }
+                    if (existingAliasMetadata.indexRouting() != null) {
+                        addReplacementAliasAction.indexRouting(existingAliasMetadata.indexRouting());
+                    }
+                    if (existingAliasMetadata.searchRouting() != null) {
+                        addReplacementAliasAction.searchRouting(existingAliasMetadata.searchRouting());
+                    }
+                    indicesAliasesRequest.addAliasAction(addReplacementAliasAction);
                 }
-                if (indicesAliasesRequest.getAliasActions().isEmpty()) {
-                    logger.info("There are no ML internal aliases that need to be made hidden, [{}]", getAliasesResponse.getAliases());
-                    finalListener.onResponse(AcknowledgedResponse.TRUE);
-                    return;
-                }
-                String indicesWithNonHiddenAliasesString =
-                    indicesAliasesRequest.getAliasActions().stream()
-                        .map(aliasAction -> aliasAction.indices()[0] + ": " + String.join(",", aliasAction.aliases()))
-                        .collect(Collectors.joining("; "));
-                logger.info("The following ML internal aliases will now be made hidden: [{}]", indicesWithNonHiddenAliasesString);
-                executeAsyncWithOrigin(client, ML_ORIGIN, IndicesAliasesAction.INSTANCE, indicesAliasesRequest, finalListener);
-            },
-            finalListener::onFailure
-        );
+            }
+            if (indicesAliasesRequest.getAliasActions().isEmpty()) {
+                logger.info("There are no ML internal aliases that need to be made hidden, [{}]", getAliasesResponse.getAliases());
+                finalListener.onResponse(AcknowledgedResponse.TRUE);
+                return;
+            }
+            String indicesWithNonHiddenAliasesString = indicesAliasesRequest.getAliasActions()
+                .stream()
+                .map(aliasAction -> aliasAction.indices()[0] + ": " + String.join(",", aliasAction.aliases()))
+                .collect(Collectors.joining("; "));
+            logger.info("The following ML internal aliases will now be made hidden: [{}]", indicesWithNonHiddenAliasesString);
+            executeAsyncWithOrigin(client, ML_ORIGIN, IndicesAliasesAction.INSTANCE, indicesAliasesRequest, finalListener);
+        }, finalListener::onFailure);
 
         // Step 3: Once indices are hidden, fetch ML internal aliases to find out whether the aliases are hidden or not.
-        ActionListener<AcknowledgedResponse> updateSettingsListener = ActionListener.wrap(
-            updateSettingsResponse -> {
-                if (updateSettingsResponse.isAcknowledged() == false) {
-                    logger.error("One or more of the ML internal indices could not be made hidden.");
-                    return;
-                }
-                GetAliasesRequest getAliasesRequest = new GetAliasesRequest()
-                    .indices(mlHiddenIndexPatterns)
-                    .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN);
-                executeAsyncWithOrigin(client, ML_ORIGIN, GetAliasesAction.INSTANCE, getAliasesRequest, getAliasesResponseListener);
-            },
-            finalListener::onFailure
-        );
+        ActionListener<AcknowledgedResponse> updateSettingsListener = ActionListener.wrap(updateSettingsResponse -> {
+            if (updateSettingsResponse.isAcknowledged() == false) {
+                logger.error("One or more of the ML internal indices could not be made hidden.");
+                return;
+            }
+            GetAliasesRequest getAliasesRequest = new GetAliasesRequest().indices(mlHiddenIndexPatterns)
+                .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN);
+            executeAsyncWithOrigin(client, ML_ORIGIN, GetAliasesAction.INSTANCE, getAliasesRequest, getAliasesResponseListener);
+        }, finalListener::onFailure);
 
         // Step 2: Extract ML internal indices that are not hidden and make them hidden.
-        ActionListener<GetSettingsResponse> getSettingsListener = ActionListener.wrap(
-            getSettingsResponse -> {
-                String[] nonHiddenIndices =
-                    getSettingsResponse.getIndexToSettings().stream()
-                        .filter(e -> e.getValue().getAsBoolean(SETTING_INDEX_HIDDEN, false) == false)
-                        .map(Map.Entry::getKey)
-                        .toArray(String[]::new);
-                if (nonHiddenIndices.length == 0) {
-                    logger.info("There are no ML internal indices that need to be made hidden, [{}]", getSettingsResponse);
-                    updateSettingsListener.onResponse(AcknowledgedResponse.TRUE);
-                    return;
-                }
-                String nonHiddenIndicesString = Arrays.stream(nonHiddenIndices).collect(Collectors.joining(", "));
-                logger.info("The following ML internal indices will now be made hidden: [{}]", nonHiddenIndicesString);
-                UpdateSettingsRequest updateSettingsRequest =
-                    new UpdateSettingsRequest()
-                        .indices(nonHiddenIndices)
-                        .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
-                        .settings(Collections.singletonMap(SETTING_INDEX_HIDDEN, true));
-                executeAsyncWithOrigin(client, ML_ORIGIN, UpdateSettingsAction.INSTANCE, updateSettingsRequest, updateSettingsListener);
-            },
-            finalListener::onFailure
-        );
+        ActionListener<GetSettingsResponse> getSettingsListener = ActionListener.wrap(getSettingsResponse -> {
+            String[] nonHiddenIndices = getSettingsResponse.getIndexToSettings()
+                .stream()
+                .filter(e -> e.getValue().getAsBoolean(SETTING_INDEX_HIDDEN, false) == false)
+                .map(Map.Entry::getKey)
+                .toArray(String[]::new);
+            if (nonHiddenIndices.length == 0) {
+                logger.info("There are no ML internal indices that need to be made hidden, [{}]", getSettingsResponse);
+                updateSettingsListener.onResponse(AcknowledgedResponse.TRUE);
+                return;
+            }
+            String nonHiddenIndicesString = Arrays.stream(nonHiddenIndices).collect(Collectors.joining(", "));
+            logger.info("The following ML internal indices will now be made hidden: [{}]", nonHiddenIndicesString);
+            UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest().indices(nonHiddenIndices)
+                .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
+                .settings(Collections.singletonMap(SETTING_INDEX_HIDDEN, true));
+            executeAsyncWithOrigin(client, ML_ORIGIN, UpdateSettingsAction.INSTANCE, updateSettingsRequest, updateSettingsListener);
+        }, finalListener::onFailure);
 
         // Step 1: Fetch ML internal indices settings to find out whether they are already hidden or not.
-        GetSettingsRequest getSettingsRequest =
-            new GetSettingsRequest()
-                .indices(mlHiddenIndexPatterns)
-                .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN);
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(mlHiddenIndexPatterns)
+            .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN);
         client.admin().indices().getSettings(getSettingsRequest, getSettingsListener);
     }
 }

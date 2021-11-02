@@ -1461,14 +1461,13 @@ public class MachineLearning extends Plugin
      * These are the ML hidden indices. They are "associated" in the sense that if the ML system indices
      * are backed up or deleted then these hidden indices should also be backed up or deleted.
      */
-    private static Collection<AssociatedIndexDescriptor> ASSOCIATED_INDEX_DESCRIPTORS =
-        org.elasticsearch.core.List.of(
-            new AssociatedIndexDescriptor(RESULTS_INDEX_PREFIX + "*", "Results indices"),
-            new AssociatedIndexDescriptor(STATE_INDEX_PREFIX + "*", "State indices"),
-            new AssociatedIndexDescriptor(MlStatsIndex.indexPattern(), "ML stats index"),
-            new AssociatedIndexDescriptor(".ml-notifications*", "ML notifications indices"),
-            new AssociatedIndexDescriptor(".ml-annotations*", "ML annotations indices")
-        );
+    private static Collection<AssociatedIndexDescriptor> ASSOCIATED_INDEX_DESCRIPTORS = org.elasticsearch.core.List.of(
+        new AssociatedIndexDescriptor(RESULTS_INDEX_PREFIX + "*", "Results indices"),
+        new AssociatedIndexDescriptor(STATE_INDEX_PREFIX + "*", "State indices"),
+        new AssociatedIndexDescriptor(MlStatsIndex.indexPattern(), "ML stats index"),
+        new AssociatedIndexDescriptor(".ml-notifications*", "ML notifications indices"),
+        new AssociatedIndexDescriptor(".ml-annotations*", "ML annotations indices")
+    );
 
     public void prepareForIndicesMigration(ClusterService clusterService, Client client, ActionListener<Map<String, Object>> listener) {
         boolean isAlreadyInUpgradeMode = MlMetadata.getMlMetadata(clusterService.state()).isUpgradeMode();
@@ -1515,10 +1514,7 @@ public class MachineLearning extends Plugin
     }
 
     public static String[] getMlHiddenIndexPatterns() {
-        return ASSOCIATED_INDEX_DESCRIPTORS
-            .stream()
-            .map(AssociatedIndexDescriptor::getIndexPattern)
-            .toArray(String[]::new);
+        return ASSOCIATED_INDEX_DESCRIPTORS.stream().map(AssociatedIndexDescriptor::getIndexPattern).toArray(String[]::new);
     }
 
     @Override

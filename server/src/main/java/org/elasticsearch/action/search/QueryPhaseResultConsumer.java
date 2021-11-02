@@ -250,19 +250,23 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
         @Override
         public synchronized void close() {
-            if (hasPendingMerges()) {
-                throw new IllegalStateException("Attempted to close with partial reduce in-flight");
+            try {
+                if (hasPendingMerges()) {
+                    throw new IllegalStateException("Attempted to close with partial reduce in-flight");
+                }
+                if (hasFailure()) {
+                    assert circuitBreakerBytes == 0;
+                    return;
+                }
+                assert circuitBreakerBytes >= 0;
+                circuitBreaker.addWithoutBreaking(-circuitBreakerBytes);
+                circuitBreakerBytes = 0;
+            } finally {
+                // Clean up any delayed aggregations we haven't processed.
+                Releasables.close(
+                    buffer.stream().filter(b -> b.aggregations() != null).map(b -> b.aggregations()).collect(Collectors.toList())
+                );
             }
-            if (hasFailure()) {
-                assert circuitBreakerBytes == 0;
-                return;
-            }
-            assert circuitBreakerBytes >= 0;
-            circuitBreaker.addWithoutBreaking(-circuitBreakerBytes);
-            circuitBreakerBytes = 0;
-            Releasables.close(
-                buffer.stream().filter(b -> b.aggregations() != null).map(b -> b.aggregations()).collect(Collectors.toList())
-            );
         }
 
         synchronized Exception getFailure() {

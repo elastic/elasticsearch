@@ -111,10 +111,7 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
                 XContentParserConfiguration.EMPTY,
                 BytesReference.bytes(expected).streamInput()
             );
-            XContentParser testParser = xContent.createParser(
-                XContentParserConfiguration.EMPTY,
-                BytesReference.bytes(actual).streamInput()
-            )
+            XContentParser testParser = xContent.createParser(XContentParserConfiguration.EMPTY, BytesReference.bytes(actual).streamInput())
         ) {
             while (true) {
                 XContentParser.Token token1 = jsonParser.nextToken();

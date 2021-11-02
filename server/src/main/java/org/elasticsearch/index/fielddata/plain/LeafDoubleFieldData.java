@@ -13,11 +13,10 @@ import org.apache.lucene.util.Accountable;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.ToScriptField;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
@@ -30,9 +29,11 @@ import java.util.Collections;
 public abstract class LeafDoubleFieldData implements LeafNumericFieldData {
 
     private final long ramBytesUsed;
+    protected final ToScriptField toScriptField;
 
-    protected LeafDoubleFieldData(long ramBytesUsed) {
+    protected LeafDoubleFieldData(long ramBytesUsed, ToScriptField toScriptField) {
         this.ramBytesUsed = ramBytesUsed;
+        this.toScriptField = toScriptField;
     }
 
     @Override
@@ -42,7 +43,7 @@ public abstract class LeafDoubleFieldData implements LeafNumericFieldData {
 
     @Override
     public final DocValuesField<?> getScriptField(String name) {
-        return new DelegateDocValuesField(new ScriptDocValues.Doubles(getDoubleValues()), name);
+        return toScriptField.getScriptField(getDoubleValues(), name);
     }
 
     @Override
@@ -56,7 +57,7 @@ public abstract class LeafDoubleFieldData implements LeafNumericFieldData {
     }
 
     public static LeafNumericFieldData empty(final int maxDoc) {
-        return new LeafDoubleFieldData(0) {
+        return new LeafDoubleFieldData(0, ToScriptField.ToDoubleScriptField.INSTANCE) {
 
             @Override
             public SortedNumericDoubleValues getDoubleValues() {

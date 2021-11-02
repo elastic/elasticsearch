@@ -19,6 +19,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.N
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
+import org.elasticsearch.script.field.ToScriptField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -38,25 +39,33 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
      * The type of number.
      */
     public enum NumericType {
-        BOOLEAN(false, SortField.Type.LONG, CoreValuesSourceType.BOOLEAN),
-        BYTE(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
-        SHORT(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
-        INT(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
-        LONG(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
-        DATE(false, SortField.Type.LONG, CoreValuesSourceType.DATE),
-        DATE_NANOSECONDS(false, SortField.Type.LONG, CoreValuesSourceType.DATE),
-        HALF_FLOAT(true, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
-        FLOAT(true, SortField.Type.FLOAT, CoreValuesSourceType.NUMERIC),
-        DOUBLE(true, SortField.Type.DOUBLE, CoreValuesSourceType.NUMERIC);
+        BOOLEAN(false, SortField.Type.LONG, CoreValuesSourceType.BOOLEAN, ToScriptField.ToBooleanScriptField.INSTANCE),
+        BYTE(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC, ToScriptField.ToByteScriptField.INSTANCE),
+        SHORT(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC, ToScriptField.ToShortScriptField.INSTANCE),
+        INT(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC, ToScriptField.ToIntScriptField.INSTANCE),
+        LONG(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC, ToScriptField.ToLongScriptField.INSTANCE),
+        DATE(false, SortField.Type.LONG, CoreValuesSourceType.DATE, ToScriptField.ToDateMillisScriptField.INSTANCE),
+        DATE_NANOSECONDS(false, SortField.Type.LONG, CoreValuesSourceType.DATE, ToScriptField.ToDateNanosScriptField.INSTANCE),
+        HALF_FLOAT(true, SortField.Type.LONG, CoreValuesSourceType.NUMERIC, ToScriptField.ToHalfFloatScriptField.INSTANCE),
+        FLOAT(true, SortField.Type.FLOAT, CoreValuesSourceType.NUMERIC, ToScriptField.ToFloatScriptField.INSTANCE),
+        DOUBLE(true, SortField.Type.DOUBLE, CoreValuesSourceType.NUMERIC, ToScriptField.ToDoubleScriptField.INSTANCE);
 
         private final boolean floatingPoint;
         private final ValuesSourceType valuesSourceType;
         private final SortField.Type sortFieldType;
+        private final ToScriptField defaultToScriptField;
 
-        NumericType(boolean floatingPoint, SortField.Type sortFieldType, ValuesSourceType valuesSourceType) {
+        NumericType(
+            boolean floatingPoint,
+            SortField.Type sortFieldType,
+            ValuesSourceType valuesSourceType,
+            ToScriptField defaultToScriptField
+        ) {
+
             this.floatingPoint = floatingPoint;
             this.sortFieldType = sortFieldType;
             this.valuesSourceType = valuesSourceType;
+            this.defaultToScriptField = defaultToScriptField;
         }
 
         public final boolean isFloatingPoint() {
@@ -65,6 +74,10 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
 
         public final ValuesSourceType getValuesSourceType() {
             return valuesSourceType;
+        }
+
+        public final ToScriptField getDefaultToScriptField() {
+            return defaultToScriptField;
         }
     }
 

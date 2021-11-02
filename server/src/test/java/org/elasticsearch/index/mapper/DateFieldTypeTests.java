@@ -38,6 +38,7 @@ import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.field.ToScriptField.ToDateNanosScriptField;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -335,7 +336,8 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         // Create the doc values reader
         SortedNumericIndexFieldData fieldData = new SortedNumericIndexFieldData(
             "my_date",
-            IndexNumericFieldData.NumericType.DATE_NANOSECONDS
+            IndexNumericFieldData.NumericType.DATE_NANOSECONDS,
+            ToDateNanosScriptField.INSTANCE
         );
         // Read index and check the doc values
         DirectoryReader reader = DirectoryReader.open(w);

@@ -40,7 +40,6 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DynamicFieldType;
@@ -56,6 +55,9 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.script.field.ToScriptField;
+import org.elasticsearch.script.field.ToScriptField.ToKeyedFlattenedScriptField;
+import org.elasticsearch.script.field.ToScriptField.ToRootFlattenedScriptField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -475,10 +477,12 @@ public final class FlattenedFieldMapper extends FieldMapper {
     public static class KeyedFlattenedFieldData implements IndexOrdinalsFieldData {
         private final String key;
         private final IndexOrdinalsFieldData delegate;
+        private final ToScriptField toScriptField;
 
-        private KeyedFlattenedFieldData(String key, IndexOrdinalsFieldData delegate) {
+        private KeyedFlattenedFieldData(String key, IndexOrdinalsFieldData delegate, ToScriptField toScriptField) {
             this.delegate = delegate;
             this.key = key;
+            this.toScriptField = toScriptField;
         }
 
         public String getKey() {
@@ -518,25 +522,25 @@ public final class FlattenedFieldMapper extends FieldMapper {
         @Override
         public LeafOrdinalsFieldData load(LeafReaderContext context) {
             LeafOrdinalsFieldData fieldData = delegate.load(context);
-            return new KeyedFlattenedLeafFieldData(key, fieldData);
+            return new KeyedFlattenedLeafFieldData(key, fieldData, toScriptField);
         }
 
         @Override
         public LeafOrdinalsFieldData loadDirect(LeafReaderContext context) throws Exception {
             LeafOrdinalsFieldData fieldData = delegate.loadDirect(context);
-            return new KeyedFlattenedLeafFieldData(key, fieldData);
+            return new KeyedFlattenedLeafFieldData(key, fieldData, toScriptField);
         }
 
         @Override
         public IndexOrdinalsFieldData loadGlobal(DirectoryReader indexReader) {
             IndexOrdinalsFieldData fieldData = delegate.loadGlobal(indexReader);
-            return new KeyedFlattenedFieldData(key, fieldData);
+            return new KeyedFlattenedFieldData(key, fieldData, toScriptField);
         }
 
         @Override
         public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception {
             IndexOrdinalsFieldData fieldData = delegate.loadGlobalDirect(indexReader);
-            return new KeyedFlattenedFieldData(key, fieldData);
+            return new KeyedFlattenedFieldData(key, fieldData, toScriptField);
         }
 
         @Override
@@ -571,9 +575,9 @@ public final class FlattenedFieldMapper extends FieldMapper {
                     fieldName,
                     valuesSourceType,
                     breakerService,
-                    AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION
+                    ToKeyedFlattenedScriptField.INSTANCE
                 );
-                return new KeyedFlattenedFieldData(key, delegate);
+                return new KeyedFlattenedFieldData(key, delegate, ToKeyedFlattenedScriptField.INSTANCE);
             }
         }
     }
@@ -628,7 +632,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD);
+            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, ToRootFlattenedScriptField.INSTANCE);
         }
 
         @Override

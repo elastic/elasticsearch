@@ -20,12 +20,13 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
-import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.script.field.ToScriptField.ToKeywordScriptField;
+import org.elasticsearch.script.field.ToScriptField.ToTextScriptField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.FieldMaskingReader;
@@ -78,7 +79,7 @@ public class FieldDataCacheTests extends ESTestCase {
             fieldName,
             CoreValuesSourceType.KEYWORD,
             new NoneCircuitBreakerService(),
-            AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION
+            ToKeywordScriptField.INSTANCE
         );
     }
 
@@ -88,6 +89,7 @@ public class FieldDataCacheTests extends ESTestCase {
             CoreValuesSourceType.KEYWORD,
             indexFieldDataCache,
             new NoneCircuitBreakerService(),
+            ToTextScriptField.INSTANCE,
             TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
             TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
             TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE

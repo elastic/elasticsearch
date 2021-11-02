@@ -22,6 +22,20 @@ import java.util.NoSuchElementException;
 
 public class BinaryDocValuesField implements DocValuesField<ByteBuffer> {
 
+    public static class ToBinaryScriptField extends ToScriptField {
+
+        public static final ToBinaryScriptField INSTANCE = new ToBinaryScriptField();
+
+        private ToBinaryScriptField() {
+
+        }
+
+        @Override
+        public DocValuesField<?> getScriptField(SortedBinaryDocValues sortedBinaryDocValues, String name) {
+            return new BinaryDocValuesField(sortedBinaryDocValues, name);
+        }
+    }
+
     private final SortedBinaryDocValues input;
     private final String name;
 

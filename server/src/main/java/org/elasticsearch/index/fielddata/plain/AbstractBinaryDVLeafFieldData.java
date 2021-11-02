@@ -14,17 +14,22 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.ToScriptField;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
 abstract class AbstractBinaryDVLeafFieldData implements LeafFieldData {
-    private final BinaryDocValues values;
 
-    AbstractBinaryDVLeafFieldData(BinaryDocValues values) {
+    private final BinaryDocValues values;
+    private final ToScriptField toScriptField;
+
+    AbstractBinaryDVLeafFieldData(BinaryDocValues values, ToScriptField toScriptField) {
         super();
         this.values = values;
+        this.toScriptField = toScriptField;
     }
 
     @Override
@@ -73,6 +78,11 @@ abstract class AbstractBinaryDVLeafFieldData implements LeafFieldData {
             }
 
         };
+    }
+
+    @Override
+    public DocValuesField<?> getScriptField(String name) {
+        return toScriptField.getScriptField(getBytesValues(), name);
     }
 
     @Override

@@ -64,6 +64,7 @@ import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.field.ToScriptField.ToWildcardScriptField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentParser;
@@ -832,7 +833,11 @@ public class WildcardFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return (cache, breakerService) -> new StringBinaryIndexFieldData(name(), CoreValuesSourceType.KEYWORD);
+            return (cache, breakerService) -> new StringBinaryIndexFieldData(
+                name(),
+                CoreValuesSourceType.KEYWORD,
+                ToWildcardScriptField.INSTANCE
+            );
         }
 
         @Override

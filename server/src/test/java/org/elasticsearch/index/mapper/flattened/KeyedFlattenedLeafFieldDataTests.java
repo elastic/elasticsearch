@@ -13,6 +13,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
+import org.elasticsearch.script.field.ToScriptField.ToKeyedFlattenedScriptField;
+import org.elasticsearch.script.field.ToScriptField.ToKeywordScriptField;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -100,18 +102,22 @@ public class KeyedFlattenedLeafFieldDataTests extends ESTestCase {
     }
 
     public void testAdvanceExact() throws IOException {
-        LeafOrdinalsFieldData avocadoFieldData = new KeyedFlattenedLeafFieldData("avocado", delegate);
+        LeafOrdinalsFieldData avocadoFieldData = new KeyedFlattenedLeafFieldData("avocado", delegate, ToKeyedFlattenedScriptField.INSTANCE);
         assertFalse(avocadoFieldData.getOrdinalsValues().advanceExact(0));
 
-        LeafOrdinalsFieldData bananaFieldData = new KeyedFlattenedLeafFieldData("banana", delegate);
+        LeafOrdinalsFieldData bananaFieldData = new KeyedFlattenedLeafFieldData("banana", delegate, ToKeyedFlattenedScriptField.INSTANCE);
         assertTrue(bananaFieldData.getOrdinalsValues().advanceExact(0));
 
-        LeafOrdinalsFieldData nonexistentFieldData = new KeyedFlattenedLeafFieldData("berry", delegate);
+        LeafOrdinalsFieldData nonexistentFieldData = new KeyedFlattenedLeafFieldData(
+            "berry",
+            delegate,
+            ToKeyedFlattenedScriptField.INSTANCE
+        );
         assertFalse(nonexistentFieldData.getOrdinalsValues().advanceExact(0));
     }
 
     public void testNextOrd() throws IOException {
-        LeafOrdinalsFieldData fieldData = new KeyedFlattenedLeafFieldData("banana", delegate);
+        LeafOrdinalsFieldData fieldData = new KeyedFlattenedLeafFieldData("banana", delegate, ToKeyedFlattenedScriptField.INSTANCE);
         SortedSetDocValues docValues = fieldData.getOrdinalsValues();
         docValues.advanceExact(0);
 
@@ -129,15 +135,23 @@ public class KeyedFlattenedLeafFieldDataTests extends ESTestCase {
     }
 
     public void testLookupOrd() throws IOException {
-        LeafOrdinalsFieldData appleFieldData = new KeyedFlattenedLeafFieldData("apple", delegate);
+        LeafOrdinalsFieldData appleFieldData = new KeyedFlattenedLeafFieldData("apple", delegate, ToKeyedFlattenedScriptField.INSTANCE);
         SortedSetDocValues appleDocValues = appleFieldData.getOrdinalsValues();
         assertEquals(new BytesRef("value0"), appleDocValues.lookupOrd(0));
 
-        LeafOrdinalsFieldData cantaloupeFieldData = new KeyedFlattenedLeafFieldData("cantaloupe", delegate);
+        LeafOrdinalsFieldData cantaloupeFieldData = new KeyedFlattenedLeafFieldData(
+            "cantaloupe",
+            delegate,
+            ToKeyedFlattenedScriptField.INSTANCE
+        );
         SortedSetDocValues cantaloupeDocValues = cantaloupeFieldData.getOrdinalsValues();
         assertEquals(new BytesRef("value40"), cantaloupeDocValues.lookupOrd(0));
 
-        LeafOrdinalsFieldData cucumberFieldData = new KeyedFlattenedLeafFieldData("cucumber", delegate);
+        LeafOrdinalsFieldData cucumberFieldData = new KeyedFlattenedLeafFieldData(
+            "cucumber",
+            delegate,
+            ToKeyedFlattenedScriptField.INSTANCE
+        );
         SortedSetDocValues cucumberDocValues = cucumberFieldData.getOrdinalsValues();
         assertEquals(new BytesRef("value41"), cucumberDocValues.lookupOrd(0));
     }
@@ -146,7 +160,7 @@ public class KeyedFlattenedLeafFieldDataTests extends ESTestCase {
         private final SortedSetDocValues docValues;
 
         MockLeafOrdinalsFieldData(BytesRef[] allTerms, long[] documentOrds) {
-            super(AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION);
+            super(ToKeywordScriptField.INSTANCE);
             this.docValues = new MockSortedSetDocValues(allTerms, documentOrds);
         }
 

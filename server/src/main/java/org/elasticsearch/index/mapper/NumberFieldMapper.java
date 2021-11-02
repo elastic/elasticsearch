@@ -1165,7 +1165,7 @@ public class NumberFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(name(), type.numericType());
+            return new SortedNumericIndexFieldData.Builder(name(), type.numericType(), type.numericType().getDefaultToScriptField());
         }
 
         @Override

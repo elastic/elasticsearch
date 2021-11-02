@@ -9,17 +9,10 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.BinaryDocValues;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.script.field.DelegateDocValuesField;
-import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.ToScriptField;
 
 final class StringBinaryDVLeafFieldData extends AbstractBinaryDVLeafFieldData {
-    StringBinaryDVLeafFieldData(BinaryDocValues values) {
-        super(values);
-    }
-
-    @Override
-    public DocValuesField<?> getScriptField(String name) {
-        return new DelegateDocValuesField(new ScriptDocValues.Strings(getBytesValues()), name);
+    StringBinaryDVLeafFieldData(BinaryDocValues values, ToScriptField toScriptField) {
+        super(values, toScriptField);
     }
 }

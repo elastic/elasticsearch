@@ -28,6 +28,7 @@ import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.script.field.ToScriptField.ToDoubleScriptField;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -162,7 +163,11 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
     ) throws IOException {
         MappedFieldType idFieldType = new KeywordFieldMapper.KeywordFieldType("id");
 
-        SortedNumericIndexFieldData fieldData = new SortedNumericIndexFieldData("price", IndexNumericFieldData.NumericType.DOUBLE);
+        SortedNumericIndexFieldData fieldData = new SortedNumericIndexFieldData(
+            "price",
+            IndexNumericFieldData.NumericType.DOUBLE,
+            ToDoubleScriptField.INSTANCE
+        );
         FunctionScoreQuery query = new FunctionScoreQuery(
             new MatchAllDocsQuery(),
             new FieldValueFactorFunction("price", 1, FieldValueFactorFunction.Modifier.RECIPROCAL, null, fieldData)

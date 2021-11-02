@@ -14,6 +14,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.index.fielddata.plain.LeafLongFieldData;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.DateFieldScript;
+import org.elasticsearch.script.field.ToScriptField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -22,24 +23,28 @@ public final class DateScriptFieldData extends IndexNumericFieldData {
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final DateFieldScript.LeafFactory leafFactory;
+        private final ToScriptField toScriptField;
 
-        public Builder(String name, DateFieldScript.LeafFactory leafFactory) {
+        public Builder(String name, DateFieldScript.LeafFactory leafFactory, ToScriptField toScriptField) {
             this.name = name;
             this.leafFactory = leafFactory;
+            this.toScriptField = toScriptField;
         }
 
         @Override
         public DateScriptFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new DateScriptFieldData(name, leafFactory);
+            return new DateScriptFieldData(name, leafFactory, toScriptField);
         }
     }
 
     private final String fieldName;
     private final DateFieldScript.LeafFactory leafFactory;
+    protected final ToScriptField toScriptField;
 
-    private DateScriptFieldData(String fieldName, DateFieldScript.LeafFactory leafFactory) {
+    private DateScriptFieldData(String fieldName, DateFieldScript.LeafFactory leafFactory, ToScriptField toScriptField) {
         this.fieldName = fieldName;
         this.leafFactory = leafFactory;
+        this.toScriptField = toScriptField;
     }
 
     @Override
@@ -63,7 +68,7 @@ public final class DateScriptFieldData extends IndexNumericFieldData {
 
     @Override
     public DateScriptLeafFieldData loadDirect(LeafReaderContext context) {
-        return new DateScriptLeafFieldData(new LongScriptDocValues(leafFactory.newInstance(context)));
+        return new DateScriptLeafFieldData(new LongScriptDocValues(leafFactory.newInstance(context)), toScriptField);
     }
 
     @Override
@@ -79,8 +84,8 @@ public final class DateScriptFieldData extends IndexNumericFieldData {
     public static class DateScriptLeafFieldData extends LeafLongFieldData {
         private final LongScriptDocValues longScriptDocValues;
 
-        DateScriptLeafFieldData(LongScriptDocValues longScriptDocValues) {
-            super(0, NumericType.DATE);
+        DateScriptLeafFieldData(LongScriptDocValues longScriptDocValues, ToScriptField toScriptField) {
+            super(0, toScriptField);
             this.longScriptDocValues = longScriptDocValues;
         }
 

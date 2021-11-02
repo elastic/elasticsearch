@@ -14,6 +14,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.index.fielddata.plain.LeafLongFieldData;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.LongFieldScript;
+import org.elasticsearch.script.field.ToScriptField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -24,24 +25,28 @@ public final class LongScriptFieldData extends IndexNumericFieldData {
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final LongFieldScript.LeafFactory leafFactory;
+        private final ToScriptField toScriptField;
 
-        public Builder(String name, LongFieldScript.LeafFactory leafFactory) {
+        public Builder(String name, LongFieldScript.LeafFactory leafFactory, ToScriptField toScriptField) {
             this.name = name;
             this.leafFactory = leafFactory;
+            this.toScriptField = toScriptField;
         }
 
         @Override
         public LongScriptFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new LongScriptFieldData(name, leafFactory);
+            return new LongScriptFieldData(name, leafFactory, toScriptField);
         }
     }
 
     private final String fieldName;
     private final LongFieldScript.LeafFactory leafFactory;
+    protected final ToScriptField toScriptField;
 
-    private LongScriptFieldData(String fieldName, LongFieldScript.LeafFactory leafFactory) {
+    private LongScriptFieldData(String fieldName, LongFieldScript.LeafFactory leafFactory, ToScriptField toScriptField) {
         this.fieldName = fieldName;
         this.leafFactory = leafFactory;
+        this.toScriptField = toScriptField;
     }
 
     @Override
@@ -65,7 +70,7 @@ public final class LongScriptFieldData extends IndexNumericFieldData {
 
     @Override
     public LongScriptLeafFieldData loadDirect(LeafReaderContext context) throws IOException {
-        return new LongScriptLeafFieldData(new LongScriptDocValues(leafFactory.newInstance(context)));
+        return new LongScriptLeafFieldData(new LongScriptDocValues(leafFactory.newInstance(context)), toScriptField);
     }
 
     @Override
@@ -81,8 +86,8 @@ public final class LongScriptFieldData extends IndexNumericFieldData {
     public static class LongScriptLeafFieldData extends LeafLongFieldData {
         private final LongScriptDocValues longScriptDocValues;
 
-        LongScriptLeafFieldData(LongScriptDocValues longScriptDocValues) {
-            super(0, NumericType.LONG);
+        LongScriptLeafFieldData(LongScriptDocValues longScriptDocValues, ToScriptField toScriptField) {
+            super(0, toScriptField);
             this.longScriptDocValues = longScriptDocValues;
         }
 

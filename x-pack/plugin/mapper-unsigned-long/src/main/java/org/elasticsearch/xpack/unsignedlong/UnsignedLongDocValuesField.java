@@ -11,6 +11,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.ToScriptField;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -24,6 +25,20 @@ import static org.elasticsearch.search.DocValueFormat.MASK_2_63;
 import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.BIGINTEGER_2_64_MINUS_ONE;
 
 public class UnsignedLongDocValuesField implements UnsignedLongField, DocValuesField<Long> {
+
+    public static class ToUnsignedLongScriptField extends ToScriptField {
+
+        public static final ToUnsignedLongScriptField INSTANCE = new ToUnsignedLongScriptField();
+
+        private ToUnsignedLongScriptField() {
+
+        }
+
+        @Override
+        public DocValuesField<?> getScriptField(SortedNumericDocValues sortedNumericDocValues, String name) {
+            return new UnsignedLongDocValuesField(sortedNumericDocValues, name);
+        }
+    }
 
     private final SortedNumericDocValues input;
     private final String name;

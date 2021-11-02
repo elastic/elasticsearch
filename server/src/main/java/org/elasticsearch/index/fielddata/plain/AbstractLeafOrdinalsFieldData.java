@@ -13,30 +13,25 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.ToScriptField;
+import org.elasticsearch.script.field.ToScriptField.ToKeywordScriptField;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.function.Function;
 
 public abstract class AbstractLeafOrdinalsFieldData implements LeafOrdinalsFieldData {
 
-    public static final Function<SortedSetDocValues, ScriptDocValues<?>> DEFAULT_SCRIPT_FUNCTION = ((Function<
-        SortedSetDocValues,
-        SortedBinaryDocValues>) FieldData::toString).andThen(ScriptDocValues.Strings::new);
+    private final ToScriptField toScriptField;
 
-    private final Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction;
-
-    protected AbstractLeafOrdinalsFieldData(Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction) {
-        this.scriptFunction = scriptFunction;
+    protected AbstractLeafOrdinalsFieldData(ToScriptField toScriptField) {
+        this.toScriptField = toScriptField;
     }
 
     @Override
     public final DocValuesField<?> getScriptField(String name) {
-        return new DelegateDocValuesField(scriptFunction.apply(getOrdinalsValues()), name);
+        return toScriptField.getScriptField(getOrdinalsValues(), name);
     }
 
     @Override
@@ -45,7 +40,7 @@ public abstract class AbstractLeafOrdinalsFieldData implements LeafOrdinalsField
     }
 
     public static LeafOrdinalsFieldData empty() {
-        return new AbstractLeafOrdinalsFieldData(DEFAULT_SCRIPT_FUNCTION) {
+        return new AbstractLeafOrdinalsFieldData(ToKeywordScriptField.INSTANCE) {
 
             @Override
             public long ramBytesUsed() {

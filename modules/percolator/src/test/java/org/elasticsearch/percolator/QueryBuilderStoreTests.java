@@ -29,6 +29,7 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.TestDocumentParserContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.script.field.BinaryDocValuesField.ToBinaryScriptField;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.test.ESTestCase;
@@ -77,7 +78,7 @@ public class QueryBuilderStoreTests extends ESTestCase {
             when(searchExecutionContext.getWriteableRegistry()).thenReturn(writableRegistry());
             when(searchExecutionContext.getXContentRegistry()).thenReturn(xContentRegistry());
             when(searchExecutionContext.getForField(fieldMapper.fieldType())).thenReturn(
-                new BytesBinaryIndexFieldData(fieldMapper.name(), CoreValuesSourceType.KEYWORD)
+                new BytesBinaryIndexFieldData(fieldMapper.name(), CoreValuesSourceType.KEYWORD, ToBinaryScriptField.INSTANCE)
             );
             when(searchExecutionContext.getFieldType(Mockito.anyString())).thenAnswer(invocation -> {
                 final String fieldName = (String) invocation.getArguments()[0];

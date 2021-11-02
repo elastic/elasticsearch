@@ -17,6 +17,8 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.script.field.BinaryDocValuesField;
+import org.elasticsearch.script.field.ToScriptField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -29,10 +31,12 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<BytesBinaryDVLe
 
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;
+    protected final ToScriptField toScriptField;
 
-    public BytesBinaryIndexFieldData(String fieldName, ValuesSourceType valuesSourceType) {
+    public BytesBinaryIndexFieldData(String fieldName, ValuesSourceType valuesSourceType, ToScriptField toScriptField) {
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
+        this.toScriptField = toScriptField;
     }
 
     @Override
@@ -67,7 +71,7 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<BytesBinaryDVLe
     @Override
     public BytesBinaryDVLeafFieldData load(LeafReaderContext context) {
         try {
-            return new BytesBinaryDVLeafFieldData(DocValues.getBinary(context.reader(), fieldName));
+            return new BytesBinaryDVLeafFieldData(DocValues.getBinary(context.reader(), fieldName), toScriptField);
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values", e);
         }
@@ -90,7 +94,7 @@ public class BytesBinaryIndexFieldData implements IndexFieldData<BytesBinaryDVLe
         @Override
         public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
             // Ignore breaker
-            return new BytesBinaryIndexFieldData(name, valuesSourceType);
+            return new BytesBinaryIndexFieldData(name, valuesSourceType, BinaryDocValuesField.ToBinaryScriptField.INSTANCE);
         }
     }
 }

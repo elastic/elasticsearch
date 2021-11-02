@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.field.ToScriptField.ToMurmur3ScriptField;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -90,7 +91,7 @@ public class Murmur3FieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG);
+            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, ToMurmur3ScriptField.INSTANCE);
         }
 
         @Override

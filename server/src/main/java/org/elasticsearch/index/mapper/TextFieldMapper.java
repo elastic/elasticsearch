@@ -58,6 +58,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.elasticsearch.script.field.ToScriptField.ToTextScriptField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.ToXContent;
@@ -875,7 +876,8 @@ public class TextFieldMapper extends FieldMapper {
                 filter.minFreq,
                 filter.maxFreq,
                 filter.minSegmentSize,
-                CoreValuesSourceType.KEYWORD
+                CoreValuesSourceType.KEYWORD,
+                ToTextScriptField.INSTANCE
             );
         }
 

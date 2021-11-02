@@ -20,7 +20,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.stream.Collectors;
 
 public class DiscoveryNodeFilters {
 
@@ -66,9 +65,13 @@ public class DiscoveryNodeFilters {
 
     private final OpType opType;
 
+    @Nullable
+    private final DiscoveryNodeFilters trimmed;
+
     DiscoveryNodeFilters(OpType opType, Map<String, String[]> filters) {
         this.opType = opType;
-        this.filters = filters;
+        this.filters = Map.copyOf(filters);
+        this.trimmed = doTrim(this);
     }
 
     private boolean matchByIP(String[] values, @Nullable String hostIp, @Nullable String publishIp) {
@@ -89,18 +92,24 @@ public class DiscoveryNodeFilters {
      */
     @Nullable
     public static DiscoveryNodeFilters trimTier(@Nullable DiscoveryNodeFilters original) {
-        if (original == null) {
-            return null;
-        }
+        return original == null ? null : original.trimmed;
+    }
 
-        Map<String, String[]> newFilters = original.filters.entrySet()
-            .stream()
-            // Remove all entries that use "_tier_preference", as these will be handled elsewhere
-            .filter(entry -> {
-                String attr = entry.getKey();
-                return attr != null && attr.equals("_tier_preference") == false;
-            })
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    private static DiscoveryNodeFilters doTrim(DiscoveryNodeFilters original) {
+        boolean filtered = false;
+        final Map<String, String[]> newFilters = new HashMap<>(original.filters.size());
+        // Remove all entries that use "_tier_preference", as these will be handled elsewhere
+        for (Map.Entry<String, String[]> entry : original.filters.entrySet()) {
+            String attr = entry.getKey();
+            if (attr != null && attr.equals("_tier_preference") == false) {
+                newFilters.put(entry.getKey(), entry.getValue());
+            } else {
+                filtered = true;
+            }
+        }
+        if (filtered == false) {
+            return original;
+        }
 
         if (newFilters.size() == 0) {
             return null;

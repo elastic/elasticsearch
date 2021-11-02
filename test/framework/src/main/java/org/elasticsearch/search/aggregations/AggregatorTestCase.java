@@ -224,7 +224,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
     protected <A extends Aggregator> A createAggregator(AggregationBuilder builder, AggregationContext context) throws IOException {
         QueryRewriteContext rewriteContext = new QueryRewriteContext(
-            xContentRegistry(),
+            parserConfig(),
             new NamedWriteableRegistry(List.of()),
             null,
             context::nowInMillis

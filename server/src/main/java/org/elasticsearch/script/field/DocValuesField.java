@@ -12,7 +12,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 
 import java.io.IOException;
 
-public interface DocValuesField extends Field {
+public interface DocValuesField<T> extends Field<T> {
 
     /** Set the current document ID. */
     void setNextDocId(int docId) throws IOException;

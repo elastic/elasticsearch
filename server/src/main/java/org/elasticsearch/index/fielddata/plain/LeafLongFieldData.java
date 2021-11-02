@@ -44,7 +44,7 @@ public abstract class LeafLongFieldData implements LeafNumericFieldData {
     }
 
     @Override
-    public final DocValuesField getScriptField(String name) {
+    public final DocValuesField<?> getScriptField(String name) {
         switch (numericType) {
             // for now, dates and nanoseconds are treated the same, which also means, that the precision is only on millisecond level
             case DATE:

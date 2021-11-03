@@ -13,9 +13,11 @@ import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.monitoring.MonitoringDeprecatedSettings;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
@@ -59,23 +61,32 @@ public class NodeDeprecationChecks {
     }
 
     static DeprecationIssue checkRemovedSetting(final Settings settings, final Setting<?> removedSetting, final String url) {
+        return checkRemovedSetting(settings, removedSetting, url, null, DeprecationIssue.Level.CRITICAL);
+    }
+
+    static DeprecationIssue checkRemovedSetting(
+        final Settings settings,
+        final Setting<?> removedSetting,
+        final String url,
+        String additionalDetailMessage,
+        DeprecationIssue.Level deprecationLevel
+    ) {
         if (removedSetting.exists(settings) == false) {
             return null;
         }
         final String removedSettingKey = removedSetting.getKey();
-        final String value = removedSetting.get(settings).toString();
-        final String message = String.format(
-            Locale.ROOT,
-            "setting [%s] is deprecated and will be removed in the next major version",
-            removedSettingKey
-        );
-        final String details = String.format(
-            Locale.ROOT,
-            "the setting [%s] is currently set to [%s], remove this setting",
-            removedSettingKey,
-            value
-        );
-        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
+        Object removedSettingValue = removedSetting.get(settings);
+        String value;
+        if (removedSettingValue instanceof TimeValue) {
+            value = ((TimeValue) removedSettingValue).getStringRep();
+        } else {
+            value = removedSettingValue.toString();
+        }
+        final String message = String.format(Locale.ROOT, "Setting [%s] is deprecated", removedSettingKey);
+        final String details = additionalDetailMessage == null
+            ? String.format(Locale.ROOT, "Remove the [%s] setting.", removedSettingKey)
+            : String.format(Locale.ROOT, "Remove the [%s] setting. %s", removedSettingKey, additionalDetailMessage);
+        return new DeprecationIssue(deprecationLevel, message, url, details, false, null);
     }
 
     static DeprecationIssue checkSharedDataPathSetting(final Settings settings, final PluginsAndModules pluginsAndModules) {
@@ -563,6 +574,35 @@ public class NodeDeprecationChecks {
         }
 
         return null;
+    }
+
+    static DeprecationIssue checkLifecyleStepMasterTimeoutSetting(final Settings settings, final PluginsAndModules pluginsAndModules) {
+        Setting<TimeValue> deprecatedSetting = LifecycleSettings.LIFECYCLE_STEP_MASTER_TIMEOUT_SETTING;
+        String url = "https://ela.st/es-deprecation-8-lifecycle-master-timeout-setting";
+        return checkRemovedSetting(
+            settings,
+            deprecatedSetting,
+            url,
+            "As of 7.16 the timeout is always infinite.",
+            DeprecationIssue.Level.WARNING
+        );
+    }
+
+    static DeprecationIssue checkEqlEnabledSetting(final Settings settings, final PluginsAndModules pluginsAndModules) {
+        Setting<Boolean> deprecatedSetting = Setting.boolSetting(
+            "xpack.eql.enabled",
+            true,
+            Setting.Property.NodeScope,
+            Setting.Property.DeprecatedWarning
+        );
+        String url = "https://ela.st/es-deprecation-8-eql-enabled-setting";
+        return checkRemovedSetting(
+            settings,
+            deprecatedSetting,
+            url,
+            "As of 7.9.2 basic license level features are always enabled.",
+            DeprecationIssue.Level.WARNING
+        );
     }
 
 }

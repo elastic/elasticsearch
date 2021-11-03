@@ -47,6 +47,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 public class ScriptService implements Closeable, ClusterStateApplier, ScriptCompiler {
@@ -169,6 +170,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
 
     private final Map<String, ScriptEngine> engines;
     private final Map<String, ScriptContext<?>> contexts;
+    private final LongSupplier timeProvider;
 
     private ClusterState clusterState;
 
@@ -177,7 +179,12 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
     // package private for tests
     final AtomicReference<CacheHolder> cacheHolder = new AtomicReference<>();
 
-    public ScriptService(Settings settings, Map<String, ScriptEngine> engines, Map<String, ScriptContext<?>> contexts) {
+    public ScriptService(
+        Settings settings,
+        Map<String, ScriptEngine> engines,
+        Map<String, ScriptContext<?>> contexts,
+        LongSupplier timeProvider
+    ) {
         this.engines = Collections.unmodifiableMap(Objects.requireNonNull(engines));
         this.contexts = Collections.unmodifiableMap(Objects.requireNonNull(contexts));
 
@@ -274,6 +281,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
         }
 
         this.setMaxSizeInBytes(SCRIPT_MAX_SIZE_IN_BYTES.get(settings));
+        this.timeProvider = timeProvider;
 
         // Validation requires knowing which contexts exist.
         this.validateCacheSettings(settings);
@@ -714,7 +722,8 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
             SCRIPT_GENERAL_CACHE_SIZE_SETTING.get(settings),
             SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.get(settings),
             rate,
-            SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey()
+            SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey(),
+            timeProvider
         );
     }
 
@@ -747,7 +756,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
             rate = new ScriptCache.CompilationRate(ScriptContext.DEFAULT_COMPILATION_RATE_LIMIT);
         }
 
-        return new ScriptCache(cacheSize, cacheExpire, rate, rateSetting.getKey());
+        return new ScriptCache(cacheSize, cacheExpire, rate, rateSetting.getKey(), timeProvider);
     }
 
     /**
@@ -759,9 +768,15 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
         final ScriptCache general;
         final Map<String, AtomicReference<ScriptCache>> contextCache;
 
-        CacheHolder(int cacheMaxSize, TimeValue cacheExpire, ScriptCache.CompilationRate maxCompilationRate, String contextRateSetting) {
+        CacheHolder(
+            int cacheMaxSize,
+            TimeValue cacheExpire,
+            ScriptCache.CompilationRate maxCompilationRate,
+            String contextRateSetting,
+            LongSupplier timeProvider
+        ) {
             contextCache = null;
-            general = new ScriptCache(cacheMaxSize, cacheExpire, maxCompilationRate, contextRateSetting);
+            general = new ScriptCache(cacheMaxSize, cacheExpire, maxCompilationRate, contextRateSetting, timeProvider);
         }
 
         CacheHolder(Map<String, ScriptCache> context) {

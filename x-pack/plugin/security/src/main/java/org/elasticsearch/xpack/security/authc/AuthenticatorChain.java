@@ -196,8 +196,7 @@ class AuthenticatorChain {
         Authentication authentication,
         ActionListener<Authentication> listener
     ) {
-        // TODO: only allow run as for realm authentication to maintain the existing behaviour
-        if (false == runAsEnabled || authentication.getAuthenticationType() != Authentication.AuthenticationType.REALM) {
+        if (false == runAsEnabled) {
             finishAuthentication(context, authentication, listener);
             return;
         }
@@ -227,9 +226,23 @@ class AuthenticatorChain {
             if (tuple == null) {
                 logger.debug("Cannot find run-as user [{}] for authenticated user [{}]", runAsUsername, user.principal());
                 // the user does not exist, but we still create a User object, which will later be rejected by authz
-                finalAuth = new Authentication(new User(runAsUsername, null, user), authentication.getAuthenticatedBy(), null);
+                finalAuth = new Authentication(
+                    new User(runAsUsername, null, user),
+                    authentication.getAuthenticatedBy(),
+                    null,
+                    authentication.getVersion(),
+                    authentication.getAuthenticationType(),
+                    authentication.getMetadata()
+                );
             } else {
-                finalAuth = new Authentication(new User(tuple.v1(), user), authentication.getAuthenticatedBy(), tuple.v2());
+                finalAuth = new Authentication(
+                    new User(tuple.v1(), user),
+                    authentication.getAuthenticatedBy(),
+                    tuple.v2(),
+                    authentication.getVersion(),
+                    authentication.getAuthenticationType(),
+                    authentication.getMetadata()
+                );
             }
             finishAuthentication(context, finalAuth, listener);
         }, listener::onFailure));

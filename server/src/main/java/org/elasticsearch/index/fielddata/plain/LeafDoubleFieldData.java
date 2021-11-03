@@ -41,7 +41,7 @@ public abstract class LeafDoubleFieldData implements LeafNumericFieldData {
     }
 
     @Override
-    public final DocValuesField getScriptField(String name) {
+    public final DocValuesField<?> getScriptField(String name) {
         return new DelegateDocValuesField(new ScriptDocValues.Doubles(getDoubleValues()), name);
     }
 

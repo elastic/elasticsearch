@@ -144,8 +144,6 @@ public class FilterContentBenchmark {
                     builder.copyCurrentStructure(parser);
                 }
                 return BytesReference.bytes(builder);
-            } catch (Exception e) {
-                return new BytesArray("");
             }
         }
     }

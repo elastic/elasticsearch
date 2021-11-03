@@ -114,7 +114,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
                 ft,
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
-                new GeoShapeIndexer(orientation.get().value().getAsBoolean(), context.buildFullName(name)),
+                new GeoShapeIndexer(orientation.get().value(), context.buildFullName(name)),
                 geoShapeParser,
                 this
             );
@@ -202,7 +202,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         if (geometry == null) {
             return;
         }
-        context.doc().addAll(indexer.indexShape(indexer.prepareForIndexing(geometry)));
+        context.doc().addAll(indexer.indexShape(geometry));
         context.addToFieldNames(fieldType().name());
     }
 

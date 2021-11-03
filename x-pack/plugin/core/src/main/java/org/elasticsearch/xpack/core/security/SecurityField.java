@@ -26,12 +26,12 @@ public final class SecurityField {
 
     // Document and Field Level Security are Platinum+
     private static final String DLS_FLS_FEATURE_FAMILY = "security-dls-fls";
-    public static final LicensedFeature.Momentary DOCUMENT_LEVEL_SECURITY_FEATURE = LicensedFeature.momentaryLenient(
+    public static final LicensedFeature.Momentary DOCUMENT_LEVEL_SECURITY_FEATURE = LicensedFeature.momentary(
         DLS_FLS_FEATURE_FAMILY,
         "dls",
         License.OperationMode.PLATINUM
     );
-    public static final LicensedFeature.Momentary FIELD_LEVEL_SECURITY_FEATURE = LicensedFeature.momentaryLenient(
+    public static final LicensedFeature.Momentary FIELD_LEVEL_SECURITY_FEATURE = LicensedFeature.momentary(
         DLS_FLS_FEATURE_FAMILY,
         "fls",
         License.OperationMode.PLATINUM

@@ -39,6 +39,7 @@ import static org.hamcrest.Matchers.is;
 /**
  * Integration tests for the built in realm
  */
+@SuppressWarnings("removal")
 public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
 
     private static Hasher hasher;

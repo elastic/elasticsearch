@@ -53,7 +53,9 @@ public class SysTypesTests extends ESTestCase {
             null,
             null,
             false,
-            false
+            false,
+            null,
+            null
         );
         EsIndex test = new EsIndex("test", SqlTypesTests.loadMapping("mapping-multi-field-with-nested.json", true));
         Analyzer analyzer = new Analyzer(configuration, new FunctionRegistry(), IndexResolution.valid(test), null);

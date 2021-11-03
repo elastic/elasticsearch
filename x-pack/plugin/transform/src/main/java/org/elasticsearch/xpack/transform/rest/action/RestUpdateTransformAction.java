@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.transform.rest.action;
 
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -46,8 +48,10 @@ public class RestUpdateTransformAction extends BaseRestHandler {
 
         String id = restRequest.param(TransformField.ID.getPreferredName());
         boolean deferValidation = restRequest.paramAsBoolean(TransformField.DEFER_VALIDATION.getPreferredName(), false);
+        TimeValue timeout = restRequest.paramAsTime(TransformField.TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
+
         XContentParser parser = restRequest.contentParser();
-        UpdateTransformAction.Request request = UpdateTransformAction.Request.fromXContent(parser, id, deferValidation);
+        UpdateTransformAction.Request request = UpdateTransformAction.Request.fromXContent(parser, id, deferValidation, timeout);
 
         return channel -> client.execute(UpdateTransformAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

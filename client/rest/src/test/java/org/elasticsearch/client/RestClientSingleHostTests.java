@@ -88,7 +88,8 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -137,7 +138,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                 any(HttpAsyncRequestProducer.class),
                 any(HttpAsyncResponseConsumer.class),
                 any(HttpClientContext.class),
-                any(FutureCallback.class)
+                nullable(FutureCallback.class)
             )
         ).thenAnswer((Answer<Future<HttpResponse>>) invocationOnMock -> {
             final HttpAsyncRequestProducer requestProducer = (HttpAsyncRequestProducer) invocationOnMock.getArguments()[0];
@@ -218,7 +219,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                 requestArgumentCaptor.capture(),
                 any(HttpAsyncResponseConsumer.class),
                 any(HttpClientContext.class),
-                any(FutureCallback.class)
+                nullable(FutureCallback.class)
             );
             HttpUriRequest actualRequest = (HttpUriRequest) requestArgumentCaptor.getValue().generateRequest();
             assertEquals(expectedRequest.getURI(), actualRequest.getURI());

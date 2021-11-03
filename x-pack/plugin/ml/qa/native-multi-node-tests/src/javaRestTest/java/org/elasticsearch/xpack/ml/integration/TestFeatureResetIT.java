@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
@@ -188,7 +189,9 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
             new PutTrainedModelAction.Request(
                 TrainedModelConfig.builder()
                     .setModelType(TrainedModelType.PYTORCH)
-                    .setInferenceConfig(new PassThroughConfig(null, new BertTokenization(null, false, null), null))
+                    .setInferenceConfig(
+                        new PassThroughConfig(null, new BertTokenization(null, false, null, Tokenization.Truncate.NONE), null)
+                    )
                     .setModelId(TRAINED_MODEL_ID)
                     .build(),
                 false

@@ -21,7 +21,7 @@ import java.util.Objects;
  */
 public final class OriginalIndices implements IndicesRequest {
 
-    //constant to use when original indices are not applicable and will not be serialized across the wire
+    // constant to use when original indices are not applicable and will not be serialized across the wire
     public static final OriginalIndices NONE = new OriginalIndices(null, null);
 
     private final String[] indices;
@@ -63,10 +63,7 @@ public final class OriginalIndices implements IndicesRequest {
 
     @Override
     public String toString() {
-        return "OriginalIndices{" +
-            "indices=" + Arrays.toString(indices) +
-            ", indicesOptions=" + indicesOptions +
-            '}';
+        return "OriginalIndices{" + "indices=" + Arrays.toString(indices) + ", indicesOptions=" + indicesOptions + '}';
     }
 
     @Override

@@ -33,8 +33,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
-import static org.mockito.Matchers.anyObject;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -109,11 +109,11 @@ public class ScrollHelperIntegTests extends ESSingleNodeTestCase {
             listener.onResponse(response);
             return null;
         };
-        doAnswer(returnResponse).when(client).search(eq(request), anyObject());
+        doAnswer(returnResponse).when(client).search(eq(request), any());
         /* The line below simulates the evil cluster. A working cluster would return
          * a response with 0 hits. Our simulated broken cluster returns the same
          * response over and over again. */
-        doAnswer(returnResponse).when(client).searchScroll(anyObject(), anyObject());
+        doAnswer(returnResponse).when(client).searchScroll(any(), any());
 
         AtomicReference<Exception> failure = new AtomicReference<>();
         ScrollHelper.fetchAllByEntity(client, request, new ActionListener<Collection<SearchHit>>() {

@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.transform.rest.action;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -62,9 +64,12 @@ public class RestPreviewTransformAction extends BaseRestHandler {
             );
         }
 
+        TimeValue timeout = restRequest.paramAsTime(TransformField.TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
+
         SetOnce<PreviewTransformAction.Request> previewRequestHolder = new SetOnce<>();
+
         if (Strings.isNullOrEmpty(transformId)) {
-            previewRequestHolder.set(PreviewTransformAction.Request.fromXContent(restRequest.contentOrSourceParamParser()));
+            previewRequestHolder.set(PreviewTransformAction.Request.fromXContent(restRequest.contentOrSourceParamParser(), timeout));
         }
 
         return channel -> {
@@ -86,7 +91,7 @@ public class RestPreviewTransformAction extends BaseRestHandler {
                             )
                         );
                     } else {
-                        PreviewTransformAction.Request previewRequest = new PreviewTransformAction.Request(transforms.get(0));
+                        PreviewTransformAction.Request previewRequest = new PreviewTransformAction.Request(transforms.get(0), timeout);
                         client.execute(PreviewTransformAction.INSTANCE, previewRequest, listener);
                     }
                 }, listener::onFailure));

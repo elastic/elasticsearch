@@ -54,7 +54,6 @@ import java.util.Map;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
-import static org.elasticsearch.mock.orig.Mockito.when;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.getRandomSupportedSearchType;
@@ -65,6 +64,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SearchInputTests extends ESTestCase {
 
@@ -78,7 +78,7 @@ public class SearchInputTests extends ESTestCase {
         Map<String, ScriptContext<?>> contexts = new HashMap<>();
         contexts.put(Watcher.SCRIPT_TEMPLATE_CONTEXT.name, Watcher.SCRIPT_TEMPLATE_CONTEXT);
         contexts.put(WatcherTransformScript.CONTEXT.name, WatcherTransformScript.CONTEXT);
-        scriptService = new ScriptService(Settings.EMPTY, engines, contexts);
+        scriptService = new ScriptService(Settings.EMPTY, engines, contexts, () -> 1L);
 
         ThreadPool threadPool = mock(ThreadPool.class);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);

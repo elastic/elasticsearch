@@ -160,9 +160,8 @@ public class SearchCancellationIT extends ESIntegTestCase {
         indexTestData();
 
         logger.info("Executing search");
-        ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test").setQuery(
-            scriptQuery(new Script(
-                ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())))
+        ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
+            .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())))
             .execute();
 
         awaitForBlock(plugins);
@@ -179,9 +178,8 @@ public class SearchCancellationIT extends ESIntegTestCase {
 
         logger.info("Executing search");
         ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
-            .addScriptField("test_field",
-                new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())
-            ).execute();
+            .addScriptField("test_field", new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap()))
+            .execute();
 
         awaitForBlock(plugins);
         cancelSearch(SearchAction.NAME);
@@ -194,65 +192,40 @@ public class SearchCancellationIT extends ESIntegTestCase {
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         // This test is only meaningful with at least 2 shards to trigger reduce
         int numberOfShards = between(2, 5);
-        createIndex("test", Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .build());
+        createIndex(
+            "test",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .build()
+        );
         indexTestData();
 
         logger.info("Executing search");
         TermsAggregationBuilder termsAggregationBuilder = new TermsAggregationBuilder("test_agg");
         if (randomBoolean()) {
-            termsAggregationBuilder.script(new Script(
-                ScriptType.INLINE,
-                "mockscript",
-                ScriptedBlockPlugin.TERM_SCRIPT_NAME,
-                Collections.emptyMap()
-            ));
+            termsAggregationBuilder.script(
+                new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.TERM_SCRIPT_NAME, Collections.emptyMap())
+            );
         } else {
             termsAggregationBuilder.field("field.keyword");
         }
 
-        ActionFuture<SearchResponse> searchResponse = client()
-            .prepareSearch("test")
+        ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
             .setQuery(matchAllQuery())
             .addAggregation(
-                termsAggregationBuilder
-                    .subAggregation(
-                        new ScriptedMetricAggregationBuilder("sub_agg")
-                            .initScript(
-                                new Script(
-                                    ScriptType.INLINE,
-                                    "mockscript",
-                                    ScriptedBlockPlugin.INIT_SCRIPT_NAME,
-                                    Collections.emptyMap()
-                                )
-                            )
-                            .mapScript(
-                                new Script(
-                                    ScriptType.INLINE,
-                                    "mockscript",
-                                    ScriptedBlockPlugin.MAP_SCRIPT_NAME,
-                                    Collections.emptyMap()
-                                )
-                            )
-                            .combineScript(
-                                new Script(
-                                    ScriptType.INLINE,
-                                    "mockscript",
-                                    ScriptedBlockPlugin.COMBINE_SCRIPT_NAME,
-                                    Collections.emptyMap()
-                                )
-                            )
-                            .reduceScript(
-                                new Script(
-                                    ScriptType.INLINE,
-                                    "mockscript",
-                                    ScriptedBlockPlugin.REDUCE_SCRIPT_NAME,
-                                    Collections.emptyMap()
-                                )
-                            )
+                termsAggregationBuilder.subAggregation(
+                    new ScriptedMetricAggregationBuilder("sub_agg").initScript(
+                        new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.INIT_SCRIPT_NAME, Collections.emptyMap())
                     )
+                        .mapScript(new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.MAP_SCRIPT_NAME, Collections.emptyMap()))
+                        .combineScript(
+                            new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.COMBINE_SCRIPT_NAME, Collections.emptyMap())
+                        )
+                        .reduceScript(
+                            new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.REDUCE_SCRIPT_NAME, Collections.emptyMap())
+                        )
+                )
             )
             .execute();
         awaitForBlock(plugins);
@@ -270,9 +243,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
         ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
             .setScroll(TimeValue.timeValueSeconds(10))
             .setSize(5)
-            .setQuery(
-                scriptQuery(new Script(
-                    ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())))
+            .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())))
             .execute();
 
         awaitForBlock(plugins);
@@ -285,7 +256,6 @@ public class SearchCancellationIT extends ESIntegTestCase {
             client().prepareClearScroll().addScrollId(response.getScrollId()).get();
         }
     }
-
 
     public void testCancellationOfScrollSearchesOnFollowupRequests() throws Exception {
 
@@ -300,9 +270,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("test")
             .setScroll(keepAlive)
             .setSize(2)
-            .setQuery(
-                scriptQuery(new Script(
-                    ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())))
+            .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())))
             .get();
 
         assertNotNull(searchResponse.getScrollId());
@@ -316,7 +284,8 @@ public class SearchCancellationIT extends ESIntegTestCase {
         String scrollId = searchResponse.getScrollId();
         logger.info("Executing scroll with id {}", scrollId);
         ActionFuture<SearchResponse> scrollResponse = client().prepareSearchScroll(searchResponse.getScrollId())
-            .setScroll(keepAlive).execute();
+            .setScroll(keepAlive)
+            .execute();
 
         awaitForBlock(plugins);
         cancelSearch(SearchScrollAction.NAME);
@@ -334,8 +303,14 @@ public class SearchCancellationIT extends ESIntegTestCase {
     public void testCancelMultiSearch() throws Exception {
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         indexTestData();
-        ActionFuture<MultiSearchResponse> msearchResponse = client().prepareMultiSearch().add(client().prepareSearch("test")
-            .addScriptField("test_field", new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())))
+        ActionFuture<MultiSearchResponse> msearchResponse = client().prepareMultiSearch()
+            .add(
+                client().prepareSearch("test")
+                    .addScriptField(
+                        "test_field",
+                        new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())
+                    )
+            )
             .execute();
         awaitForBlock(plugins);
         cancelSearch(MultiSearchAction.NAME);
@@ -376,17 +351,24 @@ public class SearchCancellationIT extends ESIntegTestCase {
                 }
             });
         }
-        createIndex("test", Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .build());
+        createIndex(
+            "test",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .build()
+        );
         indexTestData();
         Thread searchThread = new Thread(() -> {
-            SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () ->
-                client().prepareSearch("test")
+            SearchPhaseExecutionException e = expectThrows(
+                SearchPhaseExecutionException.class,
+                () -> client().prepareSearch("test")
                     .setSearchType(SearchType.QUERY_THEN_FETCH)
                     .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())))
-                    .setAllowPartialSearchResults(false).setSize(1000).get());
+                    .setAllowPartialSearchResults(false)
+                    .setSize(1000)
+                    .get()
+            );
             assertThat(e.getMessage(), containsString("Partial shards failure"));
         });
         searchThread.start();
@@ -457,12 +439,19 @@ public class SearchCancellationIT extends ESIntegTestCase {
         @Override
         public Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             return Map.of(
-                SEARCH_BLOCK_SCRIPT_NAME, this::searchBlockScript,
-                INIT_SCRIPT_NAME, this::nullScript,
-                MAP_SCRIPT_NAME, this::nullScript,
-                COMBINE_SCRIPT_NAME, this::nullScript,
-                REDUCE_SCRIPT_NAME, this::blockScript,
-                TERM_SCRIPT_NAME, this::termScript);
+                SEARCH_BLOCK_SCRIPT_NAME,
+                this::searchBlockScript,
+                INIT_SCRIPT_NAME,
+                this::nullScript,
+                MAP_SCRIPT_NAME,
+                this::nullScript,
+                COMBINE_SCRIPT_NAME,
+                this::nullScript,
+                REDUCE_SCRIPT_NAME,
+                this::blockScript,
+                TERM_SCRIPT_NAME,
+                this::termScript
+            );
         }
 
         private Object searchBlockScript(Map<String, Object> params) {

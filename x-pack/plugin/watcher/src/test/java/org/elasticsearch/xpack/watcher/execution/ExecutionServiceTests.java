@@ -108,9 +108,9 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyLong;
-import static org.mockito.Matchers.anyObject;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
@@ -142,7 +142,7 @@ public class ExecutionServiceTests extends ESTestCase {
         inputResult = mock(Input.Result.class);
         when(inputResult.status()).thenReturn(Input.Result.Status.SUCCESS);
         when(inputResult.payload()).thenReturn(payload);
-        when(input.execute(any(WatchExecutionContext.class), any(Payload.class))).thenReturn(inputResult);
+        when(input.execute(any(WatchExecutionContext.class), nullable(Payload.class))).thenReturn(inputResult);
 
         triggeredWatchStore = mock(TriggeredWatchStore.class);
         historyStore = mock(HistoryStore.class);
@@ -300,7 +300,7 @@ public class ExecutionServiceTests extends ESTestCase {
         Input.Result inputResult = mock(Input.Result.class);
         when(inputResult.status()).thenReturn(Input.Result.Status.FAILURE);
         when(inputResult.getException()).thenReturn(new IOException());
-        when(input.execute(eq(context), any(Payload.class))).thenReturn(inputResult);
+        when(input.execute(eq(context), nullable(Payload.class))).thenReturn(inputResult);
 
         Condition.Result conditionResult = InternalAlwaysCondition.RESULT_INSTANCE;
         ExecutableCondition condition = mock(ExecutableCondition.class);
@@ -1181,7 +1181,7 @@ public class ExecutionServiceTests extends ESTestCase {
 
         ActionWrapper actionWrapper = mock(ActionWrapper.class);
         ActionWrapperResult actionWrapperResult = new ActionWrapperResult("_action", actionResult);
-        when(actionWrapper.execute(anyObject())).thenReturn(actionWrapperResult);
+        when(actionWrapper.execute(any())).thenReturn(actionWrapperResult);
 
         when(watch.actions()).thenReturn(Collections.singletonList(actionWrapper));
 
@@ -1238,7 +1238,7 @@ public class ExecutionServiceTests extends ESTestCase {
         when(ctx.watch()).thenReturn(watch);
 
         WatchExecutionSnapshot snapshot = new WatchExecutionSnapshot(ctx, new StackTraceElement[] {});
-        when(ctx.createSnapshot(anyObject())).thenReturn(snapshot);
+        when(ctx.createSnapshot(any())).thenReturn(snapshot);
 
         return ctx;
     }

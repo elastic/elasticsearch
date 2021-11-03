@@ -565,16 +565,19 @@ public class AutodetectProcessManager implements ClusterStateListener {
             }
         );
 
-        // Make sure the state index and alias exist
+        // Make sure the state index and alias exist and are writeable
         ActionListener<Boolean> resultsMappingUpdateHandler = ActionListener.wrap(
-            ack -> AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(
+            ack -> AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessaryAndWaitForYellow(
                 client,
                 clusterState,
                 expressionResolver,
                 masterNodeTimeout,
                 stateAliasHandler
             ),
-            e -> closeHandler.accept(e, true)
+            e -> {
+                logger.error(new ParameterizedMessage("[{}] ML state index alias could not be updated", jobId), e);
+                closeHandler.accept(e, true);
+            }
         );
 
         // Try adding the results doc mapping - this updates to the latest version if an old mapping is present

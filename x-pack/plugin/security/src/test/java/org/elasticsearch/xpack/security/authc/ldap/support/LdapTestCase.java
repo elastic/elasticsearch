@@ -45,13 +45,17 @@ import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Rule;
+import org.junit.rules.TestRule;
 
 import java.net.InetAddress;
 import java.security.AccessController;
 import java.security.KeyStore;
 import java.security.PrivilegedAction;
+import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -67,6 +71,7 @@ import javax.net.ssl.X509ExtendedKeyManager;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING;
 import static org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings.URLS_SETTING;
+import static org.hamcrest.Matchers.is;
 
 public abstract class LdapTestCase extends ESTestCase {
 
@@ -74,6 +79,11 @@ public abstract class LdapTestCase extends ESTestCase {
 
     static int numberOfLdapServers;
     protected InMemoryDirectoryServer[] ldapServers;
+
+    private LdapServerDebugLogging debugLogging = new LdapServerDebugLogging(logger);
+
+    @Rule
+    public TestRule printLdapDebugOnFailure = debugLogging.getTestWatcher();
 
     @BeforeClass
     public static void setNumberOfLdapServers() {
@@ -85,6 +95,7 @@ public abstract class LdapTestCase extends ESTestCase {
         ldapServers = new InMemoryDirectoryServer[numberOfLdapServers];
         for (int i = 0; i < numberOfLdapServers; i++) {
             InMemoryDirectoryServerConfig serverConfig = new InMemoryDirectoryServerConfig("o=sevenSeas");
+            debugLogging.configure(serverConfig);
             List<InMemoryListenerConfig> listeners = new ArrayList<>(2);
             listeners.add(InMemoryListenerConfig.createLDAPConfig("ldap", null, 0, null));
             if (openLdapsPort()) {
@@ -134,6 +145,25 @@ public abstract class LdapTestCase extends ESTestCase {
                 .collect(Collectors.joining(","));
             logger.info("Started in-memory LDAP server [#{}] with listeners: [{}]", i, listenerConfig);
             ldapServers[i] = ldapServer;
+        }
+
+        // Verify we can connect to each server. Tests will fail in strange ways if this isn't true
+        Arrays.stream(ldapServers).forEachOrdered(ds -> tryConnect(ds));
+    }
+
+    void tryConnect(InMemoryDirectoryServer ds) {
+        try {
+            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
+                try (var c = ds.getConnection()) {
+                    assertThat("Failed to connect to " + ds + " - ", c.isConnected(), is(true));
+                    logger.info("Test connection to [{}](port {}) was successful ({})", ds, ds.getListenPort(), c);
+                } catch (LDAPException e) {
+                    throw new AssertionError("Failed to connect to " + ds, e);
+                }
+                return null;
+            });
+        } catch (PrivilegedActionException e) {
+            throw new AssertionError("Failed to connect to " + ds, e);
         }
     }
 

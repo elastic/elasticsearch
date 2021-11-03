@@ -59,21 +59,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.mock.orig.Mockito.verify;
-import static org.elasticsearch.mock.orig.Mockito.when;
 import static org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField.INDEX_TEMPLATE_VERSION;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyObject;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Matchers.same;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 public class WatcherIndexTemplateRegistryTests extends ESTestCase {
 
@@ -127,7 +126,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         ArgumentCaptor<PutComposableIndexTemplateAction.Request> argumentCaptor = ArgumentCaptor.forClass(
             PutComposableIndexTemplateAction.Request.class
         );
-        verify(client, times(1)).execute(same(PutComposableIndexTemplateAction.INSTANCE), argumentCaptor.capture(), anyObject());
+        verify(client, times(1)).execute(same(PutComposableIndexTemplateAction.INSTANCE), argumentCaptor.capture(), any());
 
         // now delete one template from the cluster state and lets retry
         Map<String, Integer> existingTemplates = new HashMap<>();
@@ -135,7 +134,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         ClusterChangedEvent newEvent = createClusterChangedEvent(existingTemplates, nodes);
         registry.clusterChanged(newEvent);
         argumentCaptor = ArgumentCaptor.forClass(PutComposableIndexTemplateAction.Request.class);
-        verify(client, times(1)).execute(same(PutComposableIndexTemplateAction.INSTANCE), argumentCaptor.capture(), anyObject());
+        verify(client, times(1)).execute(same(PutComposableIndexTemplateAction.INSTANCE), argumentCaptor.capture(), any());
         PutComposableIndexTemplateAction.Request req = argumentCaptor.getAllValues()
             .stream()
             .filter(r -> r.name().equals(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME))
@@ -160,7 +159,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         ArgumentCaptor<PutComposableIndexTemplateAction.Request> argumentCaptor = ArgumentCaptor.forClass(
             PutComposableIndexTemplateAction.Request.class
         );
-        verify(client, times(1)).execute(same(PutComposableIndexTemplateAction.INSTANCE), argumentCaptor.capture(), anyObject());
+        verify(client, times(1)).execute(same(PutComposableIndexTemplateAction.INSTANCE), argumentCaptor.capture(), any());
 
         // now delete one template from the cluster state and lets retry
         Map<String, Integer> existingTemplates = new HashMap<>();
@@ -168,9 +167,9 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         ClusterChangedEvent newEvent = createClusterChangedEvent(existingTemplates, nodes);
         registry.clusterChanged(newEvent);
         ArgumentCaptor<PutIndexTemplateRequest> captor = ArgumentCaptor.forClass(PutIndexTemplateRequest.class);
-        verify(client, times(1)).execute(same(PutComposableIndexTemplateAction.INSTANCE), argumentCaptor.capture(), anyObject());
+        verify(client, times(1)).execute(same(PutComposableIndexTemplateAction.INSTANCE), argumentCaptor.capture(), any());
         captor.getAllValues().forEach(req -> assertNull(req.settings().get("index.lifecycle.name")));
-        verify(client, times(0)).execute(eq(PutLifecycleAction.INSTANCE), anyObject(), anyObject());
+        verify(client, times(0)).execute(eq(PutLifecycleAction.INSTANCE), any(), any());
     }
 
     public void testThatNonExistingPoliciesAreAddedImmediately() {
@@ -179,7 +178,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
 
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
-        verify(client, times(1)).execute(eq(PutLifecycleAction.INSTANCE), anyObject(), anyObject());
+        verify(client, times(1)).execute(eq(PutLifecycleAction.INSTANCE), any(), any());
     }
 
     public void testPolicyAlreadyExists() {
@@ -196,7 +195,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         policyMap.put(policy.getName(), policy);
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), policyMap, nodes);
         registry.clusterChanged(event);
-        verify(client, times(0)).execute(eq(PutLifecycleAction.INSTANCE), anyObject(), anyObject());
+        verify(client, times(0)).execute(eq(PutLifecycleAction.INSTANCE), any(), any());
     }
 
     public void testNoPolicyButILMDisabled() {
@@ -212,7 +211,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         );
         ClusterChangedEvent event = createClusterChangedEvent(Settings.EMPTY, Collections.emptyMap(), Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
-        verify(client, times(0)).execute(eq(PutLifecycleAction.INSTANCE), anyObject(), anyObject());
+        verify(client, times(0)).execute(eq(PutLifecycleAction.INSTANCE), any(), any());
     }
 
     public void testPolicyAlreadyExistsButDiffers() throws IOException {
@@ -235,7 +234,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
             policyMap.put(policy.getName(), different);
             ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), policyMap, nodes);
             registry.clusterChanged(event);
-            verify(client, times(0)).execute(eq(PutLifecycleAction.INSTANCE), anyObject(), anyObject());
+            verify(client, times(0)).execute(eq(PutLifecycleAction.INSTANCE), any(), any());
         }
     }
 
@@ -283,7 +282,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         ClusterChangedEvent event = createClusterChangedEvent(existingTemplates, nodes);
         registry.clusterChanged(event);
 
-        verifyZeroInteractions(client);
+        verifyNoMoreInteractions(client);
     }
 
     public void testThatMissingMasterNodeDoesNothing() {
@@ -295,7 +294,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         ClusterChangedEvent event = createClusterChangedEvent(existingTemplates, nodes);
         registry.clusterChanged(event);
 
-        verifyZeroInteractions(client);
+        verifyNoMoreInteractions(client);
     }
 
     private ClusterChangedEvent createClusterChangedEvent(Map<String, Integer> existingTemplateNames, DiscoveryNodes nodes) {

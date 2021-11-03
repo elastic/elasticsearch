@@ -24,9 +24,7 @@ public class RestClusterStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, "/_cluster/stats"),
-            new Route(GET, "/_cluster/stats/nodes/{nodeId}"));
+        return List.of(new Route(GET, "/_cluster/stats"), new Route(GET, "/_cluster/stats/nodes/{nodeId}"));
     }
 
     @Override
@@ -38,8 +36,9 @@ public class RestClusterStatsAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         ClusterStatsRequest clusterStatsRequest = new ClusterStatsRequest().nodesIds(request.paramAsStringArray("nodeId", null));
         clusterStatsRequest.timeout(request.param("timeout"));
-        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel())
-                .admin().cluster().clusterStats(clusterStatsRequest, new NodesResponseRestListener<>(channel));
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
+            .cluster()
+            .clusterStats(clusterStatsRequest, new NodesResponseRestListener<>(channel));
     }
 
     @Override

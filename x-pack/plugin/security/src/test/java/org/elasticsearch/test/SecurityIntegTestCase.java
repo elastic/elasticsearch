@@ -68,6 +68,7 @@ import static org.hamcrest.Matchers.is;
  *
  * @see SecuritySettingsSource
  */
+@SuppressWarnings("removal")
 public abstract class SecurityIntegTestCase extends ESIntegTestCase {
 
     private static SecuritySettingsSource SECURITY_DEFAULT_SETTINGS;

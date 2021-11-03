@@ -1,5 +1,3 @@
-package org.elasticsearch.script.expression;
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -7,6 +5,8 @@ package org.elasticsearch.script.expression;
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
+
+package org.elasticsearch.script.expression;
 
 import org.apache.lucene.search.DoubleValuesSource;
 import org.elasticsearch.common.time.DateFormatters;

@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.job;
 
-import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -16,14 +14,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RecoverySource;
-import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
@@ -31,9 +22,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchModule;
@@ -43,12 +32,10 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
-import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -68,7 +55,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.UpdateParams;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Matchers;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 
 import java.io.IOException;
@@ -82,19 +69,15 @@ import java.util.Map;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests.addJobTask;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -133,7 +116,7 @@ public class JobManagerTests extends ESTestCase {
 
         ExecutorService executorService = mock(ExecutorService.class);
         threadPool = mock(ThreadPool.class);
-        org.elasticsearch.mock.orig.Mockito.doAnswer(invocation -> {
+        org.mockito.Mockito.doAnswer(invocation -> {
             ((Runnable) invocation.getArguments()[0]).run();
             return null;
         }).when(executorService).execute(any(Runnable.class));
@@ -157,78 +140,10 @@ public class JobManagerTests extends ESTestCase {
         JobManager jobManager = createJobManager(mockClientBuilder.build());
 
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
-        jobManager.getJob("non-job", ActionListener.wrap(job -> fail("Job not expected"), e -> exceptionHolder.set(e)));
+        jobManager.getJob("non-job", ActionListener.wrap(job -> fail("Job not expected"), exceptionHolder::set));
 
         assertNotNull(exceptionHolder.get());
         assertThat(exceptionHolder.get(), instanceOf(ResourceNotFoundException.class));
-    }
-
-    public void testGetJobFromClusterWhenNotInIndex() {
-        String clusterJobId = "cluster-job";
-        Job clusterJob = buildJobBuilder(clusterJobId).build();
-
-        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
-        mlMetadata.putJob(clusterJob, false);
-
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, mlMetadata.build()))
-            .build();
-        when(clusterService.state()).thenReturn(clusterState);
-
-        // job document does not exist
-        GetResponse getResponse = mock(GetResponse.class);
-        when(getResponse.isExists()).thenReturn(false);
-        MockClientBuilder mockClientBuilder = new MockClientBuilder("jm-test");
-        mockClientBuilder.get(getResponse);
-
-        JobManager jobManager = createJobManager(mockClientBuilder.build());
-
-        AtomicReference<Job> jobHolder = new AtomicReference<>();
-        jobManager.getJob(clusterJobId, ActionListener.wrap(job -> jobHolder.set(job), e -> fail(e.getMessage())));
-
-        assertNotNull(jobHolder.get());
-        assertEquals(clusterJob, jobHolder.get());
-    }
-
-    public void testExpandJobsFromClusterStateAndIndex() throws IOException {
-        Job csJobFoo1 = buildJobBuilder("foo-cs-1").build();
-        Job csJobFoo2 = buildJobBuilder("foo-cs-2").build();
-        Job csJobBar = buildJobBuilder("bar-cs").build();
-
-        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
-        mlMetadata.putJob(csJobFoo1, false);
-        mlMetadata.putJob(csJobFoo2, false);
-        mlMetadata.putJob(csJobBar, false);
-
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, mlMetadata.build()))
-            .build();
-        when(clusterService.state()).thenReturn(clusterState);
-
-        List<BytesReference> docsAsBytes = new ArrayList<>();
-
-        Job.Builder indexJobFoo = buildJobBuilder("foo-index");
-        docsAsBytes.add(toBytesReference(indexJobFoo.build()));
-
-        MockClientBuilder mockClientBuilder = new MockClientBuilder("cluster-test");
-        mockClientBuilder.prepareSearch(MlConfigIndex.indexName(), docsAsBytes);
-        JobManager jobManager = createJobManager(mockClientBuilder.build());
-
-        AtomicReference<QueryPage<Job>> jobsHolder = new AtomicReference<>();
-        jobManager.expandJobs("_all", true, ActionListener.wrap(jobs -> jobsHolder.set(jobs), e -> fail(e.getMessage())));
-
-        assertNotNull(jobsHolder.get());
-        assertThat(jobsHolder.get().results(), hasSize(4));
-        List<String> jobIds = jobsHolder.get().results().stream().map(Job::getId).collect(Collectors.toList());
-        assertThat(jobIds, contains("bar-cs", "foo-cs-1", "foo-cs-2", "foo-index"));
-
-        jobsHolder.set(null);
-        jobManager.expandJobs("foo*", true, ActionListener.wrap(jobs -> jobsHolder.set(jobs), e -> fail(e.getMessage())));
-
-        assertNotNull(jobsHolder.get());
-        assertThat(jobsHolder.get().results(), hasSize(3));
-        jobIds = jobsHolder.get().results().stream().map(Job::getId).collect(Collectors.toList());
-        assertThat(jobIds, contains("foo-cs-1", "foo-cs-2", "foo-index"));
     }
 
     @SuppressWarnings("unchecked")
@@ -241,7 +156,7 @@ public class JobManagerTests extends ESTestCase {
         doAnswer(invocation -> {
             ((AckedClusterStateUpdateTask) invocation.getArguments()[1]).onAllNodesAcked(null);
             return null;
-        }).when(clusterService).submitStateUpdateTask(Matchers.eq("put-job-foo"), any(AckedClusterStateUpdateTask.class));
+        }).when(clusterService).submitStateUpdateTask(ArgumentMatchers.eq("put-job-foo"), any(AckedClusterStateUpdateTask.class));
 
         ArgumentCaptor<Job> requestCaptor = ArgumentCaptor.forClass(Job.class);
         doAnswer(invocation -> {
@@ -252,7 +167,7 @@ public class JobManagerTests extends ESTestCase {
 
         ClusterState clusterState = createClusterState();
 
-        jobManager.putJob(putJobRequest, analysisRegistry, clusterState, new ActionListener<PutJobAction.Response>() {
+        jobManager.putJob(putJobRequest, analysisRegistry, clusterState, new ActionListener<>() {
             @Override
             public void onResponse(PutJobAction.Response response) {
                 Job job = requestCaptor.getValue();
@@ -266,31 +181,6 @@ public class JobManagerTests extends ESTestCase {
             @Override
             public void onFailure(Exception e) {
                 fail(e.toString());
-            }
-        });
-    }
-
-    public void testPutJob_ThrowsIfJobExistsInClusterState() throws IOException {
-        MockClientBuilder mockClientBuilder = new MockClientBuilder("cluster-test");
-        JobManager jobManager = createJobManager(mockClientBuilder.build());
-
-        PutJobAction.Request putJobRequest = new PutJobAction.Request(createJob());
-
-        MlMetadata.Builder mlMetadata = new MlMetadata.Builder();
-        mlMetadata.putJob(buildJobBuilder("foo").build(), false);
-        ClusterState clusterState = ClusterState.builder(new ClusterName("name"))
-            .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, mlMetadata.build()))
-            .build();
-
-        jobManager.putJob(putJobRequest, analysisRegistry, clusterState, new ActionListener<PutJobAction.Response>() {
-            @Override
-            public void onResponse(PutJobAction.Response response) {
-                fail("should have got an error");
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                assertTrue(e instanceof ResourceAlreadyExistsException);
             }
         });
     }
@@ -464,51 +354,6 @@ public class JobManagerTests extends ESTestCase {
         Mockito.verifyNoMoreInteractions(auditor, updateJobProcessNotifier);
     }
 
-    public void testUpdateJob_notAllowedPreMigration() {
-        MlMetadata.Builder mlmetadata = new MlMetadata.Builder().putJob(buildJobBuilder("closed-job-not-migrated").build(), false);
-
-        Metadata.Builder metadata = Metadata.builder();
-        RoutingTable.Builder routingTable = RoutingTable.builder();
-
-        IndexMetadata.Builder indexMetadata = IndexMetadata.builder(MlConfigIndex.indexName());
-        indexMetadata.settings(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-        );
-        metadata.put(indexMetadata);
-        Index index = new Index(MlConfigIndex.indexName(), "_uuid");
-        ShardId shardId = new ShardId(index, 0);
-        ShardRouting shardRouting = ShardRouting.newUnassigned(
-            shardId,
-            true,
-            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
-        );
-        shardRouting = shardRouting.initialize("node_id", null, 0L);
-        shardRouting = shardRouting.moveToStarted();
-        routingTable.add(
-            IndexRoutingTable.builder(index).addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build())
-        );
-
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metadata(metadata.putCustom(MlMetadata.TYPE, mlmetadata.build()))
-            .routingTable(routingTable.build())
-            .build();
-        when(clusterService.state()).thenReturn(clusterState);
-
-        JobManager jobManager = createJobManager(new MockClientBuilder("jobmanager-test").build());
-        jobManager.updateJob(
-            new UpdateJobAction.Request("closed-job-not-migrated", null),
-            ActionListener.wrap(
-                response -> fail("response not expected: " + response),
-                exception -> { assertThat(exception, instanceOf(ElasticsearchStatusException.class)); }
-            )
-        );
-
-    }
-
     public void testUpdateProcessOnCalendarChanged() {
         PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
         addJobTask("job-1", "node_id", JobState.OPENED, tasksBuilder);
@@ -543,7 +388,7 @@ public class JobManagerTests extends ESTestCase {
         assertThat(capturedUpdateParams.get(1).isUpdateScheduledEvents(), is(true));
     }
 
-    public void testUpdateProcessOnCalendarChanged_GivenGroups() throws IOException {
+    public void testUpdateProcessOnCalendarChanged_GivenGroups() {
         PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
         addJobTask("job-1", "node_id", JobState.OPENED, tasksBuilder);
         addJobTask("job-2", "node_id", JobState.OPENED, tasksBuilder);
@@ -629,17 +474,6 @@ public class JobManagerTests extends ESTestCase {
         );
     }
 
-    // TODO: This test can be deleted from branches that would never have to talk to a 7.13 node
-    public void testSetDefaultCategorizationAnalyzer_GivenOldNodeInCluster() throws IOException {
-
-        List<String> categorizationFilters = randomBoolean() ? Collections.singletonList("query: .*") : null;
-        Job.Builder jobBuilder = createCategorizationJob(null, categorizationFilters);
-        JobManager.validateCategorizationAnalyzerOrSetDefault(jobBuilder, analysisRegistry, Version.V_7_13_0);
-
-        Job job = jobBuilder.build(new Date());
-        assertThat(job.getAnalysisConfig().getCategorizationAnalyzerConfig(), nullValue());
-    }
-
     private Job.Builder createCategorizationJob(
         CategorizationAnalyzerConfig categorizationAnalyzerConfig,
         List<String> categorizationFilters
@@ -669,7 +503,6 @@ public class JobManagerTests extends ESTestCase {
 
     private JobManager createJobManager(Client client) {
         return new JobManager(
-            environment,
             environment.settings(),
             jobResultsProvider,
             jobResultsPersister,

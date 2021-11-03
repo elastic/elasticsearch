@@ -143,7 +143,7 @@ public class PkiRealm extends Realm implements CachingRealm {
     }
 
     @Override
-    public void authenticate(AuthenticationToken authToken, ActionListener<AuthenticationResult> listener) {
+    public void authenticate(AuthenticationToken authToken, ActionListener<AuthenticationResult<User>> listener) {
         assert delegatedRealms != null : "Realm has not been initialized correctly";
         X509AuthenticationToken token = (X509AuthenticationToken) authToken;
         try {
@@ -181,10 +181,10 @@ public class PkiRealm extends Realm implements CachingRealm {
                     );
                     listener.onResponse(AuthenticationResult.unsuccessful("Could not parse principal from Subject DN " + token.dn(), null));
                 } else {
-                    final ActionListener<AuthenticationResult> cachingListener = ActionListener.wrap(result -> {
+                    final ActionListener<AuthenticationResult<User>> cachingListener = ActionListener.wrap(result -> {
                         if (result.isAuthenticated()) {
                             try (ReleasableLock ignored = readLock.acquire()) {
-                                cache.put(fingerprint, result.getUser());
+                                cache.put(fingerprint, result.getValue());
                             }
                         }
                         listener.onResponse(result);
@@ -211,7 +211,7 @@ public class PkiRealm extends Realm implements CachingRealm {
         }
     }
 
-    private void buildUser(X509AuthenticationToken token, String principal, ActionListener<AuthenticationResult> listener) {
+    private void buildUser(X509AuthenticationToken token, String principal, ActionListener<AuthenticationResult<User>> listener) {
         final Map<String, Object> metadata;
         if (token.isDelegated()) {
             metadata = Map.of(

@@ -90,9 +90,9 @@ import static org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils.newTestLifec
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
@@ -138,7 +138,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
 
-        Mockito.verifyZeroInteractions(clusterService);
+        Mockito.verifyNoMoreInteractions(clusterService);
     }
 
     public void testRunPolicyPhaseCompletePolicyStep() {
@@ -156,7 +156,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
         runner.runPeriodicStep(policyName, Metadata.builder().put(indexMetadata, true).build(), indexMetadata);
 
-        Mockito.verifyZeroInteractions(clusterService);
+        Mockito.verifyNoMoreInteractions(clusterService);
     }
 
     public void testRunPolicyPhaseCompleteWithMoreStepsPolicyStep() {
@@ -185,7 +185,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Phase phase = policy.getPhases().get(phaseName);
         PhaseExecutionInfo phaseExecutionInfo = new PhaseExecutionInfo(policy.getName(), phase, 1, randomNonNegativeLong());
         String phaseJson = Strings.toString(phaseExecutionInfo);
-        LifecycleAction action = randomValueOtherThan(new MigrateAction(false), () -> randomFrom(phase.getActions().values()));
+        LifecycleAction action = randomValueOtherThan(MigrateAction.DISABLED, () -> randomFrom(phase.getActions().values()));
         Step step = randomFrom(action.toSteps(new NoOpClient(threadPool), phaseName, null, null));
         StepKey stepKey = step.getKey();
 
@@ -208,7 +208,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
 
-        Mockito.verifyZeroInteractions(clusterService);
+        Mockito.verifyNoMoreInteractions(clusterService);
     }
 
     public void testRunPolicyErrorStepOnRetryableFailedStep() {
@@ -702,7 +702,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
 
         assertEquals(0, step.getExecuteCount());
-        Mockito.verifyZeroInteractions(clusterService);
+        Mockito.verifyNoMoreInteractions(clusterService);
     }
 
     public void testRunPolicyAsyncWaitStepClusterStateChangeIgnored() {
@@ -723,7 +723,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
 
         assertEquals(0, step.getExecuteCount());
-        Mockito.verifyZeroInteractions(clusterService);
+        Mockito.verifyNoMoreInteractions(clusterService);
     }
 
     public void testRunPolicyThatDoesntExist() {
@@ -785,7 +785,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Phase phase = policy.getPhases().get(phaseName);
         PhaseExecutionInfo pei = new PhaseExecutionInfo(policy.getName(), phase, 1, randomNonNegativeLong());
         String phaseJson = Strings.toString(pei);
-        LifecycleAction action = randomValueOtherThan(new MigrateAction(false), () -> randomFrom(phase.getActions().values()));
+        LifecycleAction action = randomValueOtherThan(MigrateAction.DISABLED, () -> randomFrom(phase.getActions().values()));
         Step step = randomFrom(action.toSteps(client, phaseName, MOCK_STEP_KEY, null));
         Settings indexSettings = Settings.builder()
             .put("index.number_of_shards", 1)
@@ -1128,7 +1128,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
     }
 
-    private static class SetStepInfoUpdateTaskMatcher extends ArgumentMatcher<SetStepInfoUpdateTask> {
+    private static class SetStepInfoUpdateTaskMatcher implements ArgumentMatcher<SetStepInfoUpdateTask> {
 
         private Index index;
         private String policy;
@@ -1143,15 +1143,14 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         }
 
         @Override
-        public boolean matches(Object argument) {
-            if (argument == null || argument instanceof SetStepInfoUpdateTask == false) {
+        public boolean matches(SetStepInfoUpdateTask other) {
+            if (other == null) {
                 return false;
             }
-            SetStepInfoUpdateTask task = (SetStepInfoUpdateTask) argument;
-            return Objects.equals(index, task.getIndex())
-                && Objects.equals(policy, task.getPolicy())
-                && Objects.equals(currentStepKey, task.getCurrentStepKey())
-                && Objects.equals(xContentToString(stepInfo), xContentToString(task.getStepInfo()));
+            return Objects.equals(index, other.getIndex())
+                && Objects.equals(policy, other.getPolicy())
+                && Objects.equals(currentStepKey, other.getCurrentStepKey())
+                && Objects.equals(xContentToString(stepInfo), xContentToString(other.getStepInfo()));
         }
 
         private String xContentToString(ToXContentObject xContent) {
@@ -1166,7 +1165,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
     }
 
-    private static class ExecuteStepsUpdateTaskMatcher extends ArgumentMatcher<ExecuteStepsUpdateTask> {
+    private static class ExecuteStepsUpdateTaskMatcher implements ArgumentMatcher<ExecuteStepsUpdateTask> {
 
         private Index index;
         private String policy;
@@ -1179,14 +1178,13 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         }
 
         @Override
-        public boolean matches(Object argument) {
-            if (argument == null || argument instanceof ExecuteStepsUpdateTask == false) {
+        public boolean matches(ExecuteStepsUpdateTask other) {
+            if (other == null) {
                 return false;
             }
-            ExecuteStepsUpdateTask task = (ExecuteStepsUpdateTask) argument;
-            return Objects.equals(index, task.getIndex())
-                && Objects.equals(policy, task.getPolicy())
-                && Objects.equals(startStep, task.getStartStep());
+            return Objects.equals(index, other.getIndex())
+                && Objects.equals(policy, other.getPolicy())
+                && Objects.equals(startStep, other.getStartStep());
         }
 
     }

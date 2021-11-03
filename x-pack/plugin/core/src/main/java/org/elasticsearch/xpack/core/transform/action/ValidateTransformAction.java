@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 
@@ -34,7 +35,8 @@ public class ValidateTransformAction extends ActionType<ValidateTransformAction.
         private final TransformConfig config;
         private final boolean deferValidation;
 
-        public Request(TransformConfig config, boolean deferValidation) {
+        public Request(TransformConfig config, boolean deferValidation, TimeValue timeout) {
+            super(timeout);
             this.config = config;
             this.deferValidation = deferValidation;
         }
@@ -82,12 +84,15 @@ public class ValidateTransformAction extends ActionType<ValidateTransformAction.
                 return false;
             }
             Request that = (Request) obj;
-            return Objects.equals(config, that.config) && deferValidation == that.deferValidation;
+
+            // the base class does not implement equals, therefore we need to check timeout ourselves
+            return Objects.equals(config, that.config) && deferValidation == that.deferValidation && timeout().equals(that.timeout());
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(config, deferValidation);
+            // the base class does not implement hashCode, therefore we need to hash timeout ourselves
+            return Objects.hash(timeout(), config, deferValidation);
         }
     }
 
@@ -103,6 +108,7 @@ public class ValidateTransformAction extends ActionType<ValidateTransformAction.
             this.destIndexMappings = in.readMap(StreamInput::readString, StreamInput::readString);
         }
 
+        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeMap(destIndexMappings, StreamOutput::writeString, StreamOutput::writeString);
         }

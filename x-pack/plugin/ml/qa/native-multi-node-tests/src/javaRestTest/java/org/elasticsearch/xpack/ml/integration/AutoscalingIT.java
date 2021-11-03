@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -255,7 +256,9 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
             new PutTrainedModelAction.Request(
                 TrainedModelConfig.builder()
                     .setModelType(TrainedModelType.PYTORCH)
-                    .setInferenceConfig(new PassThroughConfig(null, new BertTokenization(null, false, null), null))
+                    .setInferenceConfig(
+                        new PassThroughConfig(null, new BertTokenization(null, false, null, Tokenization.Truncate.NONE), null)
+                    )
                     .setModelId(modelId)
                     .build(),
                 false

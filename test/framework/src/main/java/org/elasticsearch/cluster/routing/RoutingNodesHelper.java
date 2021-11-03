@@ -13,8 +13,7 @@ import java.util.List;
 
 public final class RoutingNodesHelper {
 
-    private RoutingNodesHelper() {
-    }
+    private RoutingNodesHelper() {}
 
     public static List<ShardRouting> shardsWithState(RoutingNodes routingNodes, ShardRoutingState... state) {
         List<ShardRouting> shards = new ArrayList<>();

@@ -99,10 +99,10 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
             );
         }
         if (DiscoveryNode.canContainData(otherSettings) && randomBoolean()) {
-            builder.put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ZERO.getStringRep());
+            builder.put(FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ZERO.getStringRep());
         }
         builder.put(
-            FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(),
+            FrozenCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(),
             rarely()
                 ? pageAligned(new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB))
                 : pageAligned(new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB))
@@ -117,7 +117,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
         }
         if (randomBoolean()) {
             builder.put(
-                FrozenCacheService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(),
+                FrozenCacheService.SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(),
                 rarely()
                     ? pageAligned(new ByteSizeValue(randomIntBetween(4, 1024), ByteSizeUnit.KB))
                     : pageAligned(new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB))

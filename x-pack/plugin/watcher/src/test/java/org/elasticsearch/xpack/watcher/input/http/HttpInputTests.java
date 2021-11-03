@@ -57,9 +57,9 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyMapOf;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -128,7 +128,7 @@ public class HttpInputTests extends ESTestCase {
 
         ExecutableHttpInput input = new ExecutableHttpInput(httpInput, httpClient, templateEngine);
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(response);
-        when(templateEngine.render(eq(new TextTemplate("_body")), anyMapOf(String.class, Object.class))).thenReturn("_body");
+        when(templateEngine.render(eq(new TextTemplate("_body")), anyMap())).thenReturn("_body");
 
         WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
         HttpInput.Result result = input.execute(ctx, new Payload.Simple());
@@ -145,7 +145,7 @@ public class HttpInputTests extends ESTestCase {
         String notJson = "This is not json";
         HttpResponse response = new HttpResponse(123, notJson.getBytes(StandardCharsets.UTF_8));
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(response);
-        when(templateEngine.render(eq(new TextTemplate("_body")), anyMapOf(String.class, Object.class))).thenReturn("_body");
+        when(templateEngine.render(eq(new TextTemplate("_body")), anyMap())).thenReturn("_body");
 
         WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
         HttpInput.Result result = input.execute(ctx, new Payload.Simple());
@@ -259,7 +259,7 @@ public class HttpInputTests extends ESTestCase {
 
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(response);
 
-        when(templateEngine.render(eq(new TextTemplate("_body")), anyMapOf(String.class, Object.class))).thenReturn("_body");
+        when(templateEngine.render(eq(new TextTemplate("_body")), anyMap())).thenReturn("_body");
 
         WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
         HttpInput.Result result = input.execute(ctx, new Payload.Simple());

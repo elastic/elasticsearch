@@ -78,7 +78,7 @@ public class FileUserPasswdStore {
         return users.size();
     }
 
-    public AuthenticationResult verifyPassword(String username, SecureString password, java.util.function.Supplier<User> user) {
+    public AuthenticationResult<User> verifyPassword(String username, SecureString password, java.util.function.Supplier<User> user) {
         final char[] hash = users.get(username);
         if (hash == null) {
             return AuthenticationResult.notHandled();

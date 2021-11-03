@@ -244,7 +244,7 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
     }
 
     public void testMoveToStepWithInvalidNextStep() throws Exception {
-        createNewSingletonPolicy(client(), policy, "delete", new DeleteAction(), TimeValue.timeValueDays(100));
+        createNewSingletonPolicy(client(), policy, "delete", DeleteAction.WITH_SNAPSHOT_DELETE, TimeValue.timeValueDays(100));
         createIndexWithSettings(
             client(),
             index,

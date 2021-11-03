@@ -219,6 +219,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
+@SuppressWarnings("removal")
 public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
     private static final RequestOptions POST_DATA_OPTIONS = RequestOptions.DEFAULT.toBuilder()

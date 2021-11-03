@@ -11,11 +11,11 @@ package org.elasticsearch.rest;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesUsageAction;
 
@@ -48,8 +48,11 @@ public abstract class BaseRestHandler implements RestHandler {
     public static final String INCLUDE_TYPE_NAME_PARAMETER = "include_type_name";
     public static final boolean DEFAULT_INCLUDE_TYPE_NAME_POLICY = false;
 
-    public static final Setting<Boolean> MULTI_ALLOW_EXPLICIT_INDEX =
-        Setting.boolSetting("rest.action.multi.allow_explicit_index", true, Property.NodeScope);
+    public static final Setting<Boolean> MULTI_ALLOW_EXPLICIT_INDEX = Setting.boolSetting(
+        "rest.action.multi.allow_explicit_index",
+        true,
+        Property.NodeScope
+    );
 
     private final LongAdder usageCount = new LongAdder();
 
@@ -104,13 +107,11 @@ public abstract class BaseRestHandler implements RestHandler {
         final RestRequest request,
         final Set<String> invalids,
         final Set<String> candidates,
-        final String detail) {
-        StringBuilder message = new StringBuilder(String.format(
-            Locale.ROOT,
-            "request [%s] contains unrecognized %s%s: ",
-            request.path(),
-            detail,
-            invalids.size() > 1 ? "s" : ""));
+        final String detail
+    ) {
+        StringBuilder message = new StringBuilder(
+            String.format(Locale.ROOT, "request [%s] contains unrecognized %s%s: ", request.path(), detail, invalids.size() > 1 ? "s" : "")
+        );
         boolean first = true;
         for (final String invalid : invalids) {
             final LevenshteinDistance ld = new LevenshteinDistance();
@@ -152,8 +153,7 @@ public abstract class BaseRestHandler implements RestHandler {
      * the request against a channel.
      */
     @FunctionalInterface
-    protected interface RestChannelConsumer extends CheckedConsumer<RestChannel, Exception> {
-    }
+    protected interface RestChannelConsumer extends CheckedConsumer<RestChannel, Exception> {}
 
     /**
      * Prepare the request for execution. Implementations should consume all request params before

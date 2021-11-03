@@ -91,7 +91,7 @@ public class PivotConfig implements Writeable, ToXContentObject {
             deprecationLogger.critical(
                 DeprecationCategory.API,
                 TransformField.MAX_PAGE_SEARCH_SIZE.getPreferredName(),
-                "[max_page_search_size] is deprecated inside pivot please use settings instead"
+                TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED
             );
         }
     }
@@ -186,8 +186,8 @@ public class PivotConfig implements Writeable, ToXContentObject {
                 new DeprecationIssue(
                     Level.WARNING,
                     "Transform [" + id + "] uses deprecated max_page_search_size",
-                    TransformDeprecations.BREAKING_CHANGES_BASE_URL,
-                    "[max_page_search_size] is deprecated inside pivot please use settings instead",
+                    TransformDeprecations.MAX_PAGE_SEARCH_SIZE_BREAKING_CHANGES_URL,
+                    TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED,
                     false,
                     null
                 )

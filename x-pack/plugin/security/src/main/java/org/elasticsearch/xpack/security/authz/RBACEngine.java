@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.UserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
@@ -75,7 +76,6 @@ import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.sql.SqlAsyncActionNames;
-import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
@@ -205,7 +205,7 @@ public class RBACEngine implements AuthorizationEngine {
                 if (AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
                     assert authentication.getLookedUpBy() == null : "runAs not supported for api key authentication";
                     // if authenticated by API key then the request must also contain same API key id
-                    String authenticatedApiKeyId = (String) authentication.getMetadata().get(ApiKeyService.API_KEY_ID_KEY);
+                    String authenticatedApiKeyId = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
                     if (Strings.hasText(getApiKeyRequest.getApiKeyId())) {
                         return getApiKeyRequest.getApiKeyId().equals(authenticatedApiKeyId);
                     } else {
@@ -801,7 +801,12 @@ public class RBACEngine implements AuthorizationEngine {
 
         @Override
         public int hashCode() {
-            return Objects.hash(role, authenticatedUserAuthorizationInfo);
+            // Since authenticatedUserAuthorizationInfo can self reference, we handle it specially to avoid infinite recursion.
+            if (this.authenticatedUserAuthorizationInfo == this) {
+                return Objects.hashCode(role);
+            } else {
+                return Objects.hash(role, authenticatedUserAuthorizationInfo);
+            }
         }
     }
 

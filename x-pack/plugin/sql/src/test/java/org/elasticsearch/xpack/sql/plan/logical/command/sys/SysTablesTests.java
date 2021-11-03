@@ -44,7 +44,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.ql.index.IndexResolver.SQL_TABLE;
 import static org.elasticsearch.xpack.ql.index.IndexResolver.SQL_VIEW;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -73,7 +73,9 @@ public class SysTablesTests extends ESTestCase {
         null,
         null,
         false,
-        true
+        true,
+        null,
+        null
     );
 
     //

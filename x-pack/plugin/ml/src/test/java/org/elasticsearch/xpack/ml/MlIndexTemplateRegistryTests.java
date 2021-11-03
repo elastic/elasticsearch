@@ -37,15 +37,14 @@ import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
 
-import static org.elasticsearch.mock.orig.Mockito.verify;
-import static org.elasticsearch.mock.orig.Mockito.when;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyObject;
-import static org.mockito.Matchers.same;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class MlIndexTemplateRegistryTests extends ESTestCase {
 
@@ -95,11 +94,7 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
 
         registry.clusterChanged(createClusterChangedEvent(nodes));
 
-        verify(client, times(4)).execute(
-            same(PutComposableIndexTemplateAction.INSTANCE),
-            putIndexTemplateRequestCaptor.capture(),
-            anyObject()
-        );
+        verify(client, times(4)).execute(same(PutComposableIndexTemplateAction.INSTANCE), putIndexTemplateRequestCaptor.capture(), any());
 
         PutComposableIndexTemplateAction.Request req = putIndexTemplateRequestCaptor.getAllValues()
             .stream()
@@ -122,11 +117,7 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
 
         registry.clusterChanged(createClusterChangedEvent(nodes));
 
-        verify(client, times(4)).execute(
-            same(PutComposableIndexTemplateAction.INSTANCE),
-            putIndexTemplateRequestCaptor.capture(),
-            anyObject()
-        );
+        verify(client, times(4)).execute(same(PutComposableIndexTemplateAction.INSTANCE), putIndexTemplateRequestCaptor.capture(), any());
 
         PutComposableIndexTemplateAction.Request req = putIndexTemplateRequestCaptor.getAllValues()
             .stream()

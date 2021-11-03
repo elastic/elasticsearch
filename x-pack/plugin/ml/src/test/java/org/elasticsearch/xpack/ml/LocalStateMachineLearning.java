@@ -44,7 +44,7 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
     public LocalStateMachineLearning(final Settings settings, final Path configPath) {
         super(settings, configPath);
         LocalStateMachineLearning thisVar = this;
-        mlPlugin = new MachineLearning(settings, configPath) {
+        mlPlugin = new MachineLearning(settings) {
             @Override
             protected XPackLicenseState getLicenseState() {
                 return thisVar.getLicenseState();

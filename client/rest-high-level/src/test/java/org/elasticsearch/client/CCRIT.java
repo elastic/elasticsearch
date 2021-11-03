@@ -60,6 +60,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
+@SuppressWarnings("removal")
 public class CCRIT extends ESRestHighLevelClientTestCase {
 
     @Before

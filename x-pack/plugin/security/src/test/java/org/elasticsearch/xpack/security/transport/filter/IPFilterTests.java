@@ -44,10 +44,10 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class IPFilterTests extends ESTestCase {
@@ -266,7 +266,7 @@ public class IPFilterTests extends ESTestCase {
         String message = String.format(Locale.ROOT, "Expected address %s to be allowed", "8.8.8.8");
         InetAddress address = InetAddresses.forString("8.8.8.8");
         assertThat(message, ipFilter.accept("default", new InetSocketAddress(address, 0)), is(true));
-        verifyZeroInteractions(auditTrail);
+        verifyNoMoreInteractions(auditTrail);
 
         // for sanity enable license and check that it is denied
         when(licenseState.isAllowed(Security.IP_FILTERING_FEATURE)).thenReturn(true);

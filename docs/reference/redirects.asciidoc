@@ -3,6 +3,16 @@
 
 The following pages have moved or been deleted.
 
+[role="exclude",id="configuring-tls-docker"]
+== Encrypting communications in an {es} Docker Container
+
+Refer to <<docker-compose-file,Starting a multi-node cluster with Docker Compose>>.
+
+[role="exclude",id="next-getting-started-tls-docker"]
+=== Start a multi-node cluster with TLS enabled
+
+Refer to <<docker-compose-file,Starting a multi-node cluster with Docker Compose>>.
+
 // [START] Remote clusters
 
 [role="exclude",id="ccs-clients-integrations"]
@@ -51,6 +61,28 @@ Refer to <<remote-clusters-settings,Remote clusters settings>>.
 === Restore a cluster's data
 
 See <<restore-entire-cluster>>.
+
+[role="exclude",id="freeze-index-api"]
+=== Freeze index API
+
+The freeze index API was removed in 8.0.
+// tag::frozen-removal-explanation[]
+Frozen indices are no longer useful due to
+https://www.elastic.co/blog/significantly-decrease-your-elasticsearch-heap-memory-usage[recent
+improvements in heap memory usage].
+// end::frozen-removal-explanation[]
+
+[role="exclude",id="ilm-freeze"]
+=== Freeze {ilm-init} action
+
+The freeze {ilm-init} action was removed in 8.0.
+include::redirects.asciidoc[tag=frozen-removal-explanation]
+
+[role="exclude",id="ilm-freeze-action"]
+=== Freeze {ilm-init} action
+
+The freeze {ilm-init} action was removed in 8.0.
+include::redirects.asciidoc[tag=frozen-removal-explanation]
 
 [role="exclude",id="alias"]
 === Aliases
@@ -1039,11 +1071,6 @@ See <<ilm-delete>>.
 
 See <<ilm-forcemerge>>.
 
-[role="exclude",id="ilm-freeze-action"]
-==== Freeze action
-
-See <<ilm-freeze>>.
-
 [role="exclude",id="ilm-migrate-action"]
 ==== Migrate action
 
@@ -1636,9 +1663,8 @@ See <<search-terms-enum>>.
 === Frozen indices
 
 // tag::frozen-index-redirect[]
-include::{es-repo-dir}/indices/apis/freeze.asciidoc[tag=freeze-api-dep]
 
-For API documentation, see <<freeze-index-api>> and <<unfreeze-index-api>>.
+For API documentation, see <<unfreeze-index-api>>.
 // end::frozen-index-redirect[]
 
 [role="exclude",id="best_practices"]
@@ -1663,16 +1689,16 @@ See the {glossary}/terms.html[Elastic glossary].
 [role="exclude",id="multi-index"]
 === Multi-target syntax
 
-See <<api-multi-index>>. 
+See <<api-multi-index>>.
 
 [float]
 [[hidden]]
 ==== Hidden data streams and indices
 
-See <<multi-hidden>>. 
+See <<multi-hidden>>.
 
 [role="exclude",id="date-math-index-names"]
-=== Date math support in system and index alias names 
+=== Date math support in system and index alias names
 
 See <<api-date-math-index-names>>.
 

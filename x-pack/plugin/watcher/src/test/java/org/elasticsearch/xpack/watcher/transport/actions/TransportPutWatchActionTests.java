@@ -36,11 +36,10 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyBoolean;
-import static org.mockito.Matchers.anyLong;
-import static org.mockito.Matchers.anyObject;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -60,8 +59,7 @@ public class TransportPutWatchActionTests extends ESTestCase {
         TransportService transportService = mock(TransportService.class);
 
         WatchParser parser = mock(WatchParser.class);
-        when(parser.parseWithSecrets(eq("_id"), eq(false), anyObject(), anyObject(), anyObject(), anyBoolean(), anyLong(), anyLong()))
-            .thenReturn(watch);
+        when(parser.parseWithSecrets(eq("_id"), eq(false), any(), any(), any(), anyBoolean(), anyLong(), anyLong())).thenReturn(watch);
 
         Client client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);

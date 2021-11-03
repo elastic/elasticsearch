@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -32,8 +33,8 @@ import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
 import java.net.InetAddress;
-import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -128,11 +129,15 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
                 ),
                 containsString(
                     "Not opening job [data_frame_id] on node [{_node_name1}{version=7.9.1}], "
-                        + "because the data frame analytics created for version [8.0.0] requires a node of version [7.10.0] or higher"
+                        + "because the data frame analytics created for version ["
+                        + Version.CURRENT
+                        + "] requires a node of version [7.10.0] or higher"
                 ),
                 containsString(
                     "Not opening job [data_frame_id] on node [{_node_name2}{version=7.9.2}], "
-                        + "because the data frame analytics created for version [8.0.0] requires a node of version [7.10.0] or higher"
+                        + "because the data frame analytics created for version ["
+                        + Version.CURRENT
+                        + "] requires a node of version [7.10.0] or higher"
                 )
             )
         );
@@ -186,7 +191,9 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
             "_node_id" + i,
             new TransportAddress(InetAddress.getLoopbackAddress(), 9300 + i),
             isMlNode ? Map.of("ml.machine_memory", String.valueOf(ByteSizeValue.ofGb(1).getBytes())) : Map.of(),
-            Collections.emptySet(),
+            isMlNode
+                ? Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)
+                : Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
             nodeVersion
         );
     }

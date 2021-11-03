@@ -52,8 +52,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.AdditionalMatchers.aryEq;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -120,10 +120,14 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
         }).when(mockKerberosTicketValidator).validateTicket(aryEq(decodedTicket), eq(keytabPath), eq(krbDebug), any(ActionListener.class));
     }
 
-    protected void assertSuccessAuthenticationResult(final User expectedUser, final String outToken, final AuthenticationResult result) {
+    protected void assertSuccessAuthenticationResult(
+        final User expectedUser,
+        final String outToken,
+        final AuthenticationResult<User> result
+    ) {
         assertThat(result, is(notNullValue()));
         assertThat(result.getStatus(), is(equalTo(AuthenticationResult.Status.SUCCESS)));
-        assertThat(result.getUser(), is(equalTo(expectedUser)));
+        assertThat(result.getValue(), is(equalTo(expectedUser)));
         final Map<String, List<String>> responseHeaders = threadPool.getThreadContext().getResponseHeaders();
         assertThat(responseHeaders, is(notNullValue()));
         assertThat(

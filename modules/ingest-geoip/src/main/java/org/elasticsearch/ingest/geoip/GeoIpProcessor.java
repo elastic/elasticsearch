@@ -55,8 +55,8 @@ import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.getTask
 public final class GeoIpProcessor extends AbstractProcessor {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(GeoIpProcessor.class);
-    static final String DEFAULT_DATABASES_DEPRECATION_MESSAGE = "the [fallback_to_default_databases] has been deprecated,"
-        + " because Elasticsearch no longer includes the default Maxmind geoip databases. This setting will be removed in Elasticsearch 9.0";
+    static final String DEFAULT_DATABASES_DEPRECATION_MESSAGE = "the [fallback_to_default_databases] has been deprecated, because "
+        + "Elasticsearch no longer includes the default Maxmind geoip databases. This setting will be removed in Elasticsearch 9.0";
 
     public static final String TYPE = "geoip";
     private static final String CITY_DB_SUFFIX = "-City";
@@ -380,15 +380,15 @@ public final class GeoIpProcessor extends AbstractProcessor {
             EnumSet.of(Property.IP, Property.ASN, Property.ORGANIZATION_NAME, Property.NETWORK)
         );
 
-        private final DatabaseRegistry databaseRegistry;
+        private final DatabaseNodeService databaseNodeService;
         private final ClusterService clusterService;
 
         List<DatabaseReaderLazyLoader> getAllDatabases() {
-            return databaseRegistry.getAllDatabases();
+            return databaseNodeService.getAllDatabases();
         }
 
-        public Factory(DatabaseRegistry databaseRegistry, ClusterService clusterService) {
-            this.databaseRegistry = databaseRegistry;
+        public Factory(DatabaseNodeService databaseNodeService, ClusterService clusterService) {
+            this.databaseNodeService = databaseNodeService;
             this.clusterService = clusterService;
         }
 
@@ -412,8 +412,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 DEPRECATION_LOGGER.critical(DeprecationCategory.OTHER, "default_databases_message", DEFAULT_DATABASES_DEPRECATION_MESSAGE);
             }
 
-            DatabaseReaderLazyLoader lazyLoader = databaseRegistry.getDatabase(databaseFile);
-            if (useDatabaseUnavailableProcessor(lazyLoader, databaseRegistry.getAvailableDatabases())) {
+            DatabaseReaderLazyLoader lazyLoader = databaseNodeService.getDatabase(databaseFile);
+            if (useDatabaseUnavailableProcessor(lazyLoader, databaseFile)) {
                 return new DatabaseUnavailableProcessor(processorTag, description, databaseFile);
             } else if (lazyLoader == null) {
                 throw newConfigurationException(TYPE, processorTag, "database_file", "database file [" + databaseFile + "] doesn't exist");
@@ -453,8 +453,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 }
             }
             CheckedSupplier<DatabaseReaderLazyLoader, IOException> supplier = () -> {
-                DatabaseReaderLazyLoader loader = databaseRegistry.getDatabase(databaseFile);
-                if (useDatabaseUnavailableProcessor(loader, databaseRegistry.getAvailableDatabases())) {
+                DatabaseReaderLazyLoader loader = databaseNodeService.getDatabase(databaseFile);
+                if (useDatabaseUnavailableProcessor(loader, databaseFile)) {
                     return null;
                 } else if (loader == null) {
                     throw new ResourceNotFoundException("database file [" + databaseFile + "] doesn't exist");
@@ -509,8 +509,12 @@ public final class GeoIpProcessor extends AbstractProcessor {
             );
         }
 
-        private static boolean useDatabaseUnavailableProcessor(DatabaseReaderLazyLoader loader, Set<String> availableDatabases) {
-            return loader == null && availableDatabases.isEmpty();
+        private static boolean useDatabaseUnavailableProcessor(DatabaseReaderLazyLoader loader, String databaseName) {
+            // If there is no loader for a database we should fail with a config error, but
+            // if there is no loader for a builtin database that we manage via GeoipDownloader then don't fail.
+            // In the latter case the database should become available at a later moment, so a processor impl
+            // is returned that tags documents instead.
+            return loader == null && IngestGeoIpPlugin.DEFAULT_DATABASE_FILENAMES.contains(databaseName);
         }
 
     }

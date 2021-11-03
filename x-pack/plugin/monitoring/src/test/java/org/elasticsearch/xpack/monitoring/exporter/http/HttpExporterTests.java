@@ -55,14 +55,13 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -313,6 +312,7 @@ public class HttpExporterTests extends ESTestCase {
         final Settings.Builder builder = Settings.builder()
             .put("xpack.monitoring.exporters._http.type", HttpExporter.TYPE)
             .put("xpack.monitoring.exporters._http.host", "http://localhost:9200")
+            .put("xpack.monitoring.exporters._http.cluster_alerts.management.enabled", true)
             .putList("xpack.monitoring.exporters._http.cluster_alerts.management.blacklist", blacklist);
 
         final Config config = createConfig(builder.build());
@@ -332,6 +332,8 @@ public class HttpExporterTests extends ESTestCase {
         );
         assertWarnings(
             "[xpack.monitoring.exporters._http.cluster_alerts.management.blacklist] setting was deprecated in Elasticsearch"
+                + " and will be removed in a future release! See the breaking changes documentation for the next major version.",
+            "[xpack.monitoring.exporters._http.cluster_alerts.management.enabled] setting was deprecated in Elasticsearch"
                 + " and will be removed in a future release! See the breaking changes documentation for the next major version."
         );
     }
@@ -454,7 +456,7 @@ public class HttpExporterTests extends ESTestCase {
 
         assertThat(HttpExporter.createSniffer(config, client, listener), nullValue());
 
-        verifyZeroInteractions(client, listener);
+        verifyNoMoreInteractions(client, listener);
     }
 
     public void testCreateSniffer() throws IOException {
@@ -501,8 +503,8 @@ public class HttpExporterTests extends ESTestCase {
         final Settings.Builder builder = Settings.builder().put("xpack.monitoring.exporters._http.type", "http");
         List<String> warningsExpected = new ArrayList<>();
 
-        if (clusterAlertManagement == false) {
-            builder.put("xpack.monitoring.exporters._http.cluster_alerts.management.enabled", false);
+        if (clusterAlertManagement) {
+            builder.put("xpack.monitoring.exporters._http.cluster_alerts.management.enabled", true);
             warningsExpected.add(
                 "[xpack.monitoring.exporters._http.cluster_alerts.management.enabled] setting was deprecated in "
                     + "Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major "

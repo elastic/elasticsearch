@@ -45,8 +45,8 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -94,7 +94,8 @@ public class TemplateRoleNameTests extends ESTestCase {
         final ScriptService scriptService = new ScriptService(
             Settings.EMPTY,
             Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
-            ScriptModule.CORE_CONTEXTS
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L
         );
         final ExpressionModel model = new ExpressionModel();
         model.defineField("username", "hulk");
@@ -150,7 +151,8 @@ public class TemplateRoleNameTests extends ESTestCase {
         final ScriptService scriptService = new ScriptService(
             Settings.EMPTY,
             Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
-            ScriptModule.CORE_CONTEXTS
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L
         );
 
         final TemplateRoleName plainString = new TemplateRoleName(new BytesArray("{ \"source\":\"heroes\" }"), Format.STRING);
@@ -176,7 +178,8 @@ public class TemplateRoleNameTests extends ESTestCase {
         final ScriptService scriptService = new ScriptService(
             Settings.EMPTY,
             Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
-            ScriptModule.CORE_CONTEXTS
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L
         );
 
         final BytesReference template = new BytesArray(
@@ -206,7 +209,8 @@ public class TemplateRoleNameTests extends ESTestCase {
         final ScriptService scriptService = new ScriptService(
             Settings.EMPTY,
             Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
-            ScriptModule.CORE_CONTEXTS
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L
         );
 
         final BytesReference template = new BytesArray("{ \"source\":\" {{#not-closed}} {{other-variable}} \" }");
@@ -239,7 +243,8 @@ public class TemplateRoleNameTests extends ESTestCase {
         final ScriptService scriptService = new ScriptService(
             Settings.EMPTY,
             Map.of("painless", scriptEngine),
-            ScriptModule.CORE_CONTEXTS
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L
         ) {
             @Override
             protected StoredScriptSource getScriptFromClusterState(String id) {
@@ -268,7 +273,8 @@ public class TemplateRoleNameTests extends ESTestCase {
         final ScriptService scriptService = new ScriptService(
             settings,
             Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
-            ScriptModule.CORE_CONTEXTS
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L
         );
         final BytesReference inlineScript = new BytesArray("{ \"source\":\"\" }");
         final IllegalArgumentException e = expectThrows(
@@ -283,7 +289,8 @@ public class TemplateRoleNameTests extends ESTestCase {
         final ScriptService scriptService = new ScriptService(
             settings,
             Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
-            ScriptModule.CORE_CONTEXTS
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L
         );
         final ClusterChangedEvent clusterChangedEvent = mock(ClusterChangedEvent.class);
         final ClusterState clusterState = mock(ClusterState.class);
@@ -310,7 +317,8 @@ public class TemplateRoleNameTests extends ESTestCase {
         final ScriptService scriptService = new ScriptService(
             Settings.EMPTY,
             Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
-            ScriptModule.CORE_CONTEXTS
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L
         );
         final ClusterChangedEvent clusterChangedEvent = mock(ClusterChangedEvent.class);
         final ClusterState clusterState = mock(ClusterState.class);

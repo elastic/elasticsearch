@@ -28,13 +28,13 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Matchers.same;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class MachineLearningTests extends ESTestCase {
@@ -87,7 +87,7 @@ public class MachineLearningTests extends ESTestCase {
         machineLearning.prepareForIndicesMigration(clusterService, client, ActionListener.wrap(response::set, e -> fail(e.getMessage())));
 
         assertThat(response.get(), equalTo(Collections.singletonMap("already_in_upgrade_mode", true)));
-        verifyZeroInteractions(client);
+        verifyNoMoreInteractions(client);
 
         machineLearning.indicesMigrationComplete(
             response.get(),
@@ -97,7 +97,7 @@ public class MachineLearningTests extends ESTestCase {
         );
 
         // Neither pre nor post should have called any action
-        verifyZeroInteractions(client);
+        verifyNoMoreInteractions(client);
     }
 
     public void testMaxOpenWorkersSetting_givenDefault() {
@@ -186,7 +186,7 @@ public class MachineLearningTests extends ESTestCase {
     private MachineLearning createMachineLearning(Settings settings) {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
 
-        return new MachineLearning(settings, null) {
+        return new MachineLearning(settings) {
             @Override
             protected XPackLicenseState getLicenseState() {
                 return licenseState;

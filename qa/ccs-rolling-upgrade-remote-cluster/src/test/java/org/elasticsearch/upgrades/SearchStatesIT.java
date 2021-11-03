@@ -4,9 +4,9 @@
  * 2.0 and the Server Side Public License, v 1; you may not use this file except
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
- */
-
-/*
+ *
+ * =============================================================================
+ *
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
@@ -68,6 +68,7 @@ import static org.hamcrest.Matchers.not;
  * This test ensure that we keep the search states of a CCS request correctly when the local and remote clusters
  * have different but compatible versions. See SearchService#createAndPutReaderContext
  */
+@SuppressWarnings("removal")
 public class SearchStatesIT extends ESRestTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(SearchStatesIT.class);

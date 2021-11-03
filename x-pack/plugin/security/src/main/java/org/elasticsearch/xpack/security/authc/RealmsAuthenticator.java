@@ -73,7 +73,7 @@ class RealmsAuthenticator implements Authenticator {
     }
 
     @Override
-    public void authenticate(Context context, ActionListener<Result> listener) {
+    public void authenticate(Context context, ActionListener<AuthenticationResult<Authentication>> listener) {
         if (context.getMostRecentAuthenticationToken() == null) {
             listener.onFailure(
                 new ElasticsearchSecurityException("authentication token must present for realms authentication", RestStatus.UNAUTHORIZED)
@@ -126,7 +126,7 @@ class RealmsAuthenticator implements Authenticator {
      * the first realm that returns a non-null {@link User} is the authenticating realm and iteration is stopped. This user is then
      * is used to create authentication if no exception was caught while trying to authenticate the token
      */
-    private void consumeToken(Context context, ActionListener<Result> listener) {
+    private void consumeToken(Context context, ActionListener<AuthenticationResult<Authentication>> listener) {
         final AuthenticationToken authenticationToken = context.getMostRecentAuthenticationToken();
         final List<Realm> realmsList = getRealmList(context, authenticationToken.principal());
         logger.trace("Checking token of type [{}] against [{}] realm(s)", authenticationToken.getClass().getName(), realmsList.size());
@@ -135,7 +135,7 @@ class RealmsAuthenticator implements Authenticator {
         final Map<Realm, Tuple<String, Exception>> messages = new LinkedHashMap<>();
 
         final AtomicReference<Authentication.RealmRef> authenticatedByRef = new AtomicReference<>();
-        final AtomicReference<AuthenticationResult> authenticationResultRef = new AtomicReference<>();
+        final AtomicReference<AuthenticationResult<User>> authenticationResultRef = new AtomicReference<>();
 
         final BiConsumer<Realm, ActionListener<User>> realmAuthenticatingConsumer = (realm, userListener) -> {
             if (realm.supports(authenticationToken)) {
@@ -161,7 +161,7 @@ class RealmsAuthenticator implements Authenticator {
                         if (lastSuccessfulAuthCache != null && startInvalidation == numInvalidation.get()) {
                             lastSuccessfulAuthCache.put(authenticationToken.principal(), realm);
                         }
-                        userListener.onResponse(result.getUser());
+                        userListener.onResponse(result.getValue());
                     } else {
                         // the user was not authenticated, call this so we can audit the correct event
                         context.getRequest().realmAuthenticationFailed(authenticationToken, realm.name());
@@ -213,10 +213,10 @@ class RealmsAuthenticator implements Authenticator {
                 if (user == null) {
                     consumeNullUser(context, messages, listener);
                 } else {
-                    final AuthenticationResult result = authenticationResultRef.get();
+                    final AuthenticationResult<User> result = authenticationResultRef.get();
                     assert result != null : "authentication result must not be null when user is not null";
                     context.getThreadContext().putTransient(AuthenticationResult.THREAD_CONTEXT_KEY, result);
-                    listener.onResponse(Authenticator.Result.success(new Authentication(user, authenticatedByRef.get(), null)));
+                    listener.onResponse(AuthenticationResult.success(new Authentication(user, authenticatedByRef.get(), null)));
                 }
             }, e -> {
                 if (e != null) {
@@ -247,7 +247,11 @@ class RealmsAuthenticator implements Authenticator {
     // This method assumes the RealmsAuthenticator is the last one in the chain and the whole chain fails if
     // the request cannot be authenticated with the realms. If this is not true in the future, the method
     // needs to be updated as well.
-    private void consumeNullUser(Context context, Map<Realm, Tuple<String, Exception>> messages, ActionListener<Result> listener) {
+    private void consumeNullUser(
+        Context context,
+        Map<Realm, Tuple<String, Exception>> messages,
+        ActionListener<AuthenticationResult<Authentication>> listener
+    ) {
         messages.forEach((realm, tuple) -> {
             final String message = tuple.v1();
             final String cause = tuple.v2() == null ? "" : " (Caused by " + tuple.v2() + ")";

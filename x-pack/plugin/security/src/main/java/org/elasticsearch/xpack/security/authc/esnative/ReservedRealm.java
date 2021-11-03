@@ -127,7 +127,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     }
 
     @Override
-    protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
+    protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult<User>> listener) {
         if (realmEnabled == false) {
             listener.onResponse(AuthenticationResult.notHandled());
         } else if (ClientReservedRealm.isReserved(token.principal(), config.settings()) == false) {
@@ -138,7 +138,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                     if (userInfo.hasEmptyPassword()) {
                         listener.onResponse(AuthenticationResult.terminate("failed to authenticate user [" + token.principal() + "]"));
                     } else {
-                        ActionListener<AuthenticationResult> hashCleanupListener = ActionListener.runBefore(listener, () -> {
+                        ActionListener<AuthenticationResult<User>> hashCleanupListener = ActionListener.runBefore(listener, () -> {
                             if (userInfo != bootstrapUserInfo && userInfo != autoconfigUserInfo) {
                                 Arrays.fill(userInfo.passwordHash, (char) 0);
                             }

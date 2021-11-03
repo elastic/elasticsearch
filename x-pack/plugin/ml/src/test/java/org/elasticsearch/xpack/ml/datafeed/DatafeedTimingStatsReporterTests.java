@@ -20,15 +20,14 @@ import org.mockito.InOrder;
 import java.sql.Date;
 import java.time.Instant;
 
-import static org.elasticsearch.mock.orig.Mockito.doThrow;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 
 public class DatafeedTimingStatsReporterTests extends ESTestCase {
 
@@ -50,7 +49,7 @@ public class DatafeedTimingStatsReporterTests extends ESTestCase {
         reporter.reportSearchDuration(null);
         assertThat(reporter.getCurrentTimingStats(), equalTo(createDatafeedTimingStats(JOB_ID, 3, 10, 10000.0)));
 
-        verifyZeroInteractions(timingStatsPersister);
+        verifyNoMoreInteractions(timingStatsPersister);
     }
 
     public void testReportSearchDuration_Zero() {
@@ -95,7 +94,7 @@ public class DatafeedTimingStatsReporterTests extends ESTestCase {
         reporter.reportDataCounts(null);
         assertThat(reporter.getCurrentTimingStats(), equalTo(createDatafeedTimingStats(JOB_ID, 3, 10, 10000.0)));
 
-        verifyZeroInteractions(timingStatsPersister);
+        verifyNoMoreInteractions(timingStatsPersister);
     }
 
     public void testReportDataCounts() {
@@ -122,7 +121,7 @@ public class DatafeedTimingStatsReporterTests extends ESTestCase {
         reporter.reportDataCounts(createDataCounts(0));
         reporter.finishReporting();
 
-        verifyZeroInteractions(timingStatsPersister);
+        verifyNoMoreInteractions(timingStatsPersister);
     }
 
     public void testFinishReporting_WithChange() {
@@ -143,7 +142,7 @@ public class DatafeedTimingStatsReporterTests extends ESTestCase {
         // This call would normally trigger persisting but because of the "disallowPersisting" call above it will not.
         reporter.reportSearchDuration(ONE_SECOND);
 
-        verifyZeroInteractions(timingStatsPersister);
+        verifyNoMoreInteractions(timingStatsPersister);
     }
 
     public void testTimingStatsDifferSignificantly() {

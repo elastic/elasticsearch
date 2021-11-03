@@ -56,6 +56,7 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.State.UNRECOVERED_STATE;
 
 /**
  * Manages the lifecycle, mapping and data upgrades/migrations of the {@code RestrictedIndicesNames#SECURITY_MAIN_ALIAS}
@@ -218,6 +219,19 @@ public class SecurityIndexManager implements ClusterStateListener {
                 listener.accept(previousState, newState);
             }
         }
+    }
+
+    public void onStateRecovered(Consumer<State> recoveredStateConsumer) {
+        BiConsumer<State, State> stateChangeListener = (previousState, nextState) -> {
+            boolean stateJustRecovered = previousState == UNRECOVERED_STATE && nextState != UNRECOVERED_STATE;
+            boolean stateAlreadyRecovered = previousState != UNRECOVERED_STATE;
+            if (stateJustRecovered) {
+                recoveredStateConsumer.accept(nextState);
+            } else if (stateAlreadyRecovered) {
+                stateChangeListeners.remove(this);
+            }
+        };
+        stateChangeListeners.add(stateChangeListener);
     }
 
     private boolean checkIndexAvailable(ClusterState state) {

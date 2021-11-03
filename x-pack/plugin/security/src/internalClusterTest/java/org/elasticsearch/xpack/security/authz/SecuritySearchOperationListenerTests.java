@@ -45,11 +45,10 @@ import static org.elasticsearch.xpack.security.authz.AuthorizationServiceTests.a
 import static org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener.ensureAuthenticatedUserIsSame;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
@@ -90,7 +89,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
             assertEquals(authentication, contextAuth);
             assertThat(readerContext.getFromContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), is(indicesAccessControl));
 
-            verifyZeroInteractions(auditTrailService);
+            verifyNoMoreInteractions(auditTrailService);
         }
     }
 
@@ -126,7 +125,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                 authentication.writeToContext(threadContext);
                 listener.validateReaderContext(readerContext, Empty.INSTANCE);
                 assertThat(threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), is(indicesAccessControl));
-                verifyZeroInteractions(auditTrail);
+                verifyNoMoreInteractions(auditTrail);
             }
 
             try (StoredContext ignore = threadContext.newStoredContext(false)) {
@@ -140,7 +139,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                 authentication.writeToContext(threadContext);
                 listener.validateReaderContext(readerContext, Empty.INSTANCE);
                 assertThat(threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY), is(indicesAccessControl));
-                verifyZeroInteractions(auditTrail);
+                verifyNoMoreInteractions(auditTrail);
             }
 
             try (StoredContext ignore = threadContext.newStoredContext(false)) {
@@ -247,7 +246,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
             auditId,
             () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, original.getUser().roles())
         );
-        verifyZeroInteractions(auditTrail);
+        verifyNoMoreInteractions(auditTrail);
 
         // original user being run as
         User user = new User(new User("test", "role"), new User("authenticated", "runas"));
@@ -266,7 +265,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
             auditId,
             () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, original.getUser().roles())
         );
-        verifyZeroInteractions(auditTrail);
+        verifyNoMoreInteractions(auditTrail);
 
         // both user are run as
         current = new Authentication(
@@ -285,7 +284,7 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
             auditId,
             () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, original.getUser().roles())
         );
-        verifyZeroInteractions(auditTrail);
+        verifyNoMoreInteractions(auditTrail);
 
         // different authenticated by type
         Authentication differentRealmType = new Authentication(

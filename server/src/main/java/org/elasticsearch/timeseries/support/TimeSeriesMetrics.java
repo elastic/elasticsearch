@@ -101,7 +101,7 @@ public class TimeSeriesMetrics {
 
     // TODO selector
     /**
-     * Get the latest value for all time series in many ranges. 
+     * Get the latest value for all time series in many ranges.
      */
     public void latestInRanges(
         String metric,

@@ -15,6 +15,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.util.List;
 
+@SuppressWarnings("removal")
 public abstract class SecurityInBasicRestTestCase extends ESRestTestCase {
     private RestHighLevelClient highLevelAdminClient;
 

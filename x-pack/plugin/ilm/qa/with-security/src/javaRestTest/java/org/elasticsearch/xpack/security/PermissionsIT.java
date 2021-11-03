@@ -67,6 +67,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
+@SuppressWarnings("removal")
 public class PermissionsIT extends ESRestTestCase {
 
     private static final String jsonDoc = "{ \"name\" : \"elasticsearch\", \"body\": \"foo bar\" }";
@@ -102,7 +103,7 @@ public class PermissionsIT extends ESRestTestCase {
             .put("number_of_shards", 1)
             .put("number_of_replicas", 0)
             .build();
-        createNewSingletonPolicy(client(), deletePolicy, "delete", new DeleteAction());
+        createNewSingletonPolicy(client(), deletePolicy, "delete", DeleteAction.WITH_SNAPSHOT_DELETE);
     }
 
     /**

@@ -29,11 +29,11 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.TestDocumentParserContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -75,7 +75,7 @@ public class QueryBuilderStoreTests extends ESTestCase {
             SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
             when(searchExecutionContext.indexVersionCreated()).thenReturn(version);
             when(searchExecutionContext.getWriteableRegistry()).thenReturn(writableRegistry());
-            when(searchExecutionContext.getXContentRegistry()).thenReturn(xContentRegistry());
+            when(searchExecutionContext.getParserConfig()).thenReturn(parserConfig());
             when(searchExecutionContext.getForField(fieldMapper.fieldType())).thenReturn(
                 new BytesBinaryIndexFieldData(fieldMapper.name(), CoreValuesSourceType.KEYWORD)
             );

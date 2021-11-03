@@ -9,17 +9,14 @@ package org.elasticsearch.xpack.ml.datafeed;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
@@ -31,7 +28,6 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
@@ -51,19 +47,15 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
-import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataDeleter;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -85,24 +77,19 @@ public final class DatafeedManager {
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final JobConfigProvider jobConfigProvider;
     private final NamedXContentRegistry xContentRegistry;
-    private final ClusterService clusterService;
     private final Client client;
-    private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
     private final Settings settings;
 
     public DatafeedManager(
         DatafeedConfigProvider datafeedConfigProvider,
         JobConfigProvider jobConfigProvider,
         NamedXContentRegistry xContentRegistry,
-        ClusterService clusterService,
         Settings settings,
         Client client
     ) {
         this.datafeedConfigProvider = datafeedConfigProvider;
         this.jobConfigProvider = jobConfigProvider;
         this.xContentRegistry = xContentRegistry;
-        this.clusterService = clusterService;
-        this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
         this.client = client;
         this.settings = settings;
     }
@@ -168,80 +155,25 @@ public final class DatafeedManager {
     }
 
     public void getDatafeeds(GetDatafeedsAction.Request request, ActionListener<QueryPage<DatafeedConfig>> listener) {
-        getDatafeeds(request, clusterService.state(), listener);
-    }
-
-    public void getDatafeeds(GetDatafeedsAction.Request request, ClusterState state, ActionListener<QueryPage<DatafeedConfig>> listener) {
-        Map<String, DatafeedConfig> clusterStateConfigs = expandClusterStateDatafeeds(
-            request.getDatafeedId(),
-            request.allowNoMatch(),
-            state
-        );
 
         datafeedConfigProvider.expandDatafeedConfigs(
             request.getDatafeedId(),
             request.allowNoMatch(),
-            ActionListener.wrap(datafeedBuilders -> {
-                // Check for duplicate datafeeds
-                for (DatafeedConfig.Builder datafeed : datafeedBuilders) {
-                    if (clusterStateConfigs.containsKey(datafeed.getId())) {
-                        listener.onFailure(
-                            new IllegalStateException(
-                                "Datafeed [" + datafeed.getId() + "] configuration " + "exists in both clusterstate and index"
-                            )
-                        );
-                        return;
-                    }
-                }
+            ActionListener.wrap(datafeedBuilders ->
 
-                // Merge cluster state and index configs
-                List<DatafeedConfig> datafeeds = new ArrayList<>(datafeedBuilders.size() + clusterStateConfigs.values().size());
-                for (DatafeedConfig.Builder builder : datafeedBuilders) {
-                    datafeeds.add(builder.build());
-                }
-
-                datafeeds.addAll(clusterStateConfigs.values());
-                Collections.sort(datafeeds, Comparator.comparing(DatafeedConfig::getId));
-                listener.onResponse(new QueryPage<>(datafeeds, datafeeds.size(), DatafeedConfig.RESULTS_FIELD));
-            }, listener::onFailure)
+            // Build datafeeds
+            listener.onResponse(
+                new QueryPage<>(
+                    datafeedBuilders.stream().map(DatafeedConfig.Builder::build).collect(Collectors.toList()),
+                    datafeedBuilders.size(),
+                    DatafeedConfig.RESULTS_FIELD
+                )
+            ), listener::onFailure)
         );
     }
 
-    public void getDatafeedsByJobIds(Set<String> jobIds, ClusterState state, ActionListener<Map<String, DatafeedConfig.Builder>> listener) {
-        datafeedConfigProvider.findDatafeedsByJobIds(jobIds, ActionListener.wrap(datafeeds -> {
-            Map<String, DatafeedConfig.Builder> response = new HashMap<>(datafeeds);
-            Map<String, DatafeedConfig> fromState = MlMetadata.getMlMetadata(state).getDatafeedsByJobIds(jobIds);
-            for (Map.Entry<String, DatafeedConfig> datafeedConfigEntry : fromState.entrySet()) {
-                DatafeedConfig.Builder alreadyExistingDatafeed = response.get(datafeedConfigEntry.getKey());
-                if (alreadyExistingDatafeed != null) {
-                    if (alreadyExistingDatafeed.getId().equals(datafeedConfigEntry.getValue().getId())) {
-                        listener.onFailure(
-                            new IllegalStateException(
-                                "Datafeed ["
-                                    + alreadyExistingDatafeed.getId()
-                                    + "] configuration "
-                                    + "exists in both clusterstate and index"
-                            )
-                        );
-                        return;
-                    }
-                    listener.onFailure(
-                        new IllegalStateException(
-                            "datafeed ["
-                                + datafeedConfigEntry.getValue().getId()
-                                + "] configuration in cluster state and ["
-                                + alreadyExistingDatafeed.getId()
-                                + "] in the configuration index both refer to job ["
-                                + datafeedConfigEntry.getKey()
-                                + "]"
-                        )
-                    );
-                    return;
-                }
-                response.put(datafeedConfigEntry.getKey(), new DatafeedConfig.Builder(datafeedConfigEntry.getValue()));
-            }
-            listener.onResponse(response);
-        }, listener::onFailure));
+    public void getDatafeedsByJobIds(Set<String> jobIds, ActionListener<Map<String, DatafeedConfig.Builder>> listener) {
+        datafeedConfigProvider.findDatafeedsByJobIds(jobIds, listener);
     }
 
     public void updateDatafeed(
@@ -251,10 +183,6 @@ public final class DatafeedManager {
         ThreadPool threadPool,
         ActionListener<PutDatafeedAction.Response> listener
     ) {
-        if (migrationEligibilityCheck.datafeedIsEligibleForMigration(request.getUpdate().getId(), state)) {
-            listener.onFailure(ExceptionsHelper.configHasNotBeenMigrated("update datafeed", request.getUpdate().getId()));
-            return;
-        }
         // Check datafeed is stopped
         if (getDatafeedTask(state, request.getUpdate().getId()) != null) {
             listener.onFailure(
@@ -310,12 +238,15 @@ public final class DatafeedManager {
         datafeedConfigProvider.getDatafeedConfig(datafeedId, ActionListener.wrap(datafeedConfigBuilder -> {
             String jobId = datafeedConfigBuilder.build().getJobId();
             JobDataDeleter jobDataDeleter = new JobDataDeleter(client, jobId);
-            jobDataDeleter.deleteDatafeedTimingStats(ActionListener.wrap(unused1 -> {
-                datafeedConfigProvider.deleteDatafeedConfig(
-                    datafeedId,
-                    ActionListener.wrap(unused2 -> listener.onResponse(AcknowledgedResponse.TRUE), listener::onFailure)
-                );
-            }, listener::onFailure));
+            jobDataDeleter.deleteDatafeedTimingStats(
+                ActionListener.wrap(
+                    unused1 -> datafeedConfigProvider.deleteDatafeedConfig(
+                        datafeedId,
+                        ActionListener.wrap(unused2 -> listener.onResponse(AcknowledgedResponse.TRUE), listener::onFailure)
+                    ),
+                    listener::onFailure
+                )
+            );
         }, listener::onFailure));
 
     }
@@ -323,27 +254,6 @@ public final class DatafeedManager {
     private PersistentTasksCustomMetadata.PersistentTask<?> getDatafeedTask(ClusterState state, String datafeedId) {
         PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         return MlTasks.getDatafeedTask(datafeedId, tasks);
-    }
-
-    private Map<String, DatafeedConfig> expandClusterStateDatafeeds(
-        String datafeedExpression,
-        boolean allowNoMatch,
-        ClusterState clusterState
-    ) {
-
-        Map<String, DatafeedConfig> configById = new HashMap<>();
-        try {
-            MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
-            Set<String> expandedDatafeedIds = mlMetadata.expandDatafeedIds(datafeedExpression, allowNoMatch);
-
-            for (String expandedDatafeedId : expandedDatafeedIds) {
-                configById.put(expandedDatafeedId, mlMetadata.getDatafeed(expandedDatafeedId));
-            }
-        } catch (Exception e) {
-            // ignore
-        }
-
-        return configById;
     }
 
     private void handlePrivsResponse(
@@ -382,26 +292,16 @@ public final class DatafeedManager {
         ClusterState clusterState,
         ActionListener<PutDatafeedAction.Response> listener
     ) {
-
-        String datafeedId = request.getDatafeed().getId();
-        String jobId = request.getDatafeed().getJobId();
-        ElasticsearchException validationError = checkConfigsAreNotDefinedInClusterState(datafeedId, jobId);
-        if (validationError != null) {
-            listener.onFailure(validationError);
-            return;
-        }
         DatafeedConfig.validateAggregations(request.getDatafeed().getParsedAggregations(xContentRegistry));
 
-        CheckedConsumer<Boolean, Exception> mappingsUpdated = ok -> {
-            datafeedConfigProvider.putDatafeedConfig(
-                request.getDatafeed(),
-                headers,
-                ActionListener.wrap(
-                    indexResponse -> listener.onResponse(new PutDatafeedAction.Response(request.getDatafeed())),
-                    listener::onFailure
-                )
-            );
-        };
+        CheckedConsumer<Boolean, Exception> mappingsUpdated = ok -> datafeedConfigProvider.putDatafeedConfig(
+            request.getDatafeed(),
+            headers,
+            ActionListener.wrap(
+                indexResponse -> listener.onResponse(new PutDatafeedAction.Response(request.getDatafeed())),
+                listener::onFailure
+            )
+        );
 
         CheckedConsumer<Boolean, Exception> validationOk = ok -> {
             if (clusterState == null) {
@@ -424,34 +324,7 @@ public final class DatafeedManager {
             ActionListener.wrap(validationOk, listener::onFailure)
         );
 
-        checkJobDoesNotHaveADatafeed(jobId, ActionListener.wrap(jobOk, listener::onFailure));
-    }
-
-    /**
-     * Returns an exception if a datafeed with the same Id is defined in the
-     * cluster state or the job is in the cluster state and already has a datafeed
-     */
-    @Nullable
-    private ElasticsearchException checkConfigsAreNotDefinedInClusterState(String datafeedId, String jobId) {
-        ClusterState clusterState = clusterService.state();
-        MlMetadata mlMetadata = MlMetadata.getMlMetadata(clusterState);
-
-        if (mlMetadata.getDatafeed(datafeedId) != null) {
-            return ExceptionsHelper.datafeedAlreadyExists(datafeedId);
-        }
-
-        if (mlMetadata.getDatafeedByJobId(jobId).isPresent()) {
-            return ExceptionsHelper.conflictStatusException(
-                "Cannot create datafeed ["
-                    + datafeedId
-                    + "] as a "
-                    + "job ["
-                    + jobId
-                    + "] defined in the cluster state references a datafeed with the same Id"
-            );
-        }
-
-        return null;
+        checkJobDoesNotHaveADatafeed(request.getDatafeed().getJobId(), ActionListener.wrap(jobOk, listener::onFailure));
     }
 
     private void checkJobDoesNotHaveADatafeed(String jobId, ActionListener<Boolean> listener) {

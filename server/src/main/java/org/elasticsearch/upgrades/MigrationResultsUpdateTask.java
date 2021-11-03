@@ -66,9 +66,7 @@ public class MigrationResultsUpdateTask extends ClusterStateUpdateTask {
             currentResults = new FeatureMigrationResults(new HashMap<>());
         }
         FeatureMigrationResults newResults = currentResults.withResult(featureName, status);
-        final Metadata newMetadata = Metadata.builder(currentState.metadata())
-            .putCustom(FeatureMigrationResults.TYPE, newResults)
-            .build();
+        final Metadata newMetadata = Metadata.builder(currentState.metadata()).putCustom(FeatureMigrationResults.TYPE, newResults).build();
         final ClusterState newState = ClusterState.builder(currentState).metadata(newMetadata).build();
         return newState;
     }

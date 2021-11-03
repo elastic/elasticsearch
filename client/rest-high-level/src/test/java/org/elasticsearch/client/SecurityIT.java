@@ -51,6 +51,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
+@SuppressWarnings("removal")
 public class SecurityIT extends ESRestHighLevelClientTestCase {
 
     public void testPutUser() throws Exception {

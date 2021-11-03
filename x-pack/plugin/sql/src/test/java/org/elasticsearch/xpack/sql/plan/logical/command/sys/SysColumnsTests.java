@@ -45,8 +45,8 @@ import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.ql.TestUtils.UTC;
 import static org.elasticsearch.xpack.sql.proto.Mode.isDriver;
 import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -245,7 +245,9 @@ public class SysColumnsTests extends ESTestCase {
             null,
             null,
             false,
-            false
+            false,
+            null,
+            null
         );
         Tuple<Command, SqlSession> tuple = sql(sql, emptyList(), config, MAPPING1);
 
@@ -289,7 +291,9 @@ public class SysColumnsTests extends ESTestCase {
             null,
             null,
             false,
-            false
+            false,
+            null,
+            null
         );
         Tuple<Command, SqlSession> tuple = sql(sql, params, config, mapping);
 

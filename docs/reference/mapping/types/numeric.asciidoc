@@ -131,7 +131,7 @@ The following parameters are accepted by numeric types:
 [%collapsible]
 ====
 include::keyword.asciidoc[tag=dimension]
-+
+
 Of the numeric field types, only `byte`, `short`, `integer`, and `long` fields
 support this parameter.
 ====

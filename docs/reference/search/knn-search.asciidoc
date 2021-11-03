@@ -1,0 +1,264 @@
+[[knn-search]]
+=== kNN search API
+++++
+<titleabbrev>kNN search</titleabbrev>
+++++
+
+experimental::[]
+
+Performs a k-nearest neighbor search and returns the matching documents.
+
+[source,console]
+----
+PUT my-vector-index
+{
+  "mappings": {
+    "properties": {
+      "image_vector": {
+        "type": "dense_vector",
+        "dims": 3,
+        "index": true,
+        "similarity": "l2_norm"
+      }
+    }
+  }
+}
+
+GET /my-vector-index/_knn_search
+{
+  "knn": {
+    "field": "image_vector",
+    "query_vector": [0.3, 0.1, 1.2],
+    "k": 10,
+    "num_candidates": 100
+  },
+  "_source": ["name", "date"]
+}
+----
+// TEST[setup:my_index]
+
+[[knn-search-api-request]]
+==== {api-request-title}
+
+`GET /<target>/_knn_search`
+
+`POST /<target>/_knn_search`
+
+[[knn-search-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for the target data stream, index,
+or alias.
+
+[[knn-search-api-desc]]
+==== {api-description-title}
+
+The kNN search API performs a k-nearest neighbor search on a
+<<dense-vector,`dense_vector`>> field. Given a query vector, it finds the _k_
+closest vectors and returns those documents as search hits. To be used in the
+kNN search API, the `dense_vector` field must
+<<index-vectors-knn-search, enable indexing>>.
+
+{es} uses the https://arxiv.org/abs/1603.09320[HNSW algorithm] to support
+efficient kNN search. Like most kNN algorithms, HNSW is an approximate method
+that sacrifices result accuracy for improved speed. This means the documents
+returned are not always the true _k_ closest neighbors.
+
+[[knn-search-api-path-params]]
+==== {api-path-parms-title}
+
+`<target>`::
+(Optional, string) Comma-separated list of data streams, indices, and aliases
+to search. Supports wildcards (`*`). To search all data streams and indices,
+use `*` or `_all`.
+
+NOTE: The kNN search API does not support remote indices (as in cross-cluster
+search).
+
+[role="child_attributes"]
+[[knn-search-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
+
+[role="child_attributes"]
+[[knn-search-api-request-body]]
+==== {api-request-body-title}
+
+`knn`::
+(Required, object) Defines the kNN query to run.
++
+.Properties of `knn` object
+[%collapsible%open]
+====
+`field`::
+(Required, string) The name of the vector field to search against.
+
+`query_vector`::
+(Required, array of float) The query vector.
+
+`k`::
+(Required, integer) The final number of nearest neighbors to return as top
+hits. This value must be less than `num_candidates`.
+
+`num_candidates`::
+(Required, integer) The number of nearest neighbor candidates to consider per
+shard. Increasing `num_candidates` tends to improve the accuracy of the final
+`k` results. This value cannot exceed 10,000.
+====
+
+include::{es-repo-dir}/search/search.asciidoc[tag=fields-param-def]
+include::{es-repo-dir}/search/search.asciidoc[tag=docvalue-fields-def]
+include::{es-repo-dir}/search/search.asciidoc[tag=stored-fields-def]
+include::{es-repo-dir}/search/search.asciidoc[tag=source-filtering-def]
+
+[role="child_attributes"]
+[[knn-search-api-response-body]]
+==== {api-response-body-title}
+
+A kNN search response has the exact same structure as a
+<<search-api-response-body, search response>>. The
+<<knn-search-api-response-body-score,`_score`>> of each hit is determined by
+the similarity between the query and document vectors. See
+<<dense-vector-similarity, `similarity`>> for details.
+
+`took`::
++
+--
+(integer)
+Milliseconds it took {es} to execute the request.
+
+This value is calculated by measuring the time elapsed
+between receipt of a request on the coordinating node
+and the time at which the coordinating node is ready to send the response.
+
+Took time includes:
+
+* Communication time between the coordinating node and data nodes
+* Time the request spends in the `search` <<modules-threadpool,thread pool>>,
+  queued for execution
+* Actual execution time
+
+Took time does *not* include:
+
+* Time needed to send the request to {es}
+* Time needed to serialize the JSON response
+* Time needed to send the response to a client
+--
+
+`_shards`::
+(object)
+Contains a count of shards used for the request.
++
+.Properties of `_shards`
+[%collapsible%open]
+====
+`total`::
+(integer)
+Total number of shards that require querying,
+including unallocated shards.
+
+`successful`::
+(integer)
+Number of shards that executed the request successfully.
+
+`skipped`::
+(integer)
+Number of shards that skipped the request because a lightweight check
+helped realize that no documents could possibly match on this shard. This
+typically happens when a search request includes a range filter and the
+shard only has values that fall outside of that range.
+
+`failed`::
+(integer)
+Number of shards that failed to execute the request. Note that shards
+that are not allocated will be considered neither successful nor failed.
+Having `failed+successful` less than `total` is thus an indication that
+some of the shards were not allocated.
+====
+
+`hits`::
+(object)
+Contains returned documents and metadata.
++
+.Properties of `hits`
+[%collapsible%open]
+====
+`total`::
+(object)
+Metadata about the number of matching documents.
++
+.Properties of `total`
+[%collapsible%open]
+=====
+`value`::
+(integer)
+Total number of matching documents. For kNN search, this is the total number
+of nearest neighbor candidates considered, or `num_candidates * num_shards`.
+
+`relation`::
+(string)
+Indicates whether the number of documents in the `value` parameter is accurate
+or a lower bound. For kNN search this is always `eq`, indicating it is accurate.
+=====
+
+`max_score`::
+(float)
+Highest returned <<knn-search-api-response-body-score,document `_score`>>.
++
+This value is `null` for requests that do not sort by `_score`.
+
+`hits`::
+(array of objects)
+Array of returned document objects.
++
+.Properties of `hits` objects
+[%collapsible%open]
+=====
+`_index`::
+(string)
+Name of the index containing the returned document.
+
+`_id`::
+(string)
+Unique identifier for the returned document.
+This ID is only unique within the returned index.
+
+[[knn-search-api-response-body-score]]
+`_score`::
+(float)
+Positive 32-bit floating point number used to determine the rank of the
+returned document. For kNN search, the `_score` is derived from the similarity
+between the query and document vectors.
+
+`_source`::
+(object)
+Original JSON body passed for the document at index time.
++
+You can use the `_source` parameter to exclude this property from the response
+or specify which source fields to return.
+
+`fields`::
++
+--
+(object)
+Contains field values for the documents. These fields must be specified in the
+request using one or more of the following request parameters:
+
+* <<search-fields-param,`fields`>>
+* <<search-docvalue-fields-param,`docvalue_fields`>>
+* <<stored-fields,`stored_fields`>>
+
+This property is returned only if one or more of these parameters are set.
+--
++
+.Properties of `fields`
+[%collapsible%open]
+======
+`<field>`::
+(array)
+Key is the field name. Value is the value for the field.
+======
+=====
+====

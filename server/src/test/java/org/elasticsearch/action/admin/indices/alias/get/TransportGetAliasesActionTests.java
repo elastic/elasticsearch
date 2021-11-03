@@ -120,11 +120,14 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         assertThat(result.get("a").size(), equalTo(0));
         assertThat(result.get(".b").size(), equalTo(1));
         assertThat(result.get("c").size(), equalTo(1));
-        assertWarnings(true,
+        assertWarnings(
+            true,
             new DeprecationWarning(
                 Level.WARN,
-                "this request accesses system indices: [.b], " +
-                    "but in a future major version, direct access to system indices will be prevented by default"));
+                "this request accesses system indices: [.b], "
+                    + "but in a future major version, direct access to system indices will be prevented by default"
+            )
+        );
     }
 
     public void testDeprecationWarningEmittedWhenSystemIndexIsRequested() {
@@ -148,11 +151,14 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         );
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(".b").size(), equalTo(1));
-        assertWarnings(true,
+        assertWarnings(
+            true,
             new DeprecationWarning(
                 Level.WARN,
-                "this request accesses system indices: [.b], " +
-                    "but in a future major version, direct access to system indices will be prevented by default"));
+                "this request accesses system indices: [.b], "
+                    + "but in a future major version, direct access to system indices will be prevented by default"
+            )
+        );
     }
 
     public void testDeprecationWarningEmittedWhenSystemIndexIsRequestedByAlias() {
@@ -175,11 +181,14 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         );
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(".b").size(), equalTo(1));
-        assertWarnings(true,
+        assertWarnings(
+            true,
             new DeprecationWarning(
                 Level.WARN,
-                "this request accesses system indices: [.b], " +
-                    "but in a future major version, direct access to system indices will be prevented by default"));
+                "this request accesses system indices: [.b], "
+                    + "but in a future major version, direct access to system indices will be prevented by default"
+            )
+        );
     }
 
     public void testDeprecationWarningNotEmittedWhenSystemAccessAllowed() {

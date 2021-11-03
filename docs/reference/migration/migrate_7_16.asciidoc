@@ -287,15 +287,17 @@ as it will no longer be recognized in the next major release.
 ====
 *Details* +
 Transient cluster settings are now deprecated and will be removed in a future release. This is because transient
-cluster settings have an unpredictable lifecycle. Transient cluster settings do not survive full cluster restarts,
-which can forcibly happen if enough master-eligible nodes fail. In such an event, the cluster state will be recovered
+cluster settings have an unpredictable lifecycle. Transient cluster settings do not survive full cluster restarts or
+cluster instability. In these cases, {es} recovers the cluster state
 from persistent storage, effectively erasing the transient settings. The loss of transient settings can happen
 unexpectedly, leading to a potentially undesired cluster configuration.
 
 *Impact* +
 To avoid deprecation warnings, discontinue use of transient settings when modifying
-your cluster settings through the `PUT _cluster/settings` REST API. When modifying cluster settings
-use only persistent settings.
+your cluster settings through the `PUT _cluster/settings` REST API. Use persistent
+settings instead. See the
+{ref}/transient-settings-migration-guide.html[Transient settings migration
+guide]. 
 ====
 
 [discrete]
@@ -373,3 +375,5 @@ To override the defaults, configure the `script.cache.max_size`,
 `script.max_compilations_rate`, and `script.cache.expire` settings.
 ====
 // end::notable-breaking-changes[]
+
+include::transient-settings-migration-guide.asciidoc[]

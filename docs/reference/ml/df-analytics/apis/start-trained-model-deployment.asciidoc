@@ -96,7 +96,8 @@ The API returns the following results:
                 "reason": ""
             }
         },
-        "allocation_state": "started"
+        "allocation_state": "started",
+        "start_time": "2021-11-02T11:50:34.766591Z"
     }
 }
 ----

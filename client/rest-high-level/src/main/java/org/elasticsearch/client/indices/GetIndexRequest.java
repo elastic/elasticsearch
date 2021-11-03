@@ -119,5 +119,4 @@ public class GetIndexRequest extends TimedRequest {
         return includeDefaults;
     }
 
-
 }

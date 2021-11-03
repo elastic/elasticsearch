@@ -54,7 +54,8 @@ public class UpdateTransformActionRequestTests extends AbstractWireSerializingTr
             assertThat(oldRequest.getUpdate().getSource().getIndex(), is(equalTo(newRequest.getUpdate().getSource().getIndex())));
             assertThat(
                 oldRequest.getUpdate().getSource().getQueryConfig(),
-                is(equalTo(newRequest.getUpdate().getSource().getQueryConfig())));
+                is(equalTo(newRequest.getUpdate().getSource().getQueryConfig()))
+            );
             // runtime_mappings was added in 7.12 so it is always empty after deserializing from 7.7
             assertThat(oldRequest.getUpdate().getSource().getRuntimeMappings(), is(anEmptyMap()));
         }
@@ -76,7 +77,8 @@ public class UpdateTransformActionRequestTests extends AbstractWireSerializingTr
             assertThat(newRequestFromOld.getUpdate().getSource().getIndex(), is(equalTo(newRequest.getUpdate().getSource().getIndex())));
             assertThat(
                 newRequestFromOld.getUpdate().getSource().getQueryConfig(),
-                is(equalTo(newRequest.getUpdate().getSource().getQueryConfig())));
+                is(equalTo(newRequest.getUpdate().getSource().getQueryConfig()))
+            );
             // runtime_mappings was added in 7.12 so it is always empty after deserializing from 7.7
             assertThat(newRequestFromOld.getUpdate().getSource().getRuntimeMappings(), is(anEmptyMap()));
         }

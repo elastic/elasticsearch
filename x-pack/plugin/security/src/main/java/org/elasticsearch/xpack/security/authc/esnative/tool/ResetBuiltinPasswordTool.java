@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.authc.esnative.tool;
 
 import joptsimple.OptionSet;
-
 import joptsimple.OptionSpecBuilder;
 
 import org.elasticsearch.cli.ExitCodes;
@@ -17,14 +16,14 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.core.security.support.Validation;
-import org.elasticsearch.xpack.security.tool.BaseRunAsSuperuserCommand;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.CommandLineHttpClient;
 import org.elasticsearch.xpack.core.security.HttpResponse;
+import org.elasticsearch.xpack.core.security.support.Validation;
+import org.elasticsearch.xpack.security.tool.BaseRunAsSuperuserCommand;
 
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -113,14 +112,16 @@ public class ResetBuiltinPasswordTool extends BaseRunAsSuperuserCommand {
             );
             final int responseStatus = httpResponse.getHttpStatus();
             if (httpResponse.getHttpStatus() != HttpURLConnection.HTTP_OK) {
-                throw new UserException(ExitCodes.TEMP_FAILURE,
-                    "Failed to reset password for the [" + providedUsername + "] user. Unexpected http status [" + responseStatus + "]");
+                throw new UserException(
+                    ExitCodes.TEMP_FAILURE,
+                    "Failed to reset password for the [" + providedUsername + "] user. Unexpected http status [" + responseStatus + "]"
+                );
             } else {
                 if (options.has(interactive)) {
                     terminal.println("Password for the [" + providedUsername + "] user successfully reset.");
                 } else {
                     terminal.println("Password for the [" + providedUsername + "] user successfully reset.");
-                    terminal.print(Terminal.Verbosity.NORMAL,"New value: ");
+                    terminal.print(Terminal.Verbosity.NORMAL, "New value: ");
                     terminal.println(Terminal.Verbosity.SILENT, builtinUserPassword.toString());
                 }
             }

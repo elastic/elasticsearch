@@ -40,24 +40,30 @@ public class KnnVectorQueryBuilderTests extends AbstractQueryTestCase<KnnVectorQ
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("properties")
-                .startObject(VECTOR_FIELD)
-                    .field("type", "dense_vector")
-                    .field("dims", VECTOR_DIMENSION)
-                    .field("index", true)
-                    .field("similarity", "l2_norm")
-                .endObject()
-                .startObject(VECTOR_ALIAS_FIELD)
-                    .field("type", "alias")
-                    .field("path", VECTOR_FIELD)
-                .endObject()
-                .startObject(UNINDEXED_VECTOR_FIELD)
-                    .field("type", "dense_vector")
-                    .field("dims", VECTOR_DIMENSION)
-                .endObject()
-            .endObject().endObject();
-        mapperService.merge(MapperService.SINGLE_MAPPING_NAME,
-            new CompressedXContent(Strings.toString(builder)), MapperService.MergeReason.MAPPING_UPDATE);
+        XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject(VECTOR_FIELD)
+            .field("type", "dense_vector")
+            .field("dims", VECTOR_DIMENSION)
+            .field("index", true)
+            .field("similarity", "l2_norm")
+            .endObject()
+            .startObject(VECTOR_ALIAS_FIELD)
+            .field("type", "alias")
+            .field("path", VECTOR_FIELD)
+            .endObject()
+            .startObject(UNINDEXED_VECTOR_FIELD)
+            .field("type", "dense_vector")
+            .field("dims", VECTOR_DIMENSION)
+            .endObject()
+            .endObject()
+            .endObject();
+        mapperService.merge(
+            MapperService.SINGLE_MAPPING_NAME,
+            new CompressedXContent(Strings.toString(builder)),
+            MapperService.MergeReason.MAPPING_UPDATE
+        );
     }
 
     @Override
@@ -78,43 +84,45 @@ public class KnnVectorQueryBuilderTests extends AbstractQueryTestCase<KnnVectorQ
         assertTrue(query instanceof KnnVectorQuery);
     }
 
-    public void testWrongDimension()  {
+    public void testWrongDimension() {
         SearchExecutionContext context = createSearchExecutionContext();
-        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] {1.0f, 2.0f}, 10);
+        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 1.0f, 2.0f }, 10);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.doToQuery(context));
         assertThat(e.getMessage(), containsString("the query vector has a different dimension [2] than the index vectors [3]"));
     }
 
-    public void testNonexistentField()  {
+    public void testNonexistentField() {
         SearchExecutionContext context = createSearchExecutionContext();
-        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("nonexistent",
-            new float[]{1.0f, 1.0f, 1.0f}, 10);
+        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("nonexistent", new float[] { 1.0f, 1.0f, 1.0f }, 10);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.doToQuery(context));
         assertThat(e.getMessage(), containsString("field [nonexistent] does not exist in the mapping"));
     }
 
-    public void testWrongFieldType()  {
+    public void testWrongFieldType() {
         SearchExecutionContext context = createSearchExecutionContext();
-        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder(AbstractBuilderTestCase.KEYWORD_FIELD_NAME,
-            new float[]{1.0f, 1.0f, 1.0f}, 10);
+        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder(
+            AbstractBuilderTestCase.KEYWORD_FIELD_NAME,
+            new float[] { 1.0f, 1.0f, 1.0f },
+            10
+        );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.doToQuery(context));
         assertThat(e.getMessage(), containsString("[knn] queries are only supported on [dense_vector] fields"));
     }
 
     @Override
     public void testValidOutput() {
-        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] {1.0f, 2.0f, 3.0f}, 10);
-        String expected = "{\n" +
-            "  \"knn\" : {\n" +
-            "    \"field\" : \"vector\",\n" +
-            "    \"vector\" : [\n" +
-            "      1.0,\n" +
-            "      2.0,\n" +
-            "      3.0\n" +
-            "    ],\n" +
-            "    \"num_candidates\" : 10\n" +
-            "  }\n" +
-            "}";
+        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 1.0f, 2.0f, 3.0f }, 10);
+        String expected = "{\n"
+            + "  \"knn\" : {\n"
+            + "    \"field\" : \"vector\",\n"
+            + "    \"vector\" : [\n"
+            + "      1.0,\n"
+            + "      2.0,\n"
+            + "      3.0\n"
+            + "    ],\n"
+            + "    \"num_candidates\" : 10\n"
+            + "  }\n"
+            + "}";
         assertEquals(expected, query.toString());
     }
 

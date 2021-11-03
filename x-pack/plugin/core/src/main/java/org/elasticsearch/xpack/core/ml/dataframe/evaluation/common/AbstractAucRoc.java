@@ -6,14 +6,14 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.common;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.search.aggregations.metrics.Percentiles;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.metrics.Percentiles;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -60,7 +60,9 @@ public abstract class AbstractAucRoc implements EvaluationMetric {
         percentiles.forEach(percentile -> {
             if (Double.isNaN(percentile.getValue())) {
                 throw ExceptionsHelper.badRequestException(
-                    "[{}] requires at all the percentiles values to be finite numbers", NAME.getPreferredName());
+                    "[{}] requires at all the percentiles values to be finite numbers",
+                    NAME.getPreferredName()
+                );
             }
             result[((int) percentile.getPercent()) - 1] = percentile.getValue();
         });
@@ -184,7 +186,7 @@ public abstract class AbstractAucRoc implements EvaluationMetric {
             if (binarySearchResult >= 0) {
                 return getRate(binarySearchResult);
             } else {
-                int right = (binarySearchResult * -1) -1;
+                int right = (binarySearchResult * -1) - 1;
                 int left = right - 1;
                 if (right >= percentiles.length) {
                     return 0.0;
@@ -240,7 +242,8 @@ public abstract class AbstractAucRoc implements EvaluationMetric {
 
         @Override
         public int compareTo(AucRocPoint o) {
-            return Comparator.comparingDouble((AucRocPoint p) -> p.threshold).reversed()
+            return Comparator.comparingDouble((AucRocPoint p) -> p.threshold)
+                .reversed()
                 .thenComparing(p -> p.fpr)
                 .thenComparing(p -> p.tpr)
                 .compare(this, o);
@@ -268,9 +271,7 @@ public abstract class AbstractAucRoc implements EvaluationMetric {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             AucRocPoint that = (AucRocPoint) o;
-            return tpr == that.tpr
-                && fpr == that.fpr
-                && threshold == that.threshold;
+            return tpr == that.tpr && fpr == that.fpr && threshold == that.threshold;
         }
 
         @Override
@@ -348,8 +349,7 @@ public abstract class AbstractAucRoc implements EvaluationMetric {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Result that = (Result) o;
-            return value == that.value
-                && Objects.equals(curve, that.curve);
+            return value == that.value && Objects.equals(curve, that.curve);
         }
 
         @Override

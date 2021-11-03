@@ -80,8 +80,7 @@ public class MultiHttpResourceTests extends ESTestCase {
             } else if (found) {
                 assertThat(resource.checked, equalTo(0));
                 assertThat(resource.published, equalTo(0));
-            }
-            else {
+            } else {
                 assertSuccessfulResource(resource);
             }
         }

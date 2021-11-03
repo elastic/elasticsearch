@@ -38,7 +38,8 @@ public class CustomRoleMappingRealmTests extends ESTestCase {
         final RealmConfig realmConfig = new RealmConfig(
             realmIdentifier,
             Settings.builder().put(env.settings()).put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0).build(),
-            env, new ThreadContext(env.settings())
+            env,
+            new ThreadContext(env.settings())
         );
         CustomRoleMappingRealm realm = new CustomRoleMappingRealm(realmConfig, roleMapper);
 

@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
-import java.util.Collections;
-import java.util.Map;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -17,16 +15,17 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.SuppressLoggerChecks;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.rest.RestStatus;
-
 import org.elasticsearch.xpack.monitoring.exporter.http.HttpResource.ResourcePublishResult;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.whenPerformRequestAsyncWith;
@@ -54,8 +53,7 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
     private final HttpEntity entity = mock(HttpEntity.class);
     private final Supplier<HttpEntity> body = () -> entity;
 
-    private final PublishableHttpResource resource =
-            new MockHttpResource(owner, masterTimeout, PublishableHttpResource.NO_BODY_PARAMETERS);
+    private final PublishableHttpResource resource = new MockHttpResource(owner, masterTimeout, PublishableHttpResource.NO_BODY_PARAMETERS);
 
     public void testCheckForResourceExists() throws IOException {
         assertCheckForResource(successfulCheckStatus(), true, "{} [{}] found on the [{}] {}");
@@ -90,12 +88,10 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
     public void testVersionCheckForResourceDoesNotExist() {
         if (randomBoolean()) {
             // it literally does not exist
-            assertVersionCheckForResource(notFoundCheckStatus(), false,
-                                          randomInt(), "{} [{}] does not exist on the [{}] {}");
+            assertVersionCheckForResource(notFoundCheckStatus(), false, randomInt(), "{} [{}] does not exist on the [{}] {}");
         } else {
             // it DOES exist, but the version needs to be replaced
-            assertVersionCheckForResource(successfulCheckStatus(), false,
-                                          randomInt(), "{} [{}] found on the [{}] {}");
+            assertVersionCheckForResource(successfulCheckStatus(), false, randomInt(), "{} [{}] found on the [{}] {}");
         }
     }
 
@@ -110,9 +106,18 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
 
         whenPerformRequestAsyncWith(client, request, response);
 
-        resource.versionCheckForResource(client, wrapMockListener(checkListener), logger,
-                                         resourceBasePath, resourceName, resourceType, owner, ownerType,
-                                         xContent, minimumVersion);
+        resource.versionCheckForResource(
+            client,
+            wrapMockListener(checkListener),
+            logger,
+            resourceBasePath,
+            resourceName,
+            resourceType,
+            owner,
+            ownerType,
+            xContent,
+            minimumVersion
+        );
 
         verifyCheckListener(null);
         verify(logger).trace("checking if {} [{}] exists on the [{}] {}", resourceType, resourceName, owner, ownerType);
@@ -134,9 +139,18 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
 
         whenPerformRequestAsyncWith(client, request, response);
 
-        resource.versionCheckForResource(client, wrapMockListener(checkListener), logger,
-                                         resourceBasePath, resourceName, resourceType, owner, ownerType,
-                                         xContent, minimumVersion);
+        resource.versionCheckForResource(
+            client,
+            wrapMockListener(checkListener),
+            logger,
+            resourceBasePath,
+            resourceName,
+            resourceType,
+            owner,
+            ownerType,
+            xContent,
+            minimumVersion
+        );
 
         verifyCheckListener(null);
         verify(logger).trace("checking if {} [{}] exists on the [{}] {}", resourceType, resourceName, owner, ownerType);
@@ -186,8 +200,18 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         whenPerformRequestAsyncWith(client, request, e);
 
         final Map<String, String> parameters = Collections.emptyMap();
-        resource.putResource(client, wrapMockListener(publishListener), logger, resourceBasePath, resourceName, parameters, body,
-            resourceType, owner, ownerType);
+        resource.putResource(
+            client,
+            wrapMockListener(publishListener),
+            logger,
+            resourceBasePath,
+            resourceName,
+            parameters,
+            body,
+            resourceType,
+            owner,
+            ownerType
+        );
 
         verifyPublishListener(null);
 
@@ -219,8 +243,16 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
 
         whenPerformRequestAsyncWith(client, request, e);
 
-        resource.deleteResource(client, wrapMockListener(checkListener), logger, resourceBasePath, resourceName, resourceType, owner,
-            ownerType);
+        resource.deleteResource(
+            client,
+            wrapMockListener(checkListener),
+            logger,
+            resourceBasePath,
+            resourceName,
+            resourceType,
+            owner,
+            ownerType
+        );
 
         verifyCheckListener(null);
 
@@ -236,8 +268,13 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
     }
 
     public void testDoCheckAndPublishIgnoresPublishWhenCheckErrors() {
-        final PublishableHttpResource resource =
-                new MockHttpResource(owner, masterTimeout, PublishableHttpResource.NO_BODY_PARAMETERS, null, true);
+        final PublishableHttpResource resource = new MockHttpResource(
+            owner,
+            masterTimeout,
+            PublishableHttpResource.NO_BODY_PARAMETERS,
+            null,
+            true
+        );
 
         resource.doCheckAndPublish(client, wrapMockListener(publishListener));
 
@@ -249,8 +286,13 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         final boolean exists = randomBoolean();
         final boolean publish = randomBoolean();
 
-        final PublishableHttpResource resource =
-                new MockHttpResource(owner, masterTimeout, PublishableHttpResource.NO_BODY_PARAMETERS, exists, publish);
+        final PublishableHttpResource resource = new MockHttpResource(
+            owner,
+            masterTimeout,
+            PublishableHttpResource.NO_BODY_PARAMETERS,
+            exists,
+            publish
+        );
 
         resource.doCheckAndPublish(client, wrapMockListener(publishListener));
 
@@ -296,8 +338,10 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
 
         final Response response = mock(Response.class);
         // { "resourceName": { "version": randomLong } }
-        final HttpEntity entity =
-                new StringEntity("{\"" + resourceName + "\":{\"version\":" + version + "}}", ContentType.APPLICATION_JSON);
+        final HttpEntity entity = new StringEntity(
+            "{\"" + resourceName + "\":{\"version\":" + version + "}}",
+            ContentType.APPLICATION_JSON
+        );
         final XContent xContent = XContentType.JSON.xContent();
 
         when(response.getEntity()).thenReturn(entity);
@@ -306,8 +350,7 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
     }
 
     @SuppressLoggerChecks(reason = "mock logger used")
-    private void assertCheckForResource(final RestStatus status, final Boolean expected, final String debugLogMessage)
-            throws IOException {
+    private void assertCheckForResource(final RestStatus status, final Boolean expected, final String debugLogMessage) throws IOException {
         final String endpoint = concatenateEndpoint(resourceBasePath, resourceName);
         final Response response = response("GET", endpoint, status);
         final Request request = new Request("GET", endpoint);
@@ -335,9 +378,12 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
     }
 
     @SuppressLoggerChecks(reason = "mock logger used")
-    private void assertVersionCheckForResource(final RestStatus status, final Boolean expected,
-                                               final int minimumVersion,
-                                               final String debugLogMessage) {
+    private void assertVersionCheckForResource(
+        final RestStatus status,
+        final Boolean expected,
+        final int minimumVersion,
+        final String debugLogMessage
+    ) {
         final String endpoint = concatenateEndpoint(resourceBasePath, resourceName);
         final boolean shouldReplace = status == RestStatus.OK && expected == Boolean.FALSE;
         final HttpEntity entity = status == RestStatus.OK ? entityForResource(expected, resourceName, minimumVersion) : null;
@@ -348,9 +394,18 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
 
         whenPerformRequestAsyncWith(client, request, response);
 
-        resource.versionCheckForResource(client, wrapMockListener(checkListener), logger,
-                                         resourceBasePath, resourceName, resourceType, owner, ownerType,
-                                         xContent, minimumVersion);
+        resource.versionCheckForResource(
+            client,
+            wrapMockListener(checkListener),
+            logger,
+            resourceBasePath,
+            resourceName,
+            resourceType,
+            owner,
+            ownerType,
+            xContent,
+            minimumVersion
+        );
 
         verify(logger).trace("checking if {} [{}] exists on the [{}] {}", resourceType, resourceName, owner, ownerType);
         verify(client).performRequestAsync(eq(request), any(ResponseListener.class));
@@ -383,8 +438,18 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         whenPerformRequestAsyncWith(client, request, response);
 
         final Map<String, String> parameters = Collections.emptyMap();
-        resource.putResource(client, wrapMockListener(publishListener), logger, resourceBasePath, resourceName, parameters, body,
-            resourceType, owner, ownerType);
+        resource.putResource(
+            client,
+            wrapMockListener(publishListener),
+            logger,
+            resourceBasePath,
+            resourceName,
+            parameters,
+            body,
+            resourceType,
+            owner,
+            ownerType
+        );
 
         verifyPublishListener(errorFree ? ResourcePublishResult.ready() : null);
         verify(client).performRequestAsync(eq(request), any(ResponseListener.class));
@@ -399,18 +464,25 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
 
             verify(logger).error(any(org.apache.logging.log4j.util.Supplier.class), e.capture());
 
-            assertThat(e.getValue().getMessage(),
-                       is("[" + resourceBasePath + "/" + resourceName + "] responded with [" + status.getStatus() + "]"));
+            assertThat(
+                e.getValue().getMessage(),
+                is("[" + resourceBasePath + "/" + resourceName + "] responded with [" + status.getStatus() + "]")
+            );
         }
 
         verifyNoMoreInteractions(client, response, logger, entity);
     }
 
     @SuppressWarnings("unchecked")
-    private void assertCheckForResource(final RestClient client, final Logger logger,
-                                        final String resourceBasePath, final String resourceName, final String resourceType,
-                                        final Boolean expected, final Response response)
-            throws IOException {
+    private void assertCheckForResource(
+        final RestClient client,
+        final Logger logger,
+        final String resourceBasePath,
+        final String resourceName,
+        final String resourceType,
+        final Boolean expected,
+        final Response response
+    ) throws IOException {
         final CheckedFunction<Response, Boolean, IOException> responseChecker = mock(CheckedFunction.class);
         final CheckedFunction<Response, Boolean, IOException> dneResponseChecker = mock(CheckedFunction.class);
 
@@ -420,9 +492,20 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
             when(dneResponseChecker.apply(response)).thenReturn(false == expected);
         }
 
-        resource.checkForResource(client, wrapMockListener(checkListener), logger, resourceBasePath, resourceName, resourceType, owner,
-            ownerType, PublishableHttpResource.GET_EXISTS, PublishableHttpResource.GET_DOES_NOT_EXIST,
-            responseChecker, dneResponseChecker);
+        resource.checkForResource(
+            client,
+            wrapMockListener(checkListener),
+            logger,
+            resourceBasePath,
+            resourceName,
+            resourceType,
+            owner,
+            ownerType,
+            PublishableHttpResource.GET_EXISTS,
+            PublishableHttpResource.GET_DOES_NOT_EXIST,
+            responseChecker,
+            dneResponseChecker
+        );
 
         if (expected == Boolean.TRUE) {
             verify(responseChecker).apply(response);
@@ -446,8 +529,16 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
 
         whenPerformRequestAsyncWith(client, request, response);
 
-        resource.deleteResource(client, wrapMockListener(checkListener), logger, resourceBasePath, resourceName, resourceType, owner,
-            ownerType);
+        resource.deleteResource(
+            client,
+            wrapMockListener(checkListener),
+            logger,
+            resourceBasePath,
+            resourceName,
+            resourceType,
+            owner,
+            ownerType
+        );
 
         verify(client).performRequestAsync(eq(request), any(ResponseListener.class));
         verify(response).getStatusLine();
@@ -462,8 +553,10 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
 
             verify(logger).error(any(org.apache.logging.log4j.util.Supplier.class), e.capture());
 
-            assertThat(e.getValue().getMessage(),
-                       is("[" + resourceBasePath + "/" + resourceName + "] responded with [" + status.getStatus() + "]"));
+            assertThat(
+                e.getValue().getMessage(),
+                is("[" + resourceBasePath + "/" + resourceName + "] responded with [" + status.getStatus() + "]")
+            );
             verifyCheckListener(null);
         }
 

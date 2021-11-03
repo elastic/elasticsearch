@@ -7,25 +7,25 @@
  */
 package org.elasticsearch.client;
 
+import org.elasticsearch.client.textstructure.FindStructureRequest;
+import org.elasticsearch.client.textstructure.FindStructureResponse;
+import org.elasticsearch.client.textstructure.structurefinder.TextStructure;
+
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Locale;
 
-import org.elasticsearch.client.textstructure.FindStructureRequest;
-import org.elasticsearch.client.textstructure.FindStructureResponse;
-import org.elasticsearch.client.textstructure.structurefinder.TextStructure;
-
 public class TextStructureIT extends ESRestHighLevelClientTestCase {
 
     public void testFindFileStructure() throws IOException {
 
-        String sample = "{\"logger\":\"controller\",\"timestamp\":1478261151445,\"level\":\"INFO\"," +
-                "\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 1\",\"class\":\"ml\"," +
-                "\"method\":\"core::SomeNoiseMaker\",\"file\":\"Noisemaker.cc\",\"line\":333}\n" +
-            "{\"logger\":\"controller\",\"timestamp\":1478261151445," +
-                "\"level\":\"INFO\",\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 2\",\"class\":\"ml\"," +
-                "\"method\":\"core::SomeNoiseMaker\",\"file\":\"Noisemaker.cc\",\"line\":333}\n";
+        String sample = "{\"logger\":\"controller\",\"timestamp\":1478261151445,\"level\":\"INFO\","
+            + "\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 1\",\"class\":\"ml\","
+            + "\"method\":\"core::SomeNoiseMaker\",\"file\":\"Noisemaker.cc\",\"line\":333}\n"
+            + "{\"logger\":\"controller\",\"timestamp\":1478261151445,"
+            + "\"level\":\"INFO\",\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 2\",\"class\":\"ml\","
+            + "\"method\":\"core::SomeNoiseMaker\",\"file\":\"Noisemaker.cc\",\"line\":333}\n";
 
         TextStructureClient textStructureClient = highLevelClient().textStructure();
 
@@ -36,7 +36,8 @@ public class TextStructureIT extends ESRestHighLevelClientTestCase {
             request,
             textStructureClient::findStructure,
             textStructureClient::findStructureAsync,
-            RequestOptions.DEFAULT);
+            RequestOptions.DEFAULT
+        );
 
         TextStructure structure = response.getFileStructure();
 

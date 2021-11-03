@@ -40,8 +40,7 @@ public class FeaturesClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public GetFeaturesResponse getFeatures(GetFeaturesRequest getFeaturesRequest, RequestOptions options)
-        throws IOException {
+    public GetFeaturesResponse getFeatures(GetFeaturesRequest getFeaturesRequest, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(
             getFeaturesRequest,
             FeaturesRequestConverters::getFeatures,
@@ -62,8 +61,10 @@ public class FeaturesClient {
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable getFeaturesAsync(
-        GetFeaturesRequest getFeaturesRequest, RequestOptions options,
-        ActionListener<GetFeaturesResponse> listener) {
+        GetFeaturesRequest getFeaturesRequest,
+        RequestOptions options,
+        ActionListener<GetFeaturesResponse> listener
+    ) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             getFeaturesRequest,
             FeaturesRequestConverters::getFeatures,
@@ -85,8 +86,7 @@ public class FeaturesClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public ResetFeaturesResponse resetFeatures(ResetFeaturesRequest resetFeaturesRequest, RequestOptions options)
-        throws IOException {
+    public ResetFeaturesResponse resetFeatures(ResetFeaturesRequest resetFeaturesRequest, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(
             resetFeaturesRequest,
             FeaturesRequestConverters::resetFeatures,
@@ -108,8 +108,10 @@ public class FeaturesClient {
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable resetFeaturesAsync(
-        ResetFeaturesRequest resetFeaturesRequest, RequestOptions options,
-        ActionListener<ResetFeaturesResponse> listener) {
+        ResetFeaturesRequest resetFeaturesRequest,
+        RequestOptions options,
+        ActionListener<ResetFeaturesResponse> listener
+    ) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             resetFeaturesRequest,
             FeaturesRequestConverters::resetFeatures,

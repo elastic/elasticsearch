@@ -40,8 +40,13 @@ public final class AuthenticationResult {
     private final Exception exception;
     private final Map<String, Object> metadata;
 
-    private AuthenticationResult(Status status, @Nullable User user, @Nullable String message, @Nullable Exception exception,
-                                 @Nullable Map<String, Object> metadata) {
+    private AuthenticationResult(
+        Status status,
+        @Nullable User user,
+        @Nullable String message,
+        @Nullable Exception exception,
+        @Nullable Map<String, Object> metadata
+    ) {
         this.status = status;
         this.user = user;
         this.message = message;
@@ -154,12 +159,7 @@ public final class AuthenticationResult {
 
     @Override
     public String toString() {
-        return "AuthenticationResult{" +
-                "status=" + status +
-                ", user=" + user +
-                ", message=" + message +
-                ", exception=" + exception +
-                '}';
+        return "AuthenticationResult{" + "status=" + status + ", user=" + user + ", message=" + message + ", exception=" + exception + '}';
     }
 
 }

@@ -7,14 +7,13 @@
  */
 package org.elasticsearch.client.ml.inference.preprocessing;
 
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
-
 
 public class FrequencyEncodingTests extends AbstractXContentTestCase<FrequencyEncoding> {
 
@@ -48,10 +47,7 @@ public class FrequencyEncodingTests extends AbstractXContentTestCase<FrequencyEn
         for (int i = 0; i < valuesSize; i++) {
             valueMap.put(randomAlphaOfLength(10), randomDoubleBetween(0.0, 1.0, false));
         }
-        return new FrequencyEncoding(inputField,
-            randomAlphaOfLength(10),
-            valueMap,
-            randomBoolean() ? null : randomBoolean());
+        return new FrequencyEncoding(inputField, randomAlphaOfLength(10), valueMap, randomBoolean() ? null : randomBoolean());
     }
 
 }

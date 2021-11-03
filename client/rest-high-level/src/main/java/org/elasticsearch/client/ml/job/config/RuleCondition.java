@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.ml.job.config;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -23,9 +23,11 @@ public class RuleCondition implements ToXContentObject {
     public static final ParseField APPLIES_TO_FIELD = new ParseField("applies_to");
     public static final ParseField VALUE_FIELD = new ParseField("value");
 
-    public static final ConstructingObjectParser<RuleCondition, Void> PARSER =
-        new ConstructingObjectParser<>(RULE_CONDITION_FIELD.getPreferredName(), true,
-            a -> new RuleCondition((AppliesTo) a[0], (Operator) a[1], (double) a[2]));
+    public static final ConstructingObjectParser<RuleCondition, Void> PARSER = new ConstructingObjectParser<>(
+        RULE_CONDITION_FIELD.getPreferredName(),
+        true,
+        a -> new RuleCondition((AppliesTo) a[0], (Operator) a[1], (double) a[2])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), AppliesTo::fromString, APPLIES_TO_FIELD);

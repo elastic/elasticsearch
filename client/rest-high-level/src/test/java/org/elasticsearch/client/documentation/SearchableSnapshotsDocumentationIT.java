@@ -29,10 +29,10 @@ import org.elasticsearch.client.searchable_snapshots.CachesStatsResponse.NodeCac
 import org.elasticsearch.client.searchable_snapshots.MountSnapshotRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.RestoreInfo;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.List;
@@ -52,8 +52,7 @@ public class SearchableSnapshotsDocumentationIT extends ESRestHighLevelClientTes
         }
 
         {
-            final IndexRequest request = new IndexRequest("index")
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            final IndexRequest request = new IndexRequest("index").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .source("{}", XContentType.JSON);
             final IndexResponse response = client.index(request, RequestOptions.DEFAULT);
             assertThat(response.status(), is(RestStatus.CREATED));
@@ -68,8 +67,7 @@ public class SearchableSnapshotsDocumentationIT extends ESRestHighLevelClientTes
         }
 
         {
-            final CreateSnapshotRequest request =
-                new CreateSnapshotRequest("repository", "snapshot").waitForCompletion(true);
+            final CreateSnapshotRequest request = new CreateSnapshotRequest("repository", "snapshot").waitForCompletion(true);
             final CreateSnapshotResponse response = client.snapshot().create(request, RequestOptions.DEFAULT);
             assertThat(response.getSnapshotInfo().status(), is(RestStatus.OK));
         }

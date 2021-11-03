@@ -19,8 +19,14 @@ import org.elasticsearch.test.AbstractBootstrapCheckTestCase;
 public class TLSLicenseBootstrapCheckTests extends AbstractBootstrapCheckTestCase {
     public void testBootstrapCheckOnEmptyMetadata() {
         assertTrue(new TLSLicenseBootstrapCheck().check(emptyContext).isSuccess());
-        assertTrue(new TLSLicenseBootstrapCheck().check(createTestContext(Settings.builder().put("xpack.security.transport.ssl.enabled"
-            , randomBoolean()).build(), Metadata.EMPTY_METADATA)).isSuccess());
+        assertTrue(
+            new TLSLicenseBootstrapCheck().check(
+                createTestContext(
+                    Settings.builder().put("xpack.security.transport.ssl.enabled", randomBoolean()).build(),
+                    Metadata.EMPTY_METADATA
+                )
+            ).isSuccess()
+        );
     }
 
     public void testBootstrapCheckFailureOnPremiumLicense() throws Exception {
@@ -37,10 +43,14 @@ public class TLSLicenseBootstrapCheckTests extends AbstractBootstrapCheckTestCas
 
         final BootstrapCheck.BootstrapCheckResult result = runBootstrapCheck(mode, settings);
         assertTrue("Expected bootstrap failure", result.isFailure());
-        assertEquals("Transport SSL must be enabled if security is enabled on a [" + mode.description() + "] license. Please set " +
-                "[xpack.security.transport.ssl.enabled] to [true] or disable security by setting " +
-                "[xpack.security.enabled] to [false]",
-            result.getMessage());
+        assertEquals(
+            "Transport SSL must be enabled if security is enabled on a ["
+                + mode.description()
+                + "] license. Please set "
+                + "[xpack.security.transport.ssl.enabled] to [true] or disable security by setting "
+                + "[xpack.security.enabled] to [false]",
+            result.getMessage()
+        );
     }
 
     public void testBootstrapCheckSucceedsWithTlsEnabledOnPremiumLicense() throws Exception {
@@ -58,10 +68,12 @@ public class TLSLicenseBootstrapCheckTests extends AbstractBootstrapCheckTestCas
         }
         final BootstrapCheck.BootstrapCheckResult result = runBootstrapCheck(OperationMode.BASIC, settings);
         assertTrue("Expected bootstrap failure", result.isFailure());
-        assertEquals("Transport SSL must be enabled if security is enabled on a [basic] license. Please set " +
-                "[xpack.security.transport.ssl.enabled] to [true] or disable security by setting " +
-                "[xpack.security.enabled] to [false]",
-            result.getMessage());
+        assertEquals(
+            "Transport SSL must be enabled if security is enabled on a [basic] license. Please set "
+                + "[xpack.security.transport.ssl.enabled] to [true] or disable security by setting "
+                + "[xpack.security.enabled] to [false]",
+            result.getMessage()
+        );
     }
 
     public void testBootstrapSucceedsIfSecurityIsNotEnabledOnBasicLicense() throws Exception {

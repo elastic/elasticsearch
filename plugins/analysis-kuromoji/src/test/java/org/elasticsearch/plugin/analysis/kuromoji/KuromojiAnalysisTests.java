@@ -85,7 +85,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("kuromoji_pos");
         assertThat(tokenFilter, instanceOf(KuromojiPartOfSpeechFilterFactory.class));
         String source = "私は制限スピードを超える。";
-        String[] expected = new String[]{"私", "は", "制限", "スピード", "を"};
+        String[] expected = new String[] { "私", "は", "制限", "スピード", "を" };
         Tokenizer tokenizer = new JapaneseTokenizer(null, true, JapaneseTokenizer.Mode.SEARCH);
         tokenizer.setReader(new StringReader(source));
         assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
@@ -98,7 +98,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
         assertThat(tokenFilter, instanceOf(KuromojiPartOfSpeechFilterFactory.class));
 
         String source = "寿司がおいしいね";
-        String[] expected_tokens = new String[]{"寿司", "おいしい"};
+        String[] expected_tokens = new String[] { "寿司", "おいしい" };
 
         Tokenizer tokenizer = new JapaneseTokenizer(null, true, JapaneseTokenizer.Mode.SEARCH);
         tokenizer.setReader(new StringReader(source));
@@ -111,7 +111,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("kuromoji_rf");
         assertThat(tokenFilter, instanceOf(KuromojiReadingFormFilterFactory.class));
         String source = "今夜はロバート先生と話した";
-        String[] expected_tokens_romaji = new String[]{"kon'ya", "ha", "robato", "sensei", "to", "hanashi", "ta"};
+        String[] expected_tokens_romaji = new String[] { "kon'ya", "ha", "robato", "sensei", "to", "hanashi", "ta" };
 
         Tokenizer tokenizer = new JapaneseTokenizer(null, true, JapaneseTokenizer.Mode.SEARCH);
         tokenizer.setReader(new StringReader(source));
@@ -120,7 +120,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
 
         tokenizer = new JapaneseTokenizer(null, true, JapaneseTokenizer.Mode.SEARCH);
         tokenizer.setReader(new StringReader(source));
-        String[] expected_tokens_katakana = new String[]{"コンヤ", "ハ", "ロバート", "センセイ", "ト", "ハナシ", "タ"};
+        String[] expected_tokens_katakana = new String[] { "コンヤ", "ハ", "ロバート", "センセイ", "ト", "ハナシ", "タ" };
         tokenFilter = analysis.tokenFilter.get("kuromoji_readingform");
         assertThat(tokenFilter, instanceOf(KuromojiReadingFormFilterFactory.class));
         assertSimpleTSOutput(tokenFilter.create(tokenizer), expected_tokens_katakana);
@@ -138,7 +138,21 @@ public class KuromojiAnalysisTests extends ESTestCase {
         // パーティー should be stemmed by default
         // (min len) コピー should not be stemmed
         String[] expected_tokens_katakana = new String[] {
-                "明後日", "パーティ", "に", "行く", "予定", "が", "ある", "図書館", "で", "資料", "を", "コピー", "し", "まし", "た"};
+            "明後日",
+            "パーティ",
+            "に",
+            "行く",
+            "予定",
+            "が",
+            "ある",
+            "図書館",
+            "で",
+            "資料",
+            "を",
+            "コピー",
+            "し",
+            "まし",
+            "た" };
         assertSimpleTSOutput(tokenFilter.create(tokenizer), expected_tokens_katakana);
 
         tokenFilter = analysis.tokenFilter.get("kuromoji_ks");
@@ -149,7 +163,21 @@ public class KuromojiAnalysisTests extends ESTestCase {
         // パーティー should not be stemmed since min len == 6
         // コピー should not be stemmed
         expected_tokens_katakana = new String[] {
-                "明後日", "パーティー", "に", "行く", "予定", "が", "ある", "図書館", "で", "資料", "を", "コピー", "し", "まし", "た"};
+            "明後日",
+            "パーティー",
+            "に",
+            "行く",
+            "予定",
+            "が",
+            "ある",
+            "図書館",
+            "で",
+            "資料",
+            "を",
+            "コピー",
+            "し",
+            "まし",
+            "た" };
         assertSimpleTSOutput(tokenFilter.create(tokenizer), expected_tokens_katakana);
     }
 
@@ -191,7 +219,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("ja_stop");
         assertThat(tokenFilter, instanceOf(JapaneseStopTokenFilterFactory.class));
         String source = "私は制限スピードを超える。";
-        String[] expected = new String[]{"私", "制限", "超える"};
+        String[] expected = new String[] { "私", "制限", "超える" };
         Tokenizer tokenizer = new JapaneseTokenizer(null, true, JapaneseTokenizer.Mode.SEARCH);
         tokenizer.setReader(new StringReader(source));
         assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
@@ -215,8 +243,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
         return createTestAnalysis(new Index("test", "_na_"), nodeSettings, settings, new AnalysisKuromojiPlugin());
     }
 
-    public static void assertSimpleTSOutput(TokenStream stream,
-                                            String[] expected) throws IOException {
+    public static void assertSimpleTSOutput(TokenStream stream, String[] expected) throws IOException {
         stream.reset();
         CharTermAttribute termAttr = stream.getAttribute(CharTermAttribute.class);
         assertThat(termAttr, notNullValue());
@@ -228,8 +255,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
         assertThat("not all tokens produced", i, equalTo(expected.length));
     }
 
-    private void assertCharFilterEquals(Reader filtered,
-                                        String expected) throws IOException {
+    private void assertCharFilterEquals(Reader filtered, String expected) throws IOException {
         String actual = readFully(filtered);
         assertThat(actual, equalTo(expected));
     }
@@ -237,8 +263,8 @@ public class KuromojiAnalysisTests extends ESTestCase {
     private String readFully(Reader reader) throws IOException {
         StringBuilder buffer = new StringBuilder();
         int ch;
-        while((ch = reader.read()) != -1){
-            buffer.append((char)ch);
+        while ((ch = reader.read()) != -1) {
+            buffer.append((char) ch);
         }
         return buffer.toString();
     }
@@ -247,7 +273,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
         TestAnalysis analysis = createTestAnalysis();
         TokenizerFactory tokenizerFactory = analysis.tokenizer.get("kuromoji_user_dict");
         String source = "私は制限スピードを超える。";
-        String[] expected = new String[]{"私", "は", "制限スピード", "を", "超える"};
+        String[] expected = new String[] { "私", "は", "制限スピード", "を", "超える" };
 
         Tokenizer tokenizer = tokenizerFactory.create();
         tokenizer.setReader(new StringReader(source));
@@ -265,7 +291,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
         TestAnalysis analysis = createTestAnalysis();
         TokenizerFactory tokenizerFactory = analysis.tokenizer.get("kuromoji_nbest_cost");
         String source = "鳩山積み";
-        String[] expected = new String[] {"鳩", "鳩山", "山積み", "積み"};
+        String[] expected = new String[] { "鳩", "鳩山", "山積み", "積み" };
 
         Tokenizer tokenizer = tokenizerFactory.create();
         tokenizer.setReader(new StringReader(source));
@@ -276,7 +302,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
         TestAnalysis analysis = createTestAnalysis();
         TokenizerFactory tokenizerFactory = analysis.tokenizer.get("kuromoji_nbest_examples");
         String source = "鳩山積み";
-        String[] expected = new String[] {"鳩", "鳩山", "山積み", "積み"};
+        String[] expected = new String[] { "鳩", "鳩山", "山積み", "積み" };
 
         Tokenizer tokenizer = tokenizerFactory.create();
         tokenizer.setReader(new StringReader(source));
@@ -287,7 +313,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
         TestAnalysis analysis = createTestAnalysis();
         TokenizerFactory tokenizerFactory = analysis.tokenizer.get("kuromoji_nbest_both");
         String source = "鳩山積み";
-        String[] expected = new String[] {"鳩", "鳩山", "山積み", "積み"};
+        String[] expected = new String[] { "鳩", "鳩山", "山積み", "積み" };
 
         Tokenizer tokenizer = tokenizerFactory.create();
         tokenizer.setReader(new StringReader(source));
@@ -300,7 +326,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("kuromoji_number");
         assertThat(tokenFilter, instanceOf(KuromojiNumberFilterFactory.class));
         String source = "本日十万二千五百円のワインを買った";
-        String[] expected = new String[]{"本日", "102500", "円", "の", "ワイン", "を", "買っ", "た"};
+        String[] expected = new String[] { "本日", "102500", "円", "の", "ワイン", "を", "買っ", "た" };
         Tokenizer tokenizer = new JapaneseTokenizer(null, true, JapaneseTokenizer.Mode.SEARCH);
         tokenizer.setReader(new StringReader(source));
         assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
@@ -314,11 +340,11 @@ public class KuromojiAnalysisTests extends ESTestCase {
         TestAnalysis analysis = createTestAnalysis(settings);
         Analyzer analyzer = analysis.indexAnalyzers.get("my_analyzer");
         try (TokenStream stream = analyzer.tokenStream("", "制限スピード")) {
-            assertTokenStreamContents(stream, new String[]{"制限スピード"});
+            assertTokenStreamContents(stream, new String[] { "制限スピード" });
         }
 
         try (TokenStream stream = analyzer.tokenStream("", "c++world")) {
-            assertTokenStreamContents(stream, new String[]{"c++", "world"});
+            assertTokenStreamContents(stream, new String[] { "c++", "world" });
         }
     }
 
@@ -329,15 +355,22 @@ public class KuromojiAnalysisTests extends ESTestCase {
             .putList("index.analysis.analyzer.my_analyzer.user_dictionary_rules", "c++,c++,w,w")
             .build();
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> createTestAnalysis(settings));
-        assertThat(exc.getMessage(), containsString("It is not allowed to use [user_dictionary] in conjunction " +
-            "with [user_dictionary_rules]"));
+        assertThat(
+            exc.getMessage(),
+            containsString("It is not allowed to use [user_dictionary] in conjunction " + "with [user_dictionary_rules]")
+        );
     }
 
     public void testKuromojiAnalyzerDuplicateUserDictRule() throws Exception {
         Settings settings = Settings.builder()
             .put("index.analysis.analyzer.my_analyzer.type", "kuromoji")
-            .putList("index.analysis.analyzer.my_analyzer.user_dictionary_rules",
-                "c++,c++,w,w", "#comment", "制限スピード,制限スピード,セイゲンスピード,テスト名詞", "制限スピード,制限スピード,セイゲンスピード,テスト名詞")
+            .putList(
+                "index.analysis.analyzer.my_analyzer.user_dictionary_rules",
+                "c++,c++,w,w",
+                "#comment",
+                "制限スピード,制限スピード,セイゲンスピード,テスト名詞",
+                "制限スピード,制限スピード,セイゲンスピード,テスト名詞"
+            )
             .build();
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> createTestAnalysis(settings));
         assertThat(exc.getMessage(), containsString("[制限スピード] in user dictionary at line [3]"));
@@ -347,7 +380,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
         TestAnalysis analysis = createTestAnalysis();
         TokenizerFactory tokenizerFactory = analysis.tokenizer.get("kuromoji_discard_compound_token");
         String source = "株式会社";
-        String[] expected = new String[] {"株式", "会社"};
+        String[] expected = new String[] { "株式", "会社" };
 
         Tokenizer tokenizer = tokenizerFactory.create();
         tokenizer.setReader(new StringReader(source));

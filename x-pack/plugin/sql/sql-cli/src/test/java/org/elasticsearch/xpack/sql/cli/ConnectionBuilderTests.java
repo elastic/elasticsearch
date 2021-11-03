@@ -89,8 +89,7 @@ public class ConnectionBuilderTests extends SqlCliTestCase {
             }
 
             @Override
-            protected ConnectionConfiguration newConnectionConfiguration(URI uri, String connectionString,
-                    Properties properties) {
+            protected ConnectionConfiguration newConnectionConfiguration(URI uri, String connectionString, Properties properties) {
                 // Stub building the actual configuration because we don't have permission to read the keystore.
                 assertEquals("true", properties.get(SslConfig.SSL));
                 assertEquals("keystore_location", properties.get(SslConfig.SSL_KEYSTORE_LOCATION));
@@ -113,8 +112,10 @@ public class ConnectionBuilderTests extends SqlCliTestCase {
         UserException ue = new UserException(random().nextInt(), randomAlphaOfLength(5));
         when(testTerminal.readPassword("password: ")).thenThrow(ue);
         ConnectionBuilder connectionBuilder = new ConnectionBuilder(testTerminal);
-        UserException actual = expectThrows(UserException.class, () ->
-            buildConnection(connectionBuilder, "http://user@foobar:9242/", null));
+        UserException actual = expectThrows(
+            UserException.class,
+            () -> buildConnection(connectionBuilder, "http://user@foobar:9242/", null)
+        );
         assertSame(actual, ue);
     }
 
@@ -129,13 +130,15 @@ public class ConnectionBuilderTests extends SqlCliTestCase {
                 // Stubbed so we don't need permission to read the file
             }
         };
-        UserException actual = expectThrows(UserException.class, () ->
-            buildConnection(connectionBuilder, "https://user@foobar:9242/", "keystore_location"));
+        UserException actual = expectThrows(
+            UserException.class,
+            () -> buildConnection(connectionBuilder, "https://user@foobar:9242/", "keystore_location")
+        );
         assertSame(actual, ue);
     }
 
-    private ConnectionConfiguration buildConnection(ConnectionBuilder builder, String connectionStringArg,
-                                                    String keystoreLocation) throws UserException {
+    private ConnectionConfiguration buildConnection(ConnectionBuilder builder, String connectionStringArg, String keystoreLocation)
+        throws UserException {
         return builder.buildConnection(connectionStringArg, keystoreLocation, randomBoolean());
     }
 }

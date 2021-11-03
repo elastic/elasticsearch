@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 
 import java.io.IOException;
@@ -48,16 +48,18 @@ public class ConfusionMatrixTests extends AbstractSerializingTestCase<ConfusionM
     }
 
     public void testEvaluate() {
-        Aggregations aggs = new Aggregations(Arrays.asList(
-            mockFilter("confusion_matrix_at_0.25_TP", 1L),
-            mockFilter("confusion_matrix_at_0.25_FP", 2L),
-            mockFilter("confusion_matrix_at_0.25_TN", 3L),
-            mockFilter("confusion_matrix_at_0.25_FN", 4L),
-            mockFilter("confusion_matrix_at_0.5_TP", 5L),
-            mockFilter("confusion_matrix_at_0.5_FP", 6L),
-            mockFilter("confusion_matrix_at_0.5_TN", 7L),
-            mockFilter("confusion_matrix_at_0.5_FN", 8L)
-        ));
+        Aggregations aggs = new Aggregations(
+            Arrays.asList(
+                mockFilter("confusion_matrix_at_0.25_TP", 1L),
+                mockFilter("confusion_matrix_at_0.25_FP", 2L),
+                mockFilter("confusion_matrix_at_0.25_TN", 3L),
+                mockFilter("confusion_matrix_at_0.25_FN", 4L),
+                mockFilter("confusion_matrix_at_0.5_TP", 5L),
+                mockFilter("confusion_matrix_at_0.5_FP", 6L),
+                mockFilter("confusion_matrix_at_0.5_TN", 7L),
+                mockFilter("confusion_matrix_at_0.5_FN", 8L)
+            )
+        );
 
         ConfusionMatrix confusionMatrix = new ConfusionMatrix(Arrays.asList(0.25, 0.5));
         EvaluationMetricResult result = confusionMatrix.evaluate(aggs);

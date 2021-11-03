@@ -35,7 +35,7 @@ final class DissectMatch {
 
     DissectMatch(String appendSeparator, int maxMatches, int maxResults, int appendCount, int referenceCount) {
         if (maxMatches <= 0 || maxResults <= 0) {
-            throw new IllegalArgumentException("Expected results are zero, can not construct DissectMatch");//should never happen
+            throw new IllegalArgumentException("Expected results are zero, can not construct DissectMatch");// should never happen
         }
         this.maxMatches = maxMatches;
         this.maxResults = maxResults;
@@ -67,8 +67,8 @@ final class DissectMatch {
                 appendResults.computeIfAbsent(key.getName(), k -> new AppendResult(appendSeparator)).addValue(value, implicitAppendOrder++);
                 break;
             case APPEND_WITH_ORDER:
-                appendResults.computeIfAbsent(key.getName(),
-                    k -> new AppendResult(appendSeparator)).addValue(value, key.getAppendPosition());
+                appendResults.computeIfAbsent(key.getName(), k -> new AppendResult(appendSeparator))
+                    .addValue(value, key.getAppendPosition());
                 break;
             case FIELD_NAME:
                 referenceResults.computeIfAbsent(key.getName(), k -> new ReferenceResult()).setKey(value);

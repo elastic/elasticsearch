@@ -20,9 +20,9 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestService;
@@ -105,8 +105,9 @@ public class SourceDestValidatorTests extends ESTestCase {
     private final TransportService transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool);
     private final RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
     private final IngestService ingestService = mock(IngestService.class);
-    private final IndexNameExpressionResolver indexNameExpressionResolver =
-        TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext());
+    private final IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance(
+        threadPool.getThreadContext()
+    );
 
     private final SourceDestValidator simpleNonRemoteValidator = new SourceDestValidator(
         indexNameExpressionResolver,
@@ -234,14 +235,7 @@ public class SourceDestValidatorTests extends ESTestCase {
 
     public void testCheck_GivenNoSourceIndexAndValidDestIndex() throws InterruptedException {
         assertValidation(
-            listener -> simpleNonRemoteValidator.validate(
-                CLUSTER_STATE,
-                new String[] {},
-                "dest",
-                null,
-                TEST_VALIDATIONS,
-                listener
-            ),
+            listener -> simpleNonRemoteValidator.validate(CLUSTER_STATE, new String[] {}, "dest", null, TEST_VALIDATIONS, listener),
             (Boolean) null,
             e -> {
                 assertEquals(1, e.validationErrors().size());
@@ -597,10 +591,7 @@ public class SourceDestValidatorTests extends ESTestCase {
             (Boolean) null,
             e -> {
                 assertEquals(1, e.validationErrors().size());
-                assertThat(
-                    e.validationErrors().get(0),
-                    equalTo("Pipeline with id [missing-pipeline] could not be found")
-                );
+                assertThat(e.validationErrors().get(0), equalTo("Pipeline with id [missing-pipeline] could not be found"));
             }
         );
 
@@ -611,8 +602,10 @@ public class SourceDestValidatorTests extends ESTestCase {
         Map<String, Object> pipelineConfig = new HashMap<>();
         pipelineConfig.put(Pipeline.DESCRIPTION_KEY, "_description");
         pipelineConfig.put(Pipeline.VERSION_KEY, "1");
-        pipelineConfig.put(Pipeline.PROCESSORS_KEY,
-            Arrays.asList(Collections.singletonMap("test", processorConfig0), Collections.singletonMap("test", processorConfig1)));
+        pipelineConfig.put(
+            Pipeline.PROCESSORS_KEY,
+            Arrays.asList(Collections.singletonMap("test", processorConfig0), Collections.singletonMap("test", processorConfig1))
+        );
         Map<String, Processor.Factory> processorRegistry = Collections.singletonMap("test", new TestProcessor.Factory());
         Pipeline pipeline = Pipeline.create("missing-pipeline", pipelineConfig, processorRegistry, null);
         when(ingestService.getPipeline("missing-pipeline")).thenReturn(pipeline);
@@ -687,8 +680,10 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 indexNameExpressionResolver,
                 remoteClusterService,
-                new RemoteClusterLicenseChecker(clientWithBasicLicense,
-                    operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM)),
+                new RemoteClusterLicenseChecker(
+                    clientWithBasicLicense,
+                    operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM)
+                ),
                 ingestService,
                 new String[] { REMOTE_BASIC + ":" + "SOURCE_1" },
                 "dest",
@@ -719,8 +714,10 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 indexNameExpressionResolver,
                 remoteClusterService,
-                new RemoteClusterLicenseChecker(clientWithPlatinumLicense,
-                    operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM)),
+                new RemoteClusterLicenseChecker(
+                    clientWithPlatinumLicense,
+                    operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM)
+                ),
                 ingestService,
                 new String[] { REMOTE_PLATINUM + ":" + "SOURCE_1" },
                 "dest",
@@ -742,8 +739,10 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 indexNameExpressionResolver,
                 remoteClusterService,
-                new RemoteClusterLicenseChecker(clientWithPlatinumLicense,
-                    operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM)),
+                new RemoteClusterLicenseChecker(
+                    clientWithPlatinumLicense,
+                    operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM)
+                ),
                 ingestService,
                 new String[] { REMOTE_PLATINUM + ":" + "SOURCE_1" },
                 "dest",
@@ -766,8 +765,10 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 indexNameExpressionResolver,
                 remoteClusterService,
-                new RemoteClusterLicenseChecker(clientWithTrialLicense,
-                    operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM)),
+                new RemoteClusterLicenseChecker(
+                    clientWithTrialLicense,
+                    operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM)
+                ),
                 ingestService,
                 new String[] { REMOTE_PLATINUM + ":" + "SOURCE_1" },
                 "dest",
@@ -792,8 +793,10 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 indexNameExpressionResolver,
                 remoteClusterService,
-                new RemoteClusterLicenseChecker(clientWithExpiredBasicLicense,
-                    operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM)),
+                new RemoteClusterLicenseChecker(
+                    clientWithExpiredBasicLicense,
+                    operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM)
+                ),
                 ingestService,
                 new String[] { REMOTE_BASIC + ":" + "SOURCE_1" },
                 "dest",
@@ -821,8 +824,10 @@ public class SourceDestValidatorTests extends ESTestCase {
                 CLUSTER_STATE,
                 indexNameExpressionResolver,
                 remoteClusterService,
-                new RemoteClusterLicenseChecker(clientWithExpiredBasicLicense,
-                    operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM)),
+                new RemoteClusterLicenseChecker(
+                    clientWithExpiredBasicLicense,
+                    operationMode -> XPackLicenseState.isAllowedByOperationMode(operationMode, License.OperationMode.PLATINUM)
+                ),
                 ingestService,
                 new String[] { "non_existing_remote:" + "SOURCE_1" },
                 "dest",

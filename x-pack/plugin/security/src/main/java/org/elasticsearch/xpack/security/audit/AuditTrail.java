@@ -43,11 +43,21 @@ public interface AuditTrail {
 
     void authenticationFailed(String requestId, String realm, AuthenticationToken token, RestRequest request);
 
-    void accessGranted(String requestId, Authentication authentication, String action, TransportRequest transportRequest,
-                       AuthorizationInfo authorizationInfo);
+    void accessGranted(
+        String requestId,
+        Authentication authentication,
+        String action,
+        TransportRequest transportRequest,
+        AuthorizationInfo authorizationInfo
+    );
 
-    void accessDenied(String requestId, Authentication authentication, String action, TransportRequest transportRequest,
-                      AuthorizationInfo authorizationInfo);
+    void accessDenied(
+        String requestId,
+        Authentication authentication,
+        String action,
+        TransportRequest transportRequest,
+        AuthorizationInfo authorizationInfo
+    );
 
     void tamperedRequest(String requestId, RestRequest request);
 
@@ -65,14 +75,23 @@ public interface AuditTrail {
 
     void connectionDenied(InetAddress inetAddress, String profile, SecurityIpFilterRule rule);
 
-    void runAsGranted(String requestId, Authentication authentication, String action, TransportRequest transportRequest,
-                      AuthorizationInfo authorizationInfo);
+    void runAsGranted(
+        String requestId,
+        Authentication authentication,
+        String action,
+        TransportRequest transportRequest,
+        AuthorizationInfo authorizationInfo
+    );
 
-    void runAsDenied(String requestId, Authentication authentication, String action, TransportRequest transportRequest,
-                     AuthorizationInfo authorizationInfo);
+    void runAsDenied(
+        String requestId,
+        Authentication authentication,
+        String action,
+        TransportRequest transportRequest,
+        AuthorizationInfo authorizationInfo
+    );
 
-    void runAsDenied(String requestId, Authentication authentication, RestRequest request,
-                     AuthorizationInfo authorizationInfo);
+    void runAsDenied(String requestId, Authentication authentication, RestRequest request, AuthorizationInfo authorizationInfo);
 
     /**
      * This is a "workaround" method to log index "access_granted" and "access_denied" events for actions not tied to a
@@ -80,12 +99,25 @@ public interface AuditTrail {
      * message. It is currently only used to audit the resolved index (alias) name for each {@code BulkItemRequest} comprised by a
      * {@code BulkShardRequest}. We should strive to not use this and TODO refactor it out!
      */
-    void explicitIndexAccessEvent(String requestId, AuditLevel eventType, Authentication authentication, String action, String indices,
-                                  String requestName, TransportAddress remoteAddress, AuthorizationInfo authorizationInfo);
+    void explicitIndexAccessEvent(
+        String requestId,
+        AuditLevel eventType,
+        Authentication authentication,
+        String action,
+        String indices,
+        String requestName,
+        TransportAddress remoteAddress,
+        AuthorizationInfo authorizationInfo
+    );
 
     // this is the only audit method that is called *after* the action executed, when the response is available
     // it is however *only called for coordinating actions*, which are the actions that a client invokes as opposed to
     // the actions that a node invokes in order to service a client request
-    void coordinatingActionResponse(String requestId, Authentication authentication, String action, TransportRequest transportRequest,
-                                    TransportResponse transportResponse);
+    void coordinatingActionResponse(
+        String requestId,
+        Authentication authentication,
+        String action,
+        TransportRequest transportRequest,
+        TransportResponse transportResponse
+    );
 }

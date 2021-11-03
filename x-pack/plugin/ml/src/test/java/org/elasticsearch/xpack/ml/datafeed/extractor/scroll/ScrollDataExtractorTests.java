@@ -18,11 +18,11 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
@@ -159,8 +159,10 @@ public class ScrollDataExtractorTests extends ESTestCase {
         capturedContinueScrollIds = new ArrayList<>();
         jobId = "test-job";
         ExtractedField timeField = new TimeField("time", ExtractedField.Method.DOC_VALUE);
-        extractedFields = new TimeBasedExtractedFields(timeField,
-                Arrays.asList(timeField, new DocValueField("field_1", Collections.singleton("keyword"))));
+        extractedFields = new TimeBasedExtractedFields(
+            timeField,
+            Arrays.asList(timeField, new DocValueField("field_1", Collections.singleton("keyword")))
+        );
         indices = Arrays.asList("index-1", "index-2");
         query = QueryBuilders.matchAllQuery();
         scriptFields = Collections.emptyList();
@@ -175,11 +177,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
     public void testSinglePageExtraction() throws IOException {
         TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
 
-        SearchResponse response1 = createSearchResponse(
-                Arrays.asList(1100L, 1200L),
-                Arrays.asList("a1", "a2"),
-                Arrays.asList("b1", "b2")
-        );
+        SearchResponse response1 = createSearchResponse(Arrays.asList(1100L, 1200L), Arrays.asList("a1", "a2"), Arrays.asList("b1", "b2"));
         extractor.setNextResponse(response1);
 
         assertThat(extractor.hasNext(), is(true));
@@ -197,9 +195,14 @@ public class ScrollDataExtractorTests extends ESTestCase {
 
         String searchRequest = capturedSearchRequests.get(0).toString().replaceAll("\\s", "");
         assertThat(searchRequest, containsString("\"size\":1000"));
-        assertThat(searchRequest, containsString("\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}}," +
-                "{\"range\":{\"time\":{\"from\":1000,\"to\":2000,\"include_lower\":true,\"include_upper\":false," +
-                "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"));
+        assertThat(
+            searchRequest,
+            containsString(
+                "\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}},"
+                    + "{\"range\":{\"time\":{\"from\":1000,\"to\":2000,\"include_lower\":true,\"include_upper\":false,"
+                    + "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"
+            )
+        );
         assertThat(searchRequest, containsString("\"sort\":[{\"time\":{\"order\":\"asc\"}}]"));
         assertThat(searchRequest, containsString("\"stored_fields\":\"_none_\""));
 
@@ -214,11 +217,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
     public void testMultiplePageExtraction() throws IOException {
         TestDataExtractor extractor = new TestDataExtractor(1000L, 10000L);
 
-        SearchResponse response1 = createSearchResponse(
-                Arrays.asList(1000L, 2000L),
-                Arrays.asList("a1", "a2"),
-                Arrays.asList("b1", "b2")
-        );
+        SearchResponse response1 = createSearchResponse(Arrays.asList(1000L, 2000L), Arrays.asList("a1", "a2"), Arrays.asList("b1", "b2"));
         extractor.setNextResponse(response1);
 
         assertThat(extractor.hasNext(), is(true));
@@ -227,11 +226,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
         String expectedStream = "{\"time\":1000,\"field_1\":\"a1\"} {\"time\":2000,\"field_1\":\"a2\"}";
         assertThat(asString(stream.get()), equalTo(expectedStream));
 
-        SearchResponse response2 = createSearchResponse(
-                Arrays.asList(3000L, 4000L),
-                Arrays.asList("a3", "a4"),
-                Arrays.asList("b3", "b4")
-        );
+        SearchResponse response2 = createSearchResponse(Arrays.asList(3000L, 4000L), Arrays.asList("a3", "a4"), Arrays.asList("b3", "b4"));
         extractor.setNextResponse(response2);
 
         assertThat(extractor.hasNext(), is(true));
@@ -249,9 +244,14 @@ public class ScrollDataExtractorTests extends ESTestCase {
 
         String searchRequest1 = capturedSearchRequests.get(0).toString().replaceAll("\\s", "");
         assertThat(searchRequest1, containsString("\"size\":1000"));
-        assertThat(searchRequest1, containsString("\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}}," +
-                "{\"range\":{\"time\":{\"from\":1000,\"to\":10000,\"include_lower\":true,\"include_upper\":false," +
-                "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"));
+        assertThat(
+            searchRequest1,
+            containsString(
+                "\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}},"
+                    + "{\"range\":{\"time\":{\"from\":1000,\"to\":10000,\"include_lower\":true,\"include_upper\":false,"
+                    + "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"
+            )
+        );
         assertThat(searchRequest1, containsString("\"sort\":[{\"time\":{\"order\":\"asc\"}}]"));
 
         assertThat(capturedContinueScrollIds.size(), equalTo(2));
@@ -266,11 +266,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
     public void testMultiplePageExtractionGivenCancel() throws IOException {
         TestDataExtractor extractor = new TestDataExtractor(1000L, 10000L);
 
-        SearchResponse response1 = createSearchResponse(
-                Arrays.asList(1000L, 2000L),
-                Arrays.asList("a1", "a2"),
-                Arrays.asList("b1", "b2")
-        );
+        SearchResponse response1 = createSearchResponse(Arrays.asList(1000L, 2000L), Arrays.asList("a1", "a2"), Arrays.asList("b1", "b2"));
         extractor.setNextResponse(response1);
 
         assertThat(extractor.hasNext(), is(true));
@@ -282,9 +278,9 @@ public class ScrollDataExtractorTests extends ESTestCase {
         extractor.cancel();
 
         SearchResponse response2 = createSearchResponse(
-                Arrays.asList(2000L, 2000L, 3000L),
-                Arrays.asList("a3", "a4", "a5"),
-                Arrays.asList("b3", "b4", "b5")
+            Arrays.asList(2000L, 2000L, 3000L),
+            Arrays.asList("a3", "a4", "a5"),
+            Arrays.asList("b3", "b4", "b5")
         );
         extractor.setNextResponse(response2);
 
@@ -313,11 +309,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
     public void testExtractionGivenContinueScrollResponseHasError() throws IOException {
         TestDataExtractor extractor = new TestDataExtractor(1000L, 10000L);
 
-        SearchResponse response1 = createSearchResponse(
-                Arrays.asList(1000L, 2000L),
-                Arrays.asList("a1", "a2"),
-                Arrays.asList("b1", "b2")
-        );
+        SearchResponse response1 = createSearchResponse(Arrays.asList(1000L, 2000L), Arrays.asList("a1", "a2"), Arrays.asList("b1", "b2"));
         extractor.setNextResponse(response1);
 
         assertThat(extractor.hasNext(), is(true));
@@ -345,9 +337,9 @@ public class ScrollDataExtractorTests extends ESTestCase {
         TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
 
         SearchResponse goodResponse = createSearchResponse(
-                Arrays.asList(1100L, 1200L),
-                Arrays.asList("a1", "a2"),
-                Arrays.asList("b1", "b2")
+            Arrays.asList(1100L, 1200L),
+            Arrays.asList("a1", "a2"),
+            Arrays.asList("b1", "b2")
         );
         extractor.setNextResponse(goodResponse);
         extractor.setNextResponseToError(new SearchPhaseExecutionException("search phase 1", "boom", ShardSearchFailure.EMPTY_ARRAY));
@@ -373,9 +365,9 @@ public class ScrollDataExtractorTests extends ESTestCase {
         TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
 
         SearchResponse goodResponse = createSearchResponse(
-                Arrays.asList(1100L, 1200L),
-                Arrays.asList("a1", "a2"),
-                Arrays.asList("b1", "b2")
+            Arrays.asList(1100L, 1200L),
+            Arrays.asList("a1", "a2"),
+            Arrays.asList("b1", "b2")
         );
 
         extractor.setNextResponse(goodResponse);
@@ -394,22 +386,21 @@ public class ScrollDataExtractorTests extends ESTestCase {
     public void testResetScrollAfterSearchPhaseExecutionException() throws IOException {
         TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
         SearchResponse firstResponse = createSearchResponse(
-                Arrays.asList(1100L, 1200L),
-                Arrays.asList("a1", "a2"),
-                Arrays.asList("b1", "b2")
+            Arrays.asList(1100L, 1200L),
+            Arrays.asList("a1", "a2"),
+            Arrays.asList("b1", "b2")
         );
 
         SearchResponse secondResponse = createSearchResponse(
-                Arrays.asList(1300L, 1400L),
-                Arrays.asList("a1", "a2"),
-                Arrays.asList("b1", "b2")
+            Arrays.asList(1300L, 1400L),
+            Arrays.asList("a1", "a2"),
+            Arrays.asList("b1", "b2")
         );
 
         extractor.setNextResponse(firstResponse);
         extractor.setNextResponseToError(new SearchPhaseExecutionException("search phase 1", "boom", ShardSearchFailure.EMPTY_ARRAY));
         extractor.setNextResponse(secondResponse);
         extractor.setNextResponseToError(new SearchPhaseExecutionException("search phase 1", "boom", ShardSearchFailure.EMPTY_ARRAY));
-
 
         // first response is good
         assertThat(extractor.hasNext(), is(true));
@@ -440,23 +431,31 @@ public class ScrollDataExtractorTests extends ESTestCase {
 
     public void testDomainSplitScriptField() throws IOException {
 
-        SearchSourceBuilder.ScriptField withoutSplit = new SearchSourceBuilder.ScriptField(
-                "script1", mockScript("return 1+1;"), false);
+        SearchSourceBuilder.ScriptField withoutSplit = new SearchSourceBuilder.ScriptField("script1", mockScript("return 1+1;"), false);
         SearchSourceBuilder.ScriptField withSplit = new SearchSourceBuilder.ScriptField(
-                "script2", new Script(ScriptType.INLINE, "painless", "return domainSplit('foo.com', params);", emptyMap()), false);
+            "script2",
+            new Script(ScriptType.INLINE, "painless", "return domainSplit('foo.com', params);", emptyMap()),
+            false
+        );
 
         List<SearchSourceBuilder.ScriptField> sFields = Arrays.asList(withoutSplit, withSplit);
-        ScrollDataExtractorContext context = new ScrollDataExtractorContext(jobId, extractedFields, indices,
-                query, sFields, scrollSize, 1000, 2000, Collections.emptyMap(), SearchRequest.DEFAULT_INDICES_OPTIONS,
-            Collections.emptyMap());
+        ScrollDataExtractorContext context = new ScrollDataExtractorContext(
+            jobId,
+            extractedFields,
+            indices,
+            query,
+            sFields,
+            scrollSize,
+            1000,
+            2000,
+            Collections.emptyMap(),
+            SearchRequest.DEFAULT_INDICES_OPTIONS,
+            Collections.emptyMap()
+        );
 
         TestDataExtractor extractor = new TestDataExtractor(context);
 
-        SearchResponse response1 = createSearchResponse(
-                Arrays.asList(1100L, 1200L),
-                Arrays.asList("a1", "a2"),
-                Arrays.asList("b1", "b2")
-        );
+        SearchResponse response1 = createSearchResponse(Arrays.asList(1100L, 1200L), Arrays.asList("a1", "a2"), Arrays.asList("b1", "b2"));
         extractor.setNextResponse(response1);
 
         assertThat(extractor.hasNext(), is(true));
@@ -474,15 +473,22 @@ public class ScrollDataExtractorTests extends ESTestCase {
 
         String searchRequest = capturedSearchRequests.get(0).toString().replaceAll("\\s", "");
         assertThat(searchRequest, containsString("\"size\":1000"));
-        assertThat(searchRequest, containsString("\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}}," +
-                "{\"range\":{\"time\":{\"from\":1000,\"to\":2000,\"include_lower\":true,\"include_upper\":false," +
-                "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"));
+        assertThat(
+            searchRequest,
+            containsString(
+                "\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}},"
+                    + "{\"range\":{\"time\":{\"from\":1000,\"to\":2000,\"include_lower\":true,\"include_upper\":false,"
+                    + "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"
+            )
+        );
         assertThat(searchRequest, containsString("\"sort\":[{\"time\":{\"order\":\"asc\"}}]"));
         assertThat(searchRequest, containsString("\"stored_fields\":\"_none_\""));
 
         // Check for the scripts
-        assertThat(searchRequest, containsString("{\"script\":{\"source\":\"return 1 + 1;\",\"lang\":\"mockscript\"}"
-                .replaceAll("\\s", "")));
+        assertThat(
+            searchRequest,
+            containsString("{\"script\":{\"source\":\"return 1 + 1;\",\"lang\":\"mockscript\"}".replaceAll("\\s", ""))
+        );
 
         assertThat(capturedContinueScrollIds.size(), equalTo(1));
         assertThat(capturedContinueScrollIds.get(0), equalTo(response1.getScrollId()));
@@ -493,8 +499,19 @@ public class ScrollDataExtractorTests extends ESTestCase {
     }
 
     private ScrollDataExtractorContext createContext(long start, long end) {
-        return new ScrollDataExtractorContext(jobId, extractedFields, indices, query, scriptFields, scrollSize, start, end,
-            Collections.emptyMap(), SearchRequest.DEFAULT_INDICES_OPTIONS, Collections.emptyMap());
+        return new ScrollDataExtractorContext(
+            jobId,
+            extractedFields,
+            indices,
+            query,
+            scriptFields,
+            scrollSize,
+            start,
+            end,
+            Collections.emptyMap(),
+            SearchRequest.DEFAULT_INDICES_OPTIONS,
+            Collections.emptyMap()
+        );
     }
 
     private SearchResponse createEmptySearchResponse() {
@@ -514,8 +531,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
             SearchHit hit = new SearchHit(randomInt(), null, fields, null);
             hits.add(hit);
         }
-        SearchHits searchHits = new SearchHits(hits.toArray(new SearchHit[0]),
-            new TotalHits(hits.size(), TotalHits.Relation.EQUAL_TO), 1);
+        SearchHits searchHits = new SearchHits(hits.toArray(new SearchHit[0]), new TotalHits(hits.size(), TotalHits.Relation.EQUAL_TO), 1);
         when(searchResponse.getHits()).thenReturn(searchHits);
         when(searchResponse.getTook()).thenReturn(TimeValue.timeValueMillis(randomNonNegativeLong()));
         return searchResponse;

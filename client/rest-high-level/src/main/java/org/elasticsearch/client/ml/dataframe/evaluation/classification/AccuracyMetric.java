@@ -8,9 +8,9 @@
 package org.elasticsearch.client.ml.dataframe.evaluation.classification;
 
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -85,8 +85,11 @@ public class AccuracyMetric implements EvaluationMetric {
         private static final ParseField OVERALL_ACCURACY = new ParseField("overall_accuracy");
 
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<Result, Void> PARSER =
-            new ConstructingObjectParser<>("accuracy_result", true, a -> new Result((List<PerClassSingleValue>) a[0], (double) a[1]));
+        private static final ConstructingObjectParser<Result, Void> PARSER = new ConstructingObjectParser<>(
+            "accuracy_result",
+            true,
+            a -> new Result((List<PerClassSingleValue>) a[0], (double) a[1])
+        );
 
         static {
             PARSER.declareObjectArray(constructorArg(), PerClassSingleValue.PARSER, CLASSES);
@@ -134,8 +137,7 @@ public class AccuracyMetric implements EvaluationMetric {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Result that = (Result) o;
-            return Objects.equals(this.classes, that.classes)
-                && this.overallAccuracy == that.overallAccuracy;
+            return Objects.equals(this.classes, that.classes) && this.overallAccuracy == that.overallAccuracy;
         }
 
         @Override

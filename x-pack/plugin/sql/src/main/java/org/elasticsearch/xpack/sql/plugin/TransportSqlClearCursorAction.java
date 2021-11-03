@@ -30,8 +30,12 @@ public class TransportSqlClearCursorAction extends HandledTransportAction<SqlCle
     private final SqlLicenseChecker sqlLicenseChecker;
 
     @Inject
-    public TransportSqlClearCursorAction(TransportService transportService, ActionFilters actionFilters, PlanExecutor planExecutor,
-                                         SqlLicenseChecker sqlLicenseChecker) {
+    public TransportSqlClearCursorAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        PlanExecutor planExecutor,
+        SqlLicenseChecker sqlLicenseChecker
+    ) {
         super(NAME, transportService, actionFilters, SqlClearCursorRequest::new);
         this.planExecutor = planExecutor;
         this.sqlLicenseChecker = sqlLicenseChecker;
@@ -43,15 +47,31 @@ public class TransportSqlClearCursorAction extends HandledTransportAction<SqlCle
         operation(planExecutor, request, listener);
     }
 
-    public static void operation(PlanExecutor planExecutor, SqlClearCursorRequest request,
-            ActionListener<SqlClearCursorResponse> listener) {
+    public static void operation(
+        PlanExecutor planExecutor,
+        SqlClearCursorRequest request,
+        ActionListener<SqlClearCursorResponse> listener
+    ) {
         Cursor cursor = Cursors.decodeFromStringWithZone(request.getCursor()).v1();
         planExecutor.cleanCursor(
-                new SqlConfiguration(DateUtils.UTC, null, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, null,
-                        emptyMap(), request.mode(), StringUtils.EMPTY, request.version(), StringUtils.EMPTY, StringUtils.EMPTY,
-                        Protocol.FIELD_MULTI_VALUE_LENIENCY, Protocol.INDEX_INCLUDE_FROZEN),
-                cursor, ActionListener.wrap(
-                success -> listener.onResponse(new SqlClearCursorResponse(success)), listener::onFailure));
+            new SqlConfiguration(
+                DateUtils.UTC,
+                null,
+                Protocol.FETCH_SIZE,
+                Protocol.REQUEST_TIMEOUT,
+                Protocol.PAGE_TIMEOUT,
+                null,
+                emptyMap(),
+                request.mode(),
+                StringUtils.EMPTY,
+                request.version(),
+                StringUtils.EMPTY,
+                StringUtils.EMPTY,
+                Protocol.FIELD_MULTI_VALUE_LENIENCY,
+                Protocol.INDEX_INCLUDE_FROZEN
+            ),
+            cursor,
+            ActionListener.wrap(success -> listener.onResponse(new SqlClearCursorResponse(success)), listener::onFailure)
+        );
     }
 }
-

@@ -19,9 +19,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.List;
@@ -169,8 +169,13 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
             configDatabases = in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readSet(StreamInput::readString) : null;
         }
 
-        protected NodeResponse(DiscoveryNode node, GeoIpDownloaderStats stats, Set<String> databases, Set<String> filesInTemp,
-                               Set<String> configDatabases) {
+        protected NodeResponse(
+            DiscoveryNode node,
+            GeoIpDownloaderStats stats,
+            Set<String> databases,
+            Set<String> filesInTemp,
+            Set<String> configDatabases
+        ) {
             super(node);
             this.stats = stats;
             this.databases = databases;
@@ -213,10 +218,10 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             NodeResponse that = (NodeResponse) o;
-            return stats.equals(that.stats) &&
-                databases.equals(that.databases) &&
-                filesInTemp.equals(that.filesInTemp) &&
-                Objects.equals(configDatabases, that.configDatabases);
+            return stats.equals(that.stats)
+                && databases.equals(that.databases)
+                && filesInTemp.equals(that.filesInTemp)
+                && Objects.equals(configDatabases, that.configDatabases);
         }
 
         @Override

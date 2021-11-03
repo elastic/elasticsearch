@@ -66,10 +66,7 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
     public void testParsingOverwritesIdField() throws IOException {
         testParsingOverwrites(
             "",
-            "\"dest\": {"
-                + "\"index\": \"bar\","
-                + "\"pipeline\": \"baz\""
-                + "},",
+            "\"dest\": {" + "\"index\": \"bar\"," + "\"pipeline\": \"baz\"" + "},",
             "transform-preview",
             "bar",
             "baz"
@@ -77,21 +74,13 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
     }
 
     public void testParsingOverwritesDestField() throws IOException {
-        testParsingOverwrites(
-            "\"id\": \"bar\",",
-            "",
-            "bar",
-            "unused-transform-preview-index",
-            null
-        );
+        testParsingOverwrites("\"id\": \"bar\",", "", "bar", "unused-transform-preview-index", null);
     }
 
     public void testParsingOverwritesIdAndDestIndexFields() throws IOException {
         testParsingOverwrites(
             "",
-            "\"dest\": {"
-                + "\"pipeline\": \"baz\""
-            + "},",
+            "\"dest\": {" + "\"pipeline\": \"baz\"" + "},",
             "transform-preview",
             "unused-transform-preview-index",
             "baz"
@@ -99,13 +88,7 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
     }
 
     public void testParsingOverwritesIdAndDestFields() throws IOException {
-        testParsingOverwrites(
-            "",
-            "",
-            "transform-preview",
-            "unused-transform-preview-index",
-            null
-        );
+        testParsingOverwrites("", "", "transform-preview", "unused-transform-preview-index", null);
     }
 
     private void testParsingOverwrites(

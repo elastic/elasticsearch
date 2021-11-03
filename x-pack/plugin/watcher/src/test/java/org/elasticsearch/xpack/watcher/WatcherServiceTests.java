@@ -38,7 +38,6 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
@@ -46,6 +45,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.core.watcher.trigger.Trigger;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
@@ -94,55 +94,64 @@ public class WatcherServiceTests extends ESTestCase {
         ExecutionService executionService = mock(ExecutionService.class);
         WatchParser parser = mock(WatchParser.class);
 
-        WatcherService service = new WatcherService(Settings.EMPTY, triggerService, triggeredWatchStore,
-                executionService, parser, client, EsExecutors.DIRECT_EXECUTOR_SERVICE) {
+        WatcherService service = new WatcherService(
+            Settings.EMPTY,
+            triggerService,
+            triggeredWatchStore,
+            executionService,
+            parser,
+            client,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        ) {
             @Override
-            void stopExecutor() {
-            }
+            void stopExecutor() {}
         };
 
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         Metadata.Builder metadataBuilder = Metadata.builder();
-        Settings indexSettings = settings(Version.CURRENT)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .build();
+        Settings indexSettings = settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
         metadataBuilder.put(IndexMetadata.builder(Watch.INDEX).state(IndexMetadata.State.CLOSE).settings(indexSettings));
         csBuilder.metadata(metadataBuilder);
 
         assertThat(service.validate(csBuilder.build()), is(false));
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testLoadOnlyActiveWatches() throws Exception {
         TriggerService triggerService = mock(TriggerService.class);
         TriggeredWatchStore triggeredWatchStore = mock(TriggeredWatchStore.class);
         ExecutionService executionService = mock(ExecutionService.class);
         WatchParser parser = mock(WatchParser.class);
-        WatcherService service = new WatcherService(Settings.EMPTY, triggerService, triggeredWatchStore,
-                executionService, parser, client, EsExecutors.DIRECT_EXECUTOR_SERVICE) {
+        WatcherService service = new WatcherService(
+            Settings.EMPTY,
+            triggerService,
+            triggeredWatchStore,
+            executionService,
+            parser,
+            client,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        ) {
             @Override
-            void stopExecutor() {
-            }
+            void stopExecutor() {}
         };
-
 
         // cluster state setup, with one node, one shard
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         Metadata.Builder metadataBuilder = Metadata.builder();
-        Settings indexSettings = settings(Version.CURRENT)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .build();
+        Settings indexSettings = settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
         metadataBuilder.put(IndexMetadata.builder(Watch.INDEX).settings(indexSettings));
         csBuilder.metadata(metadataBuilder);
 
         Index watchIndex = new Index(Watch.INDEX, "uuid");
         ShardId shardId = new ShardId(watchIndex, 0);
 
-        IndexShardRoutingTable indexShardRoutingTable = new IndexShardRoutingTable.Builder(shardId)
-                .addShard(TestShardRouting.newShardRouting(shardId, "node", true, ShardRoutingState.STARTED))
-                .build();
+        IndexShardRoutingTable indexShardRoutingTable = new IndexShardRoutingTable.Builder(shardId).addShard(
+            TestShardRouting.newShardRouting(shardId, "node", true, ShardRoutingState.STARTED)
+        ).build();
 
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(watchIndex).addIndexShard(indexShardRoutingTable).build();
         RoutingTable routingTable = RoutingTable.builder().add(indexRoutingTable).build();
@@ -151,11 +160,11 @@ public class WatcherServiceTests extends ESTestCase {
         csBuilder.nodes(new DiscoveryNodes.Builder().masterNodeId("node").localNodeId("node").add(newNode()));
         ClusterState clusterState = csBuilder.build();
 
-
         // response setup, successful refresh response
         RefreshResponse refreshResponse = mock(RefreshResponse.class);
-        when(refreshResponse.getSuccessfulShards())
-                .thenReturn(clusterState.getMetadata().getIndices().get(Watch.INDEX).getNumberOfShards());
+        when(refreshResponse.getSuccessfulShards()).thenReturn(
+            clusterState.getMetadata().getIndices().get(Watch.INDEX).getNumberOfShards()
+        );
         doAnswer(invocation -> {
             ActionListener<RefreshResponse> listener = (ActionListener<RefreshResponse>) invocation.getArguments()[2];
             listener.onResponse(refreshResponse);
@@ -164,8 +173,16 @@ public class WatcherServiceTests extends ESTestCase {
 
         // empty scroll response, no further scrolling needed
         SearchResponseSections scrollSearchSections = new SearchResponseSections(SearchHits.empty(), null, null, false, false, null, 1);
-        SearchResponse scrollSearchResponse = new SearchResponse(scrollSearchSections, "scrollId", 1, 1, 0, 10,
-                ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+        SearchResponse scrollSearchResponse = new SearchResponse(
+            scrollSearchSections,
+            "scrollId",
+            1,
+            1,
+            0,
+            10,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY
+        );
         doAnswer(invocation -> {
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[2];
             listener.onResponse(scrollSearchResponse);
@@ -196,8 +213,16 @@ public class WatcherServiceTests extends ESTestCase {
         }
         SearchHits searchHits = new SearchHits(hits, new TotalHits(count, TotalHits.Relation.EQUAL_TO), 1.0f);
         SearchResponseSections sections = new SearchResponseSections(searchHits, null, null, false, false, null, 1);
-        SearchResponse searchResponse = new SearchResponse(sections, "scrollId", 1, 1, 0, 10, ShardSearchFailure.EMPTY_ARRAY,
-                SearchResponse.Clusters.EMPTY);
+        SearchResponse searchResponse = new SearchResponse(
+            sections,
+            "scrollId",
+            1,
+            1,
+            0,
+            10,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY
+        );
         doAnswer(invocation -> {
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[2];
             listener.onResponse(searchResponse);
@@ -219,7 +244,7 @@ public class WatcherServiceTests extends ESTestCase {
         assertThat(watches, hasSize(activeWatchCount));
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testPausingWatcherServiceAlsoPausesTriggerService() {
         String engineType = "foo";
         TriggerEngine<?, ?> triggerEngine = mock(TriggerEngine.class);
@@ -240,11 +265,17 @@ public class WatcherServiceTests extends ESTestCase {
         triggerService.add(watch);
         assertThat(triggerService.count(), is(1L));
 
-        WatcherService service = new WatcherService(Settings.EMPTY, triggerService, mock(TriggeredWatchStore.class),
-            mock(ExecutionService.class), mock(WatchParser.class), client, EsExecutors.DIRECT_EXECUTOR_SERVICE) {
+        WatcherService service = new WatcherService(
+            Settings.EMPTY,
+            triggerService,
+            mock(TriggeredWatchStore.class),
+            mock(ExecutionService.class),
+            mock(WatchParser.class),
+            client,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        ) {
             @Override
-            void stopExecutor() {
-            }
+            void stopExecutor() {}
         };
 
         service.pauseExecution("pausing");
@@ -257,11 +288,17 @@ public class WatcherServiceTests extends ESTestCase {
     public void testReloadingWatcherDoesNotPauseExecutionService() {
         ExecutionService executionService = mock(ExecutionService.class);
         TriggerService triggerService = mock(TriggerService.class);
-        WatcherService service = new WatcherService(Settings.EMPTY, triggerService, mock(TriggeredWatchStore.class),
-            executionService, mock(WatchParser.class), client, EsExecutors.DIRECT_EXECUTOR_SERVICE) {
+        WatcherService service = new WatcherService(
+            Settings.EMPTY,
+            triggerService,
+            mock(TriggeredWatchStore.class),
+            executionService,
+            mock(WatchParser.class),
+            client,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        ) {
             @Override
-            void stopExecutor() {
-            }
+            void stopExecutor() {}
         };
 
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
@@ -274,10 +311,14 @@ public class WatcherServiceTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode() {
-        return new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-            DiscoveryNodeRole.roles(), Version.CURRENT);
+        return new DiscoveryNode(
+            "node",
+            ESTestCase.buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            DiscoveryNodeRole.roles(),
+            Version.CURRENT
+        );
     }
-
 
     @SuppressWarnings("unchecked")
     private static <T> ActionListener<T> anyActionListener() {

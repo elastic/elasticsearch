@@ -10,7 +10,6 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.mock.orig.Mockito;
@@ -19,6 +18,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
@@ -53,18 +53,24 @@ public class StateStreamerTests extends ESTestCase {
         Map<String, Object> modelState2 = new HashMap<>();
         modelState2.put("modName2", "modVal2");
 
+        SearchRequestBuilder builder1 = prepareSearchBuilder(
+            createSearchResponse(Collections.singletonList(modelState1)),
+            QueryBuilders.idsQuery().addIds(ModelState.documentId(JOB_ID, snapshotId, 1))
+        );
+        SearchRequestBuilder builder2 = prepareSearchBuilder(
+            createSearchResponse(Collections.singletonList(modelState2)),
+            QueryBuilders.idsQuery().addIds(ModelState.documentId(JOB_ID, snapshotId, 2))
+        );
+        SearchRequestBuilder builder3 = prepareSearchBuilder(
+            createSearchResponse(Collections.singletonList(categorizerState)),
+            QueryBuilders.idsQuery().addIds(CategorizerState.documentId(JOB_ID, 1))
+        );
+        SearchRequestBuilder builder4 = prepareSearchBuilder(
+            createSearchResponse(Collections.emptyList()),
+            QueryBuilders.idsQuery().addIds(CategorizerState.documentId(JOB_ID, 2))
+        );
 
-        SearchRequestBuilder builder1 = prepareSearchBuilder(createSearchResponse(Collections.singletonList(modelState1)),
-            QueryBuilders.idsQuery().addIds(ModelState.documentId(JOB_ID, snapshotId, 1)));
-        SearchRequestBuilder builder2 = prepareSearchBuilder(createSearchResponse(Collections.singletonList(modelState2)),
-            QueryBuilders.idsQuery().addIds(ModelState.documentId(JOB_ID, snapshotId, 2)));
-        SearchRequestBuilder builder3 = prepareSearchBuilder(createSearchResponse(Collections.singletonList(categorizerState)),
-            QueryBuilders.idsQuery().addIds(CategorizerState.documentId(JOB_ID, 1)));
-        SearchRequestBuilder builder4 = prepareSearchBuilder(createSearchResponse(Collections.emptyList()),
-            QueryBuilders.idsQuery().addIds(CategorizerState.documentId(JOB_ID, 2)));
-
-        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME)
-            .addClusterStatusYellowResponse()
+        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME).addClusterStatusYellowResponse()
             .prepareSearches(AnomalyDetectorsIndex.jobStateIndexPattern(), builder1, builder2, builder3, builder4);
 
         ModelSnapshot modelSnapshot = new ModelSnapshot.Builder(JOB_ID).setSnapshotId(snapshotId).setSnapshotDocCount(2).build();
@@ -100,7 +106,7 @@ public class StateStreamerTests extends ESTestCase {
             SearchHit hit = new SearchHit(1).sourceRef(BytesReference.bytes(XContentFactory.jsonBuilder().map(s)));
             hits[i++] = hit;
         }
-        SearchHits searchHits = new SearchHits(hits, null, (float)0.0);
+        SearchHits searchHits = new SearchHits(hits, null, (float) 0.0);
         when(searchResponse.getHits()).thenReturn(searchHits);
         return searchResponse;
     }

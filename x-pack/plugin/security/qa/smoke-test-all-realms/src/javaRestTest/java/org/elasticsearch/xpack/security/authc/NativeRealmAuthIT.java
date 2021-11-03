@@ -41,8 +41,7 @@ public class NativeRealmAuthIT extends SecurityRealmSmokeTestCase {
 
     public void testAuthenticationUsingNativeRealm() throws IOException {
         Map<String, Object> authenticate = super.authenticate(
-            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization",
-                UsernamePasswordToken.basicAuthHeaderValue(USERNAME, PASSWORD))
+            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(USERNAME, PASSWORD))
         );
 
         assertUsername(authenticate, USERNAME);

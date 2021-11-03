@@ -86,14 +86,16 @@ public class AuthenticatorChainTests extends ESTestCase {
         authentication = mock(Authentication.class);
         when(authentication.getUser()).thenReturn(user);
         fallbackUser = mock(User.class);
-        authenticatorChain = new AuthenticatorChain(settings,
+        authenticatorChain = new AuthenticatorChain(
+            settings,
             operatorPrivilegesService,
             anonymousUser,
             authenticationContextSerializer,
             serviceAccountAuthenticator,
             oAuth2TokenAuthenticator,
             apiKeyAuthenticator,
-            realmsAuthenticator);
+            realmsAuthenticator
+        );
     }
 
     public void testAuthenticateWillLookForExistingAuthenticationFirst() throws IOException {
@@ -167,7 +169,8 @@ public class AuthenticatorChainTests extends ESTestCase {
     public void testAuthenticateWithApiKey() throws IOException {
         final Authenticator.Context context = createAuthenticatorContext();
         when(apiKeyAuthenticator.extractCredentials(context)).thenReturn(
-            new ApiKeyCredentials(randomAlphaOfLength(20), new SecureString(randomAlphaOfLength(22).toCharArray())));
+            new ApiKeyCredentials(randomAlphaOfLength(20), new SecureString(randomAlphaOfLength(22).toCharArray()))
+        );
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             final ActionListener<Authenticator.Result> listener = (ActionListener<Authenticator.Result>) invocationOnMock.getArguments()[1];
@@ -243,18 +246,21 @@ public class AuthenticatorChainTests extends ESTestCase {
         threadContext.putHeader("Authorization", unsuccessfulApiKey ? "ApiKey key_id:key_secret" : "Bearer some_token_value");
         if (unsuccessfulApiKey) {
             when(apiKeyAuthenticator.extractCredentials(context)).thenReturn(
-                new ApiKeyCredentials(randomAlphaOfLength(20), new SecureString(randomAlphaOfLength(22).toCharArray())));
+                new ApiKeyCredentials(randomAlphaOfLength(20), new SecureString(randomAlphaOfLength(22).toCharArray()))
+            );
             doAnswer(invocationOnMock -> {
-                @SuppressWarnings("unchecked") final ActionListener<Authenticator.Result> listener =
-                    (ActionListener<Authenticator.Result>) invocationOnMock.getArguments()[1];
+                @SuppressWarnings("unchecked")
+                final ActionListener<Authenticator.Result> listener = (ActionListener<Authenticator.Result>) invocationOnMock
+                    .getArguments()[1];
                 listener.onResponse(Authenticator.Result.unsuccessful("unsuccessful api key", null));
                 return null;
             }).when(apiKeyAuthenticator).authenticate(eq(context), any());
         } else {
             when(oAuth2TokenAuthenticator.extractCredentials(context)).thenReturn(mock(BearerToken.class));
             doAnswer(invocationOnMock -> {
-                @SuppressWarnings("unchecked") final ActionListener<Authenticator.Result> listener =
-                    (ActionListener<Authenticator.Result>) invocationOnMock.getArguments()[1];
+                @SuppressWarnings("unchecked")
+                final ActionListener<Authenticator.Result> listener = (ActionListener<Authenticator.Result>) invocationOnMock
+                    .getArguments()[1];
                 listener.onResponse(Authenticator.Result.unsuccessful("unsuccessful bearer token", null));
                 return null;
             }).when(oAuth2TokenAuthenticator).authenticate(eq(context), any());
@@ -262,12 +268,15 @@ public class AuthenticatorChainTests extends ESTestCase {
 
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
         authenticatorChain.authenticateAsync(context, future);
-        final ElasticsearchSecurityException e =
-            expectThrows(ElasticsearchSecurityException.class, future::actionGet);
-        assertThat(e.getMessage(), containsString("" +
-            "unable to authenticate with provided credentials and anonymous access is not allowed for this request"));
-        assertThat(e.getMetadata("es.additional_unsuccessful_credentials"),
-            hasItem(containsString(unsuccessfulApiKey ? "unsuccessful api key" : "unsuccessful bearer token")));
+        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
+        assertThat(
+            e.getMessage(),
+            containsString("" + "unable to authenticate with provided credentials and anonymous access is not allowed for this request")
+        );
+        assertThat(
+            e.getMetadata("es.additional_unsuccessful_credentials"),
+            hasItem(containsString(unsuccessfulApiKey ? "unsuccessful api key" : "unsuccessful bearer token"))
+        );
     }
 
     private Authenticator.Context createAuthenticatorContext() {

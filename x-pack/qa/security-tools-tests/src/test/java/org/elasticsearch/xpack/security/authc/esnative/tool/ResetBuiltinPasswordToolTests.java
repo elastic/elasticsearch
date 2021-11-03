@@ -101,11 +101,27 @@ public class ResetBuiltinPasswordToolTests extends CommandTestCase {
         user = userParameter.substring(2);
         URL url = new URL(client.getDefaultURL());
         HttpResponse healthResponse = new HttpResponse(HttpURLConnection.HTTP_OK, Map.of("status", randomFrom("yellow", "green")));
-        when(client.execute(anyString(), eq(clusterHealthUrl(url)), anyString(), any(SecureString.class), any(CheckedSupplier.class),
-            any(CheckedFunction.class))).thenReturn(healthResponse);
+        when(
+            client.execute(
+                anyString(),
+                eq(clusterHealthUrl(url)),
+                anyString(),
+                any(SecureString.class),
+                any(CheckedSupplier.class),
+                any(CheckedFunction.class)
+            )
+        ).thenReturn(healthResponse);
         HttpResponse changePasswordResponse = new HttpResponse(HttpURLConnection.HTTP_OK, Map.of());
-        when(client.execute(anyString(), eq(changePasswordUrl(url, user)), anyString(), any(SecureString.class), any(CheckedSupplier.class),
-            any(CheckedFunction.class))).thenReturn(changePasswordResponse);
+        when(
+            client.execute(
+                anyString(),
+                eq(changePasswordUrl(url, user)),
+                anyString(),
+                any(SecureString.class),
+                any(CheckedSupplier.class),
+                any(CheckedFunction.class)
+            )
+        ).thenReturn(changePasswordResponse);
     }
 
     @AfterClass
@@ -167,13 +183,18 @@ public class ResetBuiltinPasswordToolTests extends CommandTestCase {
 
     public void testFailureClusterUnhealthy() throws Exception {
         final URL url = new URL(client.getDefaultURL());
-        HttpResponse healthResponse =
-            new HttpResponse(HttpURLConnection.HTTP_OK, Map.of("status", randomFrom("red")));
-        when(client.execute(anyString(), eq(clusterHealthUrl(url)), anyString(), any(SecureString.class), any(CheckedSupplier.class),
-            any(CheckedFunction.class))).thenReturn(healthResponse);
-        UserException e = expectThrows(UserException.class, () -> {
-            execute(randomFrom("-i", "-a"), userParameter);
-        });
+        HttpResponse healthResponse = new HttpResponse(HttpURLConnection.HTTP_OK, Map.of("status", randomFrom("red")));
+        when(
+            client.execute(
+                anyString(),
+                eq(clusterHealthUrl(url)),
+                anyString(),
+                any(SecureString.class),
+                any(CheckedSupplier.class),
+                any(CheckedFunction.class)
+            )
+        ).thenReturn(healthResponse);
+        UserException e = expectThrows(UserException.class, () -> { execute(randomFrom("-i", "-a"), userParameter); });
         assertThat(e.exitCode, equalTo(ExitCodes.UNAVAILABLE));
         assertThat(e.getMessage(), containsString("RED"));
         assertThat(terminal.getOutput(), is(emptyString()));
@@ -183,8 +204,16 @@ public class ResetBuiltinPasswordToolTests extends CommandTestCase {
         terminal.addTextInput("y");
         final URL url = new URL(client.getDefaultURL());
         HttpResponse changePasswordResponse = new HttpResponse(HttpURLConnection.HTTP_UNAVAILABLE, Map.of());
-        when(client.execute(anyString(), eq(changePasswordUrl(url, user)), anyString(), any(SecureString.class), any(CheckedSupplier.class),
-            any(CheckedFunction.class))).thenReturn(changePasswordResponse);
+        when(
+            client.execute(
+                anyString(),
+                eq(changePasswordUrl(url, user)),
+                anyString(),
+                any(SecureString.class),
+                any(CheckedSupplier.class),
+                any(CheckedFunction.class)
+            )
+        ).thenReturn(changePasswordResponse);
         UserException e = expectThrows(UserException.class, () -> execute(userParameter));
         assertThat(e.exitCode, equalTo(ExitCodes.TEMP_FAILURE));
         assertThat(e.getMessage(), equalTo("Failed to reset password for the [" + user + "] user"));
@@ -196,10 +225,17 @@ public class ResetBuiltinPasswordToolTests extends CommandTestCase {
     public void testFailureClusterUnhealthyWithForce() throws Exception {
         terminal.addTextInput("y");
         final URL url = new URL(client.getDefaultURL());
-        HttpResponse healthResponse =
-            new HttpResponse(HttpURLConnection.HTTP_OK, Map.of("status", randomFrom("red")));
-        when(client.execute(anyString(), eq(clusterHealthUrl(url)), anyString(), any(SecureString.class), any(CheckedSupplier.class),
-            any(CheckedFunction.class))).thenReturn(healthResponse);
+        HttpResponse healthResponse = new HttpResponse(HttpURLConnection.HTTP_OK, Map.of("status", randomFrom("red")));
+        when(
+            client.execute(
+                anyString(),
+                eq(clusterHealthUrl(url)),
+                anyString(),
+                any(SecureString.class),
+                any(CheckedSupplier.class),
+                any(CheckedFunction.class)
+            )
+        ).thenReturn(healthResponse);
         execute("-a", randomFrom("-f", "--force"), userParameter);
         String output = terminal.getOutput();
         assertThat(output, containsString("This tool will reset the password of the [" + user + "] user to an autogenerated value."));
@@ -226,10 +262,7 @@ public class ResetBuiltinPasswordToolTests extends CommandTestCase {
     }
 
     public void testInvalidInvocation() throws Exception {
-        UserException e = expectThrows(
-            UserException.class,
-            () -> execute(randomFrom("-i", "--interactive"))
-        );
+        UserException e = expectThrows(UserException.class, () -> execute(randomFrom("-i", "--interactive")));
         assertThat(e.exitCode, equalTo(ExitCodes.USAGE));
         assertThat(e.getMessage(), equalTo("Invalid invocation"));
         assertThat(terminal.getOutput(), is(emptyString()));

@@ -24,7 +24,7 @@ public class XPackUsageIT extends ESCCRRestTestCase {
 
     public void testXPackCcrUsage() throws Exception {
         if ("follow".equals(targetCluster) == false) {
-            logger.info("skipping test, waiting for target cluster [follow]" );
+            logger.info("skipping test, waiting for target cluster [follow]");
             return;
         }
 
@@ -82,7 +82,7 @@ public class XPackUsageIT extends ESCCRRestTestCase {
         Request request = new Request("GET", "/_xpack/usage");
         Map<String, ?> response = toMap(client().performRequest(request));
         logger.info("xpack usage response={}", response);
-        return  (Map<?, ?>) response.get("ccr");
+        return (Map<?, ?>) response.get("ccr");
     }
 
     private void assertIndexFollowingActive(String expectedFollowerIndex) throws IOException {
@@ -97,9 +97,7 @@ public class XPackUsageIT extends ESCCRRestTestCase {
     @Override
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
 }

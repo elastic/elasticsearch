@@ -8,8 +8,8 @@
 
 package org.elasticsearch.client.security;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -25,8 +25,13 @@ public class NodeEnrollmentResponse {
     private final String transportCert;
     private final List<String> nodesAddresses;
 
-    public NodeEnrollmentResponse(String httpCaKey, String httpCaCert, String transportKey, String transportCert,
-                                  List<String> nodesAddresses){
+    public NodeEnrollmentResponse(
+        String httpCaKey,
+        String httpCaCert,
+        String transportKey,
+        String transportCert,
+        List<String> nodesAddresses
+    ) {
         this.httpCaKey = httpCaKey;
         this.httpCaCert = httpCaCert;
         this.transportKey = transportKey;
@@ -61,16 +66,18 @@ public class NodeEnrollmentResponse {
     private static final ParseField NODES_ADDRESSES = new ParseField("nodes_addresses");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<NodeEnrollmentResponse, Void>
-        PARSER =
-        new ConstructingObjectParser<>(NodeEnrollmentResponse.class.getName(), true, a -> {
+    public static final ConstructingObjectParser<NodeEnrollmentResponse, Void> PARSER = new ConstructingObjectParser<>(
+        NodeEnrollmentResponse.class.getName(),
+        true,
+        a -> {
             final String httpCaKey = (String) a[0];
             final String httpCaCert = (String) a[1];
             final String transportKey = (String) a[2];
             final String transportCert = (String) a[3];
             final List<String> nodesAddresses = (List<String>) a[4];
             return new NodeEnrollmentResponse(httpCaKey, httpCaCert, transportKey, transportCert, nodesAddresses);
-        });
+        }
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), HTTP_CA_KEY);
@@ -84,16 +91,20 @@ public class NodeEnrollmentResponse {
         return PARSER.apply(parser, null);
     }
 
-    @Override public boolean equals(Object o) {
+    @Override
+    public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         NodeEnrollmentResponse that = (NodeEnrollmentResponse) o;
-        return httpCaKey.equals(that.httpCaKey) && httpCaCert.equals(that.httpCaCert) && transportKey.equals(that.transportKey)
+        return httpCaKey.equals(that.httpCaKey)
+            && httpCaCert.equals(that.httpCaCert)
+            && transportKey.equals(that.transportKey)
             && transportCert.equals(that.transportCert)
             && nodesAddresses.equals(that.nodesAddresses);
     }
 
-    @Override public int hashCode() {
+    @Override
+    public int hashCode() {
         return Objects.hash(httpCaKey, httpCaCert, transportKey, transportCert, nodesAddresses);
     }
 }

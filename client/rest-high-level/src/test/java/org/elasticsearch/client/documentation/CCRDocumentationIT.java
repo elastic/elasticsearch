@@ -103,7 +103,7 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
         // Pause following and delete follower index, so that we can execute put follow api again:
         {
             PauseFollowRequest pauseFollowRequest = new PauseFollowRequest("follower");
-            AcknowledgedResponse pauseFollowResponse =  client.ccr().pauseFollow(pauseFollowRequest, RequestOptions.DEFAULT);
+            AcknowledgedResponse pauseFollowResponse = client.ccr().pauseFollow(pauseFollowRequest, RequestOptions.DEFAULT);
             assertThat(pauseFollowResponse.isAcknowledged(), is(true));
 
             DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest("follower");
@@ -143,7 +143,7 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             PauseFollowRequest pauseFollowRequest = new PauseFollowRequest("follower");
-            AcknowledgedResponse pauseFollowResponse =  client.ccr().pauseFollow(pauseFollowRequest, RequestOptions.DEFAULT);
+            AcknowledgedResponse pauseFollowResponse = client.ccr().pauseFollow(pauseFollowRequest, RequestOptions.DEFAULT);
             assertThat(pauseFollowResponse.isAcknowledged(), is(true));
         }
     }
@@ -538,8 +538,11 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
 
         // Put auto follow pattern, so that we can delete it:
         {
-            final PutAutoFollowPatternRequest putRequest =
-                new PutAutoFollowPatternRequest("my_pattern", "local", Collections.singletonList("logs-*"));
+            final PutAutoFollowPatternRequest putRequest = new PutAutoFollowPatternRequest(
+                "my_pattern",
+                "local",
+                Collections.singletonList("logs-*")
+            );
             AcknowledgedResponse putResponse = client.ccr().putAutoFollowPattern(putRequest, RequestOptions.DEFAULT);
             assertThat(putResponse.isAcknowledged(), is(true));
         }
@@ -560,8 +563,11 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
 
         // Put auto follow pattern, so that we can delete it again:
         {
-            final PutAutoFollowPatternRequest putRequest =
-                new PutAutoFollowPatternRequest("my_pattern", "local", Collections.singletonList("logs-*"));
+            final PutAutoFollowPatternRequest putRequest = new PutAutoFollowPatternRequest(
+                "my_pattern",
+                "local",
+                Collections.singletonList("logs-*")
+            );
             AcknowledgedResponse putResponse = client.ccr().putAutoFollowPattern(putRequest, RequestOptions.DEFAULT);
             assertThat(putResponse.isAcknowledged(), is(true));
         }
@@ -598,8 +604,11 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
 
         // Put auto follow pattern, so that we can get it:
         {
-            final PutAutoFollowPatternRequest putRequest =
-                new PutAutoFollowPatternRequest("my_pattern", "local", Collections.singletonList("logs-*"));
+            final PutAutoFollowPatternRequest putRequest = new PutAutoFollowPatternRequest(
+                "my_pattern",
+                "local",
+                Collections.singletonList("logs-*")
+            );
             AcknowledgedResponse putResponse = client.ccr().putAutoFollowPattern(putRequest, RequestOptions.DEFAULT);
             assertThat(putResponse.isAcknowledged(), is(true));
         }
@@ -885,7 +894,7 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             PauseFollowRequest pauseFollowRequest = new PauseFollowRequest("follower");
-            AcknowledgedResponse pauseFollowResponse =  client.ccr().pauseFollow(pauseFollowRequest, RequestOptions.DEFAULT);
+            AcknowledgedResponse pauseFollowResponse = client.ccr().pauseFollow(pauseFollowRequest, RequestOptions.DEFAULT);
             assertThat(pauseFollowResponse.isAcknowledged(), is(true));
         }
     }
@@ -952,7 +961,7 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             PauseFollowRequest pauseFollowRequest = new PauseFollowRequest("follower");
-            AcknowledgedResponse pauseFollowResponse =  client.ccr().pauseFollow(pauseFollowRequest, RequestOptions.DEFAULT);
+            AcknowledgedResponse pauseFollowResponse = client.ccr().pauseFollow(pauseFollowRequest, RequestOptions.DEFAULT);
             assertThat(pauseFollowResponse.isAcknowledged(), is(true));
         }
     }

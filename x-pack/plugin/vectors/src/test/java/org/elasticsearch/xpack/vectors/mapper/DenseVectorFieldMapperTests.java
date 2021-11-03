@@ -21,15 +21,15 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.vectors.DenseVectorPlugin;
 import org.elasticsearch.xpack.vectors.mapper.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.xpack.vectors.mapper.DenseVectorFieldMapper.VectorSimilarity;
@@ -68,9 +68,9 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             b.field("index", true).field("similarity", "dot_product");
             if (indexOptionsSet) {
                 b.startObject("index_options");
-                    b.field("type", "hnsw");
-                    b.field("m", 5);
-                    b.field("ef_construction", 50);
+                b.field("type", "hnsw");
+                b.field("m", 5);
+                b.field("ef_construction", 50);
                 b.endObject();
             }
         }
@@ -83,40 +83,36 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
-        checker.registerConflictCheck("dims",
+        checker.registerConflictCheck(
+            "dims",
             fieldMapping(b -> b.field("type", "dense_vector").field("dims", 4)),
-            fieldMapping(b -> b.field("type", "dense_vector").field("dims", 5)));
-        checker.registerConflictCheck("similarity",
-            fieldMapping(b -> b.field("type", "dense_vector")
-                .field("dims", 4)
-                .field("index", true)
-                .field("similarity", "dot_product")),
-            fieldMapping(b -> b.field("type", "dense_vector")
-                .field("dims", 4)
-                .field("index", true)
-                .field("similarity", "l2_norm")));
-        checker.registerConflictCheck("index",
-            fieldMapping(b -> b.field("type", "dense_vector")
-                .field("dims", 4)
-                .field("index", true)
-                .field("similarity", "dot_product")),
-            fieldMapping(b -> b.field("type", "dense_vector")
-                .field("dims", 4)
-                .field("index", false)));
-        checker.registerConflictCheck("index_options",
-            fieldMapping(b -> b.field("type", "dense_vector")
-                .field("dims", 4)
-                .field("index", true)
-                .field("similarity", "dot_product")),
-            fieldMapping(b -> b.field("type", "dense_vector")
-                .field("dims", 4)
-                .field("index", true)
-                .field("similarity", "dot_product")
-                .startObject("index_options")
-                    .field("type" , "hnsw")
+            fieldMapping(b -> b.field("type", "dense_vector").field("dims", 5))
+        );
+        checker.registerConflictCheck(
+            "similarity",
+            fieldMapping(b -> b.field("type", "dense_vector").field("dims", 4).field("index", true).field("similarity", "dot_product")),
+            fieldMapping(b -> b.field("type", "dense_vector").field("dims", 4).field("index", true).field("similarity", "l2_norm"))
+        );
+        checker.registerConflictCheck(
+            "index",
+            fieldMapping(b -> b.field("type", "dense_vector").field("dims", 4).field("index", true).field("similarity", "dot_product")),
+            fieldMapping(b -> b.field("type", "dense_vector").field("dims", 4).field("index", false))
+        );
+        checker.registerConflictCheck(
+            "index_options",
+            fieldMapping(b -> b.field("type", "dense_vector").field("dims", 4).field("index", true).field("similarity", "dot_product")),
+            fieldMapping(
+                b -> b.field("type", "dense_vector")
+                    .field("dims", 4)
+                    .field("index", true)
+                    .field("similarity", "dot_product")
+                    .startObject("index_options")
+                    .field("type", "hnsw")
                     .field("m", 5)
                     .field("ef_construction", 80)
-                .endObject()));
+                    .endObject()
+            )
+        );
     }
 
     @Override
@@ -150,20 +146,31 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 b.field("type", "dense_vector");
                 b.field("dims", 0);
             })));
-            assertThat(e.getMessage(), equalTo("Failed to parse mapping: " +
-                "The number of dimensions for field [field] should be in the range [1, 2048] but was [0]"));
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "Failed to parse mapping: " + "The number of dimensions for field [field] should be in the range [1, 2048] but was [0]"
+                )
+            );
         }
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
                 b.field("type", "dense_vector");
                 b.field("dims", 3000);
             })));
-            assertThat(e.getMessage(), equalTo("Failed to parse mapping: " +
-                "The number of dimensions for field [field] should be in the range [1, 2048] but was [3000]"));
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "Failed to parse mapping: "
+                        + "The number of dimensions for field [field] should be in the range [1, 2048] but was [3000]"
+                )
+            );
         }
         {
-            Exception e = expectThrows(MapperParsingException.class,
-                () -> createMapperService(fieldMapping(b -> b.field("type", "dense_vector"))));
+            Exception e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(fieldMapping(b -> b.field("type", "dense_vector")))
+            );
             assertThat(e.getMessage(), equalTo("Failed to parse mapping: Missing required parameter [dims] for field [field]"));
         }
     }
@@ -172,9 +179,9 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "dense_vector").field("dims", 3)));
 
-        float[] validVector = {-12.1f, 100.7f, -4};
+        float[] validVector = { -12.1f, 100.7f, -4 };
         double dotProduct = 0.0f;
-        for (float value: validVector) {
+        for (float value : validVector) {
             dotProduct += value * value;
         }
         float expectedMagnitude = (float) Math.sqrt(dotProduct);
@@ -188,23 +195,16 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         float[] decodedValues = decodeDenseVector(Version.CURRENT, vectorBR);
         float decodedMagnitude = VectorEncoderDecoder.decodeMagnitude(Version.CURRENT, vectorBR);
         assertEquals(expectedMagnitude, decodedMagnitude, 0.001f);
-        assertArrayEquals(
-            "Decoded dense vector values is not equal to the indexed one.",
-            validVector,
-            decodedValues,
-            0.001f
-        );
+        assertArrayEquals("Decoded dense vector values is not equal to the indexed one.", validVector, decodedValues, 0.001f);
     }
 
     public void testIndexedVector() throws Exception {
         VectorSimilarity similarity = RandomPicks.randomFrom(random(), VectorSimilarity.values());
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b
-            .field("type", "dense_vector")
-            .field("dims", 3)
-            .field("index", true)
-            .field("similarity", similarity.name())));
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "dense_vector").field("dims", 3).field("index", true).field("similarity", similarity.name()))
+        );
 
-        float[] vector = {-12.1f, 100.7f, -4};
+        float[] vector = { -12.1f, 100.7f, -4 };
         ParsedDocument doc1 = mapper.parse(source(b -> b.array("field", vector)));
 
         IndexableField[] fields = doc1.rootDoc().getFields("field");
@@ -212,81 +212,94 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         assertThat(fields[0], instanceOf(KnnVectorField.class));
 
         KnnVectorField vectorField = (KnnVectorField) fields[0];
-        assertArrayEquals(
-            "Parsed vector is not equal to original.",
-            vector,
-            vectorField.vectorValue(),
-            0.001f);
+        assertArrayEquals("Parsed vector is not equal to original.", vector, vectorField.vectorValue(), 0.001f);
         assertEquals(similarity.function, vectorField.fieldType().vectorSimilarityFunction());
     }
 
     public void testInvalidParameters() {
-        MapperParsingException e = expectThrows(MapperParsingException.class,
-            () -> createDocumentMapper(fieldMapping(b -> b
-                .field("type", "dense_vector")
-                .field("dims", 3)
-                .field("index", true))));
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(fieldMapping(b -> b.field("type", "dense_vector").field("dims", 3).field("index", true)))
+        );
         assertThat(e.getMessage(), containsString("Field [index] requires field [similarity] to be configured"));
 
-        e = expectThrows(MapperParsingException.class,
-            () -> createDocumentMapper(fieldMapping(b -> b
-                .field("type", "dense_vector")
-                .field("dims", 3)
-                .field("similarity", "l2_norm"))));
+        e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(fieldMapping(b -> b.field("type", "dense_vector").field("dims", 3).field("similarity", "l2_norm")))
+        );
         assertThat(e.getMessage(), containsString("Field [similarity] requires field [index] to be configured"));
 
-        e = expectThrows(MapperParsingException.class,
-            () -> createDocumentMapper(fieldMapping(b -> b
-                .field("type", "dense_vector")
-                .field("dims", 3)
-                .startObject("index_options")
-                    .field("type", "hnsw")
-                    .field("m", 5)
-                    .field("ef_construction", 100)
-                .endObject())));
+        e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(
+                fieldMapping(
+                    b -> b.field("type", "dense_vector")
+                        .field("dims", 3)
+                        .startObject("index_options")
+                        .field("type", "hnsw")
+                        .field("m", 5)
+                        .field("ef_construction", 100)
+                        .endObject()
+                )
+            )
+        );
         assertThat(e.getMessage(), containsString("Field [index_options] requires field [index] to be configured"));
 
-        e = expectThrows(MapperParsingException.class,
-            () -> createDocumentMapper(fieldMapping(b -> b
-                .field("type", "dense_vector")
-                .field("dims", 3)
-                .field("similarity", "l2_norm")
-                .field("index", true)
-                .startObject("index_options")
-                .endObject())));
+        e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(
+                fieldMapping(
+                    b -> b.field("type", "dense_vector")
+                        .field("dims", 3)
+                        .field("similarity", "l2_norm")
+                        .field("index", true)
+                        .startObject("index_options")
+                        .endObject()
+                )
+            )
+        );
         assertThat(e.getMessage(), containsString("[index_options] requires field [type] to be configured"));
 
-        e = expectThrows(MapperParsingException.class,
-            () -> createDocumentMapper(fieldMapping(b -> b
-                .field("type", "dense_vector")
-                .field("dims", 3)
-                .field("similarity", "l2_norm")
-                .field("index", true)
-                .startObject("index_options")
-                    .field("type", "hnsw")
-                    .field("ef_construction", 100)
-                .endObject())));
+        e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(
+                fieldMapping(
+                    b -> b.field("type", "dense_vector")
+                        .field("dims", 3)
+                        .field("similarity", "l2_norm")
+                        .field("index", true)
+                        .startObject("index_options")
+                        .field("type", "hnsw")
+                        .field("ef_construction", 100)
+                        .endObject()
+                )
+            )
+        );
         assertThat(e.getMessage(), containsString("[index_options] of type [hnsw] requires field [m] to be configured"));
 
-        e = expectThrows(MapperParsingException.class,
-            () -> createDocumentMapper(fieldMapping(b -> b
-                .field("type", "dense_vector")
-                .field("dims", 3)
-                .field("similarity", "l2_norm")
-                .field("index", true)
-                .startObject("index_options")
-                    .field("type", "hnsw")
-                    .field("m", 5)
-                .endObject())));
+        e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(
+                fieldMapping(
+                    b -> b.field("type", "dense_vector")
+                        .field("dims", 3)
+                        .field("similarity", "l2_norm")
+                        .field("index", true)
+                        .startObject("index_options")
+                        .field("type", "hnsw")
+                        .field("m", 5)
+                        .endObject()
+                )
+            )
+        );
         assertThat(e.getMessage(), containsString("[index_options] of type [hnsw] requires field [ef_construction] to be configured"));
     }
 
     public void testAddDocumentsToIndexBefore_V_7_5_0() throws Exception {
         Version indexVersion = Version.V_7_4_0;
-        DocumentMapper mapper
-            = createDocumentMapper(indexVersion, fieldMapping(b -> b.field("type", "dense_vector").field("dims", 3)));
+        DocumentMapper mapper = createDocumentMapper(indexVersion, fieldMapping(b -> b.field("type", "dense_vector").field("dims", 3)));
 
-        float[] validVector = {-12.1f, 100.7f, -4};
+        float[] validVector = { -12.1f, 100.7f, -4 };
         ParsedDocument doc1 = mapper.parse(source(b -> b.array("field", validVector)));
         IndexableField[] fields = doc1.rootDoc().getFields("field");
         assertEquals(1, fields.length);
@@ -294,12 +307,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         // assert that after decoding the indexed value is equal to expected
         BytesRef vectorBR = fields[0].binaryValue();
         float[] decodedValues = decodeDenseVector(indexVersion, vectorBR);
-        assertArrayEquals(
-            "Decoded dense vector values is not equal to the indexed one.",
-            validVector,
-            decodedValues,
-            0.001f
-        );
+        assertArrayEquals("Decoded dense vector values is not equal to the indexed one.", validVector, decodedValues, 0.001f);
     }
 
     private static float[] decodeDenseVector(Version indexVersion, BytesRef encodedVector) {
@@ -329,16 +337,22 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
 
             // test that error is thrown when a document has number of dims more than defined in the mapping
             float[] invalidVector = new float[dims + 1];
-            MapperParsingException e = expectThrows(MapperParsingException.class,
-                () -> mapper.parse(source(b -> b.array("field", invalidVector))));
+            MapperParsingException e = expectThrows(
+                MapperParsingException.class,
+                () -> mapper.parse(source(b -> b.array("field", invalidVector)))
+            );
             assertThat(e.getCause().getMessage(), containsString("has more dimensions than defined in the mapping [3]"));
 
             // test that error is thrown when a document has number of dims less than defined in the mapping
             float[] invalidVector2 = new float[dims - 1];
-            MapperParsingException e2 = expectThrows(MapperParsingException.class,
-                () -> mapper.parse(source(b -> b.array("field", invalidVector2))));
-            assertThat(e2.getCause().getMessage(),
-                containsString("has a different number of dimensions [2] than defined in the mapping [3]"));
+            MapperParsingException e2 = expectThrows(
+                MapperParsingException.class,
+                () -> mapper.parse(source(b -> b.array("field", invalidVector2)))
+            );
+            assertThat(
+                e2.getCause().getMessage(),
+                containsString("has a different number of dimensions [2] than defined in the mapping [3]")
+            );
         }
     }
 
@@ -374,9 +388,9 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             b.field("index", true);
             b.field("similarity", "dot_product");
             b.startObject("index_options");
-                b.field("type", "hnsw");
-                b.field("m", m);
-                b.field("ef_construction", efConstruction);
+            b.field("type", "hnsw");
+            b.field("m", m);
+            b.field("ef_construction", efConstruction);
             b.endObject();
         }));
         CodecService codecService = new CodecService(mapperService);
@@ -384,6 +398,6 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         assertThat(codec, instanceOf(PerFieldMapperCodec.class));
         KnnVectorsFormat knnVectorsFormat = ((PerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         assertThat(knnVectorsFormat, instanceOf(Lucene90HnswVectorsFormat.class));
-        //TODO: add more assertions once LUCENE-10178 is implemented
+        // TODO: add more assertions once LUCENE-10178 is implemented
     }
 }

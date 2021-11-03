@@ -31,8 +31,7 @@ public class RestStartTransformAction extends BaseRestHandler {
         String id = restRequest.param(TransformField.ID.getPreferredName());
         StartTransformAction.Request request = new StartTransformAction.Request(id);
         request.timeout(restRequest.paramAsTime(TransformField.TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT));
-        return channel -> client.execute(StartTransformAction.INSTANCE, request,
-                new RestToXContentListener<>(channel));
+        return channel -> client.execute(StartTransformAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 
     @Override

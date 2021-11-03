@@ -14,11 +14,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.List;
@@ -51,7 +51,8 @@ public class RestPreviewTransformAction extends BaseRestHandler {
         if (Strings.isNullOrEmpty(transformId) && restRequest.hasContentOrSourceParam() == false) {
             throw ExceptionsHelper.badRequestException(
                 "Please provide a transform [{}] or the config object",
-                TransformField.ID.getPreferredName());
+                TransformField.ID.getPreferredName()
+            );
         }
 
         if (Strings.isNullOrEmpty(transformId) == false && restRequest.hasContentOrSourceParam()) {

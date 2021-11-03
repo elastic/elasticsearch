@@ -53,10 +53,11 @@ public class MockRestHighLevelTests extends ESTestCase {
     }
 
     public void testWarningFailure() {
-        WarningFailureException exception = expectThrows(WarningFailureException.class,
-            () -> client.info(RequestOptions.DEFAULT));
-        assertThat(exception.getMessage(), equalTo("method [GET], host [http://localhost:9200], URI [/_blah], " +
-            "status line [HTTP/1.1 200 OK]"));
+        WarningFailureException exception = expectThrows(WarningFailureException.class, () -> client.info(RequestOptions.DEFAULT));
+        assertThat(
+            exception.getMessage(),
+            equalTo("method [GET], host [http://localhost:9200], URI [/_blah], " + "status line [HTTP/1.1 200 OK]")
+        );
         assertNull(exception.getCause());
         assertThat(exception.getResponse().getWarnings(), equalTo(WARNINGS));
     }

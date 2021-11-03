@@ -64,9 +64,7 @@ public final class EqlClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable searchAsync(EqlSearchRequest request,
-                              RequestOptions options,
-                              ActionListener<EqlSearchResponse> listener) {
+    public Cancellable searchAsync(EqlSearchRequest request, RequestOptions options, ActionListener<EqlSearchResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             EqlRequestConverters::search,
@@ -86,7 +84,7 @@ public final class EqlClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public EqlStatsResponse stats(EqlStatsRequest request, RequestOptions options)  throws IOException {
+    public EqlStatsResponse stats(EqlStatsRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(
             request,
             EqlRequestConverters::stats,
@@ -106,7 +104,8 @@ public final class EqlClient {
      * @return cancellable that may be used to cancel the request
      */
     public Cancellable statsAsync(EqlStatsRequest request, RequestOptions options, ActionListener<EqlStatsResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request,
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
             EqlRequestConverters::stats,
             options,
             EqlStatsResponse::fromXContent,

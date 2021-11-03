@@ -68,24 +68,39 @@ public class TransformUsingSearchRuntimeFieldsIT extends TransformIntegTestCase 
     }
 
     private static Map<String, Object> createRuntimeMappings() {
-        return new HashMap<>() {{
-            put("user-upper", new HashMap<>() {{
-                put("type", "keyword");
-                put("script", singletonMap("source", "if (params._source.user_id != null) {emit(params._source.user_id.toUpperCase())}"));
-            }});
-            put("stars", new HashMap<>() {{
-                put("type", "long");
-            }});
-            put("stars-x2", new HashMap<>() {{
-                put("type", "long");
-                put("script", singletonMap("source", "if (params._source.stars != null) {emit(2 * params._source.stars)}"));
-            }});
-            put("timestamp-5m", new HashMap<>() {{
-                put("type", "date");
-                put("script", singletonMap(
-                    "source", "emit(doc['timestamp'].value.toInstant().minus(5, ChronoUnit.MINUTES).toEpochMilli())"));
-            }});
-        }};
+        return new HashMap<>() {
+            {
+                put("user-upper", new HashMap<>() {
+                    {
+                        put("type", "keyword");
+                        put(
+                            "script",
+                            singletonMap("source", "if (params._source.user_id != null) {emit(params._source.user_id.toUpperCase())}")
+                        );
+                    }
+                });
+                put("stars", new HashMap<>() {
+                    {
+                        put("type", "long");
+                    }
+                });
+                put("stars-x2", new HashMap<>() {
+                    {
+                        put("type", "long");
+                        put("script", singletonMap("source", "if (params._source.stars != null) {emit(2 * params._source.stars)}"));
+                    }
+                });
+                put("timestamp-5m", new HashMap<>() {
+                    {
+                        put("type", "date");
+                        put(
+                            "script",
+                            singletonMap("source", "emit(doc['timestamp'].value.toInstant().minus(5, ChronoUnit.MINUTES).toEpochMilli())")
+                        );
+                    }
+                });
+            }
+        };
     }
 
     @Before
@@ -95,7 +110,8 @@ public class TransformUsingSearchRuntimeFieldsIT extends TransformIntegTestCase 
             100,
             NUM_USERS,
             TransformUsingSearchRuntimeFieldsIT::getUserIdForRow,
-            TransformUsingSearchRuntimeFieldsIT::getDateStringForRow);
+            TransformUsingSearchRuntimeFieldsIT::getDateStringForRow
+        );
     }
 
     @After
@@ -116,20 +132,18 @@ public class TransformUsingSearchRuntimeFieldsIT extends TransformIntegTestCase 
             .addAggregator(AggregationBuilders.max("review_score_rt_max").field("stars-x2"))
             .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"))
             .addAggregator(AggregationBuilders.max("timestamp_rt").field("timestamp-5m"));
-        TransformConfig config =
-            createTransformConfigBuilder(transformId, destIndexName, QueryBuilders.matchAllQuery(), "dummy")
-                .setSource(SourceConfig.builder()
-                    .setIndex(REVIEWS_INDEX_NAME)
-                    .setQuery(QueryBuilders.matchAllQuery())
-                    .setRuntimeMappings(runtimeMappings)
-                    .build())
-                .setPivotConfig(createPivotConfig(groups, aggs))
-                .build();
+        TransformConfig config = createTransformConfigBuilder(transformId, destIndexName, QueryBuilders.matchAllQuery(), "dummy").setSource(
+            SourceConfig.builder()
+                .setIndex(REVIEWS_INDEX_NAME)
+                .setQuery(QueryBuilders.matchAllQuery())
+                .setRuntimeMappings(runtimeMappings)
+                .build()
+        ).setPivotConfig(createPivotConfig(groups, aggs)).build();
 
         PreviewTransformResponse previewResponse = previewTransform(config, RequestOptions.DEFAULT);
         // Verify preview mappings
-        Map<String, Object> expectedMappingProperties =
-            new HashMap<>() {{
+        Map<String, Object> expectedMappingProperties = new HashMap<>() {
+            {
                 put("by-user", singletonMap("type", "keyword"));
                 put("review_score", singletonMap("type", "double"));
                 put("review_score_max", singletonMap("type", "long"));
@@ -137,20 +151,20 @@ public class TransformUsingSearchRuntimeFieldsIT extends TransformIntegTestCase 
                 put("review_score_rt_max", singletonMap("type", "long"));
                 put("timestamp", singletonMap("type", "date"));
                 put("timestamp_rt", singletonMap("type", "date"));
-            }};
+            }
+        };
         assertThat(previewResponse.getMappings(), allOf(hasKey("_meta"), hasEntry("properties", expectedMappingProperties)));
         // Verify preview contents
         assertThat(previewResponse.getDocs(), hasSize(NUM_USERS));
-        previewResponse.getDocs().forEach(
-            doc -> {
-                assertThat((String) doc.get("by-user"), isUpperCase());
-                assertThat(doc.get("review_score_rt_avg"), is(equalTo(2 * (double) doc.get("review_score"))));
-                assertThat(doc.get("review_score_rt_max"), is(equalTo(2 * (int) doc.get("review_score_max"))));
-                assertThat(
-                    Instant.parse((String) doc.get("timestamp_rt")),
-                    is(equalTo(Instant.parse((String) doc.get("timestamp")).minus(5, ChronoUnit.MINUTES))));
-            }
-        );
+        previewResponse.getDocs().forEach(doc -> {
+            assertThat((String) doc.get("by-user"), isUpperCase());
+            assertThat(doc.get("review_score_rt_avg"), is(equalTo(2 * (double) doc.get("review_score"))));
+            assertThat(doc.get("review_score_rt_max"), is(equalTo(2 * (int) doc.get("review_score_max"))));
+            assertThat(
+                Instant.parse((String) doc.get("timestamp_rt")),
+                is(equalTo(Instant.parse((String) doc.get("timestamp")).minus(5, ChronoUnit.MINUTES)))
+            );
+        });
 
         assertTrue(putTransform(config, RequestOptions.DEFAULT).isAcknowledged());
         assertTrue(startTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
@@ -158,36 +172,46 @@ public class TransformUsingSearchRuntimeFieldsIT extends TransformIntegTestCase 
         waitUntilCheckpoint(config.getId(), 1L);
 
         stopTransform(config.getId());
-        assertBusy(() -> {
-            assertEquals(TransformStats.State.STOPPED, getTransformStats(config.getId()).getTransformsStats().get(0).getState());
-        });
+        assertBusy(
+            () -> { assertEquals(TransformStats.State.STOPPED, getTransformStats(config.getId()).getTransformsStats().get(0).getState()); }
+        );
 
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
             restClient.indices().refresh(new RefreshRequest(destIndexName), RequestOptions.DEFAULT);
             // Verify destination index mappings
-            GetMappingsResponse destIndexMapping =
-                restClient.indices().getMapping(new GetMappingsRequest().indices(destIndexName), RequestOptions.DEFAULT);
+            GetMappingsResponse destIndexMapping = restClient.indices()
+                .getMapping(new GetMappingsRequest().indices(destIndexName), RequestOptions.DEFAULT);
             assertThat(destIndexMapping.mappings().get(destIndexName).sourceAsMap(), allOf(hasKey("_meta"), hasKey("properties")));
             // Verify destination index contents
-            SearchResponse searchResponse =
-                restClient.search(new SearchRequest(destIndexName).source(new SearchSourceBuilder().size(1000)), RequestOptions.DEFAULT);
+            SearchResponse searchResponse = restClient.search(
+                new SearchRequest(destIndexName).source(new SearchSourceBuilder().size(1000)),
+                RequestOptions.DEFAULT
+            );
             assertThat(searchResponse.getHits().getTotalHits().value, is(equalTo(Long.valueOf(NUM_USERS))));
             assertThat(
                 Stream.of(searchResponse.getHits().getHits()).map(SearchHit::getSourceAsMap).collect(toList()),
-                is(equalTo(previewResponse.getDocs())));
+                is(equalTo(previewResponse.getDocs()))
+            );
         }
     }
 
     public void testPivotTransform_BadRuntimeFieldScript() throws Exception {
         String destIndexName = "reviews-by-user-pivot";
         String transformId = "transform-with-st-rt-fields-pivot";
-        Map<String, Object> runtimeMappings = new HashMap<>() {{
-            put("user-upper", new HashMap<>() {{
-                put("type", "keyword");
-                // Method name used in the script is misspelled, i.e.: "toUperCase" instead of "toUpperCase"
-                put("script", singletonMap("source", "if (params._source.user_id != null) {emit(params._source.user_id.toUperCase())}"));
-            }});
-        }};
+        Map<String, Object> runtimeMappings = new HashMap<>() {
+            {
+                put("user-upper", new HashMap<>() {
+                    {
+                        put("type", "keyword");
+                        // Method name used in the script is misspelled, i.e.: "toUperCase" instead of "toUpperCase"
+                        put(
+                            "script",
+                            singletonMap("source", "if (params._source.user_id != null) {emit(params._source.user_id.toUperCase())}")
+                        );
+                    }
+                });
+            }
+        };
 
         Map<String, SingleGroupSource> groups = singletonMap("by-user", TermsGroupSource.builder().setField("user-upper").build());
         AggregatorFactories.Builder aggs = AggregatorFactories.builder()
@@ -195,25 +219,25 @@ public class TransformUsingSearchRuntimeFieldsIT extends TransformIntegTestCase 
             .addAggregator(AggregationBuilders.avg("review_score_rt").field("stars-x2"))
             .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"))
             .addAggregator(AggregationBuilders.max("timestamp_rt").field("timestamp-5m"));
-        TransformConfig config =
-            createTransformConfigBuilder(transformId, destIndexName, QueryBuilders.matchAllQuery(), "dummy")
-                .setSource(SourceConfig.builder()
-                    .setIndex(REVIEWS_INDEX_NAME)
-                    .setQuery(QueryBuilders.matchAllQuery())
-                    .setRuntimeMappings(runtimeMappings)
-                    .build())
-                .setPivotConfig(createPivotConfig(groups, aggs))
-                .build();
+        TransformConfig config = createTransformConfigBuilder(transformId, destIndexName, QueryBuilders.matchAllQuery(), "dummy").setSource(
+            SourceConfig.builder()
+                .setIndex(REVIEWS_INDEX_NAME)
+                .setQuery(QueryBuilders.matchAllQuery())
+                .setRuntimeMappings(runtimeMappings)
+                .build()
+        ).setPivotConfig(createPivotConfig(groups, aggs)).build();
 
         Exception e = expectThrows(Exception.class, () -> previewTransform(config, RequestOptions.DEFAULT));
         assertThat(
             ExceptionsHelper.stackTrace(e),
-            allOf(containsString("script_exception"), containsString("dynamic method [java.lang.String, toUperCase/0] not found")));
+            allOf(containsString("script_exception"), containsString("dynamic method [java.lang.String, toUperCase/0] not found"))
+        );
 
         e = expectThrows(Exception.class, () -> putTransform(config, RequestOptions.DEFAULT));
         assertThat(
             ExceptionsHelper.stackTrace(e),
-            allOf(containsString("script_exception"), containsString("dynamic method [java.lang.String, toUperCase/0] not found")));
+            allOf(containsString("script_exception"), containsString("dynamic method [java.lang.String, toUperCase/0] not found"))
+        );
     }
 
     public void testLatestTransform() throws Exception {
@@ -221,41 +245,36 @@ public class TransformUsingSearchRuntimeFieldsIT extends TransformIntegTestCase 
         String transformId = "transform-with-st-rt-fields-latest";
         Map<String, Object> runtimeMappings = createRuntimeMappings();
 
-        SourceConfig sourceConfig =
-            SourceConfig.builder()
-                .setIndex(REVIEWS_INDEX_NAME)
-                .setQuery(QueryBuilders.matchAllQuery())
-                .setRuntimeMappings(runtimeMappings)
-                .build();
-        TransformConfig configWithOrdinaryFields =
-            createTransformConfigBuilder(transformId, destIndexName, QueryBuilders.matchAllQuery(), "dummy")
-                .setSource(sourceConfig)
-                .setLatestConfig(LatestConfig.builder()
-                    .setUniqueKey("user_id")
-                    .setSort("timestamp")
-                    .build())
-                .build();
+        SourceConfig sourceConfig = SourceConfig.builder()
+            .setIndex(REVIEWS_INDEX_NAME)
+            .setQuery(QueryBuilders.matchAllQuery())
+            .setRuntimeMappings(runtimeMappings)
+            .build();
+        TransformConfig configWithOrdinaryFields = createTransformConfigBuilder(
+            transformId,
+            destIndexName,
+            QueryBuilders.matchAllQuery(),
+            "dummy"
+        ).setSource(sourceConfig).setLatestConfig(LatestConfig.builder().setUniqueKey("user_id").setSort("timestamp").build()).build();
 
         PreviewTransformResponse previewWithOrdinaryFields = previewTransform(configWithOrdinaryFields, RequestOptions.DEFAULT);
         // Verify preview mappings
         assertThat(previewWithOrdinaryFields.getMappings(), allOf(hasKey("_meta"), hasKey("properties")));
         // Verify preview contents
         assertThat("Got preview: " + previewWithOrdinaryFields, previewWithOrdinaryFields.getDocs(), hasSize(NUM_USERS));
-        previewWithOrdinaryFields.getDocs().forEach(
-            doc -> {
-                assertThat(doc, hasKey("user_id"));
-                assertThat(doc, not(hasKey("user-upper")));
-            }
-        );
+        previewWithOrdinaryFields.getDocs().forEach(doc -> {
+            assertThat(doc, hasKey("user_id"));
+            assertThat(doc, not(hasKey("user-upper")));
+        });
 
-        TransformConfig configWithRuntimeFields =
-            createTransformConfigBuilder(transformId, destIndexName, QueryBuilders.matchAllQuery(), "dummy")
-                .setSource(sourceConfig)
-                .setLatestConfig(LatestConfig.builder()
-                    .setUniqueKey("user-upper")
-                    .setSort("timestamp-5m")
-                    .build())
-                .build();
+        TransformConfig configWithRuntimeFields = createTransformConfigBuilder(
+            transformId,
+            destIndexName,
+            QueryBuilders.matchAllQuery(),
+            "dummy"
+        ).setSource(sourceConfig)
+            .setLatestConfig(LatestConfig.builder().setUniqueKey("user-upper").setSort("timestamp-5m").build())
+            .build();
 
         PreviewTransformResponse previewWithRuntimeFields = previewTransform(configWithRuntimeFields, RequestOptions.DEFAULT);
         assertThat(previewWithRuntimeFields.getDocs(), is(equalTo(previewWithOrdinaryFields.getDocs())));
@@ -266,63 +285,75 @@ public class TransformUsingSearchRuntimeFieldsIT extends TransformIntegTestCase 
         waitUntilCheckpoint(configWithRuntimeFields.getId(), 1L);
 
         stopTransform(configWithRuntimeFields.getId());
-        assertBusy(() -> {
-            assertEquals(
-                TransformStats.State.STOPPED,
-                getTransformStats(configWithRuntimeFields.getId()).getTransformsStats().get(0).getState());
-        });
+        assertBusy(
+            () -> {
+                assertEquals(
+                    TransformStats.State.STOPPED,
+                    getTransformStats(configWithRuntimeFields.getId()).getTransformsStats().get(0).getState()
+                );
+            }
+        );
 
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
             restClient.indices().refresh(new RefreshRequest(destIndexName), RequestOptions.DEFAULT);
             // Verify destination index mappings
-            GetMappingsResponse destIndexMapping =
-                restClient.indices().getMapping(new GetMappingsRequest().indices(destIndexName), RequestOptions.DEFAULT);
+            GetMappingsResponse destIndexMapping = restClient.indices()
+                .getMapping(new GetMappingsRequest().indices(destIndexName), RequestOptions.DEFAULT);
             assertThat(destIndexMapping.mappings().get(destIndexName).sourceAsMap(), allOf(hasKey("_meta"), hasKey("properties")));
             // Verify destination index contents
-            SearchResponse searchResponse =
-                restClient.search(new SearchRequest(destIndexName).source(new SearchSourceBuilder().size(1000)), RequestOptions.DEFAULT);
+            SearchResponse searchResponse = restClient.search(
+                new SearchRequest(destIndexName).source(new SearchSourceBuilder().size(1000)),
+                RequestOptions.DEFAULT
+            );
             assertThat(searchResponse.getHits().getTotalHits().value, is(equalTo(Long.valueOf(NUM_USERS))));
             assertThat(
                 Stream.of(searchResponse.getHits().getHits()).map(SearchHit::getSourceAsMap).collect(toList()),
-                is(equalTo(previewWithOrdinaryFields.getDocs())));
+                is(equalTo(previewWithOrdinaryFields.getDocs()))
+            );
         }
     }
 
     public void testLatestTransform_BadRuntimeFieldScript() throws Exception {
         String destIndexName = "reviews-by-user-latest";
         String transformId = "transform-with-st-rt-fields-latest";
-        Map<String, Object> runtimeMappings = new HashMap<>() {{
-            put("user-upper", new HashMap<>() {{
-                put("type", "keyword");
-                // Method name used in the script is misspelled, i.e.: "toUperCase" instead of "toUpperCase"
-                put("script", singletonMap("source", "if (params._source.user_id != null) {emit(params._source.user_id.toUperCase())}"));
-            }});
-        }};
+        Map<String, Object> runtimeMappings = new HashMap<>() {
+            {
+                put("user-upper", new HashMap<>() {
+                    {
+                        put("type", "keyword");
+                        // Method name used in the script is misspelled, i.e.: "toUperCase" instead of "toUpperCase"
+                        put(
+                            "script",
+                            singletonMap("source", "if (params._source.user_id != null) {emit(params._source.user_id.toUperCase())}")
+                        );
+                    }
+                });
+            }
+        };
 
-        SourceConfig sourceConfig =
-            SourceConfig.builder()
-                .setIndex(REVIEWS_INDEX_NAME)
-                .setQuery(QueryBuilders.matchAllQuery())
-                .setRuntimeMappings(runtimeMappings)
-                .build();
-        TransformConfig configWithRuntimeFields =
-            createTransformConfigBuilder(transformId, destIndexName, QueryBuilders.matchAllQuery(), "dummy")
-                .setSource(sourceConfig)
-                .setLatestConfig(LatestConfig.builder()
-                    .setUniqueKey("user-upper")
-                    .setSort("timestamp")
-                    .build())
-                .build();
+        SourceConfig sourceConfig = SourceConfig.builder()
+            .setIndex(REVIEWS_INDEX_NAME)
+            .setQuery(QueryBuilders.matchAllQuery())
+            .setRuntimeMappings(runtimeMappings)
+            .build();
+        TransformConfig configWithRuntimeFields = createTransformConfigBuilder(
+            transformId,
+            destIndexName,
+            QueryBuilders.matchAllQuery(),
+            "dummy"
+        ).setSource(sourceConfig).setLatestConfig(LatestConfig.builder().setUniqueKey("user-upper").setSort("timestamp").build()).build();
 
         Exception e = expectThrows(Exception.class, () -> previewTransform(configWithRuntimeFields, RequestOptions.DEFAULT));
         assertThat(
             ExceptionsHelper.stackTrace(e),
-            allOf(containsString("script_exception"), containsString("dynamic method [java.lang.String, toUperCase/0] not found")));
+            allOf(containsString("script_exception"), containsString("dynamic method [java.lang.String, toUperCase/0] not found"))
+        );
 
         e = expectThrows(Exception.class, () -> putTransform(configWithRuntimeFields, RequestOptions.DEFAULT));
         assertThat(
             ExceptionsHelper.stackTrace(e),
-            allOf(containsString("script_exception"), containsString("dynamic method [java.lang.String, toUperCase/0] not found")));
+            allOf(containsString("script_exception"), containsString("dynamic method [java.lang.String, toUperCase/0] not found"))
+        );
     }
 
     private static IsUpperCaseMatcher isUpperCase() {

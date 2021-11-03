@@ -26,10 +26,20 @@ package org.elasticsearch.plugin.analysis.phonetic;
  */
 public class HaasePhonetik extends KoelnerPhonetik {
 
-    private static final String[] HAASE_VARIATIONS_PATTERNS = {"OWN", "RB", "WSK", "A$", "O$", "SCH",
-        "GLI", "EAU$", "^CH", "AUX", "EUX", "ILLE"};
-    private static final String[] HAASE_VARIATIONS_REPLACEMENTS = {"AUN", "RW", "RSK", "AR", "OW", "CH",
-        "LI", "O", "SCH", "O", "O", "I"};
+    private static final String[] HAASE_VARIATIONS_PATTERNS = {
+        "OWN",
+        "RB",
+        "WSK",
+        "A$",
+        "O$",
+        "SCH",
+        "GLI",
+        "EAU$",
+        "^CH",
+        "AUX",
+        "EUX",
+        "ILLE" };
+    private static final String[] HAASE_VARIATIONS_REPLACEMENTS = { "AUN", "RW", "RSK", "AR", "OW", "CH", "LI", "O", "SCH", "O", "O", "I" };
 
     @Override
     protected String[] getPatterns() {

@@ -17,14 +17,14 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xcontent.ObjectPath;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.ObjectPath;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.watcher.WatcherFeatureSetUsage;
@@ -68,7 +68,11 @@ public class WatcherInfoTransportActionTests extends ESTestCase {
 
     public void testAvailable() {
         WatcherInfoTransportAction featureSet = new WatcherInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            Settings.EMPTY,
+            licenseState
+        );
         boolean available = randomBoolean();
         when(licenseState.isAllowed(WatcherField.WATCHER_FEATURE)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
@@ -85,15 +89,18 @@ public class WatcherInfoTransportActionTests extends ESTestCase {
             settings.put("xpack.watcher.enabled", enabled);
         }
         WatcherInfoTransportAction featureSet = new WatcherInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            settings.build(),
+            licenseState
+        );
         assertThat(featureSet.enabled(), is(enabled));
     }
 
     public void testUsageStats() throws Exception {
         doAnswer(mock -> {
             @SuppressWarnings("unchecked")
-            ActionListener<WatcherStatsResponse> listener =
-                    (ActionListener<WatcherStatsResponse>) mock.getArguments()[2];
+            ActionListener<WatcherStatsResponse> listener = (ActionListener<WatcherStatsResponse>) mock.getArguments()[2];
 
             List<WatcherStatsResponse.Node> nodes = new ArrayList<>();
             DiscoveryNode first = new DiscoveryNode("first", buildNewFakeTransportAddress(), Version.CURRENT);
@@ -112,8 +119,9 @@ public class WatcherInfoTransportActionTests extends ESTestCase {
             secondNode.setStats(secondCounters);
             nodes.add(secondNode);
 
-            listener.onResponse(new WatcherStatsResponse(new ClusterName("whatever"), new WatcherMetadata(false),
-                    nodes, Collections.emptyList()));
+            listener.onResponse(
+                new WatcherStatsResponse(new ClusterName("whatever"), new WatcherMetadata(false), nodes, Collections.emptyList())
+            );
             return null;
         }).when(client).execute(eq(WatcherStatsAction.INSTANCE), any(), any());
         ClusterService clusterService = mock(ClusterService.class);
@@ -121,8 +129,16 @@ public class WatcherInfoTransportActionTests extends ESTestCase {
         when(mockNode.getId()).thenReturn("mocknode");
         when(clusterService.localNode()).thenReturn(mockNode);
 
-        var usageAction = new WatcherUsageTransportAction(mock(TransportService.class), clusterService, null,
-            mock(ActionFilters.class), null, Settings.EMPTY, licenseState, client);
+        var usageAction = new WatcherUsageTransportAction(
+            mock(TransportService.class),
+            clusterService,
+            null,
+            mock(ActionFilters.class),
+            null,
+            Settings.EMPTY,
+            licenseState,
+            client
+        );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.masterOperation(mock(Task.class), null, null, future);
         WatcherFeatureSetUsage watcherUsage = (WatcherFeatureSetUsage) future.get().getUsage();

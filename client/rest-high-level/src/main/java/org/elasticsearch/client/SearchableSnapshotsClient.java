@@ -64,8 +64,8 @@ public class SearchableSnapshotsClient {
     public Cancellable mountSnapshotAsync(
         final MountSnapshotRequest request,
         final RequestOptions options,
-        final ActionListener<RestoreSnapshotResponse> listener)
-    {
+        final ActionListener<RestoreSnapshotResponse> listener
+    ) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             SearchableSnapshotsRequestConverters::mountSnapshot,
@@ -108,8 +108,8 @@ public class SearchableSnapshotsClient {
     public Cancellable cacheStatsAsync(
         final CachesStatsRequest request,
         final RequestOptions options,
-        final ActionListener<CachesStatsResponse> listener)
-    {
+        final ActionListener<CachesStatsResponse> listener
+    ) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             SearchableSnapshotsRequestConverters::cacheStats,

@@ -28,13 +28,13 @@ import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 
 public class RestGetDatafeedsAction extends BaseRestHandler {
 
-     @Override
+    @Override
     public List<Route> routes() {
         return List.of(
             Route.builder(GET, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}")
-                .replaces(GET, PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}", RestApiVersion.V_7).build(),
-            Route.builder(GET, BASE_PATH + "datafeeds")
-                .replaces(GET, PRE_V7_BASE_PATH + "datafeeds", RestApiVersion.V_7).build()
+                .replaces(GET, PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}", RestApiVersion.V_7)
+                .build(),
+            Route.builder(GET, BASE_PATH + "datafeeds").replaces(GET, PRE_V7_BASE_PATH + "datafeeds", RestApiVersion.V_7).build()
         );
     }
 
@@ -56,7 +56,9 @@ public class RestGetDatafeedsAction extends BaseRestHandler {
         request.setAllowNoMatch(
             restRequest.paramAsBoolean(
                 Request.ALLOW_NO_MATCH,
-                restRequest.paramAsBoolean(Request.ALLOW_NO_DATAFEEDS, request.allowNoMatch())));
+                restRequest.paramAsBoolean(Request.ALLOW_NO_DATAFEEDS, request.allowNoMatch())
+            )
+        );
         return channel -> client.execute(GetDatafeedsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 

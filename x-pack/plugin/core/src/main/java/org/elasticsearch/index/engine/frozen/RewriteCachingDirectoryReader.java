@@ -42,8 +42,8 @@ import java.util.Map;
  */
 final class RewriteCachingDirectoryReader extends DirectoryReader {
 
-    RewriteCachingDirectoryReader(Directory directory, List<LeafReaderContext> segmentReaders,
-                                  Comparator<LeafReader> leafSorter) throws IOException {
+    RewriteCachingDirectoryReader(Directory directory, List<LeafReaderContext> segmentReaders, Comparator<LeafReader> leafSorter)
+        throws IOException {
         super(directory, wrap(segmentReaders), leafSorter);
     }
 
@@ -241,8 +241,7 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
         }
 
         @Override
-        public void checkIntegrity() {
-        }
+        public void checkIntegrity() {}
 
         @Override
         public LeafMetaData getMetaData() {
@@ -270,8 +269,7 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
         }
 
         @Override
-        protected void doClose() {
-        }
+        protected void doClose() {}
 
         @Override
         public CacheHelper getReaderCacheHelper() {

@@ -21,8 +21,7 @@ public class GetUserPrivilegesRequest implements Validatable {
 
     public static final GetUserPrivilegesRequest INSTANCE = new GetUserPrivilegesRequest();
 
-    private GetUserPrivilegesRequest() {
-    }
+    private GetUserPrivilegesRequest() {}
 
     public Request getRequest() {
         return new Request(HttpGet.METHOD_NAME, "/_security/user/_privileges");

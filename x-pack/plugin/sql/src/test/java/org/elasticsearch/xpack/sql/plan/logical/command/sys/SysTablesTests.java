@@ -25,8 +25,8 @@ import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
-import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
+import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.types.SqlTypesTests;
@@ -59,8 +59,22 @@ public class SysTablesTests extends ESTestCase {
     private final IndexInfo alias = new IndexInfo(CLUSTER_NAME, "alias", IndexType.ALIAS);
     private final IndexInfo frozen = new IndexInfo(CLUSTER_NAME, "frozen", IndexType.FROZEN_INDEX);
 
-    private final SqlConfiguration FROZEN_CFG = new SqlConfiguration(DateUtils.UTC, null, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
-            Protocol.PAGE_TIMEOUT, null, null, Mode.PLAIN, null, null, null, null, false, true);
+    private final SqlConfiguration FROZEN_CFG = new SqlConfiguration(
+        DateUtils.UTC,
+        null,
+        Protocol.FETCH_SIZE,
+        Protocol.REQUEST_TIMEOUT,
+        Protocol.PAGE_TIMEOUT,
+        null,
+        null,
+        Mode.PLAIN,
+        null,
+        null,
+        null,
+        null,
+        false,
+        true
+    );
 
     //
     // catalog enumeration
@@ -99,7 +113,6 @@ public class SysTablesTests extends ESTestCase {
         }, index);
     }
 
-
     //
     // table types enumeration
     //
@@ -137,9 +150,7 @@ public class SysTablesTests extends ESTestCase {
 
     // when a type is specified, apply filtering
     public void testSysTablesTypesEnumerationAllCatalogsAndSpecifiedView() throws Exception {
-        executeCommand("SYS TABLES CATALOG LIKE '%' LIKE '' TYPE 'VIEW'", r -> {
-            assertEquals(0, r.size());
-        }, new IndexInfo[0]);
+        executeCommand("SYS TABLES CATALOG LIKE '%' LIKE '' TYPE 'VIEW'", r -> { assertEquals(0, r.size()); }, new IndexInfo[0]);
     }
 
     public void testSysTablesDifferentCatalog() throws Exception {
@@ -327,11 +338,8 @@ public class SysTablesTests extends ESTestCase {
     }
 
     public void testSysTablesWithInvalidType() throws Exception {
-        executeCommand("SYS TABLES LIKE 'test' TYPE 'QUE HORA ES'", r -> {
-            assertEquals(0, r.size());
-        }, new IndexInfo[0]);
+        executeCommand("SYS TABLES LIKE 'test' TYPE 'QUE HORA ES'", r -> { assertEquals(0, r.size()); }, new IndexInfo[0]);
     }
-
 
     private SqlTypedParamValue param(Object value) {
         return new SqlTypedParamValue(DataTypes.fromJava(value).typeName(), value);
@@ -339,8 +347,12 @@ public class SysTablesTests extends ESTestCase {
 
     private Tuple<Command, SqlSession> sql(String sql, List<SqlTypedParamValue> params, SqlConfiguration cfg) {
         EsIndex test = new EsIndex("test", mapping);
-        Analyzer analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new FunctionRegistry(), IndexResolution.valid(test),
-                                         new Verifier(new Metrics()));
+        Analyzer analyzer = new Analyzer(
+            SqlTestUtils.TEST_CFG,
+            new FunctionRegistry(),
+            IndexResolution.valid(test),
+            new Verifier(new Metrics())
+        );
         Command cmd = (Command) analyzer.analyze(parser.createStatement(sql, params, cfg.zoneId()), true);
 
         IndexResolver resolver = mock(IndexResolver.class);
@@ -359,13 +371,18 @@ public class SysTablesTests extends ESTestCase {
     }
 
     private void executeCommand(String sql, List<SqlTypedParamValue> params, Consumer<SchemaRowSet> consumer, IndexInfo... infos)
-            throws Exception {
+        throws Exception {
         executeCommand(sql, params, consumer, SqlTestUtils.TEST_CFG, infos);
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    private void executeCommand(String sql, List<SqlTypedParamValue> params, Consumer<SchemaRowSet> consumer, SqlConfiguration cfg,
-            IndexInfo... infos) throws Exception {
+    private void executeCommand(
+        String sql,
+        List<SqlTypedParamValue> params,
+        Consumer<SchemaRowSet> consumer,
+        SqlConfiguration cfg,
+        IndexInfo... infos
+    ) throws Exception {
         Tuple<Command, SqlSession> tuple = sql(sql, params, cfg);
 
         IndexResolver resolver = tuple.v2().indexResolver();

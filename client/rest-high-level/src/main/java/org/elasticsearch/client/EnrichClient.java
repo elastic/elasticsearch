@@ -68,9 +68,7 @@ public final class EnrichClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable putPolicyAsync(PutPolicyRequest request,
-                                      RequestOptions options,
-                                      ActionListener<AcknowledgedResponse> listener) {
+    public Cancellable putPolicyAsync(PutPolicyRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             EnrichRequestConverters::putPolicy,
@@ -113,9 +111,11 @@ public final class EnrichClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable deletePolicyAsync(DeletePolicyRequest request,
-                                         RequestOptions options,
-                                         ActionListener<AcknowledgedResponse> listener) {
+    public Cancellable deletePolicyAsync(
+        DeletePolicyRequest request,
+        RequestOptions options,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             EnrichRequestConverters::deletePolicy,
@@ -158,9 +158,7 @@ public final class EnrichClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable getPolicyAsync(GetPolicyRequest request,
-                               RequestOptions options,
-                               ActionListener<GetPolicyResponse> listener) {
+    public Cancellable getPolicyAsync(GetPolicyRequest request, RequestOptions options, ActionListener<GetPolicyResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             EnrichRequestConverters::getPolicy,
@@ -203,9 +201,7 @@ public final class EnrichClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable statsAsync(StatsRequest request,
-                                  RequestOptions options,
-                                  ActionListener<StatsResponse> listener) {
+    public Cancellable statsAsync(StatsRequest request, RequestOptions options, ActionListener<StatsResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             EnrichRequestConverters::stats,
@@ -248,9 +244,11 @@ public final class EnrichClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable executePolicyAsync(ExecutePolicyRequest request,
-                                          RequestOptions options,
-                                          ActionListener<ExecutePolicyResponse> listener) {
+    public Cancellable executePolicyAsync(
+        ExecutePolicyRequest request,
+        RequestOptions options,
+        ActionListener<ExecutePolicyResponse> listener
+    ) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             EnrichRequestConverters::executePolicy,

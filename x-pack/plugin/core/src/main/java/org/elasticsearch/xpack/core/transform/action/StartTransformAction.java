@@ -43,7 +43,7 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
-            if(in.getVersion().before(Version.V_7_5_0)) {
+            if (in.getVersion().before(Version.V_7_5_0)) {
                 in.readBoolean();
             }
         }
@@ -56,7 +56,7 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
-            if(out.getVersion().before(Version.V_7_5_0)) {
+            if (out.getVersion().before(Version.V_7_5_0)) {
                 out.writeBoolean(false);
             }
         }

@@ -54,10 +54,16 @@ public class ApplicationActionsResolver extends AbstractLifecycleComponent {
     private static final int CACHE_SIZE_DEFAULT = 100;
     private static final TimeValue CACHE_TTL_DEFAULT = TimeValue.timeValueMinutes(90);
 
-    public static final Setting<Integer> CACHE_SIZE
-        = Setting.intSetting("xpack.idp.privileges.cache.size", CACHE_SIZE_DEFAULT, Setting.Property.NodeScope);
-    public static final Setting<TimeValue> CACHE_TTL
-        = Setting.timeSetting("xpack.idp.privileges.cache.ttl", CACHE_TTL_DEFAULT, Setting.Property.NodeScope);
+    public static final Setting<Integer> CACHE_SIZE = Setting.intSetting(
+        "xpack.idp.privileges.cache.size",
+        CACHE_SIZE_DEFAULT,
+        Setting.Property.NodeScope
+    );
+    public static final Setting<TimeValue> CACHE_TTL = Setting.timeSetting(
+        "xpack.idp.privileges.cache.ttl",
+        CACHE_TTL_DEFAULT,
+        Setting.Property.NodeScope
+    );
 
     private final Logger logger = LogManager.getLogger();
 
@@ -91,11 +97,23 @@ public class ApplicationActionsResolver extends AbstractLifecycleComponent {
     }
 
     private void loadPrivilegesForDefaultApplication() {
-        loadActions(defaults.applicationName, ActionListener.wrap(
-            actions -> logger.info("Found actions [{}] defined within application privileges for [{}]", actions, defaults.applicationName),
-            ex -> logger.warn(new ParameterizedMessage(
-                "Failed to load application privileges actions for application [{}]", defaults.applicationName), ex)
-        ));
+        loadActions(
+            defaults.applicationName,
+            ActionListener.wrap(
+                actions -> logger.info(
+                    "Found actions [{}] defined within application privileges for [{}]",
+                    actions,
+                    defaults.applicationName
+                ),
+                ex -> logger.warn(
+                    new ParameterizedMessage(
+                        "Failed to load application privileges actions for application [{}]",
+                        defaults.applicationName
+                    ),
+                    ex
+                )
+            )
+        );
     }
 
     @Override
@@ -120,17 +138,14 @@ public class ApplicationActionsResolver extends AbstractLifecycleComponent {
     private void loadActions(String applicationName, ActionListener<Set<String>> listener) {
         final GetPrivilegesRequest request = new GetPrivilegesRequest();
         request.application(applicationName);
-        this.client.execute(GetPrivilegesAction.INSTANCE, request, ActionListener.wrap(
-            response -> {
-                final Set<String> fixedActions = Stream.of(response.privileges())
-                    .map(p -> p.getActions())
-                    .flatMap(Collection::stream)
-                    .filter(s -> s.indexOf('*') == -1)
-                    .collect(Collectors.toUnmodifiableSet());
-                cache.put(applicationName, fixedActions);
-                listener.onResponse(fixedActions);
-            },
-            listener::onFailure
-        ));
+        this.client.execute(GetPrivilegesAction.INSTANCE, request, ActionListener.wrap(response -> {
+            final Set<String> fixedActions = Stream.of(response.privileges())
+                .map(p -> p.getActions())
+                .flatMap(Collection::stream)
+                .filter(s -> s.indexOf('*') == -1)
+                .collect(Collectors.toUnmodifiableSet());
+            cache.put(applicationName, fixedActions);
+            listener.onResponse(fixedActions);
+        }, listener::onFailure));
     }
 }

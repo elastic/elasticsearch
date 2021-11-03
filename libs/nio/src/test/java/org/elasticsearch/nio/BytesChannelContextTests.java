@@ -8,8 +8,8 @@
 
 package org.elasticsearch.nio;
 
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -106,7 +106,6 @@ public class BytesChannelContextTests extends ESTestCase {
             return bytes.length;
         });
 
-
         when(readConsumer.apply(channelBuffer)).thenReturn(0);
 
         assertEquals(messageLength, context.read());
@@ -151,7 +150,7 @@ public class BytesChannelContextTests extends ESTestCase {
     public void testQueuedWriteIsFlushedInFlushCall() throws Exception {
         assertFalse(context.readyForFlush());
 
-        ByteBuffer[] buffers = {ByteBuffer.allocate(10)};
+        ByteBuffer[] buffers = { ByteBuffer.allocate(10) };
 
         FlushReadyWrite flushOperation = mock(FlushReadyWrite.class);
         context.queueWriteOperation(flushOperation);
@@ -177,7 +176,7 @@ public class BytesChannelContextTests extends ESTestCase {
         assertTrue(context.readyForFlush());
 
         when(flushOperation.isFullyFlushed()).thenReturn(false);
-        when(flushOperation.getBuffersToWrite(anyInt())).thenReturn(new ByteBuffer[] {ByteBuffer.allocate(3)});
+        when(flushOperation.getBuffersToWrite(anyInt())).thenReturn(new ByteBuffer[] { ByteBuffer.allocate(3) });
         context.flushChannel();
 
         verify(listener, times(0)).accept(null, null);
@@ -191,8 +190,8 @@ public class BytesChannelContextTests extends ESTestCase {
         BiConsumer<Void, Exception> listener2 = mock(BiConsumer.class);
         FlushReadyWrite flushOperation1 = mock(FlushReadyWrite.class);
         FlushReadyWrite flushOperation2 = mock(FlushReadyWrite.class);
-        when(flushOperation1.getBuffersToWrite(anyInt())).thenReturn(new ByteBuffer[] {ByteBuffer.allocate(3)});
-        when(flushOperation2.getBuffersToWrite(anyInt())).thenReturn(new ByteBuffer[] {ByteBuffer.allocate(3)});
+        when(flushOperation1.getBuffersToWrite(anyInt())).thenReturn(new ByteBuffer[] { ByteBuffer.allocate(3) });
+        when(flushOperation2.getBuffersToWrite(anyInt())).thenReturn(new ByteBuffer[] { ByteBuffer.allocate(3) });
         when(flushOperation1.getListener()).thenReturn(listener);
         when(flushOperation2.getListener()).thenReturn(listener2);
 
@@ -220,7 +219,7 @@ public class BytesChannelContextTests extends ESTestCase {
     public void testWhenIOExceptionThrownListenerIsCalled() throws IOException {
         assertFalse(context.readyForFlush());
 
-        ByteBuffer[] buffers = {ByteBuffer.allocate(10)};
+        ByteBuffer[] buffers = { ByteBuffer.allocate(10) };
         FlushReadyWrite flushOperation = mock(FlushReadyWrite.class);
         context.queueWriteOperation(flushOperation);
 
@@ -237,7 +236,7 @@ public class BytesChannelContextTests extends ESTestCase {
     }
 
     public void testWriteIOExceptionMeansChannelReadyToClose() throws IOException {
-        ByteBuffer[] buffers = {ByteBuffer.allocate(10)};
+        ByteBuffer[] buffers = { ByteBuffer.allocate(10) };
         FlushReadyWrite flushOperation = mock(FlushReadyWrite.class);
         context.queueWriteOperation(flushOperation);
 

@@ -10,12 +10,12 @@ package org.elasticsearch.xpack.ml.aggs.inference;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdateTests;
@@ -62,9 +62,13 @@ public class InferencePipelineAggregationBuilderTests extends BasePipelineAggreg
             .limit(randomIntBetween(1, 4))
             .collect(Collectors.toMap(Function.identity(), (t) -> randomAlphaOfLength(5)));
 
-        InferencePipelineAggregationBuilder builder =
-            new InferencePipelineAggregationBuilder(NAME, new SetOnce<>(mock(ModelLoadingService.class)),
-                mock(XPackLicenseState.class), Settings.EMPTY, bucketPaths);
+        InferencePipelineAggregationBuilder builder = new InferencePipelineAggregationBuilder(
+            NAME,
+            new SetOnce<>(mock(ModelLoadingService.class)),
+            mock(XPackLicenseState.class),
+            Settings.EMPTY,
+            bucketPaths
+        );
         builder.setModelId(randomAlphaOfLength(6));
 
         if (randomBoolean()) {
@@ -98,8 +102,10 @@ public class InferencePipelineAggregationBuilderTests extends BasePipelineAggreg
 
     public void testValidate() {
         InferencePipelineAggregationBuilder aggregationBuilder = createTestAggregatorFactory();
-        PipelineAggregationBuilder.ValidationContext validationContext =
-            PipelineAggregationBuilder.ValidationContext.forInsideTree(mock(AggregationBuilder.class), null);
+        PipelineAggregationBuilder.ValidationContext validationContext = PipelineAggregationBuilder.ValidationContext.forInsideTree(
+            mock(AggregationBuilder.class),
+            null
+        );
 
         aggregationBuilder.setModelId(null);
         aggregationBuilder.validate(validationContext);
@@ -109,8 +115,10 @@ public class InferencePipelineAggregationBuilderTests extends BasePipelineAggreg
 
     public void testValidate_invalidResultsField() {
         InferencePipelineAggregationBuilder aggregationBuilder = createTestAggregatorFactory();
-        PipelineAggregationBuilder.ValidationContext validationContext =
-            PipelineAggregationBuilder.ValidationContext.forInsideTree(mock(AggregationBuilder.class), null);
+        PipelineAggregationBuilder.ValidationContext validationContext = PipelineAggregationBuilder.ValidationContext.forInsideTree(
+            mock(AggregationBuilder.class),
+            null
+        );
 
         RegressionConfigUpdate regressionConfigUpdate = new RegressionConfigUpdate("foo", null);
         aggregationBuilder.setInferenceConfig(regressionConfigUpdate);
@@ -121,8 +129,10 @@ public class InferencePipelineAggregationBuilderTests extends BasePipelineAggreg
 
     public void testValidate_invalidTopClassesField() {
         InferencePipelineAggregationBuilder aggregationBuilder = createTestAggregatorFactory();
-        PipelineAggregationBuilder.ValidationContext validationContext =
-            PipelineAggregationBuilder.ValidationContext.forInsideTree(mock(AggregationBuilder.class), null);
+        PipelineAggregationBuilder.ValidationContext validationContext = PipelineAggregationBuilder.ValidationContext.forInsideTree(
+            mock(AggregationBuilder.class),
+            null
+        );
 
         ClassificationConfigUpdate configUpdate = new ClassificationConfigUpdate(1, null, "some_other_field", null, null);
         aggregationBuilder.setInferenceConfig(configUpdate);

@@ -67,8 +67,12 @@ public class PlanExecutor {
         return new SqlSession(cfg, client, functionRegistry, indexResolver, preAnalyzer, verifier, optimizer, planner, this);
     }
 
-    public void searchSource(SqlConfiguration cfg, String sql, List<SqlTypedParamValue> params,
-            ActionListener<SearchSourceBuilder> listener) {
+    public void searchSource(
+        SqlConfiguration cfg,
+        String sql,
+        List<SqlTypedParamValue> params,
+        ActionListener<SearchSourceBuilder> listener
+    ) {
         metrics.translate();
 
         newSession(cfg).sqlExecutable(sql, params, wrap(exec -> {
@@ -80,11 +84,10 @@ public class PlanExecutor {
             else {
                 String message = null;
                 if (exec instanceof LocalExec) {
-                    message = "Cannot generate a query DSL for an SQL query that either " +
-                            "its WHERE clause evaluates to FALSE or doesn't operate on a table (missing a FROM clause)";
+                    message = "Cannot generate a query DSL for an SQL query that either "
+                        + "its WHERE clause evaluates to FALSE or doesn't operate on a table (missing a FROM clause)";
                 } else if (exec instanceof CommandExec) {
-                    message = "Cannot generate a query DSL for a special SQL command " +
-                            "(e.g.: DESCRIBE, SHOW)";
+                    message = "Cannot generate a query DSL for a special SQL command " + "(e.g.: DESCRIBE, SHOW)";
                 } else {
                     message = "Cannot generate a query DSL";
                 }

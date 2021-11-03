@@ -7,14 +7,13 @@
  */
 package org.elasticsearch.client.ml.inference.preprocessing;
 
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
-
 
 public class OneHotEncodingTests extends AbstractXContentTestCase<OneHotEncoding> {
 
@@ -48,9 +47,7 @@ public class OneHotEncodingTests extends AbstractXContentTestCase<OneHotEncoding
         for (int i = 0; i < valuesSize; i++) {
             valueMap.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
         }
-        return new OneHotEncoding(inputField,
-            valueMap,
-            randomBoolean() ? null : randomBoolean());
+        return new OneHotEncoding(inputField, valueMap, randomBoolean() ? null : randomBoolean());
     }
 
 }

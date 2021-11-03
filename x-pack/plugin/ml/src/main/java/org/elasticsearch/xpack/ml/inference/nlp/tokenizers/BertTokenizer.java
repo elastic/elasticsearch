@@ -42,7 +42,7 @@ public class BertTokenizer implements NlpTokenizer {
 
     public static final int DEFAULT_MAX_INPUT_CHARS_PER_WORD = 100;
 
-    private final Set<String> NEVER_SPLIT =  Set.of(MASK_TOKEN);
+    private final Set<String> NEVER_SPLIT = Set.of(MASK_TOKEN);
 
     private final WordPieceTokenizer wordPieceTokenizer;
     private final List<String> originalVocab;
@@ -56,15 +56,17 @@ public class BertTokenizer implements NlpTokenizer {
     private final int maxSequenceLength;
     private final NlpTask.RequestBuilder requestBuilder;
 
-    protected BertTokenizer(List<String> originalVocab,
-                            SortedMap<String, Integer> vocab,
-                            boolean doLowerCase,
-                            boolean doTokenizeCjKChars,
-                            boolean doStripAccents,
-                            boolean withSpecialTokens,
-                            int maxSequenceLength,
-                            Function<BertTokenizer, NlpTask.RequestBuilder> requestBuilderFactory,
-                            Set<String> neverSplit) {
+    protected BertTokenizer(
+        List<String> originalVocab,
+        SortedMap<String, Integer> vocab,
+        boolean doLowerCase,
+        boolean doTokenizeCjKChars,
+        boolean doStripAccents,
+        boolean withSpecialTokens,
+        int maxSequenceLength,
+        Function<BertTokenizer, NlpTask.RequestBuilder> requestBuilderFactory,
+        Set<String> neverSplit
+    ) {
         wordPieceTokenizer = new WordPieceTokenizer(vocab, UNKNOWN_TOKEN, DEFAULT_MAX_INPUT_CHARS_PER_WORD);
         this.originalVocab = originalVocab;
         this.vocab = vocab;
@@ -128,7 +130,7 @@ public class BertTokenizer implements NlpTokenizer {
         for (WordPieceTokenizer.TokenAndId tokenAndId : wordPieceTokens) {
             tokens[i] = tokenAndId.getToken();
             tokenIds[i] = tokenAndId.getId();
-            tokenMap[i] = tokenPositionMap.get(i-decrementHandler);
+            tokenMap[i] = tokenPositionMap.get(i - decrementHandler);
             i++;
         }
 
@@ -156,7 +158,7 @@ public class BertTokenizer implements NlpTokenizer {
         innerResult = innerTokenize(seq2);
         List<WordPieceTokenizer.TokenAndId> wordPieceTokenSeq2s = innerResult.v1();
         List<Integer> tokenPositionMapSeq2 = innerResult.v2();
-        if (withSpecialTokens == false)  {
+        if (withSpecialTokens == false) {
             throw new IllegalArgumentException("Unable to do sequence pair tokenization without special tokens");
         }
         // [CLS] seq1 [SEP] seq2 [SEP]

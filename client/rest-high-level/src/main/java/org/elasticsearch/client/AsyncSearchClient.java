@@ -35,8 +35,13 @@ public class AsyncSearchClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public AsyncSearchResponse submit(SubmitAsyncSearchRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, AsyncSearchRequestConverters::submitAsyncSearch, options,
-                AsyncSearchResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            AsyncSearchRequestConverters::submitAsyncSearch,
+            options,
+            AsyncSearchResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -49,10 +54,15 @@ public class AsyncSearchClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable submitAsync(SubmitAsyncSearchRequest request, RequestOptions options,
-                                               ActionListener<AsyncSearchResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request, AsyncSearchRequestConverters::submitAsyncSearch, options,
-                AsyncSearchResponse::fromXContent, listener, emptySet());
+    public Cancellable submitAsync(SubmitAsyncSearchRequest request, RequestOptions options, ActionListener<AsyncSearchResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            AsyncSearchRequestConverters::submitAsyncSearch,
+            options,
+            AsyncSearchResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -61,8 +71,13 @@ public class AsyncSearchClient {
      *
      */
     public AsyncSearchResponse get(GetAsyncSearchRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, AsyncSearchRequestConverters::getAsyncSearch, options,
-                AsyncSearchResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            AsyncSearchRequestConverters::getAsyncSearch,
+            options,
+            AsyncSearchResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -73,10 +88,15 @@ public class AsyncSearchClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable getAsync(GetAsyncSearchRequest request, RequestOptions options,
-            ActionListener<AsyncSearchResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request, AsyncSearchRequestConverters::getAsyncSearch, options,
-                AsyncSearchResponse::fromXContent, listener, emptySet());
+    public Cancellable getAsync(GetAsyncSearchRequest request, RequestOptions options, ActionListener<AsyncSearchResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            AsyncSearchRequestConverters::getAsyncSearch,
+            options,
+            AsyncSearchResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
     /**
@@ -88,8 +108,13 @@ public class AsyncSearchClient {
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public AcknowledgedResponse delete(DeleteAsyncSearchRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, AsyncSearchRequestConverters::deleteAsyncSearch, options,
-                AcknowledgedResponse::fromXContent, emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            AsyncSearchRequestConverters::deleteAsyncSearch,
+            options,
+            AcknowledgedResponse::fromXContent,
+            emptySet()
+        );
     }
 
     /**
@@ -100,10 +125,19 @@ public class AsyncSearchClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable deleteAsync(DeleteAsyncSearchRequest request, RequestOptions options,
-                                               ActionListener<AcknowledgedResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request, AsyncSearchRequestConverters::deleteAsyncSearch, options,
-                AcknowledgedResponse::fromXContent, listener, emptySet());
+    public Cancellable deleteAsync(
+        DeleteAsyncSearchRequest request,
+        RequestOptions options,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            AsyncSearchRequestConverters::deleteAsyncSearch,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            emptySet()
+        );
     }
 
 }

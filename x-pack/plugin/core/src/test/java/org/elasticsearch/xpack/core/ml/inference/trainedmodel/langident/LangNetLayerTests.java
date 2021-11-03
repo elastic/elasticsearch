@@ -7,14 +7,13 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.stream.Stream;
-
 
 public class LangNetLayerTests extends AbstractSerializingTestCase<LangNetLayer> {
 
@@ -46,7 +45,8 @@ public class LangNetLayerTests extends AbstractSerializingTestCase<LangNetLayer>
             Stream.generate(ESTestCase::randomDouble).limit(numWeights).mapToDouble(Double::doubleValue).toArray(),
             numWeights,
             1,
-            Stream.generate(ESTestCase::randomDouble).limit(numWeights).mapToDouble(Double::doubleValue).toArray());
+            Stream.generate(ESTestCase::randomDouble).limit(numWeights).mapToDouble(Double::doubleValue).toArray()
+        );
     }
 
     @Override

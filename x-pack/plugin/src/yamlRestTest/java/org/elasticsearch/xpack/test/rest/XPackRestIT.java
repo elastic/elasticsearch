@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.test.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 
 public class XPackRestIT extends AbstractXPackRestTest {
@@ -21,4 +22,3 @@ public class XPackRestIT extends AbstractXPackRestTest {
         return createParameters();
     }
 }
-

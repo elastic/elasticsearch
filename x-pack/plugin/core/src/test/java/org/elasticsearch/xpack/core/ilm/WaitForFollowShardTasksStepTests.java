@@ -70,7 +70,9 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
         final boolean[] conditionMetHolder = new boolean[1];
         final ToXContentObject[] informationContextHolder = new ToXContentObject[1];
         final Exception[] exceptionHolder = new Exception[1];
-        createRandomInstance().evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(),
+        createRandomInstance().evaluateCondition(
+            Metadata.builder().put(indexMetadata, true).build(),
+            indexMetadata.getIndex(),
             new AsyncWaitStep.Listener() {
                 @Override
                 public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
@@ -82,7 +84,9 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
                 public void onFailure(Exception e) {
                     exceptionHolder[0] = e;
                 }
-            }, MASTER_TIMEOUT);
+            },
+            MASTER_TIMEOUT
+        );
 
         assertThat(conditionMetHolder[0], is(true));
         assertThat(informationContextHolder[0], nullValue());
@@ -105,7 +109,9 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
         final boolean[] conditionMetHolder = new boolean[1];
         final ToXContentObject[] informationContextHolder = new ToXContentObject[1];
         final Exception[] exceptionHolder = new Exception[1];
-        createRandomInstance().evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(),
+        createRandomInstance().evaluateCondition(
+            Metadata.builder().put(indexMetadata, true).build(),
+            indexMetadata.getIndex(),
             new AsyncWaitStep.Listener() {
                 @Override
                 public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
@@ -117,7 +123,9 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
                 public void onFailure(Exception e) {
                     exceptionHolder[0] = e;
                 }
-            }, MASTER_TIMEOUT);
+            },
+            MASTER_TIMEOUT
+        );
 
         assertThat(conditionMetHolder[0], is(false));
         assertThat(informationContextHolder[0], notNullValue());
@@ -139,7 +147,9 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
         final boolean[] conditionMetHolder = new boolean[1];
         final ToXContentObject[] informationContextHolder = new ToXContentObject[1];
         final Exception[] exceptionHolder = new Exception[1];
-        createRandomInstance().evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(),
+        createRandomInstance().evaluateCondition(
+            Metadata.builder().put(indexMetadata, true).build(),
+            indexMetadata.getIndex(),
             new AsyncWaitStep.Listener() {
                 @Override
                 public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
@@ -151,7 +161,9 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
                 public void onFailure(Exception e) {
                     exceptionHolder[0] = e;
                 }
-            }, MASTER_TIMEOUT);
+            },
+            MASTER_TIMEOUT
+        );
 
         assertThat(conditionMetHolder[0], is(true));
         assertThat(informationContextHolder[0], nullValue());
@@ -200,8 +212,8 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
             assertThat(request.indices()[0], equalTo(expectedIndexName));
 
             @SuppressWarnings("unchecked")
-            ActionListener<FollowStatsAction.StatsResponses> listener =
-                (ActionListener<FollowStatsAction.StatsResponses>) invocationOnMock.getArguments()[2];
+            ActionListener<FollowStatsAction.StatsResponses> listener = (ActionListener<FollowStatsAction.StatsResponses>) invocationOnMock
+                .getArguments()[2];
             listener.onResponse(new FollowStatsAction.StatsResponses(Collections.emptyList(), Collections.emptyList(), statsResponses));
             return null;
         }).when(client).execute(Mockito.eq(FollowStatsAction.INSTANCE), Mockito.any(), Mockito.any());

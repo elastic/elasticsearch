@@ -31,9 +31,11 @@ public final class HasPrivilegesRequest implements Validatable, ToXContentObject
     private final Set<IndicesPrivileges> indexPrivileges;
     private final Set<ApplicationResourcePrivileges> applicationPrivileges;
 
-    public HasPrivilegesRequest(@Nullable Set<String> clusterPrivileges,
-                                @Nullable Set<IndicesPrivileges> indexPrivileges,
-                                @Nullable Set<ApplicationResourcePrivileges> applicationPrivileges) {
+    public HasPrivilegesRequest(
+        @Nullable Set<String> clusterPrivileges,
+        @Nullable Set<IndicesPrivileges> indexPrivileges,
+        @Nullable Set<ApplicationResourcePrivileges> applicationPrivileges
+    ) {
         this.clusterPrivileges = clusterPrivileges == null ? emptySet() : unmodifiableSet(clusterPrivileges);
         this.indexPrivileges = indexPrivileges == null ? emptySet() : unmodifiableSet(indexPrivileges);
         this.applicationPrivileges = applicationPrivileges == null ? emptySet() : unmodifiableSet(applicationPrivileges);
@@ -73,9 +75,9 @@ public final class HasPrivilegesRequest implements Validatable, ToXContentObject
             return false;
         }
         final HasPrivilegesRequest that = (HasPrivilegesRequest) o;
-        return Objects.equals(clusterPrivileges, that.clusterPrivileges) &&
-            Objects.equals(indexPrivileges, that.indexPrivileges) &&
-            Objects.equals(applicationPrivileges, that.applicationPrivileges);
+        return Objects.equals(clusterPrivileges, that.clusterPrivileges)
+            && Objects.equals(indexPrivileges, that.indexPrivileges)
+            && Objects.equals(applicationPrivileges, that.applicationPrivileges);
     }
 
     @Override

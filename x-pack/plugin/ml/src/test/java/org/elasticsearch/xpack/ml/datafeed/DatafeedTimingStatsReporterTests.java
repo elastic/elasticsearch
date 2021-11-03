@@ -81,10 +81,10 @@ public class DatafeedTimingStatsReporterTests extends ESTestCase {
         assertThat(reporter.getCurrentTimingStats(), equalTo(createDatafeedTimingStats(JOB_ID, 17, 10, 14000.0, 14000.0)));
 
         InOrder inOrder = inOrder(timingStatsPersister);
-        inOrder.verify(timingStatsPersister).persistDatafeedTimingStats(
-            createDatafeedTimingStats(JOB_ID, 15, 10, 12000.0, 12000.0), RefreshPolicy.NONE);
-        inOrder.verify(timingStatsPersister).persistDatafeedTimingStats(
-            createDatafeedTimingStats(JOB_ID, 17, 10, 14000.0, 14000.0), RefreshPolicy.NONE);
+        inOrder.verify(timingStatsPersister)
+            .persistDatafeedTimingStats(createDatafeedTimingStats(JOB_ID, 15, 10, 12000.0, 12000.0), RefreshPolicy.NONE);
+        inOrder.verify(timingStatsPersister)
+            .persistDatafeedTimingStats(createDatafeedTimingStats(JOB_ID, 17, 10, 14000.0, 14000.0), RefreshPolicy.NONE);
         verifyNoMoreInteractions(timingStatsPersister);
     }
 
@@ -112,8 +112,8 @@ public class DatafeedTimingStatsReporterTests extends ESTestCase {
         assertThat(reporter.getCurrentTimingStats(), equalTo(createDatafeedTimingStats(JOB_ID, 3, 23, 10000.0)));
 
         InOrder inOrder = inOrder(timingStatsPersister);
-        inOrder.verify(timingStatsPersister).persistDatafeedTimingStats(
-            createDatafeedTimingStats(JOB_ID, 3, 23, 10000.0), RefreshPolicy.NONE);
+        inOrder.verify(timingStatsPersister)
+            .persistDatafeedTimingStats(createDatafeedTimingStats(JOB_ID, 3, 23, 10000.0), RefreshPolicy.NONE);
         verifyNoMoreInteractions(timingStatsPersister);
     }
 
@@ -132,7 +132,8 @@ public class DatafeedTimingStatsReporterTests extends ESTestCase {
 
         verify(timingStatsPersister).persistDatafeedTimingStats(
             new DatafeedTimingStats(JOB_ID, 0, 0, 0.0, new ExponentialAverageCalculationContext(0.0, TIMESTAMP, null)),
-            RefreshPolicy.IMMEDIATE);
+            RefreshPolicy.IMMEDIATE
+        );
         verifyNoMoreInteractions(timingStatsPersister);
     }
 
@@ -148,36 +149,60 @@ public class DatafeedTimingStatsReporterTests extends ESTestCase {
     public void testTimingStatsDifferSignificantly() {
         assertThat(
             DatafeedTimingStatsReporter.differSignificantly(
-                createDatafeedTimingStats(JOB_ID, 5, 10, 1000.0), createDatafeedTimingStats(JOB_ID, 5, 10, 1000.0)),
-            is(false));
+                createDatafeedTimingStats(JOB_ID, 5, 10, 1000.0),
+                createDatafeedTimingStats(JOB_ID, 5, 10, 1000.0)
+            ),
+            is(false)
+        );
         assertThat(
             DatafeedTimingStatsReporter.differSignificantly(
-                createDatafeedTimingStats(JOB_ID, 5, 10, 1000.0), createDatafeedTimingStats(JOB_ID, 5, 10, 1100.0)),
-            is(false));
+                createDatafeedTimingStats(JOB_ID, 5, 10, 1000.0),
+                createDatafeedTimingStats(JOB_ID, 5, 10, 1100.0)
+            ),
+            is(false)
+        );
         assertThat(
             DatafeedTimingStatsReporter.differSignificantly(
-                createDatafeedTimingStats(JOB_ID, 5, 10, 1000.0), createDatafeedTimingStats(JOB_ID, 5, 10, 1120.0)),
-            is(true));
+                createDatafeedTimingStats(JOB_ID, 5, 10, 1000.0),
+                createDatafeedTimingStats(JOB_ID, 5, 10, 1120.0)
+            ),
+            is(true)
+        );
         assertThat(
             DatafeedTimingStatsReporter.differSignificantly(
-                createDatafeedTimingStats(JOB_ID, 5, 10, 10000.0), createDatafeedTimingStats(JOB_ID, 5, 10, 11000.0)),
-            is(false));
+                createDatafeedTimingStats(JOB_ID, 5, 10, 10000.0),
+                createDatafeedTimingStats(JOB_ID, 5, 10, 11000.0)
+            ),
+            is(false)
+        );
         assertThat(
             DatafeedTimingStatsReporter.differSignificantly(
-                createDatafeedTimingStats(JOB_ID, 5, 10, 10000.0), createDatafeedTimingStats(JOB_ID, 5, 10, 11200.0)),
-            is(true));
+                createDatafeedTimingStats(JOB_ID, 5, 10, 10000.0),
+                createDatafeedTimingStats(JOB_ID, 5, 10, 11200.0)
+            ),
+            is(true)
+        );
         assertThat(
             DatafeedTimingStatsReporter.differSignificantly(
-                createDatafeedTimingStats(JOB_ID, 5, 10, 100000.0), createDatafeedTimingStats(JOB_ID, 5, 10, 110000.0)),
-            is(false));
+                createDatafeedTimingStats(JOB_ID, 5, 10, 100000.0),
+                createDatafeedTimingStats(JOB_ID, 5, 10, 110000.0)
+            ),
+            is(false)
+        );
         assertThat(
             DatafeedTimingStatsReporter.differSignificantly(
-                createDatafeedTimingStats(JOB_ID, 5, 10, 100000.0), createDatafeedTimingStats(JOB_ID, 5, 10, 110001.0)),
-            is(true));
+                createDatafeedTimingStats(JOB_ID, 5, 10, 100000.0),
+                createDatafeedTimingStats(JOB_ID, 5, 10, 110001.0)
+            ),
+            is(true)
+        );
         assertThat(
             DatafeedTimingStatsReporter.differSignificantly(
-                createDatafeedTimingStats(JOB_ID, 5, 10, 100000.0), createDatafeedTimingStats(JOB_ID, 50, 10, 100000.0)),
-            is(true));
+                createDatafeedTimingStats(JOB_ID, 5, 10, 100000.0),
+                createDatafeedTimingStats(JOB_ID, 50, 10, 100000.0)
+            ),
+            is(true)
+        );
     }
 
     public void testFinishReportingTimingStatsException() {
@@ -197,19 +222,21 @@ public class DatafeedTimingStatsReporterTests extends ESTestCase {
     }
 
     private static DatafeedTimingStats createDatafeedTimingStats(
-            String jobId,
-            long searchCount,
-            long bucketCount,
-            double totalSearchTimeMs) {
+        String jobId,
+        long searchCount,
+        long bucketCount,
+        double totalSearchTimeMs
+    ) {
         return createDatafeedTimingStats(jobId, searchCount, bucketCount, totalSearchTimeMs, 0.0);
     }
 
     private static DatafeedTimingStats createDatafeedTimingStats(
-            String jobId,
-            long searchCount,
-            long bucketCount,
-            double totalSearchTimeMs,
-            double incrementalSearchTimeMs) {
+        String jobId,
+        long searchCount,
+        long bucketCount,
+        double totalSearchTimeMs,
+        double incrementalSearchTimeMs
+    ) {
         ExponentialAverageCalculationContext context = new ExponentialAverageCalculationContext(incrementalSearchTimeMs, null, null);
         return new DatafeedTimingStats(jobId, searchCount, bucketCount, totalSearchTimeMs, context);
     }

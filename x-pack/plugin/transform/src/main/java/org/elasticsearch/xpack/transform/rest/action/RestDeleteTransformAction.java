@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.transform.rest.action;
 
-
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -35,8 +34,7 @@ public class RestDeleteTransformAction extends BaseRestHandler {
         boolean force = restRequest.paramAsBoolean(TransformField.FORCE.getPreferredName(), false);
         DeleteTransformAction.Request request = new DeleteTransformAction.Request(id, force);
 
-        return channel -> client.execute(DeleteTransformAction.INSTANCE, request,
-                new RestToXContentListener<>(channel));
+        return channel -> client.execute(DeleteTransformAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 
     @Override

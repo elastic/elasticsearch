@@ -63,8 +63,10 @@ public class ServerQueryCliCommandTests extends SqlCliTestCase {
         when(client.nextPage("my_cursor2")).thenReturn(fakeResponse("", false, "third"));
         ServerQueryCliCommand cliCommand = new ServerQueryCliCommand();
         assertTrue(cliCommand.handle(testTerminal, cliSession, "test query"));
-        assertEquals("     field     \n---------------\nfirst          \nsecond         \nthird          \n<flush/>",
-                testTerminal.toString());
+        assertEquals(
+            "     field     \n---------------\nfirst          \nsecond         \nthird          \n<flush/>",
+            testTerminal.toString()
+        );
         verify(client, times(1)).basicQuery(eq("test query"), eq(10));
         verify(client, times(2)).nextPage(any());
         verifyNoMoreInteractions(client);
@@ -81,8 +83,7 @@ public class ServerQueryCliCommandTests extends SqlCliTestCase {
         when(client.nextPage("my_cursor1")).thenReturn(fakeResponse("", false, "second"));
         ServerQueryCliCommand cliCommand = new ServerQueryCliCommand();
         assertTrue(cliCommand.handle(testTerminal, cliSession, "test query"));
-        assertEquals("     field     \n---------------\nfirst          \n-----\nsecond         \n<flush/>",
-                testTerminal.toString());
+        assertEquals("     field     \n---------------\nfirst          \n-----\nsecond         \n<flush/>", testTerminal.toString());
         verify(client, times(1)).basicQuery(eq("test query"), eq(15));
         verify(client, times(1)).nextPage(any());
         verifyNoMoreInteractions(client);
@@ -98,8 +99,10 @@ public class ServerQueryCliCommandTests extends SqlCliTestCase {
         when(client.queryClose("my_cursor1", Mode.CLI)).thenReturn(true);
         ServerQueryCliCommand cliCommand = new ServerQueryCliCommand();
         assertTrue(cliCommand.handle(testTerminal, cliSession, "test query"));
-        assertEquals("     field     \n---------------\nfirst          \n" +
-                "<b>Bad request [</b><i>test exception</i><b>]</b>\n", testTerminal.toString());
+        assertEquals(
+            "     field     \n---------------\nfirst          \n" + "<b>Bad request [</b><i>test exception</i><b>]</b>\n",
+            testTerminal.toString()
+        );
         verify(client, times(1)).basicQuery(eq("test query"), eq(15));
         verify(client, times(1)).nextPage(any());
         verify(client, times(1)).queryClose(eq("my_cursor1"), eq(Mode.CLI));

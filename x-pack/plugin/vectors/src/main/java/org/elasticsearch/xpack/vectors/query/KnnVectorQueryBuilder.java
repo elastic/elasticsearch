@@ -63,10 +63,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(NAME)
-            .field("field", fieldName)
-            .field("vector", queryVector)
-            .field("num_candidates", numCands);
+        builder.startObject(NAME).field("field", fieldName).field("vector", queryVector).field("num_candidates", numCands);
         builder.endObject();
     }
 
@@ -83,8 +80,9 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         }
 
         if (fieldType instanceof DenseVectorFieldType == false) {
-            throw new IllegalArgumentException("[" + NAME + "] queries are only supported on ["
-                + DenseVectorFieldMapper.CONTENT_TYPE + "] fields");
+            throw new IllegalArgumentException(
+                "[" + NAME + "] queries are only supported on [" + DenseVectorFieldMapper.CONTENT_TYPE + "] fields"
+            );
         }
 
         if (context.getNestedParent(fieldType.name()) != null) {
@@ -93,8 +91,14 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
 
         DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) fieldType;
         if (queryVector.length != vectorFieldType.dims()) {
-            throw new IllegalArgumentException("the query vector has a different dimension [" + queryVector.length + "] "
-                + "than the index vectors [" + vectorFieldType.dims() + "]");
+            throw new IllegalArgumentException(
+                "the query vector has a different dimension ["
+                    + queryVector.length
+                    + "] "
+                    + "than the index vectors ["
+                    + vectorFieldType.dims()
+                    + "]"
+            );
         }
         if (vectorFieldType.isSearchable() == false) {
             throw new IllegalArgumentException("[" + NAME + "] queries are not supported if [index] is disabled");
@@ -109,8 +113,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
 
     @Override
     protected boolean doEquals(KnnVectorQueryBuilder other) {
-        return Objects.equals(fieldName, other.fieldName) &&
-            Arrays.equals(queryVector, other.queryVector) &&
-            numCands == other.numCands;
+        return Objects.equals(fieldName, other.fieldName) && Arrays.equals(queryVector, other.queryVector) && numCands == other.numCands;
     }
 }

@@ -11,17 +11,15 @@ package org.elasticsearch.index.mapper.extras;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
-import org.elasticsearch.index.mapper.extras.RankFeatureMetaFieldMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.CoreMatchers;
 import org.junit.Before;
 
@@ -42,9 +40,18 @@ public class RankFeatureMetaFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testBasics() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "rank_feature").endObject().endObject()
-                .endObject().endObject());
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("type")
+                .startObject("properties")
+                .startObject("field")
+                .field("type", "rank_feature")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
 
         Mapping parsedMapping = mapperService.parseMapping("type", new CompressedXContent(mapping));
         assertEquals(mapping, parsedMapping.toCompressedXContent().toString());
@@ -60,9 +67,13 @@ public class RankFeatureMetaFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper mapper = mapperService.merge("_doc", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         String rfMetaField = RankFeatureMetaFieldMapper.CONTENT_TYPE;
         BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field(rfMetaField, 0).endObject());
-        MapperParsingException e = expectThrows(MapperParsingException.class, () ->
-            mapper.parse(new SourceToParse("test", "1", bytes, XContentType.JSON)));
-        assertThat(e.getCause().getMessage(),
-            CoreMatchers.containsString("Field ["+ rfMetaField + "] is a metadata field and cannot be added inside a document."));
+        MapperParsingException e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(new SourceToParse("test", "1", bytes, XContentType.JSON))
+        );
+        assertThat(
+            e.getCause().getMessage(),
+            CoreMatchers.containsString("Field [" + rfMetaField + "] is a metadata field and cannot be added inside a document.")
+        );
     }
 }

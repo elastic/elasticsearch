@@ -147,11 +147,20 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         assertThat(capturedSearchRequests.size(), equalTo(1));
         String searchRequest = capturedSearchRequests.get(0).toString().replaceAll("\\s", "");
         assertThat(searchRequest, containsString("\"size\":0"));
-        assertThat(searchRequest, containsString("\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}}," +
-                "{\"range\":{\"time\":{\"from\":1000,\"to\":2300,\"include_lower\":true,\"include_upper\":false," +
-                "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"));
-        assertThat(searchRequest, containsString("\"aggregations\":{\"earliest_time\":{\"min\":{\"field\":\"time\"}}," +
-                "\"latest_time\":{\"max\":{\"field\":\"time\"}}}}"));
+        assertThat(
+            searchRequest,
+            containsString(
+                "\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}},"
+                    + "{\"range\":{\"time\":{\"from\":1000,\"to\":2300,\"include_lower\":true,\"include_upper\":false,"
+                    + "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"
+            )
+        );
+        assertThat(
+            searchRequest,
+            containsString(
+                "\"aggregations\":{\"earliest_time\":{\"min\":{\"field\":\"time\"}}," + "\"latest_time\":{\"max\":{\"field\":\"time\"}}}}"
+            )
+        );
         assertThat(searchRequest, not(containsString("\"track_total_hits\":false")));
         assertThat(searchRequest, not(containsString("\"sort\"")));
     }
@@ -188,11 +197,20 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         assertThat(capturedSearchRequests.size(), equalTo(1));
         String searchRequest = capturedSearchRequests.get(0).toString().replaceAll("\\s", "");
         assertThat(searchRequest, containsString("\"size\":0"));
-        assertThat(searchRequest, containsString("\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}}," +
-            "{\"range\":{\"time\":{\"from\":1000,\"to\":2300,\"include_lower\":true,\"include_upper\":false," +
-            "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"));
-        assertThat(searchRequest, containsString("\"aggregations\":{\"earliest_time\":{\"min\":{\"field\":\"time\"}}," +
-            "\"latest_time\":{\"max\":{\"field\":\"time\"}}}}"));
+        assertThat(
+            searchRequest,
+            containsString(
+                "\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}},"
+                    + "{\"range\":{\"time\":{\"from\":1000,\"to\":2300,\"include_lower\":true,\"include_upper\":false,"
+                    + "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"
+            )
+        );
+        assertThat(
+            searchRequest,
+            containsString(
+                "\"aggregations\":{\"earliest_time\":{\"min\":{\"field\":\"time\"}}," + "\"latest_time\":{\"max\":{\"field\":\"time\"}}}}"
+            )
+        );
         assertThat(searchRequest, not(containsString("\"track_total_hits\":false")));
         assertThat(searchRequest, not(containsString("\"sort\"")));
     }
@@ -514,7 +532,7 @@ public class ChunkedDataExtractorTests extends ESTestCase {
     private SearchResponse createSearchResponse(long totalHits, long earliestTime, long latestTime) {
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.status()).thenReturn(RestStatus.OK);
-        SearchHit[] hits = new SearchHit[(int)totalHits];
+        SearchHit[] hits = new SearchHit[(int) totalHits];
         SearchHits searchHits = new SearchHits(hits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), 1);
         when(searchResponse.getHits()).thenReturn(searchHits);
 
@@ -527,7 +545,8 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         when(max.getValue()).thenReturn((double) latestTime);
         when(max.getName()).thenReturn("latest_time");
         aggs.add(max);
-        Aggregations aggregations = new Aggregations(aggs) {};
+        Aggregations aggregations = new Aggregations(aggs) {
+        };
         when(searchResponse.getAggregations()).thenReturn(aggregations);
         return searchResponse;
     }
@@ -548,7 +567,8 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         when(max.getValue()).thenReturn(Double.POSITIVE_INFINITY);
         when(max.getName()).thenReturn("latest_time");
         aggs.add(max);
-        Aggregations aggregations = new Aggregations(aggs) {};
+        Aggregations aggregations = new Aggregations(aggs) {
+        };
         when(searchResponse.getAggregations()).thenReturn(aggregations);
         return searchResponse;
     }
@@ -558,9 +578,22 @@ public class ChunkedDataExtractorTests extends ESTestCase {
     }
 
     private ChunkedDataExtractorContext createContext(long start, long end, boolean hasAggregations, Long histogramInterval) {
-        return new ChunkedDataExtractorContext(jobId, timeField, indices, query, scrollSize, start, end, chunkSpan,
-            ChunkedDataExtractorFactory.newIdentityTimeAligner(), Collections.emptyMap(), hasAggregations, histogramInterval,
-            SearchRequest.DEFAULT_INDICES_OPTIONS, Collections.emptyMap());
+        return new ChunkedDataExtractorContext(
+            jobId,
+            timeField,
+            indices,
+            query,
+            scrollSize,
+            start,
+            end,
+            chunkSpan,
+            ChunkedDataExtractorFactory.newIdentityTimeAligner(),
+            Collections.emptyMap(),
+            hasAggregations,
+            histogramInterval,
+            SearchRequest.DEFAULT_INDICES_OPTIONS,
+            Collections.emptyMap()
+        );
     }
 
     private static class StubSubExtractor implements DataExtractor {

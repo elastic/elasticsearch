@@ -8,12 +8,12 @@
 
 package org.elasticsearch.client.license;
 
-import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.client.common.ProtocolUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.client.common.ProtocolUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -29,56 +29,59 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public final class PutLicenseResponse {
 
     private static final ConstructingObjectParser<PutLicenseResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "put_license_response", true, (a, v) -> {
-        boolean acknowledged = (Boolean) a[0];
-        LicensesStatus licensesStatus = LicensesStatus.fromString((String) a[1]);
-        @SuppressWarnings("unchecked") Tuple<String, Map<String, String[]>> acknowledgements = (Tuple<String, Map<String, String[]>>) a[2];
-        if (acknowledgements == null) {
-            return new PutLicenseResponse(acknowledged, licensesStatus);
-        } else {
-            return new PutLicenseResponse(acknowledged, licensesStatus, acknowledgements.v1(), acknowledgements.v2());
-        }
+        "put_license_response",
+        true,
+        (a, v) -> {
+            boolean acknowledged = (Boolean) a[0];
+            LicensesStatus licensesStatus = LicensesStatus.fromString((String) a[1]);
+            @SuppressWarnings("unchecked")
+            Tuple<String, Map<String, String[]>> acknowledgements = (Tuple<String, Map<String, String[]>>) a[2];
+            if (acknowledgements == null) {
+                return new PutLicenseResponse(acknowledged, licensesStatus);
+            } else {
+                return new PutLicenseResponse(acknowledged, licensesStatus, acknowledgements.v1(), acknowledgements.v2());
+            }
 
-    });
+        }
+    );
 
     static {
         PARSER.declareBoolean(constructorArg(), new ParseField("acknowledged"));
         PARSER.declareString(constructorArg(), new ParseField("license_status"));
         PARSER.declareObject(optionalConstructorArg(), (parser, v) -> {
-                Map<String, String[]> acknowledgeMessages = new HashMap<>();
-                String message = null;
-                XContentParser.Token token;
-                String currentFieldName = null;
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        currentFieldName = parser.currentName();
+            Map<String, String[]> acknowledgeMessages = new HashMap<>();
+            String message = null;
+            XContentParser.Token token;
+            String currentFieldName = null;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else {
+                    if (currentFieldName == null) {
+                        throw new XContentParseException(parser.getTokenLocation(), "expected message header or acknowledgement");
+                    }
+                    if ("message".equals(currentFieldName)) {
+                        if (token != XContentParser.Token.VALUE_STRING) {
+                            throw new XContentParseException(parser.getTokenLocation(), "unexpected message header type");
+                        }
+                        message = parser.text();
                     } else {
-                        if (currentFieldName == null) {
-                            throw new XContentParseException(parser.getTokenLocation(), "expected message header or acknowledgement");
+                        if (token != XContentParser.Token.START_ARRAY) {
+                            throw new XContentParseException(parser.getTokenLocation(), "unexpected acknowledgement type");
                         }
-                        if ("message".equals(currentFieldName)) {
+                        List<String> acknowledgeMessagesList = new ArrayList<>();
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (token != XContentParser.Token.VALUE_STRING) {
-                                throw new XContentParseException(parser.getTokenLocation(), "unexpected message header type");
+                                throw new XContentParseException(parser.getTokenLocation(), "unexpected acknowledgement text");
                             }
-                            message = parser.text();
-                        } else {
-                            if (token != XContentParser.Token.START_ARRAY) {
-                                throw new XContentParseException(parser.getTokenLocation(), "unexpected acknowledgement type");
-                            }
-                            List<String> acknowledgeMessagesList = new ArrayList<>();
-                            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                                if (token != XContentParser.Token.VALUE_STRING) {
-                                    throw new XContentParseException(parser.getTokenLocation(), "unexpected acknowledgement text");
-                                }
-                                acknowledgeMessagesList.add(parser.text());
-                            }
-                            acknowledgeMessages.put(currentFieldName, acknowledgeMessagesList.toArray(new String[0]));
+                            acknowledgeMessagesList.add(parser.text());
                         }
+                        acknowledgeMessages.put(currentFieldName, acknowledgeMessagesList.toArray(new String[0]));
                     }
                 }
-                return new Tuple<>(message, acknowledgeMessages);
-            },
-            new ParseField("acknowledge"));
+            }
+            return new Tuple<>(message, acknowledgeMessages);
+        }, new ParseField("acknowledge"));
     }
 
     private boolean acknowledged;
@@ -86,15 +89,18 @@ public final class PutLicenseResponse {
     private Map<String, String[]> acknowledgeMessages;
     private String acknowledgeHeader;
 
-    public PutLicenseResponse() {
-    }
+    public PutLicenseResponse() {}
 
     public PutLicenseResponse(boolean acknowledged, LicensesStatus status) {
         this(acknowledged, status, null, Collections.<String, String[]>emptyMap());
     }
 
-    public PutLicenseResponse(boolean acknowledged, LicensesStatus status, String acknowledgeHeader,
-                              Map<String, String[]> acknowledgeMessages) {
+    public PutLicenseResponse(
+        boolean acknowledged,
+        LicensesStatus status,
+        String acknowledgeHeader,
+        Map<String, String[]> acknowledgeMessages
+    ) {
         this.acknowledged = acknowledged;
         this.status = status;
         this.acknowledgeHeader = acknowledgeHeader;
@@ -128,9 +134,9 @@ public final class PutLicenseResponse {
         if (super.equals(o) == false) return false;
         PutLicenseResponse that = (PutLicenseResponse) o;
 
-        return status == that.status &&
-            ProtocolUtils.equals(acknowledgeMessages, that.acknowledgeMessages) &&
-            Objects.equals(acknowledgeHeader, that.acknowledgeHeader);
+        return status == that.status
+            && ProtocolUtils.equals(acknowledgeMessages, that.acknowledgeMessages)
+            && Objects.equals(acknowledgeHeader, that.acknowledgeHeader);
     }
 
     @Override

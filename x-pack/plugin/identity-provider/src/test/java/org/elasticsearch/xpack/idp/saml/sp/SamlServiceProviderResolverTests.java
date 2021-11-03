@@ -58,8 +58,7 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
         final String resource = "ece:" + randomAlphaOfLengthBetween(6, 12);
         final Set<String> rolePrivileges = Set.of("role:(.*)");
 
-        final DocumentVersion docVersion = new DocumentVersion(
-            randomAlphaOfLength(12), randomNonNegativeLong(), randomNonNegativeLong());
+        final DocumentVersion docVersion = new DocumentVersion(randomAlphaOfLength(12), randomNonNegativeLong(), randomNonNegativeLong());
         final SamlServiceProviderDocument document = new SamlServiceProviderDocument();
         document.setEntityId(entityId);
         document.setAuthenticationExpiry(null);
@@ -162,8 +161,8 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
 
             assertThat(args[0], equalTo(entityId));
 
-            ActionListener<Set<SamlServiceProviderIndex.DocumentSupplier>> listener
-                = (ActionListener<Set<SamlServiceProviderIndex.DocumentSupplier>>) args[args.length - 1];
+            ActionListener<Set<SamlServiceProviderIndex.DocumentSupplier>> listener = (ActionListener<
+                Set<SamlServiceProviderIndex.DocumentSupplier>>) args[args.length - 1];
             listener.onResponse(Set.of(new SamlServiceProviderIndex.DocumentSupplier(docVersion, () -> document)));
             return null;
         }).when(index).findByEntityId(anyString(), any(ActionListener.class));

@@ -30,7 +30,7 @@ public interface MlDataRemover {
         if (docField != null) {
             Object value = docField.getValue();
             if (value instanceof String) {
-                return (String)value;
+                return (String) value;
             }
         }
         return null;

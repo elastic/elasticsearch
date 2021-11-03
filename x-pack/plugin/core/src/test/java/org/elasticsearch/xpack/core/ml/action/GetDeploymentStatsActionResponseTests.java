@@ -39,7 +39,7 @@ public class GetDeploymentStatsActionResponseTests extends AbstractWireSerializi
     protected GetDeploymentStatsAction.Response createTestInstance() {
         int numStats = randomIntBetween(0, 2);
         var stats = new ArrayList<GetDeploymentStatsAction.Response.AllocationStats>(numStats);
-        for (var i=0; i<numStats; i++) {
+        for (var i = 0; i < numStats; i++) {
             stats.add(randomDeploymentStats());
         }
         stats.sort(Comparator.comparing(s -> s.getModelId()));
@@ -48,20 +48,22 @@ public class GetDeploymentStatsActionResponseTests extends AbstractWireSerializi
 
     public void testAddFailedRoutes_GivenNoFailures() throws UnknownHostException {
         var response = createTestInstance();
-        var modifed = GetDeploymentStatsAction.Response.addFailedRoutes(response,
-            Collections.emptyMap(),
-            buildNodes("node_foo"));
+        var modifed = GetDeploymentStatsAction.Response.addFailedRoutes(response, Collections.emptyMap(), buildNodes("node_foo"));
         assertEquals(response, modifed);
     }
 
     public void testAddFailedRoutes_GivenNoTaskResponses() throws UnknownHostException {
-        var emptyResponse = new GetDeploymentStatsAction.Response(Collections.emptyList(),
-            Collections.emptyList(), Collections.emptyList(), 0);
+        var emptyResponse = new GetDeploymentStatsAction.Response(
+            Collections.emptyList(),
+            Collections.emptyList(),
+            Collections.emptyList(),
+            0
+        );
 
         Map<String, Map<String, RoutingStateAndReason>> badRoutes = new HashMap<>();
-        for (var modelId : new String[]{"model1", "model2"}) {
+        for (var modelId : new String[] { "model1", "model2" }) {
             Map<String, RoutingStateAndReason> nodeRoutes = new HashMap<>();
-            for (var nodeId : new String[]{"nodeA", "nodeB"}) {
+            for (var nodeId : new String[] { "nodeA", "nodeB" }) {
                 nodeRoutes.put(nodeId, new RoutingStateAndReason(RoutingState.FAILED, "failure reason"));
             }
             badRoutes.put(modelId, nodeRoutes);
@@ -83,33 +85,37 @@ public class GetDeploymentStatsActionResponseTests extends AbstractWireSerializi
         DiscoveryNodes nodes = buildNodes("node1", "node2", "node3");
 
         List<GetDeploymentStatsAction.Response.AllocationStats.NodeStats> nodeStatsList = new ArrayList<>();
-        nodeStatsList.add(GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forStartedState(
-                    nodes.get("node1"),
-                    randomNonNegativeLong(),
-                    randomDoubleBetween(0.0, 100.0, true),
-                    Instant.now()
-                ));
-        nodeStatsList.add(GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forStartedState(
-            nodes.get("node2"),
-            randomNonNegativeLong(),
-            randomDoubleBetween(0.0, 100.0, true),
-            Instant.now()
-        ));
+        nodeStatsList.add(
+            GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forStartedState(
+                nodes.get("node1"),
+                randomNonNegativeLong(),
+                randomDoubleBetween(0.0, 100.0, true),
+                Instant.now()
+            )
+        );
+        nodeStatsList.add(
+            GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forStartedState(
+                nodes.get("node2"),
+                randomNonNegativeLong(),
+                randomDoubleBetween(0.0, 100.0, true),
+                Instant.now()
+            )
+        );
 
         var model1 = new GetDeploymentStatsAction.Response.AllocationStats(
             "model1",
             ByteSizeValue.ofBytes(randomNonNegativeLong()),
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 8),
-            nodeStatsList);
+            nodeStatsList
+        );
 
         Map<String, Map<String, RoutingStateAndReason>> badRoutes = new HashMap<>();
         Map<String, RoutingStateAndReason> nodeRoutes = new HashMap<>();
         nodeRoutes.put("node3", new RoutingStateAndReason(RoutingState.FAILED, "failed on node3"));
         badRoutes.put("model1", nodeRoutes);
 
-        var response = new GetDeploymentStatsAction.Response(Collections.emptyList(), Collections.emptyList(),
-            List.of(model1), 1);
+        var response = new GetDeploymentStatsAction.Response(Collections.emptyList(), Collections.emptyList(), List.of(model1), 1);
 
         var modified = GetDeploymentStatsAction.Response.addFailedRoutes(response, badRoutes, nodes);
         List<GetDeploymentStatsAction.Response.AllocationStats> results = modified.getStats().results();
@@ -127,27 +133,31 @@ public class GetDeploymentStatsActionResponseTests extends AbstractWireSerializi
         DiscoveryNodes nodes = buildNodes("node1", "node2");
 
         List<GetDeploymentStatsAction.Response.AllocationStats.NodeStats> nodeStatsList = new ArrayList<>();
-        nodeStatsList.add(GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forStartedState(
-            nodes.get("node1"),
-            randomNonNegativeLong(),
-            randomDoubleBetween(0.0, 100.0, true),
-            Instant.now()
-        ));
-        nodeStatsList.add(GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forStartedState(
-            nodes.get("node2"),
-            randomNonNegativeLong(),
-            randomDoubleBetween(0.0, 100.0, true),
-            Instant.now()
-        ));
+        nodeStatsList.add(
+            GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forStartedState(
+                nodes.get("node1"),
+                randomNonNegativeLong(),
+                randomDoubleBetween(0.0, 100.0, true),
+                Instant.now()
+            )
+        );
+        nodeStatsList.add(
+            GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forStartedState(
+                nodes.get("node2"),
+                randomNonNegativeLong(),
+                randomDoubleBetween(0.0, 100.0, true),
+                Instant.now()
+            )
+        );
 
         var model1 = new GetDeploymentStatsAction.Response.AllocationStats(
             "model1",
             ByteSizeValue.ofBytes(randomNonNegativeLong()),
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 8),
-            nodeStatsList);
-        var response = new GetDeploymentStatsAction.Response(Collections.emptyList(), Collections.emptyList(),
-            List.of(model1), 1);
+            nodeStatsList
+        );
+        var response = new GetDeploymentStatsAction.Response(Collections.emptyList(), Collections.emptyList(), List.of(model1), 1);
 
         // failed state for node 2 conflicts with the task response
         Map<String, Map<String, RoutingStateAndReason>> badRoutes = new HashMap<>();
@@ -166,8 +176,8 @@ public class GetDeploymentStatsActionResponseTests extends AbstractWireSerializi
         assertEquals(RoutingState.FAILED, results.get(0).getNodeStats().get(1).getRoutingState().getState());
     }
 
-    private DiscoveryNodes buildNodes(String ... nodeIds) throws UnknownHostException {
-        InetAddress inetAddress = InetAddress.getByAddress(new byte[]{(byte) 192, (byte) 168, (byte) 0, (byte) 1});
+    private DiscoveryNodes buildNodes(String... nodeIds) throws UnknownHostException {
+        InetAddress inetAddress = InetAddress.getByAddress(new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1 });
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         int port = 9200;
         for (String nodeId : nodeIds) {
@@ -182,16 +192,22 @@ public class GetDeploymentStatsActionResponseTests extends AbstractWireSerializi
         for (int i = 0; i < numNodes; i++) {
             var node = new DiscoveryNode("node_" + i, new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT);
             if (randomBoolean()) {
-                nodeStatsList.add(GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forStartedState(
-                    node,
-                    randomNonNegativeLong(),
-                    randomDoubleBetween(0.0, 100.0, true),
-                    Instant.now()
-                ));
+                nodeStatsList.add(
+                    GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forStartedState(
+                        node,
+                        randomNonNegativeLong(),
+                        randomDoubleBetween(0.0, 100.0, true),
+                        Instant.now()
+                    )
+                );
             } else {
-                nodeStatsList.add(GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forNotStartedState(
-                    node, randomFrom(RoutingState.values()), randomBoolean() ? null : "a good reason"
-                ));
+                nodeStatsList.add(
+                    GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forNotStartedState(
+                        node,
+                        randomFrom(RoutingState.values()),
+                        randomBoolean() ? null : "a good reason"
+                    )
+                );
             }
         }
 
@@ -202,6 +218,7 @@ public class GetDeploymentStatsActionResponseTests extends AbstractWireSerializi
             ByteSizeValue.ofBytes(randomNonNegativeLong()),
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 8),
-            nodeStatsList);
+            nodeStatsList
+        );
     }
 }

@@ -125,7 +125,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
         assertThat(future2.actionGet(0L), equalTo(2));
     }
 
-    public void testListenerCompletedWithFresherInputIfRefreshDeferred() {
+    public void testListenerCompletedWithFresherInputIfSuperseded() {
         final TestCache testCache = new TestCache();
 
         // This computation is superseded before it completes.
@@ -143,6 +143,28 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
         testCache.completeNextRefresh("bar", 2);
         assertThat(future2.actionGet(0L), equalTo(2));
         assertThat(future1.actionGet(0L), equalTo(2));
+    }
+
+    public void testRunsCancellationChecksEvenWhenSuperseded() {
+        final TestCache testCache = new TestCache();
+
+        // This computation is superseded and then cancelled.
+        final AtomicBoolean isCancelled = new AtomicBoolean();
+        final TestFuture future1 = new TestFuture();
+        testCache.get("foo", isCancelled::get, future1);
+        testCache.assertPendingRefreshes(1);
+
+        // A second get() call with a non-matching key supersedes the original refresh and starts another one
+        final TestFuture future2 = new TestFuture();
+        testCache.get("bar", () -> false, future2);
+        testCache.assertPendingRefreshes(2);
+
+        testCache.assertNextRefreshCancelled();
+        assertFalse(future1.isDone());
+
+        isCancelled.set(true);
+        testCache.completeNextRefresh("bar", 1);
+        expectThrows(TaskCancelledException.class, () -> future1.actionGet(0L));
     }
 
     public void testExceptionCompletesListenersButIsNotCached() {

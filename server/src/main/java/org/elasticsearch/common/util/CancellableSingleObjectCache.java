@@ -270,7 +270,10 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
             cancellationChecks.runAll();
             if (tryIncRef()) {
                 try {
-                    return currentCachedItem.addListener(future, () -> hasReferences() == false);
+                    return currentCachedItem.addListener(future, () -> {
+                        cancellationChecks.runAll();
+                        return hasReferences() == false;
+                    });
                 } finally {
                     decRef();
                 }

@@ -253,7 +253,9 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
                 String beforeTimestamp = FORMATTER.formatMillis(millis - 1);
                 double beforeValue = randomDouble();
                 docs.add(client().prepareIndex("tsdb").setSource(Map.of("@timestamp", beforeTimestamp, "dim", "dim", "v", beforeValue)));
-                expectedValues.add(Map.entry(beforeTimestamp, beforeValue));
+                if (millis - 1  >= minMillis) {
+                    expectedValues.add(Map.entry(beforeTimestamp, beforeValue));
+                }
             }
             expectedLatest.add(Map.entry(timestamp, v));
             expectedValues.add(Map.entry(timestamp, v));

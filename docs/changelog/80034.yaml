@@ -4,3 +4,5 @@ area: Packaging
 type: upgrade
 issues:
  - 80001
+versions:
+ - 7.15.3

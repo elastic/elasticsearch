@@ -148,7 +148,7 @@ public class TransformNoTransformNodeIT extends TransformSingleNodeTestCase {
             ElasticsearchStatusException.class,
             () -> client().execute(UpdateTransformAction.INSTANCE, request).actionGet()
         );
-        assertThat(e.getMessage(), is(equalTo("Transform requires the transform node role for at least 1 node, found no transform nodes")));
+        assertThat(e.getMessage(), is(equalTo("Transform requires the transform node role for at least 1 node,EvilLoggerTests found no transform nodes")));
     }
 
     private static TransformConfig randomConfig(String transformId) {

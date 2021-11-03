@@ -115,7 +115,7 @@ public class EvilLoggerTests extends ESTestCase {
                 }
                 for (int j = 0; j < iterations; j++) {
                     for (final Integer id : ids) {
-                        deprecationLogger.warn(
+                        deprecationLogger.critical(
                             DeprecationCategory.OTHER,
                             Integer.toString(id),
                             "This is a maybe logged deprecation message" + id
@@ -187,7 +187,7 @@ public class EvilLoggerTests extends ESTestCase {
     public void testDeprecatedSettings() throws IOException, UserException {
         setupLogging("settings");
 
-        final Setting<Boolean> setting = Setting.boolSetting("deprecated.foo", false, Setting.Property.DeprecatedWarning);
+        final Setting<Boolean> setting = Setting.boolSetting("deprecated.foo", false, Setting.Property.Deprecated);
         final Settings settings = Settings.builder().put("deprecated.foo", true).build();
 
         final int iterations = randomIntBetween(0, 128);

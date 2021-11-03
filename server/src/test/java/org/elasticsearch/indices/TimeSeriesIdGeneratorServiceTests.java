@@ -108,7 +108,7 @@ public class TimeSeriesIdGeneratorServiceTests extends ESTestCase {
         TimeSeriesIdGenerator gen = mockGenerator();
         AtomicLong counter = new AtomicLong();
 
-        Metadata meta = Metadata.builder().put(index("index", true, "dim","{}")).build();
+        Metadata meta = Metadata.builder().put(index("index", true, "dim", "{}")).build();
         AtomicReference<IndexMetadata> indexMetadata = new AtomicReference<>(meta.index("index"));
         try (TimeSeriesIdGeneratorService genService = genService(i -> {
             counter.incrementAndGet();
@@ -146,7 +146,7 @@ public class TimeSeriesIdGeneratorServiceTests extends ESTestCase {
      * Assert that a non local time series index will build its {@link TimeSeriesIdGenerator}.
      */
     public void testNonLocalIndex() throws Exception {
-        Metadata meta = Metadata.builder().put(index("index", true, "dim","{}")).build();
+        Metadata meta = Metadata.builder().put(index("index", true, "dim", "{}")).build();
         TimeSeriesIdGenerator gen = mockGenerator();
         try (TimeSeriesIdGeneratorService genService = genService(i -> null, im -> gen)) {
             genService.applyClusterState(meta);
@@ -178,7 +178,7 @@ public class TimeSeriesIdGeneratorServiceTests extends ESTestCase {
         TimeSeriesIdGenerator gen = mockGenerator();
         AtomicLong counter = new AtomicLong();
 
-        Metadata meta = Metadata.builder().put(index("index", true, "dim","{}")).build();
+        Metadata meta = Metadata.builder().put(index("index", true, "dim", "{}")).build();
         AtomicReference<IndexMetadata> indexMetadata = new AtomicReference<>(meta.index("index"));
         try (TimeSeriesIdGeneratorService genService = genService(i -> null, im -> {
             counter.incrementAndGet();
@@ -209,7 +209,7 @@ public class TimeSeriesIdGeneratorServiceTests extends ESTestCase {
     public void testNonLocalIndexSameMappingAsLocalIndex() throws Exception {
         TimeSeriesIdGenerator gen = mockGenerator();
 
-        Metadata meta = Metadata.builder().put(index("index_1", true, "dim","{}")).put(index("index_2", true, "dim","{}")).build();
+        Metadata meta = Metadata.builder().put(index("index_1", true, "dim", "{}")).put(index("index_2", true, "dim", "{}")).build();
         try (TimeSeriesIdGeneratorService genService = genService(i -> {
             if (i.getName().equals("index_1")) {
                 return new LocalIndex() {
@@ -244,7 +244,7 @@ public class TimeSeriesIdGeneratorServiceTests extends ESTestCase {
                 im -> { throw new AssertionError("shouldn't be called"); }
             )
         ) {
-            Metadata meta = Metadata.builder().put(index("index", true, "dim",null)).build();
+            Metadata meta = Metadata.builder().put(index("index", true, "dim", null)).build();
             genService.applyClusterState(meta);
             assertThat(genService.apply(meta.index("index")), sameInstance(TimeSeriesIdGenerator.EMPTY));
             genService.stop();
@@ -263,7 +263,7 @@ public class TimeSeriesIdGeneratorServiceTests extends ESTestCase {
                 im -> { throw new AssertionError("shouldn't be called"); }
             )
         ) {
-            Metadata meta = Metadata.builder().put(index("index", true, "dim",null)).build();
+            Metadata meta = Metadata.builder().put(index("index", true, "dim", null)).build();
             genService.applyClusterState(meta);
             IndexMetadata prev = meta.index("index");
             IndexMetadata next = IndexMetadata.builder(prev).mappingVersion(prev.getMappingVersion() + 1).build();

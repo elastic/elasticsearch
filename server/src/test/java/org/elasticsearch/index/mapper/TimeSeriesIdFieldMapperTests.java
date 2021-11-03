@@ -37,8 +37,7 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
 
     public void testEnabledInTimeSeriesMode() throws Exception {
         DocumentMapper docMapper = createMapperService(
-            getIndexSettingsBuilder()
-                .put(IndexSettings.MODE.getKey(), "time_series")
+            getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), "time_series")
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field")
                 .build(),
             mapping(b -> {

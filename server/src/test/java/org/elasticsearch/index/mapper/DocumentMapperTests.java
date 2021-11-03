@@ -343,15 +343,19 @@ public class DocumentMapperTests extends MapperServiceTestCase {
             mapping(b -> b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject())
         ).documentMapper();
         assertThat(
-            TimeSeriesIdGenerator.parse(documentMapper.mapping().getTimeSeriesIdGenerator()
-                .generate(
-                    new MapXContentParser(
-                        NamedXContentRegistry.EMPTY,
-                        DeprecationHandler.IGNORE_DEPRECATIONS,
-                        Map.of("dim", "foo"),
-                        randomFrom(XContentType.values())
+            TimeSeriesIdGenerator.parse(
+                documentMapper.mapping()
+                    .getTimeSeriesIdGenerator()
+                    .generate(
+                        new MapXContentParser(
+                            NamedXContentRegistry.EMPTY,
+                            DeprecationHandler.IGNORE_DEPRECATIONS,
+                            Map.of("dim", "foo"),
+                            randomFrom(XContentType.values())
+                        )
                     )
-                ).streamInput()),
+                    .streamInput()
+            ),
             equalTo(Map.of("dim", "foo"))
         );
     }

@@ -2047,7 +2047,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             })
         ).documentMapper();
 
-        //TODO: The following test fails because of _tsid generation:
+        // TODO: The following test fails because of _tsid generation:
         // TimeSeriesIdGenerator#generate throws IllegalArgumentException("There aren't any mapped dimensions")
         Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
             b.startObject("dim");
@@ -2059,7 +2059,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             equalTo("All fields matching [routing_path] must be mapped but [dim.foo] was declared as [dynamic: false]")
         );
 
-        //TODO: The following test fails because of _tsid generation:
+        // TODO: The following test fails because of _tsid generation:
         // TimeSeriesIdGenerator#generate throws IllegalArgumentException("There aren't any mapped dimensions")
         e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
             b.startObject("dim");

@@ -105,7 +105,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
         assert fieldType().isSearchable() == false;
 
-        //BytesReference timeSeriesId = context.sourceToParse().timeSeriesId();
+        // BytesReference timeSeriesId = context.sourceToParse().timeSeriesId();
         BytesReference timeSeriesId = context.mappingLookup()
             .getMapping()
             .generateTimeSeriesIdIfNeeded(context.sourceToParse().source(), context.sourceToParse().getXContentType());

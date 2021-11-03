@@ -54,6 +54,7 @@ public class MlInitializationService implements ClusterStateListener {
     private final ThreadPool threadPool;
     private final AtomicBoolean isIndexCreationInProgress = new AtomicBoolean(false);
     private final AtomicBoolean mlInternalIndicesHidden = new AtomicBoolean(false);
+    private volatile String previousException;
 
     private final MlDailyMaintenanceService mlDailyMaintenanceService;
 
@@ -143,8 +144,13 @@ public class MlInitializationService implements ClusterStateListener {
                 event.state(),
                 MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,
                 ActionListener.wrap(r -> isIndexCreationInProgress.set(false), e -> {
+                    if (e.getMessage().equals(previousException)) {
+                        logger.debug("Error creating ML annotations index or aliases", e);
+                    } else {
+                        previousException = e.getMessage();
+                        logger.error("Error creating ML annotations index or aliases", e);
+                    }
                     isIndexCreationInProgress.set(false);
-                    logger.error("Error creating ML annotations index or aliases", e);
                 })
             );
         }

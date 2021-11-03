@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collections;
@@ -30,17 +31,20 @@ public final class MappingParser {
     private final Supplier<Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersSupplier;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers;
     private final Function<String, String> documentTypeResolver;
+    private final IndexMode indexMode;
 
     MappingParser(
         Supplier<MappingParserContext> parserContextSupplier,
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
         Supplier<Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersSupplier,
-        Function<String, String> documentTypeResolver
+        Function<String, String> documentTypeResolver,
+        IndexMode indexMode
     ) {
         this.parserContextSupplier = parserContextSupplier;
         this.metadataMapperParsers = metadataMapperParsers;
         this.metadataMappersSupplier = metadataMappersSupplier;
         this.documentTypeResolver = documentTypeResolver;
+        this.indexMode = indexMode;
     }
 
     /**
@@ -148,7 +152,8 @@ public final class MappingParser {
         return new Mapping(
             rootObjectMapperBuilder.build(MapperBuilderContext.ROOT),
             metadataMappers.values().toArray(new MetadataFieldMapper[0]),
-            meta
+            meta,
+            indexMode
         );
     }
 }

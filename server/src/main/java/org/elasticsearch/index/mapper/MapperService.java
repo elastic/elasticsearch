@@ -20,6 +20,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.TimeSeriesIdGenerator;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -171,7 +172,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             parserContextSupplier,
             metadataMapperParsers,
             this::getMetadataMappers,
-            this::resolveDocumentType
+            this::resolveDocumentType,
+            indexSettings.getMode()
         );
     }
 
@@ -310,6 +312,18 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
         }
         return true;
+    }
+
+    public void checkDynamicMappingUpdate(String type, CompressedXContent mappingSource) {
+        Mapping incomingMapping = parseMapping(type, mappingSource);
+        DocumentMapper oldMapper = this.mapper;
+        Mapping newMapping = mergeMappings(oldMapper, incomingMapping, MergeReason.MAPPING_UPDATE_PREFLIGHT);
+        newDocumentMapper(newMapping, MergeReason.MAPPING_UPDATE_PREFLIGHT);
+
+        TimeSeriesIdGenerator oldTimeSeriesIdGenerator = oldMapper == null ? null : oldMapper.mapping().getTimeSeriesIdGenerator();
+        if (false == Objects.equals(newMapping.getTimeSeriesIdGenerator(), oldTimeSeriesIdGenerator)) {
+            throw new IllegalStateException("added a dimension with a dynamic mapping");
+        }
     }
 
     public void merge(String type, Map<String, Object> mappings, MergeReason reason) throws IOException {

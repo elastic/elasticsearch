@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AdjustableSemaphore;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -147,7 +148,7 @@ public class MappingUpdatedActionTests extends ESTestCase {
         mua.setClient(client);
 
         RootObjectMapper rootObjectMapper = new RootObjectMapper.Builder("name").build(MapperBuilderContext.ROOT);
-        Mapping update = new Mapping(rootObjectMapper, new MetadataFieldMapper[0], Map.of());
+        Mapping update = new Mapping(rootObjectMapper, new MetadataFieldMapper[0], Map.of(), randomFrom(IndexMode.values()));
 
         mua.sendUpdateMapping(new Index("name", "uuid"), update, ActionListener.wrap(() -> {}));
         verify(indicesAdminClient).execute(eq(AutoPutMappingAction.INSTANCE), any(), any());

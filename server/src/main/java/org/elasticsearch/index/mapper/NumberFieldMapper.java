@@ -32,6 +32,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.TimeSeriesIdGenerator;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
@@ -330,6 +331,11 @@ public class NumberFieldMapper extends FieldMapper {
                     throw new IllegalArgumentException("[half_float] supports only finite values, but got [" + value + "]");
                 }
             }
+
+            @Override
+            public TimeSeriesIdGenerator.LeafComponent timeSeriesIdGenerator(Number nullValue, boolean coerce) {
+                throw new IllegalArgumentException("[half_float] is not a valid dimension");
+            }
         },
         FLOAT("float", NumericType.FLOAT) {
             @Override
@@ -432,6 +438,11 @@ public class NumberFieldMapper extends FieldMapper {
                     throw new IllegalArgumentException("[float] supports only finite values, but got [" + value + "]");
                 }
             }
+
+            @Override
+            public TimeSeriesIdGenerator.LeafComponent timeSeriesIdGenerator(Number nullValue, boolean coerce) {
+                throw new IllegalArgumentException("[float] is not a valid dimension");
+            }
         },
         DOUBLE("double", NumericType.DOUBLE) {
             @Override
@@ -517,6 +528,11 @@ public class NumberFieldMapper extends FieldMapper {
                     throw new IllegalArgumentException("[double] supports only finite values, but got [" + value + "]");
                 }
             }
+
+            @Override
+            public TimeSeriesIdGenerator.LeafComponent timeSeriesIdGenerator(Number nullValue, boolean coerce) {
+                throw new IllegalArgumentException("[double] is not a valid dimension");
+            }
         },
         BYTE("byte", NumericType.BYTE) {
             @Override
@@ -583,6 +599,14 @@ public class NumberFieldMapper extends FieldMapper {
             Number valueForSearch(Number value) {
                 return value.byteValue();
             }
+
+            @Override
+            public TimeSeriesIdGenerator.LeafComponent timeSeriesIdGenerator(Number nullValue, boolean coerce) {
+                if (nullValue == null && coerce) {
+                    return WholeNumberTsidGen.BYTE;
+                }
+                return new WholeNumberTsidGen(BYTE, nullValue, coerce);
+            }
         },
         SHORT("short", NumericType.SHORT) {
             @Override
@@ -644,6 +668,14 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             Number valueForSearch(Number value) {
                 return value.shortValue();
+            }
+
+            @Override
+            public TimeSeriesIdGenerator.LeafComponent timeSeriesIdGenerator(Number nullValue, boolean coerce) {
+                if (nullValue == null && coerce) {
+                    return WholeNumberTsidGen.SHORT;
+                }
+                return new WholeNumberTsidGen(SHORT, nullValue, coerce);
             }
         },
         INTEGER("integer", NumericType.INT) {
@@ -766,6 +798,14 @@ public class NumberFieldMapper extends FieldMapper {
                 }
                 return fields;
             }
+
+            @Override
+            public TimeSeriesIdGenerator.LeafComponent timeSeriesIdGenerator(Number nullValue, boolean coerce) {
+                if (nullValue == null && coerce) {
+                    return WholeNumberTsidGen.INTEGER;
+                }
+                return new WholeNumberTsidGen(INTEGER, nullValue, coerce);
+            }
         },
         LONG("long", NumericType.LONG) {
             @Override
@@ -857,6 +897,14 @@ public class NumberFieldMapper extends FieldMapper {
                 }
                 return fields;
             }
+
+            @Override
+            public TimeSeriesIdGenerator.LeafComponent timeSeriesIdGenerator(Number nullValue, boolean coerce) {
+                if (nullValue == null && coerce) {
+                    return WholeNumberTsidGen.LONG;
+                }
+                return new WholeNumberTsidGen(LONG, nullValue, coerce);
+            }
         };
 
         private final String name;
@@ -904,6 +952,8 @@ public class NumberFieldMapper extends FieldMapper {
         public abstract Number parsePoint(byte[] value);
 
         public abstract List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored);
+
+        public abstract TimeSeriesIdGenerator.LeafComponent timeSeriesIdGenerator(Number nullValue, boolean coerce);
 
         public FieldValues<Number> compile(String fieldName, Script script, ScriptCompiler compiler) {
             // only implemented for long and double fields
@@ -1285,7 +1335,7 @@ public class NumberFieldMapper extends FieldMapper {
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         Number value;
         try {
-            value = value(context.parser(), type, nullValue, coerce.value());
+            value = value(context.parser(), type, nullValue, coerce());
         } catch (InputCoercionException | IllegalArgumentException | JsonParseException e) {
             if (ignoreMalformed.value() && context.parser().currentToken().isValue()) {
                 context.addIgnoredField(mappedFieldType.name());
@@ -1354,5 +1404,64 @@ public class NumberFieldMapper extends FieldMapper {
         return new Builder(simpleName(), type, scriptCompiler, ignoreMalformedByDefault, coerceByDefault).dimension(dimension)
             .metric(metricType)
             .init(this);
+    }
+
+    @Override
+    protected TimeSeriesIdGenerator.LeafComponent selectTimeSeriesIdComponents() {
+        if (false == dimension) {
+            return null;
+        }
+        if (ignoreMalformed.value()) {
+            throw new IllegalArgumentException("Dimensions can not ignore_malformed");
+        }
+        return type.timeSeriesIdGenerator(nullValue, coerce.value());
+    }
+
+    private static class WholeNumberTsidGen extends TimeSeriesIdGenerator.LongLeaf {
+        private static final WholeNumberTsidGen BYTE = new WholeNumberTsidGen(NumberType.BYTE, null, true);
+        private static final WholeNumberTsidGen SHORT = new WholeNumberTsidGen(NumberType.SHORT, null, true);
+        private static final WholeNumberTsidGen INTEGER = new WholeNumberTsidGen(NumberType.INTEGER, null, true);
+        private static final WholeNumberTsidGen LONG = new WholeNumberTsidGen(NumberType.LONG, null, true);
+
+        private final NumberType numberType;
+        private final Number nullValue;
+        private final boolean coerce;
+
+        WholeNumberTsidGen(NumberType numberType, Number nullValue, boolean coerce) {
+            this.numberType = Objects.requireNonNull(numberType);
+            this.nullValue = nullValue;
+            this.coerce = coerce;
+        }
+
+        @Override
+        protected long extractLong(XContentParser parser) throws IOException {
+            Number value = value(parser, numberType, nullValue, coerce);
+            if (value == null) {
+                throw new IllegalArgumentException("null values not allowed");
+            }
+            return value.longValue();
+        }
+
+        @Override
+        public String toString() {
+            return numberType + "[" + nullValue + "," + coerce + "]";
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == this) {
+                return true;
+            }
+            if (obj == null || obj.getClass() != getClass()) {
+                return false;
+            }
+            WholeNumberTsidGen other = (WholeNumberTsidGen) obj;
+            return numberType.equals(other.numberType) && Objects.equals(nullValue, other.nullValue) && coerce == other.coerce;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(numberType, nullValue, coerce);
+        }
     }
 }

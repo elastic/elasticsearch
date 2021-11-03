@@ -139,6 +139,11 @@ public enum IndexMode {
                 );
             }
         }
+
+        @Override
+        public boolean organizeIntoTimeSeries() {
+            return true;
+        }
     };
 
     private static final List<Setting<?>> TIME_SERIES_UNSUPPORTED = List.of(
@@ -171,4 +176,8 @@ public enum IndexMode {
      * Validate and/or modify the mappings after after they've been parsed.
      */
     public abstract void completeMappings(MappingParserContext context, Map<String, Object> mapping, RootObjectMapper.Builder builder);
+
+    public boolean organizeIntoTimeSeries() {
+        return false;
+    };
 }

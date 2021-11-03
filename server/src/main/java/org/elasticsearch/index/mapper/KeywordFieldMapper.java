@@ -31,6 +31,7 @@ import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
+import org.elasticsearch.index.TimeSeriesIdGenerator;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -69,6 +70,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.freeze();
         }
+
+        public static final int IGNORE_ABOVE = Integer.MAX_VALUE;
     }
 
     public static class KeywordField extends Field {
@@ -102,7 +105,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             "ignore_above",
             true,
             m -> toType(m).ignoreAbove,
-            Integer.MAX_VALUE
+            Defaults.IGNORE_ABOVE
         );
 
         private final Parameter<String> indexOptions = Parameter.restrictedStringParam(
@@ -563,17 +566,16 @@ public final class KeywordFieldMapper extends FieldMapper {
         return (KeywordFieldType) super.fieldType();
     }
 
+    private static String value(XContentParser parser, String nullValue) throws IOException {
+        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+            return nullValue;
+        }
+        return parser.textOrNull();
+    }
+
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        String value;
-        XContentParser parser = context.parser();
-        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-            value = nullValue;
-        } else {
-            value = parser.textOrNull();
-        }
-
-        indexValue(context, value);
+        indexValue(context, value(context.parser(), nullValue));
     }
 
     @Override
@@ -587,7 +589,6 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     private void indexValue(DocumentParserContext context, String value) {
-
         if (value == null) {
             return;
         }
@@ -673,5 +674,63 @@ public final class KeywordFieldMapper extends FieldMapper {
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), indexAnalyzers, scriptCompiler).dimension(dimension).init(this);
+    }
+
+    @Override
+    protected TimeSeriesIdGenerator.Component selectTimeSeriesIdComponents() {
+        if (false == dimension) {
+            return null;
+        }
+        if (ignoreAbove != Defaults.IGNORE_ABOVE) {
+            throw new IllegalArgumentException("[ignore_above] not supported by dimensions");
+        }
+        if (normalizerName != null) {
+            throw new IllegalArgumentException("[normalizer] not supported by dimensions");
+        }
+        return new KeywordTsidGen(nullValue);
+    }
+
+    public static TimeSeriesIdGenerator.LeafComponent timeSeriesIdGenerator(String nullValue) {
+        if (nullValue == null) {
+            return KeywordTsidGen.DEFAULT;
+        }
+        return new KeywordTsidGen(nullValue);
+    }
+
+    private static class KeywordTsidGen extends TimeSeriesIdGenerator.StringLeaf {
+        private static final KeywordTsidGen DEFAULT = new KeywordTsidGen(null);
+
+        private final String nullValue;
+
+        KeywordTsidGen(String nullValue) {
+            this.nullValue = nullValue;
+        }
+
+        @Override
+        protected String extractString(XContentParser parser) throws IOException {
+            return value(parser, nullValue);
+        }
+
+        @Override
+        public String toString() {
+            return "kwd[" + nullValue + "]";
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == this) {
+                return true;
+            }
+            if (obj == null || obj.getClass() != getClass()) {
+                return false;
+            }
+            KeywordTsidGen other = (KeywordTsidGen) obj;
+            return Objects.equals(nullValue, other.nullValue);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(nullValue);
+        }
     }
 }

@@ -13,14 +13,20 @@ import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.TimeSeriesIdGenerator;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.support.MapXContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -304,6 +310,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
                 .item(RoutingFieldMapper.class)
                 .item(SeqNoFieldMapper.class)
                 .item(SourceFieldMapper.class)
+                .item(TimeSeriesIdFieldMapper.class)
                 .item(VersionFieldMapper.class)
         );
         List<String> matching = new ArrayList<>(documentMapper.mappers().getMatchingFieldNames("*"));
@@ -320,7 +327,32 @@ public class DocumentMapperTests extends MapperServiceTestCase {
                 .item(RoutingFieldMapper.CONTENT_TYPE)
                 .item(SeqNoFieldMapper.CONTENT_TYPE)
                 .item(SourceFieldMapper.CONTENT_TYPE)
+                .item(TimeSeriesIdFieldMapper.CONTENT_TYPE)
                 .item(VersionFieldMapper.CONTENT_TYPE)
+        );
+    }
+
+    public void testContainsTimeSeriesGenerator() throws IOException {
+        DocumentMapper documentMapper = createMapperService(
+            Version.CURRENT,
+            Settings.builder()
+                .put(IndexSettings.MODE.getKey(), "time_series")
+                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
+                .build(),
+            () -> false,
+            mapping(b -> b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject())
+        ).documentMapper();
+        assertThat(
+            TimeSeriesIdGenerator.parse(documentMapper.mapping().getTimeSeriesIdGenerator()
+                .generate(
+                    new MapXContentParser(
+                        NamedXContentRegistry.EMPTY,
+                        DeprecationHandler.IGNORE_DEPRECATIONS,
+                        Map.of("dim", "foo"),
+                        randomFrom(XContentType.values())
+                    )
+                ).streamInput()),
+            equalTo(Map.of("dim", "foo"))
         );
     }
 

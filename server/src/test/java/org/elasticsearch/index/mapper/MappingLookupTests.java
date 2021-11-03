@@ -14,6 +14,7 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
@@ -42,7 +43,12 @@ public class MappingLookupTests extends ESTestCase {
         RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc");
         Map<String, RuntimeField> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(RuntimeField::name, r -> r));
         builder.setRuntime(runtimeFieldTypes);
-        Mapping mapping = new Mapping(builder.build(MapperBuilderContext.ROOT), new MetadataFieldMapper[0], Collections.emptyMap());
+        Mapping mapping = new Mapping(
+            builder.build(MapperBuilderContext.ROOT),
+            new MetadataFieldMapper[0],
+            Collections.emptyMap(),
+            randomFrom(IndexMode.values())
+        );
         return MappingLookup.fromMappers(mapping, fieldMappers, objectMappers, emptyList());
     }
 

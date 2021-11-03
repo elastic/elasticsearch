@@ -85,7 +85,7 @@ teardown:
 
   - match: { "error.type": "security_exception" }
   - match:
-      error.reason: "action [cluster:admin/xpack/security/user/delete] is unauthorized for user [elastic/fleet-server], this action is granted by the cluster privileges [manage_security,all]"
+      error.reason: "action [cluster:admin/xpack/security/user/delete] is unauthorized for service account [elastic/fleet-server], this action is granted by the cluster privileges [manage_security,all]"
 
   - do:
       headers:

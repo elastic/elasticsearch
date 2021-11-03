@@ -21,6 +21,10 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 public final class MachineLearningField {
+
+    public static final String DEPRECATED_ALLOW_NO_JOBS_PARAM = "allow_no_jobs";
+    public static final String DEPRECATED_ALLOW_NO_DATAFEEDS_PARAM = "allow_no_datafeeds";
+
     public static final Setting<Boolean> AUTODETECT_PROCESS = Setting.boolSetting(
         "xpack.ml.autodetect_process",
         true,

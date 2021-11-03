@@ -69,6 +69,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -357,7 +358,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             future.get();
             fail("Should not have succeeded");
         } catch (Exception ex) {
-            assertThat(ex.getCause().getMessage(), equalTo(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, model)));
+            assertThat(ex.getCause().getMessage(), containsString(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, model)));
         }
         assertFalse(modelLoadingService.isModelCached(model));
     }

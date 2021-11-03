@@ -436,7 +436,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                         QueryBuilder queryBuilder = DLSRoleQueryValidator.evaluateAndVerifyRoleQuery(
                             querySource,
                             scriptService,
-                            queryShardContext.getXContentRegistry(),
+                            queryShardContext.getParserConfig().registry(),
                             securityContext.getUser()
                         );
                         QueryBuilder rewrittenQueryBuilder = Rewriteable.rewrite(queryBuilder, queryShardContext);

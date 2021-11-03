@@ -1,8 +1,8 @@
 ---
 "Dynamic templates":
   - skip:
-      version: " - 7.12.99"
-      reason: "Dynamic templates parameter is added to bulk requests in 7.13"
+      version: " - 8.1.0"
+      reason: "Error message has changed in 8.1.0"
 
   - do:
       indices.create:

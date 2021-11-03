@@ -26,7 +26,14 @@ class SecurityUsageServices {
     final TokenService tokenService;
     final ApiKeyService apiKeyService;
 
-    SecurityUsageServices(Realms realms, CompositeRolesStore rolesStore, NativeRoleMappingStore roleMappingStore, IPFilter ipFilter, TokenService tokenService, ApiKeyService apiKeyService) {
+    SecurityUsageServices(
+        Realms realms,
+        CompositeRolesStore rolesStore,
+        NativeRoleMappingStore roleMappingStore,
+        IPFilter ipFilter,
+        TokenService tokenService,
+        ApiKeyService apiKeyService
+    ) {
         this.realms = realms;
         this.rolesStore = rolesStore;
         this.roleMappingStore = roleMappingStore;

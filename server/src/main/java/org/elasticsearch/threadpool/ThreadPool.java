@@ -210,7 +210,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
         builders.put(
             Names.AUTO_COMPLETE,
-            new FixedExecutorBuilder(settings, Names.AUTO_COMPLETE, Math.max(allocatedProcessors / 4, 1), 100, true)
+            new FixedExecutorBuilder(settings, Names.AUTO_COMPLETE, Math.max(allocatedProcessors / 4, 1), 100, false)
         );
         builders.put(
             Names.MANAGEMENT,

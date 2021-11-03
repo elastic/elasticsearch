@@ -1443,6 +1443,13 @@ public class RBACEngineTests extends ESTestCase {
         assertThat(authorizedIndices.isEmpty(), is(true));
     }
 
+    public void testNoInfiniteRecursionForRBACAuthorizationInfoHashCode() {
+        final Role role = Role.builder("role").build();
+        // No assertion is needed, the test is successful as long as hashCode calls do not throw error
+        new RBACAuthorizationInfo(role, Role.builder("authenticated_role").build()).hashCode();
+        new RBACAuthorizationInfo(role, null).hashCode();
+    }
+
     private GetUserPrivilegesResponse.Indices findIndexPrivilege(Set<GetUserPrivilegesResponse.Indices> indices, String name) {
         return indices.stream().filter(i -> i.getIndices().contains(name)).findFirst().get();
     }

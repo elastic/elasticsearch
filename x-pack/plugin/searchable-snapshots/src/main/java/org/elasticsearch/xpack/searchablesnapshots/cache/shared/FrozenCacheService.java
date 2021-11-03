@@ -21,7 +21,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
@@ -68,9 +67,6 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUti
 
 public class FrozenCacheService implements Releasable {
 
-    public static final ByteSizeValue MIN_SNAPSHOT_CACHE_RANGE_SIZE = new ByteSizeValue(4, ByteSizeUnit.KB);
-    public static final ByteSizeValue MAX_SNAPSHOT_CACHE_RANGE_SIZE = new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES);
-
     private static final String SHARED_CACHE_SETTINGS_PREFIX = "xpack.searchable.snapshot.shared_cache.";
 
     public static final Setting<ByteSizeValue> SHARED_CACHE_RANGE_SIZE_SETTING = new Setting<>(
@@ -81,7 +77,7 @@ public class FrozenCacheService implements Releasable {
         Setting.Property.NodeScope
     );
 
-    public static final Setting<ByteSizeValue> FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING = new Setting<>(
+    public static final Setting<ByteSizeValue> SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING = new Setting<>(
         SHARED_CACHE_SETTINGS_PREFIX + "recovery_range_size",
         ByteSizeValue.ofKb(128L).getStringRep(),
         s -> ByteSizeValue.parseBytesSizeValue(s, SHARED_CACHE_SETTINGS_PREFIX + "recovery_range_size"),
@@ -89,7 +85,7 @@ public class FrozenCacheService implements Releasable {
         Setting.Property.NodeScope
     );
 
-    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_REGION_SIZE_SETTING = new Setting<>(
+    public static final Setting<ByteSizeValue> SHARED_CACHE_REGION_SIZE_SETTING = new Setting<>(
         SHARED_CACHE_SETTINGS_PREFIX + "region_size",
         SHARED_CACHE_RANGE_SIZE_SETTING,
         s -> ByteSizeValue.parseBytesSizeValue(s, SHARED_CACHE_SETTINGS_PREFIX + "region_size"),
@@ -117,7 +113,7 @@ public class FrozenCacheService implements Releasable {
         };
     }
 
-    public static final Setting<RelativeByteSizeValue> SNAPSHOT_CACHE_SIZE_SETTING = new Setting<RelativeByteSizeValue>(
+    public static final Setting<RelativeByteSizeValue> SHARED_CACHE_SIZE_SETTING = new Setting<RelativeByteSizeValue>(
         new Setting.SimpleKey(SHARED_CACHE_SETTINGS_PREFIX + "size"),
         (settings) -> {
             if (DiscoveryNode.isDedicatedFrozenNode(settings)) {
@@ -158,7 +154,7 @@ public class FrozenCacheService implements Releasable {
                     if (dataPaths.size() > 1) {
                         throw new SettingsException(
                             "setting [{}={}] is not permitted on nodes with multiple data paths [{}]",
-                            SNAPSHOT_CACHE_SIZE_SETTING.getKey(),
+                            SHARED_CACHE_SIZE_SETTING.getKey(),
                             value.getStringRep(),
                             String.join(",", dataPaths)
                         );
@@ -188,10 +184,10 @@ public class FrozenCacheService implements Releasable {
         }
     };
 
-    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_SIZE_MAX_HEADROOM_SETTING = new Setting<>(
+    public static final Setting<ByteSizeValue> SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING = new Setting<ByteSizeValue>(
         new Setting.SimpleKey(SHARED_CACHE_SETTINGS_PREFIX + "size.max_headroom"),
         (settings) -> {
-            if (SNAPSHOT_CACHE_SIZE_SETTING.exists(settings) == false && DiscoveryNode.isDedicatedFrozenNode(settings)) {
+            if (SHARED_CACHE_SIZE_SETTING.exists(settings) == false && DiscoveryNode.isDedicatedFrozenNode(settings)) {
                 return "100GB";
             }
 
@@ -199,7 +195,7 @@ public class FrozenCacheService implements Releasable {
         },
         (s) -> ByteSizeValue.parseBytesSizeValue(s, SHARED_CACHE_SETTINGS_PREFIX + "size.max_headroom"),
         new Setting.Validator<ByteSizeValue>() {
-            private final Collection<Setting<?>> dependencies = Collections.singletonList(SNAPSHOT_CACHE_SIZE_SETTING);
+            private final Collection<Setting<?>> dependencies = Collections.singletonList(SHARED_CACHE_SIZE_SETTING);
 
             @Override
             public Iterator<Setting<?>> settings() {
@@ -214,12 +210,12 @@ public class FrozenCacheService implements Releasable {
             @Override
             public void validate(ByteSizeValue value, Map<Setting<?>, Object> settings, boolean isPresent) {
                 if (isPresent && value.getBytes() != -1) {
-                    RelativeByteSizeValue sizeValue = (RelativeByteSizeValue) settings.get(SNAPSHOT_CACHE_SIZE_SETTING);
+                    RelativeByteSizeValue sizeValue = (RelativeByteSizeValue) settings.get(SHARED_CACHE_SIZE_SETTING);
                     if (sizeValue.isAbsolute()) {
                         throw new SettingsException(
                             "setting [{}] cannot be specified for absolute [{}={}]",
-                            SNAPSHOT_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey(),
-                            SNAPSHOT_CACHE_SIZE_SETTING.getKey(),
+                            SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey(),
+                            SHARED_CACHE_SIZE_SETTING.getKey(),
                             sizeValue.getStringRep()
                         );
                     }
@@ -229,23 +225,23 @@ public class FrozenCacheService implements Releasable {
         Setting.Property.NodeScope
     );
 
-    public static final TimeValue MIN_SNAPSHOT_CACHE_DECAY_INTERVAL = TimeValue.timeValueSeconds(1L);
-    public static final Setting<TimeValue> SNAPSHOT_CACHE_DECAY_INTERVAL_SETTING = Setting.timeSetting(
+    public static final TimeValue MIN_SHARED_CACHE_DECAY_INTERVAL = TimeValue.timeValueSeconds(1L);
+    public static final Setting<TimeValue> SHARED_CACHE_DECAY_INTERVAL_SETTING = Setting.timeSetting(
         SHARED_CACHE_SETTINGS_PREFIX + "decay.interval",
         TimeValue.timeValueSeconds(60L),                        // default
-        MIN_SNAPSHOT_CACHE_DECAY_INTERVAL,                      // min
+        MIN_SHARED_CACHE_DECAY_INTERVAL,                      // min
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
 
-    public static final Setting<Integer> SNAPSHOT_CACHE_MAX_FREQ_SETTING = Setting.intSetting(
+    public static final Setting<Integer> SHARED_CACHE_MAX_FREQ_SETTING = Setting.intSetting(
         SHARED_CACHE_SETTINGS_PREFIX + "max_freq",
         100,                       // default
         1,                            // min
         Setting.Property.NodeScope
     );
 
-    public static final Setting<TimeValue> SNAPSHOT_CACHE_MIN_TIME_DELTA_SETTING = Setting.timeSetting(
+    public static final Setting<TimeValue> SHARED_CACHE_MIN_TIME_DELTA_SETTING = Setting.timeSetting(
         SHARED_CACHE_SETTINGS_PREFIX + "min_time_delta",
         TimeValue.timeValueSeconds(60L),                        // default
         TimeValue.timeValueSeconds(0L),                         // min
@@ -295,7 +291,7 @@ public class FrozenCacheService implements Releasable {
             throw new IllegalStateException("unable to probe size of filesystem [" + environment.nodeDataPaths()[0] + "]");
         }
         this.cacheSize = calculateCacheSize(settings, totalFsSize);
-        final long regionSize = SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(settings).getBytes();
+        final long regionSize = SHARED_CACHE_REGION_SIZE_SETTING.get(settings).getBytes();
         this.numRegions = Math.toIntExact(cacheSize / regionSize);
         keyMapping = new ConcurrentHashMap<>();
         if (Assertions.ENABLED) {
@@ -311,23 +307,23 @@ public class FrozenCacheService implements Releasable {
         }
         this.regionSize = regionSize;
         assert regionSize > 0L;
-        this.maxFreq = SNAPSHOT_CACHE_MAX_FREQ_SETTING.get(settings);
-        this.minTimeDelta = SNAPSHOT_CACHE_MIN_TIME_DELTA_SETTING.get(settings).millis();
+        this.maxFreq = SHARED_CACHE_MAX_FREQ_SETTING.get(settings);
+        this.minTimeDelta = SHARED_CACHE_MIN_TIME_DELTA_SETTING.get(settings).millis();
         freqs = new Entry[maxFreq];
         try {
             sharedBytes = new SharedBytes(numRegions, regionSize, environment, writeBytes::add, readBytes::add);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        decayTask = new CacheDecayTask(threadPool, SNAPSHOT_CACHE_DECAY_INTERVAL_SETTING.get(settings));
+        decayTask = new CacheDecayTask(threadPool, SHARED_CACHE_DECAY_INTERVAL_SETTING.get(settings));
         decayTask.rescheduleIfNecessary();
         this.rangeSize = SHARED_CACHE_RANGE_SIZE_SETTING.get(settings);
-        this.recoveryRangeSize = FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING.get(settings);
+        this.recoveryRangeSize = SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.get(settings);
     }
 
     static long calculateCacheSize(Settings settings, long totalFsSize) {
-        return SNAPSHOT_CACHE_SIZE_SETTING.get(settings)
-            .calculateValue(ByteSizeValue.ofBytes(totalFsSize), SNAPSHOT_CACHE_SIZE_MAX_HEADROOM_SETTING.get(settings))
+        return SHARED_CACHE_SIZE_SETTING.get(settings)
+            .calculateValue(ByteSizeValue.ofBytes(totalFsSize), SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING.get(settings))
             .getBytes();
     }
 

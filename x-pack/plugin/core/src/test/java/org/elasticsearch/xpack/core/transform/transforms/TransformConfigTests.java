@@ -749,9 +749,12 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 Collections.singletonList(
                     new DeprecationIssue(
                         Level.WARNING,
-                        "Transform [" + id + "] uses deprecated max_page_search_size",
-                        TransformDeprecations.MAX_PAGE_SEARCH_SIZE_BREAKING_CHANGES_URL,
-                        TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED,
+                        "Setting [max_page_search_size] in a pivot is deprecated",
+                        "https://ela.st/es-deprecation-7-transform-max-page-search-size",
+                        "Remove [max_page_search_size] from the pivot in ["
+                            + id
+                            + "]. Configure [max_page_search_size] in the "
+                            + "transform settings.",
                         false,
                         null
                     )
@@ -771,9 +774,12 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 org.elasticsearch.core.List.of(
                     new DeprecationIssue(
                         Level.WARNING,
-                        "Transform [" + id + "] uses deprecated max_page_search_size",
-                        TransformDeprecations.MAX_PAGE_SEARCH_SIZE_BREAKING_CHANGES_URL,
-                        TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED,
+                        "Setting [max_page_search_size] in a pivot is deprecated",
+                        "https://ela.st/es-deprecation-7-transform-max-page-search-size",
+                        "Remove [max_page_search_size] from the pivot in ["
+                            + id
+                            + "]. Configure [max_page_search_size] in the "
+                            + "transform settings.",
                         false,
                         null
                     )
@@ -793,17 +799,20 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 org.elasticsearch.core.List.of(
                     new DeprecationIssue(
                         Level.CRITICAL,
-                        "Transform [" + id + "] is too old",
+                        "Transform [" + id + "] uses an obsolete configuration format",
                         TransformDeprecations.UPGRADE_TRANSFORM_URL,
-                        TransformDeprecations.ACTION_UPGRADE_TRANSFORMS_API,
+                        "Use [_update] or [_upgrade] to update the configuration of [" + id + "].",
                         false,
                         null
                     ),
                     new DeprecationIssue(
                         Level.WARNING,
-                        "Transform [" + id + "] uses deprecated max_page_search_size",
-                        TransformDeprecations.MAX_PAGE_SEARCH_SIZE_BREAKING_CHANGES_URL,
-                        TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED,
+                        "Setting [max_page_search_size] in a pivot is deprecated",
+                        "https://ela.st/es-deprecation-7-transform-max-page-search-size",
+                        "Remove [max_page_search_size] from the pivot in ["
+                            + id
+                            + "]. Configure [max_page_search_size] in the "
+                            + "transform settings.",
                         false,
                         null
                     )

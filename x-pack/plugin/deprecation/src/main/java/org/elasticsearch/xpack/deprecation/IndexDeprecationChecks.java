@@ -540,11 +540,12 @@ public class IndexDeprecationChecks {
             String indexName = indexMetadata.getIndex().getName();
             return new DeprecationIssue(
                 DeprecationIssue.Level.WARNING,
-                "index ["
+                "Freezing indices is deprecated",
+                "https://ela.st/es-deprecation-7-frozen-indices",
+                "Index ["
                     + indexName
-                    + "] is a frozen index. The frozen indices feature is deprecated and will be removed in a future version",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/frozen-indices.html",
-                "Frozen indices no longer offer any advantages. Consider cold or frozen tiers in place of frozen indices.",
+                    + "] is frozen. Frozen indices no longer offer any advantages. Instead, unfreeze the index, make it"
+                    + " read-only, and move it to the cold or frozen tier.",
                 false,
                 null
             );
@@ -559,13 +560,13 @@ public class IndexDeprecationChecks {
                 String indexName = indexMetadata.getIndex().getName();
                 return new DeprecationIssue(
                     DeprecationIssue.Level.CRITICAL,
-                    "index ["
+                    "Index ["
                         + indexName
                         + "] does not have a ["
                         + DataTier.TIER_PREFERENCE
                         + "] setting, "
                         + "in 8.0 this setting will be required for all indices and may not be empty or null.",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/current/data-tiers.html",
+                    "https://ela.st/es-deprecation-7-empty-tier-preference",
                     "Update the settings for this index to specify an appropriate tier preference.",
                     false,
                     null

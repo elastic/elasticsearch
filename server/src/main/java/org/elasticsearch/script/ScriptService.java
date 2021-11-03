@@ -89,15 +89,8 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
         Property.NodeScope
     );
 
-    public static final String USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE = "["
-        + USE_CONTEXT_RATE_KEY
-        + "] is deprecated for the setting ["
-        + SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey()
-        + "] as system scripts are now exempt from the rate limit. "
-        + "Set to a value such as [150/5m] (a rate of 150 compilations per five minutes) to rate limit user scripts in case the "
-        + "script cache ["
-        + SCRIPT_GENERAL_CACHE_SIZE_SETTING.getKey()
-        + "] is undersized causing script compilation thrashing.";
+    public static final String USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE = "Setting [script.max_compilations_rate] to [use-context] is "
+        + "deprecated";
 
     // Per-context settings
     static final String CONTEXT_PREFIX = "script.context.";

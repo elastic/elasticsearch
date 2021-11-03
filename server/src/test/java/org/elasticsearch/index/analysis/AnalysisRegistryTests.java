@@ -384,11 +384,7 @@ public class AnalysisRegistryTests extends ESTestCase {
 
                 @Override
                 public TokenStream create(TokenStream tokenStream) {
-                    deprecationLogger.warn(
-                        DeprecationCategory.ANALYSIS,
-                        "unused_token_filter",
-                        "Using deprecated token filter [unused]"
-                    );
+                    deprecationLogger.warn(DeprecationCategory.ANALYSIS, "unused_token_filter", "Using deprecated token filter [unused]");
                     return tokenStream;
                 }
             }

@@ -287,11 +287,14 @@ public class JsonLoggerTests extends ESTestCase {
                 );
             }
 
-            assertWarnings(true,
+            assertWarnings(
+                true,
                 new DeprecationWarning(Level.WARN, "Deprecated field [deprecated_name] used, expected [new_name] instead"),
                 new DeprecationWarning(Level.WARN, "Deprecated field [deprecated_name2] used, expected [new_name] instead"),
-                new DeprecationWarning(DeprecationLogger.CRITICAL,
-                    "Deprecated field [compatible_deprecated_name] used, expected [new_name] instead")
+                new DeprecationWarning(
+                    DeprecationLogger.CRITICAL,
+                    "Deprecated field [compatible_deprecated_name] used, expected [new_name] instead"
+                )
             );
         });
     }

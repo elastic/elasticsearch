@@ -16,7 +16,6 @@ import com.amazonaws.auth.BasicSessionCredentials;
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;

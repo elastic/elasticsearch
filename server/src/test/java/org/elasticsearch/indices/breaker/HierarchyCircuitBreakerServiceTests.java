@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
@@ -820,7 +819,6 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
     }
 
     public void testUpdatingUseRealMemory() {
-
         try (
             HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(
                 Settings.EMPTY,
@@ -828,41 +826,21 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
             )
         ) {
-            String settingName = HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey();
-
             // use real memory default true
             assertTrue(service.isTrackRealMemoryUsage());
-            assertEquals(MemorySizeValue.parseBytesSizeValueOrHeapRatio("95%", settingName).getBytes(), service.getParentLimit());
             assertThat(service.getOverLimitStrategy(), instanceOf(HierarchyCircuitBreakerService.G1OverLimitStrategy.class));
 
-            service.updateUseRealMemorySetting(
-                Settings.builder().put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), Boolean.FALSE).build()
-            );
+            service.updateUseRealMemorySetting(false);
 
             // update use_real_memory to false
             assertFalse(service.isTrackRealMemoryUsage());
-            assertEquals(MemorySizeValue.parseBytesSizeValueOrHeapRatio("70%", settingName).getBytes(), service.getParentLimit());
             assertFalse(service.getOverLimitStrategy() instanceof HierarchyCircuitBreakerService.G1OverLimitStrategy);
             assertThat(service.getOverLimitStrategy(), not(instanceOf(HierarchyCircuitBreakerService.G1OverLimitStrategy.class)));
 
             // update use_real_memory to true
-            service.updateUseRealMemorySetting(
-                Settings.builder().put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), Boolean.TRUE).build()
-            );
+            service.updateUseRealMemorySetting(true);
             assertTrue(service.isTrackRealMemoryUsage());
-            assertEquals(MemorySizeValue.parseBytesSizeValueOrHeapRatio("95%", settingName).getBytes(), service.getParentLimit());
             assertThat(service.getOverLimitStrategy(), instanceOf(HierarchyCircuitBreakerService.G1OverLimitStrategy.class));
-
-            // update use_real_memory and total_limit at same time
-            service.updateUseRealMemorySetting(
-                Settings.builder()
-                    .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), Boolean.FALSE)
-                    .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "80%")
-                    .build()
-            );
-            assertFalse(service.isTrackRealMemoryUsage());
-            assertEquals(MemorySizeValue.parseBytesSizeValueOrHeapRatio("80%", settingName).getBytes(), service.getParentLimit());
-            assertThat(service.getOverLimitStrategy(), not(instanceOf(HierarchyCircuitBreakerService.G1OverLimitStrategy.class)));
         }
     }
 }

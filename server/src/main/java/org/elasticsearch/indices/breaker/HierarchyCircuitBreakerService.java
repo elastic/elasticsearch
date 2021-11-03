@@ -242,10 +242,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             (name, updatedValues) -> updateCircuitBreakerSettings(name, updatedValues.v1(), updatedValues.v2()),
             (s, t) -> {}
         );
-        clusterSettings.addSettingsUpdateConsumer(
-            this::updateUseRealMemorySetting,
-            List.of(USE_REAL_MEMORY_USAGE_SETTING, TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING)
-        );
+        clusterSettings.addSettingsUpdateConsumer(USE_REAL_MEMORY_USAGE_SETTING, this::updateUseRealMemorySetting);
 
         this.overLimitStrategyFactory = overLimitStrategyFactory;
         this.overLimitStrategy = overLimitStrategyFactory.apply(this.trackRealMemoryUsage);
@@ -274,17 +271,8 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         this.parentSettings = new BreakerSettings(CircuitBreaker.PARENT, byteSizeValue.getBytes(), 1.0, CircuitBreaker.Type.PARENT, null);
     }
 
-    public void updateUseRealMemorySetting(Settings newSettings) {
-        this.parentSettings = new BreakerSettings(
-            CircuitBreaker.PARENT,
-            TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.get(newSettings).getBytes(),
-            1.0,
-            CircuitBreaker.Type.PARENT,
-            null
-        );
-        logger.trace(() -> new ParameterizedMessage("parent circuit breaker with settings {}", this.parentSettings));
-
-        this.trackRealMemoryUsage = USE_REAL_MEMORY_USAGE_SETTING.get(newSettings);
+    public void updateUseRealMemorySetting(boolean trackRealMemoryUsage) {
+        this.trackRealMemoryUsage = trackRealMemoryUsage;
 
         this.overLimitStrategy = overLimitStrategyFactory.apply(this.trackRealMemoryUsage);
     }

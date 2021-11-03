@@ -262,6 +262,20 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 throw new NodeNotConnectedException(node, "connection already closed");
             }
             TcpChannel channel = channel(options.type());
+
+            // In this is a proxy request, determine whether we want to compress based on the wrapped request
+            final TransportRequest wrapped;
+            if (request instanceof TransportActionProxy.ProxyRequest) {
+                wrapped = ((TransportActionProxy.ProxyRequest<?>) request).wrapped;
+            } else {
+                wrapped = request;
+            }
+
+            final Compression.Scheme schemeToUse = getCompressionScheme(wrapped);
+            outboundHandler.sendRequest(node, channel, requestId, action, request, options, getVersion(), schemeToUse, false);
+        }
+
+        private Compression.Scheme getCompressionScheme(TransportRequest request) {
             // We compress if total transport compression is enabled or if indexing_data transport compression
             // is enabled and the request is a RawIndexingDataTransportRequest which indicates it should be
             // compressed.
@@ -269,8 +283,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 || (compress == Compression.Enabled.INDEXING_DATA
                     && request instanceof RawIndexingDataTransportRequest
                     && ((RawIndexingDataTransportRequest) request).isRawIndexingData());
-            final Compression.Scheme schemeToUse = shouldCompress ? compressionScheme : null;
-            outboundHandler.sendRequest(node, channel, requestId, action, request, options, getVersion(), schemeToUse, false);
+            return shouldCompress ? compressionScheme : null;
         }
 
         @Override

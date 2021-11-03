@@ -75,6 +75,11 @@ public class GeoShapeUtils {
         if (geometry == null) {
             return new LatLonGeometry[0];
         }
+        // make geometry lucene friendly
+        geometry = GeometryNormalizer.apply(Orientation.CCW, geometry);
+        if (geometry.isEmpty()) {
+            return new LatLonGeometry[0];
+        }
         final List<LatLonGeometry> geometries = new ArrayList<>();
         geometry.visit(new GeometryVisitor<>() {
             @Override
@@ -155,9 +160,7 @@ public class GeoShapeUtils {
             @Override
             public Void visit(org.elasticsearch.geometry.Polygon polygon) {
                 if (polygon.isEmpty() == false) {
-                    List<org.elasticsearch.geometry.Polygon> collector = new ArrayList<>();
-                    GeoPolygonDecomposer.decomposePolygon(polygon, true, collector);
-                    collector.forEach((p) -> geometries.add(toLucenePolygon(p)));
+                    geometries.add(toLucenePolygon(polygon));
                 }
                 return null;
             }
@@ -170,7 +173,7 @@ public class GeoShapeUtils {
                 return null;
             }
         });
-        return geometries.toArray(new LatLonGeometry[geometries.size()]);
+        return geometries.toArray(new LatLonGeometry[0]);
     }
 
     private GeoShapeUtils() {}

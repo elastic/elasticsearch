@@ -627,36 +627,29 @@ public class CopyToMapperTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), Matchers.containsString("[copy_to] may not be used to copy from a multi-field: [field.bar]"));
     }
 
-    public void testCopyToDateRangeFailure() throws Exception {
+    public void testCopyToObjectFailure() throws Exception {
         DocumentMapper docMapper = createDocumentMapper(topMapping(b -> {
             b.startObject("properties");
             {
-                b.startObject("date_copy")
-                    .field("type", "date_range")
+                b.startObject("geo_copy")
+                    .field("type", "geo_point")
                     .endObject()
-                    .startObject("date")
-                    .field("type", "date_range")
-                    .array("copy_to", "date_copy")
+                    .startObject("geo")
+                    .field("type", "geo_point")
+                    .array("copy_to", "geo_copy")
                     .endObject();
             }
             b.endObject();
         }));
 
-        BytesReference json = BytesReference.bytes(
-            jsonBuilder().startObject()
-                .startObject("date")
-                .field("gte", "2019-11-10T01:00:00.000Z")
-                .field("lt", "2019-11-11T01:00:00.000Z")
-                .endObject()
-                .endObject()
-        );
-
         MapperParsingException ex = expectThrows(
             MapperParsingException.class,
-            () -> docMapper.parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc()
+            () -> docMapper.parse(source(
+                b -> b.startObject("geo").field("lat", 1.2).field("lon", 1.3).endObject()
+            ))
         );
         assertEquals(
-            "Cannot copy field [date] to fields [date_copy]. Copy-to currently only works for value-type fields, not objects.",
+            "Cannot copy field [geo] to fields [geo_copy]. Copy-to currently only works for value-type fields, not objects.",
             ex.getMessage()
         );
     }

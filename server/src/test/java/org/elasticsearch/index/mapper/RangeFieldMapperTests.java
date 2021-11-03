@@ -90,6 +90,11 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         checker.registerUpdateCheck(b -> b.field("coerce", false), m -> assertFalse(((RangeFieldMapper) m).coerce()));
     }
 
+    @Override
+    protected boolean supportsCopyTo() {
+        return false;
+    }
+
     private Object getFrom(String type) {
         if (type.equals("date_range")) {
             return FROM_DATE;

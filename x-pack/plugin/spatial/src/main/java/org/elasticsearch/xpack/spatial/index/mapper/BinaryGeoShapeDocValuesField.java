@@ -44,4 +44,9 @@ public class BinaryGeoShapeDocValuesField extends CustomDocValuesField {
             throw new ElasticsearchException("failed to encode shape", e);
         }
     }
+
+    @Override
+    public String toString() {
+        return "<" + name() + ":" + binaryValue() + ">";
+    }
 }

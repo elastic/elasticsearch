@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -41,6 +42,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -769,5 +771,42 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             + "] was ["
             + mapper.typeName()
             + "].";
+    }
+
+    /** Does this field type support copy_to */
+    protected boolean supportsCopyTo() {
+        return true;
+    }
+
+    public final void testCopyTo() throws IOException {
+
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("field");
+            minimalMapping(b);
+            b.field("copy_to", "copy_field");
+            b.endObject();
+            b.startObject("copy_field");
+            minimalMapping(b);
+            b.endObject();
+        }));
+
+        if (supportsCopyTo()) {
+            ParsedDocument doc = mapper.parse(source(this::writeField));
+            IndexableField[] source = doc.rootDoc().getFields("field");
+            IndexableField[] copy = doc.rootDoc().getFields("copy_field");
+
+            String sourceToString = Arrays.toString(source);
+            String expected = sourceToString.replaceAll("<field:", "<copy_field:");
+            assertEquals(expected, Arrays.toString(copy));
+            assertParseMinimalWarnings();
+        } else {
+            assertWarnings(
+                true,
+                new DeprecationWarning(
+                    Level.WARN,
+                    "Field [field] is configured with a [copy_to] setting which is unsupported and will be ignored"
+                )
+            );
+        }
     }
 }

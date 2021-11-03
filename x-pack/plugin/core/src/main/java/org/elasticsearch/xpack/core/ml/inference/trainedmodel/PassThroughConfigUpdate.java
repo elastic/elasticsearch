@@ -93,7 +93,8 @@ public class PassThroughConfigUpdate extends NlpConfigUpdate implements NamedXCo
 
     @Override
     public InferenceConfig apply(InferenceConfig originalConfig) {
-        if (resultsField == null || resultsField.equals(originalConfig.getResultsField())) {
+        if ((resultsField == null || resultsField.equals(originalConfig.getResultsField()))
+            && super.isNoop()) {
             return originalConfig;
         }
 
@@ -106,7 +107,11 @@ public class PassThroughConfigUpdate extends NlpConfigUpdate implements NamedXCo
         }
 
         PassThroughConfig passThroughConfig = (PassThroughConfig) originalConfig;
-        return new PassThroughConfig(passThroughConfig.getVocabularyConfig(), passThroughConfig.getTokenization(), resultsField);
+        return new PassThroughConfig(
+            passThroughConfig.getVocabularyConfig(),
+            (tokenizationUpdate == null) ? passThroughConfig.getTokenization() :
+                tokenizationUpdate.apply(passThroughConfig.getTokenization()),
+            resultsField);
     }
 
     @Override
@@ -121,7 +126,7 @@ public class PassThroughConfigUpdate extends NlpConfigUpdate implements NamedXCo
 
     @Override
     public InferenceConfigUpdate.Builder<? extends InferenceConfigUpdate.Builder<?, ?>, ? extends InferenceConfigUpdate> newBuilder() {
-        return new PassThroughConfigUpdate.Builder().setResultsField(resultsField);
+        return new PassThroughConfigUpdate.Builder().setResultsField(resultsField).setTokenizationUpdate(tokenizationUpdate);
     }
 
     @Override

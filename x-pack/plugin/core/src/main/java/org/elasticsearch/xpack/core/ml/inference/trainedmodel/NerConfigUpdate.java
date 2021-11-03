@@ -126,7 +126,7 @@ public class NerConfigUpdate extends NlpConfigUpdate {
 
     @Override
     public InferenceConfigUpdate.Builder<? extends InferenceConfigUpdate.Builder<?, ?>, ? extends InferenceConfigUpdate> newBuilder() {
-        return new NerConfigUpdate.Builder().setResultsField(resultsField);
+        return new NerConfigUpdate.Builder().setResultsField(resultsField).setTokenizationUpdate(tokenizationUpdate);
     }
 
     @Override

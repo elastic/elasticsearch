@@ -142,7 +142,7 @@ public class FillMaskConfigUpdate extends NlpConfigUpdate implements NamedXConte
 
     @Override
     public InferenceConfigUpdate.Builder<? extends InferenceConfigUpdate.Builder<?, ?>, ? extends InferenceConfigUpdate> newBuilder() {
-        return new Builder().setNumTopClasses(numTopClasses).setResultsField(resultsField);
+        return new Builder().setNumTopClasses(numTopClasses).setResultsField(resultsField).setTokenizationUpdate(tokenizationUpdate);
     }
 
     @Override

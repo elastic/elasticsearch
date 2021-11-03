@@ -31,11 +31,12 @@ public class FillMaskConfigUpdate extends NlpConfigUpdate implements NamedXConte
         Map<String, Object> options = new HashMap<>(map);
         Integer numTopClasses = (Integer) options.remove(NUM_TOP_CLASSES.getPreferredName());
         String resultsField = (String) options.remove(RESULTS_FIELD.getPreferredName());
+        TokenizationUpdate tokenizationUpdate = NlpConfigUpdate.tokenizationFromMap(options);
 
         if (options.isEmpty() == false) {
             throw ExceptionsHelper.badRequestException("Unrecognized fields {}.", options.keySet());
         }
-        return new FillMaskConfigUpdate(numTopClasses, resultsField);
+        return new FillMaskConfigUpdate(numTopClasses, resultsField, tokenizationUpdate);
     }
 
     private static final ObjectParser<FillMaskConfigUpdate.Builder, Void> STRICT_PARSER = createParser(false);
@@ -54,32 +55,33 @@ public class FillMaskConfigUpdate extends NlpConfigUpdate implements NamedXConte
     private final Integer numTopClasses;
     private final String resultsField;
 
-    public FillMaskConfigUpdate(Integer numTopClasses, String resultsField) {
+    public FillMaskConfigUpdate(Integer numTopClasses, String resultsField, TokenizationUpdate tokenizationUpdate) {
+        super(tokenizationUpdate);
         this.numTopClasses = numTopClasses;
         this.resultsField = resultsField;
     }
 
     public FillMaskConfigUpdate(StreamInput in) throws IOException {
+        super(in);
         this.numTopClasses = in.readOptionalInt();
         this.resultsField = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out); // TODO BWC
         out.writeOptionalInt(numTopClasses);
         out.writeOptionalString(resultsField);
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
+    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (numTopClasses != null) {
             builder.field(NUM_TOP_CLASSES.getPreferredName(), numTopClasses);
         }
         if (resultsField != null) {
             builder.field(RESULTS_FIELD.getPreferredName(), resultsField);
         }
-        builder.endObject();
         return builder;
     }
 
@@ -115,12 +117,17 @@ public class FillMaskConfigUpdate extends NlpConfigUpdate implements NamedXConte
         if (resultsField != null) {
             builder.setResultsField(resultsField);
         }
+        if (tokenizationUpdate != null) {
+            builder.setTokenization(tokenizationUpdate.apply(fillMaskConfig.getTokenization()));
+
+        }
         return builder.build();
     }
 
     boolean isNoop(FillMaskConfig originalConfig) {
         return (this.numTopClasses == null || this.numTopClasses == originalConfig.getNumTopClasses())
-            && (this.resultsField == null || this.resultsField.equals(originalConfig.getResultsField()));
+            && (this.resultsField == null || this.resultsField.equals(originalConfig.getResultsField()))
+            && super.isNoop();
     }
 
     @Override
@@ -143,17 +150,20 @@ public class FillMaskConfigUpdate extends NlpConfigUpdate implements NamedXConte
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         FillMaskConfigUpdate that = (FillMaskConfigUpdate) o;
-        return Objects.equals(numTopClasses, that.numTopClasses) && Objects.equals(resultsField, that.resultsField);
+        return Objects.equals(numTopClasses, that.numTopClasses)
+            && Objects.equals(resultsField, that.resultsField)
+            && Objects.equals(tokenizationUpdate, that.tokenizationUpdate);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(numTopClasses, resultsField);
+        return Objects.hash(numTopClasses, resultsField, tokenizationUpdate);
     }
 
     public static class Builder implements InferenceConfigUpdate.Builder<FillMaskConfigUpdate.Builder, FillMaskConfigUpdate> {
         private Integer numTopClasses;
         private String resultsField;
+        private TokenizationUpdate tokenizationUpdate;
 
         public FillMaskConfigUpdate.Builder setNumTopClasses(Integer numTopClasses) {
             this.numTopClasses = numTopClasses;
@@ -166,8 +176,13 @@ public class FillMaskConfigUpdate extends NlpConfigUpdate implements NamedXConte
             return this;
         }
 
+        public FillMaskConfigUpdate.Builder setTokenizationUpdate(TokenizationUpdate tokenizationUpdate) {
+            this.tokenizationUpdate = tokenizationUpdate;
+            return this;
+        }
+
         public FillMaskConfigUpdate build() {
-            return new FillMaskConfigUpdate(this.numTopClasses, this.resultsField);
+            return new FillMaskConfigUpdate(this.numTopClasses, this.resultsField, this.tokenizationUpdate);
         }
     }
 }

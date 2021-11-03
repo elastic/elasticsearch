@@ -240,9 +240,10 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             CIRCUIT_BREAKER_LIMIT_SETTING,
             CIRCUIT_BREAKER_OVERHEAD_SETTING,
             (name, updatedValues) -> updateCircuitBreakerSettings(name, updatedValues.v1(), updatedValues.v2()),
-            (s, t) -> {});
+            (s, t) -> {}
+        );
         clusterSettings.addSettingsUpdateConsumer(
-                this::updateUseRealMemorySetting,
+            this::updateUseRealMemorySetting,
             List.of(USE_REAL_MEMORY_USAGE_SETTING, TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING)
         );
 
@@ -274,9 +275,13 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     }
 
     public void updateUseRealMemorySetting(Settings newSettings) {
-        this.parentSettings = new BreakerSettings(CircuitBreaker.PARENT,
-                TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.get(newSettings).getBytes(), 1.0,
-                CircuitBreaker.Type.PARENT, null);
+        this.parentSettings = new BreakerSettings(
+            CircuitBreaker.PARENT,
+            TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.get(newSettings).getBytes(),
+            1.0,
+            CircuitBreaker.Type.PARENT,
+            null
+        );
         logger.trace(() -> new ParameterizedMessage("parent circuit breaker with settings {}", this.parentSettings));
 
         this.trackRealMemoryUsage = USE_REAL_MEMORY_USAGE_SETTING.get(newSettings);

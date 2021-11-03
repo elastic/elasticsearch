@@ -820,46 +820,48 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
     }
 
     public void testUpdatingUseRealMemory() {
-        
-        try (HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(Settings.EMPTY,
+
+        try (
+            HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(
+                Settings.EMPTY,
                 Collections.emptyList(),
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))) {
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            )
+        ) {
             String settingName = HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey();
 
             // use real memory default true
             assertTrue(service.isTrackRealMemoryUsage());
-            assertEquals(MemorySizeValue.parseBytesSizeValueOrHeapRatio("95%", settingName).getBytes(),
-                    service.getParentLimit());
+            assertEquals(MemorySizeValue.parseBytesSizeValueOrHeapRatio("95%", settingName).getBytes(), service.getParentLimit());
             assertThat(service.getOverLimitStrategy(), instanceOf(HierarchyCircuitBreakerService.G1OverLimitStrategy.class));
 
-            service.updateUseRealMemorySetting(Settings.builder()
-                    .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), Boolean.FALSE)
-                    .build());
+            service.updateUseRealMemorySetting(
+                Settings.builder().put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), Boolean.FALSE).build()
+            );
 
             // update use_real_memory to false
             assertFalse(service.isTrackRealMemoryUsage());
-            assertEquals(MemorySizeValue.parseBytesSizeValueOrHeapRatio("70%", settingName).getBytes(),
-                    service.getParentLimit());
+            assertEquals(MemorySizeValue.parseBytesSizeValueOrHeapRatio("70%", settingName).getBytes(), service.getParentLimit());
             assertFalse(service.getOverLimitStrategy() instanceof HierarchyCircuitBreakerService.G1OverLimitStrategy);
             assertThat(service.getOverLimitStrategy(), not(instanceOf(HierarchyCircuitBreakerService.G1OverLimitStrategy.class)));
 
             // update use_real_memory to true
-            service.updateUseRealMemorySetting(Settings.builder()
-                    .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), Boolean.TRUE)
-                    .build());
+            service.updateUseRealMemorySetting(
+                Settings.builder().put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), Boolean.TRUE).build()
+            );
             assertTrue(service.isTrackRealMemoryUsage());
-            assertEquals(MemorySizeValue.parseBytesSizeValueOrHeapRatio("95%", settingName).getBytes(),
-                    service.getParentLimit());
+            assertEquals(MemorySizeValue.parseBytesSizeValueOrHeapRatio("95%", settingName).getBytes(), service.getParentLimit());
             assertThat(service.getOverLimitStrategy(), instanceOf(HierarchyCircuitBreakerService.G1OverLimitStrategy.class));
 
             // update use_real_memory and total_limit at same time
-            service.updateUseRealMemorySetting(Settings.builder()
+            service.updateUseRealMemorySetting(
+                Settings.builder()
                     .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), Boolean.FALSE)
                     .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "80%")
-                    .build());
+                    .build()
+            );
             assertFalse(service.isTrackRealMemoryUsage());
-            assertEquals(MemorySizeValue.parseBytesSizeValueOrHeapRatio("80%", settingName).getBytes(),
-                    service.getParentLimit());
+            assertEquals(MemorySizeValue.parseBytesSizeValueOrHeapRatio("80%", settingName).getBytes(), service.getParentLimit());
             assertThat(service.getOverLimitStrategy(), not(instanceOf(HierarchyCircuitBreakerService.G1OverLimitStrategy.class)));
         }
     }

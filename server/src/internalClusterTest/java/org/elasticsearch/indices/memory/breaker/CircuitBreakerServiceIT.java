@@ -411,9 +411,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         checkLimitSize(client, 0.7);
 
         {
-            Settings settings = Settings.builder()
-                    .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), true)
-                    .build();
+            Settings settings = Settings.builder().put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), true).build();
             client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
 
             checkLimitSize(client, 0.95);
@@ -429,16 +427,16 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         }
         {
             Settings settings = Settings.builder()
-                    .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
-                    .build();
+                .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
+                .build();
             client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
             checkLimitSize(client, 0.8);
         }
         {
             Settings settings = Settings.builder()
-                    .putNull(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey())
-                    .putNull(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey())
-                    .build();
+                .putNull(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey())
+                .putNull(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey())
+                .build();
             client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
         }
     }
@@ -448,7 +446,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         for (NodeStats node : stats.getNodes()) {
             long heapSize = node.getJvm().getMem().getHeapCommitted().getBytes();
             long limitSize = node.getBreaker().getStats(CircuitBreaker.PARENT).getLimit();
-            assertEquals((long) (heapSize*limitRatio), limitSize);
+            assertEquals((long) (heapSize * limitRatio), limitSize);
         }
     }
 }

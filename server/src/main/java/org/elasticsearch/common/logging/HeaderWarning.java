@@ -33,10 +33,10 @@ import java.util.regex.Pattern;
 public class HeaderWarning {
     /**
      * Regular expression to test if a string matches the RFC7234 specification for warning headers. This pattern assumes that the warn code
-     * is always 299 or 300. Further, this pattern assumes that the warn agent represents a version of Elasticsearch including the build
+     * is always 299. Further, this pattern assumes that the warn agent represents a version of Elasticsearch including the build
      * hash.
      */
-    public static final Pattern WARNING_HEADER_PATTERN = Pattern.compile("(?:299|300) " + // log level code
+    public static final Pattern WARNING_HEADER_PATTERN = Pattern.compile("299 " + // log level code
         "Elasticsearch-" + // warn agent
         "\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta|rc)\\d+)?(?:-SNAPSHOT)?-" + // warn agent
         "(?:[a-f0-9]{7}(?:[a-f0-9]{33})?|unknown) " + // warn agent
@@ -54,15 +54,14 @@ public class HeaderWarning {
 
     /*
      * RFC7234 specifies the warning format as warn-code <space> warn-agent <space> "warn-text" [<space> "warn-date"]. Here, warn-code is a
-     * three-digit number with various standard warn codes specified, and is left off of this static prefix so that it can be added based
-     * on the log level received. The warn code will be either 299 or 300 at runtime, which are apt for our purposes as
-     * they represent miscellaneous persistent warnings (can be presented to a human, or logged, and must not be removed by a cache).
-     * The warn-agent is an arbitrary token; here we use the Elasticsearch version and build hash. The warn text must be quoted. The
-     * warn-date is an optional quoted field that can be in a variety of specified date formats; here we use RFC 1123 format.
+     * three-digit number with various standard warn codes specified. The warn code 299 is apt for our purposes as it represents a
+     * miscellaneous persistent warning (can be presented to a human, or logged, and must not be removed by a cache). The warn-agent is an
+     * arbitrary token; here we use the Elasticsearch version and build hash. The warn text must be quoted. The warn-date is an optional
+     * quoted field that can be in a variety of specified date formats; here we use RFC 1123 format.
      */
     private static final String WARNING_PREFIX = String.format(
         Locale.ROOT,
-        " Elasticsearch-%s%s-%s",
+        "299 Elasticsearch-%s%s-%s",
         Version.CURRENT.toString(),
         Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "",
         Build.CURRENT.hash()
@@ -199,7 +198,7 @@ public class HeaderWarning {
         // Assume that the common scenario won't have a string to escape and encode.
         int length = WARNING_PREFIX.length() + s.length() + 6;
         final StringBuilder sb = new StringBuilder(length);
-        sb.append(level.intLevel() + WARNING_PREFIX).append(" \"").append(escapeAndEncode(s)).append("\"");
+        sb.append(WARNING_PREFIX).append(" \"").append(escapeAndEncode(s)).append("\"");
         return sb.toString();
     }
 

@@ -297,7 +297,7 @@ public class HeaderWarningTests extends ESTestCase {
         assertThat(responses, hasSize(1));
         assertThat(responses.get(0), warningValueMatcher);
         assertThat(responses.get(0), containsString("\"A simple message 1\""));
-        assertThat(responses.get(0), containsString(Integer.toString(Level.WARN.intLevel())));
+        assertThat(responses.get(0), containsString(Integer.toString(299)));
     }
 
 }

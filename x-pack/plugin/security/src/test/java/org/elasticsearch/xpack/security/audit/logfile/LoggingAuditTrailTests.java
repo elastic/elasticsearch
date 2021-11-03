@@ -1847,7 +1847,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             .put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action/bar")
             .put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName())
             .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
-        if (authentication.isServiceAccount()) {
+        if (authentication.isAuthenticatedWithServiceAccount()) {
             checkedFields.put(LoggingAuditTrail.SERVICE_TOKEN_NAME_FIELD_NAME, (String) authentication.getMetadata().get(TOKEN_NAME_FIELD))
                 .put(
                     LoggingAuditTrail.SERVICE_TOKEN_TYPE_FIELD_NAME,
@@ -2649,7 +2649,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 checkedFields.put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, authentication.getAuthenticatedBy().getName());
             }
         }
-        if (authentication.isServiceAccount()) {
+        if (authentication.isAuthenticatedWithServiceAccount()) {
             checkedFields.put(LoggingAuditTrail.SERVICE_TOKEN_NAME_FIELD_NAME, (String) authentication.getMetadata().get(TOKEN_NAME_FIELD))
                 .put(
                     LoggingAuditTrail.SERVICE_TOKEN_TYPE_FIELD_NAME,

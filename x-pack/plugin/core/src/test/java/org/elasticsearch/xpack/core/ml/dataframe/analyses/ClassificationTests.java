@@ -126,45 +126,13 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
             instance.getDependentVariable(),
             BoostedTreeParamsTests.mutateForVersion(instance.getBoostedTreeParams(), version),
             instance.getPredictionFieldName(),
-            version.onOrAfter(Version.V_7_7_0) ? instance.getClassAssignmentObjective() : null,
+            instance.getClassAssignmentObjective(),
             instance.getNumTopClasses(),
             instance.getTrainingPercent(),
             instance.getRandomizeSeed(),
-            version.onOrAfter(Version.V_7_10_0) ? instance.getFeatureProcessors() : Collections.emptyList(),
+            instance.getFeatureProcessors(),
             instance.getEarlyStoppingEnabled()
         );
-    }
-
-    @Override
-    protected void assertOnBWCObject(Classification bwcSerializedObject, Classification testInstance, Version version) {
-        if (version.onOrAfter(Version.V_7_6_0)) {
-            super.assertOnBWCObject(bwcSerializedObject, testInstance, version);
-            return;
-        }
-
-        Classification newBwc = new Classification(
-            bwcSerializedObject.getDependentVariable(),
-            bwcSerializedObject.getBoostedTreeParams(),
-            bwcSerializedObject.getPredictionFieldName(),
-            bwcSerializedObject.getClassAssignmentObjective(),
-            bwcSerializedObject.getNumTopClasses(),
-            bwcSerializedObject.getTrainingPercent(),
-            42L,
-            bwcSerializedObject.getFeatureProcessors(),
-            bwcSerializedObject.getEarlyStoppingEnabled()
-        );
-        Classification newInstance = new Classification(
-            testInstance.getDependentVariable(),
-            testInstance.getBoostedTreeParams(),
-            testInstance.getPredictionFieldName(),
-            testInstance.getClassAssignmentObjective(),
-            testInstance.getNumTopClasses(),
-            testInstance.getTrainingPercent(),
-            42L,
-            testInstance.getFeatureProcessors(),
-            testInstance.getEarlyStoppingEnabled()
-        );
-        super.assertOnBWCObject(newBwc, newInstance, version);
     }
 
     @Override

@@ -5,6 +5,10 @@
 <titleabbrev>Monitoring settings</titleabbrev>
 ++++
 
+// tag::monitoring-deprecation-notice[]
+deprecated[7.16, "Using the {es} Monitoring plugin to collect and ship monitoring data is deprecated. {metricbeat} is the recommended method for collecting and shipping monitoring data to a monitoring cluster. If you previously configured legacy collection methods, you should migrate to using {metricbeat} collection methods. Refer to <<configuring-metricbeat,Collecting {es} monitoring data with {metricbeat}>>."]
+// end::monitoring-deprecation-notice[]
+
 By default, {es} {monitor-features} are enabled but data collection is disabled.
 To enable data collection, use the `xpack.monitoring.collection.enabled` setting.
 
@@ -37,7 +41,7 @@ your {es} nodes.
 // end::monitoring-settings-description-tag[]
 
 `xpack.monitoring.collection.enabled`::
-(<<cluster-update-settings,Dynamic>>) Set to `true` to enable the collection of
+(<<cluster-update-settings,Dynamic>>)  deprecated:[7.16.0]  Set to `true` to enable the collection of
 monitoring data. When this setting is `false` (default), {es} monitoring data is
 not collected and all monitoring data from other sources such as {kib}, Beats,
 and {ls} is ignored.
@@ -55,7 +59,7 @@ option in `kibana.yml` to the same value.
 // end::monitoring-collection-interval-tag[]
 
 `xpack.monitoring.elasticsearch.collection.enabled`::
-(<<cluster-update-settings,Dynamic>>) Controls whether statistics about your
+(<<cluster-update-settings,Dynamic>>)  deprecated:[7.16.0] Controls whether statistics about your
 {es} cluster should be collected. Defaults to `true`. This is different from 
 `xpack.monitoring.collection.enabled`, which allows you to enable or disable all
 monitoring collection. However, this setting simply disables the collection of
@@ -63,15 +67,15 @@ monitoring collection. However, this setting simply disables the collection of
 Server monitoring data) to pass through this cluster.
 
 `xpack.monitoring.collection.cluster.stats.timeout`::
-(<<cluster-update-settings,Dynamic>>) Timeout for collecting the cluster
+(<<cluster-update-settings,Dynamic>>)  deprecated:[7.16.0] Timeout for collecting the cluster
 statistics, in <<time-units,time units>>. Defaults to `10s`.
 
 `xpack.monitoring.collection.node.stats.timeout`::
-(<<cluster-update-settings,Dynamic>>) Timeout for collecting the node statistics,
+(<<cluster-update-settings,Dynamic>>)  deprecated:[7.16.0] Timeout for collecting the node statistics,
 in <<time-units,time units>>. Defaults to `10s`.
 
 `xpack.monitoring.collection.indices`::
-(<<cluster-update-settings,Dynamic>>) Controls which indices the
+(<<cluster-update-settings,Dynamic>>)  deprecated:[7.16.0] Controls which indices the
 {monitor-features} collect data from. Defaults to all indices. Specify the index
 names as a comma-separated list, for example `test1,test2,test3`. Names can
 include wildcards, for example `test*`. You can explicitly exclude indices by
@@ -82,21 +86,21 @@ to the list of indices ensure monitoring of system indices. For example:
 `.*,test*,-test3`
 
 `xpack.monitoring.collection.index.stats.timeout`::
-(<<cluster-update-settings,Dynamic>>) Timeout for collecting index statistics,
+(<<cluster-update-settings,Dynamic>>)  deprecated:[7.16.0] Timeout for collecting index statistics,
 in <<time-units,time units>>. Defaults to `10s`.
 
 `xpack.monitoring.collection.index.recovery.active_only`::
-(<<cluster-update-settings,Dynamic>>) Controls whether or not all recoveries are
+(<<cluster-update-settings,Dynamic>>)  deprecated:[7.16.0] Controls whether or not all recoveries are
 collected. Set to `true` to collect only active recoveries. Defaults to `false`.
 
 `xpack.monitoring.collection.index.recovery.timeout`::
-(<<cluster-update-settings,Dynamic>>) Timeout for collecting the recovery
+(<<cluster-update-settings,Dynamic>>)  deprecated:[7.16.0] Timeout for collecting the recovery
 information, in <<time-units,time units>>. Defaults to `10s`.
 
 [[xpack-monitoring-history-duration]]
 // tag::monitoring-history-duration-tag[]
 `xpack.monitoring.history.duration` {ess-icon}::
-(<<cluster-update-settings,Dynamic>>) Retention duration beyond which the
+(<<cluster-update-settings,Dynamic>>)  deprecated:[7.16.0] Retention duration beyond which the
 indices created by a monitoring exporter are automatically deleted, in
 <<time-units,time units>>. Defaults to `7d` (7 days).
 +
@@ -137,7 +141,7 @@ xpack.monitoring.exporters.my_local:
 ----------------------------------
 
 `type`::
-The value for a Local exporter must always be `local` and it is required.
+ deprecated:[7.16.0] The value for a Local exporter must always be `local` and it is required.
 
 `use_ingest`::
 Whether to supply a placeholder pipeline to the cluster and a pipeline processor
@@ -147,12 +151,12 @@ automatically upgrade bulk requests to future-proof them.
 
 `cluster_alerts.management.enabled`::
 
-Whether to create cluster alerts for this cluster. The default value is `true`.
+ deprecated:[7.16.0] Whether to create cluster alerts for this cluster. The default value is `true`.
 To use this feature, {watcher} must be enabled. If you have a basic license,
 cluster alerts are not displayed.
 
 `wait_master.timeout`::
-Time to wait for the master node to setup `local` exporter for monitoring, in
+ deprecated:[7.16.0] Time to wait for the master node to setup `local` exporter for monitoring, in
 <<time-units,time units>>. After that wait period, the non-master nodes warn the
 user for possible missing configuration. Defaults to `30s`.
 
@@ -171,10 +175,10 @@ xpack.monitoring.exporters.my_remote:
 ----------------------------------
 
 `type`::
-The value for an HTTP exporter must always be `http` and it is required.
+ deprecated:[7.16.0] The value for an HTTP exporter must always be `http` and it is required.
 
 `host`::
-Host supports multiple formats, both as an array or as a single value. Supported
+ deprecated:[7.16.0] Host supports multiple formats, both as an array or as a single value. Supported
 formats include `hostname`, `hostname:port`,
 `http://hostname` `http://hostname:port`, `https://hostname`, and
 `https://hostname:port`. Hosts cannot be assumed. The default scheme is always
@@ -199,31 +203,31 @@ xpack.monitoring.exporters:
 ----------------------------------
 
 `auth.username`::
-The username is required if `auth.secure_password` is supplied.
+ deprecated:[7.16.0] The username is required if `auth.secure_password` is supplied.
 
 `auth.secure_password`::
-(<<secure-settings,Secure>>, <<reloadable-secure-settings,reloadable>>) The
+(<<secure-settings,Secure>>, <<reloadable-secure-settings,reloadable>>)  deprecated:[7.16.0] The
 password for the `auth.username`.
 
 `connection.timeout`::
-Amount of time that the HTTP connection is supposed to wait for a socket to open
+ deprecated:[7.16.0] Amount of time that the HTTP connection is supposed to wait for a socket to open
 for the request, in <<time-units,time units>>. The default value is `6s`.
 
 `connection.read_timeout`::
-Amount of time that the HTTP connection is supposed to wait for a socket to
+ deprecated:[7.16.0] Amount of time that the HTTP connection is supposed to wait for a socket to
 send back a response, in <<time-units,time units>>. The default value is
 `10 * connection.timeout` (`60s` if neither are set).
 
 `ssl`::
-Each HTTP exporter can define its own TLS / SSL settings or inherit them. See
+ deprecated:[7.16.0] Each HTTP exporter can define its own TLS / SSL settings or inherit them. See
 <<ssl-monitoring-settings>>.
 
 `proxy.base_path`::
-The base path to prefix any outgoing request, such as `/base/path` (e.g., bulk
+ deprecated:[7.16.0] The base path to prefix any outgoing request, such as `/base/path` (e.g., bulk
 requests would then be sent as `/base/path/_bulk`). There is no default value.
 
 `headers`::
-Optional headers that are added to every request, which can assist with routing
+ deprecated:[7.16.0] Optional headers that are added to every request, which can assist with routing
 requests through proxies.
 +
 [source,yaml]
@@ -239,7 +243,7 @@ Array-based headers are sent `n` times where `n` is the size of the array.
 monitoring agent will override anything defined here.
 
 `index.name.time_format`::
-A mechanism for changing the default date suffix for daily monitoring indices.
+ deprecated:[7.16.0] A mechanism for changing the default date suffix for daily monitoring indices.
 The default format is `yyyy.MM.dd`. For example, `.monitoring-es-7-2021.08.26`.
 
 `use_ingest`::
@@ -249,12 +253,12 @@ disabled, then it means that it will not use pipelines, which means that a
 future release cannot automatically upgrade bulk requests to future-proof them.
 
 `cluster_alerts.management.enabled`::
-Whether to create cluster alerts for this cluster. The default value is `true`.
+ deprecated:[7.16.0] Whether to create cluster alerts for this cluster. The default value is `true`.
 To use this feature, {watcher} must be enabled. If you have a basic license,
 cluster alerts are not displayed.
 
 `cluster_alerts.management.blacklist`::
-Prevents the creation of specific cluster alerts. It also removes any applicable
+ deprecated:[7.16.0] Prevents the creation of specific cluster alerts. It also removes any applicable
 watches that already exist in the current cluster.
 +
 --
@@ -277,4 +281,141 @@ For example: `["elasticsearch_version_mismatch","xpack_license_expiration"]`.
 :server!:
 :ssl-context:            monitoring
 
-include::ssl-settings.asciidoc[]
+==== {component} TLS/SSL settings
+You can configure the following TLS/SSL settings.
+
++{ssl-prefix}.ssl.supported_protocols+::
+(<<static-cluster-setting,Static>>)  deprecated:[7.16.0] 
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols]
+
+ifdef::verifies[]
++{ssl-prefix}.ssl.verification_mode+::
+(<<static-cluster-setting,Static>>)  deprecated:[7.16.0] 
+Controls the verification of certificates.
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
+endif::verifies[]
+
++{ssl-prefix}.ssl.cipher_suites+::
+(<<static-cluster-setting,Static>>)  deprecated:[7.16.0] 
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values]
+
+[#{ssl-context}-tls-ssl-key-trusted-certificate-settings]
+===== {component} TLS/SSL key and trusted certificate settings
+
+The following settings are used to specify a private key, certificate, and the
+trusted certificates that should be used when communicating over an SSL/TLS connection.
+ifndef::server[]
+A private key and certificate are optional and would be used if the server requires client authentication for PKI
+authentication.
+endif::server[]
+
+===== PEM encoded files
+
+When using PEM encoded files, use the following settings:
+
++{ssl-prefix}.ssl.key+::
+(<<static-cluster-setting,Static>>) deprecated:[7.16.0]
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-pem]
+
++{ssl-prefix}.ssl.key_passphrase+::
+(<<static-cluster-setting,Static>>) deprecated:[7.16.0] 
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-passphrase]
+
++{ssl-prefix}.ssl.secure_key_passphrase+::
+(<<secure-settings,Secure>>) deprecated:[7.16.0] 
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-secure-key-passphrase]
+
++{ssl-prefix}.ssl.certificate+::
+(<<static-cluster-setting,Static>>) deprecated:[7.16.0] 
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate]
+
++{ssl-prefix}.ssl.certificate_authorities+::
+(<<static-cluster-setting,Static>>) deprecated:[7.16.0] 
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate-authorities]
+
+===== Java keystore files
+
+When using Java keystore files (JKS), which contain the private key, certificate
+and certificates that should be trusted, use the following settings:
+
++{ssl-prefix}.ssl.keystore.path+::
+(<<static-cluster-setting,Static>>) deprecated:[7.16.0] 
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
+
++{ssl-prefix}.ssl.keystore.password+::
+(<<static-cluster-setting,Static>>) deprecated:[7.16.0] 
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
+
++{ssl-prefix}.ssl.keystore.secure_password+::
+(<<secure-settings,Secure>>) deprecated:[7.16.0] 
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
+
++{ssl-prefix}.ssl.keystore.key_password+::
+(<<static-cluster-setting,Static>>) deprecated:[7.16.0] 
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
+
++{ssl-prefix}.ssl.keystore.secure_key_password+::
+(<<secure-settings,Secure>>) deprecated:[7.16.0] 
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
+
++{ssl-prefix}.ssl.truststore.path+::
+(<<static-cluster-setting,Static>>) deprecated:[7.16.0] 
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
+
++{ssl-prefix}.ssl.truststore.password+::
+(<<static-cluster-setting,Static>>) deprecated:[7.16.0] 
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
+
++{ssl-prefix}.ssl.truststore.secure_password+::
+(<<secure-settings,Secure>>) deprecated:[7.16.0] 
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
+
+[#{ssl-context}-pkcs12-files]
+===== PKCS#12 files
+
+{es} can be configured to use PKCS#12 container files (`.p12` or `.pfx` files)
+that contain the private key, certificate and certificates that should be trusted.
+
+PKCS#12 files are configured in the same way as Java keystore files:
+
++{ssl-prefix}.ssl.keystore.path+::
+(<<static-cluster-setting,Static>>) deprecated:[7.16.0] 
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
+
++{ssl-prefix}.ssl.keystore.type+::
+(<<static-cluster-setting,Static>>) deprecated:[7.16.0] 
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs12]
+
++{ssl-prefix}.ssl.keystore.password+::
+(<<static-cluster-setting,Static>>) deprecated:[7.16.0] 
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-password]
+
++{ssl-prefix}.ssl.keystore.secure_password+::
+(<<secure-settings,Secure>>) deprecated:[7.16.0] 
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
+
++{ssl-prefix}.ssl.keystore.key_password+::
+(<<static-cluster-setting,Static>>) deprecated:[7.16.0] 
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
+
++{ssl-prefix}.ssl.keystore.secure_key_password+::
+(<<secure-settings,Secure>>) deprecated:[7.16.0] 
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
+
++{ssl-prefix}.ssl.truststore.path+::
+(<<static-cluster-setting,Static>>) deprecated:[7.16.0] 
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
+
++{ssl-prefix}.ssl.truststore.type+::
+(<<static-cluster-setting,Static>>) deprecated:[7.16.0] 
+Set this to `PKCS12` to indicate that the truststore is a PKCS#12 file.
+//TBD:Should this use the ssl-truststore-type definition and default values?
+
++{ssl-prefix}.ssl.truststore.password+::
+(<<static-cluster-setting,Static>>) deprecated:[7.16.0] 
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
+
++{ssl-prefix}.ssl.truststore.secure_password+::
+(<<secure-settings,Secure>>) deprecated:[7.16.0] 
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
+

@@ -1,4 +1,6 @@
 /*
+ * @notice
+ *
  * Copyright 2020 Adrien Grand and the lz4-java contributors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");

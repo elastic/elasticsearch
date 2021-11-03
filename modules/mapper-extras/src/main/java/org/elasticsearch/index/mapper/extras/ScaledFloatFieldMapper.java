@@ -527,7 +527,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        public DocValuesField getScriptField(String name) {
+        public DocValuesField<?> getScriptField(String name) {
             return new DelegateDocValuesField(new ScriptDocValues.Doubles(getDoubleValues()), name);
         }
 

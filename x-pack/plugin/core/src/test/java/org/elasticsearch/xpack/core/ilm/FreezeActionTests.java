@@ -24,12 +24,12 @@ public class FreezeActionTests extends AbstractActionTestCase<FreezeAction> {
 
     @Override
     protected FreezeAction createTestInstance() {
-        return new FreezeAction();
+        return FreezeAction.INSTANCE;
     }
 
     @Override
     protected Reader<FreezeAction> instanceReader() {
-        return FreezeAction::new;
+        return in -> FreezeAction.INSTANCE;
     }
 
     public void testToSteps() {
@@ -57,5 +57,11 @@ public class FreezeActionTests extends AbstractActionTestCase<FreezeAction> {
         assertEquals(expectedThirdStepKey, secondStep.getNextStepKey());
         assertEquals(expectedThirdStepKey, thirdStep.getKey());
         assertEquals(nextStepKey, thirdStep.getNextStepKey());
+    }
+
+    @Override
+    protected void assertEqualInstances(FreezeAction expectedInstance, FreezeAction newInstance) {
+        assertThat(newInstance, equalTo(expectedInstance));
+        assertThat(newInstance.hashCode(), equalTo(expectedInstance.hashCode()));
     }
 }

@@ -166,6 +166,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         assertExpected(new Line(lons, lats), new LineStringBuilder(coordinates), false);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/80311")
     @Override
     public void testParseMultiLineString() throws IOException, ParseException {
         int numLineStrings = randomIntBetween(0, 8);

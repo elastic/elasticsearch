@@ -100,7 +100,7 @@ Values for environment variables must be simple strings. Use a comma-separated s
 
 [source,yaml]
 ----
-export HOSTNAME=“host1,host2"
+export HOSTNAME="host1,host2"
 ----
 
 [discrete]

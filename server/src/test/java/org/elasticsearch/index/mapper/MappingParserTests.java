@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class MappingParserTests extends MapperServiceTestCase {
 
     private static MappingParser createMappingParser(IndexMode indexMode) {
-        ScriptService scriptService = new ScriptService(Settings.EMPTY, Collections.emptyMap(), Collections.emptyMap());
+        ScriptService scriptService = new ScriptService(Settings.EMPTY, Collections.emptyMap(), Collections.emptyMap(), () -> 1L);
         IndexSettings indexSettings = createIndexSettings(Version.CURRENT, Settings.EMPTY);
         IndexAnalyzers indexAnalyzers = createIndexAnalyzers();
         SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, Collections.emptyMap());

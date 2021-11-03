@@ -69,3 +69,4 @@ You may need to pull requests periodically to notice movement. If you find the t
 
 - <<cluster-update-settings,increasing Cluster Settings>> for `thread_pool.force_merge.size` slowly and incrementally which effects immediately
 - <<ilm-forcemerge.html#ilm-forcemerge-options,updating ForceMerge Options>> `max_num_segments` which effects going forward
+- temporarily increase logging via <<cluster-update-settings,update Cluster Settings>> adding `logger.org.elasticsearch.action.admin.indices.forcemerge: DEBUG`

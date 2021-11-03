@@ -65,6 +65,7 @@ Which produces the following result:
     {
       "doc": {
         ...
+        "_type": "_doc",
         "_source": {
           "fqdn": "www.example.ac.uk",
           "url": {

@@ -276,8 +276,6 @@ public class Authentication implements ToXContentObject {
     private void assertApiKeyMetadata() {
         assert (AuthenticationType.API_KEY.equals(this.type) == false) || (this.metadata.get(AuthenticationField.API_KEY_ID_KEY) != null)
             : "API KEY authentication requires metadata to contain API KEY id, and the value must be non-null.";
-        assert (AuthenticationType.API_KEY.equals(this.type) == false) || (this.metadata.containsKey(AuthenticationField.API_KEY_NAME_KEY))
-            : "API KEY authentication requires metadata to contain API KEY name; the value may be null for older keys.";
     }
 
     @Override

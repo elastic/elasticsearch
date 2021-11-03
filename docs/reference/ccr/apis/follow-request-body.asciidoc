@@ -1,48 +1,48 @@
 [testenv="platinum"]
-[[ccr-follow-request-body-settings]]`settings`::
+`settings`::
   (object) Settings to override from the leader index. Note that certain
   settings can not be overrode (e.g., `index.number_of_shards`).
 
-[[ccr-follow-request-body-maxreadrequestoperationcount]]`max_read_request_operation_count`::
+`max_read_request_operation_count`::
   (integer) The maximum number of operations to pull per read from the remote
   cluster.
 
-[[ccr-follow-request-body-maxoutstandingreadrequests]]`max_outstanding_read_requests`::
+`max_outstanding_read_requests`::
   (long) The maximum number of outstanding reads requests from the remote
   cluster.
 
-[[ccr-follow-request-body-maxreadrequestsize]]`max_read_request_size`::
+`max_read_request_size`::
   (<<byte-units,byte value>>) The maximum size in bytes of per read of a batch
   of operations pulled from the remote cluster.
 
-[[ccr-follow-request-body-maxwriterequestoperationcount]]`max_write_request_operation_count`::
+`max_write_request_operation_count`::
   (integer) The maximum number of operations per bulk write request executed on
   the follower.
 
-[[ccr-follow-request-body-maxwriterequestsize]]`max_write_request_size`::
+`max_write_request_size`::
   (<<byte-units,byte value>>) The maximum total bytes of operations per bulk write request
   executed on the follower.
 
-[[ccr-follow-request-body-maxoutstandingwriterequests]]`max_outstanding_write_requests`::
+`max_outstanding_write_requests`::
   (integer) The maximum number of outstanding write requests on the follower.
 
-[[ccr-follow-request-body-maxwritebuffercount]]`max_write_buffer_count`::
+`max_write_buffer_count`::
   (integer) The maximum number of operations that can be queued for writing.
   When this limit is reached, reads from the remote cluster will be deferred
   until the number of queued operations goes below the limit.
 
-[[ccr-follow-request-body-maxwritebuffersize]]`max_write_buffer_size`::
+`max_write_buffer_size`::
   (<<byte-units,byte value>>) The maximum total bytes of operations that can be
   queued for
   writing. When this limit is reached, reads from the remote cluster will be
   deferred until the total bytes of queued operations goes below the limit.
 
-[[ccr-follow-request-body-maxretrydelay]]`max_retry_delay`::
+`max_retry_delay`::
   (<<time-units,time value>>) The maximum time to wait before retrying an
   operation that failed exceptionally. An exponential backoff strategy is
   employed when retrying.
 
-[[ccr-follow-request-body-readpolltimeout]]`read_poll_timeout`::
+`read_poll_timeout`::
   (<<time-units,time value>>) The maximum time to wait for new operations on the
   remote cluster when the follower index is synchronized with the leader index.
   When the timeout has elapsed, the poll for operations will return to the

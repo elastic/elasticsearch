@@ -237,7 +237,7 @@ public class FeatureMigrationIT extends ESIntegTestCase {
             );
         }
         if (descriptor.getMappings() == null) {
-            createRequest.addMapping("_doc", createSimpleMapping(false, descriptor.isInternal(), false), XContentType.JSON);
+            createRequest.addMapping("doc", createSimpleMapping(false, descriptor.isInternal(), false), XContentType.JSON);
         }
         CreateIndexResponse response = createRequest.get();
         assertTrue(response.isShardsAcknowledged());
@@ -318,11 +318,13 @@ public class FeatureMigrationIT extends ESIntegTestCase {
             .build();
     }
 
-    static String createSimpleMapping(boolean descriptorManaged, boolean descriptorInternal, boolean includeType) {
+    static String createSimpleMapping(boolean descriptorManaged, boolean descriptorInternal, boolean useStandardType) {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
-            if (includeType) {
+            if (useStandardType) {
                 builder.startObject("_doc");
+            } else {
+                builder.startObject("doc");
             }
             {
                 builder.startObject("_meta");
@@ -341,9 +343,7 @@ public class FeatureMigrationIT extends ESIntegTestCase {
                 builder.endObject();
             }
             builder.endObject();
-            if (includeType) {
-                builder.endObject();
-            }
+            builder.endObject();
             return Strings.toString(builder);
         } catch (IOException e) {
             // Just rethrow, it should be impossible for this to throw here

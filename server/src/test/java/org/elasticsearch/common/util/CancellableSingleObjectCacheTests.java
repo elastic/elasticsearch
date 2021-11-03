@@ -359,17 +359,12 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
             }
         };
 
-        final AtomicInteger successfulChecksRemaining = new AtomicInteger(between(2, 10));
-
         final CancellableSingleObjectCache<String, String, Integer> testCache = new CancellableSingleObjectCache<>() {
             @Override
             protected void refresh(String s, Runnable ensureNotCancelled, ActionListener<Integer> listener, BooleanSupplier supersedeIfStale) {
                 ActionListener.completeWith(listener, () -> {
-                    while (successfulChecksRemaining.get() > 0) {
-                        ensureNotCancelled.run();
-                    }
-                    awaitBarrier.run();
-                    awaitBarrier.run();
+                    awaitBarrier.run(); // main-thread barrier 2; cancelled-thread barrier 1
+                    awaitBarrier.run(); // main-thread barrier 3; cancelled-thread barrier 2
                     ensureNotCancelled.run();
                     if (s.equals("cancelled")) {
                         throw new AssertionError("should have been cancelled");
@@ -385,22 +380,22 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
             }
         };
 
-        final TestFuture oldFuture = new TestFuture();
-        final TestFuture newFuture = new TestFuture();
+        final TestFuture cancelledFuture = new TestFuture();
+        final TestFuture successfulFuture = new TestFuture();
 
+        final AtomicBoolean isCancelled = new AtomicBoolean();
         final Thread cancelledThread = new Thread(() -> {
-            testCache.get("cancelled", () -> successfulChecksRemaining.getAndDecrement() <= 0, oldFuture);
-            awaitBarrier.run();
-            awaitBarrier.run();
+            testCache.get("cancelled", isCancelled::get, cancelledFuture);
+            awaitBarrier.run(); // cancelled-thread barrier 3
         }, "cancelled-thread");
 
         cancelledThread.start();
-        awaitBarrier.run();
-        testCache.get("successful", () -> false, newFuture);
-        awaitBarrier.run();
+        awaitBarrier.run(); // main-thread barrier 1
+        isCancelled.set(true);
+        testCache.get("successful", () -> false, successfulFuture);
         cancelledThread.join();
 
-        expectThrows(TaskCancelledException.class, () -> oldFuture.actionGet(0L));
+        expectThrows(TaskCancelledException.class, () -> cancelledFuture.actionGet(0L));
     }
 
     private static class TestCache extends CancellableSingleObjectCache<String, String, Integer> {

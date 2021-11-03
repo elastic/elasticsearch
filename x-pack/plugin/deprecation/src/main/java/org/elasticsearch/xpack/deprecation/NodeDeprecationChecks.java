@@ -2085,7 +2085,7 @@ class NodeDeprecationChecks {
             "xpack.eql.enabled",
             true,
             Setting.Property.NodeScope,
-            Property.DeprecatedWarning
+            Setting.Property.DeprecatedWarning
         );
         String url = "https://ela.st/es-deprecation-7-eql-enabled-setting";
         return checkRemovedSetting(

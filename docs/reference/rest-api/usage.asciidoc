@@ -155,7 +155,7 @@ GET /_xpack/usage
       },
       "trained_models" : {
         "_all" : {
-          "count" : 0
+          "count": 1
         },
         "count": {
           "total": 1,
@@ -173,6 +173,24 @@ GET /_xpack/usage
           "max": 0.0,
           "avg": 0.0,
           "total": 0.0
+        }
+      },
+      "deployments": {
+        "count": 0,
+        "inference_counts": {
+          "total": 0.0,
+          "min": 0.0,
+          "avg": 0.0,
+          "max": 0.0
+        },
+        "model_sizes_bytes": {
+          "total": 0.0,
+          "min": 0.0,
+          "avg": 0.0,
+          "max": 0.0
+        },
+        "time_ms": {
+          "avg": 0.0
         }
       }
     },

@@ -369,15 +369,16 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
 
     private void addDeploymentStats(GetDeploymentStatsAction.Response response, Map<String, Object> inferenceUsage) {
         StatsAccumulator modelSizes = new StatsAccumulator();
-        StatsAccumulator timeStats = new StatsAccumulator();
+        double avgTimeSum = 0.0;
         StatsAccumulator nodeDistribution = new StatsAccumulator();
-        response.getStats().results().forEach(stats -> {
+        for (var stats : response.getStats().results()) {
             modelSizes.add(stats.getModelSize().getBytes());
-            stats.getNodeStats().forEach(nodeStats -> {
-                timeStats.add(nodeStats.getAvgInferenceTime().orElse(0.0) * nodeStats.getInferenceCount().orElse(0L));
-                nodeDistribution.add(nodeStats.getInferenceCount().orElse(0L));
-            });
-        });
+            for (var nodeStats : stats.getNodeStats()) {
+                long nodeInferenceCount = nodeStats.getInferenceCount().orElse(0L);
+                avgTimeSum += nodeStats.getAvgInferenceTime().orElse(0.0) * nodeInferenceCount;
+                nodeDistribution.add(nodeInferenceCount);
+            }
+        }
 
         inferenceUsage.put(
             "deployments",
@@ -385,7 +386,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
                 "count",
                 response.getStats().count(),
                 "time_ms",
-                Map.of(StatsAccumulator.Fields.AVG, timeStats.getAvg()),
+                Map.of(StatsAccumulator.Fields.AVG, nodeDistribution.getTotal() == 0.0 ? 0.0 : avgTimeSum / nodeDistribution.getTotal()),
                 "model_sizes_bytes",
                 modelSizes.asMap(),
                 "inference_counts",

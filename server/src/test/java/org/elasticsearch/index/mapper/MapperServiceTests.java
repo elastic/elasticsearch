@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.VersionUtils;
@@ -27,7 +26,6 @@ import java.util.stream.StreamSupport;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -321,20 +319,4 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertThat(eagerFieldNames, containsInAnyOrder("eager1", "eager2"));
     }
 
-    public void testCheckDynamicMappingUpdate() throws IOException {
-        MapperService mapperService = createMapperService(
-            Settings.builder()
-                .put(IndexSettings.MODE.getKey(), "time_series")
-                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim")
-                .build(),
-            mapping(b -> b.startObject("@timestamp").field("type", "date").endObject())
-        );
-        CompressedXContent mappings = new CompressedXContent(
-            BytesReference.bytes(
-                mapping(b -> b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject())
-            )
-        );
-        Exception e = expectThrows(IllegalStateException.class, () -> mapperService.checkDynamicMappingUpdate("_doc", mappings));
-        assertThat(e.getMessage(), equalTo("added a dimension with a dynamic mapping"));
-    }
 }

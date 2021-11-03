@@ -18,6 +18,7 @@ import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.script.field.BinaryDocValuesField;
+import org.elasticsearch.script.field.SortedNumericDocValuesWrapper;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -78,36 +79,19 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
     }
 
     public static final class Longs extends ScriptDocValues<Long> {
-        private final SortedNumericDocValues in;
-        private long[] values = new long[0];
-        private int count;
+
+        private final SortedNumericDocValuesWrapper sortedNumericDocValuesWrapper;
 
         /**
          * Standard constructor.
          */
-        public Longs(SortedNumericDocValues in) {
-            this.in = in;
+        public Longs(SortedNumericDocValuesWrapper sortedNumericDocValuesWrapper) {
+            this.sortedNumericDocValuesWrapper = sortedNumericDocValuesWrapper;
         }
 
         @Override
         public void setNextDocId(int docId) throws IOException {
-            if (in.advanceExact(docId)) {
-                resize(in.docValueCount());
-                for (int i = 0; i < count; i++) {
-                    values[i] = in.nextValue();
-                }
-            } else {
-                resize(0);
-            }
-        }
-
-        /**
-         * Set the {@link #size()} and ensure that the {@link #values} array can
-         * store at least that many entries.
-         */
-        protected void resize(int newSize) {
-            count = newSize;
-            values = ArrayUtil.grow(values, count);
+            sortedNumericDocValuesWrapper.setNextDocId(docId);
         }
 
         public long getValue() {
@@ -117,12 +101,12 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         @Override
         public Long get(int index) {
             throwIfEmpty();
-            return values[index];
+            return sortedNumericDocValuesWrapper.getInternal(index);
         }
 
         @Override
         public int size() {
-            return count;
+            return sortedNumericDocValuesWrapper.size();
         }
     }
 

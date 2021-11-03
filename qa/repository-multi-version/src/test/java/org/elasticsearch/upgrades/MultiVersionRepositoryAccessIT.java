@@ -102,7 +102,13 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
         return true;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/80088")
+    @Override
+    protected boolean preserveTemplatesUponCompletion() {
+        // don't try to clean up templates, the timing of this won't always work as expected with older ES versions pre 7.8 and we get
+        // failures from dangling X-Pack templates
+        return true;
+    }
+
     public void testCreateAndRestoreSnapshot() throws IOException {
         final String repoName = getTestName();
         try (RestHighLevelClient client = new RestHighLevelClient(RestClient.builder(adminClient().getNodes().toArray(new Node[0])))) {
@@ -153,7 +159,6 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/80088")
     public void testReadOnlyRepo() throws IOException {
         final String repoName = getTestName();
         try (RestHighLevelClient client = new RestHighLevelClient(RestClient.builder(adminClient().getNodes().toArray(new Node[0])))) {
@@ -200,7 +205,6 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
         ElasticsearchStatusException.class
     );
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/80088")
     public void testUpgradeMovesRepoToNewMetaVersion() throws IOException {
         final String repoName = getTestName();
         try (RestHighLevelClient client = new RestHighLevelClient(RestClient.builder(adminClient().getNodes().toArray(new Node[0])))) {

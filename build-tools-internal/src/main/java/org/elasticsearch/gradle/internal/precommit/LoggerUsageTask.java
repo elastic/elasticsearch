@@ -12,11 +12,7 @@ import org.elasticsearch.gradle.LoggedExec;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTask;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileCollection;
-import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.plugins.JavaPluginExtension;
-import org.gradle.api.provider.MapProperty;
-import org.gradle.api.provider.Property;
-import org.gradle.api.provider.SetProperty;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.InputFiles;
@@ -28,8 +24,8 @@ import org.gradle.api.tasks.TaskAction;
 import org.gradle.process.ExecOperations;
 import org.gradle.workers.WorkAction;
 import org.gradle.workers.WorkParameters;
-import org.gradle.workers.WorkerExecutor;
 import org.gradle.workers.WorkQueue;
+import org.gradle.workers.WorkerExecutor;
 
 import java.io.File;
 
@@ -108,6 +104,7 @@ public abstract class LoggerUsageTask extends PrecommitTask {
 
     interface Parameters extends WorkParameters {
         ConfigurableFileCollection getClassDirectories();
+
         ConfigurableFileCollection getClasspath();
     }
 

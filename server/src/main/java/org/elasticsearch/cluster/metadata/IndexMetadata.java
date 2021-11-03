@@ -42,8 +42,6 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
@@ -478,8 +476,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     private final IndexLongFieldRange timestampRange;
 
-    private final IndexMode mode;
-
     private final int priority;
 
     private final long creationDate;
@@ -520,8 +516,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final int priority,
         final long creationDate,
         final boolean ignoreDiskWatermarks,
-        @Nullable final List<String> tierPreference,
-        final IndexMode mode
+        @Nullable final List<String> tierPreference
     ) {
 
         this.index = index;
@@ -562,9 +557,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.creationDate = creationDate;
         this.ignoreDiskWatermarks = ignoreDiskWatermarks;
         this.tierPreference = tierPreference;
-        this.mode = mode;
-        assert false == (mode.organizeIntoTimeSeries() && isRoutingPartitionedIndex())
-            : "time series indices incompatible with routing partitioned indices";
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -1463,8 +1455,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
             final String uuid = settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
 
-            final IndexMode mode = IndexSettings.MODE.get(settings);
-
             List<String> tierPreference;
             try {
                 tierPreference = DataTier.parseTierList(DataTier.TIER_PREFERENCE_SETTING.get(settings));
@@ -1507,8 +1497,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 IndexMetadata.INDEX_PRIORITY_SETTING.get(settings),
                 settings.getAsLong(SETTING_CREATION_DATE, -1L),
                 DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS.get(settings),
-                tierPreference,
-                mode
+                tierPreference
             );
         }
 
@@ -2059,10 +2048,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             factor = 1;
         }
         return factor;
-    }
-
-    public IndexMode mode() {
-        return mode;
     }
 
     /**

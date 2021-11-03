@@ -77,7 +77,7 @@ public final class Mapping implements ToXContentFragment {
         this.metadataMappersByName = unmodifiableMap(metadataMappersByName);
         this.meta = meta;
         this.indexMode = indexMode;
-        this.timeSeriesIdGenerator = indexMode.organizeIntoTimeSeries()
+        this.timeSeriesIdGenerator = (indexMode == IndexMode.TIME_SERIES)
             ? TimeSeriesIdGenerator.build(root.selectTimeSeriesIdComponents())
             : null;
     }

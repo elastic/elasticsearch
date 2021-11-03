@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index;
 
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.ByteBlockPool;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
@@ -72,7 +74,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  * each other. This allows even simple compression algorithsm like {@link LZ4}
  * to do a very good job compressing the {@code _source}.
  * <p>
- * Let's take a quite detour to talk about why this compression is important. We
+ * Let's take a quick detour to talk about why this compression is important. We
  * tend to store much more data than the {@code _tsid} and the measurement
  * in each document. In documents about k8s containers, for example, we'll store
  * the container's id (the {@code _tsid}) and the memory usage (a measurement) but
@@ -235,6 +237,41 @@ public final class TimeSeriesIdGenerator {
             }
             return bytes;
         }
+    }
+
+    public BytesReference generate(LuceneDocument document) throws IOException {
+        List<Map.Entry<String, CheckedConsumer<StreamOutput, IOException>>> values = new ArrayList<>();
+
+        List<String> dimensionNames = new ArrayList<>();
+        root.collectDimensionNames("", dimensionNames::add);
+        if (dimensionNames.isEmpty()) {
+            throw new IllegalArgumentException("There aren't any mapped dimensions");
+        }
+
+        for (String fieldName : dimensionNames) {
+            IndexableField field = document.getByKey(fieldName);
+        }
+        return null;
+        /*
+        if (values.isEmpty()) {
+            Collections.sort(dimensionNames);
+            throw new IllegalArgumentException("Document must contain one of the dimensions " + dimensionNames);
+        }
+        Collections.sort(values, Map.Entry.comparingByKey());
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeVInt(values.size());
+            for (Map.Entry<String, CheckedConsumer<StreamOutput, IOException>> v : values) {
+                out.writeBytesRef(new BytesRef(v.getKey())); // Write in utf-8 instead of writeString's utf-16-ish thing
+                v.getValue().accept(out);
+            }
+            BytesReference bytes = out.bytes();
+            if (bytes.length() > LIMIT) {
+                throw new IllegalArgumentException("tsid longer than [" + LIMIT + "] bytes [" + bytes.length() + "]");
+            }
+            return bytes;
+        }
+
+         */
     }
 
     /**

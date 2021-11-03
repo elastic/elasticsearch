@@ -11,7 +11,9 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.TimeSeriesIdGenerator;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -38,11 +40,15 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
     public void testEnabledInTimeSeriesMode() throws Exception {
         DocumentMapper docMapper = createMapperService(
             getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), "time_series")
-                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "field")
+                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "kw_field")
                 .build(),
             mapping(b -> {
-                b.startObject("field");
+                b.startObject("kw_field");
                 b.field("type", "keyword");
+                b.field("time_series_dimension", true);
+                b.endObject();
+                b.startObject("long_field");
+                b.field("type", "long");
                 b.field("time_series_dimension", true);
                 b.endObject();
             })
@@ -53,7 +59,13 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
                 "test",
                 "1",
                 BytesReference.bytes(
-                    XContentFactory.jsonBuilder().startObject().field("field", "value").field("@timestamp", "2021-10-01").endObject()
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .field("kw_field", "value")
+                        .field("long_field", 100)
+                        .field("label_field", 500)
+                        .field("@timestamp", "2021-10-01")
+                        .endObject()
                 ),
                 XContentType.JSON,
                 null,
@@ -61,8 +73,15 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
             )
         );
 
-        assertThat(doc.rootDoc().getBinaryValue("_tsid"), equalTo(new BytesRef("\u0001\u0005fields\u0005value")));
-        assertThat(doc.rootDoc().getField("field").binaryValue(), equalTo(new BytesRef("value")));
+        assertThat(
+            doc.rootDoc().getBinaryValue("_tsid"),
+            equalTo(new BytesRef("\u0002\bkw_fields\u0005value\n" + "long_fieldl\u0000\u0000\u0000\u0000\u0000\u0000\u0000d"))
+        );
+        assertThat(doc.rootDoc().getField("kw_field").binaryValue(), equalTo(new BytesRef("value")));
+        assertThat(doc.rootDoc().getField("long_field").numericValue(), equalTo(100L));
+
+        // TODo: Remove
+        TimeSeriesIdGenerator.parse(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes));
     }
 
     public void testDisabledInStandardMode() throws Exception {

@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.IndexMode;
@@ -105,15 +106,31 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
         assert fieldType().isSearchable() == false;
 
-        // BytesReference timeSeriesId = context.sourceToParse().timeSeriesId();
         BytesReference timeSeriesId = context.mappingLookup()
             .getMapping()
             .generateTimeSeriesIdIfNeeded(context.sourceToParse().source(), context.sourceToParse().getXContentType());
-        if (timeSeriesId == null) {
-            throw new IllegalArgumentException("In time series mode the tsid need to be in the routing");
-        }
+        assert timeSeriesId != null : "In time series mode _tsid cannot be null";
+
         // TODO switch to native BytesRef over the wire, leaving the routing alone
         context.doc().add(new SortedSetDocValuesField(fieldType().name(), timeSeriesId.toBytesRef()));
+    }
+
+    @Override
+    public void postParse(DocumentParserContext context) throws IOException {
+        if (context.indexSettings().getMode() != IndexMode.TIME_SERIES) {
+            return;
+        }
+        assert fieldType().isSearchable() == false;
+
+        List<IndexableField> fields = context.rootDoc().getFields();
+        if (fields.size() == 0) {
+            throw new IllegalArgumentException("Dimension fields are missing");
+        }
+
+        BytesReference timeSeriesId = context.mappingLookup().getMapping().getTimeSeriesIdGenerator().generate(context.rootDoc());
+        if (timeSeriesId != null) {
+            timeSeriesId.utf8ToString();
+        }
     }
 
     @Override

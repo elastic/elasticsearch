@@ -1416,7 +1416,7 @@ public class SettingTests extends ESTestCase {
     public void testDeprecationPropertyValidation() {
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> Setting.boolSetting("a.bool.setting", true, Property.DeprecatedWarning, Property.DeprecatedWarning)
+            () -> Setting.boolSetting("a.bool.setting", true, Property.Deprecated, Property.DeprecatedWarning)
         );
     }
 }

@@ -399,7 +399,6 @@ public class TimeSeriesMetrics {
             // TODO shard error handling
             SearchHit[] hits = response.getHits().getHits();
             for (String metric : resolvedMetrics) {
-                previousDimensions = null;
                 for (SearchHit hit : hits) {
                     /*
                      * Read the dimensions out of the sort. This is useful because

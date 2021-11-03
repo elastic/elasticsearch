@@ -223,14 +223,14 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
             expectedValues = expectedValues.entry(dimensions, expectedValuesForTimeSeries);
         }
         indexRandom(true, docs);
-        assertMap(latest(iterationSize, TimeValue.timeValueMillis(maxMillis - minMillis), max), expectedLatest);
+        assertMap(latest(iterationSize, TimeValue.timeValueMillis(maxMillis - minMillis), maxMillis), expectedLatest);
         assertMap(
             range(
                 iterationSize,
                 TimeValue.timeValueMinutes(randomIntBetween(1, 10)),
                 TimeValue.timeValueMillis(maxMillis - minMillis),
                 null,
-                max
+                maxMillis
             ),
             expectedValues
         );
@@ -245,7 +245,6 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
         int iterationBuckets = scaledRandomIntBetween(50, 100);
         int bucketCount = scaledRandomIntBetween(iterationBuckets * 2, iterationBuckets * 100);
         long maxMillis = minMillis + bucketCount * TimeUnit.SECONDS.toMillis(5);
-        String max = FORMATTER.formatMillis(maxMillis);
         List<IndexRequestBuilder> docs = new ArrayList<>(bucketCount);
         for (long millis = minMillis; millis < maxMillis; millis += TimeUnit.SECONDS.toMillis(5)) {
             String timestamp = FORMATTER.formatMillis(millis);
@@ -267,7 +266,7 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
                 TimeValue.timeValueMinutes(randomIntBetween(1, 10)),
                 TimeValue.timeValueMillis(maxMillis - minMillis),
                 TimeValue.timeValueSeconds(5),
-                FORMATTER.formatMillis(maxMillis - 1)
+                maxMillis - 1
             ),
             matchesMap(Map.of(Tuple.tuple("v", Map.of("dim", "dim")), expectedLatest))
         );
@@ -275,9 +274,9 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
             range(
                 iterationBuckets,
                 TimeValue.timeValueMinutes(randomIntBetween(1, 10)),
-                TimeValue.timeValueMillis(maxMillis - FORMATTER.parseMillis(min)),
+                TimeValue.timeValueMillis(maxMillis - minMillis),
                 null,
-                FORMATTER.formatMillis(maxMillis - 1)
+                maxMillis - 1
             ),
             matchesMap(Map.of(Tuple.tuple("v", Map.of("dim", "dim")), expectedValues))
         );
@@ -306,7 +305,14 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
         TimeValue staleness,
         String time
     ) {
-        long timeMillis = FORMATTER.parse(time).getLong(INSTANT_SECONDS) * 1000;
+        return latest(bucketBatchSize, staleness, FORMATTER.parse(time).getLong(INSTANT_SECONDS) * 1000);
+    }
+
+    private Map<Tuple<String, Map<String, Object>>, List<Map.Entry<String, Double>>> latest(
+        int bucketBatchSize,
+        TimeValue staleness,
+        long timeMillis
+    ) {
         return withMetrics(
             bucketBatchSize,
             between(0, 10000),  // Not used by this method
@@ -322,7 +328,16 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
         TimeValue step,
         String time
     ) {
-        long timeMillis = FORMATTER.parse(time).getLong(INSTANT_SECONDS) * 1000;
+        return range(bucketBatchSize, staleness, range, step, FORMATTER.parse(time).getLong(INSTANT_SECONDS) * 1000);
+    }
+
+    private Map<Tuple<String, Map<String, Object>>, List<Map.Entry<String, Double>>> range(
+        int bucketBatchSize,
+        TimeValue staleness,
+        TimeValue range,
+        TimeValue step,
+        long timeMillis
+    ) {
         return withMetrics(
             bucketBatchSize,
             between(0, 10000),  // Not used by this method

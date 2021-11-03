@@ -28,6 +28,8 @@ import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySe
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -47,7 +49,7 @@ import javax.net.SocketFactory;
  * }
  * </pre>
  */
-public abstract class SessionFactory {
+public abstract class SessionFactory implements Closeable {
 
     private static final Pattern STARTS_WITH_LDAPS = Pattern.compile("^ldaps:.*", Pattern.CASE_INSENSITIVE);
     private static final Pattern STARTS_WITH_LDAP = Pattern.compile("^ldap:.*", Pattern.CASE_INSENSITIVE);
@@ -86,6 +88,11 @@ public abstract class SessionFactory {
         this.sslUsed = ldapServers.ssl;
         this.ignoreReferralErrors = config.getSetting(SessionFactorySettings.IGNORE_REFERRAL_ERRORS_SETTING);
         this.metadataResolver = new LdapMetadataResolver(config, ignoreReferralErrors);
+    }
+
+    @Override
+    public void close() throws IOException {
+        serverSet.shutDown();
     }
 
     /**

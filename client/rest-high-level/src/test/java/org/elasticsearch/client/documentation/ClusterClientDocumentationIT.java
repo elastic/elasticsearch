@@ -62,6 +62,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * Documentation for Cluster APIs in the high level java client.
  * Code wrapped in {@code tag} and {@code end} tags is included in the docs.
  */
+@SuppressWarnings("removal")
 public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testClusterPutSettings() throws IOException {

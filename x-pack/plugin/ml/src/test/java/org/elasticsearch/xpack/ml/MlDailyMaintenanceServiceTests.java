@@ -34,18 +34,19 @@ import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.mock.orig.Mockito.verify;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.same;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
@@ -149,10 +150,10 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
             latch.await(5, TimeUnit.SECONDS);
         }
 
-        verify(client, times(2)).threadPool();
-        verify(client).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
-        verify(client).execute(same(GetJobsAction.INSTANCE), any(), any());
-        verify(mlAssignmentNotifier).auditUnassignedMlTasks(any(), any());
+        verify(client, Mockito.atLeast(2)).threadPool();
+        verify(client, Mockito.atLeast(1)).execute(same(DeleteExpiredDataAction.INSTANCE), any(), any());
+        verify(client, Mockito.atLeast(1)).execute(same(GetJobsAction.INSTANCE), any(), any());
+        verify(mlAssignmentNotifier, Mockito.atLeast(1)).auditUnassignedMlTasks(any(), any());
         verifyNoMoreInteractions(client, mlAssignmentNotifier);
     }
 

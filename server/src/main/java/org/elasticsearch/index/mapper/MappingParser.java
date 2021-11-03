@@ -10,8 +10,8 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -31,10 +31,12 @@ public final class MappingParser {
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers;
     private final Function<String, String> documentTypeResolver;
 
-    MappingParser(Supplier<MappingParserContext> parserContextSupplier,
-                  Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
-                  Supplier<Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersSupplier,
-                  Function<String, String> documentTypeResolver) {
+    MappingParser(
+        Supplier<MappingParserContext> parserContextSupplier,
+        Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
+        Supplier<Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersSupplier,
+        Function<String, String> documentTypeResolver
+    ) {
         this.parserContextSupplier = parserContextSupplier;
         this.metadataMapperParsers = metadataMapperParsers;
         this.metadataMappersSupplier = metadataMappersSupplier;
@@ -94,7 +96,8 @@ public final class MappingParser {
 
     private Mapping parse(String type, Map<String, Object> mapping) throws MapperParsingException {
         MappingParserContext parserContext = parserContextSupplier.get();
-        RootObjectMapper rootObjectMapper = rootObjectTypeParser.parse(type, mapping, parserContext).build(MapperBuilderContext.ROOT);
+        RootObjectMapper.Builder rootObjectMapperBuilder = rootObjectTypeParser.parse(type, mapping, parserContext);
+        parserContext.getIndexSettings().getMode().completeMappings(parserContext, mapping, rootObjectMapperBuilder);
 
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = metadataMappersSupplier.get();
         Map<String, Object> meta = null;
@@ -113,8 +116,8 @@ public final class MappingParser {
                 }
                 @SuppressWarnings("unchecked")
                 Map<String, Object> fieldNodeMap = (Map<String, Object>) fieldNode;
-                MetadataFieldMapper metadataFieldMapper
-                    = typeParser.parse(fieldName, fieldNodeMap, parserContext).build(MapperBuilderContext.ROOT);
+                MetadataFieldMapper metadataFieldMapper = typeParser.parse(fieldName, fieldNodeMap, parserContext)
+                    .build(MapperBuilderContext.ROOT);
                 metadataMappers.put(metadataFieldMapper.getClass(), metadataFieldMapper);
                 fieldNodeMap.remove("type");
                 checkNoRemainingFields(fieldName, fieldNodeMap);
@@ -143,8 +146,9 @@ public final class MappingParser {
         checkNoRemainingFields(mapping, "Root mapping definition has unsupported parameters: ");
 
         return new Mapping(
-            rootObjectMapper,
+            rootObjectMapperBuilder.build(MapperBuilderContext.ROOT),
             metadataMappers.values().toArray(new MetadataFieldMapper[0]),
-            meta);
+            meta
+        );
     }
 }

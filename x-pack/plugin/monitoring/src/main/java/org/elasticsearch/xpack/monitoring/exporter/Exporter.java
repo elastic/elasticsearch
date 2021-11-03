@@ -88,7 +88,7 @@ public abstract class Exporter implements AutoCloseable {
     public static final Setting.AffixSetting<Boolean> CLUSTER_ALERTS_MANAGEMENT_SETTING = Setting.affixKeySetting(
         "xpack.monitoring.exporters.",
         "cluster_alerts.management.enabled",
-        key -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope, Property.Deprecated),
+        key -> Setting.boolSetting(key, false, Property.Dynamic, Property.NodeScope, Property.Deprecated),
         TYPE_DEPENDENCY
     );
     /**

@@ -29,8 +29,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.AdditionalMatchers.aryEq;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -165,10 +165,10 @@ public class KerberosRealmCacheTests extends KerberosRealmTestCase {
         final KerberosAuthenticationToken kerberosAuthenticationToken,
         String outToken
     ) {
-        final PlainActionFuture<AuthenticationResult> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<AuthenticationResult<User>> future = PlainActionFuture.newFuture();
         kerberosRealm.authenticate(kerberosAuthenticationToken, future);
-        final AuthenticationResult result = future.actionGet();
+        final AuthenticationResult<User> result = future.actionGet();
         assertSuccessAuthenticationResult(expectedUser, outToken, result);
-        return result.getUser();
+        return result.getValue();
     }
 }

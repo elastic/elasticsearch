@@ -143,7 +143,7 @@ public class DataFrameAnalyticsManager {
         );
 
         // Make sure the state index and alias exist
-        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(
+        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessaryAndWaitForYellow(
             new ParentTaskAssigningClient(client, task.getParentTaskId()),
             clusterState,
             expressionResolver,

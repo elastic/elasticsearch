@@ -63,7 +63,7 @@ public class AbstractJobPersistentTasksExecutorTests extends ESTestCase {
             ).size()
         );
 
-        metadata = new Metadata.Builder(cs.metadata());
+        metadata = Metadata.builder(cs.metadata());
         routingTable = new RoutingTable.Builder(cs.routingTable());
         String indexToRemove = randomFrom(
             resolver.concreteIndexNames(

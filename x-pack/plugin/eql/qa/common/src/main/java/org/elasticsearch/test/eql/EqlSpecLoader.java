@@ -101,6 +101,9 @@ public class EqlSpecLoader {
                 }
                 spec.expectedEventIds(expectedEventIds);
             }
+
+            arr = table.getList("join_keys");
+            spec.joinKeys(arr != null ? arr.toArray(new String[0]) : new String[0]);
             validateAndAddSpec(testSpecs, spec, uniqueTestNames);
         }
 

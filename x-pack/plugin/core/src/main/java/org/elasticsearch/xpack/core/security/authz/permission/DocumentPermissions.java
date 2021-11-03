@@ -165,7 +165,7 @@ public final class DocumentPermissions implements CacheKey {
     ) throws IOException {
         for (String query : queries) {
             SearchExecutionContext context = searchExecutionContextProvider.apply(shardId);
-            QueryBuilder queryBuilder = DLSRoleQueryValidator.evaluateAndVerifyRoleQuery(query, context.getXContentRegistry());
+            QueryBuilder queryBuilder = DLSRoleQueryValidator.evaluateAndVerifyRoleQuery(query, context.getParserConfig().registry());
             if (queryBuilder != null) {
                 failIfQueryUsesClient(queryBuilder, context);
                 Query roleQuery = context.toQuery(queryBuilder).query();
@@ -196,7 +196,7 @@ public final class DocumentPermissions implements CacheKey {
      */
     static void failIfQueryUsesClient(QueryBuilder queryBuilder, QueryRewriteContext original) throws IOException {
         QueryRewriteContext copy = new QueryRewriteContext(
-            original.getXContentRegistry(),
+            original.getParserConfig(),
             original.getWriteableRegistry(),
             null,
             original::nowInMillis

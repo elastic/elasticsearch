@@ -156,6 +156,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         assertNull(batch3LargeLimit.next());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79779")
     public void testSortAndPaginateWithInProgress() throws Exception {
         final String repoName = "test-repo";
         AbstractSnapshotIntegTestCase.createRepository(logger, repoName, "mock");

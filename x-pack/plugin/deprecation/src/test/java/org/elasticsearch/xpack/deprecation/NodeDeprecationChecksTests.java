@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.deprecation;
 
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -403,7 +404,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             hasItem(
                 new DeprecationIssue(
                     DeprecationIssue.Level.WARNING,
-                    "The [xpack.monitoring.exporters.test.index.pipeline.master_timeout] settings are deprecated and will be removed after 8.0",
+                    "The [xpack.monitoring.exporters.test.index.pipeline.master_timeout] "
+                        + "settings are deprecated and will be removed after 8.0",
                     expectedUrl,
                     "Remove the following settings from elasticsearch.yml: [xpack.monitoring.exporters.test.index.pipeline.master_timeout]",
                     false,
@@ -566,4 +568,27 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 + " release! See the breaking changes documentation for the next major version."
         );
     }
+
+    public void testEnforceDefaultTierPreferenceSetting() {
+        Settings settings = Settings.builder().put(DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING.getKey(), randomBoolean()).build();
+
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(settings, null));
+
+        final String expectedUrl = "https://www.elastic.co/guide/en/elasticsearch/reference/current/data-tiers.html";
+        assertThat(
+            issues,
+            hasItem(
+                new DeprecationIssue(
+                    DeprecationIssue.Level.CRITICAL,
+                    "setting [cluster.routing.allocation.enforce_default_tier_preference] is deprecated and"
+                        + " will not be available in a future version",
+                    expectedUrl,
+                    "found [cluster.routing.allocation.enforce_default_tier_preference] configured." + " Discontinue use of this setting.",
+                    false,
+                    null
+                )
+            )
+        );
+    }
+
 }

@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.transform.rest.action;
 
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -57,7 +59,9 @@ public class RestPutTransformAction extends BaseRestHandler {
         XContentParser parser = restRequest.contentParser();
 
         boolean deferValidation = restRequest.paramAsBoolean(TransformField.DEFER_VALIDATION.getPreferredName(), false);
-        PutTransformAction.Request request = PutTransformAction.Request.fromXContent(parser, id, deferValidation);
+        TimeValue timeout = restRequest.paramAsTime(TransformField.TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
+
+        PutTransformAction.Request request = PutTransformAction.Request.fromXContent(parser, id, deferValidation, timeout);
 
         return channel -> client.execute(PutTransformAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

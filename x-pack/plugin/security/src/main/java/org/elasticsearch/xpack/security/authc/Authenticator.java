@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -21,7 +22,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * The Authenticator interface represents an authentication mechanism or a group of similar authentication mechanisms.
@@ -53,9 +53,9 @@ public interface Authenticator {
     /**
      * Attempt to authenticate current request encapsulated by the {@link Context} object.
      * @param context The context object encapsulating current request and other information relevant for authentication.
-     * @param listener The listener accepts a {@link Result} object indicating the outcome of authentication.
+     * @param listener The listener accepts a {@link AuthenticationResult} object indicating the outcome of authentication.
      */
-    void authenticate(Context context, ActionListener<Result> listener);
+    void authenticate(Context context, ActionListener<AuthenticationResult<Authentication>> listener);
 
     static SecureString extractCredentialFromAuthorizationHeader(ThreadContext threadContext, String prefix) {
         String header = threadContext.getHeader("Authorization");
@@ -176,69 +176,6 @@ public interface Authenticator {
         @Override
         public void close() throws IOException {
             authenticationTokens.forEach(AuthenticationToken::clearCredentials);
-        }
-    }
-
-    enum Status {
-        /**
-         * The authenticator successfully handled the authentication request
-         */
-        SUCCESS,
-        /**
-         * The authenticator tried to handle the authentication request but it was unsuccessful.
-         * Subsequent authenticators (if any) still have chance to attempt authentication.
-         */
-        UNSUCCESSFUL,
-        /**
-         * The authenticator did not handle the authentication request for reasons such as it cannot find necessary credentials
-         */
-        NOT_HANDLED
-    }
-
-    class Result {
-
-        private static final Result NOT_HANDLED = new Result(Status.NOT_HANDLED, null, null, null);
-
-        private final Status status;
-        private final Authentication authentication;
-        private final String message;
-        private final Exception exception;
-
-        public Result(Status status, @Nullable Authentication authentication, @Nullable String message, @Nullable Exception exception) {
-            this.status = status;
-            this.authentication = authentication;
-            this.message = message;
-            this.exception = exception;
-        }
-
-        public Status getStatus() {
-            return status;
-        }
-
-        public Authentication getAuthentication() {
-            return authentication;
-        }
-
-        public String getMessage() {
-            return message;
-        }
-
-        public Exception getException() {
-            return exception;
-        }
-
-        public static Result success(Authentication authentication) {
-            Objects.requireNonNull(authentication);
-            return new Result(Status.SUCCESS, authentication, null, null);
-        }
-
-        public static Result notHandled() {
-            return NOT_HANDLED;
-        }
-
-        public static Result unsuccessful(String message, @Nullable Exception cause) {
-            Objects.requireNonNull(message);
-            return new Result(Status.UNSUCCESSFUL, null, message, cause);
         }
     }
 }

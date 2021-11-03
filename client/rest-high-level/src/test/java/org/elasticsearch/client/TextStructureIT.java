@@ -16,6 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Locale;
 
+@SuppressWarnings("removal")
 public class TextStructureIT extends ESRestHighLevelClientTestCase {
 
     public void testFindFileStructure() throws IOException {

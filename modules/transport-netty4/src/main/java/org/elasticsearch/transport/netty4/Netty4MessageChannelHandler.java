@@ -19,7 +19,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.InboundPipeline;
@@ -43,14 +42,14 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
     private WriteOperation currentWrite;
     private final InboundPipeline pipeline;
 
-    Netty4MessageChannelHandler(PageCacheRecycler recycler, Netty4Transport transport) {
+    Netty4MessageChannelHandler(Netty4Transport transport) {
         this.transport = transport;
         final ThreadPool threadPool = transport.getThreadPool();
         final Transport.RequestHandlers requestHandlers = transport.getRequestHandlers();
         this.pipeline = new InboundPipeline(
             transport.getVersion(),
             transport.getStatsTracker(),
-            recycler,
+            NettyAllocator.getRecycler(),
             threadPool::relativeTimeInMillis,
             transport.getInflightBreaker(),
             requestHandlers::getHandler,

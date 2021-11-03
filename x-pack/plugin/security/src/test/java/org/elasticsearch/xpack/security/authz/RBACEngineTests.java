@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.UserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
@@ -65,7 +66,6 @@ import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.RBACEngine.RBACAuthorizationInfo;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
@@ -101,7 +101,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class RBACEngineTests extends ESTestCase {
@@ -193,7 +192,7 @@ public class RBACEngineTests extends ESTestCase {
         when(authenticatedBy.getType()).thenReturn(randomAlphaOfLengthBetween(4, 12));
 
         assertFalse(engine.checkSameUserPermissions(action, request, authentication));
-        verifyZeroInteractions(user, request, authentication);
+        verifyNoMoreInteractions(user, request, authentication);
     }
 
     public void testSameUserPermissionRunAsChecksAuthenticatedBy() {
@@ -258,7 +257,7 @@ public class RBACEngineTests extends ESTestCase {
         when(authentication.getUser()).thenReturn(user);
         when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
         when(authentication.getAuthenticationType()).thenReturn(Authentication.AuthenticationType.API_KEY);
-        when(authenticatedBy.getType()).thenReturn(ApiKeyService.API_KEY_REALM_TYPE);
+        when(authenticatedBy.getType()).thenReturn(AuthenticationField.API_KEY_REALM_TYPE);
 
         assertThat(request, instanceOf(UserRequest.class));
         assertFalse(engine.checkSameUserPermissions(action, request, authentication));
@@ -329,7 +328,7 @@ public class RBACEngineTests extends ESTestCase {
         when(authentication.getUser()).thenReturn(user);
         when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
         when(authentication.getAuthenticationType()).thenReturn(AuthenticationType.API_KEY);
-        when(authentication.getMetadata()).thenReturn(Map.of(ApiKeyService.API_KEY_ID_KEY, apiKeyId));
+        when(authentication.getMetadata()).thenReturn(Map.of(AuthenticationField.API_KEY_ID_KEY, apiKeyId));
 
         assertTrue(engine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));
     }
@@ -342,8 +341,8 @@ public class RBACEngineTests extends ESTestCase {
         final Authentication.RealmRef authenticatedBy = mock(Authentication.RealmRef.class);
         when(authentication.getUser()).thenReturn(user);
         when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
-        when(authenticatedBy.getType()).thenReturn(ApiKeyService.API_KEY_REALM_TYPE);
-        when(authentication.getMetadata()).thenReturn(Map.of(ApiKeyService.API_KEY_ID_KEY, randomAlphaOfLengthBetween(4, 7)));
+        when(authenticatedBy.getType()).thenReturn(AuthenticationField.API_KEY_REALM_TYPE);
+        when(authentication.getMetadata()).thenReturn(Map.of(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLengthBetween(4, 7)));
 
         assertFalse(engine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));
     }
@@ -359,7 +358,7 @@ public class RBACEngineTests extends ESTestCase {
         when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
         when(authentication.getLookedUpBy()).thenReturn(lookedupBy);
         when(authentication.getAuthenticationType()).thenReturn(AuthenticationType.API_KEY);
-        when(authentication.getMetadata()).thenReturn(Map.of(ApiKeyService.API_KEY_ID_KEY, randomAlphaOfLengthBetween(4, 7)));
+        when(authentication.getMetadata()).thenReturn(Map.of(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLengthBetween(4, 7)));
 
         final AssertionError assertionError = expectThrows(
             AssertionError.class,
@@ -1449,6 +1448,13 @@ public class RBACEngineTests extends ESTestCase {
             lookup
         );
         assertThat(authorizedIndices.isEmpty(), is(true));
+    }
+
+    public void testNoInfiniteRecursionForRBACAuthorizationInfoHashCode() {
+        final Role role = Role.builder(RESTRICTED_INDICES_AUTOMATON, "role").build();
+        // No assertion is needed, the test is successful as long as hashCode calls do not throw error
+        new RBACAuthorizationInfo(role, Role.builder(RESTRICTED_INDICES_AUTOMATON, "authenticated_role").build()).hashCode();
+        new RBACAuthorizationInfo(role, null).hashCode();
     }
 
     private GetUserPrivilegesResponse.Indices findIndexPrivilege(Set<GetUserPrivilegesResponse.Indices> indices, String name) {

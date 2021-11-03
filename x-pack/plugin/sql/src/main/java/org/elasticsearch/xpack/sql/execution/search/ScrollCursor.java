@@ -102,14 +102,14 @@ public class ScrollCursor implements Cursor {
                 response,
                 () -> new SearchHitRowSet(extractors, mask, limit, response),
                 p -> listener.onResponse(p),
-                p -> clear(cfg, client, wrap(success -> listener.onResponse(p), listener::onFailure)),
+                p -> clear(client, wrap(success -> listener.onResponse(p), listener::onFailure)),
                 Schema.EMPTY
             );
         }, listener::onFailure));
     }
 
     @Override
-    public void clear(SqlConfiguration cfg, Client client, ActionListener<Boolean> listener) {
+    public void clear(Client client, ActionListener<Boolean> listener) {
         cleanCursor(
             client,
             scrollId,

@@ -122,6 +122,7 @@ import static org.hamcrest.Matchers.greaterThan;
  * Documentation for search APIs in the high level java client.
  * Code wrapped in {@code tag} and {@code end} tags is included in the docs.
  */
+@SuppressWarnings("removal")
 public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
     @SuppressWarnings({ "unused", "unchecked" })

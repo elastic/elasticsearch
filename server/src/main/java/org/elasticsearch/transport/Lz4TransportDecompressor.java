@@ -4,8 +4,7 @@
  * 2.0 and the Server Side Public License, v 1; you may not use this file except
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
- */
-/*
+ *
  * Copyright 2014 The Netty Project
  *
  * The Netty Project licenses this file to you under the Apache License, version
@@ -32,7 +31,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.common.util.PageCacheRecycler;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -56,14 +54,8 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
     /**
      * Magic number of LZ4 block.
      */
-    static final long MAGIC_NUMBER = (long) 'L' << 56 |
-        (long) 'Z' << 48 |
-        (long) '4' << 40 |
-        (long) 'B' << 32 |
-        'l' << 24 |
-        'o' << 16 |
-        'c' << 8  |
-        'k';
+    static final long MAGIC_NUMBER = (long) 'L' << 56 | (long) 'Z' << 48 | (long) '4' << 40 | (long) 'B' << 32 | 'l' << 24 | 'o' << 16 | 'c'
+        << 8 | 'k';
 
     static final int HEADER_LENGTH = 8 +  // magic number
         1 +  // token
@@ -71,14 +63,13 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
         4 +  // decompressed length
         4;   // checksum
 
-
     /**
      * Base value for compression level.
      */
     static final int COMPRESSION_LEVEL_BASE = 10;
 
     static final int MIN_BLOCK_SIZE = 64;
-    static final int MAX_BLOCK_SIZE = 1 << COMPRESSION_LEVEL_BASE + 0x0F;   //  32 M
+    static final int MAX_BLOCK_SIZE = 1 << COMPRESSION_LEVEL_BASE + 0x0F;   // 32 M
     static final int DEFAULT_BLOCK_SIZE = 1 << 16;  // 64 KB
 
     static final int BLOCK_TYPE_NON_COMPRESSED = 0x10;
@@ -113,12 +104,13 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
      */
     private int decompressedLength;
 
-    private final PageCacheRecycler recycler;
-    private final ArrayDeque<Recycler.V<byte[]>> pages;
-    private int pageOffset = PageCacheRecycler.BYTE_PAGE_SIZE;
+    private final Recycler<BytesRef> recycler;
+    private final ArrayDeque<Recycler.V<BytesRef>> pages;
+    private int pageOffset = 0;
+    private int pageLength = 0;
     private boolean hasSkippedESHeader = false;
 
-    public Lz4TransportDecompressor(PageCacheRecycler recycler) {
+    public Lz4TransportDecompressor(Recycler<BytesRef> recycler) {
         this.decompressor = Compression.Scheme.lz4Decompressor();
         this.recycler = recycler;
         this.pages = new ArrayDeque<>(4);
@@ -130,15 +122,17 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
             return null;
         } else if (pages.size() == 1) {
             if (isEOS) {
-                Recycler.V<byte[]> page = pages.pollFirst();
-                ReleasableBytesReference reference = new ReleasableBytesReference(new BytesArray(page.v(), 0, pageOffset), page);
+                Recycler.V<BytesRef> page = pages.pollFirst();
+                BytesArray delegate = new BytesArray(page.v().bytes, page.v().offset, pageOffset);
+                ReleasableBytesReference reference = new ReleasableBytesReference(delegate, page);
+                pageLength = 0;
                 pageOffset = 0;
                 return reference;
             } else {
                 return null;
             }
         } else {
-            Recycler.V<byte[]> page = pages.pollFirst();
+            Recycler.V<BytesRef> page = pages.pollFirst();
             return new ReleasableBytesReference(new BytesArray(page.v()), page);
         }
     }
@@ -150,7 +144,7 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
 
     @Override
     public void close() {
-        for (Recycler.V<byte[]> page : pages) {
+        for (Recycler.V<BytesRef> page : pages) {
             page.close();
         }
     }
@@ -199,24 +193,39 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
 
                         int compressedLength = Integer.reverseBytes(in.readInt());
                         if (compressedLength < 0 || compressedLength > MAX_BLOCK_SIZE) {
-                            throw new IllegalStateException(String.format(Locale.ROOT,
-                                "invalid compressedLength: %d (expected: 0-%d)",
-                                compressedLength, MAX_BLOCK_SIZE));
+                            throw new IllegalStateException(
+                                String.format(
+                                    Locale.ROOT,
+                                    "invalid compressedLength: %d (expected: 0-%d)",
+                                    compressedLength,
+                                    MAX_BLOCK_SIZE
+                                )
+                            );
                         }
 
                         int decompressedLength = Integer.reverseBytes(in.readInt());
                         final int maxDecompressedLength = 1 << compressionLevel;
                         if (decompressedLength < 0 || decompressedLength > maxDecompressedLength) {
-                            throw new IllegalStateException(String.format(Locale.ROOT,
-                                "invalid decompressedLength: %d (expected: 0-%d)",
-                                decompressedLength, maxDecompressedLength));
+                            throw new IllegalStateException(
+                                String.format(
+                                    Locale.ROOT,
+                                    "invalid decompressedLength: %d (expected: 0-%d)",
+                                    decompressedLength,
+                                    maxDecompressedLength
+                                )
+                            );
                         }
                         if (decompressedLength == 0 && compressedLength != 0
                             || decompressedLength != 0 && compressedLength == 0
                             || blockType == BLOCK_TYPE_NON_COMPRESSED && decompressedLength != compressedLength) {
-                            throw new IllegalStateException(String.format(Locale.ROOT,
-                                "stream corrupted: compressedLength(%d) and decompressedLength(%d) mismatch",
-                                compressedLength, decompressedLength));
+                            throw new IllegalStateException(
+                                String.format(
+                                    Locale.ROOT,
+                                    "stream corrupted: compressedLength(%d) and decompressedLength(%d) mismatch",
+                                    compressedLength,
+                                    decompressedLength
+                                )
+                            );
                         }
 
                         // Read int where checksum would normally be written
@@ -267,9 +276,15 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
                                 decompressor.decompress(compressed, compressedOffset, decompressed, 0, decompressedLength);
                                 break;
                             default:
-                                throw new IllegalStateException(String.format(Locale.ROOT,
-                                    "unexpected blockType: %d (expected: %d or %d)",
-                                    blockType, BLOCK_TYPE_NON_COMPRESSED, BLOCK_TYPE_COMPRESSED));
+                                throw new IllegalStateException(
+                                    String.format(
+                                        Locale.ROOT,
+                                        "unexpected blockType: %d (expected: %d or %d)",
+                                        blockType,
+                                        BLOCK_TYPE_NON_COMPRESSED,
+                                        BLOCK_TYPE_COMPRESSED
+                                    )
+                                );
                         }
                         // Skip inbound bytes after we processed them.
                         bytesConsumed += compressedLength;
@@ -277,15 +292,18 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
                         int bytesToCopy = decompressedLength;
                         int uncompressedOffset = 0;
                         while (bytesToCopy > 0) {
-                            final boolean isNewPage = pageOffset == PageCacheRecycler.BYTE_PAGE_SIZE;
+                            final boolean isNewPage = pageOffset == pageLength;
                             if (isNewPage) {
+                                Recycler.V<BytesRef> newPage = recycler.obtain();
                                 pageOffset = 0;
-                                pages.add(recycler.bytePage(false));
+                                pageLength = newPage.v().length;
+                                assert newPage.v().length > 0;
+                                pages.add(newPage);
                             }
-                            final Recycler.V<byte[]> page = pages.getLast();
+                            final Recycler.V<BytesRef> page = pages.getLast();
 
-                            int toCopy = Math.min(bytesToCopy, PageCacheRecycler.BYTE_PAGE_SIZE - pageOffset);
-                            System.arraycopy(decompressed, uncompressedOffset, page.v(), pageOffset, toCopy);
+                            int toCopy = Math.min(bytesToCopy, pageLength - pageOffset);
+                            System.arraycopy(decompressed, uncompressedOffset, page.v().bytes, page.v().offset + pageOffset, toCopy);
                             pageOffset += toCopy;
                             bytesToCopy -= toCopy;
                             uncompressedOffset += toCopy;

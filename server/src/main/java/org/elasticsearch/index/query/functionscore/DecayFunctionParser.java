@@ -8,15 +8,15 @@
 
 package org.elasticsearch.index.query.functionscore;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.function.BiFunction;

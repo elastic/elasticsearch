@@ -66,8 +66,8 @@ class JdbcHttpClient {
             conCfg.zoneId(),
             jdbcConn.getCatalog(),
             fetch,
-            TimeValue.timeValueMillis(meta.timeoutInMs()),
             TimeValue.timeValueMillis(meta.queryTimeoutInMs()),
+            TimeValue.timeValueMillis(meta.pageTimeoutInMs()),
             null,
             Boolean.FALSE,
             null,
@@ -88,8 +88,8 @@ class JdbcHttpClient {
     Tuple<String, List<List<Object>>> nextPage(String cursor, RequestMeta meta) throws SQLException {
         SqlQueryRequest sqlRequest = new SqlQueryRequest(
             cursor,
-            TimeValue.timeValueMillis(meta.timeoutInMs()),
             TimeValue.timeValueMillis(meta.queryTimeoutInMs()),
+            TimeValue.timeValueMillis(meta.pageTimeoutInMs()),
             new RequestInfo(Mode.JDBC),
             conCfg.binaryCommunication()
         );

@@ -61,8 +61,8 @@ import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyCollectionOf;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -204,7 +204,7 @@ public class SnifferTests extends RestClientTestCase {
         int totalRuns = nodesSniffer.runs.get();
         assertEquals(iters, totalRuns);
         int setNodesRuns = totalRuns - nodesSniffer.failures.get() - nodesSniffer.emptyList.get();
-        verify(restClient, times(setNodesRuns)).setNodes(anyCollectionOf(Node.class));
+        verify(restClient, times(setNodesRuns)).setNodes(anyCollection());
         verifyNoMoreInteractions(restClient);
     }
 
@@ -270,7 +270,7 @@ public class SnifferTests extends RestClientTestCase {
         int totalRuns = nodesSniffer.runs.get();
         assertEquals(0, totalRuns);
         int setNodesRuns = totalRuns - nodesSniffer.failures.get() - nodesSniffer.emptyList.get();
-        verify(restClient, times(setNodesRuns)).setNodes(anyCollectionOf(Node.class));
+        verify(restClient, times(setNodesRuns)).setNodes(anyCollection());
         verifyNoMoreInteractions(restClient);
     }
 
@@ -414,7 +414,7 @@ public class SnifferTests extends RestClientTestCase {
 
             assertEquals(completedTasks, nodesSniffer.runs.get());
             int setNodesRuns = nodesSniffer.runs.get() - nodesSniffer.failures.get() - nodesSniffer.emptyList.get();
-            verify(restClient, times(setNodesRuns)).setNodes(anyCollectionOf(Node.class));
+            verify(restClient, times(setNodesRuns)).setNodes(anyCollection());
             verifyNoMoreInteractions(restClient);
         } finally {
             executor.shutdown();

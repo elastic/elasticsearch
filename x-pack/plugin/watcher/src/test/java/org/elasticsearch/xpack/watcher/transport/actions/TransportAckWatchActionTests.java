@@ -42,8 +42,8 @@ import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.anyObject;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -93,7 +93,7 @@ public class TransportAckWatchActionTests extends ESTestCase {
                 )
             );
             return null;
-        }).when(client).get(anyObject(), anyObject());
+        }).when(client).get(any(), any());
 
         doAnswer(invocation -> {
             ContextPreservingActionListener listener = (ContextPreservingActionListener) invocation.getArguments()[2];
@@ -106,7 +106,7 @@ public class TransportAckWatchActionTests extends ESTestCase {
                 )
             );
             return null;
-        }).when(client).execute(eq(WatcherStatsAction.INSTANCE), anyObject(), anyObject());
+        }).when(client).execute(eq(WatcherStatsAction.INSTANCE), any(), any());
 
         AckWatchRequest ackWatchRequest = new AckWatchRequest(watchId);
         PlainActionFuture<AckWatchResponse> listener = PlainActionFuture.newFuture();
@@ -136,7 +136,7 @@ public class TransportAckWatchActionTests extends ESTestCase {
                 )
             );
             return null;
-        }).when(client).execute(eq(WatcherStatsAction.INSTANCE), anyObject(), anyObject());
+        }).when(client).execute(eq(WatcherStatsAction.INSTANCE), any(), any());
 
         AckWatchRequest ackWatchRequest = new AckWatchRequest(watchId);
         PlainActionFuture<AckWatchResponse> listener = PlainActionFuture.newFuture();

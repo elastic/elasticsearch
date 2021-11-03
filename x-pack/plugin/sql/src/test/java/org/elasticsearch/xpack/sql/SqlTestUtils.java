@@ -56,7 +56,9 @@ public final class SqlTestUtils {
         null,
         null,
         false,
-        false
+        false,
+        null,
+        null
     );
 
     public static SqlConfiguration randomConfiguration(ZoneId providedZoneId, SqlVersion sqlVersion) {
@@ -78,10 +80,7 @@ public final class SqlTestUtils {
             false,
             randomBoolean(),
             new TaskId(randomAlphaOfLength(10), taskId),
-            randomTask(taskId, mode, sqlVersion),
-            new TimeValue(randomNonNegativeLong()),
-            randomBoolean(),
-            new TimeValue(randomNonNegativeLong())
+            randomTask(taskId, mode, sqlVersion)
         );
     }
 

@@ -44,7 +44,9 @@ public class DatabaseFunctionTests extends ESTestCase {
             null,
             clusterName,
             randomBoolean(),
-            randomBoolean()
+            randomBoolean(),
+            null,
+            null
         );
         Analyzer analyzer = new Analyzer(sqlConfig, new SqlFunctionRegistry(), IndexResolution.valid(test), new Verifier(new Metrics()));
 

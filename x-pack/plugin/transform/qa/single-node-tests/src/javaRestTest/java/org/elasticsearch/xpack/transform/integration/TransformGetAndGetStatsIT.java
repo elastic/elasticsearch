@@ -53,6 +53,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.oneOf;
 
+@SuppressWarnings("removal")
 public class TransformGetAndGetStatsIT extends TransformRestTestCase {
 
     private static final String TEST_USER_NAME = "transform_user";

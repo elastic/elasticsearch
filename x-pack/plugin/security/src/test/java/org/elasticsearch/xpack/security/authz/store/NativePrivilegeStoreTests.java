@@ -78,7 +78,7 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.not;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 

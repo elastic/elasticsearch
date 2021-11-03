@@ -171,7 +171,8 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                 // This should never, ever happen in testing mode, but could conceivably happen if there are different sets of plugins
                 // installed on the previous node vs. this one.
                 assert nextMigrationInfo.getFeatureName().equals(stateFeatureName)
-                    && nextMigrationInfo.getCurrentIndexName().equals(stateIndexName) : "index name ["
+                    && nextMigrationInfo.getCurrentIndexName().equals(stateIndexName)
+                    : "index name ["
                         + stateIndexName
                         + "] or feature name ["
                         + stateFeatureName
@@ -253,9 +254,8 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         // The BulkByScroll response is validated in #migrateSingleIndex, it's just here to satisfy the ActionListener type
         assert bulkResponse.isTimedOut() == false
             && (bulkResponse.getBulkFailures() == null || bulkResponse.getBulkFailures().isEmpty())
-            && (bulkResponse.getSearchFailures() == null
-                || bulkResponse.getSearchFailures()
-                    .isEmpty()) : "If this assertion gets triggered it means the validation in migrateSingleIndex isn't working right";
+            && (bulkResponse.getSearchFailures() == null || bulkResponse.getSearchFailures().isEmpty())
+            : "If this assertion gets triggered it means the validation in migrateSingleIndex isn't working right";
         SystemIndexMigrationInfo lastMigrationInfo = currentMigrationInfo();
         logger.info(
             "finished migrating old index [{}] from feature [{}] to new index [{}]",
@@ -331,29 +331,30 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             migrationInfo.getFeatureName(),
             migrationInfo.getNextIndexName()
         );
-        final AtomicReference<Map<String, Object>> updatedTaskStateFeatureMetadata = new AtomicReference<>();
         if (migrationInfo.getFeatureName().equals(lastFeatureName) == false) {
             // And then invoke the pre-migration hook for the next one.
-            migrationInfo.prepareForIndicesMigration(
-                clusterService,
-                baseClient,
-                ActionListener.wrap(updatedTaskStateFeatureMetadata::set, this::markAsFailed)
-            );
+            migrationInfo.prepareForIndicesMigration(clusterService, baseClient, ActionListener.wrap(newMetadata -> {
+                currentFeatureCallbackMetadata.set(newMetadata);
+                updateTaskState(migrationInfo, listener, newMetadata);
+            }, this::markAsFailed));
         } else {
             // Otherwise, just re-use what we already have.
-            updatedTaskStateFeatureMetadata.set(currentFeatureCallbackMetadata.get());
+            updateTaskState(migrationInfo, listener, currentFeatureCallbackMetadata.get());
         }
+    }
+
+    private void updateTaskState(SystemIndexMigrationInfo migrationInfo, Consumer<ClusterState> listener, Map<String, Object> metadata) {
         final SystemIndexMigrationTaskState newTaskState = new SystemIndexMigrationTaskState(
             migrationInfo.getCurrentIndexName(),
             migrationInfo.getFeatureName(),
-            updatedTaskStateFeatureMetadata.get()
+            metadata
         );
         logger.debug("updating task state to [{}]", Strings.toString(newTaskState));
-        currentFeatureCallbackMetadata.set(updatedTaskStateFeatureMetadata.get());
+        currentFeatureCallbackMetadata.set(metadata);
         updatePersistentTaskState(newTaskState, ActionListener.wrap(task -> {
             assert newTaskState.equals(task.getState()) : "task state returned by update method did not match submitted task state";
             logger.debug("new task state [{}] accepted", Strings.toString(newTaskState));
-            listener.accept(clusterState);
+            listener.accept(clusterService.state());
         }, this::markAsFailed));
     }
 

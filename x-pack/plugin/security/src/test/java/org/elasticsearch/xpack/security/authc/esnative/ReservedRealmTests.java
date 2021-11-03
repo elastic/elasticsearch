@@ -54,15 +54,14 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -136,7 +135,7 @@ public class ReservedRealmTests extends ESTestCase {
             threadPool
         );
 
-        PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> listener = new PlainActionFuture<>();
 
         reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, EMPTY_PASSWORD), listener);
         assertFailedAuthentication(listener, principal);
@@ -171,12 +170,12 @@ public class ReservedRealmTests extends ESTestCase {
         final User expected = randomReservedUser(true);
         final String principal = expected.principal();
 
-        PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> listener = new PlainActionFuture<>();
         reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, EMPTY_PASSWORD), listener);
-        final AuthenticationResult result = listener.actionGet();
+        final AuthenticationResult<User> result = listener.actionGet();
         assertThat(result.getStatus(), is(AuthenticationResult.Status.CONTINUE));
-        assertNull(result.getUser());
-        verifyZeroInteractions(usersStore);
+        assertNull(result.getValue());
+        verifyNoMoreInteractions(usersStore);
     }
 
     public void testAuthenticationEnabledUserWithStoredPassword() throws Throwable {
@@ -203,7 +202,7 @@ public class ReservedRealmTests extends ESTestCase {
         doAnswer(getAnswer(enabled, newPassword, hasher)).when(usersStore).getReservedUserInfo(eq(principal), anyActionListener());
 
         // test empty password
-        final PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
+        final PlainActionFuture<AuthenticationResult<User>> listener = new PlainActionFuture<>();
         reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, EMPTY_PASSWORD), listener);
         assertFailedAuthentication(listener, expectedUser.principal());
 
@@ -211,9 +210,9 @@ public class ReservedRealmTests extends ESTestCase {
         doAnswer(getAnswer(true, newPassword, hasher)).when(usersStore).getReservedUserInfo(eq(principal), anyActionListener());
 
         // test new password
-        final PlainActionFuture<AuthenticationResult> authListener = new PlainActionFuture<>();
+        final PlainActionFuture<AuthenticationResult<User>> authListener = new PlainActionFuture<>();
         reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, newPassword), authListener);
-        final User authenticated = authListener.actionGet().getUser();
+        final User authenticated = authListener.actionGet().getValue();
         assertEquals(expectedUser, authenticated);
         assertThat(expectedUser.enabled(), is(enabled));
 
@@ -309,7 +308,7 @@ public class ReservedRealmTests extends ESTestCase {
         reservedRealm.doLookupUser(principal, assertListenerIsOnlyCalledOnce(listener));
         final User user = listener.actionGet();
         assertNull(user);
-        verifyZeroInteractions(usersStore);
+        verifyNoMoreInteractions(usersStore);
     }
 
     public void testLookupDisabledAnonymous() throws Exception {
@@ -345,7 +344,7 @@ public class ReservedRealmTests extends ESTestCase {
         PlainActionFuture<User> listener = new PlainActionFuture<>();
         reservedRealm.doLookupUser(principal, assertListenerIsOnlyCalledOnce(listener));
         assertThat(listener.actionGet(), equalTo(expectedUser));
-        verifyZeroInteractions(usersStore);
+        verifyNoMoreInteractions(usersStore);
     }
 
     public void testLookupThrows() throws Exception {
@@ -483,9 +482,9 @@ public class ReservedRealmTests extends ESTestCase {
         );
 
         if (randomBoolean()) {
-            PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+            PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
             reservedRealm.authenticate(new UsernamePasswordToken(principal, password), future);
-            User user = future.actionGet().getUser();
+            User user = future.actionGet().getValue();
             assertEquals(reservedUser, user);
             if (new KibanaUser(enabled).equals(reservedUser)) {
                 assertWarnings(
@@ -495,7 +494,7 @@ public class ReservedRealmTests extends ESTestCase {
             }
         }
 
-        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         reservedRealm.authenticate(
             new UsernamePasswordToken(principal, new SecureString("foobar longer than 14 chars because of FIPS".toCharArray())),
             future
@@ -503,8 +502,8 @@ public class ReservedRealmTests extends ESTestCase {
         assertFailedAuthentication(future, principal);
     }
 
-    private void assertFailedAuthentication(PlainActionFuture<AuthenticationResult> future, String principal) throws Exception {
-        final AuthenticationResult result = future.get();
+    private void assertFailedAuthentication(PlainActionFuture<AuthenticationResult<User>> future, String principal) throws Exception {
+        final AuthenticationResult<User> result = future.get();
         assertThat(result.getStatus(), is(AuthenticationResult.Status.TERMINATE));
         assertThat(result.getMessage(), containsString("failed to authenticate"));
         assertThat(result.getMessage(), containsString(principal));
@@ -531,13 +530,13 @@ public class ReservedRealmTests extends ESTestCase {
             new AnonymousUser(Settings.EMPTY),
             threadPool
         );
-        PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> listener = new PlainActionFuture<>();
 
         reservedRealm.doAuthenticate(
             new UsernamePasswordToken(new ElasticUser(true).principal(), mockSecureSettings.getString("bootstrap.password")),
             listener
         );
-        AuthenticationResult result = listener.get();
+        AuthenticationResult<User> result = listener.get();
         assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
 
         // add auto configured password which should be ignored because the bootstrap password has priority
@@ -590,7 +589,7 @@ public class ReservedRealmTests extends ESTestCase {
             new AnonymousUser(Settings.EMPTY),
             threadPool
         );
-        PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> listener = new PlainActionFuture<>();
 
         doAnswer((i) -> {
             @SuppressWarnings("unchecked")
@@ -612,7 +611,7 @@ public class ReservedRealmTests extends ESTestCase {
             ),
             listener
         );
-        AuthenticationResult result = listener.get();
+        AuthenticationResult<User> result = listener.get();
         assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
         verify(usersStore).getReservedUserInfo(eq("elastic"), anyActionListener());
         ArgumentCaptor<char[]> userHashCaptor = ArgumentCaptor.forClass(char[].class);
@@ -645,7 +644,7 @@ public class ReservedRealmTests extends ESTestCase {
             new AnonymousUser(Settings.EMPTY),
             threadPool
         );
-        PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> listener = new PlainActionFuture<>();
 
         doAnswer((i) -> {
             @SuppressWarnings("unchecked")
@@ -698,7 +697,7 @@ public class ReservedRealmTests extends ESTestCase {
             new AnonymousUser(Settings.EMPTY),
             threadPool
         );
-        PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> listener = new PlainActionFuture<>();
         SecureString password = new SecureString("password".toCharArray());
         // Mocked users store is initiated with default hashing algorithm
         final Hasher hasher = Hasher.resolve("bcrypt");
@@ -727,7 +726,7 @@ public class ReservedRealmTests extends ESTestCase {
         // now try with the real password
         listener = new PlainActionFuture<>();
         reservedRealm.doAuthenticate(new UsernamePasswordToken(new ElasticUser(true).principal(), password), listener);
-        final AuthenticationResult result = listener.get();
+        final AuthenticationResult<User> result = listener.get();
         assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
     }
 
@@ -750,7 +749,7 @@ public class ReservedRealmTests extends ESTestCase {
             new AnonymousUser(Settings.EMPTY),
             threadPool
         );
-        PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> listener = new PlainActionFuture<>();
         // Mocked users store is initiated with default hashing algorithm
         final Hasher hasher = Hasher.resolve("bcrypt");
         doAnswer(getAnswer(true, new SecureString("password longer than 14 chars because of FIPS".toCharArray()), hasher)).when(usersStore)
@@ -762,7 +761,7 @@ public class ReservedRealmTests extends ESTestCase {
             ),
             listener
         );
-        final AuthenticationResult result = listener.get();
+        final AuthenticationResult<User> result = listener.get();
         assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
         // but auto config password does not work
         listener = new PlainActionFuture<>();
@@ -801,7 +800,7 @@ public class ReservedRealmTests extends ESTestCase {
             new AnonymousUser(Settings.EMPTY),
             threadPool
         );
-        PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> listener = new PlainActionFuture<>();
 
         final String principal = randomFrom(
             KibanaUser.NAME,
@@ -817,7 +816,7 @@ public class ReservedRealmTests extends ESTestCase {
             return null;
         }).when(usersStore).getReservedUserInfo(eq(principal), anyActionListener());
         reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, mockSecureSettings.getString("bootstrap.password")), listener);
-        final AuthenticationResult result = listener.get();
+        final AuthenticationResult<User> result = listener.get();
         assertThat(result.getStatus(), is(AuthenticationResult.Status.TERMINATE));
     }
 
@@ -837,7 +836,7 @@ public class ReservedRealmTests extends ESTestCase {
             new AnonymousUser(Settings.EMPTY),
             threadPool
         );
-        PlainActionFuture<AuthenticationResult> listener = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> listener = new PlainActionFuture<>();
 
         final String principal = randomFrom(
             KibanaUser.NAME,

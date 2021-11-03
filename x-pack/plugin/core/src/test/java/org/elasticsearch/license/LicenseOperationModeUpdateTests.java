@@ -14,12 +14,12 @@ import org.junit.Before;
 import java.nio.file.Path;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class LicenseOperationModeUpdateTests extends ESTestCase {
 
@@ -53,7 +53,7 @@ public class LicenseOperationModeUpdateTests extends ESTestCase {
         assertThat(license.operationMode(), equalTo(License.OperationMode.resolve(type)));
         OperationModeFileWatcherTests.writeMode("gold", licenseModeFile);
         license.setOperationModeFileWatcher(operationModeFileWatcher);
-        verifyZeroInteractions(resourceWatcherService);
+        verifyNoMoreInteractions(resourceWatcherService);
         assertThat(license.operationMode(), equalTo(License.OperationMode.resolve(type)));
     }
 

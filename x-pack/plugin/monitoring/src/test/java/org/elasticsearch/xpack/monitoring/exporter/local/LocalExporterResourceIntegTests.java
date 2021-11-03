@@ -93,6 +93,7 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
         Settings exporterSettings = Settings.builder()
             .put(localExporterSettings())
             .put("xpack.monitoring.migration.decommission_alerts", true)
+            .put("xpack.monitoring.exporters.decommission_local.cluster_alerts.management.enabled", true)
             .build();
 
         createResources("decommission_local", exporterSettings);

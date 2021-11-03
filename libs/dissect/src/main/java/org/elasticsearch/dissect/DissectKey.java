@@ -98,7 +98,7 @@ public final class DissectKey {
     /**
      * Copy constructor to explicitly override the modifier.
      * @param key The key to copy (except for the modifier)
-     * @param modifier the modifer to use for this copy
+     * @param modifier the modifier to use for this copy
      */
     DissectKey(DissectKey key, DissectKey.Modifier modifier) {
         this.modifier = modifier;

@@ -90,7 +90,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -198,7 +198,7 @@ public class SamlRealmTests extends SamlTestCase {
         final boolean principalIsEmailAddress = randomBoolean();
         final Boolean populateUserMetadata = randomFrom(Boolean.TRUE, Boolean.FALSE, null);
         final String authenticatingRealm = randomBoolean() ? REALM_NAME : null;
-        AuthenticationResult result = performAuthentication(
+        AuthenticationResult<User> result = performAuthentication(
             roleMapper,
             useNameId,
             principalIsEmailAddress,
@@ -208,18 +208,18 @@ public class SamlRealmTests extends SamlTestCase {
         );
         assertThat(result, notNullValue());
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
-        assertThat(result.getUser().principal(), equalTo(useNameId ? "clint.barton" : "cbarton"));
-        assertThat(result.getUser().email(), equalTo("cbarton@shield.gov"));
-        assertThat(result.getUser().roles(), arrayContainingInAnyOrder("superuser"));
+        assertThat(result.getValue().principal(), equalTo(useNameId ? "clint.barton" : "cbarton"));
+        assertThat(result.getValue().email(), equalTo("cbarton@shield.gov"));
+        assertThat(result.getValue().roles(), arrayContainingInAnyOrder("superuser"));
         if (populateUserMetadata == Boolean.FALSE) {
             // TODO : "saml_nameid" should be null too, but the logout code requires it for now.
-            assertThat(result.getUser().metadata().get("saml_uid"), nullValue());
+            assertThat(result.getValue().metadata().get("saml_uid"), nullValue());
         } else {
             final String nameIdValue = principalIsEmailAddress ? "clint.barton@shield.gov" : "clint.barton";
             final String uidValue = principalIsEmailAddress ? "cbarton@shield.gov" : "cbarton";
-            assertThat(result.getUser().metadata().get("saml_nameid"), equalTo(nameIdValue));
-            assertThat(result.getUser().metadata().get("saml_uid"), instanceOf(Iterable.class));
-            assertThat((Iterable<?>) result.getUser().metadata().get("saml_uid"), contains(uidValue));
+            assertThat(result.getValue().metadata().get("saml_nameid"), equalTo(nameIdValue));
+            assertThat(result.getValue().metadata().get("saml_uid"), instanceOf(Iterable.class));
+            assertThat((Iterable<?>) result.getValue().metadata().get("saml_uid"), contains(uidValue));
         }
 
         assertThat(userData.get().getUsername(), equalTo(useNameId ? "clint.barton" : "cbarton"));
@@ -239,7 +239,7 @@ public class SamlRealmTests extends SamlTestCase {
         final boolean useNameId = randomBoolean();
         final boolean principalIsEmailAddress = randomBoolean();
         final String authenticatingRealm = randomBoolean() ? REALM_NAME : null;
-        AuthenticationResult result = performAuthentication(
+        AuthenticationResult<User> result = performAuthentication(
             roleMapper,
             useNameId,
             principalIsEmailAddress,
@@ -249,16 +249,16 @@ public class SamlRealmTests extends SamlTestCase {
         );
         assertThat(result, notNullValue());
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
-        assertThat(result.getUser().principal(), equalTo(useNameId ? "clint.barton" : "cbarton"));
-        assertThat(result.getUser().email(), equalTo("cbarton@shield.gov"));
-        assertThat(result.getUser().roles(), arrayContainingInAnyOrder("lookup_user_role"));
-        assertThat(result.getUser().fullName(), equalTo("Clinton Barton"));
-        assertThat(result.getUser().metadata().entrySet(), Matchers.iterableWithSize(1));
-        assertThat(result.getUser().metadata().get("is_lookup"), Matchers.equalTo(true));
+        assertThat(result.getValue().principal(), equalTo(useNameId ? "clint.barton" : "cbarton"));
+        assertThat(result.getValue().email(), equalTo("cbarton@shield.gov"));
+        assertThat(result.getValue().roles(), arrayContainingInAnyOrder("lookup_user_role"));
+        assertThat(result.getValue().fullName(), equalTo("Clinton Barton"));
+        assertThat(result.getValue().metadata().entrySet(), Matchers.iterableWithSize(1));
+        assertThat(result.getValue().metadata().get("is_lookup"), Matchers.equalTo(true));
     }
 
     public void testAuthenticateWithWrongRealmName() throws Exception {
-        AuthenticationResult result = performAuthentication(
+        AuthenticationResult<User> result = performAuthentication(
             mock(UserRoleMapper.class),
             randomBoolean(),
             randomBoolean(),
@@ -270,7 +270,7 @@ public class SamlRealmTests extends SamlTestCase {
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.CONTINUE));
     }
 
-    private AuthenticationResult performAuthentication(
+    private AuthenticationResult<User> performAuthentication(
         UserRoleMapper roleMapper,
         boolean useNameId,
         boolean principalIsEmailAddress,
@@ -349,7 +349,7 @@ public class SamlRealmTests extends SamlTestCase {
         );
         when(authenticator.authenticate(token)).thenReturn(attributes);
 
-        final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         realm.authenticate(token, future);
         return future.get();
     }
@@ -474,9 +474,9 @@ public class SamlRealmTests extends SamlTestCase {
             );
             when(authenticator.authenticate(token)).thenReturn(attributes);
 
-            final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+            final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
             realm.authenticate(token, future);
-            final AuthenticationResult result = future.actionGet();
+            final AuthenticationResult<User> result = future.actionGet();
             assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.CONTINUE));
             assertThat(result.getMessage(), containsString("attributes.principal"));
             assertThat(result.getMessage(), containsString("mail"));

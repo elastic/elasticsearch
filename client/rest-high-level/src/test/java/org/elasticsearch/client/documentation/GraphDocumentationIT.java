@@ -26,6 +26,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Collection;
 
+@SuppressWarnings("removal")
 public class GraphDocumentationIT extends ESRestHighLevelClientTestCase {
 
     @Before

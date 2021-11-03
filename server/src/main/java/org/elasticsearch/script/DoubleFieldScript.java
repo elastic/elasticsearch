@@ -22,12 +22,12 @@ public abstract class DoubleFieldScript extends AbstractFieldScript {
     public static final Factory PARSE_FROM_SOURCE = new Factory() {
         @Override
         public LeafFactory newFactory(String field, Map<String, Object> params, SearchLookup lookup) {
-           return ctx -> new DoubleFieldScript(field, params, lookup, ctx) {
-               @Override
-               public void execute() {
-                   emitFromSource();
-               }
-           };
+            return ctx -> new DoubleFieldScript(field, params, lookup, ctx) {
+                @Override
+                public void execute() {
+                    emitFromSource();
+                }
+            };
         }
 
         @Override

@@ -52,6 +52,7 @@ import static org.junit.Assert.assertThat;
  *
  * While the loader could be made generic, the queries are bound to each index and generalizing that would make things way too complicated.
  */
+@SuppressWarnings("removal")
 public class DataLoader {
     public static final String TEST_INDEX = "endgame-140";
     public static final String TEST_EXTRA_INDEX = "extra";

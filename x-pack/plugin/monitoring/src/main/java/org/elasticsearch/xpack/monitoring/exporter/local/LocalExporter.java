@@ -416,7 +416,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
             }
         } else {
             logger.trace(
-                "watches can't be used, because xpack.watcher.enabled=[{}] and "
+                "watches will not be installed because xpack.watcher.enabled=[{}] and "
                     + "xpack.monitoring.exporters._local.cluster_alerts.management.enabled=[{}]",
                 XPackSettings.WATCHER_ENABLED.get(config.settings()),
                 CLUSTER_ALERTS_MANAGEMENT_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings())

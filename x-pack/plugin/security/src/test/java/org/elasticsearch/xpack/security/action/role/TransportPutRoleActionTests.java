@@ -43,13 +43,13 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class TransportPutRoleActionTests extends ESTestCase {
 
@@ -120,7 +120,7 @@ public class TransportPutRoleActionTests extends ESTestCase {
         assertThat(responseRef.get(), is(nullValue()));
         assertThat(throwableRef.get(), is(instanceOf(IllegalArgumentException.class)));
         assertThat(throwableRef.get().getMessage(), containsString("is reserved and cannot be modified"));
-        verifyZeroInteractions(rolesStore);
+        verifyNoMoreInteractions(rolesStore);
     }
 
     public void testValidRole() {

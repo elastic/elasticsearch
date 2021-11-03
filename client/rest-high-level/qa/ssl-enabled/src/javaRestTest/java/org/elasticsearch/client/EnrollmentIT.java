@@ -79,6 +79,7 @@ public class EnrollmentIT extends ESRestHighLevelClientTestCase {
         assertThat(nodeEnrollmentResponse, notNullValue());
         assertThat(nodeEnrollmentResponse.getHttpCaKey(), endsWith("K2S3vidA="));
         assertThat(nodeEnrollmentResponse.getHttpCaCert(), endsWith("LfkRjirc="));
+        assertThat(nodeEnrollmentResponse.getTransportCaCert(), endsWith("3J9+kpgIbE"));
         assertThat(nodeEnrollmentResponse.getTransportKey(), endsWith("1I+r8vOQ=="));
         assertThat(nodeEnrollmentResponse.getTransportCert(), endsWith("OpTdtgJo="));
         List<String> nodesAddresses = nodeEnrollmentResponse.getNodesAddresses();

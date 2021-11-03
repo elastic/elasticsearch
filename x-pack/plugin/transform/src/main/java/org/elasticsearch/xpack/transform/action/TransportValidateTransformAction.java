@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.transform.action;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -15,6 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.IngestService;
@@ -23,6 +25,7 @@ import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
+import org.elasticsearch.xpack.core.transform.TransformDeprecations;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction.Request;
@@ -53,29 +56,7 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
         Settings settings,
         IngestService ingestService
     ) {
-        this(
-            ValidateTransformAction.NAME,
-            transportService,
-            actionFilters,
-            client,
-            indexNameExpressionResolver,
-            clusterService,
-            settings,
-            ingestService
-        );
-    }
-
-    protected TransportValidateTransformAction(
-        String name,
-        TransportService transportService,
-        ActionFilters actionFilters,
-        Client client,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        ClusterService clusterService,
-        Settings settings,
-        IngestService ingestService
-    ) {
-        super(name, transportService, actionFilters, Request::new);
+        super(ValidateTransformAction.NAME, transportService, actionFilters, Request::new);
         this.client = client;
         this.clusterService = clusterService;
         this.transportService = transportService;
@@ -85,7 +66,7 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             transportService.getRemoteClusterService(),
             DiscoveryNode.isRemoteClusterClient(settings)
                 /* transforms are BASIC so always allowed, no need to check license */
-                ? new RemoteClusterLicenseChecker(client, mode -> true)
+                ? new RemoteClusterLicenseChecker(client, null)
                 : null,
             ingestService,
             clusterService.getNodeName(),
@@ -117,6 +98,20 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
 
         final TransformConfig config = request.getConfig();
         final Function function = FunctionFactory.create(config);
+
+        if (config.getVersion() == null || config.getVersion().before(TransformDeprecations.MIN_TRANSFORM_VERSION)) {
+            listener.onFailure(
+                new ValidationException().addValidationError(
+                    new ParameterizedMessage(
+                        "Transform configuration is too old [{}], use the upgrade API to fix your transform. "
+                            + "Minimum required version is [{}]",
+                        config.getVersion(),
+                        TransformDeprecations.MIN_TRANSFORM_VERSION
+                    ).getFormattedMessage()
+                )
+            );
+            return;
+        }
 
         // <5> Final listener
         ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(

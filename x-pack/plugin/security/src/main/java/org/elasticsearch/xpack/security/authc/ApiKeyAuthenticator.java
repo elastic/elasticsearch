@@ -40,17 +40,17 @@ class ApiKeyAuthenticator implements Authenticator {
     }
 
     @Override
-    public void authenticate(Context context, ActionListener<Result> listener) {
+    public void authenticate(Context context, ActionListener<AuthenticationResult<Authentication>> listener) {
         final AuthenticationToken authenticationToken = context.getMostRecentAuthenticationToken();
         if (false == authenticationToken instanceof ApiKeyCredentials) {
-            listener.onResponse(Authenticator.Result.notHandled());
+            listener.onResponse(AuthenticationResult.notHandled());
             return;
         }
         ApiKeyCredentials apiKeyCredentials = (ApiKeyCredentials) authenticationToken;
         apiKeyService.tryAuthenticate(context.getThreadContext(), apiKeyCredentials, ActionListener.wrap(authResult -> {
             if (authResult.isAuthenticated()) {
                 final Authentication authentication = apiKeyService.createApiKeyAuthentication(authResult, nodeName);
-                listener.onResponse(Authenticator.Result.success(authentication));
+                listener.onResponse(AuthenticationResult.success(authentication));
             } else if (authResult.getStatus() == AuthenticationResult.Status.TERMINATE) {
                 Exception e = (authResult.getException() != null)
                     ? authResult.getException()
@@ -71,7 +71,7 @@ class ApiKeyAuthenticator implements Authenticator {
                         logger.warn("Authentication using apikey failed - {}", authResult.getMessage());
                     }
                 }
-                listener.onResponse(Authenticator.Result.unsuccessful(authResult.getMessage(), authResult.getException()));
+                listener.onResponse(AuthenticationResult.unsuccessful(authResult.getMessage(), authResult.getException()));
             }
         }, e -> listener.onFailure(context.getRequest().exceptionProcessingRequest(e, null))));
     }

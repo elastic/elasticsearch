@@ -166,7 +166,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
     }
 
     @Override
-    public void authenticate(AuthenticationToken token, ActionListener<AuthenticationResult> listener) {
+    public void authenticate(AuthenticationToken token, ActionListener<AuthenticationResult<User>> listener) {
         if (token instanceof OpenIdConnectToken && isTokenForRealm((OpenIdConnectToken) token)) {
             OpenIdConnectToken oidcToken = (OpenIdConnectToken) token;
             openIdConnectAuthenticator.authenticate(
@@ -190,7 +190,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
         listener.onResponse(null);
     }
 
-    private void buildUserFromClaims(JWTClaimsSet claims, ActionListener<AuthenticationResult> authResultListener) {
+    private void buildUserFromClaims(JWTClaimsSet claims, ActionListener<AuthenticationResult<User>> authResultListener) {
         final String principal = principalAttribute.getClaimValue(claims);
         if (Strings.isNullOrEmpty(principal)) {
             authResultListener.onResponse(
@@ -201,12 +201,12 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
 
         final Map<String, Object> tokenMetadata = new HashMap<>();
         tokenMetadata.put("id_token_hint", claims.getClaim("id_token_hint"));
-        ActionListener<AuthenticationResult> wrappedAuthResultListener = ActionListener.wrap(auth -> {
+        ActionListener<AuthenticationResult<User>> wrappedAuthResultListener = ActionListener.wrap(auth -> {
             if (auth.isAuthenticated()) {
                 // Add the ID Token as metadata on the authentication, so that it can be used for logout requests
                 Map<String, Object> metadata = new HashMap<>(auth.getMetadata());
                 metadata.put(CONTEXT_TOKEN_DATA, tokenMetadata);
-                auth = AuthenticationResult.success(auth.getUser(), metadata);
+                auth = AuthenticationResult.success(auth.getValue(), metadata);
             }
             authResultListener.onResponse(auth);
         }, authResultListener::onFailure);

@@ -10,9 +10,9 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -47,9 +47,9 @@ public class MatchIntervalsSourceProviderTests extends AbstractSerializingTestCa
                 analyzer = analyzer == null ? randomAlphaOfLength(5) : null;
                 break;
             case 4:
-                filter = filter == null ?
-                    IntervalQueryBuilderTests.createRandomNonNullFilter(0, randomBoolean()) :
-                    FilterIntervalsSourceProviderTests.mutateFilter(filter);
+                filter = filter == null
+                    ? IntervalQueryBuilderTests.createRandomNonNullFilter(0, randomBoolean())
+                    : FilterIntervalsSourceProviderTests.mutateFilter(filter);
                 break;
             case 5:
                 useField = useField == null ? randomAlphaOfLength(5) : (useField + "foo");

@@ -12,8 +12,8 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -73,14 +73,11 @@ public class AnnotationIndex {
                 .waitForYellowStatus()
                 .masterNodeTimeout(masterNodeTimeout);
             executeAsyncWithOrigin(
-                client.threadPool().getThreadContext(),
+                client,
                 ML_ORIGIN,
+                ClusterHealthAction.INSTANCE,
                 request,
-                ActionListener.<ClusterHealthResponse>wrap(
-                    r -> finalListener.onResponse(r.isTimedOut() == false),
-                    finalListener::onFailure
-                ),
-                client.admin().cluster()::health
+                ActionListener.wrap(r -> finalListener.onResponse(r.isTimedOut() == false), finalListener::onFailure)
             );
         }, finalListener::onFailure);
 

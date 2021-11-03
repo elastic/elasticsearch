@@ -37,6 +37,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  * Test for the clear roles API
  */
+@SuppressWarnings("removal")
 public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
 
     private static String[] roles;

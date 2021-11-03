@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+@SuppressWarnings("removal")
 public class TextStructureClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testFindStructure() throws Exception {

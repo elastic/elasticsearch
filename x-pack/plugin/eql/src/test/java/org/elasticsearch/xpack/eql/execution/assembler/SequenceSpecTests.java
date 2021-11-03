@@ -44,6 +44,7 @@ import java.util.Map.Entry;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -122,7 +123,8 @@ public class SequenceSpecTests extends ESTestCase {
                         // pass the ordinal through terminate after
                         .terminateAfter(ordinal),
                     "timestamp",
-                    emptyList()
+                    emptyList(),
+                    emptySet()
                 ),
                 keyExtractors,
                 tsExtractor,

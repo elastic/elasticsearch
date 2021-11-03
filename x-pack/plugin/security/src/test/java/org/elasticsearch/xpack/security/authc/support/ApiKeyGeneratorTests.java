@@ -27,9 +27,9 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anySetOf;
-import static org.mockito.Matchers.same;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anySet;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
@@ -62,7 +62,7 @@ public class ApiKeyGeneratorTests extends ESTestCase {
             ActionListener<Set<RoleDescriptor>> listener = (ActionListener<Set<RoleDescriptor>>) args[args.length - 1];
             listener.onResponse(roleDescriptors);
             return null;
-        }).when(rolesStore).getRoleDescriptors(anySetOf(String.class), any(ActionListener.class));
+        }).when(rolesStore).getRoleDescriptors(anySet(), any(ActionListener.class));
 
         CreateApiKeyResponse response = new CreateApiKeyResponse(
             "name",
@@ -82,7 +82,7 @@ public class ApiKeyGeneratorTests extends ESTestCase {
             listener.onResponse(response);
 
             return null;
-        }).when(apiKeyService).createApiKey(same(authentication), same(request), anySetOf(RoleDescriptor.class), any(ActionListener.class));
+        }).when(apiKeyService).createApiKey(same(authentication), same(request), anySet(), any(ActionListener.class));
 
         final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
         generator.generateApiKey(authentication, request, future);

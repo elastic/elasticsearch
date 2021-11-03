@@ -32,10 +32,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class TextTemplateTests extends ESTestCase {
@@ -144,7 +144,7 @@ public class TextTemplateTests extends ESTestCase {
     private void assertNoCompilation(String input) {
         String output = engine.render(new TextTemplate(input), Collections.emptyMap());
         assertThat(input, is(output));
-        verifyZeroInteractions(service);
+        verifyNoMoreInteractions(service);
     }
 
     private void assertScriptServiceInvoked(final String input) {

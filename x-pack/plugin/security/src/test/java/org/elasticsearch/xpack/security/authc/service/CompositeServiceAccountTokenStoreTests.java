@@ -21,12 +21,12 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class CompositeServiceAccountTokenStoreTests extends ESTestCase {
 
@@ -85,12 +85,12 @@ public class CompositeServiceAccountTokenStoreTests extends ESTestCase {
             assertThat(future.get().getTokenSource(), is(tokenSource));
             if (store1Success) {
                 verify(store1).authenticate(eq(token), any());
-                verifyZeroInteractions(store2);
-                verifyZeroInteractions(store3);
+                verifyNoMoreInteractions(store2);
+                verifyNoMoreInteractions(store3);
             } else if (store2Success) {
                 verify(store1).authenticate(eq(token), any());
                 verify(store2).authenticate(eq(token), any());
-                verifyZeroInteractions(store3);
+                verifyNoMoreInteractions(store3);
             } else {
                 verify(store1).authenticate(eq(token), any());
                 verify(store2).authenticate(eq(token), any());

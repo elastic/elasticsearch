@@ -31,13 +31,12 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.whenPerformRequestAsyncWith;
 import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.wrapMockListener;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -156,7 +155,7 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         verify(logger).trace("checking if {} [{}] exists on the [{}] {}", resourceType, resourceName, owner, ownerType);
         verify(logger).debug("{} [{}] found on the [{}] {}", resourceType, resourceName, owner, ownerType);
         verify(client).performRequestAsync(eq(request), any(ResponseListener.class));
-        verify(logger, times(2)).error(any(org.apache.logging.log4j.util.Supplier.class), any(ResponseException.class));
+        verify(logger, times(2)).error(any(org.apache.logging.log4j.util.Supplier.class), any(Exception.class));
 
         verifyNoMoreInteractions(client, logger);
     }
@@ -509,12 +508,12 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
 
         if (expected == Boolean.TRUE) {
             verify(responseChecker).apply(response);
-            verifyZeroInteractions(dneResponseChecker);
+            verifyNoMoreInteractions(dneResponseChecker);
         } else if (expected == Boolean.FALSE) {
-            verifyZeroInteractions(responseChecker);
+            verifyNoMoreInteractions(responseChecker);
             verify(dneResponseChecker).apply(response);
         } else {
-            verifyZeroInteractions(responseChecker, dneResponseChecker);
+            verifyNoMoreInteractions(responseChecker, dneResponseChecker);
         }
 
         verifyCheckListener(expected);

@@ -62,6 +62,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 
+@SuppressWarnings("removal")
 public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
 
     public static final String IGNORE_THROTTLED_DEPRECATION_WARNING = "[ignore_throttled] parameter is deprecated because frozen "
@@ -350,7 +351,8 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
             TaskGroup taskGroup = taskGroups.get(0);
             assertThat(taskGroup.getChildTasks(), empty());
             // check that the task initialized enough that it can rethrottle too.
-            if (((RawTaskStatus) taskGroup.getTaskInfo().getStatus()).toMap().containsKey("batches")) {
+            Map<String, Object> statusMap = ((RawTaskStatus) taskGroup.getTaskInfo().getStatus()).toMap();
+            if (statusMap.get("batches").equals(1)) {
                 return taskGroup.getTaskInfo().getTaskId();
             }
         } while (System.nanoTime() - start < TimeUnit.SECONDS.toNanos(10));

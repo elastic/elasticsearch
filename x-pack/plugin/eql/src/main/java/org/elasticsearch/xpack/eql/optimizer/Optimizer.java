@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.eql.optimizer;
 
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
+import org.elasticsearch.xpack.eql.expression.OptionalResolvedAttribute;
 import org.elasticsearch.xpack.eql.expression.function.scalar.string.ToString;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveBinaryComparison;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveEquals;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.eql.session.Payload.Type;
 import org.elasticsearch.xpack.eql.util.MathUtils;
 import org.elasticsearch.xpack.eql.util.StringUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
@@ -29,6 +31,7 @@ import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
@@ -58,8 +61,10 @@ import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
@@ -78,7 +83,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             new ReplaceWildcards(),
             new ReplaceSurrogateFunction(),
             new ReplaceRegexMatch(),
-            new ReplaceNullChecks()
+            new ReplaceNullChecks(),
+            new AddMandatoryJoinKeyFilter()
         );
 
         Batch operators = new Batch(
@@ -185,6 +191,43 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return regexMatch.caseInsensitive()
                 ? new InsensitiveEquals(regexMatch.source(), regexMatch.field(), literal, null)
                 : new Equals(regexMatch.source(), regexMatch.field(), literal);
+        }
+    }
+
+    /**
+     * Mandatory/non-optional join key require the field key to be non null.
+     * Add the constraint manually to each query - this helps simplifying as well
+     * as propagating the constraint.
+     */
+    static class AddMandatoryJoinKeyFilter extends OptimizerRule<Join> {
+        @Override
+        protected LogicalPlan rule(Join join) {
+            // collect all mandatory keys and add them as a filter
+            boolean changed = false;
+            List<KeyedFilter> filters = new ArrayList<>(join.queries());
+            for (int i = 0; i < filters.size(); i++) {
+                Set<NamedExpression> mandatoryKeys = new LinkedHashSet<>();
+
+                KeyedFilter k = filters.get(i);
+                for (NamedExpression key : k.keys()) {
+                    // ignore optional fields (to allow null values)
+                    if (key instanceof FieldAttribute && key instanceof OptionalResolvedAttribute == false) {
+                        mandatoryKeys.add(key);
+                    }
+                }
+                if (mandatoryKeys.size() > 0) {
+                    changed = true;
+                    Expression constraint = Predicates.combineAnd(
+                        mandatoryKeys.stream().map(m -> new IsNotNull(m.source(), m)).collect(toList())
+                    );
+                    Filter joinKeyNotNull = new Filter(join.source(), k.child(), constraint);
+                    filters.set(i, new KeyedFilter(k.source(), joinKeyNotNull, k.keys(), k.timestamp(), k.timestamp()));
+                }
+            }
+            if (changed) {
+                join = join.with(filters, join.until(), join.direction());
+            }
+            return join;
         }
     }
 

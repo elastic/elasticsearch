@@ -137,7 +137,9 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                         );
                         // Add each failed shard's exception as suppressed, the exception contains
                         // information about which shard failed
-                        snapInfo.shardFailures().forEach(failure -> e.addSuppressed(failure.getCause()));
+                        // TODO: this seems wrong, investigate whether we actually need all the shard level exception here given that we
+                        // could be dealing with tens of thousands of them at a time
+                        snapInfo.shardFailures().forEach(e::addSuppressed);
                         // Call the failure handler to register this as a failure and persist it
                         onFailure(e);
                     }

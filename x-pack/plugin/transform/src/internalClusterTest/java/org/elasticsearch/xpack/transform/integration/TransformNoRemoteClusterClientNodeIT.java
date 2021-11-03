@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform.integration;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.NodeRoleSettings;
@@ -40,7 +41,7 @@ public class TransformNoRemoteClusterClientNodeIT extends TransformSingleNodeTes
     public void testPreviewTransformWithRemoteIndex() {
         String transformId = "transform-with-remote-index";
         TransformConfig config = randomConfig(transformId, "remote_cluster:my-index");
-        PreviewTransformAction.Request request = new PreviewTransformAction.Request(config);
+        PreviewTransformAction.Request request = new PreviewTransformAction.Request(config, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
         ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
             () -> client().execute(PreviewTransformAction.INSTANCE, request).actionGet()
@@ -57,14 +58,14 @@ public class TransformNoRemoteClusterClientNodeIT extends TransformSingleNodeTes
     public void testPutTransformWithRemoteIndex_DeferValidation() {
         String transformId = "transform-with-remote-index";
         TransformConfig config = randomConfig(transformId, "remote_cluster:my-index");
-        PutTransformAction.Request request = new PutTransformAction.Request(config, true);
+        PutTransformAction.Request request = new PutTransformAction.Request(config, true, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
         client().execute(PutTransformAction.INSTANCE, request).actionGet();
     }
 
     public void testPutTransformWithRemoteIndex_NoDeferValidation() {
         String transformId = "transform-with-remote-index";
         TransformConfig config = randomConfig(transformId, "remote_cluster:my-index");
-        PutTransformAction.Request request = new PutTransformAction.Request(config, false);
+        PutTransformAction.Request request = new PutTransformAction.Request(config, false, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
         ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
             () -> client().execute(PutTransformAction.INSTANCE, request).actionGet()
@@ -82,7 +83,7 @@ public class TransformNoRemoteClusterClientNodeIT extends TransformSingleNodeTes
         String transformId = "transform-with-local-index";
         {
             TransformConfig config = randomConfig(transformId, "my-index");
-            PutTransformAction.Request request = new PutTransformAction.Request(config, true);
+            PutTransformAction.Request request = new PutTransformAction.Request(config, true, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
             AcknowledgedResponse response = client().execute(PutTransformAction.INSTANCE, request).actionGet();
             assertThat(response.isAcknowledged(), is(true));
         }
@@ -97,7 +98,12 @@ public class TransformNoRemoteClusterClientNodeIT extends TransformSingleNodeTes
             null,
             null
         );
-        UpdateTransformAction.Request request = new UpdateTransformAction.Request(update, transformId, true);
+        UpdateTransformAction.Request request = new UpdateTransformAction.Request(
+            update,
+            transformId,
+            true,
+            AcknowledgedRequest.DEFAULT_ACK_TIMEOUT
+        );
         client().execute(UpdateTransformAction.INSTANCE, request).actionGet();
     }
 
@@ -105,7 +111,7 @@ public class TransformNoRemoteClusterClientNodeIT extends TransformSingleNodeTes
         String transformId = "transform-with-local-index";
         {
             TransformConfig config = randomConfig(transformId, "my-index");
-            PutTransformAction.Request request = new PutTransformAction.Request(config, true);
+            PutTransformAction.Request request = new PutTransformAction.Request(config, true, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
             AcknowledgedResponse response = client().execute(PutTransformAction.INSTANCE, request).actionGet();
             assertThat(response.isAcknowledged(), is(true));
         }
@@ -120,7 +126,12 @@ public class TransformNoRemoteClusterClientNodeIT extends TransformSingleNodeTes
             null,
             null
         );
-        UpdateTransformAction.Request request = new UpdateTransformAction.Request(update, transformId, false);
+        UpdateTransformAction.Request request = new UpdateTransformAction.Request(
+            update,
+            transformId,
+            false,
+            AcknowledgedRequest.DEFAULT_ACK_TIMEOUT
+        );
         ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
             () -> client().execute(UpdateTransformAction.INSTANCE, request).actionGet()

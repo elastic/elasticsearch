@@ -36,6 +36,7 @@ import java.util.Collections;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
+@SuppressWarnings("removal")
 public class ReindexWithSecurityIT extends ESRestTestCase {
 
     private static final String USER = "test_admin";

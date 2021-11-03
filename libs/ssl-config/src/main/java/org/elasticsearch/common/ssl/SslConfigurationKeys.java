@@ -103,7 +103,7 @@ public class SslConfigurationKeys {
     public static final String KEYSTORE_TYPE = "keystore.type";
     /**
      * The {@link javax.net.ssl.KeyManagerFactory#getAlgorithm() key management algorithm} to use when
-     * connstructing a Key manager from a {@link #KEYSTORE_PATH keystore}.
+     * constructing a Key manager from a {@link #KEYSTORE_PATH keystore}.
      */
     public static final String KEYSTORE_ALGORITHM = "keystore.algorithm";
     // -- PEM

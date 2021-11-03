@@ -60,6 +60,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 
+@SuppressWarnings("removal")
 public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
     @Override

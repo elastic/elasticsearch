@@ -28,7 +28,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -144,7 +144,8 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
                     return null;
                 }), Collections.emptyMap())
             ),
-            new HashMap<>(ScriptModule.CORE_CONTEXTS)
+            new HashMap<>(ScriptModule.CORE_CONTEXTS),
+            () -> 1L
         );
         factory = new ScriptProcessor.Factory(scriptService);
 

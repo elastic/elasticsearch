@@ -470,6 +470,11 @@ public class MachineLearning extends Plugin
         "model-inference",
         License.OperationMode.PLATINUM
     );
+    public static final LicensedFeature.Persistent ML_PYTORCH_MODEL_INFERENCE_FEATURE = LicensedFeature.persistent(
+        MachineLearningField.ML_FEATURE_FAMILY,
+        "pytorch-model-inference",
+        License.OperationMode.PLATINUM
+    );
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
@@ -784,7 +789,6 @@ public class MachineLearning extends Plugin
         this.datafeedConfigProvider.set(datafeedConfigProvider);
         UpdateJobProcessNotifier notifier = new UpdateJobProcessNotifier(client, clusterService, threadPool);
         JobManager jobManager = new JobManager(
-            environment,
             settings,
             jobResultsProvider,
             jobResultsPersister,
@@ -800,7 +804,6 @@ public class MachineLearning extends Plugin
             datafeedConfigProvider,
             jobConfigProvider,
             xContentRegistry,
-            clusterService,
             settings,
             client
         );

@@ -115,6 +115,7 @@ import static org.hamcrest.Matchers.not;
  * such parameter, hence we want to verify that results are the same in both scenarios.
  */
 @TimeoutSuite(millis = 5 * TimeUnits.MINUTE) // to account for slow as hell VMs
+@SuppressWarnings("removal")
 public class CCSDuelIT extends ESRestTestCase {
 
     private static final String INDEX_NAME = "ccs_duel_index";

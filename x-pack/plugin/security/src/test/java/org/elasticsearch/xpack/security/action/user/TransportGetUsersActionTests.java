@@ -53,12 +53,12 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.AdditionalMatchers.aryEq;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class TransportGetUsersActionTests extends ESTestCase {
@@ -133,7 +133,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
         } else {
             assertThat("expected an empty array but got: " + Arrays.toString(users), users, emptyArray());
         }
-        verifyZeroInteractions(usersStore);
+        verifyNoMoreInteractions(usersStore);
     }
 
     public void testInternalUser() {
@@ -182,7 +182,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
         assertThat(throwableRef.get(), instanceOf(IllegalArgumentException.class));
         assertThat(throwableRef.get().getMessage(), containsString("is internal"));
         assertThat(responseRef.get(), is(nullValue()));
-        verifyZeroInteractions(usersStore);
+        verifyNoMoreInteractions(usersStore);
     }
 
     public void testReservedUsersOnly() {

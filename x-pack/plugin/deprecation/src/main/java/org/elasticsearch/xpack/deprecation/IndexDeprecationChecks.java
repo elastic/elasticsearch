@@ -21,6 +21,8 @@ import org.elasticsearch.index.SearchSlowLog;
 import org.elasticsearch.index.SlowLogLevel;
 import org.elasticsearch.index.engine.frozen.FrozenEngine;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
@@ -367,7 +369,7 @@ public class IndexDeprecationChecks {
                 "Remove the [%s] setting. This setting has had no effect since 6.0.",
                 IndexMetadata.INDEX_DATA_PATH_SETTING.getKey()
             );
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING, message, url, details, false, null);
         }
         return null;
     }
@@ -574,5 +576,27 @@ public class IndexDeprecationChecks {
             }
         }
         return null;
+    }
+
+    static DeprecationIssue checkSettingNoReplacement(IndexMetadata indexMetadata, Setting<?> deprecatedSetting, String url) {
+        return NodeDeprecationChecks.checkSettingNoReplacement(indexMetadata.getSettings(), deprecatedSetting, url);
+    }
+
+    static DeprecationIssue httpContentTypeRequiredSettingCheck(IndexMetadata indexMetadata) {
+        Setting<Boolean> deprecatedSetting = Store.FORCE_RAM_TERM_DICT;
+        String url = "https://ela.st/es-deprecation-7-force-memory-term-dictionary-setting";
+        return checkRemovedSetting(
+            indexMetadata.getSettings(),
+            deprecatedSetting,
+            url,
+            "This setting no longer has any effect.",
+            DeprecationIssue.Level.CRITICAL
+        );
+    }
+
+    static DeprecationIssue mapperDyamicSettingCheck(IndexMetadata indexMetadata) {
+        Setting<Boolean> deprecatedSetting = MapperService.INDEX_MAPPER_DYNAMIC_SETTING;
+        String url = "https://ela.st/es-deprecation-7-mapper-dynamic-setting";
+        return checkSettingNoReplacement(indexMetadata, deprecatedSetting, url);
     }
 }

@@ -444,24 +444,23 @@ public final class DocumentParser {
         }
         if (token == XContentParser.Token.START_OBJECT) {
             // if we are just starting an OBJECT, advance, this is the object we are parsing, we need the name first
-            token = parser.nextToken();
+            parser.nextToken();
         }
 
-        innerParseObject(context, mapper, currentFieldName, token);
+        innerParseObject(context, mapper);
         // restore the enable path flag
         if (mapper.isNested()) {
             nested(context, (NestedObjectMapper) mapper);
         }
     }
 
-    private static void innerParseObject(
-        DocumentParserContext context,
-        ObjectMapper mapper,
-        String currentFieldName,
-        XContentParser.Token token
-    ) throws IOException {
+    private static void innerParseObject(DocumentParserContext context, ObjectMapper mapper) throws IOException {
+
+        XContentParser.Token token = context.parser().currentToken();
+        String currentFieldName = context.parser().currentName();
         assert token == XContentParser.Token.FIELD_NAME || token == XContentParser.Token.END_OBJECT;
         DocumentParserContext originalContext = context;
+
         while (token != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = context.parser().currentName();

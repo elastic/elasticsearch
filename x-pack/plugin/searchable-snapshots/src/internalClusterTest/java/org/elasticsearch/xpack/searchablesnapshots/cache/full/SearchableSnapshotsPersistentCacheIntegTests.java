@@ -34,7 +34,6 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -288,7 +287,7 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
         logger.info("--> verifying persistent caches are empty on nodes... {}", dataNodes);
         try {
             assertBusy(() -> {
-                for (DiscoveryNode node : List.copyOf(dataNodes)) {
+                for (DiscoveryNode node : org.elasticsearch.core.List.copyOf(dataNodes)) {
                     final CacheService cacheService = internalCluster().getInstance(CacheService.class, node.getName());
                     cacheService.synchronizeCache();
                     assertThat(cacheService.getPersistentCache().getNumDocs(), equalTo(0L));

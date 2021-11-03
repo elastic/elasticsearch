@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 
 import java.io.IOException;
@@ -32,6 +33,7 @@ public class FileRealmAuthIT extends SecurityRealmSmokeTestCase {
         assertUsername(authenticate, USERNAME);
         assertRealm(authenticate, "file", "file0");
         assertRoles(authenticate, ROLE_NAME);
+        assertNoApiKeyInfo(authenticate, Authentication.AuthenticationType.REALM);
     }
 
 }

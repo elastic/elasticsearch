@@ -17,6 +17,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.script.field.BinaryDocValuesField;
 import org.elasticsearch.script.field.BooleanDocValuesField;
 
 import java.io.IOException;
@@ -462,7 +463,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public void setNextDocId(int docId) throws IOException {
-            booleanDocValuesField.setNextDocId(docId);
+            throw new UnsupportedOperationException();
         }
 
         public boolean getValue() {
@@ -556,30 +557,33 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
     }
 
-    public static final class BytesRefs extends BinaryScriptDocValues<BytesRef> {
+    public static final class BytesRefs extends ScriptDocValues<BytesRef> {
 
-        public BytesRefs(SortedBinaryDocValues in) {
-            super(in);
+        private final BinaryDocValuesField binaryDocValuesField;
+
+        public BytesRefs(BinaryDocValuesField binaryDocValuesField) {
+            this.binaryDocValuesField = binaryDocValuesField;
+        }
+
+        @Override
+        public void setNextDocId(int docId) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        public BytesRef getValue() {
+            throwIfEmpty();
+            return get(0);
         }
 
         @Override
         public BytesRef get(int index) {
-            if (count == 0) {
-                throw new IllegalStateException(
-                    "A document doesn't have a value for a field! "
-                        + "Use doc[<field>].size()==0 to check if a document is missing a field!"
-                );
-            }
-            /**
-             * We need to make a copy here because {@link BinaryScriptDocValues} might reuse the
-             * returned value and the same instance might be used to
-             * return values from multiple documents.
-             **/
-            return values[index].toBytesRef();
+            throwIfEmpty();
+            return binaryDocValuesField.getInternal(index);
         }
 
-        public BytesRef getValue() {
-            return get(0);
+        @Override
+        public int size() {
+            return binaryDocValuesField.size();
         }
     }
 }

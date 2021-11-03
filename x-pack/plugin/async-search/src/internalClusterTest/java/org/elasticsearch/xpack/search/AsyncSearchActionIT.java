@@ -37,6 +37,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.search.SearchService.MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -446,6 +447,27 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         request.getSearchRequest().allowPartialSearchResults(false);
         request.getSearchRequest()
             .source(new SearchSourceBuilder().query(new ThrowingQueryBuilder(randomLong(), new AlreadyClosedException("boom"), 0)));
+        AsyncSearchResponse response = submitAsyncSearch(request);
+        assertFalse(response.isRunning());
+        assertTrue(response.isPartial());
+        assertThat(response.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
+        assertNotNull(response.getFailure());
+        ensureTaskNotRunning(response.getId());
+    }
+
+    public void testSearchPhaseFailureLeak() throws Exception {
+        SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(indexName);
+        request.setKeepOnCompletion(true);
+        request.setWaitForCompletionTimeout(TimeValue.timeValueMinutes(10));
+        request.getSearchRequest().allowPartialSearchResults(false);
+        request.getSearchRequest()
+            .source(
+                new SearchSourceBuilder().query(
+                    new ThrowingQueryBuilder(randomLong(), new AlreadyClosedException("boom"), between(0, numShards - 1))
+                )
+            );
+        request.getSearchRequest().source().aggregation(terms("f").field("f").size(between(1, 10)));
+
         AsyncSearchResponse response = submitAsyncSearch(request);
         assertFalse(response.isRunning());
         assertTrue(response.isPartial());

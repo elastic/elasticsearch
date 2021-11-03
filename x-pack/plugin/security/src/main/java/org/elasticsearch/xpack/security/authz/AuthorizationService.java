@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AsyncSupplier;
@@ -75,7 +76,6 @@ import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
-import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authz.interceptor.RequestInterceptor;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
@@ -882,19 +882,27 @@ public class AuthorizationService {
             }
         }
 
-        String userText = "user [" + authUser.principal() + "]";
+        String userText = (authentication.isAuthenticatedWithServiceAccount() ? "service account" : "user")
+            + " ["
+            + authUser.principal()
+            + "]";
         // check for run as
         if (authentication.getUser().isRunAs()) {
             userText = userText + " run as [" + authentication.getUser().principal() + "]";
         }
         // check for authentication by API key
         if (AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
-            final String apiKeyId = (String) authentication.getMetadata().get(ApiKeyService.API_KEY_ID_KEY);
+            final String apiKeyId = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
             assert apiKeyId != null : "api key id must be present in the metadata";
             userText = "API key id [" + apiKeyId + "] of " + userText;
-        } else if (false == authentication.isServiceAccount()) {
-            // Don't print roles for API keys because they're not meaningful
-            // Also not printing roles for service accounts since they have no roles
+        }
+
+        // The run-as user is always from a realm. So it must have roles that can be printed.
+        // If the user is not run-as, we cannot print the roles if it's an API key or a service account (both do not have
+        // roles, but privileges)
+        if (authentication.getUser().isRunAs()
+            || (false == authentication.isAuthenticatedWithServiceAccount()
+                && AuthenticationType.API_KEY != authentication.getAuthenticationType())) {
             userText = userText + " with roles [" + Strings.arrayToCommaDelimitedString(authentication.getUser().roles()) + "]";
         }
 

@@ -546,3 +546,25 @@ setup:
                         script:
                             source: "doc['token_count'].value"
     - match: { hits.hits.0.fields.field.0: 5 }
+
+---
+"empty":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          script_fields:
+            field:
+              script:
+                source: "int value = field('dne').get(1); value"
+  - match: { hits.hits.0.fields.field.0: 1}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          script_fields:
+            field:
+              script:
+                source: "int value = field('dne').get(1, 1); value"
+  - match: { hits.hits.0.fields.field.0: 1 }

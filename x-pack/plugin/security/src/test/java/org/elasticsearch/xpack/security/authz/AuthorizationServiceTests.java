@@ -146,6 +146,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
@@ -875,19 +876,37 @@ public class AuthorizationServiceTests extends ESTestCase {
         mockEmptyMetadata();
 
         final User serviceUser = new User(randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8));
+        final User finalUser;
+        final boolean isRunAs = randomBoolean();
+        // If testing run-as, randomize whether the service account actually has the run-as permission
+        // This makes a difference in the auditing logs (runAsDenied vs accessDenied)
+        final boolean canRunAs = isRunAs && randomBoolean();
+        if (isRunAs) {
+            finalUser = new User(new User(randomAlphaOfLengthBetween(3, 8)), serviceUser);
+        } else {
+            finalUser = serviceUser;
+        }
         final Authentication authentication = new Authentication(
-            serviceUser,
+            finalUser,
             new RealmRef("_service_account", "_service_account", randomAlphaOfLengthBetween(3, 8)),
-            null,
+            isRunAs ? new RealmRef(randomAlphaOfLength(8), randomAlphaOfLength(8), randomAlphaOfLength(8)) : null,
             Version.CURRENT,
             Authentication.AuthenticationType.TOKEN,
             Map.of()
         );
         Mockito.reset(rolesStore);
+        final Role role;
+        if (canRunAs) {
+            role = Role.builder(RESTRICTED_INDICES_AUTOMATON, "can_run_as")
+                .runAs(new Privilege(finalUser.principal(), finalUser.principal()))
+                .build();
+        } else {
+            role = Role.EMPTY;
+        }
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             ActionListener<Role> listener = (ActionListener<Role>) invocationOnMock.getArguments()[2];
-            listener.onResponse(Role.EMPTY);
+            listener.onResponse(role);
             return null;
         }).when(rolesStore).getRoles(any(User.class), any(Authentication.class), anyActionListener());
 
@@ -897,10 +916,22 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
         assertThat(
             securityException,
-            throwableWithMessage(containsString("[" + action + "] is unauthorized" + " for user [" + serviceUser.principal() + "],"))
+            throwableWithMessage(
+                containsString("[" + action + "] is unauthorized" + " for " + "service account" + " [" + serviceUser.principal() + "]")
+            )
         );
+        if (isRunAs) {
+            assertThat(securityException, throwableWithMessage(containsString("run as [" + finalUser.principal() + "] with roles [")));
+        }
         assertThat(securityException, throwableWithMessage(containsString("this action is granted by the index privileges [read,all]")));
-        verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(Role.EMPTY.names()));
+        if (isRunAs && false == canRunAs) {
+            verify(auditTrail).runAsDenied(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(role.names()));
+        } else {
+            if (canRunAs) {
+                verify(auditTrail).runAsGranted(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(role.names()));
+            }
+            verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(role.names()));
+        }
         verifyNoMoreInteractions(auditTrail);
     }
 

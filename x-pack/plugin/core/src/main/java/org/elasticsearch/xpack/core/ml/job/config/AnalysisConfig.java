@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -174,11 +173,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         influencers = Collections.unmodifiableList(in.readStringList());
 
         multivariateByFields = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_15_0)) {
-            modelPruneWindow = in.readOptionalTimeValue();
-        } else {
-            modelPruneWindow = null;
-        }
+        modelPruneWindow = in.readOptionalTimeValue();
     }
 
     @Override
@@ -200,9 +195,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
 
         out.writeOptionalBoolean(multivariateByFields);
 
-        if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
-            out.writeOptionalTimeValue(modelPruneWindow);
-        }
+        out.writeOptionalTimeValue(modelPruneWindow);
     }
 
     /**

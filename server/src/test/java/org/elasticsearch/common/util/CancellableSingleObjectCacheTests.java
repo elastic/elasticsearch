@@ -280,7 +280,10 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
     public void testConcurrentRefreshesWithFreshnessCheck() throws InterruptedException {
         final ThreadPool threadPool = new TestThreadPool("test");
         try {
-            final CancellableSingleObjectCache<String, String, Integer> testCache = new CancellableSingleObjectCache<>() {
+            final CancellableSingleObjectCache<String, String, Integer> testCache = new CancellableSingleObjectCache<
+                String,
+                String,
+                Integer>() {
                 @Override
                 protected void refresh(
                     String s,
@@ -383,7 +386,10 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
             }
         };
 
-        final CancellableSingleObjectCache<String, String, Integer> testCache = new CancellableSingleObjectCache<>() {
+        final CancellableSingleObjectCache<String, String, Integer> testCache = new CancellableSingleObjectCache<
+            String,
+            String,
+            Integer>() {
             @Override
             protected void refresh(
                 String s,

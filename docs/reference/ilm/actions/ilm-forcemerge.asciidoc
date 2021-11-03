@@ -54,3 +54,18 @@ PUT _ilm/policy/my_policy
   }
 }
 --------------------------------------------------
+
+[[ilm-forcemerge-troubleshoot]]
+==== Troubleshooting
+
+You may encounter force merge throughput issues from <<ilm-with-existing-indices.html#ilm-existing-indices-apply,starting a lot of parallel tasks>> or insufficient resources. For example, <<https://github.com/elastic/elasticsearch/pull/69416,starting 7.13>> force merge tasks can run in parallel. To troubleshoot you'd investigate
+
+- (queued) <<cat-thread-pool,Cat Thread Pool>> `GET _cat/thread_pool/force_merge?v&s=t,n&h=t,n,a,q,r,c,nn` for queue pool per node
+- (processing) <<tasks,Task Manager>> `GET _tasks?actions=*forcemerge*&detailed` for `running_time`
+- (processing) <<cluster-nodes-hot-threads,Cluster Hot Threads>> for thread usage percent
+- (effect) <<indices-segments,Index Segments>> for `num_committed_segments` and `num_search_segments`
+
+You may need to pull requests periodically to notice movement. If you find the task has slowed to a crawl you may consider 
+
+- <<cluster-update-settings,increasing Cluster Settings>> for `thread_pool.force_merge.size` slowly and incrementally which effects immediately
+- <<ilm-forcemerge.html#ilm-forcemerge-options,updating ForceMerge Options>> `max_num_segments` which effects going forward

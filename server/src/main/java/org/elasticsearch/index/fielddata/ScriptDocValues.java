@@ -474,7 +474,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         @Override
         public Boolean get(int index) {
             throwIfEmpty();
-            return booleanDocValuesField.getInternalValues()[index];
+            return booleanDocValuesField.getInternal(index);
         }
 
         @Override

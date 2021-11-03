@@ -13,12 +13,11 @@ import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
 
-public class BooleanDocValuesField implements DocValuesField {
+public class BooleanDocValuesField implements DocValuesField<Boolean> {
 
     private final SortedNumericDocValues input;
     private final String name;
@@ -97,22 +96,36 @@ public class BooleanDocValuesField implements DocValuesField {
         return count;
     }
 
-    public List<Boolean> getValues() {
-        if (isEmpty()) {
-            return Collections.emptyList();
-        }
-        List<Boolean> list = new ArrayList<>(count);
-        for (int i = 0; i < count; i++) {
-            list.add(i, values[i]);
-        }
-        return list;
+    /**
+     * Returns an iterator over elements of type {@code T}.
+     *
+     * @return an Iterator.
+     */
+    @Override
+    public Iterator<Boolean> iterator() {
+        return new Iterator<Boolean>() {
+            private int index = 0;
+
+            @Override
+            public boolean hasNext() {
+                return index < count;
+            }
+
+            @Override
+            public Boolean next() {
+                if (hasNext() == false) {
+                    throw new NoSuchElementException();
+                }
+                return values[index++];
+            }
+        };
     }
 
-    public boolean getValue(boolean defaultValue) {
-        return getValue(0, defaultValue);
+    public boolean get(boolean defaultValue) {
+        return get(0, defaultValue);
     }
 
-    public boolean getValue(int index, boolean defaultValue) {
+    public boolean get(int index, boolean defaultValue) {
         if (isEmpty() || index < 0 || index >= count) {
             return defaultValue;
         }
@@ -120,7 +133,8 @@ public class BooleanDocValuesField implements DocValuesField {
         return values[index];
     }
 
-    public boolean[] getInternalValues() {
-        return values;
+    // this method is required to support the old-style "doc" access in ScriptDocValues
+    public boolean getInternal(int index) {
+        return values[index];
     }
 }

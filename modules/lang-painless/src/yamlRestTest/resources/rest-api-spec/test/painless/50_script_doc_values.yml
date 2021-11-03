@@ -65,6 +65,13 @@ setup:
           body: {}
 
     - do:
+        index:
+          index: test
+          id: 3
+          body:
+              boolean: [true, false, true]
+
+    - do:
         indices.refresh: {}
 
 ---
@@ -99,7 +106,7 @@ setup:
                 script_fields:
                     field:
                         script:
-                            source: "field('boolean').getValue(false)"
+                            source: "field('boolean').get(false)"
     - match: { hits.hits.0.fields.field.0: true }
 
     - do:
@@ -108,9 +115,10 @@ setup:
             body:
                 query: { term: { _id: 1 } }
                 script_fields:
+
                     field:
                         script:
-                            source: "field('boolean').getValue(false)"
+                            source: "field('boolean').get(false)"
     - match: { hits.hits.0.fields.field.0: true }
 
     - do:
@@ -121,7 +129,7 @@ setup:
                 script_fields:
                     field:
                         script:
-                            source: "field('boolean').getValue(false)"
+                            source: "field('boolean').get(false)"
     - match: { hits.hits.0.fields.field.0: false }
 
     - do:
@@ -132,7 +140,7 @@ setup:
                 script_fields:
                     field:
                         script:
-                            source: "field('boolean').getValue(1, false)"
+                            source: "field('boolean').get(1, false)"
     - match: { hits.hits.0.fields.field.0: false }
 
     - do:
@@ -143,18 +151,29 @@ setup:
                 script_fields:
                     field:
                         script:
-                            source: "field('boolean').getValues().size()"
+                            source: "int total = 0; for (boolean b : field('boolean')) { total += b ? 1 : 0; } total;"
     - match: { hits.hits.0.fields.field.0: 1 }
 
     - do:
         search:
             rest_total_hits_as_int: true
             body:
+                query: { term: { _id: 3 } }
+                script_fields:
+                    field:
+                        script:
+                            source: "int total = 0; for (boolean b : field('boolean')) { total += b ? 1 : 0; } total + field('boolean').size();"
+    - match: { hits.hits.0.fields.field.0: 5 }
+
+    - do:
+        search:
+            rest_total_hits_as_int: true
+            body:
                 query: { term: { _id: 2 } }
                 script_fields:
                     field:
                         script:
-                            source: "field('boolean').getValues().size()"
+                            source: "field('boolean').size()"
     - match: { hits.hits.0.fields.field.0: 0 }
 
 

@@ -46,7 +46,7 @@ class Elasticsearch extends EnvironmentAwareCommand {
         versionOption = parser.acceptsAll(Arrays.asList("V", "version"), "Prints Elasticsearch version information and exits");
         daemonizeOption = parser.acceptsAll(Arrays.asList("d", "daemonize"), "Starts Elasticsearch in the background")
             .availableUnless(versionOption);
-        pidfileOption = parser.acceptsAll(Arrays.asList("p", "pidfile"), "Creates a pid file in the specified path on start,Relative paths are ES_HOME based")
+        pidfileOption = parser.acceptsAll(Arrays.asList("p", "pidfile"), "Creates a pid file in the specified path on start,relative paths are ES_HOME based")
             .availableUnless(versionOption)
             .withRequiredArg()
             .withValuesConvertedBy(new PathConverter());

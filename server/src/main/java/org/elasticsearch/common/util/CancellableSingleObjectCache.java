@@ -155,20 +155,12 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
                 final boolean listenerAdded = newCachedItem.addListener(listener, isCancelled);
                 assert listenerAdded;
                 newCachedItem.decRef(); // release our ref before calling refresh so that we're not blocking a cancellation
-                startRefresh(input, newCachedItem);
+                newCachedItem.startRefresh(input);
                 return;
             }
             // else the CAS failed because we lost a race to a concurrent retrieval; try again from the top since we expect the race winner
             // to be fresh enough for us and therefore we can just wait for its result.
         } while (true);
-    }
-
-    private void startRefresh(Input input, CachedItem cachedItem) {
-        try {
-            refresh(input, cachedItem::ensureNotCancelled, cachedItem.getFuture(), cachedItem::supersedeIfStale);
-        } catch (Exception e) {
-            cachedItem.getFuture().onFailure(e);
-        }
     }
 
     /**
@@ -242,7 +234,7 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
             }
         }
 
-        void ensureNotCancelled() {
+        private void ensureNotCancelled() {
             cancellationChecks.runAll();
             if (hasReferences() == false) {
                 throw new TaskCancelledException("task cancelled");
@@ -255,7 +247,7 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
             future.onFailure(new TaskCancelledException("task cancelled"));
         }
 
-        public boolean supersedeIfStale() {
+        private boolean supersedeIfStale() {
             final CachedItem currentCachedItem = currentCachedItemRef.get();
             if (currentCachedItem == this) {
                 // this item is still the freshest
@@ -280,6 +272,14 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
             } else {
                 // this item was cancelled, not superseded, so the refresh must complete (typically with a cancellation exception)
                 return false;
+            }
+        }
+
+        void startRefresh(Input input) {
+            try {
+                refresh(input, this::ensureNotCancelled, future, this::supersedeIfStale);
+            } catch (Exception e) {
+                future.onFailure(e);
             }
         }
     }

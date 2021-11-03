@@ -260,9 +260,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
             // Clean up any delayed aggregations we haven't processed (because there was an error).
             Releasables.close(
-                (Iterable<DelayableWriteable<InternalAggregations>>) (() -> buffer.stream()
-                    .map(QuerySearchResult::aggregations)
-                    .iterator())
+                (Iterable<DelayableWriteable<InternalAggregations>>) (() -> buffer.stream().map(QuerySearchResult::aggregations).iterator())
             );
 
             if (hasPendingMerges()) {

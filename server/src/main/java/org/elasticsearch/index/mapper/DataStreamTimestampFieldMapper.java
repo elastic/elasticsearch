@@ -211,12 +211,6 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         if (numberOfValues > 1) {
             throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] encountered multiple values");
         }
-
-        IndexMode mode = context.indexSettings().getMode();
-        if (mode != null && mode == IndexMode.TIME_SERIES) {
-            long timestamp = fields[0].numericValue().longValue();
-            context.indexSettings().getMode().validateTimestampRange(context, timestamp);
-        }
     }
 
     @Override

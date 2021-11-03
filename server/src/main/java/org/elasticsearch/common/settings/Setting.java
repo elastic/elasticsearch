@@ -43,6 +43,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -1333,11 +1334,16 @@ public class Setting<T> implements ToXContentObject {
         );
     }
 
-    public static Setting<Instant> dateSetting(String key, Instant defaultValue, Validator<Instant> validator, Property... properties) {
-        return new Setting<>(
+    public static Setting<Optional<Instant>> dateSetting(
+        String key,
+        Optional<Instant> defaultValue,
+        Validator<Optional<Instant>> validator,
+        Property... properties
+    ) {
+        return new Setting<Optional<Instant>>(
             key,
-            defaultValue.toString(),
-            (s) -> Instant.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(s)),
+            defaultValue.map(Instant::toString).orElse(null),
+            s -> Optional.ofNullable(s).map(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER::parse).map(Instant::from),
             validator,
             properties
         );

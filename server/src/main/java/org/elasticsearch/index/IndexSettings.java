@@ -18,7 +18,6 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Booleans;
@@ -32,6 +31,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -477,6 +477,55 @@ public final class IndexSettings {
     }
 
     /**
+     * in time series mode, the start time of the index, timestamp must larger than start_time
+     */
+    public static final Setting<Optional<Instant>> TIME_SERIES_START_TIME = Setting.dateSetting(
+        "index.time_series.start_time",
+        Optional.empty(),
+        v -> {},
+        Property.IndexScope,
+        Property.Final
+    );
+
+    /**
+     * in time series mode, the end time of the index, timestamp must smaller than start_time
+     */
+    public static final Setting<Optional<Instant>> TIME_SERIES_END_TIME = Setting.dateSetting(
+        "index.time_series.end_time",
+        Optional.empty(),
+        new Setting.Validator<>() {
+            @Override
+            public void validate(Optional<Instant> value) {}
+
+            @Override
+            public void validate(Optional<Instant> value, Map<Setting<?>, Object> settings) {
+                @SuppressWarnings("unchecked")
+                Optional<Instant> startTime = (Optional<Instant>) settings.get(TIME_SERIES_START_TIME);
+                if (value.isEmpty()) {
+                    if (startTime.isPresent()) {
+                        throw new IllegalArgumentException("index.time_series.start_time must be set with index.time_series.end_time");
+                    }
+                    return;
+                }
+                if (startTime.isEmpty()) {
+                    throw new IllegalArgumentException("index.time_series.start_time must be set with index.time_series.end_time");
+                }
+                if (startTime.get().compareTo(value.get()) < 0) {
+                    throw new IllegalArgumentException("index.time_series.start_time must be larger than index.time_series.end_time");
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                List<Setting<?>> settings = List.of(TIME_SERIES_START_TIME);
+                return settings.iterator();
+            }
+        },
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
+    /**
      * The {@link IndexMode "mode"} of the index.
      */
     public static final Setting<IndexMode> MODE = Setting.enumSetting(
@@ -501,66 +550,6 @@ public final class IndexSettings {
         Property.Final
     );
 
-    /**
-     * in time series mode, the start time of the index, timestamp must larger than start_time
-     */
-    public static final Setting<Instant> TIME_SERIES_START_TIME = Setting.dateSetting(
-        "index.time_series.start_time",
-        Instant.ofEpochMilli(0),
-        new Setting.Validator<>() {
-            @Override
-            public void validate(Instant value) {}
-
-            @Override
-            public void validate(Instant value, Map<Setting<?>, Object> settings) {
-                IndexMode mode = (IndexMode) settings.get(MODE);
-                if (mode != IndexMode.TIME_SERIES) {
-                    throw new IllegalArgumentException("index.time_series.start_time need to be used for time_series mode");
-                }
-            }
-
-            @Override
-            public Iterator<Setting<?>> settings() {
-                final List<Setting<?>> settings = List.of(MODE);
-                return settings.iterator();
-            }
-        },
-        Property.IndexScope
-    );
-
-    /**
-     * in time series mode, the end time of the index, timestamp must smaller than start_time
-     */
-    public static final Setting<Instant> TIME_SERIES_END_TIME = Setting.dateSetting(
-        "index.time_series.end_time",
-        DateUtils.MAX_NANOSECOND_INSTANT,
-        new Setting.Validator<>() {
-            @Override
-            public void validate(Instant value) {}
-
-            @Override
-            public void validate(Instant value, Map<Setting<?>, Object> settings) {
-                IndexMode mode = (IndexMode) settings.get(MODE);
-                if (mode != IndexMode.TIME_SERIES) {
-                    throw new IllegalArgumentException("index.time_series.end_time need to be used for time_series mode");
-                }
-
-                Instant startTime = (Instant) settings.get(TIME_SERIES_START_TIME);
-                if (startTime.toEpochMilli() > value.toEpochMilli()) {
-                    throw new IllegalArgumentException("index.time_series.end_time must be larger than index.time_series.start_time");
-                }
-            }
-
-            @Override
-            public Iterator<Setting<?>> settings() {
-                final List<Setting<?>> settings = List.of(MODE, TIME_SERIES_START_TIME);
-                return settings.iterator();
-            }
-        },
-        Property.IndexScope,
-        Property.Dynamic
-    );
-
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -574,11 +563,11 @@ public final class IndexSettings {
     /**
      * Start time of the time_series index.
      */
-    private final long timeSeriesStartTime;
+    private final Instant timeSeriesStartTime;
     /**
      * End time of the time_series index.
      */
-    private volatile long timeSeriesEndTime;
+    private volatile Instant timeSeriesEndTime;
 
     // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock
     private volatile Settings settings;
@@ -721,12 +710,8 @@ public final class IndexSettings {
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         mode = isTimeSeriesModeEnabled() ? scopedSettings.get(MODE) : IndexMode.STANDARD;
-        timeSeriesStartTime = mode == IndexMode.TIME_SERIES
-            ? TIME_SERIES_START_TIME.get(settings).toEpochMilli()
-            : Instant.ofEpochMilli(0).toEpochMilli();
-        timeSeriesEndTime = mode == IndexMode.TIME_SERIES
-            ? TIME_SERIES_END_TIME.get(settings).toEpochMilli()
-            : DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli();
+        timeSeriesStartTime = TIME_SERIES_START_TIME.get(settings).orElse(null);
+        timeSeriesEndTime = TIME_SERIES_END_TIME.get(settings).orElse(null);
 
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
@@ -1356,22 +1341,25 @@ public final class IndexSettings {
         this.mappingDimensionFieldsLimit = value;
     }
 
-    public long getTimeSeriesStartTime() {
+    public Instant getTimeSeriesStartTime() {
         return timeSeriesStartTime;
     }
 
-    public long getTimeSeriesEndTime() {
+    public Instant getTimeSeriesEndTime() {
         return timeSeriesEndTime;
     }
 
-    public void updateTimeSeriesEndTime(Instant endTime) {
-        long updateEndTime = endTime.toEpochMilli();
-        if (this.timeSeriesEndTime > updateEndTime) {
+    public void updateTimeSeriesEndTime(Optional<Instant> endTime) {
+        if (endTime.isEmpty()) {
+            this.timeSeriesEndTime = null;
+            return;
+        }
+        Instant endInstant = endTime.get();
+        if (this.timeSeriesEndTime.isAfter(endInstant)) {
             throw new IllegalArgumentException(
                 "index.time_series.end_time must be larger than current value [" + this.timeSeriesEndTime + "]"
             );
         }
-
-        this.timeSeriesEndTime = updateEndTime;
+        this.timeSeriesEndTime = endInstant;
     }
 }

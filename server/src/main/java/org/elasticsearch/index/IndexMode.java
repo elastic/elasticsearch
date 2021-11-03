@@ -15,7 +15,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
@@ -30,22 +29,26 @@ import java.util.Optional;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toSet;
-import static org.elasticsearch.core.TimeValue.NSEC_PER_MSEC;
 
 /**
  * "Mode" that controls which behaviors and settings an index supports.
+ * <p>
+ * For the most part this class concentrates on validating settings and
+ * mappings. Most different behavior is controlled by forcing settings
+ * to be set or not set and by enabling extra fields in the mapping. 
  */
 public enum IndexMode {
     STANDARD {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
-            if (false == Objects.equals(
-                IndexMetadata.INDEX_ROUTING_PATH.getDefault(Settings.EMPTY),
-                settings.get(IndexMetadata.INDEX_ROUTING_PATH)
-            )) {
-                throw new IllegalArgumentException(
-                    "[" + IndexMetadata.INDEX_ROUTING_PATH.getKey() + "] requires [" + IndexSettings.MODE.getKey() + "=time_series]"
-                );
+            settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
+            settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_START_TIME);
+            settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_END_TIME);
+        }
+
+        private void settingRequiresTimeSeries(Map<Setting<?>, Object> settings, Setting<?> setting) {
+            if (false == Objects.equals(setting.getDefault(Settings.EMPTY), settings.get(setting))) {
+                throw new IllegalArgumentException("[" + setting.getKey() + "] requires [" + IndexSettings.MODE.getKey() + "=time_series]");
             }
         }
 
@@ -57,13 +60,8 @@ public enum IndexMode {
 
         @Override
         public void completeMappings(MappingParserContext context, Map<String, Object> mapping, RootObjectMapper.Builder builder) {}
-
-        @Override
-        public void validateTimestampRange(DocumentParserContext context, long timestamp) {}
     },
     TIME_SERIES {
-        public static final String TIMESTAMP_FIELD = "@timestamp";
-
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
             if (settings.get(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING) != Integer.valueOf(1)) {
@@ -74,35 +72,14 @@ public enum IndexMode {
                     throw new IllegalArgumentException(error(unsupported));
                 }
             }
-            if (IndexMetadata.INDEX_ROUTING_PATH.getDefault(Settings.EMPTY).equals(settings.get(IndexMetadata.INDEX_ROUTING_PATH))) {
-                throw new IllegalArgumentException(
-                    "[" + IndexSettings.MODE.getKey() + "=time_series] requires [" + IndexMetadata.INDEX_ROUTING_PATH.getKey() + "]"
-                );
-            }
+            settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
+            settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_START_TIME);
+            settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_END_TIME);
         }
 
-        @Override
-        public void validateTimestampRange(DocumentParserContext context, long timestamp) {
-            if (context.mappingLookup().getMapper(TIMESTAMP_FIELD).typeName().equals(DateFieldMapper.DATE_NANOS_CONTENT_TYPE)) {
-                timestamp /= NSEC_PER_MSEC;
-            }
-
-            if (IndexSettings.TIME_SERIES_START_TIME.get(context.indexSettings().getSettings()) != null) {
-                Long startTime = context.indexSettings().getTimeSeriesStartTime();
-                if (timestamp < startTime) {
-                    throw new IllegalArgumentException(
-                        "time series index " + TIMESTAMP_FIELD + " value [" + timestamp + "] must be larger than " + startTime
-                    );
-                }
-            }
-
-            if (IndexSettings.TIME_SERIES_END_TIME.get(context.indexSettings().getSettings()) != null) {
-                Long endTime = context.indexSettings().getTimeSeriesEndTime();
-                if (timestamp >= endTime) {
-                    throw new IllegalArgumentException(
-                        "time series index " + TIMESTAMP_FIELD + " value [" + timestamp + "] must be smaller than " + endTime
-                    );
-                }
+        private void settingRequiresTimeSeries(Map<Setting<?>, Object> settings, Setting<?> setting) {
+            if (Objects.equals(setting.getDefault(Settings.EMPTY), settings.get(setting))) {
+                throw new IllegalArgumentException("[" + IndexSettings.MODE.getKey() + "=time_series] requires [" + setting.getKey() + "]");
             }
         }
 
@@ -182,7 +159,12 @@ public enum IndexMode {
 
     static final List<Setting<?>> VALIDATE_WITH_SETTINGS = List.copyOf(
         Stream.concat(
-            Stream.of(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING, IndexMetadata.INDEX_ROUTING_PATH),
+            Stream.of(
+                IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING,
+                IndexMetadata.INDEX_ROUTING_PATH,
+                IndexSettings.TIME_SERIES_START_TIME,
+                IndexSettings.TIME_SERIES_END_TIME
+            ),
             TIME_SERIES_UNSUPPORTED.stream()
         ).collect(toSet())
     );
@@ -203,9 +185,4 @@ public enum IndexMode {
      * Validate and/or modify the mappings after after they've been parsed.
      */
     public abstract void completeMappings(MappingParserContext context, Map<String, Object> mapping, RootObjectMapper.Builder builder);
-
-    /**
-     * Validate the timestamp, check the timestamp range between start_time and end_time
-     */
-    public abstract void validateTimestampRange(DocumentParserContext context, long timestamp);
 }

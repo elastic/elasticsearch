@@ -6,14 +6,14 @@
 <titleabbrev>Dense vector</titleabbrev>
 ++++
 
-A `dense_vector` field stores dense vectors of float values.
-The maximum number of dimensions that can be in a vector should
-not exceed 2048. A `dense_vector` field is a single-valued field.
+The `dense_vector` field type stores dense vectors of float values.
 
-`dense_vector` fields do not support querying, sorting or aggregating. They can
-only be accessed in scripts through the dedicated <<vector-functions,vector functions>>.
+You can use `dense_vector` fields in
+<<query-dsl-script-score-query,`script_score`>> queries to score documents.
+They can also be indexed to support efficient k-nearest neighbor search. Dense
+vector fields do not support aggregations, sorting, or other query types.
 
-You index a dense vector as an array of floats.
+You add a `dense_vector` field as an array of floats:
 
 [source,console]
 --------------------------------------------------
@@ -23,7 +23,7 @@ PUT my-index-000001
     "properties": {
       "my_vector": {
         "type": "dense_vector",
-        "dims": 3  <1>
+        "dims": 3 <1>
       },
       "my_text" : {
         "type" : "keyword"
@@ -45,5 +45,126 @@ PUT my-index-000001/_doc/2
 }
 
 --------------------------------------------------
+<1> `dims` is a required parameter that defines the number of vector dimensions
 
-<1> dims – the number of dimensions in the vector, required parameter.
+NOTE:  Unlike most other data types, dense vectors are always single-valued.
+It is not possible to store multiple values in one `dense_vector` field.
+
+==== Indexing vectors for kNN search
+
+experimental[]
+
+_k-nearest neighbor search_ or _kNN_ is the task of finding the k nearest
+vectors to a query vector, as measured by a similarity metric.
+
+As mentioned above, `dense_vector` fields can be used to rank documents
+through <<query-dsl-script-score-query,`script_score` queries>>. This lets you
+perform a brute-force kNN search by scanning all documents and ranking them by
+similarity.
+
+In many cases, a brute-force kNN search is not efficient enough. For this
+reason, the `dense_vector` type supports indexing vectors into a specialized
+data structure to support fast kNN search. You can enable indexing by setting
+through the `index` parameter:
+
+[source,console]
+--------------------------------------------------
+PUT my-index-000002
+{
+  "mappings": {
+    "properties": {
+      "my_vector": {
+        "type": "dense_vector",
+        "dims": 3,
+        "index": true,
+        "similarity": "dot_product" <1>
+      }
+    }
+  }
+}
+--------------------------------------------------
+<1> When `index` is enabled, you must define the vector similarity to use in kNN search
+
+Elasticsearch uses the https://arxiv.org/abs/1603.09320[HNSW algorithm] to
+support efficient kNN search. Like most kNN algorithms, HNSW is an approximate
+method that sacrifices result accuracy for improved speed.
+
+NOTE: indexing vectors for kNN search is an expensive process. It can take
+substantial time to ingest documents that contain vector fields with `index`
+enabled.
+
+[discrete]
+[[dense-vector-params]]
+==== Parameters for dense vector fields
+
+The following mapping parameters are accepted:
+
+`dims`::
+
+The number of vector dimensions. This value is required and cannot exceed 2048.
+
+`index`::
+
+Whether the vectors should be indexed to support efficient k-nearest neighbor search. Defaults to `false`.
+
+`similarity`::
+
+The vector similarity metric to use in kNN search. When `index` is
+enabled, this parameter is required. The following options are supported:
+
+`l2_norm`:::
+Computes similarity based on the L^2^ distance (also known as Euclidean
+distance) between the vectors.
+
+`dot_product`:::
+Computes the dot product of two vectors. This option provides an optimized way
+to perform cosine similarity. In order to use it, all vectors must be of unit
+length, including both document and query vectors.
+
+`cosine`:::
+Computes the cosine similarity. Note that the most efficient way to perform
+cosine similarity is to normalize all vectors to unit length, and instead use
+`dot_product`. You should only use `cosine` if you need to preserve the
+original vectors and cannot normalize them in advance.
+
+`index_options`::
+
+An optional section that configures the kNN indexing algorithm. The HNSW
+algorithm has two internal parameters that influence how the data structure is
+built. These can be adjusted to improve the accuracy of results, at the
+expense of slower indexing speed. The `index_options` object contains the
+following properties:
+
+`type`:::
+The type of kNN algorithm to use. Currently only `hnsw` is supported.
+
+`m`:::
+Controls how many of the nearest neighbor candidates are connected to each new
+node when building the HNSW graph. Defaults to 16.
+
+`efConstruction`:::
+The number of candidates to track while assembling the list of nearest
+neighbors for each new node. Defaults to 100.
+
+[source,console]
+--------------------------------------------------
+PUT my-index-000003
+{
+  "mappings": {
+    "properties": {
+      "my_vector": {
+        "type": "dense_vector",
+        "dims": 3,
+        "index": true,
+        "similarity": "dot_product",
+        "index_options": { <1>
+          "type": "hnsw",
+          "m": 32,
+          "efConstruction": 100
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+<1> When `index_options` is provided, all of its properties must be defined

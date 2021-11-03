@@ -496,9 +496,6 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             assertThat(source.getValue("inference.deployments.model_sizes_bytes.min"), equalTo(1.048576E8));
             assertThat(source.getValue("inference.deployments.model_sizes_bytes.max"), equalTo(2.097152E8));
             assertThat(source.getValue("inference.deployments.model_sizes_bytes.avg"), equalTo(1.572864E8));
-            assertThat(source.getValue("inference.deployments.time_ms.total"), equalTo(410.0));
-            assertThat(source.getValue("inference.deployments.time_ms.min"), equalTo(200.0));
-            assertThat(source.getValue("inference.deployments.time_ms.max"), equalTo(210.0));
             assertThat(source.getValue("inference.deployments.time_ms.avg"), equalTo(205.0));
         }
     }

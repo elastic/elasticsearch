@@ -385,7 +385,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
                 "count",
                 response.getStats().count(),
                 "time_ms",
-                timeStats.asMap(),
+                Map.of(StatsAccumulator.Fields.AVG, timeStats.getAvg()),
                 "model_sizes_bytes",
                 modelSizes.asMap(),
                 "inference_counts",

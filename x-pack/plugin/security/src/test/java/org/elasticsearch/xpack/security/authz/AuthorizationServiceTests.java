@@ -865,6 +865,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         verifyNoMoreInteractions(auditTrail);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/80243")
     public void testServiceAccountDenial() {
         Tuple<String, TransportRequest> tuple = randomFrom(
             asList(new Tuple<>(SearchAction.NAME, new SearchRequest()), new Tuple<>(SqlQueryAction.NAME, new SqlQueryRequest()))
@@ -875,10 +876,17 @@ public class AuthorizationServiceTests extends ESTestCase {
         mockEmptyMetadata();
 
         final User serviceUser = new User(randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8));
+        final User finalUser;
+        final boolean isRunAs = randomBoolean();
+        if (isRunAs) {
+            finalUser = new User(new User(randomAlphaOfLengthBetween(3, 8)), serviceUser);
+        } else {
+            finalUser = serviceUser;
+        }
         final Authentication authentication = new Authentication(
-            serviceUser,
+            finalUser,
             new RealmRef("_service_account", "_service_account", randomAlphaOfLengthBetween(3, 8)),
-            null,
+            isRunAs ? new RealmRef(randomAlphaOfLength(8), randomAlphaOfLength(8), randomAlphaOfLength(8)) : null,
             Version.CURRENT,
             Authentication.AuthenticationType.TOKEN,
             Map.of()
@@ -897,8 +905,13 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
         assertThat(
             securityException,
-            throwableWithMessage(containsString("[" + action + "] is unauthorized" + " for user [" + serviceUser.principal() + "],"))
+            throwableWithMessage(
+                containsString("[" + action + "] is unauthorized" + " for " + "service account" + " [" + serviceUser.principal() + "]")
+            )
         );
+        if (isRunAs) {
+            assertThat(securityException, throwableWithMessage(containsString("run as [" + finalUser.principal() + "]with roles [")));
+        }
         assertThat(securityException, throwableWithMessage(containsString("this action is granted by the index privileges [read,all]")));
         verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(Role.EMPTY.names()));
         verifyNoMoreInteractions(auditTrail);

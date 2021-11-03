@@ -65,15 +65,6 @@ setup:
   - match: { count: 0 }
   - match: { datafeeds: [] }
 
-  - do:
-      warnings:
-        - 'Deprecated field [allow_no_datafeeds] used, expected [allow_no_match] instead'
-      ml.get_datafeeds:
-        datafeed_id: "missing-*"
-        allow_no_datafeeds: true
-  - match: { count: 0 }
-  - match: { datafeeds: [] }
-
 ---
 "Test get datafeed with expression that does not match and not allow_no_match":
   - skip:
@@ -85,14 +76,6 @@ setup:
       ml.get_datafeeds:
         datafeed_id: "missing-*"
         allow_no_match: false
-
-  - do:
-      warnings:
-        - 'Deprecated field [allow_no_datafeeds] used, expected [allow_no_match] instead'
-      catch: missing
-      ml.get_datafeeds:
-        datafeed_id: "missing-*"
-        allow_no_datafeeds: false
 
 ---
 "Test put datafeed referring to missing job_id":

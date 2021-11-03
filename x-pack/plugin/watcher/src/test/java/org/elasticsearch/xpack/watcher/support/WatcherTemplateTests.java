@@ -44,7 +44,7 @@ public class WatcherTemplateTests extends ESTestCase {
             Watcher.SCRIPT_TEMPLATE_CONTEXT.name,
             Watcher.SCRIPT_TEMPLATE_CONTEXT
         );
-        ScriptService scriptService = new ScriptService(Settings.EMPTY, engines, contexts);
+        ScriptService scriptService = new ScriptService(Settings.EMPTY, engines, contexts, () -> 1L);
         textTemplateEngine = new TextTemplateEngine(scriptService);
     }
 

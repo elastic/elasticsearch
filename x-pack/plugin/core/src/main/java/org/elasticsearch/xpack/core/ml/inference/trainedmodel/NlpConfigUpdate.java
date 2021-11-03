@@ -7,20 +7,18 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.ml.utils.MapHelper;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
+import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.Objects;
-
-import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.RESULTS_FIELD;
 
 public abstract class NlpConfigUpdate implements InferenceConfigUpdate, NamedXContentObject {
 
@@ -31,39 +29,48 @@ public abstract class NlpConfigUpdate implements InferenceConfigUpdate, NamedXCo
             return null;
         }
 
-        Map<String, Object> bert = (Map<String, Object>) map.remove("bert");
-        if (bert == null) {
-            throw ExceptionsHelper.badRequestException("not bert");
+        Map<String, Object> bert = (Map<String, Object>) tokenziation.remove("bert");
+        if (bert == null && tokenziation.isEmpty() == false) {
+            throw ExceptionsHelper.badRequestException("unknown tokenization type expecting one of [bert] got {}", tokenziation.keySet());
         }
         Object truncate = bert.remove("truncate");
-        return new BertTokenizationUpdate((Tokenization.Truncate) truncate);
+        return new BertTokenizationUpdate(Tokenization.Truncate.fromString(truncate.toString()));
     }
 
     protected final TokenizationUpdate tokenizationUpdate;
-
 
     public NlpConfigUpdate(@Nullable TokenizationUpdate tokenizationUpdate) {
         this.tokenizationUpdate = tokenizationUpdate;
     }
 
     public NlpConfigUpdate(StreamInput in) throws IOException {
-        tokenizationUpdate = in.readOptionalNamedWriteable(TokenizationUpdate.class);
+        if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+            tokenizationUpdate = in.readOptionalNamedWriteable(TokenizationUpdate.class);
+        } else {
+            tokenizationUpdate = null;
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalNamedWriteable(tokenizationUpdate);
+        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+            out.writeOptionalNamedWriteable(tokenizationUpdate);
+        }
     }
 
     protected boolean isNoop() {
         return tokenizationUpdate == null || tokenizationUpdate.isNoop();
     }
 
+    public TokenizationUpdate getTokenizationUpdate() {
+        return tokenizationUpdate;
+    }
+
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+    public final XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
         if (tokenizationUpdate != null) {
-            builder.field(NlpConfig.TOKENIZATION.getPreferredName(), tokenizationUpdate);
+            NamedXContentObjectHelper.writeNamedObject(builder, params, NlpConfig.TOKENIZATION.getPreferredName(), tokenizationUpdate);
         }
         doXContentBody(builder, params);
         builder.endObject();
@@ -71,4 +78,9 @@ public abstract class NlpConfigUpdate implements InferenceConfigUpdate, NamedXCo
     }
 
     public abstract XContentBuilder doXContentBody(XContentBuilder builder, ToXContent.Params params) throws IOException;
+
+    @Override
+    public String getName() {
+        return InferenceConfigUpdate.super.getName();
+    }
 }

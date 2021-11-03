@@ -632,7 +632,6 @@ public class TrainedModelProvider {
                 return;
             }
 
-            builder.getModelType()
             if (includes.isIncludeModelDefinition()) {
                 try {
                     List<TrainedModelDefinitionDoc> docs = handleSearchItems(

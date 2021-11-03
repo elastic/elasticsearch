@@ -46,8 +46,11 @@ public class PassThroughConfigUpdate extends NlpConfigUpdate implements NamedXCo
             PassThroughConfigUpdate.Builder::new
         );
         parser.declareString(PassThroughConfigUpdate.Builder::setResultsField, RESULTS_FIELD);
-        parser.declareNamedObject(PassThroughConfigUpdate.Builder::setTokenizationUpdate,
-            (p, c, n) -> p.namedObject(TokenizationUpdate.class, n, lenient), TOKENIZATION);
+        parser.declareNamedObject(
+            PassThroughConfigUpdate.Builder::setTokenizationUpdate,
+            (p, c, n) -> p.namedObject(TokenizationUpdate.class, n, lenient),
+            TOKENIZATION
+        );
         return parser;
     }
 
@@ -93,8 +96,7 @@ public class PassThroughConfigUpdate extends NlpConfigUpdate implements NamedXCo
 
     @Override
     public InferenceConfig apply(InferenceConfig originalConfig) {
-        if ((resultsField == null || resultsField.equals(originalConfig.getResultsField()))
-            && super.isNoop()) {
+        if ((resultsField == null || resultsField.equals(originalConfig.getResultsField())) && super.isNoop()) {
             return originalConfig;
         }
 
@@ -109,9 +111,11 @@ public class PassThroughConfigUpdate extends NlpConfigUpdate implements NamedXCo
         PassThroughConfig passThroughConfig = (PassThroughConfig) originalConfig;
         return new PassThroughConfig(
             passThroughConfig.getVocabularyConfig(),
-            (tokenizationUpdate == null) ? passThroughConfig.getTokenization() :
-                tokenizationUpdate.apply(passThroughConfig.getTokenization()),
-            resultsField);
+            (tokenizationUpdate == null)
+                ? passThroughConfig.getTokenization()
+                : tokenizationUpdate.apply(passThroughConfig.getTokenization()),
+            resultsField == null ? originalConfig.getResultsField() : resultsField
+        );
     }
 
     @Override
@@ -134,8 +138,7 @@ public class PassThroughConfigUpdate extends NlpConfigUpdate implements NamedXCo
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PassThroughConfigUpdate that = (PassThroughConfigUpdate) o;
-        return Objects.equals(resultsField, that.resultsField) &&
-            Objects.equals(tokenizationUpdate, that.tokenizationUpdate);
+        return Objects.equals(resultsField, that.resultsField) && Objects.equals(tokenizationUpdate, that.tokenizationUpdate);
     }
 
     @Override

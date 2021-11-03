@@ -51,8 +51,11 @@ public class TextClassificationConfigUpdate extends NlpConfigUpdate implements N
         parser.declareStringArray(Builder::setClassificationLabels, CLASSIFICATION_LABELS);
         parser.declareString(Builder::setResultsField, RESULTS_FIELD);
         parser.declareInt(Builder::setNumTopClasses, NUM_TOP_CLASSES);
-        parser.declareNamedObject(Builder::setTokenizationUpdate,
-            (p, c, n) -> p.namedObject(TokenizationUpdate.class, n, lenient), TOKENIZATION);
+        parser.declareNamedObject(
+            Builder::setTokenizationUpdate,
+            (p, c, n) -> p.namedObject(TokenizationUpdate.class, n, lenient),
+            TOKENIZATION
+        );
         return parser;
     }
 
@@ -64,8 +67,12 @@ public class TextClassificationConfigUpdate extends NlpConfigUpdate implements N
     private final Integer numTopClasses;
     private final String resultsField;
 
-    public TextClassificationConfigUpdate(List<String> classificationLabels, Integer numTopClasses,
-                                          String resultsField, TokenizationUpdate tokenizationUpdate) {
+    public TextClassificationConfigUpdate(
+        List<String> classificationLabels,
+        Integer numTopClasses,
+        String resultsField,
+        TokenizationUpdate tokenizationUpdate
+    ) {
         super(tokenizationUpdate);
         this.classificationLabels = classificationLabels;
         this.numTopClasses = numTopClasses;
@@ -155,6 +162,14 @@ public class TextClassificationConfigUpdate extends NlpConfigUpdate implements N
         return resultsField;
     }
 
+    public Integer getNumTopClasses() {
+        return numTopClasses;
+    }
+
+    public List<String> getClassificationLabels() {
+        return classificationLabels;
+    }
+
     @Override
     public InferenceConfigUpdate.Builder<? extends InferenceConfigUpdate.Builder<?, ?>, ? extends InferenceConfigUpdate> newBuilder() {
         return new Builder().setClassificationLabels(classificationLabels)
@@ -223,8 +238,12 @@ public class TextClassificationConfigUpdate extends NlpConfigUpdate implements N
         }
 
         public TextClassificationConfigUpdate build() {
-            return new TextClassificationConfigUpdate(this.classificationLabels, this.numTopClasses,
-                this.resultsField, this.tokenizationUpdate);
+            return new TextClassificationConfigUpdate(
+                this.classificationLabels,
+                this.numTopClasses,
+                this.resultsField,
+                this.tokenizationUpdate
+            );
         }
     }
 }

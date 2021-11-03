@@ -42,8 +42,11 @@ public class NerConfigUpdate extends NlpConfigUpdate {
     private static ObjectParser<NerConfigUpdate.Builder, Void> createParser(boolean lenient) {
         ObjectParser<NerConfigUpdate.Builder, Void> parser = new ObjectParser<>(NAME, lenient, NerConfigUpdate.Builder::new);
         parser.declareString(NerConfigUpdate.Builder::setResultsField, RESULTS_FIELD);
-        parser.declareNamedObject(NerConfigUpdate.Builder::setTokenizationUpdate,
-            (p, c, n) -> p.namedObject(TokenizationUpdate.class, n, lenient), TOKENIZATION);
+        parser.declareNamedObject(
+            NerConfigUpdate.Builder::setTokenizationUpdate,
+            (p, c, n) -> p.namedObject(TokenizationUpdate.class, n, lenient),
+            TOKENIZATION
+        );
         return parser;
     }
 
@@ -110,8 +113,7 @@ public class NerConfigUpdate extends NlpConfigUpdate {
     }
 
     boolean isNoop(NerConfig originalConfig) {
-        return (this.resultsField == null || this.resultsField.equals(originalConfig.getResultsField()))
-            && super.isNoop();
+        return (this.resultsField == null || this.resultsField.equals(originalConfig.getResultsField())) && super.isNoop();
     }
 
     @Override
@@ -134,8 +136,7 @@ public class NerConfigUpdate extends NlpConfigUpdate {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         NerConfigUpdate that = (NerConfigUpdate) o;
-        return Objects.equals(resultsField, that.resultsField) &&
-            Objects.equals(tokenizationUpdate, that.tokenizationUpdate);
+        return Objects.equals(resultsField, that.resultsField) && Objects.equals(tokenizationUpdate, that.tokenizationUpdate);
     }
 
     @Override

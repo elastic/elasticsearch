@@ -47,8 +47,11 @@ public class TextEmbeddingConfigUpdate extends NlpConfigUpdate implements NamedX
             TextEmbeddingConfigUpdate.Builder::new
         );
         parser.declareString(TextEmbeddingConfigUpdate.Builder::setResultsField, RESULTS_FIELD);
-        parser.declareNamedObject(TextEmbeddingConfigUpdate.Builder::setTokenizationUpdate,
-            (p, c, n) -> p.namedObject(TokenizationUpdate.class, n, lenient), TOKENIZATION);
+        parser.declareNamedObject(
+            TextEmbeddingConfigUpdate.Builder::setTokenizationUpdate,
+            (p, c, n) -> p.namedObject(TokenizationUpdate.class, n, lenient),
+            TOKENIZATION
+        );
         return parser;
     }
 
@@ -94,8 +97,7 @@ public class TextEmbeddingConfigUpdate extends NlpConfigUpdate implements NamedX
 
     @Override
     public InferenceConfig apply(InferenceConfig originalConfig) {
-        if ((resultsField == null || resultsField.equals(originalConfig.getResultsField()))
-            && super.isNoop()) {
+        if ((resultsField == null || resultsField.equals(originalConfig.getResultsField())) && super.isNoop()) {
             return originalConfig;
         }
 
@@ -111,7 +113,8 @@ public class TextEmbeddingConfigUpdate extends NlpConfigUpdate implements NamedX
         return new TextEmbeddingConfig(
             embeddingConfig.getVocabularyConfig(),
             tokenizationUpdate == null ? embeddingConfig.getTokenization() : tokenizationUpdate.apply(embeddingConfig.getTokenization()),
-            resultsField == null ? embeddingConfig.getResultsField() :  resultsField);
+            resultsField == null ? embeddingConfig.getResultsField() : resultsField
+        );
     }
 
     @Override
@@ -134,8 +137,7 @@ public class TextEmbeddingConfigUpdate extends NlpConfigUpdate implements NamedX
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         TextEmbeddingConfigUpdate that = (TextEmbeddingConfigUpdate) o;
-        return Objects.equals(resultsField, that.resultsField) &&
-            Objects.equals(tokenizationUpdate, that.tokenizationUpdate);
+        return Objects.equals(resultsField, that.resultsField) && Objects.equals(tokenizationUpdate, that.tokenizationUpdate);
     }
 
     @Override

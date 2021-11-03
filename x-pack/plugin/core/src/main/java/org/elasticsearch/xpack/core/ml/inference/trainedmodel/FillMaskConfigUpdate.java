@@ -22,6 +22,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.NUM_TOP_CLASSES;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.RESULTS_FIELD;
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.TOKENIZATION;
 
 public class FillMaskConfigUpdate extends NlpConfigUpdate implements NamedXContentObject {
 
@@ -45,6 +46,11 @@ public class FillMaskConfigUpdate extends NlpConfigUpdate implements NamedXConte
         ObjectParser<FillMaskConfigUpdate.Builder, Void> parser = new ObjectParser<>(NAME, lenient, FillMaskConfigUpdate.Builder::new);
         parser.declareString(FillMaskConfigUpdate.Builder::setResultsField, RESULTS_FIELD);
         parser.declareInt(FillMaskConfigUpdate.Builder::setNumTopClasses, NUM_TOP_CLASSES);
+        parser.declareNamedObject(
+            FillMaskConfigUpdate.Builder::setTokenizationUpdate,
+            (p, c, n) -> p.namedObject(TokenizationUpdate.class, n, lenient),
+            TOKENIZATION
+        );
         return parser;
     }
 
@@ -69,7 +75,7 @@ public class FillMaskConfigUpdate extends NlpConfigUpdate implements NamedXConte
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out); // TODO BWC
+        super.writeTo(out);
         out.writeOptionalInt(numTopClasses);
         out.writeOptionalString(resultsField);
     }
@@ -138,6 +144,10 @@ public class FillMaskConfigUpdate extends NlpConfigUpdate implements NamedXConte
     @Override
     public String getResultsField() {
         return resultsField;
+    }
+
+    public Integer getNumTopClasses() {
+        return numTopClasses;
     }
 
     @Override

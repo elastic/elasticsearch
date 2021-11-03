@@ -11,20 +11,22 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class BertTokenizationUpdate implements TokenizationUpdate {
 
+    public static final ParseField NAME = BertTokenization.NAME;
+
     public static ConstructingObjectParser<BertTokenizationUpdate, Void> PARSER = new ConstructingObjectParser<>(
-            "bert_tokenization_update",
-            a -> new BertTokenizationUpdate(
-                a[0] == null ? null : Tokenization.Truncate.fromString((String) a[0])
-            )
-        );
+        "bert_tokenization_update",
+        a -> new BertTokenizationUpdate(a[0] == null ? null : Tokenization.Truncate.fromString((String) a[0]))
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), Tokenization.TRUNCATE);
@@ -46,7 +48,7 @@ public class BertTokenizationUpdate implements TokenizationUpdate {
 
     @Override
     public Tokenization apply(Tokenization originalConfig) {
-        if (updateIsNoop()) {
+        if (isNoop()) {
             return originalConfig;
         }
 
@@ -58,10 +60,12 @@ public class BertTokenizationUpdate implements TokenizationUpdate {
             );
         }
 
-        return new BertTokenization(originalConfig.doLowerCase(),
+        return new BertTokenization(
+            originalConfig.doLowerCase(),
             originalConfig.withSpecialTokens(),
             originalConfig.maxSequenceLength(),
-            this.truncate);
+            this.truncate
+        );
     }
 
     @Override
@@ -90,5 +94,18 @@ public class BertTokenizationUpdate implements TokenizationUpdate {
     @Override
     public String getName() {
         return BertTokenization.NAME.getPreferredName();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        BertTokenizationUpdate that = (BertTokenizationUpdate) o;
+        return truncate == that.truncate;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(truncate);
     }
 }

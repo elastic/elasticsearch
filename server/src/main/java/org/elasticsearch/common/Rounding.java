@@ -283,9 +283,11 @@ public abstract class Rounding implements Writeable {
     public abstract Prepared prepareForUnknown();
 
     /**
-     * Prepare rounding using java time classes. Package private for testing.
+     * Prepare rounding forcing the java time implementation. Prefer
+     * {@link #prepare} or {@link #prepareForUnknown} which can be much
+     * faster.
      */
-    abstract Prepared prepareJavaTime();
+    public abstract Prepared prepareJavaTime();
 
     /**
      * Rounds the given value.
@@ -558,7 +560,7 @@ public abstract class Rounding implements Writeable {
         }
 
         @Override
-        TimeUnitPreparedRounding prepareJavaTime() {
+        public TimeUnitPreparedRounding prepareJavaTime() {
             if (unitRoundsToMidnight) {
                 return new JavaTimeToMidnightRounding();
             }
@@ -975,7 +977,7 @@ public abstract class Rounding implements Writeable {
         }
 
         @Override
-        TimeIntervalPreparedRounding prepareJavaTime() {
+        public TimeIntervalPreparedRounding prepareJavaTime() {
             return new JavaTimeRounding();
         }
 
@@ -1280,7 +1282,7 @@ public abstract class Rounding implements Writeable {
         }
 
         @Override
-        Prepared prepareJavaTime() {
+        public Prepared prepareJavaTime() {
             return wrapPreparedRounding(delegate.prepareJavaTime());
         }
 

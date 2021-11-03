@@ -16,6 +16,7 @@ import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -145,7 +146,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/75221")
+    @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/75221")
     public void testInvalidTimestamp() throws Exception {
         assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
         ClusterUpdateSettingsResponse settingsResponse = client().admin()
@@ -168,7 +169,6 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             .setPersistentSettings(Settings.builder().put("ingest.geoip.database_validity", TimeValue.timeValueMillis(1)))
             .get();
         assertTrue(settingsResponse.isAcknowledged());
-        Thread.sleep(10);
         settingsResponse = client().admin()
             .cluster()
             .prepareUpdateSettings()
@@ -429,7 +429,10 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         }
         SimulatePipelineRequest simulateRequest = new SimulatePipelineRequest(bytes, XContentType.JSON);
         simulateRequest.setId("_id");
-        SimulatePipelineResponse simulateResponse = client().admin().cluster().simulatePipeline(simulateRequest).actionGet();
+        // Avoid executing on a coordinating only node, because databases are not available there and geoip processor won't do any lookups.
+        // (some test seeds repeatedly hit such nodes causing failures)
+        Client client = dataNodeClient();
+        SimulatePipelineResponse simulateResponse = client.admin().cluster().simulatePipeline(simulateRequest).actionGet();
         assertThat(simulateResponse.getPipelineId(), equalTo("_id"));
         assertThat(simulateResponse.getResults().size(), equalTo(1));
         return (SimulateDocumentBaseResult) simulateResponse.getResults().get(0);

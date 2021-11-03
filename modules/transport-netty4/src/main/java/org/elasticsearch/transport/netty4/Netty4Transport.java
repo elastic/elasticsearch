@@ -127,7 +127,10 @@ public class Netty4Transport extends TcpTransport {
     }
 
     @Override
-    protected Recycler<BytesRef> getRecycler() {
+    protected Recycler<BytesRef> createRecycler(Settings settings, PageCacheRecycler pageCacheRecycler) {
+        // If this method is called by super ctor the processors will not be set. Accessing NettyAllocator initializes netty's internals
+        // setting the processors. We must do it ourselves first just in case.
+        Netty4Utils.setAvailableProcessors(EsExecutors.NODE_PROCESSORS_SETTING.get(settings));
         return NettyAllocator.getRecycler();
     }
 
@@ -333,7 +336,7 @@ public class Netty4Transport extends TcpTransport {
             ch.pipeline().addLast("byte_buf_sizer", NettyByteBufSizer.INSTANCE);
             ch.pipeline().addLast("logging", new ESLoggingHandler());
             // using a dot as a prefix means this cannot come from any settings parsed
-            ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(Netty4Transport.this, getRecycler()));
+            ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(Netty4Transport.this, recycler));
         }
 
         @Override
@@ -360,7 +363,7 @@ public class Netty4Transport extends TcpTransport {
             ch.attr(CHANNEL_KEY).set(nettyTcpChannel);
             ch.pipeline().addLast("byte_buf_sizer", NettyByteBufSizer.INSTANCE);
             ch.pipeline().addLast("logging", new ESLoggingHandler());
-            ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(Netty4Transport.this, getRecycler()));
+            ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(Netty4Transport.this, recycler));
             serverAcceptedChannel(nettyTcpChannel);
         }
 

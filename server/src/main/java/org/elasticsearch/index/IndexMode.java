@@ -87,19 +87,22 @@ public enum IndexMode {
                 timestamp /= NSEC_PER_MSEC;
             }
 
-            long startTime = context.indexSettings().getTimeSeriesStartTime();
-            long endTime = context.indexSettings().getTimeSeriesEndTime();
-
-            if (timestamp < startTime) {
-                throw new IllegalArgumentException(
-                    "time series index " + TIMESTAMP_FIELD + " value [" + timestamp + "] must be larger than " + startTime
-                );
+            if (IndexSettings.TIME_SERIES_START_TIME.get(context.indexSettings().getSettings()) != null) {
+                Long startTime = context.indexSettings().getTimeSeriesStartTime();
+                if (timestamp < startTime) {
+                    throw new IllegalArgumentException(
+                        "time series index " + TIMESTAMP_FIELD + " value [" + timestamp + "] must be larger than " + startTime
+                    );
+                }
             }
 
-            if (timestamp >= endTime) {
-                throw new IllegalArgumentException(
-                    "time series index " + TIMESTAMP_FIELD + " value [" + timestamp + "] must be smaller than " + endTime
-                );
+            if (IndexSettings.TIME_SERIES_END_TIME.get(context.indexSettings().getSettings()) != null) {
+                Long endTime = context.indexSettings().getTimeSeriesEndTime();
+                if (timestamp >= endTime) {
+                    throw new IllegalArgumentException(
+                        "time series index " + TIMESTAMP_FIELD + " value [" + timestamp + "] must be smaller than " + endTime
+                    );
+                }
             }
         }
 

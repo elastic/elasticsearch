@@ -571,7 +571,13 @@ public final class IndexSettings {
      * The {@link IndexMode "mode"} of the index.
      */
     private final IndexMode mode;
+    /**
+     * Start time of the time_series index.
+     */
     private final long timeSeriesStartTime;
+    /**
+     * End time of the time_series index.
+     */
     private volatile long timeSeriesEndTime;
 
     // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock

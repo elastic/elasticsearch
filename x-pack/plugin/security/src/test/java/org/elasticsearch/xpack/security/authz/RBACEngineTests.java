@@ -1444,9 +1444,9 @@ public class RBACEngineTests extends ESTestCase {
     }
 
     public void testNoInfiniteRecursionForRBACAuthorizationInfoHashCode() {
-        final Role role = Role.builder(RESTRICTED_INDICES_AUTOMATON, "role").build();
+        final Role role = Role.builder("role").build();
         // No assertion is needed, the test is successful as long as hashCode calls do not throw error
-        new RBACAuthorizationInfo(role, Role.builder(RESTRICTED_INDICES_AUTOMATON, "authenticated_role").build()).hashCode();
+        new RBACAuthorizationInfo(role, Role.builder("authenticated_role").build()).hashCode();
         new RBACAuthorizationInfo(role, null).hashCode();
     }
 

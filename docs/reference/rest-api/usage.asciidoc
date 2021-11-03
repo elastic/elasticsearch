@@ -159,8 +159,6 @@ GET /_xpack/usage
         },
         "count": {
           "total": 1,
-          "classification": 0,
-          "regression": 0,
           "prepackaged": 1,
           "other": 0
         },

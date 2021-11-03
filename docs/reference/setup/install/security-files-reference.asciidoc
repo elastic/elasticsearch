@@ -1,4 +1,4 @@
-[[package-security-certificates]]
+[role="exclude"]
 ===== Security certificates and keys
 
 When you install {es}, the following certificates and keys are

@@ -17,6 +17,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -60,18 +61,19 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     protected final Map<String, NamedAnalyzer> indexAnalyzers;
     protected final MultiFields multiFields;
     protected final CopyTo copyTo;
+    protected final boolean allowMultipleValues;
     protected final boolean hasScript;
     protected final String onScriptError;
 
     /**
-     * Create a FieldMapper with no index analyzers
+     * Create a FieldMapper with no index analyzers or cardinality restrictions
      * @param simpleName        the leaf name of the mapper
      * @param mappedFieldType   the MappedFieldType associated with this mapper
      * @param multiFields       sub fields of this mapper
      * @param copyTo            copyTo fields of this mapper
      */
     protected FieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo) {
-        this(simpleName, mappedFieldType, Collections.emptyMap(), multiFields, copyTo, false, null);
+        this(simpleName, mappedFieldType, Collections.emptyMap(), multiFields, copyTo, true, false, null);
     }
 
     /**
@@ -80,6 +82,25 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      * @param mappedFieldType   the MappedFieldType associated with this mapper
      * @param multiFields       sub fields of this mapper
      * @param copyTo            copyTo fields of this mapper
+     * @param allowMultipleValues  true if the JSON document can present arrays for this field
+     */
+    protected FieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        boolean allowMultipleValues
+    ) {
+        this(simpleName, mappedFieldType, Collections.emptyMap(), multiFields, copyTo, allowMultipleValues, false, null);
+    }
+
+    /**
+     * Create a FieldMapper with no index analyzers
+     * @param simpleName        the leaf name of the mapper
+     * @param mappedFieldType   the MappedFieldType associated with this mapper
+     * @param multiFields       sub fields of this mapper
+     * @param copyTo            copyTo fields of this mapper
+     * @param allowMultipleValues  true if the JSON document can present arrays for this field
      * @param hasScript         whether a script is defined for the field
      * @param onScriptError     the behaviour for when the defined script fails at runtime
      */
@@ -88,10 +109,40 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         MappedFieldType mappedFieldType,
         MultiFields multiFields,
         CopyTo copyTo,
+        boolean allowMultipleValues,
         boolean hasScript,
         String onScriptError
     ) {
-        this(simpleName, mappedFieldType, Collections.emptyMap(), multiFields, copyTo, hasScript, onScriptError);
+        this(simpleName, mappedFieldType, Collections.emptyMap(), multiFields, copyTo, allowMultipleValues, hasScript, onScriptError);
+    }
+
+    /**
+     * Create a FieldMapper with a single associated index analyzer
+     * @param simpleName        the leaf name of the mapper
+     * @param mappedFieldType   the MappedFieldType associated with this mapper
+     * @param indexAnalyzer     the index-time analyzer to use for this field
+     * @param multiFields       sub fields of this mapper
+     * @param copyTo            copyTo fields of this mapper
+     * @param allowMultipleValues  true if the JSON document can present arrays for this field
+     */
+    protected FieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        NamedAnalyzer indexAnalyzer,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        boolean allowMultipleValues
+    ) {
+        this(
+            simpleName,
+            mappedFieldType,
+            Collections.singletonMap(mappedFieldType.name(), indexAnalyzer),
+            multiFields,
+            copyTo,
+            allowMultipleValues,
+            false,
+            null
+        );
     }
 
     /**
@@ -115,6 +166,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             Collections.singletonMap(mappedFieldType.name(), indexAnalyzer),
             multiFields,
             copyTo,
+            true,
             false,
             null
         );
@@ -127,6 +179,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      * @param indexAnalyzer     the index-time analyzer to use for this field
      * @param multiFields       sub fields of this mapper
      * @param copyTo            copyTo fields of this mapper
+     * @param allowMultipleValues  true if the JSON document can present arrays for this field
      * @param hasScript         whether a script is defined for the field
      * @param onScriptError     the behaviour for when the defined script fails at runtime
      */
@@ -136,6 +189,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         NamedAnalyzer indexAnalyzer,
         MultiFields multiFields,
         CopyTo copyTo,
+        boolean allowMultipleValues,
         boolean hasScript,
         String onScriptError
     ) {
@@ -145,6 +199,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             Collections.singletonMap(mappedFieldType.name(), indexAnalyzer),
             multiFields,
             copyTo,
+            allowMultipleValues,
             hasScript,
             onScriptError
         );
@@ -158,6 +213,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      *                          the mapper will add
      * @param multiFields       sub fields of this mapper
      * @param copyTo            copyTo fields of this mapper
+     * @param allowMultipleValues  true if the JSON document can present arrays for this field
      * @param hasScript         whether a script is defined for the field
      * @param onScriptError     the behaviour for when the defined script fails at runtime
      */
@@ -167,6 +223,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         Map<String, NamedAnalyzer> indexAnalyzers,
         MultiFields multiFields,
         CopyTo copyTo,
+        boolean allowMultipleValues,
         boolean hasScript,
         String onScriptError
     ) {
@@ -178,6 +235,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         this.indexAnalyzers = indexAnalyzers;
         this.multiFields = multiFields;
         this.copyTo = Objects.requireNonNull(copyTo);
+        this.allowMultipleValues = allowMultipleValues;
         this.hasScript = hasScript;
         this.onScriptError = onScriptError;
     }
@@ -201,6 +259,13 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      */
     public CopyTo copyTo() {
         return copyTo;
+    }
+
+    /**
+     * True if documents can present arrays as well as single-values for this field
+     */
+    public boolean allowMultipleValues() {
+        return allowMultipleValues;
     }
 
     public MultiFields multiFields() {
@@ -439,6 +504,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         getMergeBuilder().toXContent(builder, params);
         multiFields.toXContent(builder, params);
         copyTo.toXContent(builder);
+        if (allowMultipleValues != Builder.DEFAULT_ALLOW_MULTIPLE_VALUES) {
+            builder.field("allow_multiple_values", allowMultipleValues);
+        }
     }
 
     protected abstract String contentType();
@@ -1121,7 +1189,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             String message = "Mapper for [" + mapperName + "] conflicts with existing mapper:\n\t" + String.join("\n\t", conflicts);
             throw new IllegalArgumentException(message);
         }
-
     }
 
     /**
@@ -1131,6 +1198,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         protected final MultiFields.Builder multiFieldsBuilder = new MultiFields.Builder();
         protected final CopyTo.Builder copyTo = new CopyTo.Builder();
+        public static final boolean DEFAULT_ALLOW_MULTIPLE_VALUES = true;
+        protected boolean allowMultipleValues = DEFAULT_ALLOW_MULTIPLE_VALUES;
 
         /**
          * Creates a new Builder with a field name
@@ -1160,6 +1229,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 multiFieldsBuilder.update(newSubField, MapperBuilderContext.forPath(parentPath(newSubField.name())));
             }
             this.copyTo.reset(in.copyTo);
+            this.allowMultipleValues = in.allowMultipleValues;
             validate();
         }
 
@@ -1167,6 +1237,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             for (Parameter<?> param : getParameters()) {
                 param.validate();
             }
+        }
+
+        public boolean getAllowMultipleValues() {
+            return allowMultipleValues;
         }
 
         /**
@@ -1234,6 +1308,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 }
                 if (Objects.equals("copy_to", propName)) {
                     TypeParsers.parseCopyFields(propNode).forEach(copyTo::add);
+                    iterator.remove();
+                    continue;
+                }
+                if (Objects.equals("allow_multiple_values", propName)) {
+                    allowMultipleValues = Booleans.parseBoolean(propNode.toString());
                     iterator.remove();
                     continue;
                 }

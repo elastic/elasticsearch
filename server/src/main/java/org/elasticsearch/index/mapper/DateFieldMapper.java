@@ -720,7 +720,15 @@ public final class DateFieldMapper extends FieldMapper {
         Resolution resolution,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.get());
+        super(
+            simpleName,
+            mappedFieldType,
+            multiFields,
+            copyTo,
+            builder.allowMultipleValues,
+            builder.script.get() != null,
+            builder.onScriptError.get()
+        );
         this.store = builder.store.getValue();
         this.indexed = builder.index.getValue();
         this.hasDocValues = builder.docValues.getValue();

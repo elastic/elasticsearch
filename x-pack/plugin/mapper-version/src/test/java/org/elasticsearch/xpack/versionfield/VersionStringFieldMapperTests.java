@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class VersionStringFieldMapperTests extends MapperTestCase {
@@ -106,6 +107,15 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
             "failed to parse field [field] of type [version] in document with id '1'. " + "Preview of field's value: '{}'",
             ex.getMessage()
         );
+    }
+
+    public void testNoArrays() throws IOException {
+        SourceToParse sourceWithArrays = source(b -> b.array("field", randomVersionNumber(), randomVersionNumber()));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "version").field("allow_multiple_values", false)));
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(sourceWithArrays));
+        assertThat(e.getMessage(), containsString("Field [field] cannot be a multi-valued field"));
+        DocumentMapper okmapper = createDocumentMapper(fieldMapping(b -> b.field("type", "version")));
+        okmapper.parse(sourceWithArrays);
     }
 
     public void testFailsParsingNestedList() throws IOException {

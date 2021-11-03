@@ -173,6 +173,45 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertTrue(objectMapper.isEnabled());
     }
 
+    public void testNoArrays() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "object").field("allow_multiple_values", false)));
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(
+                source(
+                    b -> b.startArray("field")
+                        .startObject()
+                        .field("foo", "bar")
+                        .endObject()
+
+                        .startObject()
+                        .field("foo", "bar")
+                        .endObject()
+
+                        .endArray()
+                )
+            )
+        );
+        assertThat(e.getMessage(), containsString("Object [field] cannot be a multi-valued field."));
+
+        // Check default behaviour of arrays-of-objects-allowed works.
+        DocumentMapper arraysOKmapper = createDocumentMapper(fieldMapping(b -> b.field("type", "object")));
+        arraysOKmapper.parse(
+            source(
+                b -> b.startArray("field")
+                    .startObject()
+                    .field("foo", "bar")
+                    .endObject()
+
+                    .startObject()
+                    .field("foo", "bar")
+                    .endObject()
+
+                    .endArray()
+            )
+        );
+    }
+
     public void testFieldReplacementForIndexTemplates() throws IOException {
         MapperService mapperService = createMapperService(mapping(b -> {}));
         String mapping = Strings.toString(

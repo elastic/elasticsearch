@@ -96,6 +96,15 @@ public class DateFieldMapperTests extends MapperTestCase {
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
     }
 
+    public void testNoArrays() throws IOException {
+        SourceToParse sourceWithArrays = source(b -> b.array("field", "2016-03-11", "2016-03-12"));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("allow_multiple_values", false)));
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(sourceWithArrays));
+        assertThat(e.getMessage(), containsString("Field [field] cannot be a multi-valued field"));
+        DocumentMapper okmapper = createDocumentMapper(fieldMapping(b -> b.field("type", "date")));
+        okmapper.parse(sourceWithArrays);
+    }
+
     public void testNoDocValues() throws Exception {
 
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "date").field("doc_values", false)));

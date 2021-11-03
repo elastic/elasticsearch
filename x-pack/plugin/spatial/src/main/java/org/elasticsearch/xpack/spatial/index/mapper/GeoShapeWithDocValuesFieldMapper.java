@@ -286,6 +286,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             builder.orientation.get(),
             multiFields,
             copyTo,
+            builder.getAllowMultipleValues(),
             parser
         );
         this.builder = builder;

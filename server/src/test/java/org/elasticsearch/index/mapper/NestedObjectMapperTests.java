@@ -730,6 +730,16 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         assertThat(fields.size(), equalTo(new HashSet<>(fields).size()));
     }
 
+    public void testNoArraysNotAllowed() throws IOException {
+        // The whole point of nested is to deal with arrays of objects. Check that base class ObjectMapper's setting
+        // for disabling arrays is not enabled.
+        Exception e = expectThrows(
+            MapperParsingException.class,
+            () -> createDocumentMapper(fieldMapping(b -> b.field("type", "nested").field("allow_multiple_values", false)))
+        );
+        assertThat(e.getMessage(), containsString("Nested object field [field] cannot have \"allow_multiple_values\" set to false."));
+    }
+
     public void testNestedArrayStrict() throws Exception {
         DocumentMapper docMapper = createDocumentMapper(mapping(b -> {
             b.startObject("nested1");

@@ -230,6 +230,16 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertEquals("field", fields[0].stringValue());
     }
 
+    public void testNoArrays() throws IOException {
+        SourceToParse sourceWithArrays = source(b -> b.array("field", "foo", "bar"));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "keyword").field("allow_multiple_values", false)));
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(sourceWithArrays));
+        assertThat(e.getMessage(), containsString("Field [field] cannot be a multi-valued field"));
+
+        DocumentMapper okmapper = createDocumentMapper(fieldMapping(b -> b.field("type", "keyword")));
+        okmapper.parse(sourceWithArrays);
+    }
+
     public void testNullValue() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));

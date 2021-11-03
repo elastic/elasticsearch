@@ -49,6 +49,19 @@ public class NestedObjectMapper extends ObjectMapper {
         }
 
         @Override
+        public Builder allowMultipleValues(boolean allowMultipleValues) {
+            if (allowMultipleValues == false) {
+                // The whole raison d'etre of nested fields is to deal with multi-value objects.
+                // Prevent users from disabling multi-values.
+                throw new MapperParsingException(
+                    "Nested object field [" + name() + "] cannot have \"allow_multiple_values\" set to false."
+                );
+            }
+            super.allowMultipleValues(allowMultipleValues);
+            return this;
+        }
+
+        @Override
         public NestedObjectMapper build(MapperBuilderContext context) {
             return new NestedObjectMapper(name, context.buildFullName(name), buildMappers(false, context), this);
         }
@@ -93,7 +106,7 @@ public class NestedObjectMapper extends ObjectMapper {
     private final Query nestedTypeFilter;
 
     NestedObjectMapper(String name, String fullPath, Map<String, Mapper> mappers, Builder builder) {
-        super(name, fullPath, builder.enabled, builder.dynamic, mappers);
+        super(name, fullPath, builder.enabled, builder.dynamic, mappers, builder.allowMultipleValues);
         if (builder.indexCreatedVersion.before(Version.V_8_0_0)) {
             this.nestedTypePath = "__" + fullPath;
         } else {

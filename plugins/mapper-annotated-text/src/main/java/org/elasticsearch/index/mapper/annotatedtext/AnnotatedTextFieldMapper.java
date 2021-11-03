@@ -531,7 +531,14 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         CopyTo copyTo,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, wrapAnalyzer(builder.analyzers.getIndexAnalyzer()), multiFields, copyTo);
+        super(
+            simpleName,
+            mappedFieldType,
+            wrapAnalyzer(builder.analyzers.getIndexAnalyzer()),
+            multiFields,
+            copyTo,
+            builder.getAllowMultipleValues()
+        );
         assert fieldType.tokenized();
         this.fieldType = fieldType;
         this.builder = builder;

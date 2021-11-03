@@ -37,6 +37,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     public static class Defaults {
         public static final boolean ENABLED = true;
+        public static final boolean ALLOW_MULTIPLE_VALUES = true;
     }
 
     public enum Dynamic {
@@ -66,6 +67,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         protected Dynamic dynamic;
 
+        protected boolean allowMultipleValues = Defaults.ALLOW_MULTIPLE_VALUES;
+
         protected final List<Mapper.Builder> mappersBuilders = new ArrayList<>();
 
         public Builder(String name) {
@@ -79,6 +82,11 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         public Builder dynamic(Dynamic dynamic) {
             this.dynamic = dynamic;
+            return this;
+        }
+
+        public Builder allowMultipleValues(boolean allowMultipleValues) {
+            this.allowMultipleValues = allowMultipleValues;
             return this;
         }
 
@@ -109,7 +117,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         @Override
         public ObjectMapper build(MapperBuilderContext context) {
-            return new ObjectMapper(name, context.buildFullName(name), enabled, dynamic, buildMappers(false, context));
+            return new ObjectMapper(name, context.buildFullName(name), enabled, dynamic, buildMappers(false, context), allowMultipleValues);
         }
     }
 
@@ -149,6 +157,9 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 return true;
             } else if (fieldName.equals("enabled")) {
                 builder.enabled(XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".enabled"));
+                return true;
+            } else if (fieldName.equals("allow_multiple_values")) {
+                builder.allowMultipleValues(XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".allow_multiple_values"));
                 return true;
             } else if (fieldName.equals("properties")) {
                 if (fieldNode instanceof Collection && ((Collection) fieldNode).isEmpty()) {
@@ -238,11 +249,20 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     protected Explicit<Boolean> enabled;
 
+    private final boolean allowMultipleValues;
+
     protected volatile Dynamic dynamic;
 
     protected volatile CopyOnWriteHashMap<String, Mapper> mappers;
 
-    ObjectMapper(String name, String fullPath, Explicit<Boolean> enabled, Dynamic dynamic, Map<String, Mapper> mappers) {
+    ObjectMapper(
+        String name,
+        String fullPath,
+        Explicit<Boolean> enabled,
+        Dynamic dynamic,
+        Map<String, Mapper> mappers,
+        boolean allowMultipleValues
+    ) {
         super(name);
         if (name.isEmpty()) {
             throw new IllegalArgumentException("name cannot be empty string");
@@ -250,6 +270,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         this.fullPath = fullPath;
         this.enabled = enabled;
         this.dynamic = dynamic;
+        this.allowMultipleValues = allowMultipleValues;
         if (mappers == null) {
             this.mappers = new CopyOnWriteHashMap<>();
         } else {
@@ -296,6 +317,10 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     public boolean isEnabled() {
         return this.enabled.value();
+    }
+
+    public boolean allowMultipleValues() {
+        return this.allowMultipleValues;
     }
 
     public boolean isNested() {
@@ -355,6 +380,10 @@ public class ObjectMapper extends Mapper implements Cloneable {
             this.dynamic = mergeWith.dynamic;
         }
 
+        if (allowMultipleValues() != mergeWith.allowMultipleValues()) {
+            throw new MapperException("the [allow_multiple_values] parameter can't be updated for the object mapping [" + name() + "]");
+        }
+
         if (mergeWith.enabled.explicit()) {
             if (reason == MergeReason.INDEX_TEMPLATE) {
                 this.enabled = mergeWith.enabled;
@@ -409,6 +438,10 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
         if (isEnabled() != Defaults.ENABLED) {
             builder.field("enabled", enabled.value());
+        }
+
+        if (allowMultipleValues() != Defaults.ALLOW_MULTIPLE_VALUES) {
+            builder.field("allow_multiple_values", allowMultipleValues);
         }
 
         if (custom != null) {

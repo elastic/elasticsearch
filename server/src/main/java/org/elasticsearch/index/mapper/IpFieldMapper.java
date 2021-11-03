@@ -392,7 +392,15 @@ public class IpFieldMapper extends FieldMapper {
     private final ScriptCompiler scriptCompiler;
 
     private IpFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo, Builder builder) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.get());
+        super(
+            simpleName,
+            mappedFieldType,
+            multiFields,
+            copyTo,
+            builder.allowMultipleValues,
+            builder.script.get() != null,
+            builder.onScriptError.get()
+        );
         this.ignoreMalformedByDefault = builder.ignoreMalformedByDefault;
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();

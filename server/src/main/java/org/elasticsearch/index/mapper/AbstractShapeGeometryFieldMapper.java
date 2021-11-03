@@ -69,9 +69,10 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
         Explicit<Orientation> orientation,
         MultiFields multiFields,
         CopyTo copyTo,
+        boolean allowMultipleValues,
         Parser<T> parser
     ) {
-        super(simpleName, mappedFieldType, indexAnalyzers, ignoreMalformed, ignoreZValue, multiFields, copyTo, parser);
+        super(simpleName, mappedFieldType, indexAnalyzers, ignoreMalformed, ignoreZValue, multiFields, copyTo, allowMultipleValues, parser);
         this.coerce = coerce;
         this.orientation = orientation;
     }
@@ -85,6 +86,7 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
         Explicit<Orientation> orientation,
         MultiFields multiFields,
         CopyTo copyTo,
+        boolean allowMultipleValues,
         Parser<T> parser
     ) {
         this(
@@ -97,6 +99,7 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
             orientation,
             multiFields,
             copyTo,
+            allowMultipleValues,
             parser
         );
     }

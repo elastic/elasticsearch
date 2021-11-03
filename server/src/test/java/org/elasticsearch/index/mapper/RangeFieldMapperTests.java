@@ -111,6 +111,35 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
         assertEquals(2, pointField.fieldType().pointIndexDimensionCount());
     }
 
+    public final void testNoArrays() throws Exception {
+        SourceToParse sourceWithArrays = source(b -> {
+            b.startArray("field");
+            b.startObject();
+            b.field("gte", rangeValue());
+            b.field("lte", rangeValue());
+            b.endObject();
+
+            b.startObject();
+            b.field("gte", rangeValue());
+            b.field("lte", rangeValue());
+            b.endObject();
+
+            b.endArray();
+        });
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("allow_multiple_values", false);
+        }));
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(sourceWithArrays));
+        assertThat(e.getMessage(), containsString("Field [field] cannot be a multi-valued field"));
+
+        DocumentMapper okmapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("allow_multiple_values", true);
+        }));
+        okmapper.parse(sourceWithArrays);
+    }
+
     protected abstract String storedValue();
 
     public final void testStore() throws Exception {

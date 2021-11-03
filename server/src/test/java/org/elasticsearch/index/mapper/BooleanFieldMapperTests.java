@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class BooleanFieldMapperTests extends MapperTestCase {
@@ -65,6 +66,15 @@ public class BooleanFieldMapperTests extends MapperTestCase {
             assertEquals(1, values.docValueCount());
             assertEquals(1, values.nextValue());
         });
+    }
+
+    public void testNoArrays() throws IOException {
+        SourceToParse sourceWithArrays = source(b -> b.array("field", true, false));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "boolean").field("allow_multiple_values", false)));
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(sourceWithArrays));
+        assertThat(e.getMessage(), containsString("Field [field] cannot be a multi-valued field"));
+        DocumentMapper okmapper = createDocumentMapper(fieldMapping(b -> b.field("type", "boolean")));
+        okmapper.parse(sourceWithArrays);
     }
 
     public void testSerialization() throws IOException {

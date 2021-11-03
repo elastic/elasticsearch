@@ -544,6 +544,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             mappedFieldType.normalizer,
             multiFields,
             copyTo,
+            builder.allowMultipleValues,
             builder.script.get() != null,
             builder.onScriptError.getValue()
         );

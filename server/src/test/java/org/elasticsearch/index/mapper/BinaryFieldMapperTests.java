@@ -22,6 +22,7 @@ import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.Base64;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class BinaryFieldMapperTests extends MapperTestCase {
@@ -118,6 +119,18 @@ public class BinaryFieldMapperTests extends MapperTestCase {
             Object originalValue = fieldType.valueForDisplay(indexedValue);
             assertEquals(new BytesArray(value), originalValue);
         }
+    }
+
+    public void testNoArrays() throws IOException {
+        // A simple binary value
+        final byte[] binaryValue1 = new byte[100];
+        binaryValue1[56] = 1;
+        SourceToParse sourceWithArrays = source(b -> b.array("field", binaryValue1, binaryValue1));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "binary").field("allow_multiple_values", false)));
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(sourceWithArrays));
+        assertThat(e.getMessage(), containsString("Field [field] cannot be a multi-valued field"));
+        DocumentMapper okmapper = createDocumentMapper(fieldMapping(b -> b.field("type", "binary")));
+        okmapper.parse(sourceWithArrays);
     }
 
     @Override

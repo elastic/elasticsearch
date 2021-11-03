@@ -126,6 +126,19 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         assertEquals(123, pointField.numericValue().doubleValue(), 0d);
     }
 
+    public void testNoArrays() throws IOException {
+        SourceToParse sourceWithArray = source(b -> b.array("field", 122, 123));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("allow_multiple_values", false);
+        }));
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(sourceWithArray));
+        assertThat(e.getMessage(), containsString("Field [field] cannot be a multi-valued field"));
+
+        DocumentMapper okmapper = createDocumentMapper(fieldMapping(b -> { minimalMapping(b); }));
+        okmapper.parse(sourceWithArray);
+    }
+
     public void testStore() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);

@@ -27,7 +27,16 @@ public class MockFieldMapper extends FieldMapper {
     }
 
     public MockFieldMapper(MappedFieldType fieldType, Map<String, NamedAnalyzer> indexAnalyzers) {
-        super(findSimpleName(fieldType.name()), fieldType, indexAnalyzers, MultiFields.empty(), new CopyTo.Builder().build(), false, null);
+        super(
+            findSimpleName(fieldType.name()),
+            fieldType,
+            indexAnalyzers,
+            MultiFields.empty(),
+            new CopyTo.Builder().build(),
+            true,
+            false,
+            null
+        );
     }
 
     public MockFieldMapper(String fullName, MappedFieldType fieldType, MultiFields multifields, CopyTo copyTo) {

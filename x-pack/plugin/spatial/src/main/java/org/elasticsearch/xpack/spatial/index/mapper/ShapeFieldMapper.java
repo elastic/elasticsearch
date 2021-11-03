@@ -153,6 +153,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
             builder.orientation.get(),
             multiFields,
             copyTo,
+            builder.getAllowMultipleValues(),
             parser
         );
         this.builder = builder;

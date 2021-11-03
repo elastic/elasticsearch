@@ -110,7 +110,8 @@ public class VersionStringFieldMapper extends FieldMapper {
                 fieldtype,
                 buildFieldType(context, fieldtype),
                 multiFieldsBuilder.build(this, context),
-                copyTo.build()
+                copyTo.build(),
+                allowMultipleValues
             );
         }
 
@@ -324,9 +325,10 @@ public class VersionStringFieldMapper extends FieldMapper {
         FieldType fieldType,
         MappedFieldType mappedFieldType,
         MultiFields multiFields,
-        CopyTo copyTo
+        CopyTo copyTo,
+        boolean allowMultipleValues
     ) {
-        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, multiFields, copyTo);
+        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, multiFields, copyTo, allowMultipleValues);
         this.fieldType = fieldType;
     }
 

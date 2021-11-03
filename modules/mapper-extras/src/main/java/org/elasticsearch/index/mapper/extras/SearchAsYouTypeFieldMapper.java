@@ -646,7 +646,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         ShingleFieldMapper[] shingleFields,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, indexAnalyzers, MultiFields.empty(), copyTo, false, null);
+        super(simpleName, mappedFieldType, indexAnalyzers, MultiFields.empty(), copyTo, builder.getAllowMultipleValues(), false, null);
         this.prefixField = prefixField;
         this.shingleFields = shingleFields;
         this.maxShingleSize = builder.maxShingleSize.getValue();

@@ -40,9 +40,10 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
         Explicit<Boolean> ignoreZValue,
         T nullValue,
         CopyTo copyTo,
+        boolean allowMultipleValues,
         Parser<T> parser
     ) {
-        super(simpleName, mappedFieldType, ignoreMalformed, ignoreZValue, multiFields, copyTo, parser);
+        super(simpleName, mappedFieldType, ignoreMalformed, ignoreZValue, multiFields, copyTo, allowMultipleValues, parser);
         this.nullValue = nullValue;
     }
 
@@ -51,10 +52,11 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
         MappedFieldType mappedFieldType,
         MultiFields multiFields,
         CopyTo copyTo,
+        boolean allowMultipleValues,
         Parser<T> parser,
         String onScriptError
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, parser, onScriptError);
+        super(simpleName, mappedFieldType, multiFields, copyTo, allowMultipleValues, parser, onScriptError);
         this.nullValue = null;
     }
 

@@ -277,6 +277,7 @@ public class BooleanFieldMapper extends FieldMapper {
             Lucene.KEYWORD_ANALYZER,
             multiFields,
             copyTo,
+            builder.allowMultipleValues,
             builder.script.get() != null,
             builder.onScriptError.getValue()
         );

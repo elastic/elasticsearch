@@ -123,9 +123,10 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         Explicit<Boolean> ignoreZValue,
         MultiFields multiFields,
         CopyTo copyTo,
+        boolean allowMultipleValues,
         Parser<T> parser
     ) {
-        super(simpleName, mappedFieldType, indexAnalyzers, multiFields, copyTo, false, null);
+        super(simpleName, mappedFieldType, indexAnalyzers, multiFields, copyTo, allowMultipleValues, false, null);
         this.ignoreMalformed = ignoreMalformed;
         this.ignoreZValue = ignoreZValue;
         this.parser = parser;
@@ -138,9 +139,20 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         Explicit<Boolean> ignoreZValue,
         MultiFields multiFields,
         CopyTo copyTo,
+        boolean allowMultipleValues,
         Parser<T> parser
     ) {
-        this(simpleName, mappedFieldType, Collections.emptyMap(), ignoreMalformed, ignoreZValue, multiFields, copyTo, parser);
+        this(
+            simpleName,
+            mappedFieldType,
+            Collections.emptyMap(),
+            ignoreMalformed,
+            ignoreZValue,
+            multiFields,
+            copyTo,
+            allowMultipleValues,
+            parser
+        );
     }
 
     protected AbstractGeometryFieldMapper(
@@ -148,10 +160,11 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         MappedFieldType mappedFieldType,
         MultiFields multiFields,
         CopyTo copyTo,
+        boolean allowMultipleValues,
         Parser<T> parser,
         String onScriptError
     ) {
-        super(simpleName, mappedFieldType, Collections.emptyMap(), multiFields, copyTo, true, onScriptError);
+        super(simpleName, mappedFieldType, Collections.emptyMap(), multiFields, copyTo, allowMultipleValues, true, onScriptError);
         this.ignoreMalformed = new Explicit<>(false, true);
         this.ignoreZValue = new Explicit<>(false, true);
         this.parser = parser;

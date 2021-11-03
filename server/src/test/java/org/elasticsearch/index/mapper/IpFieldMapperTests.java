@@ -115,6 +115,17 @@ public class IpFieldMapperTests extends MapperTestCase {
         assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, "field")), existsQuery);
     }
 
+    public void testNoArrays() throws IOException {
+        SourceToParse sourceWithArrays = source(b -> b.array("field", "::1", "::1"));
+
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "ip").field("allow_multiple_values", false)));
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(sourceWithArrays));
+        assertThat(e.getMessage(), containsString("Field [field] cannot be a multi-valued field"));
+
+        DocumentMapper okMapper = createDocumentMapper(fieldMapping(b -> b.field("type", "ip")));
+        okMapper.parse(sourceWithArrays);
+    }
+
     public void testStore() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip");

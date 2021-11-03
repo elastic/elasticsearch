@@ -162,7 +162,7 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
     }
 
     private static ObjectMapper createObjectMapper(String name) {
-        return new ObjectMapper(name, name, new Explicit<>(true, false), ObjectMapper.Dynamic.FALSE, emptyMap());
+        return new ObjectMapper(name, name, new Explicit<>(true, false), ObjectMapper.Dynamic.FALSE, emptyMap(), true);
     }
 
     private static NestedObjectMapper createNestedObjectMapper(String name) {

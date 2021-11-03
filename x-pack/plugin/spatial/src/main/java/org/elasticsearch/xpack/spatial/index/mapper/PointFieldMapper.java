@@ -136,6 +136,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
             builder.ignoreZValue.get(),
             builder.nullValue.get(),
             copyTo,
+            builder.getAllowMultipleValues(),
             parser
         );
         this.builder = builder;

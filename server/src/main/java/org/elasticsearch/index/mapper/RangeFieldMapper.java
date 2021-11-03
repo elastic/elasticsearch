@@ -164,7 +164,7 @@ public class RangeFieldMapper extends FieldMapper {
         @Override
         public RangeFieldMapper build(MapperBuilderContext context) {
             RangeFieldType ft = setupFieldType(context);
-            return new RangeFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), type, this);
+            return new RangeFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), allowMultipleValues, type, this);
         }
     }
 
@@ -336,10 +336,11 @@ public class RangeFieldMapper extends FieldMapper {
         MappedFieldType mappedFieldType,
         MultiFields multiFields,
         CopyTo copyTo,
+        boolean allowMultipleValues,
         RangeType type,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo, allowMultipleValues);
         this.type = type;
         this.index = builder.index.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();

@@ -310,6 +310,15 @@ public class TextFieldMapperTests extends MapperTestCase {
         }
     }
 
+    public void testNoArrays() throws IOException {
+        SourceToParse sourceWithArrays = source(b -> b.array("field", "Hello", "World"));
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "text").field("allow_multiple_values", false)));
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(sourceWithArrays));
+        assertThat(e.getMessage(), containsString("Field [field] cannot be a multi-valued field"));
+        DocumentMapper okmapper = createDocumentMapper(fieldMapping(b -> b.field("type", "text")));
+        okmapper.parse(sourceWithArrays);
+    }
+
     public void testDefaultPositionIncrementGap() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.array("field", new String[] { "a", "b" })));

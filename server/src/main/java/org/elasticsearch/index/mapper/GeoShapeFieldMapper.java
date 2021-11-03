@@ -184,6 +184,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
             builder.orientation.get(),
             multiFields,
             copyTo,
+            builder.allowMultipleValues,
             parser
         );
         this.builder = builder;

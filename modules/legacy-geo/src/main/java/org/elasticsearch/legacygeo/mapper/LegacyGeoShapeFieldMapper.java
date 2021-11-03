@@ -563,6 +563,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             builder.orientation.get(),
             multiFields,
             copyTo,
+            builder.getAllowMultipleValues(),
             parser
         );
         this.indexCreatedVersion = builder.indexCreatedVersion;

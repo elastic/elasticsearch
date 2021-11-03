@@ -234,6 +234,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 ignoreAbove.get(),
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
+                allowMultipleValues,
                 nullValue.get(),
                 indexVersionCreated
             );
@@ -863,10 +864,11 @@ public class WildcardFieldMapper extends FieldMapper {
         int ignoreAbove,
         MultiFields multiFields,
         CopyTo copyTo,
+        boolean allowMultipleValues,
         String nullValue,
         Version indexVersionCreated
     ) {
-        super(simpleName, mappedFieldType, mappedFieldType.analyzer, multiFields, copyTo);
+        super(simpleName, mappedFieldType, mappedFieldType.analyzer, multiFields, copyTo, allowMultipleValues);
         this.nullValue = nullValue;
         this.ignoreAbove = ignoreAbove;
         this.indexVersionCreated = indexVersionCreated;

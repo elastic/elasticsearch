@@ -463,7 +463,7 @@ public final class DocumentParser {
                 currentFieldName = context.parser().currentName();
                 splitAndValidatePath(currentFieldName);
             } else if (token == XContentParser.Token.START_OBJECT) {
-                parseObject(context, mapper, currentFieldName);
+                parseObject(context, mapper, currentFieldName, false);
             } else if (token == XContentParser.Token.START_ARRAY) {
                 parseArray(context, mapper, currentFieldName);
             } else if (token == XContentParser.Token.VALUE_NULL) {
@@ -477,7 +477,7 @@ public final class DocumentParser {
                         + "] as object, but got EOF, has a concrete value been provided to it?"
                 );
             } else if (token.isValue()) {
-                parseValue(context, mapper, currentFieldName, token);
+                parseValue(context, mapper, currentFieldName, token, false);
             }
             token = context.parser().nextToken();
         }
@@ -534,10 +534,21 @@ public final class DocumentParser {
     }
 
     static void parseObjectOrField(DocumentParserContext context, Mapper mapper) throws IOException {
+        parseObjectOrField(context, mapper, false);
+    }
+
+    static void parseObjectOrField(DocumentParserContext context, Mapper mapper, boolean isArrayValue) throws IOException {
         if (mapper instanceof ObjectMapper) {
+            ObjectMapper objectMapper = (ObjectMapper) mapper;
+            if (isArrayValue && objectMapper.allowMultipleValues() == false) {
+                throw new MapperParsingException("Object [" + mapper.name() + "] cannot be a multi-valued field.");
+            }
             parseObjectOrNested(context, (ObjectMapper) mapper);
         } else if (mapper instanceof FieldMapper) {
             FieldMapper fieldMapper = (FieldMapper) mapper;
+            if (isArrayValue && fieldMapper.allowMultipleValues() == false) {
+                throw new MapperParsingException("Field [" + mapper.name() + "] cannot be a multi-valued field.");
+            }
             fieldMapper.parse(context);
             List<String> copyToFields = fieldMapper.copyTo().copyToFields();
             if (context.isWithinCopyTo() == false && copyToFields.isEmpty() == false) {
@@ -564,12 +575,17 @@ public final class DocumentParser {
         }
     }
 
-    private static void parseObject(final DocumentParserContext context, ObjectMapper mapper, String currentFieldName) throws IOException {
+    private static void parseObject(
+        final DocumentParserContext context,
+        ObjectMapper mapper,
+        String currentFieldName,
+        boolean isInsideArray
+    ) throws IOException {
         assert currentFieldName != null;
         Mapper objectMapper = getMapper(context, mapper, currentFieldName);
         if (objectMapper != null) {
             context.path().add(currentFieldName);
-            parseObjectOrField(context, objectMapper);
+            parseObjectOrField(context, objectMapper, isInsideArray);
             context.path().remove();
         } else {
             ObjectMapper.Dynamic dynamic = dynamicOrDefault(mapper, context);
@@ -608,7 +624,7 @@ public final class DocumentParser {
             // expects an array, if so we pass the context straight to the mapper and if not
             // we serialize the array components
             if (parsesArrayValue(mapper)) {
-                parseObjectOrField(context, mapper);
+                parseObjectOrField(context, mapper, true);
             } else {
                 parseNonDynamicArray(context, parentMapper, lastFieldName, lastFieldName);
             }
@@ -627,7 +643,7 @@ public final class DocumentParser {
                     if (parsesArrayValue(objectMapperFromTemplate)) {
                         context.addDynamicMapper(objectMapperFromTemplate);
                         context.path().add(lastFieldName);
-                        parseObjectOrField(context, objectMapperFromTemplate);
+                        parseObjectOrField(context, objectMapperFromTemplate, true);
                         context.path().remove();
                     } else {
                         parseNonDynamicArray(context, parentMapper, lastFieldName, lastFieldName);
@@ -653,7 +669,7 @@ public final class DocumentParser {
         splitAndValidatePath(lastFieldName);
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token == XContentParser.Token.START_OBJECT) {
-                parseObject(context, mapper, lastFieldName);
+                parseObject(context, mapper, lastFieldName, true);
             } else if (token == XContentParser.Token.START_ARRAY) {
                 parseArray(context, mapper, lastFieldName);
             } else if (token == XContentParser.Token.VALUE_NULL) {
@@ -668,7 +684,7 @@ public final class DocumentParser {
                 );
             } else {
                 assert token.isValue();
-                parseValue(context, mapper, lastFieldName, token);
+                parseValue(context, mapper, lastFieldName, token, true);
             }
         }
     }
@@ -677,7 +693,8 @@ public final class DocumentParser {
         final DocumentParserContext context,
         ObjectMapper parentMapper,
         String currentFieldName,
-        XContentParser.Token token
+        XContentParser.Token token,
+        boolean isArrayValue
     ) throws IOException {
         if (currentFieldName == null) {
             throw new MapperParsingException(
@@ -691,7 +708,7 @@ public final class DocumentParser {
         }
         Mapper mapper = getLeafMapper(context, parentMapper, currentFieldName);
         if (mapper != null) {
-            parseObjectOrField(context, mapper);
+            parseObjectOrField(context, mapper, isArrayValue);
         } else {
             parseDynamicValue(context, parentMapper, currentFieldName, token);
         }
@@ -896,7 +913,7 @@ public final class DocumentParser {
 
     private static class NoOpObjectMapper extends ObjectMapper {
         NoOpObjectMapper(String name, String fullPath) {
-            super(name, fullPath, new Explicit<>(true, false), Dynamic.RUNTIME, Collections.emptyMap());
+            super(name, fullPath, new Explicit<>(true, false), Dynamic.RUNTIME, Collections.emptyMap(), true);
         }
     }
 

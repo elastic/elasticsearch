@@ -1298,7 +1298,15 @@ public class NumberFieldMapper extends FieldMapper {
     private final MetricType metricType;
 
     private NumberFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo, Builder builder) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.getValue());
+        super(
+            simpleName,
+            mappedFieldType,
+            multiFields,
+            copyTo,
+            builder.allowMultipleValues,
+            builder.script.get() != null,
+            builder.onScriptError.getValue()
+        );
         this.type = builder.type;
         this.indexed = builder.indexed.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();

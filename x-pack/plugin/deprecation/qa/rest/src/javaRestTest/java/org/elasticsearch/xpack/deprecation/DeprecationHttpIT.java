@@ -512,7 +512,6 @@ public class DeprecationHttpIT extends ESRestTestCase {
 
     }
 
-
     /**
      * Check that deprecation messages with WARN level can be recorded to an index
      */

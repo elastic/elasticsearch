@@ -101,7 +101,7 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
             Route.builder(POST, "/_test_cluster/deprecated_settings").deprecated(DEPRECATED_ENDPOINT, RestApiVersion.current()).build(),
             Route.builder(GET, "/_test_cluster/compat_only").deprecated(DEPRECATED_ENDPOINT, RestApiVersion.minimumSupported()).build(),
             Route.builder(GET, "/_test_cluster/only_deprecated_setting").build()
-            );
+        );
     }
 
     @SuppressWarnings("unchecked") // List<String> casts

@@ -24,8 +24,7 @@ free trial license to access all features of the Elastic Stack. See https://www.
 
 ==== Enable {es} security features
 
-When you use the basic license, the {es} security features are disabled by
-default. Enabling the {es} security features enables basic authentication so
+Enabling the {es} security features enables basic authentication so
 that you can run a local cluster with username and password authentication.
 
 . On *every* node in your cluster, stop both {kib} and {es} if they are running.

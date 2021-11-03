@@ -146,7 +146,7 @@ The type of kNN algorithm to use. Currently only `hnsw` is supported.
 Controls how many of the nearest neighbor candidates are connected to each new
 node when building the HNSW graph. Defaults to 16.
 
-`efConstruction`:::
+`ef_construction`:::
 The number of candidates to track while assembling the list of nearest
 neighbors for each new node. Defaults to 100.
 
@@ -164,7 +164,7 @@ PUT my-index-000003
         "index_options": { <1>
           "type": "hnsw",
           "m": 32,
-          "efConstruction": 100
+          "ef_construction": 100
         }
       }
     }

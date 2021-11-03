@@ -35,6 +35,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_tsid";
     public static final String CONTENT_TYPE = "_tsid";
     public static final TimeSeriesIdFieldType FIELD_TYPE = new TimeSeriesIdFieldType();
+    private static final TimeSeriesIdFieldMapper INSTANCE = new TimeSeriesIdFieldMapper();
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
@@ -53,7 +54,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
         @Override
         public TimeSeriesIdFieldMapper build() {
-            return new TimeSeriesIdFieldMapper();
+            return INSTANCE;
         }
     }
 
@@ -111,7 +112,6 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             .generateTimeSeriesIdIfNeeded(context.sourceToParse().source(), context.sourceToParse().getXContentType());
         assert timeSeriesId != null : "In time series mode _tsid cannot be null";
 
-        // TODO switch to native BytesRef over the wire, leaving the routing alone
         context.doc().add(new SortedSetDocValuesField(fieldType().name(), timeSeriesId.toBytesRef()));
     }
 

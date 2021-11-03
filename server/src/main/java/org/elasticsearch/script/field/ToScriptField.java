@@ -39,6 +39,19 @@ public abstract class ToScriptField {
         }
     }
 
+    public static class ToSeqNoScriptField extends ToScriptField {
+
+        public static final ToSeqNoScriptField INSTANCE = new ToSeqNoScriptField();
+
+        private ToSeqNoScriptField() {
+
+        }
+
+        public DocValuesField<?> getScriptField(SortedNumericDocValues sortedNumericDocValues, String name) {
+            return new DelegateDocValuesField(new Longs(sortedNumericDocValues), name);
+        }
+    }
+
     public static class ToBooleanScriptField extends ToScriptField {
 
         public static final ToBooleanScriptField INSTANCE = new ToBooleanScriptField();

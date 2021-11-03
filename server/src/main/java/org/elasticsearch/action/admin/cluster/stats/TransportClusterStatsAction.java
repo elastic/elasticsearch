@@ -266,8 +266,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         protected void refresh(
             Metadata metadata,
             Runnable ensureNotCancelled,
-            ActionListener<T> listener,
-            BooleanSupplier supersedeIfStale
+            BooleanSupplier supersedeIfStale,
+            ActionListener<T> listener
         ) {
             ActionListener.completeWith(listener, () -> function.apply(metadata, ensureNotCancelled));
         }

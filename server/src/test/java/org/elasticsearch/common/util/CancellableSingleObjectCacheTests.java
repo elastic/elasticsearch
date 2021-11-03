@@ -198,8 +198,8 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
                 protected void refresh(
                     String s,
                     Runnable ensureNotCancelled,
-                    ActionListener<Integer> listener,
-                    BooleanSupplier supersedeIfStale
+                    BooleanSupplier supersedeIfStale,
+                    ActionListener<Integer> listener
                 ) {
                     threadPool.generic().execute(() -> ActionListener.completeWith(listener, () -> {
                         ensureNotCancelled.run();
@@ -282,8 +282,8 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
                 protected void refresh(
                     String s,
                     Runnable ensureNotCancelled,
-                    ActionListener<Integer> listener,
-                    BooleanSupplier supersedeIfStale
+                    BooleanSupplier supersedeIfStale,
+                    ActionListener<Integer> listener
                 ) {
                     threadPool.generic().execute(() -> {
                         if (supersedeIfStale.getAsBoolean()) {
@@ -385,8 +385,8 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
             protected void refresh(
                 String s,
                 Runnable ensureNotCancelled,
-                ActionListener<Integer> listener,
-                BooleanSupplier supersedeIfStale
+                BooleanSupplier supersedeIfStale,
+                ActionListener<Integer> listener
             ) {
                 ActionListener.completeWith(listener, () -> {
                     awaitBarrier.run(); // main-thread barrier 2; cancelled-thread barrier 1
@@ -432,8 +432,8 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
         protected void refresh(
             String input,
             Runnable ensureNotCancelled,
-            ActionListener<Integer> listener,
-            BooleanSupplier supersedeIfStale
+            BooleanSupplier supersedeIfStale,
+            ActionListener<Integer> listener
         ) {
             final StepListener<Function<String, Integer>> stepListener = new StepListener<>();
             pendingRefreshes.offer(stepListener);

@@ -57,9 +57,6 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
      *                           suitably fresh for future requests too.
      * @param ensureNotCancelled A {@link Runnable} which throws a {@link TaskCancelledException} if the result of the computation is no
      *                           longer needed. On cancellation, notifying the {@code listener} is optional.
-     * @param listener           A {@link ActionListener} which should be notified when the computation completes. If the computation fails
-     *                           by calling {@link ActionListener#onFailure} then the result is returned to the pending listeners but is not
-     *                           cached.
      * @param supersedeIfStale   Checks whether the {@code input} to this refresh has been superseded by a fresher input. If the current
      *                           input has been superseded then this supplier subscribes the {@code listener} (and corresponding
      *                           cancellation checks) to the computation from the new input and returns {@code true}, indicating that no
@@ -67,12 +64,15 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
      *                           freshest then it takes no action and returns {@code false} to indicate that this invocation of {@code
      *                           refresh()} must proceed. Implementations of {@code refresh()} that work asynchronously, for instance by
      *                           running the computation on a different thread, should use this to check for freshness when they resume.
+     * @param listener           A {@link ActionListener} which should be notified when the computation completes. If the computation fails
+     *                           by calling {@link ActionListener#onFailure} then the result is returned to the pending listeners but is not
+     *                           cached.
      */
     protected abstract void refresh(
         Input input,
         Runnable ensureNotCancelled,
-        ActionListener<Value> listener,
-        BooleanSupplier supersedeIfStale
+        BooleanSupplier supersedeIfStale,
+        ActionListener<Value> listener
     );
 
     /**
@@ -277,7 +277,7 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
 
         void startRefresh(Input input) {
             try {
-                refresh(input, this::ensureNotCancelled, future, this::supersedeIfStale);
+                refresh(input, this::ensureNotCancelled, this::supersedeIfStale, future);
             } catch (Exception e) {
                 future.onFailure(e);
             }

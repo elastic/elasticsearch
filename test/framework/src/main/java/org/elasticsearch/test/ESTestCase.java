@@ -1670,7 +1670,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     public static final class DeprecationWarning {
-        private final Level level; //Intentionally ignoring level for the sake of equality for now
+        private final Level level; // Intentionally ignoring level for the sake of equality for now
         private final String message;
 
         public DeprecationWarning(Level level, String message) {

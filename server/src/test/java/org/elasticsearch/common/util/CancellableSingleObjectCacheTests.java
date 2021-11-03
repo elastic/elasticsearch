@@ -178,7 +178,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
                     String s,
                     Runnable ensureNotCancelled,
                     ActionListener<Integer> listener,
-                    BooleanSupplier isSupersededSupplier
+                    BooleanSupplier supersedeIfStale
                 ) {
                     threadPool.generic().execute(() -> ActionListener.completeWith(listener, () -> {
                         ensureNotCancelled.run();
@@ -262,10 +262,10 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
                     String s,
                     Runnable ensureNotCancelled,
                     ActionListener<Integer> listener,
-                    BooleanSupplier isSupersededSupplier
+                    BooleanSupplier supersedeIfStale
                 ) {
                     threadPool.generic().execute(() -> {
-                        if (isSupersededSupplier.getAsBoolean()) {
+                        if (supersedeIfStale.getAsBoolean()) {
                             return;
                         }
 
@@ -363,7 +363,7 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
 
         final CancellableSingleObjectCache<String, String, Integer> testCache = new CancellableSingleObjectCache<>() {
             @Override
-            protected void refresh(String s, Runnable ensureNotCancelled, ActionListener<Integer> listener, BooleanSupplier isFreshCheck) {
+            protected void refresh(String s, Runnable ensureNotCancelled, ActionListener<Integer> listener, BooleanSupplier supersedeIfStale) {
                 ActionListener.completeWith(listener, () -> {
                     while (successfulChecksRemaining.get() > 0) {
                         ensureNotCancelled.run();
@@ -412,12 +412,12 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
             String input,
             Runnable ensureNotCancelled,
             ActionListener<Integer> listener,
-            BooleanSupplier isSupersededSupplier
+            BooleanSupplier supersedeIfStale
         ) {
             final StepListener<Function<String, Integer>> stepListener = new StepListener<>();
             pendingRefreshes.offer(stepListener);
             stepListener.whenComplete(f -> {
-                if (isSupersededSupplier.getAsBoolean()) {
+                if (supersedeIfStale.getAsBoolean()) {
                     return;
                 }
                 ActionListener.completeWith(listener, () -> {

@@ -60,17 +60,19 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
      * @param listener           A {@link ActionListener} which should be notified when the computation completes. If the computation fails
      *                           by calling {@link ActionListener#onFailure} then the result is returned to the pending listeners but is not
      *                           cached.
-     * @param isSupersededSupplier Returns whether the input has been superseded by a fresher input. If the refresh happens asynchronously
-     *                             then the implementation can use this to check whether to proceed each time it resumes. If {@code
-     *                             isSupersededSupplier} returns {@code true} then the listener (and cancellation checks) have been
-     *                             subscribed to a fresher item, so no further action is needed by this refresh invocation.
-     *
+     * @param supersedeIfStale   Checks whether the {@code input} to this refresh has been superseded by a fresher input. If the current
+     *                           input has been superseded then this supplier subscribes the {@code listener} (and corresponding
+     *                           cancellation checks) to the computation from the new input and returns {@code true}, indicating that no
+     *                           further action is needed by this invocation of {@code refresh()}. If the current input is still the
+     *                           freshest then it takes no action and returns {@code false} to indicate that this invocation of {@code
+     *                           refresh()} must proceed. Implementations of {@code refresh()} that work asynchronously, for instance by
+     *                           running the computation on a different thread, should use this to check for freshness when they resume.
      */
     protected abstract void refresh(
         Input input,
         Runnable ensureNotCancelled,
         ActionListener<Value> listener,
-        BooleanSupplier isSupersededSupplier
+        BooleanSupplier supersedeIfStale
     );
 
     /**
@@ -273,7 +275,7 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
                     decRef();
                 }
             } else {
-                // this item was cancelled, not superseded - return value doesn't really matter, refresh() will check for cancellation.
+                // this item was cancelled, not superseded, so the refresh must complete (typically with a cancellation exception)
                 return false;
             }
         }

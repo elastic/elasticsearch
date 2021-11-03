@@ -97,9 +97,6 @@ public class TimeSeriesMetricsService {
     ) {
         if (capabilities.isDimension()) {
             dimensions.add(fieldName);
-            if (capabilities.getMetricType() != null) {
-                metrics.put(fieldName, capabilities.getMetricType());
-            }
         } else {
             metrics.put(fieldName, capabilities.getMetricType());
         }

@@ -127,6 +127,10 @@ cosine similarity is to normalize all vectors to unit length, and instead use
 `dot_product`. You should only use `cosine` if you need to preserve the
 original vectors and cannot normalize them in advance.
 
+NOTE: Although they are conceptually related, this parameter is different
+from the <<similarity,`similarity`>> parameter on <<text,`text`>> fields
+and accepts a distinct set of options.
+
 `index_options`::
 
 An optional section that configures the kNN indexing algorithm. The HNSW

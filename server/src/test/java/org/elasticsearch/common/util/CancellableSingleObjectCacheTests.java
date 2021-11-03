@@ -28,7 +28,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 
@@ -361,7 +360,12 @@ public class CancellableSingleObjectCacheTests extends ESTestCase {
 
         final CancellableSingleObjectCache<String, String, Integer> testCache = new CancellableSingleObjectCache<>() {
             @Override
-            protected void refresh(String s, Runnable ensureNotCancelled, ActionListener<Integer> listener, BooleanSupplier supersedeIfStale) {
+            protected void refresh(
+                String s,
+                Runnable ensureNotCancelled,
+                ActionListener<Integer> listener,
+                BooleanSupplier supersedeIfStale
+            ) {
                 ActionListener.completeWith(listener, () -> {
                     awaitBarrier.run(); // main-thread barrier 2; cancelled-thread barrier 1
                     awaitBarrier.run(); // main-thread barrier 3; cancelled-thread barrier 2

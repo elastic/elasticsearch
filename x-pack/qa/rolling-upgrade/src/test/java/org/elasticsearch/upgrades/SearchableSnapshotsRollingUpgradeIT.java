@@ -16,6 +16,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.searchable_snapshots.MountSnapshotRequest.Storage;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -114,7 +115,6 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
         executeBlobCacheCreationTestCase(storage, 9876L);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79786")
     public void testBlobStoreCacheWithPartialCopyInMixedVersions() throws Exception {
         final Storage storage = Storage.SHARED_CACHE;
         assumeVersion(Version.V_7_12_0, Storage.SHARED_CACHE);
@@ -392,6 +392,11 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
         final Request request = new Request(HttpPost.METHOD_NAME, "/_snapshot/" + repositoryName + '/' + snapshotName + "/_mount");
         if (UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_12_0)) {
             request.addParameter("storage", storage.storageName());
+            if (UPGRADE_FROM_VERSION.before(Version.V_7_13_0) && storage == Storage.SHARED_CACHE) {
+                // Force tier preference to frozen since 7.12.x since 7.12.x will otherwise try to use the tier preference of frozen
+                // followed by all other tiers by default which 7.13+ nodes will not accept.
+                indexSettings = Settings.builder().put(indexSettings).put(DataTier.TIER_PREFERENCE, DataTier.DATA_FROZEN).build();
+            }
         } else {
             assertThat("Parameter 'storage' was introduced in 7.12.0 with " + Storage.SHARED_CACHE, storage, equalTo(Storage.FULL_COPY));
         }

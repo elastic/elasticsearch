@@ -560,7 +560,7 @@ public class IndexDeprecationChecks {
                 String indexName = indexMetadata.getIndex().getName();
                 return new DeprecationIssue(
                     DeprecationIssue.Level.CRITICAL,
-                    "index ["
+                    "Index ["
                         + indexName
                         + "] does not have a ["
                         + DataTier.TIER_PREFERENCE

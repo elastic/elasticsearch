@@ -53,7 +53,7 @@ public class FilterContentBenchmark {
     @Param({ "10_field", "half_field", "all_field", "wildcard_field", "10_wildcard_field" })
     private String fieldCount;
 
-    @Param({ "true", "false" })
+    @Param({ "true" })
     private boolean inclusive;
 
     private BytesReference source;

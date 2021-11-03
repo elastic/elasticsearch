@@ -25,7 +25,7 @@ public class GeometryDocValueWriter {
     /*** Serialize the triangle tree in a BytesRef */
     public static BytesRef write(List<IndexableField> fields, CoordinateEncoder coordinateEncoder, CentroidCalculator centroidCalculator)
         throws IOException {
-        try (final RecyclingBytesStreamOutput out = new RecyclingBytesStreamOutput()) {
+        try (RecyclingBytesStreamOutput out = new RecyclingBytesStreamOutput()) {
             // normalization may be required due to floating point precision errors
             out.writeInt(coordinateEncoder.encodeX(coordinateEncoder.normalizeX(centroidCalculator.getX())));
             out.writeInt(coordinateEncoder.encodeY(coordinateEncoder.normalizeY(centroidCalculator.getY())));

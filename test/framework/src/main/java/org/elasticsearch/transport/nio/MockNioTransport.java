@@ -228,7 +228,7 @@ public class MockNioTransport extends TcpTransport {
                 if (length > PageCacheRecycler.BYTE_PAGE_SIZE) {
                     return new Page(ByteBuffer.allocate(length), () -> {});
                 } else {
-                    Recycler.V<BytesRef> bytes = getRecycler().obtain();
+                    Recycler.V<BytesRef> bytes = recycler.obtain();
                     BytesRef v = bytes.v();
                     assert v.length == length;
                     return new Page(ByteBuffer.wrap(v.bytes, v.offset, length), bytes);

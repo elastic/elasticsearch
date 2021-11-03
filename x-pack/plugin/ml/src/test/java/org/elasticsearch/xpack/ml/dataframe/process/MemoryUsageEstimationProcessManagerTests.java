@@ -44,8 +44,10 @@ public class MemoryUsageEstimationProcessManagerTests extends ESTestCase {
     private static final String CONFIG_ID = "dummy";
     private static final int NUM_ROWS = 100;
     private static final int NUM_COLS = 4;
-    private static final MemoryUsageEstimationResult PROCESS_RESULT =
-        new MemoryUsageEstimationResult(ByteSizeValue.parseBytesSizeValue("20kB", ""), ByteSizeValue.parseBytesSizeValue("10kB", ""));
+    private static final MemoryUsageEstimationResult PROCESS_RESULT = new MemoryUsageEstimationResult(
+        ByteSizeValue.parseBytesSizeValue("20kB", ""),
+        ByteSizeValue.parseBytesSizeValue("10kB", "")
+    );
 
     private ExecutorService executorServiceForProcess;
     private AnalyticsProcess<MemoryUsageEstimationResult> process;
@@ -76,8 +78,11 @@ public class MemoryUsageEstimationProcessManagerTests extends ESTestCase {
         resultCaptor = ArgumentCaptor.forClass(MemoryUsageEstimationResult.class);
         exceptionCaptor = ArgumentCaptor.forClass(Exception.class);
 
-        processManager =
-            new MemoryUsageEstimationProcessManager(EsExecutors.DIRECT_EXECUTOR_SERVICE, executorServiceForProcess, processFactory);
+        processManager = new MemoryUsageEstimationProcessManager(
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            executorServiceForProcess,
+            processFactory
+        );
     }
 
     public void testRunJob_EmptyDataFrame() {

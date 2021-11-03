@@ -16,7 +16,6 @@ public class DeleteRoleAction extends ActionType<DeleteRoleResponse> {
     public static final DeleteRoleAction INSTANCE = new DeleteRoleAction();
     public static final String NAME = "cluster:admin/xpack/security/role/delete";
 
-
     protected DeleteRoleAction() {
         super(NAME, DeleteRoleResponse::new);
     }

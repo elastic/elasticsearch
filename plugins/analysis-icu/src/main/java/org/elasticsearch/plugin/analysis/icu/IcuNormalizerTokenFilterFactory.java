@@ -11,13 +11,13 @@ package org.elasticsearch.plugin.analysis.icu;
 import com.ibm.icu.text.FilteredNormalizer2;
 import com.ibm.icu.text.Normalizer2;
 import com.ibm.icu.text.UnicodeSet;
+
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
-
 
 /**
  * Uses the {@link org.apache.lucene.analysis.icu.ICUNormalizer2Filter} to normalize tokens.
@@ -40,9 +40,7 @@ public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory 
         return new org.apache.lucene.analysis.icu.ICUNormalizer2Filter(tokenStream, normalizer);
     }
 
-    static Normalizer2 wrapWithUnicodeSetFilter(final IndexSettings indexSettings,
-                                                final Normalizer2 normalizer,
-                                                final Settings settings) {
+    static Normalizer2 wrapWithUnicodeSetFilter(final IndexSettings indexSettings, final Normalizer2 normalizer, final Settings settings) {
         String unicodeSetFilter = settings.get("unicode_set_filter");
         if (unicodeSetFilter != null) {
             UnicodeSet unicodeSet = new UnicodeSet(unicodeSetFilter);

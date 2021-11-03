@@ -47,10 +47,10 @@ public class FieldExtractorTests extends ESTestCase {
 
     public void testDisjunctionMax() {
         Set<String> fields = new HashSet<>();
-        DisjunctionMaxQuery query = new DisjunctionMaxQuery(Arrays.asList(
-          new TermQuery(new Term("one", "bar")),
-          new TermQuery(new Term("two", "baz"))
-        ), 1.0F);
+        DisjunctionMaxQuery query = new DisjunctionMaxQuery(
+            Arrays.asList(new TermQuery(new Term("one", "bar")), new TermQuery(new Term("two", "baz"))),
+            1.0F
+        );
         FieldExtractor.extractFields(query, fields);
         assertEquals(asSet("one", "two"), fields);
     }
@@ -69,10 +69,7 @@ public class FieldExtractorTests extends ESTestCase {
 
     public void testSynonym() {
         Set<String> fields = new HashSet<>();
-        SynonymQuery query = new SynonymQuery.Builder("foo")
-            .addTerm(new Term("foo", "bar"))
-            .addTerm(new Term("foo", "baz"))
-            .build();
+        SynonymQuery query = new SynonymQuery.Builder("foo").addTerm(new Term("foo", "bar")).addTerm(new Term("foo", "baz")).build();
         FieldExtractor.extractFields(query, fields);
         assertEquals(asSet("foo"), fields);
     }
@@ -139,9 +136,10 @@ public class FieldExtractorTests extends ESTestCase {
 
     public void testUnsupported() {
         Set<String> fields = new HashSet<>();
-        expectThrows(UnsupportedOperationException.class, () -> {
-            FieldExtractor.extractFields(new AssertingQuery(random(), new MatchAllDocsQuery()), fields);
-        });
+        expectThrows(
+            UnsupportedOperationException.class,
+            () -> { FieldExtractor.extractFields(new AssertingQuery(random(), new MatchAllDocsQuery()), fields); }
+        );
     }
 
     public void testIndexOrDocValuesQuery() {

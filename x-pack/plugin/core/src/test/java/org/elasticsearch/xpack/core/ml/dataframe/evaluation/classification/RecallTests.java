@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
 
@@ -57,11 +57,13 @@ public class RecallTests extends AbstractSerializingTestCase<Recall> {
     }
 
     public void testProcess() {
-        Aggregations aggs = new Aggregations(Arrays.asList(
-            mockTerms(Recall.BY_ACTUAL_CLASS_AGG_NAME),
-            mockSingleValue(Recall.AVG_RECALL_AGG_NAME, 0.8123),
-            mockSingleValue("some_other_single_metric_agg", 0.2377)
-        ));
+        Aggregations aggs = new Aggregations(
+            Arrays.asList(
+                mockTerms(Recall.BY_ACTUAL_CLASS_AGG_NAME),
+                mockSingleValue(Recall.AVG_RECALL_AGG_NAME, 0.8123),
+                mockSingleValue("some_other_single_metric_agg", 0.2377)
+            )
+        );
 
         Recall recall = new Recall();
         recall.process(aggs);
@@ -72,19 +74,17 @@ public class RecallTests extends AbstractSerializingTestCase<Recall> {
 
     public void testProcess_GivenMissingAgg() {
         {
-            Aggregations aggs = new Aggregations(Arrays.asList(
-                mockTerms(Recall.BY_ACTUAL_CLASS_AGG_NAME),
-                mockSingleValue("some_other_single_metric_agg", 0.2377)
-            ));
+            Aggregations aggs = new Aggregations(
+                Arrays.asList(mockTerms(Recall.BY_ACTUAL_CLASS_AGG_NAME), mockSingleValue("some_other_single_metric_agg", 0.2377))
+            );
             Recall recall = new Recall();
             recall.process(aggs);
             assertThat(recall.getResult(), isEmpty());
         }
         {
-            Aggregations aggs = new Aggregations(Arrays.asList(
-                mockSingleValue(Recall.AVG_RECALL_AGG_NAME, 0.8123),
-                mockSingleValue("some_other_single_metric_agg", 0.2377)
-            ));
+            Aggregations aggs = new Aggregations(
+                Arrays.asList(mockSingleValue(Recall.AVG_RECALL_AGG_NAME, 0.8123), mockSingleValue("some_other_single_metric_agg", 0.2377))
+            );
             Recall recall = new Recall();
             recall.process(aggs);
             assertThat(recall.getResult(), isEmpty());
@@ -93,19 +93,17 @@ public class RecallTests extends AbstractSerializingTestCase<Recall> {
 
     public void testProcess_GivenAggOfWrongType() {
         {
-            Aggregations aggs = new Aggregations(Arrays.asList(
-                mockTerms(Recall.BY_ACTUAL_CLASS_AGG_NAME),
-                mockTerms(Recall.AVG_RECALL_AGG_NAME)
-            ));
+            Aggregations aggs = new Aggregations(
+                Arrays.asList(mockTerms(Recall.BY_ACTUAL_CLASS_AGG_NAME), mockTerms(Recall.AVG_RECALL_AGG_NAME))
+            );
             Recall recall = new Recall();
             recall.process(aggs);
             assertThat(recall.getResult(), isEmpty());
         }
         {
-            Aggregations aggs = new Aggregations(Arrays.asList(
-                mockSingleValue(Recall.BY_ACTUAL_CLASS_AGG_NAME, 1.0),
-                mockSingleValue(Recall.AVG_RECALL_AGG_NAME, 0.8123)
-            ));
+            Aggregations aggs = new Aggregations(
+                Arrays.asList(mockSingleValue(Recall.BY_ACTUAL_CLASS_AGG_NAME, 1.0), mockSingleValue(Recall.AVG_RECALL_AGG_NAME, 0.8123))
+            );
             Recall recall = new Recall();
             recall.process(aggs);
             assertThat(recall.getResult(), isEmpty());
@@ -113,9 +111,12 @@ public class RecallTests extends AbstractSerializingTestCase<Recall> {
     }
 
     public void testProcess_GivenCardinalityTooHigh() {
-        Aggregations aggs = new Aggregations(Arrays.asList(
-            mockTerms(Recall.BY_ACTUAL_CLASS_AGG_NAME, Collections.emptyList(), 1),
-            mockSingleValue(Recall.AVG_RECALL_AGG_NAME, 0.8123)));
+        Aggregations aggs = new Aggregations(
+            Arrays.asList(
+                mockTerms(Recall.BY_ACTUAL_CLASS_AGG_NAME, Collections.emptyList(), 1),
+                mockSingleValue(Recall.AVG_RECALL_AGG_NAME, 0.8123)
+            )
+        );
         Recall recall = new Recall();
         recall.aggs(EVALUATION_PARAMETERS, EVALUATION_FIELDS);
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> recall.process(aggs));

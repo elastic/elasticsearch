@@ -34,8 +34,8 @@ public abstract class Command implements Closeable {
 
     private final OptionSpec<Void> helpOption = parser.acceptsAll(Arrays.asList("h", "help"), "Show help").forHelp();
     private final OptionSpec<Void> silentOption = parser.acceptsAll(Arrays.asList("s", "silent"), "Show minimal output");
-    private final OptionSpec<Void> verboseOption =
-        parser.acceptsAll(Arrays.asList("v", "verbose"), "Show verbose output").availableUnless(silentOption);
+    private final OptionSpec<Void> verboseOption = parser.acceptsAll(Arrays.asList("v", "verbose"), "Show verbose output")
+        .availableUnless(silentOption);
 
     /**
      * Construct the command with the specified command description and runnable to execute before main is invoked.
@@ -58,9 +58,7 @@ public abstract class Command implements Closeable {
                 try {
                     this.close();
                 } catch (final IOException e) {
-                    try (
-                        StringWriter sw = new StringWriter();
-                        PrintWriter pw = new PrintWriter(sw)) {
+                    try (StringWriter sw = new StringWriter(); PrintWriter pw = new PrintWriter(sw)) {
                         e.printStackTrace(pw);
                         terminal.errorPrintln(sw.toString());
                     } catch (final IOException impossible) {

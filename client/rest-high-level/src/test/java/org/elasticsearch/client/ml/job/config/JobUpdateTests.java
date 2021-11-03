@@ -8,8 +8,8 @@
 package org.elasticsearch.client.ml.job.config;
 
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -81,7 +81,6 @@ public class JobUpdateTests extends AbstractXContentTestCase<JobUpdate> {
         return update.build();
     }
 
-
     private static List<JobUpdate.DetectorUpdate> createRandomDetectorUpdates() {
         int size = randomInt(10);
         List<JobUpdate.DetectorUpdate> detectorUpdates = new ArrayList<>(size);
@@ -93,8 +92,10 @@ public class JobUpdateTests extends AbstractXContentTestCase<JobUpdate> {
             List<DetectionRule> detectionRules = null;
             if (randomBoolean()) {
                 detectionRules = new ArrayList<>();
-                detectionRules.add(new DetectionRule.Builder(
-                        Collections.singletonList(new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.GT, 5))).build());
+                detectionRules.add(
+                    new DetectionRule.Builder(Collections.singletonList(new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.GT, 5)))
+                        .build()
+                );
             }
             detectorUpdates.add(new JobUpdate.DetectorUpdate(i, detectorDescription, detectionRules));
         }

@@ -12,13 +12,15 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.net.InetSocketAddress;
 import java.util.Collections;
@@ -29,13 +31,21 @@ import java.util.Map;
 public class FakeRestRequest extends RestRequest {
 
     public FakeRestRequest() {
-        this(NamedXContentRegistry.EMPTY, new FakeHttpRequest(Method.GET, "", BytesArray.EMPTY, new HashMap<>()), new HashMap<>(),
-            new FakeHttpChannel(null));
+        this(
+            XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
+            new FakeHttpRequest(Method.GET, "", BytesArray.EMPTY, new HashMap<>()),
+            new HashMap<>(),
+            new FakeHttpChannel(null)
+        );
     }
 
-    private FakeRestRequest(NamedXContentRegistry xContentRegistry, HttpRequest httpRequest, Map<String, String> params,
-                            HttpChannel httpChannel) {
-        super(xContentRegistry, params, httpRequest.uri(), httpRequest.getHeaders(), httpRequest, httpChannel);
+    private FakeRestRequest(
+        XContentParserConfiguration config,
+        HttpRequest httpRequest,
+        Map<String, String> params,
+        HttpChannel httpChannel
+    ) {
+        super(config, params, httpRequest.uri(), httpRequest.getHeaders(), httpRequest, httpChannel);
     }
 
     public static class FakeHttpRequest implements HttpRequest {
@@ -50,8 +60,13 @@ public class FakeRestRequest extends RestRequest {
             this(method, uri, content, headers, null);
         }
 
-        private FakeHttpRequest(Method method, String uri, BytesReference content, Map<String, List<String>> headers,
-                                Exception inboundException) {
+        private FakeHttpRequest(
+            Method method,
+            String uri,
+            BytesReference content,
+            Map<String, List<String>> headers,
+            Exception inboundException
+        ) {
             this.method = method;
             this.uri = uri;
             this.content = content == null ? BytesArray.EMPTY : content;
@@ -112,8 +127,7 @@ public class FakeRestRequest extends RestRequest {
         }
 
         @Override
-        public void release() {
-        }
+        public void release() {}
 
         @Override
         public HttpRequest releaseAndCopy() {
@@ -167,7 +181,7 @@ public class FakeRestRequest extends RestRequest {
     }
 
     public static class Builder {
-        private final NamedXContentRegistry xContentRegistry;
+        private final XContentParserConfiguration parserConfig;
 
         private Map<String, List<String>> headers = new HashMap<>();
 
@@ -183,8 +197,9 @@ public class FakeRestRequest extends RestRequest {
 
         private Exception inboundException;
 
-        public Builder(NamedXContentRegistry xContentRegistry) {
-            this.xContentRegistry = xContentRegistry;
+        public Builder(NamedXContentRegistry registry) {
+            this.parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE)
+                .withRegistry(registry);
         }
 
         public Builder withHeaders(Map<String, List<String>> headers) {
@@ -227,7 +242,7 @@ public class FakeRestRequest extends RestRequest {
 
         public FakeRestRequest build() {
             FakeHttpRequest fakeHttpRequest = new FakeHttpRequest(method, path, content, headers, inboundException);
-            return new FakeRestRequest(xContentRegistry, fakeHttpRequest, params, new FakeHttpChannel(address));
+            return new FakeRestRequest(parserConfig, fakeHttpRequest, params, new FakeHttpChannel(address));
         }
     }
 

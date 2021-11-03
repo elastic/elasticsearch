@@ -27,20 +27,24 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
     public void testHeadersSupportStashedValueReplacement() throws IOException {
         final AtomicReference<Map<String, String>> headersRef = new AtomicReference<>();
         final Version version = VersionUtils.randomVersion(random());
-        final ClientYamlTestExecutionContext context =
-            new ClientYamlTestExecutionContext(null, null, randomBoolean()) {
-                @Override
-                ClientYamlTestResponse callApiInternal(String apiName, Map<String, String> params,
-                        HttpEntity entity, Map<String, String> headers, NodeSelector nodeSelector) {
-                    headersRef.set(headers);
-                    return null;
-                }
+        final ClientYamlTestExecutionContext context = new ClientYamlTestExecutionContext(null, null, randomBoolean()) {
+            @Override
+            ClientYamlTestResponse callApiInternal(
+                String apiName,
+                Map<String, String> params,
+                HttpEntity entity,
+                Map<String, String> headers,
+                NodeSelector nodeSelector
+            ) {
+                headersRef.set(headers);
+                return null;
+            }
 
-                @Override
-                public Version esVersion() {
-                    return version;
-                }
-            };
+            @Override
+            public Version esVersion() {
+                return version;
+            }
+        };
         final Map<String, String> headers = new HashMap<>();
         headers.put("foo", "$bar");
         headers.put("foo1", "baz ${c}");
@@ -59,26 +63,30 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
 
     public void testStashHeadersOnException() throws IOException {
         final Version version = VersionUtils.randomVersion(random());
-        final ClientYamlTestExecutionContext context =
-            new ClientYamlTestExecutionContext(null, null, randomBoolean()) {
-                @Override
-                ClientYamlTestResponse callApiInternal(String apiName, Map<String, String> params,
-                                                       HttpEntity entity, Map<String, String> headers, NodeSelector nodeSelector) {
-                    throw new RuntimeException("boom!");
-                }
+        final ClientYamlTestExecutionContext context = new ClientYamlTestExecutionContext(null, null, randomBoolean()) {
+            @Override
+            ClientYamlTestResponse callApiInternal(
+                String apiName,
+                Map<String, String> params,
+                HttpEntity entity,
+                Map<String, String> headers,
+                NodeSelector nodeSelector
+            ) {
+                throw new RuntimeException("boom!");
+            }
 
-                @Override
-                public Version esVersion() {
-                    return version;
-                }
-            };
+            @Override
+            public Version esVersion() {
+                return version;
+            }
+        };
         final Map<String, String> headers = new HashMap<>();
         headers.put("Accept", "application/json");
         headers.put("Authorization", "Basic password==");
         try {
             context.callApi("test", Collections.emptyMap(), Collections.emptyList(), headers);
         } catch (Exception e) {
-            //do nothing...behavior we are testing is the finally block of the production code
+            // do nothing...behavior we are testing is the finally block of the production code
         }
         assertThat(context.stash().getValue("$request_headers"), is(headers));
     }

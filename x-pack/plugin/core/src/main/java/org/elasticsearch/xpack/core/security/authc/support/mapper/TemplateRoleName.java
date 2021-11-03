@@ -7,27 +7,27 @@
 
 package org.elasticsearch.xpack.core.security.authc.support.mapper;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.TemplateScript;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
 import org.elasticsearch.xpack.core.security.support.MustacheTemplateEvaluator;
 
@@ -50,7 +50,10 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public class TemplateRoleName implements ToXContentObject, Writeable {
 
     private static final ConstructingObjectParser<TemplateRoleName, Void> PARSER = new ConstructingObjectParser<>(
-        "role-mapping-template", false, arr -> new TemplateRoleName((BytesReference) arr[0], (Format) arr[1]));
+        "role-mapping-template",
+        false,
+        arr -> new TemplateRoleName((BytesReference) arr[0], (Format) arr[1])
+    );
 
     static {
         PARSER.declareField(constructorArg(), TemplateRoleName::extractTemplate, Fields.TEMPLATE, ObjectParser.ValueType.OBJECT_OR_STRING);
@@ -103,7 +106,11 @@ public class TemplateRoleName implements ToXContentObject, Writeable {
     public void validate(ScriptService scriptService) {
         try {
             final XContentParser parser = XContentHelper.createParser(
-                NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, template, XContentType.JSON);
+                NamedXContentRegistry.EMPTY,
+                LoggingDeprecationHandler.INSTANCE,
+                template,
+                XContentType.JSON
+            );
             final Script script = MustacheTemplateEvaluator.parseForScript(parser, Collections.emptyMap());
             final TemplateScript compiledTemplate = scriptService.compile(script, TemplateScript.CONTEXT).newInstance(script.getParams());
             if ("mustache".equals(script.getLang())) {
@@ -119,8 +126,8 @@ public class TemplateRoleName implements ToXContentObject, Writeable {
     }
 
     private List<String> convertJsonToList(String evaluation) throws IOException {
-        final XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(NamedXContentRegistry.EMPTY,
-            LoggingDeprecationHandler.INSTANCE, evaluation);
+        final XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+            .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, evaluation);
         XContentParser.Token token = parser.currentToken();
         if (token == null) {
             token = parser.nextToken();
@@ -128,25 +135,27 @@ public class TemplateRoleName implements ToXContentObject, Writeable {
         if (token == XContentParser.Token.VALUE_STRING) {
             return Collections.singletonList(parser.text());
         } else if (token == XContentParser.Token.START_ARRAY) {
-            return parser.list().stream()
-                .filter(Objects::nonNull)
-                .map(o -> {
-                    if (o instanceof String) {
-                        return (String) o;
-                    } else {
-                        throw new XContentParseException(
-                            "Roles array may only contain strings but found [" + o.getClass().getName() + "] [" + o + "]");
-                    }
-                }).collect(Collectors.toList());
+            return parser.list().stream().filter(Objects::nonNull).map(o -> {
+                if (o instanceof String) {
+                    return (String) o;
+                } else {
+                    throw new XContentParseException(
+                        "Roles array may only contain strings but found [" + o.getClass().getName() + "] [" + o + "]"
+                    );
+                }
+            }).collect(Collectors.toList());
         } else {
-            throw new XContentParseException(
-                "Roles template must generate a string or an array of strings, but found [" + token + "]");
+            throw new XContentParseException("Roles template must generate a string or an array of strings, but found [" + token + "]");
         }
     }
 
     private String parseTemplate(ScriptService scriptService, Map<String, Object> parameters) throws IOException {
         final XContentParser parser = XContentHelper.createParser(
-            NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, template, XContentType.JSON);
+            NamedXContentRegistry.EMPTY,
+            LoggingDeprecationHandler.INSTANCE,
+            template,
+            XContentType.JSON
+        );
         return MustacheTemplateEvaluator.evaluate(scriptService, parser, parameters);
     }
 
@@ -191,8 +200,7 @@ public class TemplateRoleName implements ToXContentObject, Writeable {
             return false;
         }
         final TemplateRoleName that = (TemplateRoleName) o;
-        return Objects.equals(this.template, that.template) &&
-            this.format == that.format;
+        return Objects.equals(this.template, that.template) && this.format == that.format;
     }
 
     @Override
@@ -206,21 +214,26 @@ public class TemplateRoleName implements ToXContentObject, Writeable {
     }
 
     public enum Format {
-        JSON, STRING;
+        JSON,
+        STRING;
 
         private static Format fromXContent(XContentParser parser) throws IOException {
             final XContentParser.Token token = parser.currentToken();
             if (token != XContentParser.Token.VALUE_STRING) {
-                throw new XContentParseException(parser.getTokenLocation(),
-                    "Expected [" + XContentParser.Token.VALUE_STRING + "] but found [" + token + "]");
+                throw new XContentParseException(
+                    parser.getTokenLocation(),
+                    "Expected [" + XContentParser.Token.VALUE_STRING + "] but found [" + token + "]"
+                );
             }
             final String text = parser.text();
             try {
                 return Format.valueOf(text.toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
                 String valueNames = Stream.of(values()).map(Format::formatName).collect(Collectors.joining(","));
-                throw new XContentParseException(parser.getTokenLocation(),
-                    "Invalid format [" + text + "] expected one of [" + valueNames + "]");
+                throw new XContentParseException(
+                    parser.getTokenLocation(),
+                    "Invalid format [" + text + "] expected one of [" + valueNames + "]"
+                );
             }
 
         }

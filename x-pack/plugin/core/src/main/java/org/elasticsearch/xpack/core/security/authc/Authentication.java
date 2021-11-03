@@ -29,8 +29,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.core.security.authz.privilege.ManageOwnApiKeyClusterPrivilege.API_KEY_ID_KEY;
-
 // TODO(hub-cap) Clean this up after moving User over - This class can re-inherit its field AUTHENTICATION_KEY in AuthenticationField.
 // That interface can be removed
 public class Authentication implements ToXContentObject {
@@ -42,7 +40,7 @@ public class Authentication implements ToXContentObject {
     private final RealmRef lookedUpBy;
     private final Version version;
     private final AuthenticationType type;
-    private final Map<String, Object> metadata;
+    private final Map<String, Object> metadata; // authentication contains metadata, includes api_key details (including api_key metadata)
 
     public Authentication(User user, RealmRef authenticatedBy, RealmRef lookedUpBy) {
         this(user, authenticatedBy, lookedUpBy, Version.CURRENT);
@@ -52,14 +50,21 @@ public class Authentication implements ToXContentObject {
         this(user, authenticatedBy, lookedUpBy, version, AuthenticationType.REALM, Collections.emptyMap());
     }
 
-    public Authentication(User user, RealmRef authenticatedBy, RealmRef lookedUpBy, Version version,
-                          AuthenticationType type, Map<String, Object> metadata) {
+    public Authentication(
+        User user,
+        RealmRef authenticatedBy,
+        RealmRef lookedUpBy,
+        Version version,
+        AuthenticationType type,
+        Map<String, Object> metadata
+    ) {
         this.user = Objects.requireNonNull(user);
         this.authenticatedBy = Objects.requireNonNull(authenticatedBy);
         this.lookedUpBy = lookedUpBy;
         this.version = version;
         this.type = type;
         this.metadata = metadata;
+        this.assertApiKeyMetadata();
     }
 
     public Authentication(StreamInput in) throws IOException {
@@ -73,6 +78,7 @@ public class Authentication implements ToXContentObject {
         this.version = in.getVersion();
         type = AuthenticationType.values()[in.readVInt()];
         metadata = in.readMap();
+        this.assertApiKeyMetadata();
     }
 
     public User getUser() {
@@ -107,8 +113,12 @@ public class Authentication implements ToXContentObject {
         return metadata;
     }
 
-    public boolean isServiceAccount() {
-        return ServiceAccountSettings.REALM_TYPE.equals(getAuthenticatedBy().getType()) && null == getLookedUpBy();
+    public boolean isAuthenticatedWithServiceAccount() {
+        return ServiceAccountSettings.REALM_TYPE.equals(getAuthenticatedBy().getType());
+    }
+
+    public boolean isAuthenticatedWithApiKey() {
+        return AuthenticationType.API_KEY.equals(getAuthenticationType());
     }
 
     /**
@@ -157,10 +167,11 @@ public class Authentication implements ToXContentObject {
      */
     public boolean canAccessResourcesOf(Authentication other) {
         if (AuthenticationType.API_KEY == getAuthenticationType() && AuthenticationType.API_KEY == other.getAuthenticationType()) {
-            final boolean sameKeyId = getMetadata().get(API_KEY_ID_KEY).equals(other.getMetadata().get(API_KEY_ID_KEY));
+            final boolean sameKeyId = getMetadata().get(AuthenticationField.API_KEY_ID_KEY)
+                .equals(other.getMetadata().get(AuthenticationField.API_KEY_ID_KEY));
             if (sameKeyId) {
-                assert getUser().principal().equals(other.getUser().principal()) :
-                    "The same API key ID cannot be attributed to two different usernames";
+                assert getUser().principal().equals(other.getUser().principal())
+                    : "The same API key ID cannot be attributed to two different usernames";
             }
             return sameKeyId;
         }
@@ -186,7 +197,7 @@ public class Authentication implements ToXContentObject {
                 AuthenticationType.INTERNAL
             ).containsAll(EnumSet.of(getAuthenticationType(), other.getAuthenticationType()))
                 : "cross AuthenticationType comparison for canAccessResourcesOf is not applicable for: "
-                + EnumSet.of(getAuthenticationType(), other.getAuthenticationType());
+                    + EnumSet.of(getAuthenticationType(), other.getAuthenticationType());
             return false;
         }
     }
@@ -196,12 +207,12 @@ public class Authentication implements ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Authentication that = (Authentication) o;
-        return user.equals(that.user) &&
-            authenticatedBy.equals(that.authenticatedBy) &&
-            Objects.equals(lookedUpBy, that.lookedUpBy) &&
-            version.equals(that.version) &&
-            type == that.type &&
-            metadata.equals(that.metadata);
+        return user.equals(that.user)
+            && authenticatedBy.equals(that.authenticatedBy)
+            && Objects.equals(lookedUpBy, that.lookedUpBy)
+            && version.equals(that.version)
+            && type == that.type
+            && metadata.equals(that.metadata);
     }
 
     @Override
@@ -224,13 +235,15 @@ public class Authentication implements ToXContentObject {
         builder.array(User.Fields.ROLES.getPreferredName(), user.roles());
         builder.field(User.Fields.FULL_NAME.getPreferredName(), user.fullName());
         builder.field(User.Fields.EMAIL.getPreferredName(), user.email());
-        if (isServiceAccount()) {
+        if (isAuthenticatedWithServiceAccount()) {
             final String tokenName = (String) getMetadata().get(ServiceAccountSettings.TOKEN_NAME_FIELD);
             assert tokenName != null : "token name cannot be null";
             final String tokenSource = (String) getMetadata().get(ServiceAccountSettings.TOKEN_SOURCE_FIELD);
             assert tokenSource != null : "token source cannot be null";
-            builder.field(User.Fields.TOKEN.getPreferredName(),
-                Map.of("name", tokenName, "type", ServiceAccountSettings.REALM_TYPE + "_" + tokenSource));
+            builder.field(
+                User.Fields.TOKEN.getPreferredName(),
+                Map.of("name", tokenName, "type", ServiceAccountSettings.REALM_TYPE + "_" + tokenSource)
+            );
         }
         builder.field(User.Fields.METADATA.getPreferredName(), user.metadata());
         builder.field(User.Fields.ENABLED.getPreferredName(), user.enabled());
@@ -248,14 +261,30 @@ public class Authentication implements ToXContentObject {
         }
         builder.endObject();
         builder.field(User.Fields.AUTHENTICATION_TYPE.getPreferredName(), getAuthenticationType().name().toLowerCase(Locale.ROOT));
+        if (isAuthenticatedWithApiKey()) {
+            this.assertApiKeyMetadata();
+            final String apiKeyId = (String) this.metadata.get(AuthenticationField.API_KEY_ID_KEY);
+            final String apiKeyName = (String) this.metadata.get(AuthenticationField.API_KEY_NAME_KEY);
+            if (apiKeyName == null) {
+                builder.field("api_key", Map.of("id", apiKeyId));
+            } else {
+                builder.field("api_key", Map.of("id", apiKeyId, "name", apiKeyName));
+            }
+        }
+    }
+
+    private void assertApiKeyMetadata() {
+        assert (AuthenticationType.API_KEY.equals(this.type) == false) || (this.metadata.get(AuthenticationField.API_KEY_ID_KEY) != null)
+            : "API KEY authentication requires metadata to contain API KEY id, and the value must be non-null.";
     }
 
     @Override
     public String toString() {
-        StringBuilder builder = new StringBuilder("Authentication[")
-            .append(user)
-            .append(",type=").append(type)
-            .append(",by=").append(authenticatedBy);
+        StringBuilder builder = new StringBuilder("Authentication[").append(user)
+            .append(",type=")
+            .append(type)
+            .append(",by=")
+            .append(authenticatedBy);
         if (lookedUpBy != null) {
             builder.append(",lookup=").append(lookedUpBy);
         }

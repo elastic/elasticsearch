@@ -12,9 +12,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -23,6 +20,9 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.admin.indices.RestForceMergeAction;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 
 import static org.hamcrest.Matchers.containsString;
@@ -38,11 +38,10 @@ public class RestForceMergeActionTests extends RestActionTestCase {
 
     public void testBodyRejection() throws Exception {
         String json = JsonXContent.contentBuilder().startObject().field("max_num_segments", 1).endObject().toString();
-        final FakeRestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-                .withContent(new BytesArray(json), XContentType.JSON)
-                .withMethod(RestRequest.Method.POST)
-                .withPath("/_forcemerge")
-                .build();
+        final FakeRestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
+            new BytesArray(json),
+            XContentType.JSON
+        ).withMethod(RestRequest.Method.POST).withPath("/_forcemerge").build();
 
         final SetOnce<RestResponse> responseSetOnce = new SetOnce<>();
         dispatchRequest(request, new AbstractRestChannel(request, true) {

@@ -9,10 +9,10 @@
 package org.elasticsearch.client.watcher;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -33,8 +33,7 @@ public class ExecuteWatchResponse {
 
     private Map<String, Object> data;
 
-    public ExecuteWatchResponse() {
-    }
+    public ExecuteWatchResponse() {}
 
     public ExecuteWatchResponse(String recordId, BytesReference contentSource) {
         this.recordId = recordId;
@@ -64,8 +63,10 @@ public class ExecuteWatchResponse {
     public Map<String, Object> getRecordAsMap() {
         if (data == null) {
             // EMPTY is safe here because we never use namedObject
-            try (InputStream stream = contentSource.streamInput();
-                 XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, null, stream)) {
+            try (
+                InputStream stream = contentSource.streamInput();
+                XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, null, stream)
+            ) {
                 data = (Map<String, Object>) XContentUtils.readValue(parser, parser.nextToken());
             } catch (IOException ex) {
                 throw new ElasticsearchException("failed to read value", ex);
@@ -74,9 +75,11 @@ public class ExecuteWatchResponse {
         return data;
     }
 
-    private static final ConstructingObjectParser<ExecuteWatchResponse, Void> PARSER
-        = new ConstructingObjectParser<>("x_pack_execute_watch_response", true,
-        (fields) -> new ExecuteWatchResponse((String)fields[0], (BytesReference) fields[1]));
+    private static final ConstructingObjectParser<ExecuteWatchResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "x_pack_execute_watch_response",
+        true,
+        (fields) -> new ExecuteWatchResponse((String) fields[0], (BytesReference) fields[1])
+    );
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ID_FIELD);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> readBytesReference(p), WATCH_FIELD);

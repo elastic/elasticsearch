@@ -16,11 +16,11 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -65,7 +65,10 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         this.type = type;
         try {
             this.source = new CompressedXContent(
-                    (builder, params) -> builder.mapContents(mapping), XContentType.JSON, ToXContent.EMPTY_PARAMS);
+                (builder, params) -> builder.mapContents(mapping),
+                XContentType.JSON,
+                ToXContent.EMPTY_PARAMS
+            );
         } catch (IOException e) {
             throw new UncheckedIOException(e);  // XContent exception, should never happen
         }
@@ -78,18 +81,17 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
 
     public static void writeMappingMetadata(StreamOutput out, ImmutableOpenMap<String, MappingMetadata> mappings) throws IOException {
         out.writeMap(mappings, StreamOutput::writeString, out.getVersion().before(Version.V_8_0_0) ? (o, v) -> {
-                    o.writeVInt(v == EMPTY_MAPPINGS ? 0 : 1);
-                    if (v != EMPTY_MAPPINGS) {
-                        o.writeString(MapperService.SINGLE_MAPPING_NAME);
-                        v.writeTo(o);
-                    }
-                } : (o, v) -> {
-                    o.writeBoolean(v != EMPTY_MAPPINGS);
-                    if (v != EMPTY_MAPPINGS) {
-                        v.writeTo(o);
-                    }
-                }
-        );
+            o.writeVInt(v == EMPTY_MAPPINGS ? 0 : 1);
+            if (v != EMPTY_MAPPINGS) {
+                o.writeString(MapperService.SINGLE_MAPPING_NAME);
+                v.writeTo(o);
+            }
+        } : (o, v) -> {
+            o.writeBoolean(v != EMPTY_MAPPINGS);
+            if (v != EMPTY_MAPPINGS) {
+                v.writeTo(o);
+            }
+        });
     }
 
     @SuppressWarnings("unchecked")
@@ -104,8 +106,10 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
                     try {
                         required = nodeBooleanValue(fieldNode);
                     } catch (IllegalArgumentException ex) {
-                        throw new IllegalArgumentException("Failed to create mapping for type [" + this.type() + "]. " +
-                            "Illegal value in field [_routing.required].", ex);
+                        throw new IllegalArgumentException(
+                            "Failed to create mapping for type [" + this.type() + "]. " + "Illegal value in field [_routing.required].",
+                            ex
+                        );
                     }
                 }
             }

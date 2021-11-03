@@ -32,8 +32,6 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.extras.MatchOnlyTextFieldMapper.MatchOnlyTextFieldType;
-import org.elasticsearch.index.mapper.extras.SourceConfirmedTextQuery;
-import org.elasticsearch.index.mapper.extras.SourceIntervalsSource;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;

@@ -55,13 +55,25 @@ public class NodeService implements Closeable {
 
     private final Coordinator coordinator;
 
-    NodeService(Settings settings, ThreadPool threadPool, MonitorService monitorService, Coordinator coordinator,
-                TransportService transportService, IndicesService indicesService, PluginsService pluginService,
-                CircuitBreakerService circuitBreakerService, ScriptService scriptService,
-                @Nullable HttpServerTransport httpServerTransport, IngestService ingestService, ClusterService clusterService,
-                SettingsFilter settingsFilter, ResponseCollectorService responseCollectorService,
-                SearchTransportService searchTransportService, IndexingPressure indexingPressure,
-                AggregationUsageService aggregationUsageService) {
+    NodeService(
+        Settings settings,
+        ThreadPool threadPool,
+        MonitorService monitorService,
+        Coordinator coordinator,
+        TransportService transportService,
+        IndicesService indicesService,
+        PluginsService pluginService,
+        CircuitBreakerService circuitBreakerService,
+        ScriptService scriptService,
+        @Nullable HttpServerTransport httpServerTransport,
+        IngestService ingestService,
+        ClusterService clusterService,
+        SettingsFilter settingsFilter,
+        ResponseCollectorService responseCollectorService,
+        SearchTransportService searchTransportService,
+        IndexingPressure indexingPressure,
+        AggregationUsageService aggregationUsageService
+    ) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.monitorService = monitorService;
@@ -81,45 +93,75 @@ public class NodeService implements Closeable {
         clusterService.addStateApplier(ingestService);
     }
 
-    public NodeInfo info(boolean settings, boolean os, boolean process, boolean jvm, boolean threadPool,
-                boolean transport, boolean http, boolean plugin, boolean ingest, boolean aggs, boolean indices) {
-        return new NodeInfo(Version.CURRENT, Build.CURRENT, transportService.getLocalNode(),
-                settings ? settingsFilter.filter(this.settings) : null,
-                os ? monitorService.osService().info() : null,
-                process ? monitorService.processService().info() : null,
-                jvm ? monitorService.jvmService().info() : null,
-                threadPool ? this.threadPool.info() : null,
-                transport ? transportService.info() : null,
-                http ? (httpServerTransport == null ? null : httpServerTransport.info()) : null,
-                plugin ? (pluginService == null ? null : pluginService.info()) : null,
-                ingest ? (ingestService == null ? null : ingestService.info()) : null,
-                aggs ? (aggregationUsageService == null ? null : aggregationUsageService.info()) : null,
-                indices ? indicesService.getTotalIndexingBufferBytes() : null
+    public NodeInfo info(
+        boolean settings,
+        boolean os,
+        boolean process,
+        boolean jvm,
+        boolean threadPool,
+        boolean transport,
+        boolean http,
+        boolean plugin,
+        boolean ingest,
+        boolean aggs,
+        boolean indices
+    ) {
+        return new NodeInfo(
+            Version.CURRENT,
+            Build.CURRENT,
+            transportService.getLocalNode(),
+            settings ? settingsFilter.filter(this.settings) : null,
+            os ? monitorService.osService().info() : null,
+            process ? monitorService.processService().info() : null,
+            jvm ? monitorService.jvmService().info() : null,
+            threadPool ? this.threadPool.info() : null,
+            transport ? transportService.info() : null,
+            http ? (httpServerTransport == null ? null : httpServerTransport.info()) : null,
+            plugin ? (pluginService == null ? null : pluginService.info()) : null,
+            ingest ? (ingestService == null ? null : ingestService.info()) : null,
+            aggs ? (aggregationUsageService == null ? null : aggregationUsageService.info()) : null,
+            indices ? indicesService.getTotalIndexingBufferBytes() : null
         );
     }
 
-    public NodeStats stats(CommonStatsFlags indices, boolean os, boolean process, boolean jvm, boolean threadPool,
-                           boolean fs, boolean transport, boolean http, boolean circuitBreaker,
-                           boolean script, boolean discoveryStats, boolean ingest, boolean adaptiveSelection, boolean scriptCache,
-                           boolean indexingPressure) {
+    public NodeStats stats(
+        CommonStatsFlags indices,
+        boolean os,
+        boolean process,
+        boolean jvm,
+        boolean threadPool,
+        boolean fs,
+        boolean transport,
+        boolean http,
+        boolean circuitBreaker,
+        boolean script,
+        boolean discoveryStats,
+        boolean ingest,
+        boolean adaptiveSelection,
+        boolean scriptCache,
+        boolean indexingPressure
+    ) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
-        return new NodeStats(transportService.getLocalNode(), System.currentTimeMillis(),
-                indices.anySet() ? indicesService.stats(indices) : null,
-                os ? monitorService.osService().stats() : null,
-                process ? monitorService.processService().stats() : null,
-                jvm ? monitorService.jvmService().stats() : null,
-                threadPool ? this.threadPool.stats() : null,
-                fs ? monitorService.fsService().stats() : null,
-                transport ? transportService.stats() : null,
-                http ? (httpServerTransport == null ? null : httpServerTransport.stats()) : null,
-                circuitBreaker ? circuitBreakerService.stats() : null,
-                script ? scriptService.stats() : null,
-                discoveryStats ? coordinator.stats() : null,
-                ingest ? ingestService.stats() : null,
-                adaptiveSelection ? responseCollectorService.getAdaptiveStats(searchTransportService.getPendingSearchRequests()) : null,
-                scriptCache ? scriptService.cacheStats() : null,
-                indexingPressure ? this.indexingPressure.stats() : null);
+        return new NodeStats(
+            transportService.getLocalNode(),
+            System.currentTimeMillis(),
+            indices.anySet() ? indicesService.stats(indices) : null,
+            os ? monitorService.osService().stats() : null,
+            process ? monitorService.processService().stats() : null,
+            jvm ? monitorService.jvmService().stats() : null,
+            threadPool ? this.threadPool.stats() : null,
+            fs ? monitorService.fsService().stats() : null,
+            transport ? transportService.stats() : null,
+            http ? (httpServerTransport == null ? null : httpServerTransport.stats()) : null,
+            circuitBreaker ? circuitBreakerService.stats() : null,
+            script ? scriptService.stats() : null,
+            discoveryStats ? coordinator.stats() : null,
+            ingest ? ingestService.stats() : null,
+            adaptiveSelection ? responseCollectorService.getAdaptiveStats(searchTransportService.getPendingSearchRequests()) : null,
+            scriptCache ? scriptService.cacheStats() : null,
+            indexingPressure ? this.indexingPressure.stats() : null
+        );
     }
 
     public IngestService getIngestService() {

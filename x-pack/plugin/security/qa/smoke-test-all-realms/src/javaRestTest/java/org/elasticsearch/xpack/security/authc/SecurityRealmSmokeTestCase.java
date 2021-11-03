@@ -20,11 +20,12 @@ import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.junit.BeforeClass;
 
 import java.io.FileNotFoundException;
@@ -38,7 +39,9 @@ import java.util.Map;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 @SuppressWarnings("removal")
 public abstract class SecurityRealmSmokeTestCase extends ESRestTestCase {
@@ -58,19 +61,13 @@ public abstract class SecurityRealmSmokeTestCase extends ESRestTestCase {
     @Override
     protected Settings restAdminSettings() {
         String token = basicAuthHeaderValue("admin_user", new SecureString("admin-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .put(CERTIFICATE_AUTHORITIES, httpCAPath)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).put(CERTIFICATE_AUTHORITIES, httpCAPath).build();
     }
 
     @Override
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue("security_test_user", new SecureString("security-test-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .put(CERTIFICATE_AUTHORITIES, httpCAPath)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).put(CERTIFICATE_AUTHORITIES, httpCAPath).build();
     }
 
     @Override
@@ -100,23 +97,32 @@ public abstract class SecurityRealmSmokeTestCase extends ESRestTestCase {
     protected void assertRoles(Map<String, Object> authenticateResponse, String... roles) {
         assertThat(authenticateResponse, hasEntry(equalTo("roles"), instanceOf(List.class)));
         String[] roleJson = ((List<?>) authenticateResponse.get("roles")).toArray(String[]::new);
-        assertThat("Server returned unexpected roles list [" + Strings.arrayToCommaDelimitedString(roleJson) + "]",
+        assertThat(
+            "Server returned unexpected roles list [" + Strings.arrayToCommaDelimitedString(roleJson) + "]",
             roleJson,
             arrayContainingInAnyOrder(roles)
         );
     }
 
+    protected void assertNoApiKeyInfo(Map<String, Object> authenticateResponse, AuthenticationType type) {
+        // If authentication type is API_KEY, authentication.api_key={"id":"abc123","name":"my-api-key"}. No encoded, api_key, or metadata.
+        // If authentication type is other, authentication.api_key not present.
+        assertThat(authenticateResponse, not(hasKey("api_key")));
+    }
+
     protected void createUser(String username, SecureString password, List<String> roles) throws IOException {
         final RestHighLevelClient client = getHighLevelAdminClient();
-        client.security().putUser(
-            PutUserRequest.withPassword(new User(username, roles), password.getChars(), true, RefreshPolicy.WAIT_UNTIL),
-            RequestOptions.DEFAULT);
+        client.security()
+            .putUser(
+                PutUserRequest.withPassword(new User(username, roles), password.getChars(), true, RefreshPolicy.WAIT_UNTIL),
+                RequestOptions.DEFAULT
+            );
     }
 
     protected void changePassword(String username, SecureString password) throws IOException {
         final RestHighLevelClient client = getHighLevelAdminClient();
-        client.security().changePassword(new ChangePasswordRequest(username, password.getChars(), RefreshPolicy.WAIT_UNTIL),
-            RequestOptions.DEFAULT);
+        client.security()
+            .changePassword(new ChangePasswordRequest(username, password.getChars(), RefreshPolicy.WAIT_UNTIL), RequestOptions.DEFAULT);
     }
 
     protected void createRole(String name, Collection<String> clusterPrivileges) throws IOException {
@@ -137,11 +143,7 @@ public abstract class SecurityRealmSmokeTestCase extends ESRestTestCase {
 
     private RestHighLevelClient getHighLevelAdminClient() {
         if (highLevelAdminClient == null) {
-            highLevelAdminClient = new RestHighLevelClient(
-                adminClient(),
-                ignore -> {
-                },
-                List.of()) {
+            highLevelAdminClient = new RestHighLevelClient(adminClient(), ignore -> {}, List.of()) {
             };
         }
         return highLevelAdminClient;

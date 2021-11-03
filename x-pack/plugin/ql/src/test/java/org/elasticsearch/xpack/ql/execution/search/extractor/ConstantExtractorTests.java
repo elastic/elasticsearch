@@ -20,10 +20,7 @@ public class ConstantExtractorTests extends AbstractWireSerializingTestCase<Cons
 
     private static Object randomValidConstant() {
         @SuppressWarnings("unchecked")
-        Supplier<Object> valueSupplier = randomFrom(
-                () -> randomInt(),
-                () -> randomDouble(),
-                () -> randomAlphaOfLengthBetween(1, 140));
+        Supplier<Object> valueSupplier = randomFrom(() -> randomInt(), () -> randomDouble(), () -> randomAlphaOfLengthBetween(1, 140));
         return valueSupplier.get();
     }
 

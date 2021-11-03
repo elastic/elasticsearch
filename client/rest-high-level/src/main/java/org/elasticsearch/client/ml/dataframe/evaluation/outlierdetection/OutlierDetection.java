@@ -10,8 +10,8 @@ package org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection;
 import org.elasticsearch.client.ml.dataframe.evaluation.Evaluation;
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -38,17 +38,20 @@ public class OutlierDetection implements Evaluation {
     private static final ParseField METRICS = new ParseField("metrics");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<OutlierDetection, Void> PARSER =
-        new ConstructingObjectParser<>(
-            NAME,
-            true,
-            args -> new OutlierDetection((String) args[0], (String) args[1], (List<EvaluationMetric>) args[2]));
+    public static final ConstructingObjectParser<OutlierDetection, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        true,
+        args -> new OutlierDetection((String) args[0], (String) args[1], (List<EvaluationMetric>) args[2])
+    );
 
     static {
         PARSER.declareString(constructorArg(), ACTUAL_FIELD);
         PARSER.declareString(constructorArg(), PREDICTED_PROBABILITY_FIELD);
         PARSER.declareNamedObjects(
-            optionalConstructorArg(), (p, c, n) -> p.namedObject(EvaluationMetric.class, registeredMetricName(NAME, n), null), METRICS);
+            optionalConstructorArg(),
+            (p, c, n) -> p.namedObject(EvaluationMetric.class, registeredMetricName(NAME, n), null),
+            METRICS
+        );
     }
 
     public static OutlierDetection fromXContent(XContentParser parser) {
@@ -72,15 +75,14 @@ public class OutlierDetection implements Evaluation {
     private final List<EvaluationMetric> metrics;
 
     public OutlierDetection(String actualField, String predictedField) {
-        this(actualField, predictedField, (List<EvaluationMetric>)null);
+        this(actualField, predictedField, (List<EvaluationMetric>) null);
     }
 
     public OutlierDetection(String actualField, String predictedProbabilityField, EvaluationMetric... metric) {
         this(actualField, predictedProbabilityField, Arrays.asList(metric));
     }
 
-    public OutlierDetection(String actualField, String predictedProbabilityField,
-                            @Nullable List<EvaluationMetric> metrics) {
+    public OutlierDetection(String actualField, String predictedProbabilityField, @Nullable List<EvaluationMetric> metrics) {
         this.actualField = Objects.requireNonNull(actualField);
         this.predictedProbabilityField = Objects.requireNonNull(predictedProbabilityField);
         if (metrics != null) {

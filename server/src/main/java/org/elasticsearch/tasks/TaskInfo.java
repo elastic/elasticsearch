@@ -8,15 +8,15 @@
 
 package org.elasticsearch.tasks;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ObjectParserHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParserHelper;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -29,7 +29,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
-
 
 /**
  * Information about a currently running task.
@@ -66,17 +65,18 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
     private final Map<String, String> headers;
 
     public TaskInfo(
-            TaskId taskId,
-            String type,
-            String action,
-            String description,
-            Task.Status status,
-            long startTime,
-            long runningTimeNanos,
-            boolean cancellable,
-            boolean cancelled,
-            TaskId parentTaskId,
-            Map<String, String> headers) {
+        TaskId taskId,
+        String type,
+        String action,
+        String description,
+        Task.Status status,
+        long startTime,
+        long runningTimeNanos,
+        boolean cancellable,
+        boolean cancelled,
+        TaskId parentTaskId,
+        Map<String, String> headers
+    ) {
         assert cancellable || cancelled == false : "uncancellable task cannot be cancelled";
         this.taskId = taskId;
         this.type = type;
@@ -222,7 +222,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             builder.field("parent_task_id", parentTaskId.toString());
         }
         builder.startObject("headers");
-        for(Map.Entry<String, String> attribute : headers.entrySet()) {
+        for (Map.Entry<String, String> attribute : headers.entrySet()) {
             builder.field(attribute.getKey(), attribute.getValue());
         }
         builder.endObject();
@@ -233,39 +233,40 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         return PARSER.apply(parser, null);
     }
 
-    public static final ConstructingObjectParser<TaskInfo, Void> PARSER = new ConstructingObjectParser<>(
-            "task_info", true, a -> {
-                int i = 0;
-                TaskId id = new TaskId((String) a[i++], (Long) a[i++]);
-                String type = (String) a[i++];
-                String action = (String) a[i++];
-                String description = (String) a[i++];
-                BytesReference statusBytes = (BytesReference) a[i++];
-                long startTime = (Long) a[i++];
-                long runningTimeNanos = (Long) a[i++];
-                boolean cancellable = (Boolean) a[i++];
-                boolean cancelled = a[i++] == Boolean.TRUE;
-                String parentTaskIdString = (String) a[i++];
-                @SuppressWarnings("unchecked") Map<String, String> headers = (Map<String, String>) a[i++];
-                if (headers == null) {
-                    // This might happen if we are reading an old version of task info
-                    headers = Collections.emptyMap();
-                }
-                RawTaskStatus status = statusBytes == null ? null : new RawTaskStatus(statusBytes);
-                TaskId parentTaskId = parentTaskIdString == null ? TaskId.EMPTY_TASK_ID : new TaskId(parentTaskIdString);
-                return new TaskInfo(
-                        id,
-                        type,
-                        action,
-                        description,
-                        status,
-                        startTime,
-                        runningTimeNanos,
-                        cancellable,
-                        cancelled,
-                        parentTaskId,
-                        headers);
-            });
+    public static final ConstructingObjectParser<TaskInfo, Void> PARSER = new ConstructingObjectParser<>("task_info", true, a -> {
+        int i = 0;
+        TaskId id = new TaskId((String) a[i++], (Long) a[i++]);
+        String type = (String) a[i++];
+        String action = (String) a[i++];
+        String description = (String) a[i++];
+        BytesReference statusBytes = (BytesReference) a[i++];
+        long startTime = (Long) a[i++];
+        long runningTimeNanos = (Long) a[i++];
+        boolean cancellable = (Boolean) a[i++];
+        boolean cancelled = a[i++] == Boolean.TRUE;
+        String parentTaskIdString = (String) a[i++];
+        @SuppressWarnings("unchecked")
+        Map<String, String> headers = (Map<String, String>) a[i++];
+        if (headers == null) {
+            // This might happen if we are reading an old version of task info
+            headers = Collections.emptyMap();
+        }
+        RawTaskStatus status = statusBytes == null ? null : new RawTaskStatus(statusBytes);
+        TaskId parentTaskId = parentTaskIdString == null ? TaskId.EMPTY_TASK_ID : new TaskId(parentTaskIdString);
+        return new TaskInfo(
+            id,
+            type,
+            action,
+            description,
+            status,
+            startTime,
+            runningTimeNanos,
+            cancellable,
+            cancelled,
+            parentTaskId,
+            headers
+        );
+    });
     static {
         // Note for the future: this has to be backwards and forwards compatible with all changes to the task storage format
         PARSER.declareString(constructorArg(), new ParseField("node"));
@@ -296,31 +297,32 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         }
         TaskInfo other = (TaskInfo) obj;
         return Objects.equals(taskId, other.taskId)
-                && Objects.equals(type, other.type)
-                && Objects.equals(action, other.action)
-                && Objects.equals(description, other.description)
-                && Objects.equals(startTime, other.startTime)
-                && Objects.equals(runningTimeNanos, other.runningTimeNanos)
-                && Objects.equals(parentTaskId, other.parentTaskId)
-                && Objects.equals(cancellable, other.cancellable)
-                && Objects.equals(cancelled, other.cancelled)
-                && Objects.equals(status, other.status)
-                && Objects.equals(headers, other.headers);
+            && Objects.equals(type, other.type)
+            && Objects.equals(action, other.action)
+            && Objects.equals(description, other.description)
+            && Objects.equals(startTime, other.startTime)
+            && Objects.equals(runningTimeNanos, other.runningTimeNanos)
+            && Objects.equals(parentTaskId, other.parentTaskId)
+            && Objects.equals(cancellable, other.cancellable)
+            && Objects.equals(cancelled, other.cancelled)
+            && Objects.equals(status, other.status)
+            && Objects.equals(headers, other.headers);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(
-                taskId,
-                type,
-                action,
-                description,
-                startTime,
-                runningTimeNanos,
-                parentTaskId,
-                cancellable,
-                cancelled,
-                status,
-                headers);
+            taskId,
+            type,
+            action,
+            description,
+            startTime,
+            runningTimeNanos,
+            parentTaskId,
+            cancellable,
+            cancelled,
+            status,
+            headers
+        );
     }
 }

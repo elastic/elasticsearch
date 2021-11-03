@@ -15,9 +15,6 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
-import org.elasticsearch.reindex.RethrottleAction;
-import org.elasticsearch.reindex.RethrottleRequest;
-import org.elasticsearch.reindex.TransportRethrottleAction;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -58,8 +55,11 @@ public class TransportRethrottleActionTests extends ESTestCase {
      * @param simulator simulate a response from the sub-request to rethrottle the child requests
      * @param verifier verify the resulting response
      */
-    private void rethrottleTestCase(int runningSlices, Consumer<ActionListener<ListTasksResponse>> simulator,
-            Consumer<ActionListener<TaskInfo>> verifier) {
+    private void rethrottleTestCase(
+        int runningSlices,
+        Consumer<ActionListener<ListTasksResponse>> simulator,
+        Consumer<ActionListener<TaskInfo>> verifier
+    ) {
         Client client = mock(Client.class);
         String localNodeId = randomAlphaOfLength(5);
         float newRequestsPerSecond = randomValueOtherThanMany(f -> f <= 0, () -> randomFloat());
@@ -84,7 +84,8 @@ public class TransportRethrottleActionTests extends ESTestCase {
     }
 
     private Consumer<ActionListener<TaskInfo>> expectSuccessfulRethrottleWithStatuses(
-            List<BulkByScrollTask.StatusOrException> sliceStatuses) {
+        List<BulkByScrollTask.StatusOrException> sliceStatuses
+    ) {
         return listener -> {
             TaskInfo taskInfo = captureResponse(TaskInfo.class, listener);
             assertEquals(sliceStatuses, ((BulkByScrollTask.Status) taskInfo.getStatus()).getSliceStatuses());
@@ -96,7 +97,8 @@ public class TransportRethrottleActionTests extends ESTestCase {
         List<BulkByScrollTask.StatusOrException> sliceStatuses = new ArrayList<>(slices);
         for (int i = 0; i < slices; i++) {
             BulkByScrollTask.Status status = believeableInProgressStatus(i);
-            tasks.add(new TaskInfo(
+            tasks.add(
+                new TaskInfo(
                     new TaskId("test", 123),
                     "test",
                     "test",
@@ -107,12 +109,16 @@ public class TransportRethrottleActionTests extends ESTestCase {
                     true,
                     false,
                     new TaskId("test", task.getId()),
-                    Collections.emptyMap()));
+                    Collections.emptyMap()
+                )
+            );
             sliceStatuses.add(new BulkByScrollTask.StatusOrException(status));
         }
-        rethrottleTestCase(slices,
-                listener -> listener.onResponse(new ListTasksResponse(tasks, emptyList(), emptyList())),
-                expectSuccessfulRethrottleWithStatuses(sliceStatuses));
+        rethrottleTestCase(
+            slices,
+            listener -> listener.onResponse(new ListTasksResponse(tasks, emptyList(), emptyList())),
+            expectSuccessfulRethrottleWithStatuses(sliceStatuses)
+        );
     }
 
     public void testRethrottleWithSomeSucceeded() {
@@ -120,14 +126,15 @@ public class TransportRethrottleActionTests extends ESTestCase {
         List<BulkByScrollTask.StatusOrException> sliceStatuses = new ArrayList<>(slices);
         for (int i = 0; i < succeeded; i++) {
             BulkByScrollTask.Status status = believeableCompletedStatus(i);
-            task.getLeaderState().onSliceResponse(neverCalled(), i,
-                    new BulkByScrollResponse(timeValueMillis(10), status, emptyList(), emptyList(), false));
+            task.getLeaderState()
+                .onSliceResponse(neverCalled(), i, new BulkByScrollResponse(timeValueMillis(10), status, emptyList(), emptyList(), false));
             sliceStatuses.add(new BulkByScrollTask.StatusOrException(status));
         }
         List<TaskInfo> tasks = new ArrayList<>();
         for (int i = succeeded; i < slices; i++) {
             BulkByScrollTask.Status status = believeableInProgressStatus(i);
-            tasks.add(new TaskInfo(
+            tasks.add(
+                new TaskInfo(
                     new TaskId("test", 123),
                     "test",
                     "test",
@@ -138,12 +145,16 @@ public class TransportRethrottleActionTests extends ESTestCase {
                     true,
                     false,
                     new TaskId("test", task.getId()),
-                    Collections.emptyMap()));
+                    Collections.emptyMap()
+                )
+            );
             sliceStatuses.add(new BulkByScrollTask.StatusOrException(status));
         }
-        rethrottleTestCase(slices - succeeded,
-                listener -> listener.onResponse(new ListTasksResponse(tasks, emptyList(), emptyList())),
-                expectSuccessfulRethrottleWithStatuses(sliceStatuses));
+        rethrottleTestCase(
+            slices - succeeded,
+            listener -> listener.onResponse(new ListTasksResponse(tasks, emptyList(), emptyList())),
+            expectSuccessfulRethrottleWithStatuses(sliceStatuses)
+        );
     }
 
     public void testRethrottleWithAllSucceeded() {
@@ -152,17 +163,19 @@ public class TransportRethrottleActionTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             ActionListener<BulkByScrollResponse> listener = i < slices - 1 ? neverCalled() : mock(ActionListener.class);
             BulkByScrollTask.Status status = believeableCompletedStatus(i);
-            task.getLeaderState().onSliceResponse(listener, i, new BulkByScrollResponse(timeValueMillis(10), status, emptyList(),
-                emptyList(), false));
+            task.getLeaderState()
+                .onSliceResponse(listener, i, new BulkByScrollResponse(timeValueMillis(10), status, emptyList(), emptyList(), false));
             if (i == slices - 1) {
                 // The whole thing succeeded so we should have got the success
                 captureResponse(BulkByScrollResponse.class, listener).getStatus();
             }
             sliceStatuses.add(new BulkByScrollTask.StatusOrException(status));
         }
-        rethrottleTestCase(0,
-                listener -> { /* There are no async tasks to simulate because the listener is called for us. */},
-                expectSuccessfulRethrottleWithStatuses(sliceStatuses));
+        rethrottleTestCase(
+            0,
+            listener -> { /* There are no async tasks to simulate because the listener is called for us. */},
+            expectSuccessfulRethrottleWithStatuses(sliceStatuses)
+        );
     }
 
     private Consumer<ActionListener<TaskInfo>> expectException(Matcher<Exception> exceptionMatcher) {
@@ -181,16 +194,20 @@ public class TransportRethrottleActionTests extends ESTestCase {
     public void testRethrottleTaskOperationFailure() {
         Exception e = new Exception();
         TaskOperationFailure failure = new TaskOperationFailure("test", 123, e);
-        rethrottleTestCase(slices,
-                listener -> listener.onResponse(new ListTasksResponse(emptyList(), singletonList(failure), emptyList())),
-                expectException(hasToString(containsString("Rethrottle of [test:123] failed"))));
+        rethrottleTestCase(
+            slices,
+            listener -> listener.onResponse(new ListTasksResponse(emptyList(), singletonList(failure), emptyList())),
+            expectException(hasToString(containsString("Rethrottle of [test:123] failed")))
+        );
     }
 
     public void testRethrottleNodeFailure() {
         FailedNodeException e = new FailedNodeException("test", "test", new Exception());
-        rethrottleTestCase(slices,
-                listener -> listener.onResponse(new ListTasksResponse(emptyList(), emptyList(), singletonList(e))),
-                expectException(theInstance(e)));
+        rethrottleTestCase(
+            slices,
+            listener -> listener.onResponse(new ListTasksResponse(emptyList(), emptyList(), singletonList(e))),
+            expectException(theInstance(e))
+        );
     }
 
     private BulkByScrollTask.Status believeableInProgressStatus(Integer sliceId) {

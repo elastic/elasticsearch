@@ -50,9 +50,7 @@ public class KeywordScriptMapperTests extends MapperScriptTestCase<StringFieldSc
 
     @Override
     protected StringFieldScript.Factory errorThrowingScript() {
-        return factory(s -> {
-            throw new UnsupportedOperationException("Oops");
-        });
+        return factory(s -> { throw new UnsupportedOperationException("Oops"); });
     }
 
     @Override

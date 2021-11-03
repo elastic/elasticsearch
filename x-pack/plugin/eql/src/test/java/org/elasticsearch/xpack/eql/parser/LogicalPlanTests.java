@@ -79,13 +79,14 @@ public class LogicalPlanTests extends ESTestCase {
 
     public void testJoinPlan() {
         LogicalPlan plan = parser.createStatement(
-                "join by pid " +
-                "  [process where true] " +
-                "  [network where true] " +
-                "  [registry where true] " +
-                "  [file where true] " +
-                " " +
-                "until [process where event_subtype_full == \"termination_event\"]");
+            "join by pid "
+                + "  [process where true] "
+                + "  [network where true] "
+                + "  [registry where true] "
+                + "  [file where true] "
+                + " "
+                + "until [process where event_subtype_full == \"termination_event\"]"
+        );
 
         plan = defaultPipes(plan);
         assertEquals(Join.class, plan.getClass());
@@ -110,9 +111,8 @@ public class LogicalPlanTests extends ESTestCase {
 
     public void testSequencePlan() {
         LogicalPlan plan = parser.createStatement(
-                "sequence by pid with maxspan=2s " +
-                "    [process where process_name == \"*\" ] " +
-                "    [file where file_path == \"*\"]");
+            "sequence by pid with maxspan=2s " + "    [process where process_name == \"*\" ] " + "    [file where file_path == \"*\"]"
+        );
 
         plan = defaultPipes(plan);
         assertEquals(Sequence.class, plan.getClass());
@@ -137,9 +137,10 @@ public class LogicalPlanTests extends ESTestCase {
 
     public void testQuotedEventType() {
         LogicalPlan plan = parser.createStatement(
-                "sequence by pid with maxspan=2s " +
-                        "    [\"12\\\"34!@#$\" where process_name == \"test.exe\" ] " +
-                        "    [\"\"\"!@#$%test\"\"\\)(*&^\"\"\" where file_path == \"test.exe\"]");
+            "sequence by pid with maxspan=2s "
+                + "    [\"12\\\"34!@#$\" where process_name == \"test.exe\" ] "
+                + "    [\"\"\"!@#$%test\"\"\\)(*&^\"\"\" where file_path == \"test.exe\"]"
+        );
 
         plan = defaultPipes(plan);
         assertEquals(Sequence.class, plan.getClass());

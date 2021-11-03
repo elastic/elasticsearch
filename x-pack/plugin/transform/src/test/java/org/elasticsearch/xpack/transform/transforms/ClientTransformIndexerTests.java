@@ -105,11 +105,14 @@ public class ClientTransformIndexerTests extends ESTestCase {
         ClientTransformIndexer indexer = createTestIndexer();
         SearchRequest searchRequest = new SearchRequest(new String[0]);
         Tuple<String, SearchRequest> namedSearchRequest = new Tuple<>("test", searchRequest);
-        indexer.doSearch(namedSearchRequest, ActionListener.wrap(
-            // A search of zero indices should return null rather than attempt to search all indices
-            ESTestCase::assertNull,
-            e -> fail(e.getMessage())
-        ));
+        indexer.doSearch(
+            namedSearchRequest,
+            ActionListener.wrap(
+                // A search of zero indices should return null rather than attempt to search all indices
+                ESTestCase::assertNull,
+                e -> fail(e.getMessage())
+            )
+        );
     }
 
     public void testPitInjection() throws InterruptedException {

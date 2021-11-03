@@ -52,24 +52,26 @@ class ApiKeyAuthenticator implements Authenticator {
                 final Authentication authentication = apiKeyService.createApiKeyAuthentication(authResult, nodeName);
                 listener.onResponse(AuthenticationResult.success(authentication));
             } else if (authResult.getStatus() == AuthenticationResult.Status.TERMINATE) {
-                Exception e = (authResult.getException() != null) ?
-                    authResult.getException() :
-                    Exceptions.authenticationError(authResult.getMessage());
-                logger.debug(new ParameterizedMessage("API key service terminated authentication for request [{}]", context.getRequest()),
-                    e);
+                Exception e = (authResult.getException() != null)
+                    ? authResult.getException()
+                    : Exceptions.authenticationError(authResult.getMessage());
+                logger.debug(
+                    new ParameterizedMessage("API key service terminated authentication for request [{}]", context.getRequest()),
+                    e
+                );
                 listener.onFailure(e);
             } else {
                 if (authResult.getMessage() != null) {
                     if (authResult.getException() != null) {
-                        logger.warn(new ParameterizedMessage("Authentication using apikey failed - {}", authResult.getMessage()),
-                            authResult.getException());
+                        logger.warn(
+                            new ParameterizedMessage("Authentication using apikey failed - {}", authResult.getMessage()),
+                            authResult.getException()
+                        );
                     } else {
                         logger.warn("Authentication using apikey failed - {}", authResult.getMessage());
                     }
                 }
-                listener.onResponse(AuthenticationResult.unsuccessful(
-                    authResult.getMessage(),
-                    authResult.getException()));
+                listener.onResponse(AuthenticationResult.unsuccessful(authResult.getMessage(), authResult.getException()));
             }
         }, e -> listener.onFailure(context.getRequest().exceptionProcessingRequest(e, null))));
     }

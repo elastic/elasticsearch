@@ -8,13 +8,13 @@ package org.elasticsearch.xpack.core.rollup.job;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -47,14 +47,21 @@ public class GroupConfig implements Writeable, ToXContentObject {
     public static final String NAME = "groups";
     private static final ConstructingObjectParser<GroupConfig, Void> PARSER;
     static {
-        PARSER = new ConstructingObjectParser<>(NAME, args ->
-            new GroupConfig((DateHistogramGroupConfig) args[0], (HistogramGroupConfig) args[1], (TermsGroupConfig) args[2]));
-        PARSER.declareObject(constructorArg(),
-            (p, c) -> DateHistogramGroupConfig.fromXContent(p), new ParseField(DateHistogramGroupConfig.NAME));
-        PARSER.declareObject(optionalConstructorArg(),
-            (p, c) -> HistogramGroupConfig.fromXContent(p), new ParseField(HistogramGroupConfig.NAME));
-        PARSER.declareObject(optionalConstructorArg(),
-            (p, c) -> TermsGroupConfig.fromXContent(p), new ParseField(TermsGroupConfig.NAME));
+        PARSER = new ConstructingObjectParser<>(
+            NAME,
+            args -> new GroupConfig((DateHistogramGroupConfig) args[0], (HistogramGroupConfig) args[1], (TermsGroupConfig) args[2])
+        );
+        PARSER.declareObject(
+            constructorArg(),
+            (p, c) -> DateHistogramGroupConfig.fromXContent(p),
+            new ParseField(DateHistogramGroupConfig.NAME)
+        );
+        PARSER.declareObject(
+            optionalConstructorArg(),
+            (p, c) -> HistogramGroupConfig.fromXContent(p),
+            new ParseField(HistogramGroupConfig.NAME)
+        );
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> TermsGroupConfig.fromXContent(p), new ParseField(TermsGroupConfig.NAME));
     }
 
     private final DateHistogramGroupConfig dateHistogram;
@@ -65,9 +72,11 @@ public class GroupConfig implements Writeable, ToXContentObject {
         this(dateHistogram, null, null);
     }
 
-    public GroupConfig(final DateHistogramGroupConfig dateHistogram,
-                       final @Nullable HistogramGroupConfig histogram,
-                       final @Nullable TermsGroupConfig terms) {
+    public GroupConfig(
+        final DateHistogramGroupConfig dateHistogram,
+        final @Nullable HistogramGroupConfig histogram,
+        final @Nullable TermsGroupConfig terms
+    ) {
         if (dateHistogram == null) {
             throw new IllegalArgumentException("Date histogram must not be null");
         }
@@ -117,8 +126,10 @@ public class GroupConfig implements Writeable, ToXContentObject {
         return Collections.unmodifiableSet(fields);
     }
 
-    public void validateMappings(final Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,
-                                 final ActionRequestValidationException validationException) {
+    public void validateMappings(
+        final Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,
+        final ActionRequestValidationException validationException
+    ) {
         dateHistogram.validateMappings(fieldCapsResponse, validationException);
         if (histogram != null) {
             histogram.validateMappings(fieldCapsResponse, validationException);

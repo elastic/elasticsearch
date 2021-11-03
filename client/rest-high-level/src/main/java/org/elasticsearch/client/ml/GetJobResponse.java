@@ -8,9 +8,9 @@
 package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -28,9 +28,11 @@ public class GetJobResponse extends AbstractResultResponse<Job> {
     public static final ParseField RESULTS_FIELD = new ParseField("jobs");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<GetJobResponse, Void> PARSER =
-        new ConstructingObjectParser<>("jobs_response", true,
-            a -> new GetJobResponse((List<Job.Builder>) a[0], (long) a[1]));
+    public static final ConstructingObjectParser<GetJobResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "jobs_response",
+        true,
+        a -> new GetJobResponse((List<Job.Builder>) a[0], (long) a[1])
+    );
 
     static {
         PARSER.declareObjectArray(constructorArg(), Job.PARSER, RESULTS_FIELD);

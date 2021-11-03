@@ -44,19 +44,21 @@ public abstract class LeafLongFieldData implements LeafNumericFieldData {
     }
 
     @Override
-    public final DocValuesField getScriptField(String name) {
+    public final DocValuesField<?> getScriptField(String name) {
         switch (numericType) {
-        // for now, dates and nanoseconds are treated the same, which also means, that the precision is only on millisecond level
-        case DATE:
-            return new DelegateDocValuesField(new ScriptDocValues.Dates(getLongValues(), false), name);
-        case DATE_NANOSECONDS:
-            assert this instanceof SortedNumericIndexFieldData.NanoSecondFieldData;
-            return new DelegateDocValuesField(
-                    new ScriptDocValues.Dates(((SortedNumericIndexFieldData.NanoSecondFieldData) this).getLongValuesAsNanos(), true), name);
-        case BOOLEAN:
-            return new DelegateDocValuesField(new ScriptDocValues.Booleans(getLongValues()), name);
-        default:
-            return new DelegateDocValuesField(new ScriptDocValues.Longs(getLongValues()), name);
+            // for now, dates and nanoseconds are treated the same, which also means, that the precision is only on millisecond level
+            case DATE:
+                return new DelegateDocValuesField(new ScriptDocValues.Dates(getLongValues(), false), name);
+            case DATE_NANOSECONDS:
+                assert this instanceof SortedNumericIndexFieldData.NanoSecondFieldData;
+                return new DelegateDocValuesField(
+                    new ScriptDocValues.Dates(((SortedNumericIndexFieldData.NanoSecondFieldData) this).getLongValuesAsNanos(), true),
+                    name
+                );
+            case BOOLEAN:
+                return new DelegateDocValuesField(new ScriptDocValues.Booleans(getLongValues()), name);
+            default:
+                return new DelegateDocValuesField(new ScriptDocValues.Longs(getLongValues()), name);
         }
     }
 

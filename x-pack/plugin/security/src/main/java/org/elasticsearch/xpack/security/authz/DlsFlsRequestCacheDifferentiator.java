@@ -32,9 +32,11 @@ public class DlsFlsRequestCacheDifferentiator implements CheckedBiConsumer<Shard
     private final SetOnce<SecurityContext> securityContextHolder;
     private final SetOnce<ScriptService> scriptServiceReference;
 
-    public DlsFlsRequestCacheDifferentiator(XPackLicenseState licenseState,
-                                            SetOnce<SecurityContext> securityContextReference,
-                                            SetOnce<ScriptService> scriptServiceReference) {
+    public DlsFlsRequestCacheDifferentiator(
+        XPackLicenseState licenseState,
+        SetOnce<SecurityContext> securityContextReference,
+        SetOnce<ScriptService> scriptServiceReference
+    ) {
         this.licenseState = licenseState;
         this.securityContextHolder = securityContextReference;
         this.scriptServiceReference = scriptServiceReference;
@@ -43,19 +45,25 @@ public class DlsFlsRequestCacheDifferentiator implements CheckedBiConsumer<Shard
     @Override
     public void accept(ShardSearchRequest request, StreamOutput out) throws IOException {
         final SecurityContext securityContext = securityContextHolder.get();
-        final IndicesAccessControl indicesAccessControl =
-            securityContext.getThreadContext().getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+        final IndicesAccessControl indicesAccessControl = securityContext.getThreadContext()
+            .getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
         final String indexName = request.shardId().getIndexName();
         IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(indexName);
         if (indexAccessControl != null) {
             final boolean flsEnabled = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
             final boolean dlsEnabled = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
             if ((flsEnabled || dlsEnabled) && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState)) {
-                logger.debug("index [{}] with field level access controls [{}] " +
-                        "document level access controls [{}]. Differentiating request cache key",
-                    indexName, flsEnabled, dlsEnabled);
+                logger.debug(
+                    "index [{}] with field level access controls [{}] "
+                        + "document level access controls [{}]. Differentiating request cache key",
+                    indexName,
+                    flsEnabled,
+                    dlsEnabled
+                );
                 indexAccessControl.buildCacheKey(
-                    out, SecurityQueryTemplateEvaluator.wrap(securityContext.getUser(), scriptServiceReference.get()));
+                    out,
+                    SecurityQueryTemplateEvaluator.wrap(securityContext.getUser(), scriptServiceReference.get())
+                );
             }
         }
     }

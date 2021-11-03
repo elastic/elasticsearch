@@ -17,7 +17,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.NetworkStreamOutput;
+import org.elasticsearch.common.io.stream.RecyclingBytesStreamOutput;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
@@ -151,11 +151,11 @@ final class OutboundHandler {
     }
 
     private void sendMessage(TcpChannel channel, OutboundMessage networkMessage, ActionListener<Void> listener) throws IOException {
-        final NetworkStreamOutput networkStreamOutput = new NetworkStreamOutput(recycler);
-        final ActionListener<Void> wrappedListener = ActionListener.runBefore(listener, networkStreamOutput::close);
+        final RecyclingBytesStreamOutput byteStreamOutput = new RecyclingBytesStreamOutput(recycler);
+        final ActionListener<Void> wrappedListener = ActionListener.runBefore(listener, byteStreamOutput::close);
         final BytesReference message;
         try {
-            message = networkMessage.serialize(networkStreamOutput);
+            message = networkMessage.serialize(byteStreamOutput);
         } catch (Exception e) {
             logger.warn(() -> new ParameterizedMessage("failed to serialize outbound message [{}]", networkMessage), e);
             wrappedListener.onFailure(e);

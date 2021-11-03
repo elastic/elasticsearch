@@ -54,12 +54,12 @@ import static org.hamcrest.Matchers.sameInstance;
 /**
  * Tests for {@link StreamOutput}.
  */
-public class NetworkStreamOutputTests extends ESTestCase {
+public class RecyclingBytesStreamOutputTests extends ESTestCase {
 
     private final Recycler<BytesRef> recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
 
     public void testEmpty() throws Exception {
-        NetworkStreamOutput out = new NetworkStreamOutput(recycler);
+        RecyclingBytesStreamOutput out = new RecyclingBytesStreamOutput(recycler);
 
         // test empty stream to array
         assertEquals(0, out.size());
@@ -69,7 +69,7 @@ public class NetworkStreamOutputTests extends ESTestCase {
     }
 
     public void testSingleByte() throws Exception {
-        NetworkStreamOutput out = new NetworkStreamOutput(recycler);
+        RecyclingBytesStreamOutput out = new RecyclingBytesStreamOutput(recycler);
         assertEquals(0, out.size());
 
         int expectedSize = 1;
@@ -84,7 +84,7 @@ public class NetworkStreamOutputTests extends ESTestCase {
     }
 
     public void testSingleShortPage() throws Exception {
-        NetworkStreamOutput out = new NetworkStreamOutput(recycler);
+        RecyclingBytesStreamOutput out = new RecyclingBytesStreamOutput(recycler);
 
         int expectedSize = 10;
         byte[] expectedData = randomizedByteArrayWithSize(expectedSize);
@@ -101,7 +101,7 @@ public class NetworkStreamOutputTests extends ESTestCase {
     }
 
     public void testIllegalBulkWrite() throws Exception {
-        NetworkStreamOutput out = new NetworkStreamOutput(recycler);
+        RecyclingBytesStreamOutput out = new RecyclingBytesStreamOutput(recycler);
 
         // bulk-write with wrong args
         expectThrows(IllegalArgumentException.class, () -> out.writeBytes(new byte[] {}, 0, 1));
@@ -109,7 +109,7 @@ public class NetworkStreamOutputTests extends ESTestCase {
     }
 
     public void testSingleShortPageBulkWrite() throws Exception {
-        NetworkStreamOutput out = new NetworkStreamOutput(recycler);
+        RecyclingBytesStreamOutput out = new RecyclingBytesStreamOutput(recycler);
 
         // first bulk-write empty array: should not change anything
         int expectedSize = 0;
@@ -129,7 +129,7 @@ public class NetworkStreamOutputTests extends ESTestCase {
     }
 
     public void testSingleFullPageBulkWrite() throws Exception {
-        NetworkStreamOutput out = new NetworkStreamOutput(recycler);
+        RecyclingBytesStreamOutput out = new RecyclingBytesStreamOutput(recycler);
 
         int expectedSize = PageCacheRecycler.BYTE_PAGE_SIZE;
         byte[] expectedData = randomizedByteArrayWithSize(expectedSize);
@@ -144,7 +144,7 @@ public class NetworkStreamOutputTests extends ESTestCase {
     }
 
     public void testSingleFullPageBulkWriteWithOffset() throws Exception {
-        NetworkStreamOutput out = new NetworkStreamOutput(recycler);
+        RecyclingBytesStreamOutput out = new RecyclingBytesStreamOutput(recycler);
 
         int initialOffset = 10;
         int additionalLength = PageCacheRecycler.BYTE_PAGE_SIZE;
@@ -163,7 +163,7 @@ public class NetworkStreamOutputTests extends ESTestCase {
     }
 
     public void testSingleFullPageBulkWriteWithOffsetCrossover() throws Exception {
-        NetworkStreamOutput out = new NetworkStreamOutput(recycler);
+        RecyclingBytesStreamOutput out = new RecyclingBytesStreamOutput(recycler);
 
         int initialOffset = 10;
         int additionalLength = PageCacheRecycler.BYTE_PAGE_SIZE * 2;
@@ -182,7 +182,7 @@ public class NetworkStreamOutputTests extends ESTestCase {
     }
 
     public void testSingleFullPage() throws Exception {
-        NetworkStreamOutput out = new NetworkStreamOutput(recycler);
+        RecyclingBytesStreamOutput out = new RecyclingBytesStreamOutput(recycler);
 
         int expectedSize = PageCacheRecycler.BYTE_PAGE_SIZE;
         byte[] expectedData = randomizedByteArrayWithSize(expectedSize);
@@ -199,7 +199,7 @@ public class NetworkStreamOutputTests extends ESTestCase {
     }
 
     public void testOneFullOneShortPage() throws Exception {
-        NetworkStreamOutput out = new NetworkStreamOutput(recycler);
+        RecyclingBytesStreamOutput out = new RecyclingBytesStreamOutput(recycler);
 
         int expectedSize = PageCacheRecycler.BYTE_PAGE_SIZE + 10;
         byte[] expectedData = randomizedByteArrayWithSize(expectedSize);
@@ -216,7 +216,7 @@ public class NetworkStreamOutputTests extends ESTestCase {
     }
 
     public void testTwoFullOneShortPage() throws Exception {
-        NetworkStreamOutput out = new NetworkStreamOutput(recycler);
+        RecyclingBytesStreamOutput out = new RecyclingBytesStreamOutput(recycler);
 
         int expectedSize = (PageCacheRecycler.BYTE_PAGE_SIZE * 2) + 1;
         byte[] expectedData = randomizedByteArrayWithSize(expectedSize);
@@ -233,7 +233,7 @@ public class NetworkStreamOutputTests extends ESTestCase {
     }
 
     public void testSeek() throws Exception {
-        NetworkStreamOutput out = new NetworkStreamOutput(recycler);
+        RecyclingBytesStreamOutput out = new RecyclingBytesStreamOutput(recycler);
 
         int position = 0;
         assertEquals(position, out.position());
@@ -252,7 +252,7 @@ public class NetworkStreamOutputTests extends ESTestCase {
     }
 
     public void testSkip() throws Exception {
-        NetworkStreamOutput out = new NetworkStreamOutput(recycler);
+        RecyclingBytesStreamOutput out = new RecyclingBytesStreamOutput(recycler);
 
         int position = 0;
         assertEquals(position, out.position());
@@ -269,7 +269,7 @@ public class NetworkStreamOutputTests extends ESTestCase {
 
     public void testSimpleStreams() throws Exception {
         assumeTrue("requires a 64-bit JRE ... ?!", Constants.JRE_IS_64BIT);
-        NetworkStreamOutput out = new NetworkStreamOutput(recycler);
+        RecyclingBytesStreamOutput out = new RecyclingBytesStreamOutput(recycler);
         out.writeBoolean(false);
         out.writeByte((byte) 1);
         out.writeShort((short) -1);
@@ -357,7 +357,7 @@ public class NetworkStreamOutputTests extends ESTestCase {
     }
 
     public void testNamedWriteable() throws IOException {
-        try (NetworkStreamOutput out = new NetworkStreamOutput(recycler)) {
+        try (RecyclingBytesStreamOutput out = new RecyclingBytesStreamOutput(recycler)) {
             NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
                 Collections.singletonList(
                     new NamedWriteableRegistry.Entry(BaseNamedWriteable.class, TestNamedWriteable.NAME, TestNamedWriteable::new)
@@ -391,7 +391,7 @@ public class NetworkStreamOutputTests extends ESTestCase {
             expected.add(new TestNamedWriteable(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
         }
 
-        try (NetworkStreamOutput out = new NetworkStreamOutput(recycler)) {
+        try (RecyclingBytesStreamOutput out = new RecyclingBytesStreamOutput(recycler)) {
             out.writeNamedWriteableList(expected);
             try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistry)) {
                 assertEquals(expected, in.readNamedWriteableList(BaseNamedWriteable.class));
@@ -401,7 +401,7 @@ public class NetworkStreamOutputTests extends ESTestCase {
     }
 
     public void testNamedWriteableNotSupportedWithoutWrapping() throws IOException {
-        try (NetworkStreamOutput out = new NetworkStreamOutput(recycler)) {
+        try (RecyclingBytesStreamOutput out = new RecyclingBytesStreamOutput(recycler)) {
             TestNamedWriteable testNamedWriteable = new TestNamedWriteable("test1", "test2");
             out.writeNamedWriteable(testNamedWriteable);
             StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
@@ -411,7 +411,7 @@ public class NetworkStreamOutputTests extends ESTestCase {
     }
 
     public void testNamedWriteableReaderReturnsNull() throws IOException {
-        try (NetworkStreamOutput out = new NetworkStreamOutput(recycler)) {
+        try (RecyclingBytesStreamOutput out = new RecyclingBytesStreamOutput(recycler)) {
             NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
                 Collections.singletonList(
                     new NamedWriteableRegistry.Entry(BaseNamedWriteable.class, TestNamedWriteable.NAME, (StreamInput in) -> null)
@@ -432,7 +432,7 @@ public class NetworkStreamOutputTests extends ESTestCase {
     }
 
     public void testOptionalWriteableReaderReturnsNull() throws IOException {
-        try (NetworkStreamOutput out = new NetworkStreamOutput(recycler)) {
+        try (RecyclingBytesStreamOutput out = new RecyclingBytesStreamOutput(recycler)) {
             out.writeOptionalWriteable(new TestNamedWriteable(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
             StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
             IOException e = expectThrows(IOException.class, () -> in.readOptionalWriteable((StreamInput ignored) -> null));
@@ -441,7 +441,7 @@ public class NetworkStreamOutputTests extends ESTestCase {
     }
 
     public void testWriteableReaderReturnsWrongName() throws IOException {
-        try (NetworkStreamOutput out = new NetworkStreamOutput(recycler)) {
+        try (RecyclingBytesStreamOutput out = new RecyclingBytesStreamOutput(recycler)) {
             NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
                 Collections.singletonList(
                     new NamedWriteableRegistry.Entry(
@@ -481,7 +481,7 @@ public class NetworkStreamOutputTests extends ESTestCase {
             expected.add(new TestWriteable(randomBoolean()));
         }
 
-        final NetworkStreamOutput out = new NetworkStreamOutput(recycler);
+        final RecyclingBytesStreamOutput out = new RecyclingBytesStreamOutput(recycler);
         out.writeList(expected);
 
         final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
@@ -507,7 +507,7 @@ public class NetworkStreamOutputTests extends ESTestCase {
             expected.put(randomAlphaOfLength(2), randomAlphaOfLength(5));
         }
 
-        final NetworkStreamOutput out = new NetworkStreamOutput(recycler);
+        final RecyclingBytesStreamOutput out = new RecyclingBytesStreamOutput(recycler);
         out.writeMap(expected, StreamOutput::writeString, StreamOutput::writeString);
         final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
         final Map<String, String> loaded = in.readMap(StreamInput::readString, StreamInput::readString);
@@ -524,7 +524,7 @@ public class NetworkStreamOutputTests extends ESTestCase {
         }
 
         final ImmutableOpenMap<String, String> expected = expectedBuilder.build();
-        final NetworkStreamOutput out = new NetworkStreamOutput(recycler);
+        final RecyclingBytesStreamOutput out = new RecyclingBytesStreamOutput(recycler);
         out.writeMap(expected, StreamOutput::writeString, StreamOutput::writeString);
         final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
         final ImmutableOpenMap<String, String> loaded = in.readImmutableMap(StreamInput::readString, StreamInput::readString);
@@ -540,7 +540,7 @@ public class NetworkStreamOutputTests extends ESTestCase {
         }
 
         final ImmutableOpenMap<TestWriteable, TestWriteable> expected = expectedBuilder.build();
-        final NetworkStreamOutput out = new NetworkStreamOutput(recycler);
+        final RecyclingBytesStreamOutput out = new RecyclingBytesStreamOutput(recycler);
         out.writeMap(expected);
         final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
         final ImmutableOpenMap<TestWriteable, TestWriteable> loaded = in.readImmutableMap(TestWriteable::new, TestWriteable::new);
@@ -563,7 +563,7 @@ public class NetworkStreamOutputTests extends ESTestCase {
             expected.put(randomAlphaOfLength(2), list);
         }
 
-        final NetworkStreamOutput out = new NetworkStreamOutput(recycler);
+        final RecyclingBytesStreamOutput out = new RecyclingBytesStreamOutput(recycler);
         out.writeMapOfLists(expected, StreamOutput::writeString, StreamOutput::writeString);
 
         final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
@@ -644,7 +644,7 @@ public class NetworkStreamOutputTests extends ESTestCase {
     }
 
     public void testReadWriteGeoPoint() throws IOException {
-        try (NetworkStreamOutput out = new NetworkStreamOutput(recycler)) {
+        try (RecyclingBytesStreamOutput out = new RecyclingBytesStreamOutput(recycler)) {
             GeoPoint geoPoint = new GeoPoint(randomDouble(), randomDouble());
             out.writeGenericValue(geoPoint);
             StreamInput wrap = out.bytes().streamInput();
@@ -652,7 +652,7 @@ public class NetworkStreamOutputTests extends ESTestCase {
             assertEquals(point, geoPoint);
         }
 
-        try (NetworkStreamOutput out = new NetworkStreamOutput(recycler)) {
+        try (RecyclingBytesStreamOutput out = new RecyclingBytesStreamOutput(recycler)) {
             GeoPoint geoPoint = new GeoPoint(randomDouble(), randomDouble());
             out.writeGeoPoint(geoPoint);
             StreamInput wrap = out.bytes().streamInput();
@@ -706,8 +706,8 @@ public class NetworkStreamOutputTests extends ESTestCase {
         assertNotEquals(mapKeys, reverseMapKeys);
 
         try (
-            NetworkStreamOutput output = new NetworkStreamOutput(recycler);
-            NetworkStreamOutput reverseMapOutput = new NetworkStreamOutput(recycler)
+            RecyclingBytesStreamOutput output = new RecyclingBytesStreamOutput(recycler);
+            RecyclingBytesStreamOutput reverseMapOutput = new RecyclingBytesStreamOutput(recycler)
         ) {
             output.writeMapWithConsistentOrder(map);
             reverseMapOutput.writeMapWithConsistentOrder(reverseMap);
@@ -723,7 +723,7 @@ public class NetworkStreamOutputTests extends ESTestCase {
             () -> randomAlphaOfLength(5),
             () -> randomAlphaOfLength(5)
         );
-        try (NetworkStreamOutput streamOut = new NetworkStreamOutput(recycler)) {
+        try (RecyclingBytesStreamOutput streamOut = new RecyclingBytesStreamOutput(recycler)) {
             streamOut.writeMapWithConsistentOrder(streamOutMap);
             StreamInput in = StreamInput.wrap(BytesReference.toBytes(streamOut.bytes()));
             Map<String, Object> streamInMap = in.readMap();
@@ -732,7 +732,7 @@ public class NetworkStreamOutputTests extends ESTestCase {
     }
 
     public void testWriteMapWithConsistentOrderWithLinkedHashMapShouldThrowAssertError() throws IOException {
-        try (NetworkStreamOutput output = new NetworkStreamOutput(recycler)) {
+        try (RecyclingBytesStreamOutput output = new RecyclingBytesStreamOutput(recycler)) {
             Map<String, Object> map = new LinkedHashMap<>();
             Throwable e = expectThrows(AssertionError.class, () -> output.writeMapWithConsistentOrder(map));
             assertEquals(AssertionError.class, e.getClass());
@@ -749,7 +749,7 @@ public class NetworkStreamOutputTests extends ESTestCase {
         for (int iter = 0; iter < iters; iter++) {
             List<String> strings = new ArrayList<>();
             int numStrings = randomIntBetween(100, 1000);
-            NetworkStreamOutput output = new NetworkStreamOutput(recycler);
+            RecyclingBytesStreamOutput output = new RecyclingBytesStreamOutput(recycler);
             for (int i = 0; i < numStrings; i++) {
                 String s = randomRealisticUnicodeOfLengthBetween(0, 2048);
                 strings.add(s);
@@ -773,7 +773,7 @@ public class NetworkStreamOutputTests extends ESTestCase {
         assertEquals(2, deseretLetter.length());
         String largeString = IntStream.range(0, 2048).mapToObj(s -> deseretLetter).collect(Collectors.joining("")).trim();
         assertEquals("expands to 4 bytes", 4, new BytesRef(deseretLetter).length);
-        try (NetworkStreamOutput output = new NetworkStreamOutput(recycler)) {
+        try (RecyclingBytesStreamOutput output = new RecyclingBytesStreamOutput(recycler)) {
             output.writeString(largeString);
             try (StreamInput streamInput = output.bytes().streamInput()) {
                 assertEquals(largeString, streamInput.readString());
@@ -782,7 +782,7 @@ public class NetworkStreamOutputTests extends ESTestCase {
     }
 
     public void testReadTooLargeArraySize() throws IOException {
-        try (NetworkStreamOutput output = new NetworkStreamOutput(recycler)) {
+        try (RecyclingBytesStreamOutput output = new RecyclingBytesStreamOutput(recycler)) {
             output.writeVInt(10);
             for (int i = 0; i < 10; i++) {
                 output.writeInt(i);
@@ -803,7 +803,7 @@ public class NetworkStreamOutputTests extends ESTestCase {
     }
 
     public void testReadCorruptedArraySize() throws IOException {
-        try (NetworkStreamOutput output = new NetworkStreamOutput(recycler)) {
+        try (RecyclingBytesStreamOutput output = new RecyclingBytesStreamOutput(recycler)) {
             output.writeVInt(10);
             for (int i = 0; i < 10; i++) {
                 output.writeInt(i);
@@ -825,7 +825,7 @@ public class NetworkStreamOutputTests extends ESTestCase {
     }
 
     public void testReadNegativeArraySize() throws IOException {
-        try (NetworkStreamOutput output = new NetworkStreamOutput(recycler)) {
+        try (RecyclingBytesStreamOutput output = new RecyclingBytesStreamOutput(recycler)) {
             output.writeVInt(10);
             for (int i = 0; i < 10; i++) {
                 output.writeInt(i);
@@ -848,10 +848,10 @@ public class NetworkStreamOutputTests extends ESTestCase {
 
     public void testVInt() throws IOException {
         final int value = randomInt();
-        NetworkStreamOutput output = new NetworkStreamOutput(recycler);
+        RecyclingBytesStreamOutput output = new RecyclingBytesStreamOutput(recycler);
         output.writeVInt(value);
 
-        NetworkStreamOutput simple = new NetworkStreamOutput(recycler);
+        RecyclingBytesStreamOutput simple = new RecyclingBytesStreamOutput(recycler);
         int i = value;
         while ((i & ~0x7F) != 0) {
             simple.writeByte(((byte) ((i & 0x7f) | 0x80)));
@@ -868,14 +868,14 @@ public class NetworkStreamOutputTests extends ESTestCase {
         final long value = randomLong();
         {
             // Read works for positive and negative numbers
-            NetworkStreamOutput output = new NetworkStreamOutput(recycler);
+            RecyclingBytesStreamOutput output = new RecyclingBytesStreamOutput(recycler);
             output.writeVLongNoCheck(value); // Use NoCheck variant so we can write negative numbers
             StreamInput input = output.bytes().streamInput();
             assertEquals(value, input.readVLong());
         }
         if (value < 0) {
             // Write doesn't work for negative numbers
-            NetworkStreamOutput output = new NetworkStreamOutput(recycler);
+            RecyclingBytesStreamOutput output = new RecyclingBytesStreamOutput(recycler);
             Exception e = expectThrows(IllegalStateException.class, () -> output.writeVLong(value));
             assertEquals("Negative longs unsupported, use writeLong or writeZLong for negative numbers [" + value + "]", e.getMessage());
         }
@@ -889,7 +889,7 @@ public class NetworkStreamOutputTests extends ESTestCase {
 
     public void testEnum() throws IOException {
         TestEnum value = randomFrom(TestEnum.values());
-        NetworkStreamOutput output = new NetworkStreamOutput(recycler);
+        RecyclingBytesStreamOutput output = new RecyclingBytesStreamOutput(recycler);
         output.writeEnum(value);
         StreamInput input = output.bytes().streamInput();
         assertEquals(value, input.readEnum(TestEnum.class));
@@ -897,7 +897,7 @@ public class NetworkStreamOutputTests extends ESTestCase {
     }
 
     public void testInvalidEnum() throws IOException {
-        NetworkStreamOutput output = new NetworkStreamOutput(recycler);
+        RecyclingBytesStreamOutput output = new RecyclingBytesStreamOutput(recycler);
         int randomNumber = randomInt();
         boolean validEnum = randomNumber >= 0 && randomNumber < TestEnum.values().length;
         output.writeVInt(randomNumber);
@@ -912,7 +912,7 @@ public class NetworkStreamOutputTests extends ESTestCase {
     }
 
     private void assertEqualityAfterSerialize(TimeValue value, int expectedSize) throws IOException {
-        NetworkStreamOutput out = new NetworkStreamOutput(recycler);
+        RecyclingBytesStreamOutput out = new RecyclingBytesStreamOutput(recycler);
         out.writeTimeValue(value);
         assertEquals(expectedSize, out.size());
 
@@ -931,7 +931,7 @@ public class NetworkStreamOutputTests extends ESTestCase {
         assertEqualityAfterSerialize(TimeValue.timeValueSeconds(30), 2);
 
         final TimeValue timeValue = new TimeValue(randomIntBetween(0, 1024), randomFrom(TimeUnit.values()));
-        NetworkStreamOutput out = new NetworkStreamOutput(recycler);
+        RecyclingBytesStreamOutput out = new RecyclingBytesStreamOutput(recycler);
         out.writeZLong(timeValue.duration());
         assertEqualityAfterSerialize(timeValue, 1 + out.bytes().length());
     }
@@ -941,12 +941,12 @@ public class NetworkStreamOutputTests extends ESTestCase {
         AlreadyClosedException ace = new AlreadyClosedException("closed", rootEx);
         rootEx.addSuppressed(ace); // circular reference
 
-        NetworkStreamOutput testOut = new NetworkStreamOutput(recycler);
+        RecyclingBytesStreamOutput testOut = new RecyclingBytesStreamOutput(recycler);
         AssertionError error = expectThrows(AssertionError.class, () -> testOut.writeException(rootEx));
         assertThat(error.getMessage(), containsString("too many nested exceptions"));
         assertThat(error.getCause(), equalTo(rootEx));
 
-        NetworkStreamOutput prodOut = new NetworkStreamOutput(recycler) {
+        RecyclingBytesStreamOutput prodOut = new RecyclingBytesStreamOutput(recycler) {
             @Override
             boolean failOnTooManyNestedExceptions(Throwable throwable) {
                 assertThat(throwable, sameInstance(rootEx));

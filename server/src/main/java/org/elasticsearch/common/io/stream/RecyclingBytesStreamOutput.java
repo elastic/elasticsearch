@@ -13,8 +13,9 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.io.ByteArrayOutputStream;
@@ -25,10 +26,11 @@ import java.nio.ByteOrder;
 import java.util.ArrayList;
 
 /**
- * A @link {@link StreamOutput} that uses {@link BigArrays} to acquire pages of
- * bytes, which avoids frequent reallocation &amp; copying of the internal data.
+ * A @link {@link StreamOutput} that uses {@link Recycler.V<BytesRef>} to acquire pages of bytes, which
+ * avoids frequent reallocation &amp; copying of the internal data. When {@link #close()} is called,
+ * the bytes will be released.
  */
-public class NetworkStreamOutput extends BytesStream {
+public class RecyclingBytesStreamOutput extends BytesStream implements Releasable {
 
     static final VarHandle VH_BE_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
     static final VarHandle VH_BE_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
@@ -40,11 +42,11 @@ public class NetworkStreamOutput extends BytesStream {
     private int currentCapacity = 0;
     private int currentPageOffset;
 
-    public NetworkStreamOutput() {
+    public RecyclingBytesStreamOutput() {
         this(new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE));
     }
 
-    public NetworkStreamOutput(Recycler<BytesRef> recycler) {
+    public RecyclingBytesStreamOutput(Recycler<BytesRef> recycler) {
         this.recycler = recycler;
         try (Recycler.V<BytesRef> obtain = recycler.obtain()) {
             pageSize = obtain.v().length;
@@ -153,10 +155,11 @@ public class NetworkStreamOutput extends BytesStream {
 
     @Override
     public void close() {
-        for (Recycler.V<BytesRef> page : pages) {
-            page.close();
+        try {
+            Releasables.close(pages);
+        } finally {
+            pages.clear();
         }
-        pages.clear();
     }
 
     /**
@@ -167,7 +170,7 @@ public class NetworkStreamOutput extends BytesStream {
      * @see ByteArrayOutputStream#size()
      */
     public int size() {
-        return (int) position();
+        return Math.toIntExact(position());
     }
 
     @Override
@@ -202,13 +205,13 @@ public class NetworkStreamOutput extends BytesStream {
         }
     }
 
-    protected void ensureCapacity(int bytesNeeded) {
+    private void ensureCapacity(int bytesNeeded) {
         if (pageSize - currentPageOffset >= bytesNeeded == false) {
             ensureCapacityFromPosition(position() + bytesNeeded);
         }
     }
 
-    protected void ensureCapacityFromPosition(long newPosition) {
+    private void ensureCapacityFromPosition(long newPosition) {
         while (newPosition > currentCapacity) {
             if (newPosition > Integer.MAX_VALUE) {
                 throw new IllegalArgumentException(getClass().getSimpleName() + " cannot hold more than 2GB of data");

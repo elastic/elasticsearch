@@ -11,7 +11,7 @@ package org.elasticsearch.transport;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.io.stream.NetworkStreamOutput;
+import org.elasticsearch.common.io.stream.RecyclingBytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -69,7 +69,7 @@ public class InboundDecoderTests extends ESTestCase {
             );
         }
 
-        final BytesReference totalBytes = message.serialize(new NetworkStreamOutput());
+        final BytesReference totalBytes = message.serialize(new RecyclingBytesStreamOutput());
         int totalHeaderSize = TcpHeader.headerSize(Version.CURRENT) + totalBytes.getInt(TcpHeader.VARIABLE_HEADER_SIZE_POSITION);
         final BytesReference messageBytes = totalBytes.slice(totalHeaderSize, totalBytes.length() - totalHeaderSize);
 
@@ -128,7 +128,7 @@ public class InboundDecoderTests extends ESTestCase {
             compressionScheme
         );
 
-        final BytesReference totalBytes = message.serialize(new NetworkStreamOutput());
+        final BytesReference totalBytes = message.serialize(new RecyclingBytesStreamOutput());
         int partialHeaderSize = TcpHeader.headerSize(preHeaderVariableInt);
 
         InboundDecoder decoder = new InboundDecoder(Version.CURRENT, recycler);
@@ -183,7 +183,7 @@ public class InboundDecoderTests extends ESTestCase {
             null
         );
 
-        final BytesReference bytes = message.serialize(new NetworkStreamOutput());
+        final BytesReference bytes = message.serialize(new RecyclingBytesStreamOutput());
         int totalHeaderSize = TcpHeader.headerSize(handshakeCompat);
 
         InboundDecoder decoder = new InboundDecoder(Version.CURRENT, recycler);
@@ -226,8 +226,8 @@ public class InboundDecoderTests extends ESTestCase {
             message = new OutboundMessage.Response(threadContext, transportMessage, Version.CURRENT, requestId, false, scheme);
         }
 
-        final BytesReference totalBytes = message.serialize(new NetworkStreamOutput());
-        final NetworkStreamOutput out = new NetworkStreamOutput();
+        final BytesReference totalBytes = message.serialize(new RecyclingBytesStreamOutput());
+        final RecyclingBytesStreamOutput out = new RecyclingBytesStreamOutput();
         transportMessage.writeTo(out);
         final BytesReference uncompressedBytes = out.bytes();
         int totalHeaderSize = TcpHeader.headerSize(Version.CURRENT) + totalBytes.getInt(TcpHeader.VARIABLE_HEADER_SIZE_POSITION);
@@ -290,7 +290,7 @@ public class InboundDecoderTests extends ESTestCase {
             Compression.Scheme.DEFLATE
         );
 
-        final BytesReference bytes = message.serialize(new NetworkStreamOutput());
+        final BytesReference bytes = message.serialize(new RecyclingBytesStreamOutput());
         int totalHeaderSize = TcpHeader.headerSize(handshakeCompat);
 
         InboundDecoder decoder = new InboundDecoder(Version.CURRENT, recycler);
@@ -325,7 +325,7 @@ public class InboundDecoderTests extends ESTestCase {
             Compression.Scheme.DEFLATE
         );
 
-        final BytesReference bytes = message.serialize(new NetworkStreamOutput());
+        final BytesReference bytes = message.serialize(new RecyclingBytesStreamOutput());
 
         InboundDecoder decoder = new InboundDecoder(Version.CURRENT, recycler);
         final ArrayList<Object> fragments = new ArrayList<>();

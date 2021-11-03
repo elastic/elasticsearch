@@ -97,11 +97,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private static final int LIMIT_LOCAL_PORTS_COUNT = 6;
 
     protected final Settings settings;
-    private final Version version;
     protected final ThreadPool threadPool;
-    protected final Recycler<BytesRef> recycler;
     protected final NetworkService networkService;
     protected final Set<ProfileSettings> profileSettingsSet;
+    private final Version version;
+    private final Recycler<BytesRef> pageCacheRecycler;
     private final CircuitBreakerService circuitBreakerService;
 
     private final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
@@ -139,8 +139,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.networkService = networkService;
         String nodeName = Node.NODE_NAME_SETTING.get(settings);
 
-        this.recycler = createRecycler(pageCacheRecycler);
-        this.outboundHandler = new OutboundHandler(nodeName, version, statsTracker, threadPool, recycler);
+        this.pageCacheRecycler = new BytesRefRecycler(pageCacheRecycler);
+        this.outboundHandler = new OutboundHandler(nodeName, version, statsTracker, threadPool, getRecycler());
         this.handshaker = new TransportHandshaker(
             version,
             threadPool,
@@ -302,8 +302,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         return connectionProfile;
     }
 
-    protected Recycler<BytesRef> createRecycler(PageCacheRecycler pageCacheRecycler) {
-        return new BytesRefRecycler(pageCacheRecycler);
+    protected Recycler<BytesRef> getRecycler() {
+        return pageCacheRecycler;
     }
 
     @Override

@@ -7,6 +7,9 @@
  */
 package org.elasticsearch.common.util;
 
+import com.carrotsearch.hppc.LongHashSet;
+import com.carrotsearch.hppc.cursors.LongCursor;
+
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -18,7 +21,6 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SetBackedScalingCuckooFilterTests extends AbstractWireSerializingTestCase<SetBackedScalingCuckooFilter> {
@@ -60,16 +62,15 @@ public class SetBackedScalingCuckooFilterTests extends AbstractWireSerializingTe
         SetBackedScalingCuckooFilter filter = new SetBackedScalingCuckooFilter(threshold, Randomness.get(), 0.01);
 
         int size = 0;
-        Set<Long> values = new HashSet<>();
-        Set<Long> hashed = new HashSet<>(values.size());
+        LongHashSet values = new LongHashSet();
+        LongHashSet hashed = new LongHashSet(values.size());
         while (size < threshold - 100) {
             long value = randomLong();
             filter.add(value);
             boolean newValue = values.add(value);
             if (newValue) {
-                Long hash = MurmurHash3.murmur64(value);
+                long hash = MurmurHash3.murmur64(value);
                 hashed.add(hash);
-
                 size += 16;
             }
         }
@@ -77,8 +78,8 @@ public class SetBackedScalingCuckooFilterTests extends AbstractWireSerializingTe
         assertThat(filter.hashes, equalTo(hashed));
         assertNull(filter.filters);
 
-        for (Long value : values) {
-            assertThat(filter.mightContain(value), equalTo(true));
+        for (LongCursor longCursor : values) {
+            assertThat(filter.mightContain(longCursor.value), equalTo(true));
         }
     }
 

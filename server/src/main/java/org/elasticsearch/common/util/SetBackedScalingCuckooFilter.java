@@ -8,6 +8,9 @@
 
 package org.elasticsearch.common.util;
 
+import com.carrotsearch.hppc.LongHashSet;
+import com.carrotsearch.hppc.cursors.LongCursor;
+
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -16,12 +19,10 @@ import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Random;
-import java.util.Set;
 import java.util.function.Consumer;
 
 /**
@@ -52,7 +53,7 @@ public class SetBackedScalingCuckooFilter implements Writeable {
      *
      * package-private for testing
      */
-    Set<Long> hashes;
+    LongHashSet hashes;
 
     /**
      * This list holds our approximate filters, after we have migrated out of a set.
@@ -96,7 +97,7 @@ public class SetBackedScalingCuckooFilter implements Writeable {
         if (fpp < 0) {
             throw new IllegalArgumentException("[fpp] must be a positive double");
         }
-        this.hashes = new HashSet<>(threshold);
+        this.hashes = new LongHashSet(threshold);
         this.threshold = threshold;
         this.rng = rng;
         this.capacity = FILTER_CAPACITY;
@@ -111,7 +112,11 @@ public class SetBackedScalingCuckooFilter implements Writeable {
         this.fpp = in.readDouble();
 
         if (isSetMode) {
-            this.hashes = in.readSet(StreamInput::readZLong);
+            int size = in.readVInt();
+            this.hashes = new LongHashSet(size);
+            for (int i = 0; i < size; i++) {
+                this.hashes.add(in.readZLong());
+            }
         } else {
             this.filters = in.readList(in12 -> new CuckooFilter(in12, rng));
             this.numBuckets = filters.get(0).getNumBuckets();
@@ -127,7 +132,10 @@ public class SetBackedScalingCuckooFilter implements Writeable {
         out.writeVInt(capacity);
         out.writeDouble(fpp);
         if (isSetMode) {
-            out.writeCollection(hashes, StreamOutput::writeZLong);
+            out.writeVInt(hashes.size());
+            for (LongCursor cursor : hashes) {
+                out.writeZLong(cursor.value);
+            }
         } else {
             out.writeList(filters);
         }
@@ -277,8 +285,10 @@ public class SetBackedScalingCuckooFilter implements Writeable {
         numBuckets = t.getNumBuckets();
         fingerprintMask = t.getFingerprintMask();
         bitsPerEntry = t.getBitsPerEntry();
+        for (LongCursor cursor : hashes) {
+            t.add(cursor.value);
+        }
 
-        hashes.forEach(t::add);
         filters.add(t);
 
         hashes = null;
@@ -340,7 +350,9 @@ public class SetBackedScalingCuckooFilter implements Writeable {
         } else if (isSetMode == false && other.isSetMode) {
             // Rather than converting the other to a cuckoo first, we can just
             // replay the values directly into our filter.
-            other.hashes.forEach(this::add);
+            for (LongCursor longCursor : other.hashes) {
+                this.add(longCursor.value);
+            }
         } else {
             // Both are in cuckoo mode, merge raw fingerprints
 

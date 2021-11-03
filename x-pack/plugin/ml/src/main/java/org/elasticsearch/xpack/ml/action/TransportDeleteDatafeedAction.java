@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
@@ -28,7 +27,6 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -39,11 +37,9 @@ public class TransportDeleteDatafeedAction extends AcknowledgedTransportMasterNo
     private final Client client;
     private final DatafeedManager datafeedManager;
     private final PersistentTasksService persistentTasksService;
-    private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
 
     @Inject
     public TransportDeleteDatafeedAction(
-        Settings settings,
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -65,7 +61,6 @@ public class TransportDeleteDatafeedAction extends AcknowledgedTransportMasterNo
         );
         this.client = client;
         this.persistentTasksService = persistentTasksService;
-        this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
         this.datafeedManager = datafeedManager;
     }
 
@@ -76,12 +71,6 @@ public class TransportDeleteDatafeedAction extends AcknowledgedTransportMasterNo
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-
-        if (migrationEligibilityCheck.datafeedIsEligibleForMigration(request.getDatafeedId(), state)) {
-            listener.onFailure(ExceptionsHelper.configHasNotBeenMigrated("delete datafeed", request.getDatafeedId()));
-            return;
-        }
-
         if (request.isForce()) {
             forceDeleteDatafeed(request, state, listener);
         } else {
@@ -115,25 +104,22 @@ public class TransportDeleteDatafeedAction extends AcknowledgedTransportMasterNo
         if (datafeedTask == null) {
             listener.onResponse(true);
         } else {
-            persistentTasksService.sendRemoveRequest(
-                datafeedTask.getId(),
-                new ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>() {
-                    @Override
-                    public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
-                        listener.onResponse(Boolean.TRUE);
-                    }
+            persistentTasksService.sendRemoveRequest(datafeedTask.getId(), new ActionListener<>() {
+                @Override
+                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
+                    listener.onResponse(Boolean.TRUE);
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
-                            // the task has been removed in between
-                            listener.onResponse(true);
-                        } else {
-                            listener.onFailure(e);
-                        }
+                @Override
+                public void onFailure(Exception e) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+                        // the task has been removed in between
+                        listener.onResponse(true);
+                    } else {
+                        listener.onFailure(e);
                     }
                 }
-            );
+            });
         }
     }
 

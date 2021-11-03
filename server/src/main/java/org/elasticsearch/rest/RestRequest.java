@@ -110,7 +110,7 @@ public class RestRequest implements ToXContent.Params {
         this.httpRequest = httpRequest;
         try {
             this.restApiVersion = RestCompatibleVersionHelper.getCompatibleVersion(parsedAccept, parsedContentType, hasContent());
-        } catch(ElasticsearchStatusException e) {
+        } catch (ElasticsearchStatusException e) {
             throw new MediaTypeHeaderException(e, "Accept", "Content-Type");
         }
         this.parserConfig = parserConfig.restApiVersion().equals(restApiVersion)

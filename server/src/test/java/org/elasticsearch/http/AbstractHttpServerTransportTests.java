@@ -196,7 +196,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         }
     }
 
-    public void testIncorrectHeaderHandling2() {
+    public void testHandlingCompatibleVersionParsing() {
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         try (

@@ -50,6 +50,13 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
         Setting.Property.DeprecatedWarning,
         Setting.Property.Dynamic
     );
+    public static final Setting<Boolean> TEST_DEPRECATED_SETTING_TRUE3 = Setting.boolSetting(
+        "test.setting.deprecated.true3",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated,
+        Setting.Property.Dynamic
+    );
     public static final Setting<Boolean> TEST_NOT_DEPRECATED_SETTING = Setting.boolSetting(
         "test.setting.not_deprecated",
         false,
@@ -62,6 +69,8 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
         TEST_DEPRECATED_SETTING_TRUE1,
         TEST_DEPRECATED_SETTING_TRUE2.getKey(),
         TEST_DEPRECATED_SETTING_TRUE2,
+        TEST_DEPRECATED_SETTING_TRUE3.getKey(),
+        TEST_DEPRECATED_SETTING_TRUE3,
         TEST_NOT_DEPRECATED_SETTING.getKey(),
         TEST_NOT_DEPRECATED_SETTING
     );
@@ -89,8 +98,10 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
             // note: RestApiVersion.current() is acceptable here because this is test code -- ordinary callers of `.deprecated(...)`
             // should use an actual version
             Route.builder(GET, "/_test_cluster/deprecated_settings").deprecated(DEPRECATED_ENDPOINT, RestApiVersion.current()).build(),
-            Route.builder(POST, "/_test_cluster/deprecated_settings").deprecated(DEPRECATED_ENDPOINT, RestApiVersion.current()).build()
-        );
+            Route.builder(POST, "/_test_cluster/deprecated_settings").deprecated(DEPRECATED_ENDPOINT, RestApiVersion.current()).build(),
+            Route.builder(GET, "/_test_cluster/compat_only").deprecated(DEPRECATED_ENDPOINT, RestApiVersion.minimumSupported()).build(),
+            Route.builder(GET, "/_test_cluster/only_deprecated_setting").build()
+            );
     }
 
     @SuppressWarnings("unchecked") // List<String> casts
@@ -110,6 +121,9 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
             } else if (source.containsKey("deprecated_settings")) {
                 deprecationLogger.warn(DeprecationCategory.SETTINGS, "deprecated_settings", DEPRECATED_USAGE);
                 settings = (List<String>) source.get("deprecated_settings");
+            } else if (source.containsKey("deprecation_critical")) {
+                deprecationLogger.critical(DeprecationCategory.SETTINGS, "deprecated_critical_settings", DEPRECATED_USAGE);
+                settings = (List<String>) source.get("deprecation_critical");
             } else if (source.containsKey("deprecation_warning")) {
                 deprecationLogger.warn(DeprecationCategory.SETTINGS, "deprecated_warn_settings", DEPRECATED_WARN_USAGE);
                 settings = (List<String>) source.get("deprecation_warning");

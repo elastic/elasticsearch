@@ -32,7 +32,7 @@ import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HIDDEN;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -45,14 +45,19 @@ public class TransportCreateIndexActionTests extends ESTestCase {
 
     private static final String SYSTEM_INDEX_NAME = ".my-system";
     private static final SystemIndices SYSTEM_INDICES = new SystemIndices(
-        Map.of("test-feature", new SystemIndices.Feature(
+        Map.of(
             "test-feature",
-            "a test feature",
-            List.of(SystemIndexDescriptor.builder()
-                .setIndexPattern(SYSTEM_INDEX_NAME + "*")
-                .setType(SystemIndexDescriptor.Type.INTERNAL_UNMANAGED)
-                .build())
-        ))
+            new SystemIndices.Feature(
+                "test-feature",
+                "a test feature",
+                List.of(
+                    SystemIndexDescriptor.builder()
+                        .setIndexPattern(SYSTEM_INDEX_NAME + "*")
+                        .setType(SystemIndexDescriptor.Type.INTERNAL_UNMANAGED)
+                        .build()
+                )
+            )
+        )
     );
 
     private MetadataCreateIndexService metadataCreateIndexService;
@@ -78,11 +83,7 @@ public class TransportCreateIndexActionTests extends ESTestCase {
 
     public void testSystemIndicesCannotBeCreatedUnhidden() {
         CreateIndexRequest request = new CreateIndexRequest();
-        request.settings(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_INDEX_HIDDEN, false)
-                .build()
-        );
+        request.settings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false).build());
         request.index(SYSTEM_INDEX_NAME);
 
         @SuppressWarnings("unchecked")
@@ -108,8 +109,9 @@ public class TransportCreateIndexActionTests extends ESTestCase {
 
         action.masterOperation(mock(Task.class), request, CLUSTER_STATE, mockListener);
 
-        ArgumentCaptor<CreateIndexClusterStateUpdateRequest> createRequestArgumentCaptor
-            = ArgumentCaptor.forClass(CreateIndexClusterStateUpdateRequest.class);
+        ArgumentCaptor<CreateIndexClusterStateUpdateRequest> createRequestArgumentCaptor = ArgumentCaptor.forClass(
+            CreateIndexClusterStateUpdateRequest.class
+        );
         verify(mockListener, times(0)).onFailure(any());
         verify(metadataCreateIndexService, times(1)).createIndex(createRequestArgumentCaptor.capture(), any());
 

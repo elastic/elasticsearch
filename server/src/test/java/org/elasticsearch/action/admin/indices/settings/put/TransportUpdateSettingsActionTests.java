@@ -90,9 +90,7 @@ public class TransportUpdateSettingsActionTests extends ESTestCase {
 
     public void testSystemIndicesCannotBeSetToVisible() {
         UpdateSettingsRequest request = new UpdateSettingsRequest(
-            Settings.builder()
-                .put(IndexMetadata.SETTING_INDEX_HIDDEN, false)
-                .build()
+            Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false).build()
         );
         request.indices(SYSTEM_INDEX_NAME);
 

@@ -36,7 +36,8 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return CollectionUtils.appendToCopy(
             CollectionUtils.appendToCopy(super.nodePlugins(), TestSystemIndexPlugin.class),
-            UnmanagedSystemIndexTestPlugin.class);
+            UnmanagedSystemIndexTestPlugin.class
+        );
     }
 
     public void testAutoCreatePrimaryIndex() throws Exception {
@@ -67,7 +68,9 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
         CreateIndexRequest request = new CreateIndexRequest(UnmanagedSystemIndexTestPlugin.SYSTEM_INDEX_NAME);
         client().execute(AutoCreateAction.INSTANCE, request).get();
 
-        GetIndexResponse response = client().admin().indices().prepareGetIndex()
+        GetIndexResponse response = client().admin()
+            .indices()
+            .prepareGetIndex()
             .addIndices(UnmanagedSystemIndexTestPlugin.SYSTEM_INDEX_NAME)
             .get();
         assertThat(response.indices().length, is(1));
@@ -79,11 +82,15 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
     public void testSystemIndicesAutoCreateRejectedWhenNotHidden() {
         CreateIndexRequest request = new CreateIndexRequest(UnmanagedSystemIndexTestPlugin.SYSTEM_INDEX_NAME);
         request.settings(Settings.builder().put(SETTING_INDEX_HIDDEN, false).build());
-        ExecutionException exception = expectThrows(ExecutionException.class,
-            () -> client().execute(AutoCreateAction.INSTANCE, request).get());
+        ExecutionException exception = expectThrows(
+            ExecutionException.class,
+            () -> client().execute(AutoCreateAction.INSTANCE, request).get()
+        );
 
-        assertThat(exception.getCause().getMessage(),
-            containsString("Cannot auto-create system index [.unmanaged-system-idx] with [index.hidden] set to 'false'"));
+        assertThat(
+            exception.getCause().getMessage(),
+            containsString("Cannot auto-create system index [.unmanaged-system-idx] with [index.hidden] set to 'false'")
+        );
     }
 
     public static class UnmanagedSystemIndexTestPlugin extends Plugin implements SystemIndexPlugin {

@@ -189,26 +189,26 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                                     throw new IllegalStateException(message);
                                 }
 
-                            updateRequest = buildSystemIndexUpdateRequest(indexName, descriptor);
-                        } else if (isSystemIndex) {
-                            updateRequest = buildUpdateRequest(indexName);
+                                updateRequest = buildSystemIndexUpdateRequest(indexName, descriptor);
+                            } else if (isSystemIndex) {
+                                updateRequest = buildUpdateRequest(indexName);
 
-                            if (Objects.isNull(request.settings())) {
-                                updateRequest.settings(SystemIndexDescriptor.DEFAULT_SETTINGS);
-                            } else if (false == request.settings().hasValue(SETTING_INDEX_HIDDEN)) {
-                                updateRequest.settings(Settings.builder()
-                                    .put(request.settings())
-                                    .put(SETTING_INDEX_HIDDEN, true)
-                                    .build());
-                            } else if ("false".equals(request.settings().get(SETTING_INDEX_HIDDEN))) {
-                                final String message = "Cannot auto-create system index [" + indexName
-                                    + "] with [index.hidden] set to 'false'";
-                                logger.warn(message);
-                                throw new IllegalStateException(message);
+                                if (Objects.isNull(request.settings())) {
+                                    updateRequest.settings(SystemIndexDescriptor.DEFAULT_SETTINGS);
+                                } else if (false == request.settings().hasValue(SETTING_INDEX_HIDDEN)) {
+                                    updateRequest.settings(
+                                        Settings.builder().put(request.settings()).put(SETTING_INDEX_HIDDEN, true).build()
+                                    );
+                                } else if ("false".equals(request.settings().get(SETTING_INDEX_HIDDEN))) {
+                                    final String message = "Cannot auto-create system index ["
+                                        + indexName
+                                        + "] with [index.hidden] set to 'false'";
+                                    logger.warn(message);
+                                    throw new IllegalStateException(message);
+                                }
+                            } else {
+                                updateRequest = buildUpdateRequest(indexName);
                             }
-                        } else {
-                            updateRequest = buildUpdateRequest(indexName);
-                        }
 
                             return createIndexService.applyCreateIndexRequest(currentState, updateRequest, false);
                         }

@@ -260,10 +260,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .setVersionMetaKey("version")
             .setOrigin("system");
 
-        builder.setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_INDEX_HIDDEN, false)
-                    .build());
+        builder.setSettings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false).build());
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
 

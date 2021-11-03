@@ -338,8 +338,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         if (settings.getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, false)) {
             this.settings = settings;
         } else {
-            throw new IllegalArgumentException("System indices must have " + IndexMetadata.SETTING_INDEX_HIDDEN +
-                " set to true.");
+            throw new IllegalArgumentException("System indices must have " + IndexMetadata.SETTING_INDEX_HIDDEN + " set to true.");
         }
         this.indexFormat = indexFormat;
         this.versionMetaKey = versionMetaKey;

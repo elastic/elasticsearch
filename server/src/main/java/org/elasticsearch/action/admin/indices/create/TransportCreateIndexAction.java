@@ -114,10 +114,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             if (Objects.isNull(request.settings())) {
                 request.settings(SystemIndexDescriptor.DEFAULT_SETTINGS);
             } else if (false == request.settings().hasValue(SETTING_INDEX_HIDDEN)) {
-                request.settings(Settings.builder()
-                    .put(request.settings())
-                    .put(SETTING_INDEX_HIDDEN, true)
-                    .build());
+                request.settings(Settings.builder().put(request.settings()).put(SETTING_INDEX_HIDDEN, true).build());
             } else if ("false".equals(request.settings().get(SETTING_INDEX_HIDDEN))) {
                 final String message = "Cannot create system index [" + indexName + "] with [index.hidden] set to 'false'";
                 logger.warn(message);
@@ -133,8 +130,9 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         // We check this via the request's origin. Eventually, `SystemIndexManager` will reconfigure
         // the index to the latest settings.
         if (isManagedSystemIndex && Strings.isNullOrEmpty(request.origin())) {
-            final SystemIndexDescriptor descriptor =
-                mainDescriptor.getDescriptorCompatibleWith(state.nodes().getSmallestNonClientNodeVersion());
+            final SystemIndexDescriptor descriptor = mainDescriptor.getDescriptorCompatibleWith(
+                state.nodes().getSmallestNonClientNodeVersion()
+            );
             if (descriptor == null) {
                 final String message = mainDescriptor.getMinimumNodeVersionMessage("create index");
                 logger.warn(message);

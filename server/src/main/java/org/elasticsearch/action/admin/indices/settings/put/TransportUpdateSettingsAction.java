@@ -112,9 +112,7 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
         final List<String> unhiddenSystemIndexViolations = checkForUnhidingSystemIndex(concreteIndices, request);
         if (unhiddenSystemIndexViolations.isEmpty() == false) {
             final String message = "Cannot set [index.hidden] to 'false' on system indices: "
-                + unhiddenSystemIndexViolations.stream()
-                    .map(entry -> "[" + entry + "]")
-                    .collect(Collectors.joining(", "));
+                + unhiddenSystemIndexViolations.stream().map(entry -> "[" + entry + "]").collect(Collectors.joining(", "));
             logger.warn(message);
             listener.onFailure(new IllegalStateException(message));
             return;

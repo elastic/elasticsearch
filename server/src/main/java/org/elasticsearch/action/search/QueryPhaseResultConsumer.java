@@ -36,7 +36,6 @@ import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.search.SearchPhaseController.getTopDocsSize;
@@ -73,14 +72,16 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
      * Creates a {@link QueryPhaseResultConsumer} that incrementally reduces aggregation results
      * as shard results are consumed.
      */
-    public QueryPhaseResultConsumer(SearchRequest request,
-                                    Executor executor,
-                                    CircuitBreaker circuitBreaker,
-                                    SearchPhaseController controller,
-                                    SearchProgressListener progressListener,
-                                    NamedWriteableRegistry namedWriteableRegistry,
-                                    int expectedResultSize,
-                                    Consumer<Exception> onPartialMergeFailure) {
+    public QueryPhaseResultConsumer(
+        SearchRequest request,
+        Executor executor,
+        CircuitBreaker circuitBreaker,
+        SearchPhaseController controller,
+        SearchProgressListener progressListener,
+        NamedWriteableRegistry namedWriteableRegistry,
+        int expectedResultSize,
+        Consumer<Exception> onPartialMergeFailure
+    ) {
         super(expectedResultSize);
         this.executor = executor;
         this.circuitBreaker = circuitBreaker;
@@ -95,7 +96,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         SearchSourceBuilder source = request.source();
         this.hasTopDocs = source == null || source.size() != 0;
         this.hasAggs = source != null && source.aggregations() != null;
-        int batchReduceSize = (hasAggs || hasTopDocs) ? Math.min(request.getBatchedReduceSize(), expectedResultSize)  : expectedResultSize;
+        int batchReduceSize = (hasAggs || hasTopDocs) ? Math.min(request.getBatchedReduceSize(), expectedResultSize) : expectedResultSize;
         this.pendingMerges = new PendingMerges(batchReduceSize, request.resolveTrackTotalHitsUpTo());
     }
 
@@ -130,28 +131,41 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             // Add an estimate of the final reduce size
             breakerSize = pendingMerges.addEstimateAndMaybeBreak(pendingMerges.estimateRamBytesUsedForReduce(breakerSize));
         }
-        SearchPhaseController.ReducedQueryPhase reducePhase = controller.reducedQueryPhase(results.asList(), aggsList,
-            topDocsList, topDocsStats, pendingMerges.numReducePhases, false, aggReduceContextBuilder, performFinalReduce);
+        SearchPhaseController.ReducedQueryPhase reducePhase = controller.reducedQueryPhase(
+            results.asList(),
+            aggsList,
+            topDocsList,
+            topDocsStats,
+            pendingMerges.numReducePhases,
+            false,
+            aggReduceContextBuilder,
+            performFinalReduce
+        );
         if (hasAggs
-                // reduced aggregations can be null if all shards failed
-                && reducePhase.aggregations != null) {
+            // reduced aggregations can be null if all shards failed
+            && reducePhase.aggregations != null) {
 
             // Update the circuit breaker to replace the estimation with the serialized size of the newly reduced result
             long finalSize = DelayableWriteable.getSerializedSize(reducePhase.aggregations) - breakerSize;
             pendingMerges.addWithoutBreaking(finalSize);
-            logger.trace("aggs final reduction [{}] max [{}]",
-                pendingMerges.aggsCurrentBufferSize, pendingMerges.maxAggsCurrentBufferSize);
+            logger.trace("aggs final reduction [{}] max [{}]", pendingMerges.aggsCurrentBufferSize, pendingMerges.maxAggsCurrentBufferSize);
         }
-        progressListener.notifyFinalReduce(SearchProgressListener.buildSearchShards(results.asList()),
-            reducePhase.totalHits, reducePhase.aggregations, reducePhase.numReducePhases);
+        progressListener.notifyFinalReduce(
+            SearchProgressListener.buildSearchShards(results.asList()),
+            reducePhase.totalHits,
+            reducePhase.aggregations,
+            reducePhase.numReducePhases
+        );
         return reducePhase;
     }
 
-    private MergeResult partialReduce(QuerySearchResult[] toConsume,
-                                      List<SearchShard> emptyResults,
-                                      TopDocsStats topDocsStats,
-                                      MergeResult lastMerge,
-                                      int numReducePhases) {
+    private MergeResult partialReduce(
+        QuerySearchResult[] toConsume,
+        List<SearchShard> emptyResults,
+        TopDocsStats topDocsStats,
+        MergeResult lastMerge,
+        int numReducePhases
+    ) {
         // ensure consistent ordering
         Arrays.sort(toConsume, Comparator.comparingInt(QuerySearchResult::getShardIndex));
 
@@ -170,9 +184,12 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 setShardIndex(topDocs.topDocs, result.getShardIndex());
                 topDocsList.add(topDocs.topDocs);
             }
-            newTopDocs = mergeTopDocs(topDocsList,
+            newTopDocs = mergeTopDocs(
+                topDocsList,
                 // we have to merge here in the same way we collect on a shard
-                topNSize, 0);
+                topNSize,
+                0
+            );
         } else {
             newTopDocs = null;
         }
@@ -390,8 +407,12 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                     // and replace the estimation with the serialized size of the newly reduced result.
                     long newSize = mergeResult.estimatedSize - estimatedSize;
                     addWithoutBreaking(newSize);
-                    logger.trace("aggs partial reduction [{}->{}] max [{}]",
-                        estimatedSize, mergeResult.estimatedSize, maxAggsCurrentBufferSize);
+                    logger.trace(
+                        "aggs partial reduction [{}->{}] max [{}]",
+                        estimatedSize,
+                        mergeResult.estimatedSize,
+                        maxAggsCurrentBufferSize
+                    );
                 }
                 task.consumeListener();
             }
@@ -400,9 +421,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         private void tryExecuteNext() {
             final MergeTask task;
             synchronized (this) {
-                if (queue.isEmpty()
-                        || hasFailure()
-                        || runningTask.get() != null) {
+                if (queue.isEmpty() || hasFailure() || runningTask.get() != null) {
                     return;
                 }
                 task = queue.poll();
@@ -423,7 +442,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                         long estimatedMergeSize = estimateRamBytesUsedForReduce(estimatedTotalSize);
                         addEstimateAndMaybeBreak(estimatedMergeSize);
                         estimatedTotalSize += estimatedMergeSize;
-                        ++ numReducePhases;
+                        ++numReducePhases;
                         newMerge = partialReduce(toConsume, task.emptyResults, topDocsStats, thisMergeResult, numReducePhases);
                     } catch (Exception t) {
                         for (QuerySearchResult result : toConsume) {
@@ -487,8 +506,12 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         private final InternalAggregations reducedAggs;
         private final long estimatedSize;
 
-        private MergeResult(List<SearchShard> processedShards, TopDocs reducedTopDocs,
-                            InternalAggregations reducedAggs, long estimatedSize) {
+        private MergeResult(
+            List<SearchShard> processedShards,
+            TopDocs reducedTopDocs,
+            InternalAggregations reducedAggs,
+            long estimatedSize
+        ) {
             this.processedShards = processedShards;
             this.reducedTopDocs = reducedTopDocs;
             this.reducedAggs = reducedAggs;

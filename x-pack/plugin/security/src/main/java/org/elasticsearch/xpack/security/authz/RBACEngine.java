@@ -801,7 +801,12 @@ public class RBACEngine implements AuthorizationEngine {
 
         @Override
         public int hashCode() {
-            return Objects.hash(role, authenticatedUserAuthorizationInfo);
+            // Since authenticatedUserAuthorizationInfo can self reference, we handle it specially to avoid infinite recursion.
+            if (this.authenticatedUserAuthorizationInfo == this) {
+                return Objects.hashCode(role);
+            } else {
+                return Objects.hash(role, authenticatedUserAuthorizationInfo);
+            }
         }
     }
 

@@ -36,6 +36,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.search.SearchPhaseController.getTopDocsSize;
 import static org.elasticsearch.action.search.SearchPhaseController.mergeTopDocs;
@@ -249,19 +250,19 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
         @Override
         public synchronized void close() {
-            // Clean up circuit breaker
             if (hasFailure()) {
                 assert circuitBreakerBytes == 0;
             } else {
                 assert circuitBreakerBytes >= 0;
-                circuitBreaker.addWithoutBreaking(-circuitBreakerBytes);
-                circuitBreakerBytes = 0;
             }
 
-            // Clean up any delayed aggregations we haven't processed (because there was an error).
-            Releasables.close(
-                (Iterable<DelayableWriteable<InternalAggregations>>) (() -> buffer.stream().map(QuerySearchResult::aggregations).iterator())
-            );
+            List<Releasable> toRelease = new ArrayList<>(buffer.stream().<Releasable>map(b -> b::releaseAggs).collect(Collectors.toList()));
+            toRelease.add(() -> {
+                circuitBreaker.addWithoutBreaking(-circuitBreakerBytes);
+                circuitBreakerBytes = 0;
+            });
+
+            Releasables.close(toRelease);
 
             if (hasPendingMerges()) {
                 // This is a theoretically unreachable exception.

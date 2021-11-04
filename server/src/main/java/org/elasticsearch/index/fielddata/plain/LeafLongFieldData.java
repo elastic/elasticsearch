@@ -62,7 +62,6 @@ public abstract class LeafLongFieldData implements LeafNumericFieldData {
                 );
             case BOOLEAN:
                 return new BooleanDocValuesField(getLongValues(), name);
-                return new DelegateDocValuesField(new ScriptDocValues.Booleans(getLongValues()), name);
             case BYTE:
                 return new ByteDocValuesField(getLongValues(), name);
             case SHORT:

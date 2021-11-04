@@ -43,8 +43,18 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
      * Build a {@link RemoteInfo}, defaulting values that we don't care about in this test to values that don't hurt anything.
      */
     private RemoteInfo newRemoteInfo(String host, int port) {
-        return new RemoteInfo(randomAlphaOfLength(5), host, port, null, query, null, null, emptyMap(),
-                RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
+        return new RemoteInfo(
+            randomAlphaOfLength(5),
+            host,
+            port,
+            null,
+            query,
+            null,
+            null,
+            emptyMap(),
+            RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+            RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+        );
     }
 
     public void testWhitelistedRemote() {
@@ -56,11 +66,25 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
     }
 
     public void testWhitelistedByPrefix() {
-        checkRemoteWhitelist(buildRemoteWhitelist(singletonList("*.example.com:9200")),
-                new RemoteInfo(randomAlphaOfLength(5), "es.example.com", 9200, null, query, null, null, emptyMap(),
-                        RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT));
-        checkRemoteWhitelist(buildRemoteWhitelist(singletonList("*.example.com:9200")),
-                newRemoteInfo("6e134134a1.us-east-1.aws.example.com", 9200));
+        checkRemoteWhitelist(
+            buildRemoteWhitelist(singletonList("*.example.com:9200")),
+            new RemoteInfo(
+                randomAlphaOfLength(5),
+                "es.example.com",
+                9200,
+                null,
+                query,
+                null,
+                null,
+                emptyMap(),
+                RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+                RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+            )
+        );
+        checkRemoteWhitelist(
+            buildRemoteWhitelist(singletonList("*.example.com:9200")),
+            newRemoteInfo("6e134134a1.us-east-1.aws.example.com", 9200)
+        );
     }
 
     public void testWhitelistedBySuffix() {
@@ -80,8 +104,10 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
     public void testUnwhitelistedRemote() {
         int port = between(1, Integer.MAX_VALUE);
         List<String> whitelist = randomBoolean() ? randomWhitelist() : emptyList();
-        Exception e = expectThrows(IllegalArgumentException.class,
-                () -> checkRemoteWhitelist(buildRemoteWhitelist(whitelist), newRemoteInfo("not in list", port)));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> checkRemoteWhitelist(buildRemoteWhitelist(whitelist), newRemoteInfo("not in list", port))
+        );
         assertEquals("[not in list:" + port + "] not whitelisted in reindex.remote.whitelist", e.getMessage());
     }
 
@@ -104,9 +130,14 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
 
     private void assertMatchesTooMuch(List<String> whitelist) {
         Exception e = expectThrows(IllegalArgumentException.class, () -> buildRemoteWhitelist(whitelist));
-        assertEquals("Refusing to start because whitelist " + whitelist + " accepts all addresses. "
+        assertEquals(
+            "Refusing to start because whitelist "
+                + whitelist
+                + " accepts all addresses. "
                 + "This would allow users to reindex-from-remote any URL they like effectively having Elasticsearch make HTTP GETs "
-                + "for them.", e.getMessage());
+                + "for them.",
+            e.getMessage()
+        );
     }
 
     private List<String> randomWhitelist() {

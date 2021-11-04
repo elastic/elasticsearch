@@ -82,8 +82,7 @@ class TextCategorization implements Accountable {
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE
-            + RamUsageEstimator.sizeOf(categorization) // categorization token Ids
+        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(categorization) // categorization token Ids
             + RamUsageEstimator.sizeOf(tokenCounts); // tokenCounts
     }
 

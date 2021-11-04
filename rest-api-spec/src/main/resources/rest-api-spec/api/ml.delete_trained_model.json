@@ -24,6 +24,14 @@
           }
         }
       ]
+    },
+    "params":{
+      "timeout":{
+        "type":"time",
+        "required":false,
+        "description":"Controls the amount of time to wait for the model to be deleted.",
+        "default": "30s"
+      }
     }
   }
 }

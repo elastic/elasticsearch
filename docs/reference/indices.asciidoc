@@ -18,7 +18,6 @@ index settings, aliases, mappings, and index templates.
 * <<indices-split-index>>
 * <<indices-clone-index>>
 * <<indices-rollover-index>>
-* <<freeze-index-api>>
 * <<unfreeze-index-api>>
 * <<indices-resolve-index-api>>
 
@@ -53,9 +52,9 @@ index settings, aliases, mappings, and index templates.
 === Index templates:
 
 Index templates automatically apply settings, mappings, and aliases to new indices.
-They are most often used to configure rolling indices for time series data to 
-ensure that each new index has the same configuration as the previous one. 
-The index template associated with a data stream configures its backing indices. 
+They are most often used to configure rolling indices for time series data to
+ensure that each new index has the same configuration as the previous one.
+The index template associated with a data stream configures its backing indices.
 For more information, see <<index-templates, Index Templates>>.
 
 * <<indices-put-template>>
@@ -113,7 +112,6 @@ include::indices/indices-exists.asciidoc[]
 include::indices/field-usage-stats.asciidoc[]
 include::indices/flush.asciidoc[]
 include::indices/forcemerge.asciidoc[]
-include::indices/apis/freeze.asciidoc[]
 include::indices/get-alias.asciidoc[]
 include::indices/get-component-template.asciidoc[]
 include::indices/get-field-mapping.asciidoc[]

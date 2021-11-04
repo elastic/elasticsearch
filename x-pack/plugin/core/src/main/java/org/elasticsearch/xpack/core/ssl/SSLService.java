@@ -34,19 +34,6 @@ import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
 import org.elasticsearch.xpack.core.watcher.WatcherField;
 
-import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLEngine;
-import javax.net.ssl.SSLException;
-import javax.net.ssl.SSLParameters;
-import javax.net.ssl.SSLPeerUnverifiedException;
-import javax.net.ssl.SSLSession;
-import javax.net.ssl.SSLSessionContext;
-import javax.net.ssl.SSLSocket;
-import javax.net.ssl.SSLSocketFactory;
-import javax.net.ssl.X509ExtendedKeyManager;
-import javax.net.ssl.X509ExtendedTrustManager;
-import javax.security.auth.x500.X500Principal;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
@@ -75,6 +62,20 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLException;
+import javax.net.ssl.SSLParameters;
+import javax.net.ssl.SSLPeerUnverifiedException;
+import javax.net.ssl.SSLSession;
+import javax.net.ssl.SSLSessionContext;
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.X509ExtendedKeyManager;
+import javax.net.ssl.X509ExtendedTrustManager;
+import javax.security.auth.x500.X500Principal;
 
 import static org.elasticsearch.xpack.core.XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS;
 
@@ -108,7 +109,10 @@ public class SSLService {
     }
 
     private static final Setting<Boolean> DIAGNOSE_TRUST_EXCEPTIONS_SETTING = Setting.boolSetting(
-        "xpack.security.ssl.diagnose.trust", true, Setting.Property.NodeScope);
+        "xpack.security.ssl.diagnose.trust",
+        true,
+        Setting.Property.NodeScope
+    );
 
     private final Environment env;
     private final Settings settings;
@@ -160,8 +164,11 @@ public class SSLService {
         this.sslContexts = loadSslConfigurations(this.sslConfigurations);
     }
 
-    private SSLService(Environment environment, Map<String, SslConfiguration> sslConfigurations,
-                       Map<SslConfiguration, SSLContextHolder> sslContexts) {
+    private SSLService(
+        Environment environment,
+        Map<String, SslConfiguration> sslConfigurations,
+        Map<SslConfiguration, SSLContextHolder> sslContexts
+    ) {
         this.env = environment;
         this.settings = env.settings();
         this.diagnoseTrustExceptions = DIAGNOSE_TRUST_EXCEPTIONS_SETTING.get(environment.settings());
@@ -275,9 +282,13 @@ public class SSLService {
                     final X509Certificate x509 = (X509Certificate) certs[0];
                     final X500Principal x500Principal = x509.getSubjectX500Principal();
                     final String altNames = Strings.collectionToCommaDelimitedString(SslDiagnostics.describeValidHostnames(x509));
-                    throw new SSLPeerUnverifiedException(LoggerMessageFormat.format("Expected SSL certificate to be valid for host [{}]," +
-                            " but it is only valid for subject alternative names [{}] and subject [{}]",
-                        new Object[]{host.getHostName(), altNames, x500Principal.toString()}));
+                    throw new SSLPeerUnverifiedException(
+                        LoggerMessageFormat.format(
+                            "Expected SSL certificate to be valid for host [{}],"
+                                + " but it is only valid for subject alternative names [{}] and subject [{}]",
+                            new Object[] { host.getHostName(), altNames, x500Principal.toString() }
+                        )
+                    );
                 }
             }
         };
@@ -296,7 +307,8 @@ public class SSLService {
         final SecuritySSLSocketFactory securitySSLSocketFactory = new SecuritySSLSocketFactory(
             () -> contextHolder.sslContext().getSocketFactory(),
             configuration.getSupportedProtocols().toArray(Strings.EMPTY_ARRAY),
-            supportedCiphers(socketFactory.getSupportedCipherSuites(), configuration.getCipherSuites(), false));
+            supportedCiphers(socketFactory.getSupportedCipherSuites(), configuration.getCipherSuites(), false)
+        );
         contextHolder.addReloadListener(securitySSLSocketFactory::reload);
         return securitySSLSocketFactory;
     }
@@ -391,10 +403,9 @@ public class SSLService {
     }
 
     public Set<String> getTransportProfileContextNames() {
-        return Collections.unmodifiableSet(this.sslConfigurations
-            .keySet().stream()
-            .filter(k -> k.startsWith("transport.profiles."))
-            .collect(Collectors.toSet()));
+        return Collections.unmodifiableSet(
+            this.sslConfigurations.keySet().stream().filter(k -> k.startsWith("transport.profiles.")).collect(Collectors.toSet())
+        );
     }
 
     /**
@@ -431,13 +442,18 @@ public class SSLService {
 
         if (supportedCiphersList.isEmpty()) {
             throw new SslConfigException(
-                "none of the ciphers " + Arrays.toString(requestedCiphers.toArray()) + " are supported by this JVM");
+                "none of the ciphers " + Arrays.toString(requestedCiphers.toArray()) + " are supported by this JVM"
+            );
         }
 
         if (log && unsupportedCiphers.isEmpty() == false) {
-            logger.error("unsupported ciphers [{}] were requested but cannot be used in this JVM, however there are supported ciphers " +
-                "that will be used [{}]. If you are trying to use ciphers with a key length greater than 128 bits on an Oracle JVM, " +
-                "you will need to install the unlimited strength JCE policy files.", unsupportedCiphers, supportedCiphersList);
+            logger.error(
+                "unsupported ciphers [{}] were requested but cannot be used in this JVM, however there are supported ciphers "
+                    + "that will be used [{}]. If you are trying to use ciphers with a key length greater than 128 bits on an Oracle JVM, "
+                    + "you will need to install the unlimited strength JCE policy files.",
+                unsupportedCiphers,
+                supportedCiphersList
+            );
         }
 
         return supportedCiphersList.toArray(new String[supportedCiphersList.size()]);
@@ -466,13 +482,16 @@ public class SSLService {
      * @param trustManager     the trust manager to use
      * @return the created SSLContext
      */
-    private SSLContextHolder createSslContext(X509ExtendedKeyManager keyManager, X509ExtendedTrustManager trustManager,
-                                              SslConfiguration sslConfiguration) {
+    private SSLContextHolder createSslContext(
+        X509ExtendedKeyManager keyManager,
+        X509ExtendedTrustManager trustManager,
+        SslConfiguration sslConfiguration
+    ) {
         trustManager = wrapWithDiagnostics(trustManager, sslConfiguration);
         // Initialize sslContext
         try {
             SSLContext sslContext = SSLContext.getInstance(sslContextAlgorithm(sslConfiguration.getSupportedProtocols()));
-            sslContext.init(new X509ExtendedKeyManager[]{keyManager}, new X509ExtendedTrustManager[]{trustManager}, null);
+            sslContext.init(new X509ExtendedKeyManager[] { keyManager }, new X509ExtendedTrustManager[] { trustManager }, null);
 
             // check the supported ciphers and log them here to prevent spamming logs on every call
             supportedCiphers(sslContext.getSupportedSSLParameters().getCipherSuites(), sslConfiguration.getCipherSuites(), true);
@@ -491,7 +510,8 @@ public class SSLService {
             // but listing all of them would be confusing (e.g. some might be the default realms)
             // This needs to be a supplier (deferred evaluation) because we might load more configurations after this context is built.
             final Supplier<String> contextName = () -> {
-                final List<String> names = sslConfigurations.entrySet().stream()
+                final List<String> names = sslConfigurations.entrySet()
+                    .stream()
                     .filter(e -> e.getValue().equals(configuration))
                     .limit(2) // we only need to distinguishing between 0/1/many
                     .map(Entry::getKey)
@@ -623,18 +643,24 @@ public class SSLService {
                 );
             }
         } else if (settings.hasValue(enabledSetting) == false) {
-            final List<String> sslSettingNames = settings.keySet().stream()
+            final List<String> sslSettingNames = settings.keySet()
+                .stream()
                 .filter(s -> s.startsWith(prefix))
                 .sorted()
                 .collect(Collectors.toUnmodifiableList());
             if (sslSettingNames.isEmpty() == false) {
-                throw new ElasticsearchSecurityException("invalid configuration for " + prefix + " - [" + enabledSetting +
-                    "] is not set, but the following settings have been configured in elasticsearch.yml : [" +
-                    Strings.collectionToCommaDelimitedString(sslSettingNames) + "]");
+                throw new ElasticsearchSecurityException(
+                    "invalid configuration for "
+                        + prefix
+                        + " - ["
+                        + enabledSetting
+                        + "] is not set, but the following settings have been configured in elasticsearch.yml : ["
+                        + Strings.collectionToCommaDelimitedString(sslSettingNames)
+                        + "]"
+                );
             }
         }
     }
-
 
     /**
      * Returns information about each certificate that is referenced by any SSL configuration.
@@ -646,12 +672,13 @@ public class SSLService {
      * @see SslTrustConfig#getConfiguredCertificates()
      */
     public Collection<CertificateInfo> getLoadedCertificates() throws GeneralSecurityException, IOException {
-        return this.getLoadedSslConfigurations().stream()
+        return this.getLoadedSslConfigurations()
+            .stream()
             .map(SslConfiguration::getConfiguredCertificates)
             .flatMap(Collection::stream)
-            .map(cert -> new CertificateInfo(
-                cert.getPath(), cert.getFormat(), cert.getAlias(), cert.hasPrivateKey(), cert.getCertificate()
-            ))
+            .map(
+                cert -> new CertificateInfo(cert.getPath(), cert.getFormat(), cert.getAlias(), cert.hasPrivateKey(), cert.getCertificate())
+            )
             .collect(Sets.toUnmodifiableSortedSet());
     }
 
@@ -744,7 +771,6 @@ public class SSLService {
         }
     }
 
-
     final class SSLContextHolder {
         private volatile SSLContext context;
         private final SslKeyConfig keyConfig;
@@ -778,8 +804,11 @@ public class SSLService {
                 loadedTrustManager = wrapWithDiagnostics(loadedTrustManager, sslConfiguration);
 
                 SSLContext loadedSslContext = SSLContext.getInstance(sslContextAlgorithm(sslConfiguration.getSupportedProtocols()));
-                loadedSslContext.init(new X509ExtendedKeyManager[]{loadedKeyManager},
-                    new X509ExtendedTrustManager[]{loadedTrustManager}, null);
+                loadedSslContext.init(
+                    new X509ExtendedKeyManager[] { loadedKeyManager },
+                    new X509ExtendedTrustManager[] { loadedTrustManager },
+                    null
+                );
                 supportedCiphers(loadedSslContext.getSupportedSSLParameters().getCipherSuites(), sslConfiguration.getCipherSuites(), false);
                 this.context = loadedSslContext;
             } catch (GeneralSecurityException e) {
@@ -818,19 +847,22 @@ public class SSLService {
         final String prefix = "xpack.security.authc.realms.";
         final Map<String, Settings> settingsByRealmType = settings.getGroups(prefix);
         settingsByRealmType.forEach((realmType, typeSettings) -> {
-                final Optional<String> nonDottedSetting = typeSettings.keySet().stream().filter(k -> k.indexOf('.') == -1).findAny();
-                if (nonDottedSetting.isPresent()) {
-                    logger.warn("Skipping any SSL configuration from realm [{}{}] because the key [{}] is not in the correct format",
-                        prefix, realmType, nonDottedSetting.get());
-                } else {
-                    typeSettings.getAsGroups().forEach((realmName, realmSettings) -> {
-                        Settings realmSSLSettings = realmSettings.getByPrefix("ssl.");
-                        // Put this even if empty, so that the name will be mapped to the global SSL configuration
-                        sslSettings.put(prefix + realmType + "." + realmName + ".ssl", realmSSLSettings);
-                    });
-                }
+            final Optional<String> nonDottedSetting = typeSettings.keySet().stream().filter(k -> k.indexOf('.') == -1).findAny();
+            if (nonDottedSetting.isPresent()) {
+                logger.warn(
+                    "Skipping any SSL configuration from realm [{}{}] because the key [{}] is not in the correct format",
+                    prefix,
+                    realmType,
+                    nonDottedSetting.get()
+                );
+            } else {
+                typeSettings.getAsGroups().forEach((realmName, realmSettings) -> {
+                    Settings realmSSLSettings = realmSettings.getByPrefix("ssl.");
+                    // Put this even if empty, so that the name will be mapped to the global SSL configuration
+                    sslSettings.put(prefix + realmType + "." + realmName + ".ssl", realmSSLSettings);
+                });
             }
-        );
+        });
         return sslSettings;
     }
 
@@ -882,8 +914,11 @@ public class SSLService {
         }
         final SslConfiguration configuration = sslConfigurations.get(contextName);
         if (configuration == null) {
-            logger.warn("Cannot find SSL configuration for context {}. Known contexts are: {}", contextName,
-                Strings.collectionToCommaDelimitedString(sslConfigurations.keySet()));
+            logger.warn(
+                "Cannot find SSL configuration for context {}. Known contexts are: {}",
+                contextName,
+                Strings.collectionToCommaDelimitedString(sslConfigurations.keySet())
+            );
         } else {
             logger.debug("SSL configuration [{}] is [{}]", contextName, configuration);
         }
@@ -905,7 +940,8 @@ public class SSLService {
                 return entry.getValue();
             }
         }
-        throw new IllegalArgumentException("no supported SSL/TLS protocol was found in the configured supported protocols: "
-            + supportedProtocols);
+        throw new IllegalArgumentException(
+            "no supported SSL/TLS protocol was found in the configured supported protocols: " + supportedProtocols
+        );
     }
 }

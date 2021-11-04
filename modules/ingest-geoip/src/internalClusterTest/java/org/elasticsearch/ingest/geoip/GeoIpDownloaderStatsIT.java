@@ -11,15 +11,15 @@ package org.elasticsearch.ingest.geoip;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStatsAction;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.reindex.ReindexPlugin;
-import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStatsAction;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.XContentTestUtils;
 import org.junit.After;
 
 import java.io.IOException;
@@ -57,7 +57,8 @@ public class GeoIpDownloaderStatsIT extends AbstractGeoIpIT {
 
     @After
     public void disableDownloader() {
-        ClusterUpdateSettingsResponse settingsResponse = client().admin().cluster()
+        ClusterUpdateSettingsResponse settingsResponse = client().admin()
+            .cluster()
             .prepareUpdateSettings()
             .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), (String) null))
             .get();
@@ -75,8 +76,8 @@ public class GeoIpDownloaderStatsIT extends AbstractGeoIpIT {
         assertThat(jsonMapView.get("stats.total_download_time"), equalTo(0));
         assertEquals(0, jsonMapView.<Map<String, Object>>get("nodes").size());
 
-
-        ClusterUpdateSettingsResponse settingsResponse = client().admin().cluster()
+        ClusterUpdateSettingsResponse settingsResponse = client().admin()
+            .cluster()
             .prepareUpdateSettings()
             .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true))
             .get();
@@ -94,8 +95,10 @@ public class GeoIpDownloaderStatsIT extends AbstractGeoIpIT {
             assertThat(nodes.values(), hasSize(greaterThan(0)));
             for (Map<String, List<Map<String, Object>>> value : nodes.values()) {
                 assertThat(value, hasKey("databases"));
-                assertThat(value.get("databases").stream().map(m -> m.get("name")).collect(Collectors.toSet()),
-                    containsInAnyOrder("GeoLite2-City.mmdb", "GeoLite2-ASN.mmdb", "GeoLite2-Country.mmdb"));
+                assertThat(
+                    value.get("databases").stream().map(m -> m.get("name")).collect(Collectors.toSet()),
+                    containsInAnyOrder("GeoLite2-City.mmdb", "GeoLite2-ASN.mmdb", "GeoLite2-Country.mmdb")
+                );
             }
         });
     }

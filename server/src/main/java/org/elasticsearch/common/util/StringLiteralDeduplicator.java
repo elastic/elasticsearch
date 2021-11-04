@@ -26,8 +26,7 @@ public final class StringLiteralDeduplicator {
 
     private final Map<String, String> map = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
-    public StringLiteralDeduplicator() {
-    }
+    public StringLiteralDeduplicator() {}
 
     public String deduplicate(String string) {
         final String res = map.get(string);

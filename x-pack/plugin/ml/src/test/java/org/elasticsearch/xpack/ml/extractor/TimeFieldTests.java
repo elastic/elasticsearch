@@ -86,8 +86,10 @@ public class TimeFieldTests extends ESTestCase {
 
         final ExtractedField timeField = new TimeField("time", ExtractedField.Method.DOC_VALUE);
 
-        assertThat(expectThrows(IllegalStateException.class, () -> timeField.value(hit)).getMessage(),
-            startsWith("Unexpected value for a time field"));
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> timeField.value(hit)).getMessage(),
+            startsWith("Unexpected value for a time field")
+        );
     }
 
     public void testSourceNotSupported() {

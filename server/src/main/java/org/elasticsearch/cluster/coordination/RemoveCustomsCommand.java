@@ -7,16 +7,18 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+
+import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 
@@ -27,14 +29,13 @@ import java.util.List;
 public class RemoveCustomsCommand extends ElasticsearchNodeCommand {
 
     static final String CUSTOMS_REMOVED_MSG = "Customs were successfully removed from the cluster state";
-    static final String CONFIRMATION_MSG =
-        DELIMITER +
-            "\n" +
-            "You should only run this tool if you have broken custom metadata in the\n" +
-            "cluster state that prevents the cluster state from being loaded.\n" +
-            "This tool can cause data loss and its use should be your last resort.\n" +
-            "\n" +
-            "Do you want to proceed?\n";
+    static final String CONFIRMATION_MSG = DELIMITER
+        + "\n"
+        + "You should only run this tool if you have broken custom metadata in the\n"
+        + "cluster state that prevents the cluster state from being loaded.\n"
+        + "This tool can cause data loss and its use should be your last resort.\n"
+        + "\n"
+        + "Do you want to proceed?\n";
 
     private final OptionSpec<String> arguments;
 
@@ -44,8 +45,8 @@ public class RemoveCustomsCommand extends ElasticsearchNodeCommand {
     }
 
     @Override
-    protected void processNodePaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env)
-        throws IOException, UserException {
+    protected void processNodePaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env) throws IOException,
+        UserException {
         final List<String> customsToRemove = arguments.values(options);
         if (customsToRemove.isEmpty()) {
             throw new UserException(ExitCodes.USAGE, "Must supply at least one custom metadata name to remove");
@@ -72,13 +73,14 @@ public class RemoveCustomsCommand extends ElasticsearchNodeCommand {
                 }
             }
             if (matched == false) {
-                throw new UserException(ExitCodes.USAGE,
-                    "No custom metadata matching [" + customToRemove + "] were found on this node");
+                throw new UserException(ExitCodes.USAGE, "No custom metadata matching [" + customToRemove + "] were found on this node");
             }
         }
         final ClusterState newClusterState = ClusterState.builder(oldClusterState).metadata(metadataBuilder.build()).build();
-        terminal.println(Terminal.Verbosity.VERBOSE,
-            "[old cluster state = " + oldClusterState + ", new cluster state = " + newClusterState + "]");
+        terminal.println(
+            Terminal.Verbosity.VERBOSE,
+            "[old cluster state = " + oldClusterState + ", new cluster state = " + newClusterState + "]"
+        );
 
         confirm(terminal, CONFIRMATION_MSG);
 

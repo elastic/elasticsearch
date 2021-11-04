@@ -8,12 +8,12 @@
 
 package org.elasticsearch.rest.action.datastreams;
 
+import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 
 import java.io.IOException;
 import java.util.List;

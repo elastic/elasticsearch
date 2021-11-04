@@ -20,7 +20,6 @@ import java.io.IOException;
 
 public class IndexingPressureStats implements Writeable, ToXContentFragment {
 
-
     private final long totalCombinedCoordinatingAndPrimaryBytes;
     private final long totalCoordinatingBytes;
     private final long totalPrimaryBytes;
@@ -73,11 +72,26 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         this.currentReplicaOps = 0;
     }
 
-    public IndexingPressureStats(long totalCombinedCoordinatingAndPrimaryBytes, long totalCoordinatingBytes, long totalPrimaryBytes,
-                                 long totalReplicaBytes, long currentCombinedCoordinatingAndPrimaryBytes, long currentCoordinatingBytes,
-                                 long currentPrimaryBytes, long currentReplicaBytes, long coordinatingRejections, long primaryRejections,
-                                 long replicaRejections, long memoryLimit, long totalCoordinatingOps, long totalPrimaryOps,
-                                 long totalReplicaOps, long currentCoordinatingOps, long currentPrimaryOps, long currentReplicaOps) {
+    public IndexingPressureStats(
+        long totalCombinedCoordinatingAndPrimaryBytes,
+        long totalCoordinatingBytes,
+        long totalPrimaryBytes,
+        long totalReplicaBytes,
+        long currentCombinedCoordinatingAndPrimaryBytes,
+        long currentCoordinatingBytes,
+        long currentPrimaryBytes,
+        long currentReplicaBytes,
+        long coordinatingRejections,
+        long primaryRejections,
+        long replicaRejections,
+        long memoryLimit,
+        long totalCoordinatingOps,
+        long totalPrimaryOps,
+        long totalReplicaOps,
+        long currentCoordinatingOps,
+        long currentPrimaryOps,
+        long currentReplicaOps
+    ) {
         this.totalCombinedCoordinatingAndPrimaryBytes = totalCombinedCoordinatingAndPrimaryBytes;
         this.totalCoordinatingBytes = totalCoordinatingBytes;
         this.totalPrimaryBytes = totalPrimaryBytes;
@@ -230,4 +244,3 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         return builder.endObject();
     }
 }
-

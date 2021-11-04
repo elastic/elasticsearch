@@ -320,9 +320,9 @@ public abstract class PackagingTestCase extends Assert {
             case TAR:
             case ZIP:
                 if (useTty) {
-                    return Archives.startElasticsearchWithTty(installation, sh, password, daemonize);
+                    return Archives.startElasticsearchWithTty(installation, sh, password, List.of(), daemonize);
                 } else {
-                    return Archives.runElasticsearchStartCommand(installation, sh, password, daemonize);
+                    return Archives.runElasticsearchStartCommand(installation, sh, password, List.of(), daemonize);
                 }
             case DEB:
             case RPM:
@@ -385,23 +385,11 @@ public abstract class PackagingTestCase extends Assert {
     }
 
     /**
-     * Call {@link PackagingTestCase#awaitElasticsearchStartup} and return a reference to the Shell.Result from
-     * starting elasticsearch
+     * Call {@link PackagingTestCase#awaitElasticsearchStartup}
+     * returning the result.
      */
     public Shell.Result awaitElasticsearchStartupWithResult(Shell.Result result) throws Exception {
-        awaitElasticsearchStartupWithResult(result, 0);
-        return result;
-    }
-
-    /**
-     * Call {@link PackagingTestCase#awaitElasticsearchStartup} but wait {@code additionalDelay} milliseconds more before
-     * returning the result. Useful in order to capture more from the stdout after ES has has successfully started
-     */
-    public Shell.Result awaitElasticsearchStartupWithResult(Shell.Result result, int additionalDelay) throws Exception {
         awaitElasticsearchStartup(result);
-        if (additionalDelay > 0) {
-            Thread.sleep(additionalDelay);
-        }
         return result;
     }
 
@@ -735,16 +723,18 @@ public abstract class PackagingTestCase extends Assert {
     public static void verifySecurityNotAutoConfigured(Installation es) throws Exception {
         assertThat(getAutoConfigDirName(es).isPresent(), Matchers.is(false));
         if (es.distribution.isPackage()) {
-            assertThat(
-                sh.run(es.executables().keystoreTool + " list").stdout,
-                not(Matchers.containsString("autoconfiguration.password_hash"))
-            );
+            if (Files.exists(es.config("elasticsearch.keystore"))) {
+                assertThat(
+                    sh.run(es.executables().keystoreTool + " list").stdout,
+                    not(Matchers.containsString("autoconfiguration.password_hash"))
+                );
+            }
         }
         List<String> configLines = Files.readAllLines(es.config("elasticsearch.yml"));
         assertThat(configLines, not(contains(containsString("automatically generated in order to configure Security"))));
         Path caCert = ServerUtils.getCaCert(installation);
         if (caCert != null) {
-            assertThat(caCert.toString(), Matchers.not(Matchers.containsString("tls_auto_config_initial_node")));
+            assertThat(caCert.toString(), Matchers.not(Matchers.containsString("tls_auto_config")));
         }
     }
 
@@ -756,7 +746,7 @@ public abstract class PackagingTestCase extends Assert {
             lsResult = sh.run("find \"" + es.config + "\" -type d -maxdepth 1");
         }
         assertNotNull(lsResult.stdout);
-        return Arrays.stream(lsResult.stdout.split("\n")).filter(f -> f.contains("tls_auto_config_initial_node_")).findFirst();
+        return Arrays.stream(lsResult.stdout.split("\n")).filter(f -> f.contains("tls_auto_config_")).findFirst();
     }
 
 }

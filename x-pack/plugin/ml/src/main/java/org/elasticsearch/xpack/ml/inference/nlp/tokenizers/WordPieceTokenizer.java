@@ -110,7 +110,7 @@ public class WordPieceTokenizer {
 
             if (isBad) {
                 output.add(new TokenAndId(unknownToken, vocab.get(unknownToken)));
-            } else  {
+            } else {
                 output.addAll(subTokens);
             }
         }

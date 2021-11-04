@@ -57,8 +57,9 @@ final class ShardSplittingQuery extends Query {
         this.indexMetadata = indexMetadata;
         this.indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
         this.shardId = shardId;
-        this.nestedParentBitSetProducer =  hasNested ? newParentDocBitSetProducer() : null;
+        this.nestedParentBitSetProducer = hasNested ? newParentDocBitSetProducer() : null;
     }
+
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
         return new ConstantScoreWeight(this, boost) {
@@ -97,9 +98,9 @@ final class ShardSplittingQuery extends Query {
                         // this is the heaviest invariant. Here we have to visit all docs stored fields do extract _id and _routing
                         // this this index is routing partitioned.
                         Visitor visitor = new Visitor(leafReader);
-                        TwoPhaseIterator twoPhaseIterator =
-                            parentBitSet == null ? new RoutingPartitionedDocIdSetIterator(visitor) :
-                                new NestedRoutingPartitionedDocIdSetIterator(visitor, parentBitSet);
+                        TwoPhaseIterator twoPhaseIterator = parentBitSet == null
+                            ? new RoutingPartitionedDocIdSetIterator(visitor)
+                            : new NestedRoutingPartitionedDocIdSetIterator(visitor, parentBitSet);
                         return new ConstantScoreScorer(this, score(), scoreMode, twoPhaseIterator);
                     } else {
                         // here we potentially guard the docID consumers with our parent bitset if we have one.
@@ -155,9 +156,9 @@ final class ShardSplittingQuery extends Query {
 
     private void markChildDocs(BitSet parentDocs, BitSet matchingDocs) {
         int currentDeleted = 0;
-        while (currentDeleted < matchingDocs.length() &&
-            (currentDeleted = matchingDocs.nextSetBit(currentDeleted)) != DocIdSetIterator.NO_MORE_DOCS) {
-            int previousParent = parentDocs.prevSetBit(Math.max(0, currentDeleted-1));
+        while (currentDeleted < matchingDocs.length()
+            && (currentDeleted = matchingDocs.nextSetBit(currentDeleted)) != DocIdSetIterator.NO_MORE_DOCS) {
+            int previousParent = parentDocs.prevSetBit(Math.max(0, currentDeleted - 1));
             for (int i = previousParent + 1; i < currentDeleted; i++) {
                 matchingDocs.set(i);
             }
@@ -193,8 +194,8 @@ final class ShardSplittingQuery extends Query {
         visitor.visitLeaf(this);
     }
 
-    private static void findSplitDocs(String idField, Predicate<BytesRef> includeInShard, LeafReader leafReader,
-                                      IntConsumer consumer) throws IOException {
+    private static void findSplitDocs(String idField, Predicate<BytesRef> includeInShard, LeafReader leafReader, IntConsumer consumer)
+        throws IOException {
         Terms terms = leafReader.terms(idField);
         TermsEnum iterator = terms.iterator();
         BytesRef idTerm;
@@ -335,5 +336,3 @@ final class ShardSplittingQuery extends Query {
         return context -> BitsetFilterCache.bitsetFromQuery(Queries.newNonNestedFilter(), context);
     }
 }
-
-

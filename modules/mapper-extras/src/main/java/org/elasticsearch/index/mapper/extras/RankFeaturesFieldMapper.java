@@ -11,7 +11,6 @@ package org.elasticsearch.index.mapper.extras;
 import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -22,6 +21,7 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.List;
@@ -37,13 +37,17 @@ public class RankFeaturesFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "rank_features";
 
     private static RankFeaturesFieldType ft(FieldMapper in) {
-        return ((RankFeaturesFieldMapper)in).fieldType();
+        return ((RankFeaturesFieldMapper) in).fieldType();
     }
 
     public static class Builder extends FieldMapper.Builder {
 
-        private final Parameter<Boolean> positiveScoreImpact
-            = Parameter.boolParam("positive_score_impact", false, m -> ft(m).positiveScoreImpact, true);
+        private final Parameter<Boolean> positiveScoreImpact = Parameter.boolParam(
+            "positive_score_impact",
+            false,
+            m -> ft(m).positiveScoreImpact,
+            true
+        );
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
@@ -58,8 +62,12 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         @Override
         public RankFeaturesFieldMapper build(MapperBuilderContext context) {
             return new RankFeaturesFieldMapper(
-                    name, new RankFeaturesFieldType(context.buildFullName(name), meta.getValue(), positiveScoreImpact.getValue()),
-                    multiFieldsBuilder.build(this, context), copyTo.build(), positiveScoreImpact.getValue());
+                name,
+                new RankFeaturesFieldType(context.buildFullName(name), meta.getValue(), positiveScoreImpact.getValue()),
+                multiFieldsBuilder.build(this, context),
+                copyTo.build(),
+                positiveScoreImpact.getValue()
+            );
         }
     }
 
@@ -106,8 +114,13 @@ public class RankFeaturesFieldMapper extends FieldMapper {
 
     private final boolean positiveScoreImpact;
 
-    private RankFeaturesFieldMapper(String simpleName, MappedFieldType mappedFieldType,
-            MultiFields multiFields, CopyTo copyTo, boolean positiveScoreImpact) {
+    private RankFeaturesFieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        boolean positiveScoreImpact
+    ) {
         super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, multiFields, copyTo);
         this.positiveScoreImpact = positiveScoreImpact;
     }
@@ -126,8 +139,9 @@ public class RankFeaturesFieldMapper extends FieldMapper {
     public void parse(DocumentParserContext context) throws IOException {
 
         if (context.parser().currentToken() != Token.START_OBJECT) {
-            throw new IllegalArgumentException("[rank_features] fields must be json objects, expected a START_OBJECT but got: " +
-                    context.parser().currentToken());
+            throw new IllegalArgumentException(
+                "[rank_features] fields must be json objects, expected a START_OBJECT but got: " + context.parser().currentToken()
+            );
         }
 
         String feature = null;
@@ -140,16 +154,23 @@ public class RankFeaturesFieldMapper extends FieldMapper {
                 final String key = name() + "." + feature;
                 float value = context.parser().floatValue(true);
                 if (context.doc().getByKey(key) != null) {
-                    throw new IllegalArgumentException("[rank_features] fields do not support indexing multiple values for the same " +
-                            "rank feature [" + key + "] in the same document");
+                    throw new IllegalArgumentException(
+                        "[rank_features] fields do not support indexing multiple values for the same "
+                            + "rank feature ["
+                            + key
+                            + "] in the same document"
+                    );
                 }
                 if (positiveScoreImpact == false) {
                     value = 1 / value;
                 }
                 context.doc().addWithKey(key, new FeatureField(name(), feature, value));
             } else {
-                throw new IllegalArgumentException("[rank_features] fields take hashes that map a feature to a strictly positive " +
-                        "float, but got unexpected token " + token);
+                throw new IllegalArgumentException(
+                    "[rank_features] fields take hashes that map a feature to a strictly positive "
+                        + "float, but got unexpected token "
+                        + token
+                );
             }
         }
     }

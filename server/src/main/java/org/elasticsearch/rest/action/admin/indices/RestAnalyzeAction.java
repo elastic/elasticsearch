@@ -9,10 +9,10 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -28,7 +28,8 @@ public class RestAnalyzeAction extends BaseRestHandler {
             new Route(GET, "/_analyze"),
             new Route(POST, "/_analyze"),
             new Route(GET, "/{index}/_analyze"),
-            new Route(POST, "/{index}/_analyze"));
+            new Route(POST, "/{index}/_analyze")
+        );
     }
 
     @Override

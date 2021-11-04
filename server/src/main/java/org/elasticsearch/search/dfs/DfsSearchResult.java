@@ -10,6 +10,7 @@ package org.elasticsearch.search.dfs;
 
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
@@ -109,8 +110,8 @@ public class DfsSearchResult extends SearchPhaseResult {
         }
     }
 
-    public static void writeFieldStats(StreamOutput out, ObjectObjectHashMap<String,
-            CollectionStatistics> fieldStatistics) throws IOException {
+    public static void writeFieldStats(StreamOutput out, ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics)
+        throws IOException {
         out.writeVInt(fieldStatistics.size());
 
         for (ObjectObjectCursor<String, CollectionStatistics> c : fieldStatistics) {
@@ -132,7 +133,7 @@ public class DfsSearchResult extends SearchPhaseResult {
         }
     }
 
-    public  static void writeSingleTermStats(StreamOutput out, TermStatistics termStatistic) throws IOException {
+    public static void writeSingleTermStats(StreamOutput out, TermStatistics termStatistic) throws IOException {
         if (termStatistic != null) {
             assert termStatistic.docFreq() > 0;
             out.writeVLong(termStatistic.docFreq());

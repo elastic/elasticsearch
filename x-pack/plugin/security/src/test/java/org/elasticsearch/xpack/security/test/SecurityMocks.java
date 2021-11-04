@@ -46,9 +46,9 @@ import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -98,8 +98,7 @@ public final class SecurityMocks {
     }
 
     public static void mockGetRequest(Client client, String indexAliasName, String documentId, BytesReference source) {
-        GetResult result = new GetResult(indexAliasName, documentId, 0, 1, 1, true, source,
-            emptyMap(), emptyMap());
+        GetResult result = new GetResult(indexAliasName, documentId, 0, 1, 1, true, source, emptyMap(), emptyMap());
         mockGetRequest(client, indexAliasName, documentId, result);
     }
 
@@ -169,8 +168,16 @@ public final class SecurityMocks {
         final ClusterService clusterService = mock(ClusterService.class);
 
         final SecurityContext securityContext = new SecurityContext(settings, threadPool.getThreadContext());
-        final TokenService service = new TokenService(settings, clock, client, licenseState, securityContext,
-            mockSecurityIndexManager(SECURITY_MAIN_ALIAS), mockSecurityIndexManager(SECURITY_TOKENS_ALIAS), clusterService);
+        final TokenService service = new TokenService(
+            settings,
+            clock,
+            client,
+            licenseState,
+            securityContext,
+            mockSecurityIndexManager(SECURITY_MAIN_ALIAS),
+            mockSecurityIndexManager(SECURITY_TOKENS_ALIAS),
+            clusterService
+        );
         return new TokenServiceMock(service, client);
     }
 

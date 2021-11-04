@@ -110,7 +110,8 @@ public class CloseIndexRequestTests extends ESTestCase {
         request.indices(generateRandomStringArray(10, 5, false, false));
         if (randomBoolean()) {
             request.indicesOptions(
-                IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+                IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean())
+            );
         }
         if (randomBoolean()) {
             request.timeout(randomPositiveTimeValue());
@@ -122,8 +123,9 @@ public class CloseIndexRequestTests extends ESTestCase {
             request.setParentTask(randomAlphaOfLength(5), randomNonNegativeLong());
         }
         if (randomBoolean()) {
-            request.waitForActiveShards(randomFrom(ActiveShardCount.DEFAULT, ActiveShardCount.NONE, ActiveShardCount.ONE,
-                ActiveShardCount.ALL));
+            request.waitForActiveShards(
+                randomFrom(ActiveShardCount.DEFAULT, ActiveShardCount.NONE, ActiveShardCount.ONE, ActiveShardCount.ALL)
+            );
         }
         return request;
     }

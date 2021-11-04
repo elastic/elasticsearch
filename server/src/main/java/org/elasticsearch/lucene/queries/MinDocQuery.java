@@ -144,6 +144,6 @@ public final class MinDocQuery extends Query {
 
     @Override
     public String toString(String field) {
-        return "MinDocQuery(minDoc=" + minDoc  + ")";
+        return "MinDocQuery(minDoc=" + minDoc + ")";
     }
 }

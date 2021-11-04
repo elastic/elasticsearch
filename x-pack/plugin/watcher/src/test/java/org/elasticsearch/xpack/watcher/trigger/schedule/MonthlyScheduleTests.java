@@ -78,14 +78,13 @@ public class MonthlyScheduleTests extends ScheduleTestCase {
     public void testParserSingleTime() throws Exception {
         DayTimes time = validDayTime();
         Object day = randomDayOfMonth();
-        XContentBuilder builder = jsonBuilder()
-                .startObject()
-                .field("on", day)
-                .startObject("at")
-                .array("hour", time.hour())
-                .array("minute", time.minute())
-                .endObject()
-                .endObject();
+        XContentBuilder builder = jsonBuilder().startObject()
+            .field("on", day)
+            .startObject("at")
+            .array("hour", time.hour())
+            .array("minute", time.minute())
+            .endObject()
+            .endObject();
         BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object
@@ -100,14 +99,13 @@ public class MonthlyScheduleTests extends ScheduleTestCase {
 
     public void testParserSingleTimeInvalid() throws Exception {
         HourAndMinute time = invalidDayTime();
-        XContentBuilder builder = jsonBuilder()
-                .startObject()
-                .field("on", randomBoolean() ? invalidDayOfMonth() : randomDayOfMonth())
-                .startObject("at")
-                .field("hour", time.hour)
-                .field("minute", time.minute)
-                .endObject()
-                .endObject();
+        XContentBuilder builder = jsonBuilder().startObject()
+            .field("on", randomBoolean() ? invalidDayOfMonth() : randomDayOfMonth())
+            .startObject("at")
+            .field("hour", time.hour)
+            .field("minute", time.minute)
+            .endObject()
+            .endObject();
         BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object
@@ -135,11 +133,7 @@ public class MonthlyScheduleTests extends ScheduleTestCase {
 
     public void testParserMultipleTimesInvalid() throws Exception {
         HourAndMinute[] times = invalidDayTimes();
-        XContentBuilder builder = jsonBuilder()
-                .startObject()
-                .field("on", randomDayOfMonth())
-                .array("at", (Object[]) times)
-                .endObject();
+        XContentBuilder builder = jsonBuilder().startObject().field("on", randomDayOfMonth()).array("at", (Object[]) times).endObject();
         BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object

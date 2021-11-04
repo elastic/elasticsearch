@@ -48,8 +48,7 @@ public class DelegatedAuthorizationSupport {
      * {@link #DelegatedAuthorizationSupport(Iterable, List, Settings, ThreadContext, XPackLicenseState)}
      */
     public DelegatedAuthorizationSupport(Iterable<? extends Realm> allRealms, RealmConfig config, XPackLicenseState licenseState) {
-        this(allRealms, config.getSetting(AUTHZ_REALMS), config.settings(), config.threadContext(),
-            licenseState);
+        this(allRealms, config.getSetting(AUTHZ_REALMS), config.settings(), config.threadContext(), licenseState);
     }
 
     /**
@@ -57,8 +56,13 @@ public class DelegatedAuthorizationSupport {
      * {@code allRealms}.
      * @throws IllegalArgumentException if one of the specified realms does not exist
      */
-    protected DelegatedAuthorizationSupport(Iterable<? extends Realm> allRealms, List<String> lookupRealms, Settings settings,
-                                            ThreadContext threadContext, XPackLicenseState licenseState) {
+    protected DelegatedAuthorizationSupport(
+        Iterable<? extends Realm> allRealms,
+        List<String> lookupRealms,
+        Settings settings,
+        ThreadContext threadContext,
+        XPackLicenseState licenseState
+    ) {
         final List<Realm> resolvedLookupRealms = resolveRealms(allRealms, lookupRealms);
         checkForRealmChains(resolvedLookupRealms, settings);
         this.lookup = new RealmUserLookup(resolvedLookupRealms, threadContext);
@@ -76,23 +80,29 @@ public class DelegatedAuthorizationSupport {
     /**
      * Attempts to find the user specified by {@code username} in one of the delegated realms.
      * The realms are searched in the order specified during construction.
-     * Returns a {@link AuthenticationResult#success(User) successful result} if a {@link User}
+     * Returns a {@link AuthenticationResult#success(Object) successful result} if a {@link User}
      * was found, otherwise returns an
      * {@link AuthenticationResult#unsuccessful(String, Exception) unsuccessful result}
      * with a meaningful diagnostic message.
      */
-    public void resolve(String username, ActionListener<AuthenticationResult> resultListener) {
+    public void resolve(String username, ActionListener<AuthenticationResult<User>> resultListener) {
         boolean authzOk = Security.DELEGATED_AUTHORIZATION_FEATURE.check(licenseState);
         if (authzOk == false) {
-            resultListener.onResponse(AuthenticationResult.unsuccessful(
-                DelegatedAuthorizationSettings.AUTHZ_REALMS_SUFFIX + " are not permitted",
-                LicenseUtils.newComplianceException(DelegatedAuthorizationSettings.AUTHZ_REALMS_SUFFIX)
-            ));
+            resultListener.onResponse(
+                AuthenticationResult.unsuccessful(
+                    DelegatedAuthorizationSettings.AUTHZ_REALMS_SUFFIX + " are not permitted",
+                    LicenseUtils.newComplianceException(DelegatedAuthorizationSettings.AUTHZ_REALMS_SUFFIX)
+                )
+            );
             return;
         }
         if (hasDelegation() == false) {
-            resultListener.onResponse(AuthenticationResult.unsuccessful(
-                "No [" + DelegatedAuthorizationSettings.AUTHZ_REALMS_SUFFIX + "] have been configured", null));
+            resultListener.onResponse(
+                AuthenticationResult.unsuccessful(
+                    "No [" + DelegatedAuthorizationSettings.AUTHZ_REALMS_SUFFIX + "] have been configured",
+                    null
+                )
+            );
             return;
         }
         ActionListener<Tuple<User, Realm>> userListener = ActionListener.wrap(tuple -> {
@@ -100,9 +110,16 @@ public class DelegatedAuthorizationSupport {
                 logger.trace("Found user " + tuple.v1() + " in realm " + tuple.v2());
                 resultListener.onResponse(AuthenticationResult.success(tuple.v1()));
             } else {
-                resultListener.onResponse(AuthenticationResult.unsuccessful("the principal [" + username
-                    + "] was authenticated, but no user could be found in realms [" + collectionToDelimitedString(lookup.getRealms(), ",")
-                    + "]", null));
+                resultListener.onResponse(
+                    AuthenticationResult.unsuccessful(
+                        "the principal ["
+                            + username
+                            + "] was authenticated, but no user could be found in realms ["
+                            + collectionToDelimitedString(lookup.getRealms(), ",")
+                            + "]",
+                        null
+                    )
+                );
             }
         }, resultListener::onFailure);
         lookup.lookup(username, userListener);
@@ -129,9 +146,13 @@ public class DelegatedAuthorizationSupport {
         for (Realm realm : delegatedRealms) {
             Setting<List<String>> realmAuthzSetting = AUTHZ_REALMS.apply(realm.type()).getConcreteSettingForNamespace(realm.name());
             if (realmAuthzSetting.exists(globalSettings)) {
-                throw new IllegalArgumentException("cannot use realm [" + realm
-                    + "] as an authorization realm - it is already delegating authorization to [" + realmAuthzSetting.get(globalSettings)
-                    + "]");
+                throw new IllegalArgumentException(
+                    "cannot use realm ["
+                        + realm
+                        + "] as an authorization realm - it is already delegating authorization to ["
+                        + realmAuthzSetting.get(globalSettings)
+                        + "]"
+                );
             }
         }
     }

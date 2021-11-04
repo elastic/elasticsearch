@@ -49,11 +49,10 @@ public class DateTimeFormatterTimestampConverter implements TimestampConverter {
      * (e.g. contains a date but not a time)
      */
     public static TimestampConverter ofPattern(String pattern, ZoneId defaultTimezone) {
-        DateTimeFormatter formatter = new DateTimeFormatterBuilder()
-                .parseLenient()
-                .appendPattern(pattern)
-                .parseDefaulting(ChronoField.YEAR_OF_ERA, LocalDate.now(defaultTimezone).getYear())
-                .toFormatter();
+        DateTimeFormatter formatter = new DateTimeFormatterBuilder().parseLenient()
+            .appendPattern(pattern)
+            .parseDefaulting(ChronoField.YEAR_OF_ERA, LocalDate.now(defaultTimezone).getYear())
+            .toFormatter();
 
         String formattedTime = formatter.format(ZonedDateTime.ofInstant(Instant.ofEpochSecond(0), ZoneOffset.UTC));
         try {
@@ -61,13 +60,11 @@ public class DateTimeFormatterTimestampConverter implements TimestampConverter {
             boolean hasTimeZone = parsed.isSupported(ChronoField.INSTANT_SECONDS);
             if (hasTimeZone) {
                 Instant.from(parsed);
-            }
-            else {
+            } else {
                 LocalDateTime.from(parsed);
             }
             return new DateTimeFormatterTimestampConverter(formatter, hasTimeZone, defaultTimezone);
-        }
-        catch (DateTimeException e) {
+        } catch (DateTimeException e) {
             throw new IllegalArgumentException("Timestamp cannot be derived from pattern: " + pattern, e);
         }
     }

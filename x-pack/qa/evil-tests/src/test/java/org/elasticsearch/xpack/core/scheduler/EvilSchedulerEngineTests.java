@@ -53,16 +53,14 @@ public class EvilSchedulerEngineTests extends ESTestCase {
                     }
                 });
                 final CountDownLatch schedulerLatch = new CountDownLatch(1);
-                engine.add(new SchedulerEngine.Job(
-                        getTestName(),
-                        (startTime, now) -> {
-                            if (schedulerLatch.getCount() == 1) {
-                                schedulerLatch.countDown();
-                                return 0;
-                            } else {
-                                throw new AssertionError("nextScheduledTimeAfter invoked more than the expected number of times");
-                            }
-                        }));
+                engine.add(new SchedulerEngine.Job(getTestName(), (startTime, now) -> {
+                    if (schedulerLatch.getCount() == 1) {
+                        schedulerLatch.countDown();
+                        return 0;
+                    } else {
+                        throw new AssertionError("nextScheduledTimeAfter invoked more than the expected number of times");
+                    }
+                }));
 
                 uncaughtLatuch.await();
                 assertTrue(trigger.get());

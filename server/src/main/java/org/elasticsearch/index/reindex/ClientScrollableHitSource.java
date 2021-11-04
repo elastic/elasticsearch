@@ -23,13 +23,13 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,8 +37,8 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
-import static org.elasticsearch.core.TimeValue.timeValueNanos;
 import static org.elasticsearch.common.util.CollectionUtils.isEmpty;
+import static org.elasticsearch.core.TimeValue.timeValueNanos;
 
 /**
  * A scrollable source of hits from a {@linkplain Client} instance.
@@ -47,9 +47,16 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
     private final ParentTaskAssigningClient client;
     private final SearchRequest firstSearchRequest;
 
-    public ClientScrollableHitSource(Logger logger, BackoffPolicy backoffPolicy, ThreadPool threadPool, Runnable countSearchRetry,
-                                     Consumer<AsyncResponse> onResponse, Consumer<Exception> fail,
-                                     ParentTaskAssigningClient client, SearchRequest firstSearchRequest) {
+    public ClientScrollableHitSource(
+        Logger logger,
+        BackoffPolicy backoffPolicy,
+        ThreadPool threadPool,
+        Runnable countSearchRetry,
+        Consumer<AsyncResponse> onResponse,
+        Consumer<Exception> fail,
+        ParentTaskAssigningClient client,
+        SearchRequest firstSearchRequest
+    ) {
         super(logger, backoffPolicy, threadPool, countSearchRetry, onResponse, fail);
         this.client = client;
         this.firstSearchRequest = firstSearchRequest;
@@ -59,8 +66,10 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
     @Override
     public void doStart(RejectAwareActionListener<Response> searchListener) {
         if (logger.isDebugEnabled()) {
-            logger.debug("executing initial scroll against {}",
-                isEmpty(firstSearchRequest.indices()) ? "all indices" : firstSearchRequest.indices());
+            logger.debug(
+                "executing initial scroll against {}",
+                isEmpty(firstSearchRequest.indices()) ? "all indices" : firstSearchRequest.indices()
+            );
         }
         client.search(firstSearchRequest, wrapListener(searchListener));
     }
@@ -125,7 +134,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
             failures = emptyList();
         } else {
             failures = new ArrayList<>(response.getShardFailures().length);
-            for (ShardSearchFailure failure: response.getShardFailures()) {
+            for (ShardSearchFailure failure : response.getShardFailures()) {
                 String nodeId = failure.shard() == null ? null : failure.shard().getNodeId();
                 failures.add(new SearchFailure(failure.getCause(), failure.index(), failure.shardId(), nodeId));
             }
@@ -135,14 +144,13 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
             hits = emptyList();
         } else {
             hits = new ArrayList<>(response.getHits().getHits().length);
-            for (SearchHit hit: response.getHits().getHits()) {
+            for (SearchHit hit : response.getHits().getHits()) {
                 hits.add(new ClientHit(hit));
             }
             hits = unmodifiableList(hits);
         }
         long total = response.getHits().getTotalHits().value;
-        return new Response(response.isTimedOut(), failures, total,
-                hits, response.getScrollId());
+        return new Response(response.isTimedOut(), failures, total, hits, response.getScrollId());
     }
 
     private static class ClientHit implements Hit {
@@ -173,6 +181,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
         public XContentType getXContentType() {
             return XContentHelper.xContentType(source);
         }
+
         @Override
         public long getVersion() {
             return delegate.getVersion();

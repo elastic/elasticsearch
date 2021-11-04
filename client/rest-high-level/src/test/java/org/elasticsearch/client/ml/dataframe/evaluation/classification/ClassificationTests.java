@@ -9,9 +9,9 @@ package org.elasticsearch.client.ml.dataframe.evaluation.classification;
 
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
+import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -26,19 +26,21 @@ public class ClassificationTests extends AbstractXContentTestCase<Classification
     }
 
     public static Classification createRandom() {
-        List<EvaluationMetric> metrics =
-            randomSubsetOf(
-                Arrays.asList(
-                    AucRocMetricTests.createRandom(),
-                    AccuracyMetricTests.createRandom(),
-                    PrecisionMetricTests.createRandom(),
-                    RecallMetricTests.createRandom(),
-                    MulticlassConfusionMatrixMetricTests.createRandom()));
+        List<EvaluationMetric> metrics = randomSubsetOf(
+            Arrays.asList(
+                AucRocMetricTests.createRandom(),
+                AccuracyMetricTests.createRandom(),
+                PrecisionMetricTests.createRandom(),
+                RecallMetricTests.createRandom(),
+                MulticlassConfusionMatrixMetricTests.createRandom()
+            )
+        );
         return new Classification(
             randomAlphaOfLength(10),
             randomBoolean() ? randomAlphaOfLength(10) : null,
             randomBoolean() ? randomAlphaOfLength(10) : null,
-            metrics.isEmpty() ? null : metrics);
+            metrics.isEmpty() ? null : metrics
+        );
     }
 
     @Override

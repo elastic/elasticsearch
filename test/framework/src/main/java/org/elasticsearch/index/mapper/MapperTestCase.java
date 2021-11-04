@@ -22,6 +22,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Set;
@@ -224,17 +225,21 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertParseMaximalWarnings();
     }
 
+    protected Level getWarningLevel(){
+        return DeprecationLogger.CRITICAL;
+    }
+
     protected final void assertParseMinimalWarnings() {
         String[] warnings = getParseMinimalWarnings();
         if (warnings.length > 0) {
-            assertWarnings(warnings);
+            assertWarnings(getWarningLevel(), warnings);
         }
     }
 
     protected final void assertParseMaximalWarnings() {
         String[] warnings = getParseMaximalWarnings();
         if (warnings.length > 0) {
-            assertWarnings(warnings);
+            assertWarnings(getWarningLevel(), warnings);
         }
     }
 
@@ -729,7 +734,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.nullField("field"))));
         }
 
-        assertWarnings(getParseMinimalWarnings());
+        assertWarnings(getWarningLevel(), getParseMinimalWarnings());
     }
 
     protected boolean allowsNullValues() {

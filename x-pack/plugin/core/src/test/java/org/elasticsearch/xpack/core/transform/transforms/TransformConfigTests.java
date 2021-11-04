@@ -790,7 +790,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         deprecatedConfig = randomTransformConfigWithDeprecatedFields(id, Version.V_7_4_0);
 
         // check _and_ clear warnings
-        assertWarnings(TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED);
+        assertWarnings(org.apache.logging.log4j.Level.WARN, TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED);
 
         // important: checkForDeprecations does _not_ create new deprecation warnings
         assertThat(

@@ -146,6 +146,9 @@ endif::include-xpack[]
 include::systemd.asciidoc[]
 
 [[deb-check-running]]
+
+:os-dir:       /etc/elasticsearch
+
 include::check-running.asciidoc[]
 
 [[deb-configuring]]
@@ -227,6 +230,8 @@ d|
   | path.repo
 
 |=======================================================================
+
+:os-dir:       /etc/elasticsearch
 
 include::security-files-reference.asciidoc[]
 include::next-steps.asciidoc[]

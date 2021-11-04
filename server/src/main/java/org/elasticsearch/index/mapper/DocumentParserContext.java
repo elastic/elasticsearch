@@ -254,7 +254,6 @@ public abstract class DocumentParserContext {
      */
     public abstract Iterable<LuceneDocument> nonRootDocuments();
 
-
     public boolean isWithinCopyTo() {
         return false;
     }
@@ -379,9 +378,14 @@ public abstract class DocumentParserContext {
         return null;
     }
 
+    // XContentParser that wraps an existing parser positioned on a value,
+    // and a field name, and returns a stream that looks like { 'field' : 'value' }
     private static class CopyToParser extends FilterXContentParser {
 
-        enum State { FIELD, VALUE }
+        enum State {
+            FIELD,
+            VALUE
+        }
 
         private State state = State.FIELD;
         private final String field;

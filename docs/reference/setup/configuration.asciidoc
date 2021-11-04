@@ -100,7 +100,7 @@ Values for environment variables must be simple strings. Use a comma-separated s
 
 [source,yaml]
 ----
-export HOSTNAME=“host1,host2"
+export HOSTNAME="host1,host2"
 ----
 
 [discrete]
@@ -148,8 +148,7 @@ doesn't require a restart and ensures a setting's value is the same on all
 nodes.
 ====
 
-NOTE: Transient settings are deprecated and will be removed in a future release.
-Use persistent cluster settings instead.
+include::{es-repo-dir}/cluster/update-settings.asciidoc[tag=transient-settings-deprecation]
 --
 
 [[static-cluster-setting]]

@@ -49,6 +49,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
+import java.util.function.BooleanSupplier;
 
 public class TransportClusterStatsAction extends TransportNodesAction<
     ClusterStatsRequest,
@@ -262,7 +263,12 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         }
 
         @Override
-        protected void refresh(Metadata metadata, Runnable ensureNotCancelled, ActionListener<T> listener) {
+        protected void refresh(
+            Metadata metadata,
+            Runnable ensureNotCancelled,
+            BooleanSupplier supersedeIfStale,
+            ActionListener<T> listener
+        ) {
             ActionListener.completeWith(listener, () -> function.apply(metadata, ensureNotCancelled));
         }
 

@@ -140,6 +140,10 @@ public class JobSnapshotUpgraderResultProcessor {
         processKilled = true;
     }
 
+    public boolean isProcessKilled() {
+        return processKilled;
+    }
+
     private void logUnexpectedResult(String resultType) {
         String msg = "["
             + jobId

@@ -123,7 +123,7 @@ public class MlInitializationServiceIT extends MlNativeAutodetectIntegTestCase {
         );
         for (String indexName : mlHiddenIndexNames) {
             try {
-                createIndex(indexName, Settings.builder().put(SETTING_INDEX_HIDDEN, false /*randomBoolean()*/).build());
+                createIndex(indexName, Settings.builder().put(SETTING_INDEX_HIDDEN, randomBoolean()).build());
             } catch (ResourceAlreadyExistsException e) {
                 logger.info("Index " + indexName + " already exists: {}", e.getDetailedMessage());
             }

@@ -13,9 +13,9 @@ Also see <<breaking-changes-8.0,Breaking changes in 8.0>>.
 === Known issues
 
 * If you're using {ml}, it's not safe to perform a rolling upgrade from `7.16.x`
-  to `8.0.0-beta1`. Doing so might lead to cluster state propagation issues in the mixed 
-  version cluster. We recommend waiting for `8.0.0-rc1` before testing a 
-  rolling upgrade from `7.16.x`. Do not attempt to upgrade any 
+  to `8.0.0-beta1`. Doing so might lead to cluster state propagation issues in the mixed
+  version cluster. We recommend waiting for `8.0.0-rc1` before testing a
+  rolling upgrade from `7.16.x`. Do not attempt to upgrade any
   production cluster to pre-release software.
 * If you're using {ml}, it's not safe to upgrade to `8.0.0-beta1`
   if the cluster you're upgrading was first used prior to `7.7.0`.
@@ -24,6 +24,17 @@ Also see <<breaking-changes-8.0,Breaking changes in 8.0>>.
   anomaly detection results for different jobs to be mixed.
   Wait for `8.0.0-rc1` before attempting to test upgrading a cluster
   where {ml} was used prior to version `7.7.0`.
+* System indices such as `.security` or `.kibana` are not hidden
+  indices, but they will be in the GA release. As a consequence,
+  these will be included in wildcard expansions for users that
+  have privileges to view them. Do not rely on this behavior; instead,
+  if you need to access a system index, do so directly, or use
+  a more specific wildcard.
+* System indices are included in snapshots of all indices by default,
+  and are restored by default when no indices are specified. This
+  strange behavior was intended for backwards compatibility within
+  the 7.x line. In 8.0, all system indices should be handled through
+  the `feature_states` parameter of the snapshot or restore request.
 
 [[breaking-8.0.0-beta1]]
 [float]

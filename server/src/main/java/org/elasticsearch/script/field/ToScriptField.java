@@ -9,7 +9,6 @@
 package org.elasticsearch.script.field;
 
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.elasticsearch.index.fielddata.ScriptDocValues.Booleans;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Dates;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Doubles;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Longs;
@@ -61,7 +60,7 @@ public abstract class ToScriptField {
         }
 
         public DocValuesField<?> getScriptField(SortedNumericDocValues sortedNumericDocValues, String name) {
-            return new DelegateDocValuesField(new Booleans(sortedNumericDocValues), name);
+            return new BooleanDocValuesField(sortedNumericDocValues, name);
         }
     }
 

@@ -13,10 +13,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -41,10 +39,6 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     private int pageIndex = -1;
     private int currentCapacity = 0;
     private int currentPageOffset;
-
-    public RecyclerBytesStreamOutput() {
-        this(new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE));
-    }
 
     public RecyclerBytesStreamOutput(Recycler<BytesRef> recycler) {
         this.recycler = recycler;

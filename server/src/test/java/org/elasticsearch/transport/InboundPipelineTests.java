@@ -16,7 +16,7 @@ import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.io.stream.RecyclingBytesStreamOutput;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -96,7 +96,7 @@ public class InboundPipelineTests extends ESTestCase {
             actual.clear();
             expected.clear();
             toRelease.clear();
-            try (RecyclingBytesStreamOutput streamOutput = new RecyclingBytesStreamOutput()) {
+            try (RecyclerBytesStreamOutput streamOutput = new RecyclerBytesStreamOutput()) {
                 while (streamOutput.size() < BYTE_THRESHOLD) {
                     final Version version = randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion());
                     final String value = randomRealisticUnicodeOfCodepointLength(randomIntBetween(200, 400));
@@ -146,7 +146,7 @@ public class InboundPipelineTests extends ESTestCase {
                     }
 
                     expected.add(new Tuple<>(messageData, expectedExceptionClass));
-                    final BytesReference reference = message.serialize(new RecyclingBytesStreamOutput());
+                    final BytesReference reference = message.serialize(new RecyclerBytesStreamOutput());
                     Streams.copy(reference.streamInput(), streamOutput, false);
                 }
 
@@ -212,7 +212,7 @@ public class InboundPipelineTests extends ESTestCase {
         final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) action -> true);
         final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler);
 
-        try (RecyclingBytesStreamOutput streamOutput = new RecyclingBytesStreamOutput()) {
+        try (RecyclerBytesStreamOutput streamOutput = new RecyclerBytesStreamOutput()) {
             String actionName = "actionName";
             final Version invalidVersion = Version.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion();
             final String value = randomAlphaOfLength(1000);
@@ -257,7 +257,7 @@ public class InboundPipelineTests extends ESTestCase {
         final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) action -> true);
         final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler);
 
-        try (RecyclingBytesStreamOutput streamOutput = new RecyclingBytesStreamOutput()) {
+        try (RecyclerBytesStreamOutput streamOutput = new RecyclerBytesStreamOutput()) {
             String actionName = "actionName";
             final Version version = Version.CURRENT;
             final String value = randomAlphaOfLength(1000);

@@ -13,7 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.RecyclingBytesStreamOutput;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -83,7 +83,7 @@ public class TransportLoggerTests extends ESTestCase {
 
     private BytesReference buildRequest() throws IOException {
         Compression.Scheme compress = randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4, null);
-        try (RecyclingBytesStreamOutput bytesStreamOutput = new RecyclingBytesStreamOutput()) {
+        try (RecyclerBytesStreamOutput bytesStreamOutput = new RecyclerBytesStreamOutput()) {
             OutboundMessage.Request request = new OutboundMessage.Request(
                 new ThreadContext(Settings.EMPTY),
                 new ClusterStatsRequest(),

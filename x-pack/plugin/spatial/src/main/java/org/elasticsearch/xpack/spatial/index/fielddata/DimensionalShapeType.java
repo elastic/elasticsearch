@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
-import org.elasticsearch.common.io.stream.RecyclingBytesStreamOutput;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.ShapeType;
 
@@ -29,7 +29,7 @@ public enum DimensionalShapeType {
         return values[Byte.toUnsignedInt(ordinal)];
     }
 
-    public void writeTo(RecyclingBytesStreamOutput out) {
+    public void writeTo(RecyclerBytesStreamOutput out) {
         out.writeByte((byte) ordinal());
     }
 

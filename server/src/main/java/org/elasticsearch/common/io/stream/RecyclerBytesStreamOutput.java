@@ -30,7 +30,7 @@ import java.util.ArrayList;
  * avoids frequent reallocation &amp; copying of the internal data. When {@link #close()} is called,
  * the bytes will be released.
  */
-public class RecyclingBytesStreamOutput extends BytesStream implements Releasable {
+public class RecyclerBytesStreamOutput extends BytesStream implements Releasable {
 
     static final VarHandle VH_BE_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
     static final VarHandle VH_BE_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
@@ -42,11 +42,11 @@ public class RecyclingBytesStreamOutput extends BytesStream implements Releasabl
     private int currentCapacity = 0;
     private int currentPageOffset;
 
-    public RecyclingBytesStreamOutput() {
+    public RecyclerBytesStreamOutput() {
         this(new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE));
     }
 
-    public RecyclingBytesStreamOutput(Recycler<BytesRef> recycler) {
+    public RecyclerBytesStreamOutput(Recycler<BytesRef> recycler) {
         this.recycler = recycler;
         try (Recycler.V<BytesRef> obtain = recycler.obtain()) {
             pageSize = obtain.v().length;

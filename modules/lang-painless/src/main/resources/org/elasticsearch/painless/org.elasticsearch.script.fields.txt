@@ -35,3 +35,19 @@ class org.elasticsearch.script.field.BooleanDocValuesField @dynamic_type {
   boolean get(boolean)
   boolean get(int, boolean)
 }
+
+class org.elasticsearch.script.field.IntegerDocValuesField @dynamic_type {
+  int get(int)
+  int get(int, int)
+}
+
+class org.elasticsearch.script.field.ShortDocValuesField @dynamic_type {
+  short get(short)
+  short get(int, short)
+}
+
+
+class org.elasticsearch.script.field.ByteDocValuesField @dynamic_type {
+  byte get(byte)
+  byte get(int, byte)
+}

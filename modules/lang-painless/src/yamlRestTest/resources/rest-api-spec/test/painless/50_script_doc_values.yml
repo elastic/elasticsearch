@@ -37,12 +37,16 @@ setup:
                         token_count:
                             type: token_count
                             analyzer: standard
+                        rank:
+                            type: integer
+
 
     - do:
         index:
             index: test
             id: 1
             body:
+                rank: 1
                 boolean: true
                 date: 2017-01-01T12:11:12
                 geo_point: 41.12,-71.34
@@ -62,14 +66,19 @@ setup:
         index:
           index: test
           id: 2
-          body: {}
+          body:
+              rank: 2
 
     - do:
         index:
           index: test
           id: 3
           body:
+              rank: 3
               boolean: [true, false, true]
+              integer: [5, 17, 29]
+              short: [6, 18, 30, 45]
+              byte: [16, 32, 64, 8, 4]
 
     - do:
         indices.refresh: {}
@@ -104,18 +113,6 @@ setup:
             body:
                 query: { term: { _id: 1 } }
                 script_fields:
-                    field:
-                        script:
-                            source: "field('boolean').get(false)"
-    - match: { hits.hits.0.fields.field.0: true }
-
-    - do:
-        search:
-            rest_total_hits_as_int: true
-            body:
-                query: { term: { _id: 1 } }
-                script_fields:
-
                     field:
                         script:
                             source: "field('boolean').get(false)"
@@ -398,6 +395,44 @@ setup:
                             source: "doc['integer'].value"
     - match: { hits.hits.0.fields.field.0: 134134566 }
 
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "field('integer').get(-1)"
+    - match: { hits.hits.0.fields.field.0: 134134566 }
+    - match: { hits.hits.1.fields.field.0: -1 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "field('integer').get(1, -3)"
+    - match: { hits.hits.0.fields.field.0: -3 }
+    - match: { hits.hits.1.fields.field.0: -3 }
+    - match: { hits.hits.2.fields.field.0: 17 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "int total = 0; for (int i : field('integer')) { total += i; } total + field('integer').size();"
+    - match: { hits.hits.0.fields.field.0: 134134567 }
+    - match: { hits.hits.1.fields.field.0: 0 }
+    - match: { hits.hits.2.fields.field.0: 54 }
+
 ---
 "short":
     - do:
@@ -422,6 +457,45 @@ setup:
                             source: "doc['short'].value"
     - match: { hits.hits.0.fields.field.0: 1324 }
 
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "field('short').get(-1)"
+                  # source: "field('short').get((short) -1)"
+    - match: { hits.hits.0.fields.field.0: 1324 }
+    - match: { hits.hits.1.fields.field.0: -1 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "field('short').get(1, (short) -3)"
+    - match: { hits.hits.0.fields.field.0: -3 }
+    - match: { hits.hits.1.fields.field.0: -3 }
+    - match: { hits.hits.2.fields.field.0: 18 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "int total = 0; for (short s : field('short')) { total += s; } total + field('short').size();"
+    - match: { hits.hits.0.fields.field.0: 1325 }
+    - match: { hits.hits.1.fields.field.0: 0 }
+    - match: { hits.hits.2.fields.field.0: 103 }
+
 ---
 "byte":
     - do:
@@ -445,6 +519,46 @@ setup:
                         script:
                             source: "doc['byte'].value"
     - match: { hits.hits.0.fields.field.0: 12 }
+
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "field('byte').get((byte) 5)"
+    - match: { hits.hits.0.fields.field.0: 12 }
+    - match: { hits.hits.1.fields.field.0: 5 }
+    - match: { hits.hits.2.fields.field.0: 4 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "field('byte').get(1, (byte) 7)"
+    - match: { hits.hits.0.fields.field.0: 7 }
+    - match: { hits.hits.1.fields.field.0: 7 }
+    - match: { hits.hits.2.fields.field.0: 8 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "int total = 0; for (byte s : field('byte')) { total += s; } total + field('byte').size();"
+    - match: { hits.hits.0.fields.field.0: 13 }
+    - match: { hits.hits.1.fields.field.0: 0 }
+    - match: { hits.hits.2.fields.field.0: 129 }
 
 ---
 "double":

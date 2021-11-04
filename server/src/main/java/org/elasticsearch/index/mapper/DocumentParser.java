@@ -19,7 +19,6 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -599,6 +598,11 @@ public final class DocumentParser {
                     dynamicObjectMapper = dynamic.getDynamicFieldsBuilder().createDynamicObjectMapper(context, currentFieldName);
                     context.addDynamicMapper(dynamicObjectMapper);
                 }
+                if (dynamicObjectMapper instanceof NestedObjectMapper && context.isWithinCopyTo()) {
+                    throw new MapperParsingException(
+                        "It is forbidden to create dynamic nested objects ([" + dynamicObjectMapper.name() + "]) through `copy_to`"
+                    );
+                }
                 context.path().add(currentFieldName);
                 parseObjectOrField(context, dynamicObjectMapper);
                 context.path().remove();
@@ -746,7 +750,6 @@ public final class DocumentParser {
      * Creates instances of the fields that the current field should be copied to
      */
     private static void parseCopyFields(DocumentParserContext context, List<String> copyToFields) throws IOException {
-        context = context.createCopyToContext();
         for (String field : copyToFields) {
             // In case of a hierarchy of nested documents, we need to figure out
             // which document the field should go to
@@ -758,110 +761,9 @@ public final class DocumentParser {
                 }
             }
             assert targetDoc != null;
-            final DocumentParserContext copyToContext;
-            if (targetDoc == context.doc()) {
-                copyToContext = context;
-            } else {
-                copyToContext = context.switchDoc(targetDoc);
-            }
-            parseCopy(field, copyToContext);
+            final DocumentParserContext copyToContext = context.createCopyToContext(field, targetDoc);
+            innerParseObject(copyToContext, context.root());
         }
-    }
-
-    /**
-     * Creates an copy of the current field with given field name and boost
-     */
-    private static void parseCopy(String field, DocumentParserContext context) throws IOException {
-        Mapper mapper = context.mappingLookup().getMapper(field);
-        if (mapper != null) {
-            if (mapper instanceof FieldMapper) {
-                ((FieldMapper) mapper).parse(context);
-            } else if (mapper instanceof FieldAliasMapper) {
-                throw new IllegalArgumentException("Cannot copy to a field alias [" + mapper.name() + "].");
-            } else {
-                throw new IllegalStateException(
-                    "The provided mapper [" + mapper.name() + "] has an unrecognized type [" + mapper.getClass().getSimpleName() + "]."
-                );
-            }
-        } else {
-            // The path of the dest field might be completely different from the current one so we need to reset it
-            context = context.overridePath(new ContentPath(0));
-
-            final String[] paths = splitAndValidatePath(field);
-            final String fieldName = paths[paths.length - 1];
-            Tuple<Integer, ObjectMapper> parentMapperTuple = getDynamicParentMapper(context, paths, null);
-            ObjectMapper objectMapper = parentMapperTuple.v2();
-            parseDynamicValue(context, objectMapper, fieldName, context.parser().currentToken());
-            for (int i = 0; i < parentMapperTuple.v1(); i++) {
-                context.path().remove();
-            }
-        }
-    }
-
-    private static Tuple<Integer, ObjectMapper> getDynamicParentMapper(
-        DocumentParserContext context,
-        final String[] paths,
-        ObjectMapper currentParent
-    ) {
-        ObjectMapper mapper = currentParent == null ? context.root() : currentParent;
-        int pathsAdded = 0;
-        ObjectMapper parent = mapper;
-        for (int i = 0; i < paths.length - 1; i++) {
-            String name = paths[i];
-            String currentPath = context.path().pathAsText(name);
-            Mapper existingFieldMapper = context.mappingLookup().getMapper(currentPath);
-            if (existingFieldMapper != null) {
-                throw new MapperParsingException(
-                    "Could not dynamically add mapping for field [{}]. Existing mapping for [{}] must be of type object but found [{}].",
-                    null,
-                    String.join(".", paths),
-                    currentPath,
-                    existingFieldMapper.typeName()
-                );
-            }
-            mapper = context.mappingLookup().objectMappers().get(currentPath);
-            if (mapper == null) {
-                // One mapping is missing, check if we are allowed to create a dynamic one.
-                ObjectMapper.Dynamic dynamic = dynamicOrDefault(parent, context);
-                if (dynamic == ObjectMapper.Dynamic.STRICT) {
-                    throw new StrictDynamicMappingException(parent.fullPath(), name);
-                } else if (dynamic == ObjectMapper.Dynamic.FALSE) {
-                    // Should not dynamically create any more mappers so return the last mapper
-                    return new Tuple<>(pathsAdded, parent);
-                } else if (dynamic == ObjectMapper.Dynamic.RUNTIME) {
-                    mapper = new NoOpObjectMapper(name, currentPath);
-                } else {
-                    final Mapper fieldMapper = dynamic.getDynamicFieldsBuilder().createDynamicObjectMapper(context, name);
-                    if (fieldMapper instanceof ObjectMapper == false) {
-                        assert context.sourceToParse().dynamicTemplates().containsKey(currentPath)
-                            : "dynamic templates [" + context.sourceToParse().dynamicTemplates() + "]";
-                        throw new MapperParsingException(
-                            "Field ["
-                                + currentPath
-                                + "] must be an object; "
-                                + "but it's configured as ["
-                                + fieldMapper.typeName()
-                                + "] in dynamic template ["
-                                + context.sourceToParse().dynamicTemplates().get(currentPath)
-                                + "]"
-                        );
-                    }
-                    mapper = (ObjectMapper) fieldMapper;
-                    if (mapper.isNested()) {
-                        throw new MapperParsingException(
-                            "It is forbidden to create dynamic nested objects (["
-                                + currentPath
-                                + "]) through `copy_to` or dots in field names"
-                        );
-                    }
-                    context.addDynamicMapper(mapper);
-                }
-            }
-            context.path().add(paths[i]);
-            pathsAdded++;
-            parent = mapper;
-        }
-        return new Tuple<>(pathsAdded, mapper);
     }
 
     // find what the dynamic setting is given the current parse context and parent

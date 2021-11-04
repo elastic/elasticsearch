@@ -121,12 +121,10 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
                     true,
                     action.indices()
                 );
-                List<Index> nonBackingIndices = Arrays.stream(unprocessedConcreteIndices)
-                    .filter(index -> {
-                        var ia = state.metadata().getIndicesLookup().get(index.getName());
-                        return ia.getParentDataStream() == null;
-                    })
-                    .collect(Collectors.toList());
+                List<Index> nonBackingIndices = Arrays.stream(unprocessedConcreteIndices).filter(index -> {
+                    var ia = state.metadata().getIndicesLookup().get(index.getName());
+                    return ia.getParentDataStream() == null;
+                }).collect(Collectors.toList());
                 concreteIndices = nonBackingIndices.toArray(Index[]::new);
                 switch (action.actionType()) {
                     case ADD:
@@ -174,12 +172,7 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
                         throw new IllegalArgumentException("Unsupported action [" + action.actionType() + "]");
                 }
             } else {
-                concreteIndices = indexNameExpressionResolver.concreteIndices(
-                    state,
-                    request.indicesOptions(),
-                    false,
-                    action.indices()
-                );
+                concreteIndices = indexNameExpressionResolver.concreteIndices(state, request.indicesOptions(), false, action.indices());
             }
 
             for (Index concreteIndex : concreteIndices) {

@@ -92,7 +92,8 @@ public class OldElasticsearch {
             command.add("-f");
         }
         command.add("-p");
-        command.add(baseDir.resolve("pid").toString().replaceAll("&", "\\&"));
+        Path pidPath = baseDir.relativize(baseDir.resolve("pid"));
+        command.add(pidPath.toString().replaceAll("&", "\\&"));
         ProcessBuilder subprocess = new ProcessBuilder(command);
         Process process = subprocess.start();
         System.out.println("Running " + command);

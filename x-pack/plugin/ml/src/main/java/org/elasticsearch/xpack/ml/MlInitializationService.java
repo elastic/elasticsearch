@@ -178,7 +178,7 @@ public class MlInitializationService implements ClusterStateListener {
             for (ObjectObjectCursor<String, List<AliasMetadata>> entry : getAliasesResponse.getAliases()) {
                 String index = entry.key;
                 for (AliasMetadata existingAliasMetadata : entry.value) {
-                    if (existingAliasMetadata.isHidden() == null || existingAliasMetadata.isHidden() == false) {
+                    if (existingAliasMetadata.isHidden() != null && existingAliasMetadata.isHidden()) {
                         continue;
                     }
                     indicesAliasesRequest.addAliasAction(aliasReplacementAction(index, existingAliasMetadata));
@@ -238,9 +238,11 @@ public class MlInitializationService implements ClusterStateListener {
         IndicesAliasesRequest.AliasActions addReplacementAliasAction = IndicesAliasesRequest.AliasActions.add()
             .index(index)
             .aliases(existingAliasMetadata.getAlias())
-            .writeIndex(existingAliasMetadata.writeIndex())
             .isHidden(true);
         // Be sure to preserve all attributes apart from is_hidden
+        if (existingAliasMetadata.writeIndex() != null) {
+            addReplacementAliasAction.writeIndex(existingAliasMetadata.writeIndex());
+        }
         if (existingAliasMetadata.filteringRequired()) {
             addReplacementAliasAction.filter(existingAliasMetadata.filter().string());
         }

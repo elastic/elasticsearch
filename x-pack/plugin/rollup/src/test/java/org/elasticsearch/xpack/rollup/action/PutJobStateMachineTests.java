@@ -466,7 +466,8 @@ public class PutJobStateMachineTests extends ESTestCase {
         );
         PutRollupJobAction.Request request = new PutRollupJobAction.Request(config);
         TransportPutRollupJobAction.checkForDeprecatedTZ(request);
-        assertWarnings(Level.WARN,
+        assertWarnings(
+            Level.WARN,
             "Creating Rollup job [foo] with timezone [Japan], but [Japan] has been deprecated by the IANA.  " + "Use [Asia/Tokyo] instead."
         );
     }

@@ -184,7 +184,8 @@ public class IndexSortSettingsTests extends ESTestCase {
         MappedFieldType mft = new KeywordFieldMapper.KeywordFieldType("aliased");
         config.buildIndexSort(field -> mft, (ft, s) -> indexFieldDataService.getForField(ft, "index", s));
 
-        assertWarnings(Level.WARN,
+        assertWarnings(
+            Level.WARN,
             "Index sort for index [test] defined on field [field] which resolves to field [aliased]. "
                 + "You will not be able to define an index sort over aliased fields in new indexes"
         );

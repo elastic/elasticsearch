@@ -322,7 +322,8 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
         String fractionalValue = "23.5" + unit.getSuffix();
         ByteSizeValue instance = ByteSizeValue.parseBytesSizeValue(fractionalValue, "test");
         assertEquals(fractionalValue, instance.toString());
-        assertWarnings(Level.WARN,
+        assertWarnings(
+            Level.WARN,
             "Fractional bytes values are deprecated. Use non-fractional bytes values instead: ["
                 + fractionalValue
                 + "] found for setting [test]"

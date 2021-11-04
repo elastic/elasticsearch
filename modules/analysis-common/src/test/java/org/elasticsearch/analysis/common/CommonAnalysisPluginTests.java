@@ -193,7 +193,8 @@ public class CommonAnalysisPluginTests extends ESTestCase {
         final CommonAnalysisPlugin commonAnalysisPlugin = new CommonAnalysisPlugin();
 
         createTestAnalysis(IndexSettingsModule.newIndexSettings("index", settings), settings, commonAnalysisPlugin);
-        assertWarnings(Level.WARN,
+        assertWarnings(
+            Level.WARN,
             "The [nGram] token filter name is deprecated and will be removed in a future version. "
                 + "Please change the filter name to [ngram] instead."
         );
@@ -214,7 +215,8 @@ public class CommonAnalysisPluginTests extends ESTestCase {
         final CommonAnalysisPlugin commonAnalysisPlugin = new CommonAnalysisPlugin();
 
         createTestAnalysis(IndexSettingsModule.newIndexSettings("index", settings), settings, commonAnalysisPlugin);
-        assertWarnings(Level.WARN,
+        assertWarnings(
+            Level.WARN,
             "The [edgeNGram] token filter name is deprecated and will be removed in a future version. "
                 + "Please change the filter name to [edge_ngram] instead."
         );
@@ -276,7 +278,8 @@ public class CommonAnalysisPluginTests extends ESTestCase {
             Tokenizer tokenizer = tokenizerFactory.create();
             assertNotNull(tokenizer);
             if (expectWarning) {
-                assertWarnings(Level.WARN,
+                assertWarnings(
+                    Level.WARN,
                     "The ["
                         + deprecatedName
                         + "] tokenizer name is deprecated and will be removed in a future version. "
@@ -302,7 +305,8 @@ public class CommonAnalysisPluginTests extends ESTestCase {
             createTestAnalysis(IndexSettingsModule.newIndexSettings("index", settings), settings, commonAnalysisPlugin);
 
             if (expectWarning) {
-                assertWarnings(Level.WARN,
+                assertWarnings(
+                    Level.WARN,
                     "The ["
                         + deprecatedName
                         + "] tokenizer name is deprecated and will be removed in a future version. "

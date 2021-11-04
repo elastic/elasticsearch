@@ -1456,7 +1456,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
         // Use a LHS so that the random-shufle-order of the list is preserved
         compositeRolesStore.logDeprecatedRoles(new LinkedHashSet<>(descriptors));
 
-        assertWarnings(Level.WARN,
+        assertWarnings(
+            Level.WARN,
             "The role ["
                 + deprecated1.getName()
                 + "] is deprecated and will be removed in a future version of Elasticsearch."

@@ -417,6 +417,18 @@ public class PyTorchModelIT extends ESRestTestCase {
         assertThat(ex.getMessage(), containsString("Could not find trained model [missing_model]"));
     }
 
+    public void testGetPytorchModelWithDefinition() throws IOException {
+        String model = "should-fail-get";
+        createTrainedModel(model);
+        putVocabulary(List.of("once", "twice"), model);
+        putModelDefinition(model);
+        Exception ex = expectThrows(
+            Exception.class,
+            () -> client().performRequest(new Request("GET", "_ml/trained_models/" + model + "?include=definition"))
+        );
+        assertThat(ex.getMessage(), containsString("[should-fail-get] is type [pytorch] and does not support retrieving the definition"));
+    }
+
     public void testInferencePipelineAgainstUnallocatedModel() throws IOException {
         String model = "not-deployed";
         createTrainedModel(model);

@@ -29,7 +29,7 @@ public class BertRequestBuilderTests extends ESTestCase {
     public void testBuildRequest() throws IOException {
         BertTokenizer tokenizer = BertTokenizer.builder(
             Arrays.asList("Elastic", "##search", "fun", BertTokenizer.CLASS_TOKEN, BertTokenizer.SEPARATOR_TOKEN, BertTokenizer.PAD_TOKEN),
-            new BertTokenization(null, null, 512, Tokenization.Truncate.NONE)
+            new BertTokenization(null, null, 512, null)
         ).build();
 
         BertRequestBuilder requestBuilder = new BertRequestBuilder(tokenizer);
@@ -57,7 +57,7 @@ public class BertRequestBuilderTests extends ESTestCase {
     public void testInputTooLarge() throws IOException {
         BertTokenizer tokenizer = BertTokenizer.builder(
             Arrays.asList("Elastic", "##search", "fun", BertTokenizer.CLASS_TOKEN, BertTokenizer.SEPARATOR_TOKEN, BertTokenizer.PAD_TOKEN),
-            new BertTokenization(null, null, 5, Tokenization.Truncate.NONE)
+            new BertTokenization(null, null, 5, null)
         ).build();
         {
             BertRequestBuilder requestBuilder = new BertRequestBuilder(tokenizer);
@@ -102,7 +102,7 @@ public class BertRequestBuilderTests extends ESTestCase {
                 "God",
                 "##zilla"
             ),
-            new BertTokenization(null, null, 512, Tokenization.Truncate.NONE)
+            new BertTokenization(null, null, 512, null)
         ).build();
 
         BertRequestBuilder requestBuilder = new BertRequestBuilder(tokenizer);

@@ -123,7 +123,7 @@ public class ByteDocValuesField implements DocValuesField<Byte>, SortedNumericDo
     }
 
     // constants in java and painless are ints, so letting the defaultValue be an int allows users to
-    // call this without casting.  A byte variable will be automatically widened to an int.
+    // call this without casting. A byte variable will be automatically widened to an int.
     // If the user does pass a value outside the range, it will be cast down to a byte.
     public byte get(int index, int defaultValue) {
         if (isEmpty() || index < 0 || index >= count) {

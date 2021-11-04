@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common.logging;
 
-import org.apache.logging.log4j.Level;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -190,11 +189,10 @@ public class HeaderWarning {
      * Format a warning string in the proper warning format by prepending a warn code, warn agent, wrapping the warning string in quotes,
      * and appending the RFC 7231 date.
      *
-     * @param level the level of the warning - Level.WARN or DeprecationLogger.CRITICAL
      * @param s the warning string to format
      * @return a warning value formatted according to RFC 7234
      */
-    public static String formatWarning(final Level level, final String s) {
+    public static String formatWarning(final String s) {
         // Assume that the common scenario won't have a string to escape and encode.
         int length = WARNING_PREFIX.length() + s.length() + 6;
         final StringBuilder sb = new StringBuilder(length);
@@ -312,21 +310,16 @@ public class HeaderWarning {
             .orElse("");
     }
 
-    public static void addWarning(Level level, String message, Object... params) {
-        addWarning(THREAD_CONTEXT, level, message, params);
+    public static void addWarning(String message, Object... params) {
+        addWarning(THREAD_CONTEXT, message, params);
     }
 
     // package scope for testing
     static void addWarning(Set<ThreadContext> threadContexts, String message, Object... params) {
-        addWarning(threadContexts, DeprecationLogger.CRITICAL, message, params);
-    }
-
-    // package scope for testing
-    static void addWarning(Set<ThreadContext> threadContexts, Level level, String message, Object... params) {
         final Iterator<ThreadContext> iterator = threadContexts.iterator();
         if (iterator.hasNext()) {
             final String formattedMessage = LoggerMessageFormat.format(message, params);
-            final String warningHeaderValue = formatWarning(level, formattedMessage);
+            final String warningHeaderValue = formatWarning(formattedMessage);
             assert WARNING_HEADER_PATTERN.matcher(warningHeaderValue).matches();
             assert extractWarningValueFromWarningHeader(warningHeaderValue, false).equals(escapeAndEncode(formattedMessage));
             while (iterator.hasNext()) {

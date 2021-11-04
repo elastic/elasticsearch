@@ -451,7 +451,7 @@ public class AnalysisRegistryTests extends ESTestCase {
 
         // We should only get a warning from the normalizer, because we're on a version where 'deprecated'
         // works fine
-        assertWarnings("Using deprecated token filter [deprecated_normalizer]");
+        assertWarnings(Level.WARN, "Using deprecated token filter [deprecated_normalizer]");
 
         indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)

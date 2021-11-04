@@ -282,7 +282,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                             preparedRounding = prepareRounding(++roundingIdx);
                             long[] mergeMap = new long[Math.toIntExact(oldOrds.size())];
                             bucketOrds = new LongKeyedBucketOrds.FromSingle(bigArrays());
-                            success = true;
+                            success = true; // now it is safe to close oldOrds after we finish
                             LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = oldOrds.ordsEnum(0);
                             while (ordsEnum.next()) {
                                 long oldKey = ordsEnum.value();

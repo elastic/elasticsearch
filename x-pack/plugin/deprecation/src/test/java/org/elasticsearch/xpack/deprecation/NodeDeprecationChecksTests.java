@@ -2178,11 +2178,11 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         Map<Setting<?>, Object> settingToTestValueMap = new HashMap<>();
         settingToTestValueMap.put(HttpTransportSettings.OLD_SETTING_HTTP_TCP_NO_DELAY, randomBoolean());
         /*
-         * Note: Limiting time values to between 0 and 23 because the downstream code will normalize them so that 100 hours becomes 4.2
+         * Note: Limiting time values to between 1 and 23 because the downstream code will normalize them so that 100 hours becomes 4.2
          * days, so the expected values would not match the actual.
          */
-        settingToTestValueMap.put(NetworkService.TCP_CONNECT_TIMEOUT, randomTimeValue(0, 23));
-        settingToTestValueMap.put(TransportSettings.TCP_CONNECT_TIMEOUT, randomTimeValue(0, 23));
+        settingToTestValueMap.put(NetworkService.TCP_CONNECT_TIMEOUT, randomTimeValue(1, 23));
+        settingToTestValueMap.put(TransportSettings.TCP_CONNECT_TIMEOUT, randomTimeValue(1, 23));
         settingToTestValueMap.put(TransportSettings.OLD_PORT, randomAlphaOfLength(10));
         settingToTestValueMap.put(TransportSettings.OLD_TCP_NO_DELAY, randomBoolean());
         settingToTestValueMap.put(

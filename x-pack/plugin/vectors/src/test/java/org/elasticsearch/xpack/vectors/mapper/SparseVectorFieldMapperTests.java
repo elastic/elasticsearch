@@ -12,7 +12,6 @@ import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -257,7 +256,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         assertThat(e.getMessage(), containsString("Field [vectors] of type [sparse_vector] can't be used in multifields"));
     }
 
-    protected Level getWarningLevel(){
+    protected Level getWarningLevel() {
         return Level.WARN;
     }
 }

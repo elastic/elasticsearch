@@ -225,7 +225,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertParseMaximalWarnings();
     }
 
-    protected Level getWarningLevel(){
+    protected Level getWarningLevel() {
         return DeprecationLogger.CRITICAL;
     }
 

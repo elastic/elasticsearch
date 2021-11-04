@@ -132,7 +132,7 @@ Computes the cosine similarity. Note that the most efficient way to perform
 cosine similarity is to normalize all vectors to unit length, and instead use
 `dot_product`. You should only use `cosine` if you need to preserve the
 original vectors and cannot normalize them in advance. The document `_score`
-is computed as `(1 + dot_product(query, vector)) / 2`.
+is computed as `(1 + cosine(query, vector)) / 2`.
 
 NOTE: Although they are conceptually related, the `similarity` parameter is
 different from <<text,`text`>> field <<similarity,`similarity`>> and accepts
@@ -150,8 +150,8 @@ following properties:
 The type of kNN algorithm to use. Currently only `hnsw` is supported.
 
 `m`:::
-Controls how many of the nearest neighbor candidates are connected to each new
-node when building the HNSW graph. Defaults to 16.
+The number of neighbors each node will be connected to in the HNSW graph.
+Defaults to 16.
 
 `ef_construction`:::
 The number of candidates to track while assembling the list of nearest

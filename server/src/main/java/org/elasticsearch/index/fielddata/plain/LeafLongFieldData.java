@@ -16,6 +16,7 @@ import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.script.field.BooleanDocValuesField;
 import org.elasticsearch.script.field.ByteDocValuesField;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.DocValuesField;
@@ -60,6 +61,7 @@ public abstract class LeafLongFieldData implements LeafNumericFieldData {
                     name
                 );
             case BOOLEAN:
+                return new BooleanDocValuesField(getLongValues(), name);
                 return new DelegateDocValuesField(new ScriptDocValues.Booleans(getLongValues()), name);
             case BYTE:
                 return new ByteDocValuesField(getLongValues(), name);

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.spatial.index.fielddata;
 
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 
 import java.io.IOException;
 import java.util.List;
@@ -25,14 +25,13 @@ public class GeometryDocValueWriter {
     /*** Serialize the triangle tree in a BytesRef */
     public static BytesRef write(List<IndexableField> fields, CoordinateEncoder coordinateEncoder, CentroidCalculator centroidCalculator)
         throws IOException {
-        try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput()) {
-            // normalization may be required due to floating point precision errors
-            out.writeInt(coordinateEncoder.encodeX(coordinateEncoder.normalizeX(centroidCalculator.getX())));
-            out.writeInt(coordinateEncoder.encodeY(coordinateEncoder.normalizeY(centroidCalculator.getY())));
-            centroidCalculator.getDimensionalShapeType().writeTo(out);
-            out.writeVLong(Double.doubleToLongBits(centroidCalculator.sumWeight()));
-            TriangleTreeWriter.writeTo(out, fields);
-            return out.bytes().toBytesRef();
-        }
+        final BytesStreamOutput out = new BytesStreamOutput();
+        // normalization may be required due to floating point precision errors
+        out.writeInt(coordinateEncoder.encodeX(coordinateEncoder.normalizeX(centroidCalculator.getX())));
+        out.writeInt(coordinateEncoder.encodeY(coordinateEncoder.normalizeY(centroidCalculator.getY())));
+        centroidCalculator.getDimensionalShapeType().writeTo(out);
+        out.writeVLong(Double.doubleToLongBits(centroidCalculator.sumWeight()));
+        TriangleTreeWriter.writeTo(out, fields);
+        return out.bytes().toBytesRef();
     }
 }

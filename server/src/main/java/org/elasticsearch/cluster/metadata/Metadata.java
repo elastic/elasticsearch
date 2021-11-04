@@ -32,6 +32,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
@@ -209,6 +210,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     private final String[] visibleClosedIndices;
 
     private SortedMap<String, IndexAbstraction> indicesLookup;
+    private final Map<String, Entry> deduplicated;
 
     private Metadata(
         String clusterUUID,
@@ -230,7 +232,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         String[] visibleOpenIndices,
         String[] allClosedIndices,
         String[] visibleClosedIndices,
-        SortedMap<String, IndexAbstraction> indicesLookup
+        SortedMap<String, IndexAbstraction> indicesLookup,
+        Map<String, Entry> deduplicated
     ) {
         this.clusterUUID = clusterUUID;
         this.clusterUUIDCommitted = clusterUUIDCommitted;
@@ -252,6 +255,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         this.allClosedIndices = allClosedIndices;
         this.visibleClosedIndices = visibleClosedIndices;
         this.indicesLookup = indicesLookup;
+        this.deduplicated = deduplicated;
     }
 
     public Metadata withIncrementedVersion() {
@@ -275,7 +279,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             visibleOpenIndices,
             allClosedIndices,
             visibleClosedIndices,
-            indicesLookup
+            indicesLookup,
+            deduplicated
         );
     }
 
@@ -1016,7 +1021,23 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             builder.transientSettings(transientSettings);
             builder.persistentSettings(persistentSettings);
             builder.hashesOfConsistentSettings(hashesOfConsistentSettings.apply(part.hashesOfConsistentSettings));
-            builder.indices(indices.apply(part.indices));
+
+            // TODO: reuse from Diff?
+            var tempIndices = indices.apply(part.indices);
+            ImmutableOpenMap.Builder<String, IndexMetadata> newIndices = ImmutableOpenMap.builder(tempIndices.size());
+            for (var cursor : tempIndices) {
+                if (cursor.value.mapping() != null) {
+                    MappingMetadata mm = builder.reuseMappings(cursor.value.mapping());
+                    if (mm != cursor.value.mapping()) {
+                        newIndices.put(cursor.key, IndexMetadata.builder(cursor.value).putMapping(mm).build());
+                    } else {
+                        newIndices.put(cursor.key, cursor.value);
+                    }
+                } else {
+                    newIndices.put(cursor.key, cursor.value);
+                }
+            }
+            builder.indices(newIndices.build());
             builder.templates(templates.apply(part.templates));
             builder.customs(customs.apply(part.customs));
             return builder.build();
@@ -1036,7 +1057,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            builder.put(IndexMetadata.readFrom(in), false);
+            builder.put(IndexMetadata.readFrom(in, builder::reuseMappings), false);
         }
         size = in.readVInt();
         for (int i = 0; i < size; i++) {
@@ -1118,6 +1139,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             this.templates = ImmutableOpenMap.builder(metadata.templates);
             this.customs = ImmutableOpenMap.builder(metadata.customs);
             previousIndicesLookup = metadata.getIndicesLookup();
+            this.deduplicated = new HashMap<>(metadata.deduplicated);
         }
 
         public Builder put(IndexMetadata.Builder indexMetadataBuilder) {
@@ -1193,7 +1215,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         public Builder remove(String index) {
             previousIndicesLookup = null;
 
-            indices.remove(index);
+            var indexMetadata = indices.remove(index);
+            if (indexMetadata.mapping() != null) {
+                removeDuplicated(indexMetadata.mapping().getDigest());
+            }
             return this;
         }
 
@@ -1692,7 +1717,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 visibleOpenIndicesArray,
                 allClosedIndicesArray,
                 visibleClosedIndicesArray,
-                indicesLookup
+                indicesLookup,
+                deduplicated
             );
         }
 
@@ -1877,7 +1903,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                         builder.persistentSettings(Settings.fromXContent(parser));
                     } else if ("indices".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            builder.put(IndexMetadata.Builder.fromXContent(parser), false);
+                            builder.put(IndexMetadata.Builder.fromXContent(parser, builder::reuseMappings), false);
                         }
                     } else if ("hashes_of_consistent_settings".equals(currentFieldName)) {
                         builder.hashesOfConsistentSettings(parser.mapStrings());
@@ -1910,6 +1936,95 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             }
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
             return builder.build();
+        }
+
+        private Map<String, Entry> deduplicated = new HashMap<>();
+
+        public MappingMetadata reuseMappings(CompressedXContent mappingSource, String previousDigest) {
+            String digest = MappingMetadata.computeDigest(mappingSource);
+            Entry entry = deduplicated.get(digest);
+            if (entry != null) {
+                deduplicated.put(digest, new Entry(entry.refCounter + 1, entry.mapping));
+            } else {
+                entry = new Entry(1, new MappingMetadata(mappingSource, digest));
+                deduplicated.put(digest, entry);
+                if (previousDigest != null) {
+                    removeDuplicated(previousDigest);
+                }
+            }
+            return entry.mapping;
+        }
+
+        public MappingMetadata reuseMappings(MappingMetadata mappingMetadata) {
+            String digest = mappingMetadata.getDigest();
+            if (digest == null) {
+                digest = MappingMetadata.computeDigest(mappingMetadata.source());
+            }
+
+            Entry entry = deduplicated.get(digest);
+            if (entry != null) {
+                deduplicated.put(digest, new Entry(entry.refCounter + 1, entry.mapping));
+            } else {
+                entry = new Entry(1, new MappingMetadata(mappingMetadata, digest));
+                deduplicated.put(digest, entry);
+            }
+            return entry.mapping;
+        }
+
+        public MappingMetadata reuseMappings(String type, Map<String, Object> mapping) {
+            String mappingAsString = Strings.toString((builder, params) -> builder.mapContents(mapping), ToXContent.EMPTY_PARAMS);
+            String digest = MappingMetadata.computeDigest(mappingAsString);
+            Entry entry = deduplicated.get(digest);
+            if (entry != null) {
+                deduplicated.put(digest, new Entry(entry.refCounter + 1, entry.mapping));
+            } else {
+                entry = new Entry(1, new MappingMetadata(type, mapping, mappingAsString, digest));
+                deduplicated.put(digest, entry);
+            }
+            return entry.mapping;
+        }
+
+        public IndexMetadata reuseMappings(IndexMetadata indexMetadata) {
+            if (indexMetadata.mapping() == null) {
+                return indexMetadata;
+            }
+
+            String digest = indexMetadata.mapping().getDigest();
+            Entry entry = deduplicated.get(digest);
+            if (entry != null) {
+                deduplicated.put(digest, new Entry(entry.refCounter + 1, entry.mapping));
+                IndexMetadata.Builder imBuilder = new IndexMetadata.Builder(indexMetadata);
+                imBuilder.putMapping(entry.mapping);
+                return imBuilder.build();
+            } else {
+                entry = new Entry(1, indexMetadata.mapping());
+                deduplicated.put(digest, entry);
+                return indexMetadata;
+            }
+        }
+
+        public void removeDuplicated(String digest) {
+            Entry entry = deduplicated.get(digest);
+            if (entry == null) {
+                return;
+            }
+            if (entry.refCounter == 1) {
+                deduplicated.remove(digest);
+            } else {
+                deduplicated.put(digest, new Entry(entry.refCounter - 1, entry.mapping));
+            }
+        }
+
+    }
+
+    static class Entry {
+
+        private final int refCounter;
+        private final MappingMetadata mapping;
+
+        Entry(int refCounter, MappingMetadata mapping) {
+            this.refCounter = refCounter;
+            this.mapping = mapping;
         }
     }
 

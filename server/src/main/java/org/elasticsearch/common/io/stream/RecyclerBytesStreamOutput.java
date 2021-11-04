@@ -123,9 +123,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
 
     @Override
     public void reset() {
-        for (Recycler.V<BytesRef> page : pages) {
-            page.close();
-        }
+        Releasables.close(pages);
         pages.clear();
         pageIndex = -1;
         currentPageOffset = pageSize;

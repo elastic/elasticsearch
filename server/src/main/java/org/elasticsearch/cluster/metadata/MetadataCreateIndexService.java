@@ -478,8 +478,9 @@ public class MetadataCreateIndexService {
             );
 
             indexService.getIndexEventListener().beforeIndexAddedToCluster(indexMetadata.getIndex(), indexMetadata.getSettings());
-            BiFunction<ClusterState, String, ClusterState> rerouteFunction =
-                request.performReroute() ? allocationService::reroute : (cs, reason) -> cs;
+            BiFunction<ClusterState, String, ClusterState> rerouteFunction = request.performReroute()
+                ? allocationService::reroute
+                : (cs, reason) -> cs;
             return clusterStateCreateIndex(currentState, request.blocks(), indexMetadata, rerouteFunction, metadataTransformer);
         });
     }

@@ -141,6 +141,7 @@ public class BytesStreamOutput extends BytesStream {
         Releasables.close(pages);
         pages.clear();
         pageIndex = -1;
+        currentCapacity = 0;
         currentPageOffset = pageSize;
     }
 

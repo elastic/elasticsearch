@@ -37,12 +37,12 @@ Generate an enrollment token for Elasticsearch nodes with
 '/usr/share/elasticsearch/bin/elasticsearch-create-enrollment-token -s node'.
 ----
 
-===== Enroll a node in an existing cluster
+===== Reconfigure a node to join an existing cluster
 
 When you start {es} for the first time, the installation process configures a
 single-node cluster by default. If you want a node to join an existing cluster
-instead, you must generate an enrollment token on an existing node _before_ you
-start the new node for the first time.
+instead, generate an enrollment token on an existing node _before_ you start
+the new node for the first time.
 
 . On any node in your existing cluster, generate a node enrollment token:
 +

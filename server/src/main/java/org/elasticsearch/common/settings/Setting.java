@@ -595,7 +595,7 @@ public class Setting<T> implements ToXContentObject {
                 if (this.isDeprecatedWarningOnly()) {
                     Settings.DeprecationLoggerHolder.deprecationLogger.warn(category, key, message, key);
                 } else {
-                    Settings.DeprecationLoggerHolder.deprecationLogger.warn(DeprecationCategory.SETTINGS, key, message, key);
+                    Settings.DeprecationLoggerHolder.deprecationLogger.critical(category, key, message, key);
                 }
             }
         }

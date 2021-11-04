@@ -78,32 +78,24 @@ public class TopMetricsAggregatorFactory extends AggregatorFactory {
             );
         }
         MetricValues[] metricValues = new MetricValues[metricFields.size()];
-        for (int i = 0; i < metricFields.size(); i++) {
-            MultiValuesSourceFieldConfig config = metricFields.get(i);
-            ValuesSourceConfig vsConfig = ValuesSourceConfig.resolve(
-                context,
-                null,
-                config.getFieldName(),
-                config.getScript(),
-                config.getMissing(),
-                config.getTimeZone(),
-                null,
-                CoreValuesSourceType.NUMERIC
-            );
-            MetricValuesSupplier supplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, vsConfig);
-            boolean success = false;
-            try {
-                metricValues[i] = supplier.build(size, context.bigArrays(), config.getFieldName(), vsConfig);
-                success = true;
-            } finally {
-                if (success == false) {
-                    Releasables.close(metricValues);
-                }
-            }
-        }
         boolean success = false;
         try {
-            final TopMetricsAggregator aggregator = new TopMetricsAggregator(
+            for (int i = 0; i < metricFields.size(); i++) {
+                MultiValuesSourceFieldConfig config = metricFields.get(i);
+                ValuesSourceConfig vsConfig = ValuesSourceConfig.resolve(
+                    context,
+                    null,
+                    config.getFieldName(),
+                    config.getScript(),
+                    config.getMissing(),
+                    config.getTimeZone(),
+                    null,
+                    CoreValuesSourceType.NUMERIC
+                );
+                MetricValuesSupplier supplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, vsConfig);
+                metricValues[i] = supplier.build(size, context.bigArrays(), config.getFieldName(), vsConfig);
+            }
+            TopMetricsAggregator aggregator = new TopMetricsAggregator(
                 name,
                 context,
                 parent,

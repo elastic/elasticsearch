@@ -28,15 +28,13 @@ public class ScriptContextStats implements Writeable, ToXContentFragment, Compar
 
     public ScriptContextStats(
         String context,
-        long compilations,
-        long cacheEvictions,
         long compilationLimitTriggered,
         TimeSeries compilationsHistory,
         TimeSeries cacheEvictionsHistory
     ) {
         this.context = Objects.requireNonNull(context);
-        this.compilations = compilations;
-        this.cacheEvictions = cacheEvictions;
+        this.compilations = compilationsHistory.total;
+        this.cacheEvictions = cacheEvictionsHistory.total;
         this.compilationLimitTriggered = compilationLimitTriggered;
         this.compilationsHistory = compilationsHistory;
         this.cacheEvictionsHistory = cacheEvictionsHistory;
@@ -47,12 +45,15 @@ public class ScriptContextStats implements Writeable, ToXContentFragment, Compar
         compilations = in.readVLong();
         cacheEvictions = in.readVLong();
         compilationLimitTriggered = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
             compilationsHistory = new TimeSeries(in);
             cacheEvictionsHistory = new TimeSeries(in);
+        } else if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            compilationsHistory = new TimeSeries(in).withTotal(compilations);
+            cacheEvictionsHistory = new TimeSeries(in).withTotal(cacheEvictions);
         } else {
-            compilationsHistory = null;
-            cacheEvictionsHistory = null;
+            compilationsHistory = new TimeSeries(compilations);
+            cacheEvictionsHistory = new TimeSeries(cacheEvictions);
         }
     }
 
@@ -65,65 +66,6 @@ public class ScriptContextStats implements Writeable, ToXContentFragment, Compar
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             compilationsHistory.writeTo(out);
             cacheEvictionsHistory.writeTo(out);
-        }
-    }
-
-    public static class TimeSeries implements Writeable, ToXContentFragment {
-        public final long fiveMinutes;
-        public final long fifteenMinutes;
-        public final long twentyFourHours;
-
-        public TimeSeries() {
-            this.fiveMinutes = 0;
-            this.fifteenMinutes = 0;
-            this.twentyFourHours = 0;
-        }
-
-        public TimeSeries(long fiveMinutes, long fifteenMinutes, long twentyFourHours) {
-            assert fiveMinutes >= 0;
-            this.fiveMinutes = fiveMinutes;
-            assert fifteenMinutes >= fiveMinutes;
-            this.fifteenMinutes = fifteenMinutes;
-            assert twentyFourHours >= fifteenMinutes;
-            this.twentyFourHours = twentyFourHours;
-        }
-
-        public TimeSeries(StreamInput in) throws IOException {
-            fiveMinutes = in.readVLong();
-            fifteenMinutes = in.readVLong();
-            twentyFourHours = in.readVLong();
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(Fields.FIVE_MINUTES, fiveMinutes);
-            builder.field(Fields.FIFTEEN_MINUTES, fifteenMinutes);
-            builder.field(Fields.TWENTY_FOUR_HOURS, twentyFourHours);
-            return builder;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(fiveMinutes);
-            out.writeVLong(fifteenMinutes);
-            out.writeVLong(twentyFourHours);
-        }
-
-        public boolean isEmpty() {
-            return twentyFourHours == 0;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            TimeSeries that = (TimeSeries) o;
-            return fiveMinutes == that.fiveMinutes && fifteenMinutes == that.fifteenMinutes && twentyFourHours == that.twentyFourHours;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(fiveMinutes, fifteenMinutes, twentyFourHours);
         }
     }
 
@@ -158,7 +100,7 @@ public class ScriptContextStats implements Writeable, ToXContentFragment, Compar
         builder.field(Fields.COMPILATIONS, getCompilations());
 
         TimeSeries series = getCompilationsHistory();
-        if (series != null && series.isEmpty() == false) {
+        if (series != null && series.areTimingsEmpty() == false) {
             builder.startObject(Fields.COMPILATIONS_HISTORY);
             series.toXContent(builder, params);
             builder.endObject();
@@ -166,7 +108,7 @@ public class ScriptContextStats implements Writeable, ToXContentFragment, Compar
 
         builder.field(Fields.CACHE_EVICTIONS, getCacheEvictions());
         series = getCacheEvictionsHistory();
-        if (series != null && series.isEmpty() == false) {
+        if (series != null && series.areTimingsEmpty() == false) {
             builder.startObject(Fields.CACHE_EVICTIONS_HISTORY);
             series.toXContent(builder, params);
             builder.endObject();

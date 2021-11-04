@@ -45,7 +45,7 @@ public class LongDocValuesWrapper implements DocValuesField<Long>, SortedNumeric
         if (input.advanceExact(docId)) {
             resize(input.docValueCount());
             for (int i = 0; i < count; i++) {
-                values[i] = (short) input.nextValue();
+                values[i] = input.nextValue();
             }
         } else {
             resize(0);

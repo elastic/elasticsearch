@@ -96,7 +96,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 (Required, string) The name of the vector field to search against.
 
 `query_vector`::
-(Required, array of float) The query vector.
+(Required, array of floats) The query vector.
 
 `k`::
 (Required, integer) The final number of nearest neighbors to return as top

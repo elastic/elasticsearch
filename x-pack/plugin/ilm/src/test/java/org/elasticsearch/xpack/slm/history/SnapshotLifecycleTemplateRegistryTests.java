@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.slm.history;
+package org.elasticsearch.xpack.slm.history;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -60,9 +60,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING;
-import static org.elasticsearch.xpack.core.slm.history.SnapshotLifecycleTemplateRegistry.INDEX_TEMPLATE_VERSION;
-import static org.elasticsearch.xpack.core.slm.history.SnapshotLifecycleTemplateRegistry.SLM_POLICY_NAME;
-import static org.elasticsearch.xpack.core.slm.history.SnapshotLifecycleTemplateRegistry.SLM_TEMPLATE_NAME;
+import static org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry.INDEX_TEMPLATE_VERSION;
+import static org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry.SLM_POLICY_NAME;
+import static org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry.SLM_TEMPLATE_NAME;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -115,7 +116,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
             client,
             xContentRegistry
         );
-        assertThat(disabledRegistry.getComposableTemplateConfigs(), hasSize(0));
+        assertThat(disabledRegistry.getComposableTemplateConfigs(), anEmptyMap());
         assertThat(disabledRegistry.getPolicyConfigs(), hasSize(0));
     }
 
@@ -177,10 +178,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
-        List<LifecyclePolicy> policies = registry.getPolicyConfigs()
-            .stream()
-            .map(policyConfig -> policyConfig.load(xContentRegistry))
-            .collect(Collectors.toList());
+        List<LifecyclePolicy> policies = registry.getPolicyConfigs();
         assertThat(policies, hasSize(1));
         LifecyclePolicy policy = policies.get(0);
         policyMap.put(policy.getName(), policy);
@@ -207,10 +205,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
         String policyStr = "{\"phases\":{\"delete\":{\"min_age\":\"1m\",\"actions\":{\"delete\":{}}}}}";
-        List<LifecyclePolicy> policies = registry.getPolicyConfigs()
-            .stream()
-            .map(policyConfig -> policyConfig.load(xContentRegistry))
-            .collect(Collectors.toList());
+        List<LifecyclePolicy> policies = registry.getPolicyConfigs();
         assertThat(policies, hasSize(1));
         LifecyclePolicy policy = policies.get(0);
 

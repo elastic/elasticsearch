@@ -23,7 +23,7 @@ PUT my-index-000001
     "properties": {
       "my_vector": {
         "type": "dense_vector",
-        "dims": 3 <1>
+        "dims": 3
       },
       "my_text" : {
         "type" : "keyword"
@@ -45,7 +45,6 @@ PUT my-index-000001/_doc/2
 }
 
 --------------------------------------------------
-<1> `dims` is a required parameter that defines the number of vector dimensions
 
 NOTE: Unlike most other data types, dense vectors are always single-valued.
 It is not possible to store multiple values in one `dense_vector` field.
@@ -58,15 +57,15 @@ experimental::[]
 A _k-nearest neighbor_ (kNN) search finds the _k_ nearest
 vectors to a query vector, as measured by a similarity metric.
 
-As mentioned above, `dense_vector` fields can be used to rank documents
-through <<query-dsl-script-score-query,`script_score` queries>>. This lets you
-perform a brute-force kNN search by scanning all documents and ranking them by
+Dense vector fields can be used to rank documents in
+<<query-dsl-script-score-query,`script_score` queries>>. This lets you perform
+a brute-force kNN search by scanning all documents and ranking them by
 similarity.
 
 In many cases, a brute-force kNN search is not efficient enough. For this
 reason, the `dense_vector` type supports indexing vectors into a specialized
-data structure to support fast kNN search. You can enable indexing by setting
-through the `index` parameter:
+data structure to support fast kNN search. You can enable indexing through the
+`index` parameter:
 
 [source,console]
 --------------------------------------------------
@@ -148,7 +147,8 @@ a distinct set of options.
 An optional section that configures the kNN indexing algorithm. The HNSW
 algorithm has two internal parameters that influence how the data structure is
 built. These can be adjusted to improve the accuracy of results, at the
-expense of slower indexing speed. 
+expense of slower indexing speed. When `index_options` is provided, all of its
+properties must be defined.
 +
 .Properties of `index_options`
 [%collapsible%open]
@@ -160,33 +160,10 @@ The type of kNN algorithm to use. Currently only `hnsw` is supported.
 `m`:::
 (Required, integer)
 The number of neighbors each node will be connected to in the HNSW graph.
-Defaults to 16.
+Defaults to `16`.
 
 `ef_construction`:::
 (Required, integer)
 The number of candidates to track while assembling the list of nearest
 neighbors for each new node. Defaults to `100`.
 ====
-
-[source,console]
---------------------------------------------------
-PUT my-index-000003
-{
-  "mappings": {
-    "properties": {
-      "my_vector": {
-        "type": "dense_vector",
-        "dims": 3,
-        "index": true,
-        "similarity": "dot_product",
-        "index_options": { <1>
-          "type": "hnsw",
-          "m": 32,
-          "ef_construction": 100
-        }
-      }
-    }
-  }
-}
---------------------------------------------------
-<1> When `index_options` is provided, all of its properties must be defined

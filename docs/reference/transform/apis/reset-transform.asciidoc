@@ -20,7 +20,7 @@ Resets an existing {transform}.
 
 * Requires the `manage_transform` cluster privilege. This privilege is included
 in the `transform_admin` built-in role.
-* Before you can reset the {transform}, you must stop it.
+* Before you can reset the {transform}, you must stop it; alternatively, use the `force` query parameter.
 
 [[reset-transform-path-parms]]
 == {api-path-parms-title}

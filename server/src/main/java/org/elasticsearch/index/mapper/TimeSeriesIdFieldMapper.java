@@ -12,7 +12,10 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.TimeSeriesIdGenerator;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -22,8 +25,10 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 /**
@@ -107,11 +112,12 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
         assert fieldType().isSearchable() == false;
 
-        BytesReference timeSeriesId = context.mappingLookup()
-            .getMapping()
-            .generateTimeSeriesIdIfNeeded(context.sourceToParse().source(), context.sourceToParse().getXContentType());
+        TimeSeriesIdGenerator timeSeriesIdGenerator = TimeSeriesIdGenerator.build(context.root().selectTimeSeriesIdComponents());
+        BytesReference timeSeriesId = timeSeriesIdGenerator.generate(
+            context.sourceToParse().source(),
+            context.sourceToParse().getXContentType()
+        );
         assert timeSeriesId != null : "In time series mode _tsid cannot be null";
-
         context.doc().add(new SortedSetDocValuesField(fieldType().name(), timeSeriesId.toBytesRef()));
     }
 
@@ -127,10 +133,47 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             throw new IllegalArgumentException("Dimension fields are missing");
         }
 
-        BytesReference timeSeriesId = context.mappingLookup().getMapping().getTimeSeriesIdGenerator().generate(context.rootDoc());
+        BytesReference timeSeriesId = generate(context);
         if (timeSeriesId != null) {
             timeSeriesId.utf8ToString();
         }
+    }
+
+    private BytesReference generate(DocumentParserContext context) throws IOException {
+        List<String> dimensionNames = new ArrayList<>();
+
+
+        LuceneDocument document = context.rootDoc();
+//        List<Map.Entry<String, CheckedConsumer<StreamOutput, IOException>>> values = new ArrayList<>();
+//        root.collectDimensionNames("", dimensionNames::add);
+//        if (dimensionNames.isEmpty()) {
+//            throw new IllegalArgumentException("There aren't any mapped dimensions");
+//        }
+
+        for (String fieldName : dimensionNames) {
+            IndexableField field = document.getByKey(fieldName);
+        }
+        return null;
+        /*
+        if (values.isEmpty()) {
+            Collections.sort(dimensionNames);
+            throw new IllegalArgumentException("Document must contain one of the dimensions " + dimensionNames);
+        }
+        Collections.sort(values, Map.Entry.comparingByKey());
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeVInt(values.size());
+            for (Map.Entry<String, CheckedConsumer<StreamOutput, IOException>> v : values) {
+                out.writeBytesRef(new BytesRef(v.getKey())); // Write in utf-8 instead of writeString's utf-16-ish thing
+                v.getValue().accept(out);
+            }
+            BytesReference bytes = out.bytes();
+            if (bytes.length() > LIMIT) {
+                throw new IllegalArgumentException("tsid longer than [" + LIMIT + "] bytes [" + bytes.length() + "]");
+            }
+            return bytes;
+        }
+
+         */
     }
 
     @Override

@@ -10,11 +10,8 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.TimeSeriesIdGenerator;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -40,8 +37,7 @@ public final class Mapping implements ToXContentFragment {
     public static final Mapping EMPTY = new Mapping(
         new RootObjectMapper.Builder("_doc").build(MapperBuilderContext.ROOT),
         new MetadataFieldMapper[0],
-        null,
-        IndexMode.STANDARD
+        null
     );
 
     private final RootObjectMapper root;
@@ -49,15 +45,8 @@ public final class Mapping implements ToXContentFragment {
     private final MetadataFieldMapper[] metadataMappers;
     private final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappersMap;
     private final Map<String, MetadataFieldMapper> metadataMappersByName;
-    private final IndexMode indexMode;
-    private final TimeSeriesIdGenerator timeSeriesIdGenerator;
 
-    public Mapping(
-        RootObjectMapper rootObjectMapper,
-        MetadataFieldMapper[] metadataMappers,
-        Map<String, Object> meta,
-        IndexMode indexMode
-    ) {
+    public Mapping(RootObjectMapper rootObjectMapper, MetadataFieldMapper[] metadataMappers, Map<String, Object> meta) {
         this.metadataMappers = metadataMappers;
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappersMap = new HashMap<>();
         Map<String, MetadataFieldMapper> metadataMappersByName = new HashMap<>();
@@ -76,10 +65,6 @@ public final class Mapping implements ToXContentFragment {
         this.metadataMappersMap = unmodifiableMap(metadataMappersMap);
         this.metadataMappersByName = unmodifiableMap(metadataMappersByName);
         this.meta = meta;
-        this.indexMode = indexMode;
-        this.timeSeriesIdGenerator = (indexMode == IndexMode.TIME_SERIES)
-            ? TimeSeriesIdGenerator.build(root.selectTimeSeriesIdComponents())
-            : null;
     }
 
     /**
@@ -137,7 +122,7 @@ public final class Mapping implements ToXContentFragment {
      * Generate a mapping update for the given root object mapper.
      */
     Mapping mappingUpdate(RootObjectMapper rootObjectMapper) {
-        return new Mapping(rootObjectMapper, metadataMappers, meta, indexMode);
+        return new Mapping(rootObjectMapper, metadataMappers, meta);
     }
 
     /**
@@ -178,7 +163,7 @@ public final class Mapping implements ToXContentFragment {
             XContentHelper.mergeDefaults(mergedMeta, meta);
         }
 
-        return new Mapping(mergedRoot, mergedMetadataMappers.values().toArray(new MetadataFieldMapper[0]), mergedMeta, indexMode);
+        return new Mapping(mergedRoot, mergedMetadataMappers.values().toArray(new MetadataFieldMapper[0]), mergedMeta);
     }
 
     @Override
@@ -204,23 +189,5 @@ public final class Mapping implements ToXContentFragment {
         } catch (IOException bogus) {
             throw new UncheckedIOException(bogus);
         }
-    }
-
-    /**
-     * Generate the time series id if the index is organized by time series.
-     */
-    public BytesReference generateTimeSeriesIdIfNeeded(BytesReference source, XContentType xContentType) {
-        if (timeSeriesIdGenerator == null) {
-            return null;
-        }
-        return timeSeriesIdGenerator.generate(source, xContentType);
-    }
-
-    /**
-     * Get the time series is generator or {@code null} if the index
-     * isn't organized by time series.
-     */
-    public TimeSeriesIdGenerator getTimeSeriesIdGenerator() {
-        return timeSeriesIdGenerator;
     }
 }

@@ -171,8 +171,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             parserContextSupplier,
             metadataMapperParsers,
             this::getMetadataMappers,
-            this::resolveDocumentType,
-            indexSettings.getMode()
+            this::resolveDocumentType
         );
     }
 

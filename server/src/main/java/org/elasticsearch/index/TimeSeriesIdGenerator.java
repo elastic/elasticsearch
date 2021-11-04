@@ -239,41 +239,6 @@ public final class TimeSeriesIdGenerator {
         }
     }
 
-    public BytesReference generate(LuceneDocument document) throws IOException {
-        List<Map.Entry<String, CheckedConsumer<StreamOutput, IOException>>> values = new ArrayList<>();
-
-        List<String> dimensionNames = new ArrayList<>();
-        root.collectDimensionNames("", dimensionNames::add);
-        if (dimensionNames.isEmpty()) {
-            throw new IllegalArgumentException("There aren't any mapped dimensions");
-        }
-
-        for (String fieldName : dimensionNames) {
-            IndexableField field = document.getByKey(fieldName);
-        }
-        return null;
-        /*
-        if (values.isEmpty()) {
-            Collections.sort(dimensionNames);
-            throw new IllegalArgumentException("Document must contain one of the dimensions " + dimensionNames);
-        }
-        Collections.sort(values, Map.Entry.comparingByKey());
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.writeVInt(values.size());
-            for (Map.Entry<String, CheckedConsumer<StreamOutput, IOException>> v : values) {
-                out.writeBytesRef(new BytesRef(v.getKey())); // Write in utf-8 instead of writeString's utf-16-ish thing
-                v.getValue().accept(out);
-            }
-            BytesReference bytes = out.bytes();
-            if (bytes.length() > LIMIT) {
-                throw new IllegalArgumentException("tsid longer than [" + LIMIT + "] bytes [" + bytes.length() + "]");
-            }
-            return bytes;
-        }
-
-         */
-    }
-
     /**
      * Parse the {@code _tsid} into a human readable map.
      */

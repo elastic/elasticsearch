@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.bulk.stats.BulkStats;
@@ -248,7 +247,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
         Engine.IndexResult mappingUpdate = new Engine.IndexResult(
-            new Mapping(mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap(), randomFrom(IndexMode.values()))
+            new Mapping(mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap())
         );
         Translog.Location resultLocation = new Translog.Location(42, 42, 42);
         Engine.IndexResult success = new FakeIndexResult(1, 1, 13, true, resultLocation);
@@ -844,7 +843,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         Exception err = new VersionConflictEngineException(shardId, "id", "I'm conflicted <(;_;)>");
         Engine.IndexResult conflictedResult = new Engine.IndexResult(err, 0);
         Engine.IndexResult mappingUpdate = new Engine.IndexResult(
-            new Mapping(mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap(), randomFrom(IndexMode.values()))
+            new Mapping(mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap())
         );
         Translog.Location resultLocation = new Translog.Location(42, 42, 42);
         Engine.IndexResult success = new FakeIndexResult(1, 1, 13, true, resultLocation);
@@ -935,12 +934,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
             Engine.IndexResult mappingUpdate = new Engine.IndexResult(
-                new Mapping(
-                    mock(RootObjectMapper.class),
-                    new MetadataFieldMapper[0],
-                    Collections.emptyMap(),
-                    randomFrom(IndexMode.values())
-                )
+                new Mapping(mock(RootObjectMapper.class), new MetadataFieldMapper[0], Collections.emptyMap())
             );
             Translog.Location resultLocation1 = new Translog.Location(42, 36, 36);
             Translog.Location resultLocation2 = new Translog.Location(42, 42, 42);

@@ -40,7 +40,6 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -695,8 +694,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             Mapping mapping = new Mapping(
                 root.build(MapperBuilderContext.ROOT),
                 new MetadataFieldMapper[] { dtfm },
-                Collections.emptyMap(),
-                randomFrom(IndexMode.values())
+                Collections.emptyMap()
             );
             MappingLookup mappingLookup = MappingLookup.fromMappers(mapping, List.of(dtfm, dateFieldMapper), List.of(), List.of());
             IndicesService indicesService = mockIndicesServices(mappingLookup);

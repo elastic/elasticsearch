@@ -9,7 +9,6 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.ESTestCase;
 
@@ -107,6 +106,7 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
     }
 
     public void testFieldAliasWithDifferentObjectScopes() {
+
         FieldAliasMapper aliasMapper = new FieldAliasMapper("alias", "object2.alias", "object1.field");
 
         MappingLookup mappers = createMappingLookup(
@@ -178,12 +178,7 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
         RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc");
         Map<String, RuntimeField> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(RuntimeField::name, r -> r));
         builder.setRuntime(runtimeFieldTypes);
-        Mapping mapping = new Mapping(
-            builder.build(MapperBuilderContext.ROOT),
-            new MetadataFieldMapper[0],
-            Collections.emptyMap(),
-            randomFrom(IndexMode.values())
-        );
+        Mapping mapping = new Mapping(builder.build(MapperBuilderContext.ROOT), new MetadataFieldMapper[0], Collections.emptyMap());
         return MappingLookup.fromMappers(mapping, fieldMappers, objectMappers, fieldAliasMappers);
     }
 }

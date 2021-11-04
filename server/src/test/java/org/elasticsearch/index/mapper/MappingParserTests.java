@@ -12,16 +12,12 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.TimeSeriesIdGenerator;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
@@ -30,16 +26,11 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
-import static io.github.nik9000.mapmatcher.MapMatcher.matchesMap;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
-
 public class MappingParserTests extends MapperServiceTestCase {
 
-    private static MappingParser createMappingParser(IndexMode indexMode) {
-        ScriptService scriptService = new ScriptService(Settings.EMPTY, Collections.emptyMap(), Collections.emptyMap(), () -> 1L);
-        IndexSettings indexSettings = createIndexSettings(Version.CURRENT, Settings.EMPTY);
+    private static MappingParser createMappingParser(Settings settings) {
+        ScriptService scriptService = new ScriptService(settings, Collections.emptyMap(), Collections.emptyMap(), () -> 1L);
+        IndexSettings indexSettings = createIndexSettings(Version.CURRENT, settings);
         IndexAnalyzers indexAnalyzers = createIndexAnalyzers();
         SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, Collections.emptyMap());
         MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
@@ -67,8 +58,7 @@ public class MappingParserTests extends MapperServiceTestCase {
             parserContextSupplier,
             metadataMapperParsers,
             () -> metadataMappers,
-            type -> MapperService.SINGLE_MAPPING_NAME,
-            indexMode
+            type -> MapperService.SINGLE_MAPPING_NAME
         );
     }
 
@@ -77,7 +67,7 @@ public class MappingParserTests extends MapperServiceTestCase {
             b.startObject("foo.bar").field("type", "text").endObject();
             b.startObject("foo.baz").field("type", "keyword").endObject();
         });
-        Mapping mapping = createMappingParser(randomIndexMode()).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
+        Mapping mapping = createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
 
         Mapper object = mapping.getRoot().getMapper("foo");
         assertThat(object, CoreMatchers.instanceOf(ObjectMapper.class));
@@ -99,7 +89,7 @@ public class MappingParserTests extends MapperServiceTestCase {
             }
             b.endObject();
         });
-        Mapping mapping = createMappingParser(randomIndexMode()).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
+        Mapping mapping = createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
         MappingLookup mappingLookup = MappingLookup.fromMapping(mapping);
         assertNotNull(mappingLookup.getMapper("foo.bar"));
         assertNotNull(mappingLookup.getMapper("foo.baz.deep.field"));
@@ -113,7 +103,7 @@ public class MappingParserTests extends MapperServiceTestCase {
         });
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> createMappingParser(randomIndexMode()).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)))
+            () -> createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)))
         );
         assertTrue(e.getMessage(), e.getMessage().contains("mapper [foo] cannot be changed from type [text] to [ObjectMapper]"));
     }
@@ -139,31 +129,8 @@ public class MappingParserTests extends MapperServiceTestCase {
         });
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> createMappingParser(randomIndexMode()).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)))
+            () -> createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)))
         );
         assertEquals("Type [alias] cannot be used in multi field", e.getMessage());
-    }
-
-    public void testTimeSeriesMode() throws Exception {
-        XContentBuilder builder = mapping(b -> {
-            b.startObject("@timestamp").field("type", "date").endObject();
-            b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
-            b.startObject("v").field("type", "double").endObject();
-        });
-        Mapping mapping = createMappingParser(IndexMode.TIME_SERIES).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
-        assertThat(mapping.getTimeSeriesIdGenerator(), not(nullValue()));
-        XContentBuilder doc = JsonXContent.contentBuilder().startObject();
-        doc.field("@timestamp", "2021-01-01T00:00:00Z");
-        doc.field("dim", "rat");
-        doc.field("v", 1.2);
-        doc.endObject();
-        assertMap(
-            TimeSeriesIdGenerator.parse(mapping.generateTimeSeriesIdIfNeeded(BytesReference.bytes(doc), XContentType.JSON).streamInput()),
-            matchesMap().entry("dim", "rat")
-        );
-    }
-
-    private IndexMode randomIndexMode() {
-        return randomFrom(IndexMode.values());
     }
 }

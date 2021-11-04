@@ -52,7 +52,7 @@ public class ReindexSslConfig {
     static {
         Setting.Property[] defaultProperties = new Setting.Property[] { Setting.Property.NodeScope, Setting.Property.Filtered };
         Setting.Property[] deprecatedProperties = new Setting.Property[] {
-            Setting.Property.Deprecated,
+            Setting.Property.DeprecatedWarning,
             Setting.Property.NodeScope,
             Setting.Property.Filtered };
         for (String key : SslConfigurationKeys.getStringKeys()) {

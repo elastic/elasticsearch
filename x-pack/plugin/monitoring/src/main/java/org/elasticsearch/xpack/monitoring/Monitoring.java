@@ -82,7 +82,7 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         false,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope,
-        Setting.Property.Deprecated
+        Setting.Property.DeprecatedWarning
     );
 
     public static final LicensedFeature.Momentary MONITORING_CLUSTER_ALERTS_FEATURE = LicensedFeature.momentary(

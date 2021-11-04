@@ -142,7 +142,7 @@ public class JsonLoggerTests extends ESTestCase {
             );
         }
 
-        assertWarnings("deprecated message1");
+        assertCriticalWarnings("deprecated message1");
     }
 
     public void testCompatibleLog() throws Exception {
@@ -201,7 +201,7 @@ public class JsonLoggerTests extends ESTestCase {
                 );
             }
 
-            assertWarnings("deprecated message1", "compatible API message");
+            assertCriticalWarnings("deprecated message1", "compatible API message");
         });
     }
 
@@ -234,7 +234,7 @@ public class JsonLoggerTests extends ESTestCase {
                     contains(
                         // deprecation log for field deprecated_name
                         allOf(
-                            hasEntry("log.level", "CRITICAL"),
+                            hasEntry("log.level", "WARN"),
                             hasEntry("event.dataset", "deprecation.elasticsearch"),
                             hasEntry("data_stream.dataset", "deprecation.elasticsearch"),
                             hasEntry("data_stream.namespace", "default"),
@@ -251,7 +251,7 @@ public class JsonLoggerTests extends ESTestCase {
                         ),
                         // deprecation log for field deprecated_name2 (note it is not being throttled)
                         allOf(
-                            hasEntry("log.level", "CRITICAL"),
+                            hasEntry("log.level", "WARN"),
                             hasEntry("event.dataset", "deprecation.elasticsearch"),
                             hasEntry("data_stream.dataset", "deprecation.elasticsearch"),
                             hasEntry("data_stream.namespace", "default"),
@@ -288,9 +288,13 @@ public class JsonLoggerTests extends ESTestCase {
             }
 
             assertWarnings(
-                "Deprecated field [deprecated_name] used, expected [new_name] instead",
-                "Deprecated field [deprecated_name2] used, expected [new_name] instead",
-                "Deprecated field [compatible_deprecated_name] used, expected [new_name] instead"
+                true,
+                new DeprecationWarning(Level.WARN, "Deprecated field [deprecated_name] used, expected [new_name] instead"),
+                new DeprecationWarning(Level.WARN, "Deprecated field [deprecated_name2] used, expected [new_name] instead"),
+                new DeprecationWarning(
+                    DeprecationLogger.CRITICAL,
+                    "Deprecated field [compatible_deprecated_name] used, expected [new_name] instead"
+                )
             );
         });
     }
@@ -300,7 +304,7 @@ public class JsonLoggerTests extends ESTestCase {
             threadContext.putHeader(Task.X_OPAQUE_ID, "someId");
             threadContext.putHeader(Task.TRACE_ID, "someTraceId");
             final DeprecationLogger testLogger = DeprecationLogger.getLogger("org.elasticsearch.test");
-            testLogger.critical(DeprecationCategory.OTHER, "someKey", "deprecated message1");
+            testLogger.warn(DeprecationCategory.OTHER, "someKey", "deprecated message1");
 
             final Path path = PathUtils.get(
                 System.getProperty("es.logs.base_path"),
@@ -315,7 +319,7 @@ public class JsonLoggerTests extends ESTestCase {
                     contains(
                         allOf(
                             hasEntry("event.dataset", "deprecation.elasticsearch"),
-                            hasEntry("log.level", "CRITICAL"),
+                            hasEntry("log.level", "WARN"),
                             hasEntry("log.logger", "org.elasticsearch.deprecation.test"),
                             hasEntry("elasticsearch.cluster.name", "elasticsearch"),
                             hasEntry("elasticsearch.node.name", "sample-name"),
@@ -551,7 +555,7 @@ public class JsonLoggerTests extends ESTestCase {
             threadContext.putHeader(Task.X_OPAQUE_ID, "ID1");
             deprecationLogger.critical(DeprecationCategory.OTHER, "key", "message1");
             deprecationLogger.critical(DeprecationCategory.OTHER, "key", "message2");
-            assertWarnings("message1", "message2");
+            assertCriticalWarnings("message1", "message2");
 
             final Path path = PathUtils.get(
                 System.getProperty("es.logs.base_path"),
@@ -584,7 +588,7 @@ public class JsonLoggerTests extends ESTestCase {
             threadContext.putHeader(Task.X_OPAQUE_ID, "ID2");
             deprecationLogger.critical(DeprecationCategory.OTHER, "key", "message1");
             deprecationLogger.critical(DeprecationCategory.OTHER, "key", "message2");
-            assertWarnings("message1", "message2");
+            assertCriticalWarnings("message1", "message2");
 
             final Path path = PathUtils.get(
                 System.getProperty("es.logs.base_path"),

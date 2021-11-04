@@ -118,13 +118,16 @@ public class ByteDocValuesField implements DocValuesField<Byte>, SortedNumericDo
         };
     }
 
-    public byte get(byte defaultValue) {
+    public byte get(int defaultValue) {
         return get(0, defaultValue);
     }
 
-    public byte get(int index, byte defaultValue) {
+    // constants in java and painless are ints, so letting the defaultValue be an int allows users to
+    // call this without casting.  A byte variable will be automatically widened to an int.
+    // If the user does pass a value outside the range, it will be cast down to a byte.
+    public byte get(int index, int defaultValue) {
         if (isEmpty() || index < 0 || index >= count) {
-            return defaultValue;
+            return (byte) defaultValue;
         }
 
         return values[index];

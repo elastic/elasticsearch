@@ -466,7 +466,6 @@ setup:
               field:
                 script:
                   source: "field('short').get(-1)"
-                  # source: "field('short').get((short) -1)"
     - match: { hits.hits.0.fields.field.0: 1324 }
     - match: { hits.hits.1.fields.field.0: -1 }
 
@@ -478,7 +477,32 @@ setup:
             script_fields:
               field:
                 script:
-                  source: "field('short').get(1, (short) -3)"
+                  source: "short defaultShort = -1; field('short').get(defaultShort)"
+    - match: { hits.hits.0.fields.field.0: 1324 }
+    - match: { hits.hits.1.fields.field.0: -1 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "field('short').get(1, -3)"
+    - match: { hits.hits.0.fields.field.0: -3 }
+    - match: { hits.hits.1.fields.field.0: -3 }
+    - match: { hits.hits.2.fields.field.0: 18 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "short defaultShort = -3; field('short').get(1, defaultShort)"
     - match: { hits.hits.0.fields.field.0: -3 }
     - match: { hits.hits.1.fields.field.0: -3 }
     - match: { hits.hits.2.fields.field.0: 18 }
@@ -542,7 +566,61 @@ setup:
             script_fields:
               field:
                 script:
+                  source: "byte defaultByte = 5; field('byte').get(defaultByte)"
+    - match: { hits.hits.0.fields.field.0: 12 }
+    - match: { hits.hits.1.fields.field.0: 5 }
+    - match: { hits.hits.2.fields.field.0: 4 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "field('byte').get(5)"
+    - match: { hits.hits.0.fields.field.0: 12 }
+    - match: { hits.hits.1.fields.field.0: 5 }
+    - match: { hits.hits.2.fields.field.0: 4 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
                   source: "field('byte').get(1, (byte) 7)"
+    - match: { hits.hits.0.fields.field.0: 7 }
+    - match: { hits.hits.1.fields.field.0: 7 }
+    - match: { hits.hits.2.fields.field.0: 8 }
+
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "byte defaultByte = 7; field('byte').get(1, defaultByte)"
+    - match: { hits.hits.0.fields.field.0: 7 }
+    - match: { hits.hits.1.fields.field.0: 7 }
+    - match: { hits.hits.2.fields.field.0: 8 }
+
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "field('byte').get(1, 7)"
     - match: { hits.hits.0.fields.field.0: 7 }
     - match: { hits.hits.1.fields.field.0: 7 }
     - match: { hits.hits.2.fields.field.0: 8 }

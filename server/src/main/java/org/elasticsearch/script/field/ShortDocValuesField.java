@@ -118,13 +118,16 @@ public class ShortDocValuesField implements DocValuesField<Short>, SortedNumeric
         };
     }
 
-    public short get(short defaultValue) {
+    public short get(int defaultValue) {
         return get(0, defaultValue);
     }
 
-    public short get(int index, short defaultValue) {
+    // constants in java and painless are ints, so letting the defaultValue be an int allows users to
+    // call this without casting.  A short variable will be automatically widened to an int.
+    // If the user does pass a value outside the range, it will be cast down to a short.
+    public short get(int index, int defaultValue) {
         if (isEmpty() || index < 0 || index >= count) {
-            return defaultValue;
+            return (short) defaultValue;
         }
 
         return values[index];

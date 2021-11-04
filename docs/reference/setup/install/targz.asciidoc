@@ -173,7 +173,5 @@ directory so that you do not delete important data later on.
 
 |=======================================================================
 
-:os-dir:       $ES_HOME
-
 include::security-files-reference.asciidoc[]
 include::next-steps.asciidoc[]

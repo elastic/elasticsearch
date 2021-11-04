@@ -231,7 +231,5 @@ d|
 
 |=======================================================================
 
-:os-dir:       /etc/elasticsearch
-
 include::security-files-reference.asciidoc[]
 include::next-steps.asciidoc[]

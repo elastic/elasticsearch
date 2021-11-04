@@ -17,6 +17,16 @@ Path to the generated `http_ca.crt` certificate for the HTTP layer.
 Enter the password for the `elastic` user that was generated during
 installation, which should return a response like this:
 
+////
+The following hidden request is required before the response. Otherwise, you'll
+get an error because there's a response with no request preceding it.
+
+[source,console]
+----
+GET /
+----
+////
+
 ["source","js",subs="attributes,callouts"]
 --------------------------------------------
 {

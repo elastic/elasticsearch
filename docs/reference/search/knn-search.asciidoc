@@ -119,7 +119,7 @@ include::{es-repo-dir}/search/search.asciidoc[tag=source-filtering-def]
 
 A kNN search response has the exact same structure as a
 <<search-api-response-body, search response>>. However, certain sections take
-on a meaning specific to kNN:
+on a meaning specific to kNN search:
 
 * The <<search-api-response-body-score,document `_score`>> is determined by
 the similarity between the query and document vector. See

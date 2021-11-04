@@ -183,7 +183,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
             }
         });
         if (systemIndicesNames.isEmpty() == false) {
-            deprecationLogger.critical(
+            deprecationLogger.warn(
                 DeprecationCategory.API,
                 "open_system_index_access",
                 "this request accesses system indices: {}, but in a future major version, direct access to system "

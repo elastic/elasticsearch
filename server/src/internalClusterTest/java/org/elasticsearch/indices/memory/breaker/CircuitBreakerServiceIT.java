@@ -404,41 +404,39 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         }
     }
 
+    // Test the default value of TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING should
+    // change with the update of USE_REAL_MEMORY_USAGE_SETTING
+    // but should stay the same if it is overridden
     public void testDynamicUseRealMemory() {
         final Client client = client();
-
         // use_real_memory is set to false for internalTestCluster
         checkLimitSize(client, 0.7);
+        String useRealMemoryUsageSetting = HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey();
+        String totalCircuitBreakerLimitSettingKey = HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey();
 
-        {
-            Settings settings = Settings.builder().put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), true).build();
-            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
+        Settings settings = Settings.builder()
+            .put(useRealMemoryUsageSetting, true).build();
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
+        checkLimitSize(client, 0.95);
 
-            checkLimitSize(client, 0.95);
-        }
-        {
-            Settings settings = Settings.builder()
-                .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "80%")
-                .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), true)
-                .build();
-            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
+        Settings setTrueAndMemorySettings = Settings.builder()
+            .put(totalCircuitBreakerLimitSettingKey, "80%")
+            .put(useRealMemoryUsageSetting, true)
+            .build();
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(setTrueAndMemorySettings).get();
+        checkLimitSize(client, 0.8);
 
-            checkLimitSize(client, 0.8);
-        }
-        {
-            Settings settings = Settings.builder()
-                .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
-                .build();
-            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
-            checkLimitSize(client, 0.8);
-        }
-        {
-            Settings settings = Settings.builder()
-                .putNull(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey())
-                .putNull(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey())
-                .build();
-            client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
-        }
+        Settings setFalseSettings = Settings.builder()
+            .put(useRealMemoryUsageSetting, false)
+            .build();
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(setFalseSettings).get();
+        checkLimitSize(client, 0.8);
+
+        Settings resetSettings = Settings.builder()
+            .putNull(totalCircuitBreakerLimitSettingKey)
+            .putNull(useRealMemoryUsageSetting)
+            .build();
+        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(resetSettings).get();
     }
 
     private void checkLimitSize(Client client, double limitRatio) {

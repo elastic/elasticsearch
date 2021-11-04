@@ -1,7 +1,7 @@
 [[similarity]]
 === `similarity`
 
-Elasticsearch allows you to configure a text scoring algorithm or _similarity_
+{es} allows you to configure a text scoring algorithm or _similarity_
 per field. The `similarity` setting provides a simple way of choosing a
 text similarity algorithm other than the default `BM25`, such as `boolean`.
 

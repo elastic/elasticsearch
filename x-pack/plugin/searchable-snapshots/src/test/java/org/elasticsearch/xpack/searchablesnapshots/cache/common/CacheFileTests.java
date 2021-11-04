@@ -35,6 +35,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.concurrent.ExecutionException;
@@ -407,8 +408,9 @@ public class CacheFileTests extends ESTestCase {
             final FileChannel fileChannel = cacheFile.getChannel();
             assertTrue(Files.exists(file));
 
-            Long sizeOnDisk = FileSystemNatives.allocatedSizeInBytes(file);
-            assertThat(sizeOnDisk, equalTo(0L));
+            OptionalLong sizeOnDisk = FileSystemNatives.allocatedSizeInBytes(file);
+            assertTrue(sizeOnDisk.isPresent());
+            assertThat(sizeOnDisk.getAsLong(), equalTo(0L));
 
             // write 1 byte at the last position in the cache file.
             // For non sparse files, Windows would allocate the full file on disk in order to write a single byte at the end,
@@ -417,15 +419,17 @@ public class CacheFileTests extends ESTestCase {
             fileChannel.force(false);
 
             sizeOnDisk = FileSystemNatives.allocatedSizeInBytes(file);
-            assertThat("Cache file should be sparse and not fully allocated on disk", sizeOnDisk, lessThan(ONE_MB));
+            assertTrue(sizeOnDisk.isPresent());
+            assertThat("Cache file should be sparse and not fully allocated on disk", sizeOnDisk.getAsLong(), lessThan(ONE_MB));
 
             fill(fileChannel, 0, Math.toIntExact(cacheFile.getLength()));
             fileChannel.force(false);
 
             sizeOnDisk = FileSystemNatives.allocatedSizeInBytes(file);
+            assertTrue(sizeOnDisk.isPresent());
             assertThat(
                 "Cache file should be fully allocated on disk (maybe more given cluster/block size)",
-                sizeOnDisk,
+                sizeOnDisk.getAsLong(),
                 greaterThanOrEqualTo(ONE_MB)
             );
         } finally {

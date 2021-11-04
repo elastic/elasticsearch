@@ -15,10 +15,10 @@ import com.sun.jna.ptr.IntByReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.core.Nullable;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.OptionalLong;
 
 /**
  * {@link FileSystemNatives.Provider} implementation for Windows/Kernel32
@@ -27,9 +27,7 @@ final class WindowsFileSystemNatives implements FileSystemNatives.Provider {
 
     private static final Logger logger = LogManager.getLogger(WindowsFileSystemNatives.class);
 
-    private static final class Holder {
-        private static final WindowsFileSystemNatives instance = new WindowsFileSystemNatives();
-    }
+    private static final WindowsFileSystemNatives INSTANCE = new WindowsFileSystemNatives();
 
     private WindowsFileSystemNatives() {
         if (Constants.WINDOWS) {
@@ -45,7 +43,7 @@ final class WindowsFileSystemNatives implements FileSystemNatives.Provider {
     }
 
     static WindowsFileSystemNatives getInstance() {
-        return WindowsFileSystemNatives.Holder.instance;
+        return INSTANCE;
     }
 
     /**
@@ -57,7 +55,7 @@ final class WindowsFileSystemNatives implements FileSystemNatives.Provider {
      * @param lpFileSizeHigh pointer to high-order DWORD for compressed file size (or null if not needed)
      * @return the low-order DWORD for compressed file siz
      */
-    native int GetCompressedFileSizeW(WString lpFileName, IntByReference lpFileSizeHigh);
+    private native int GetCompressedFileSizeW(WString lpFileName, IntByReference lpFileSizeHigh);
 
     /**
      * Retrieves the actual number of bytes of disk storage used to store a specified file. If the file is located on a volume that supports
@@ -67,10 +65,9 @@ final class WindowsFileSystemNatives implements FileSystemNatives.Provider {
      * This method uses Win32 DLL native method {@link #GetCompressedFileSizeW(WString, IntByReference)}.
      *
      * @param path the path to the file
-     * @return the number of allocated bytes on disk for the file or {@code null} if the allocated size is invalid
+     * @return an {@link OptionalLong} that contains the number of allocated bytes on disk for the file, or empty if the size is invalid
      */
-    @Nullable
-    public Long allocatedSizeInBytes(Path path) {
+    public OptionalLong allocatedSizeInBytes(Path path) {
         assert Files.isRegularFile(path) : path;
         final WString fileName = new WString("\\\\?\\" + path);
         final IntByReference lpFileSizeHigh = new IntByReference();
@@ -79,7 +76,7 @@ final class WindowsFileSystemNatives implements FileSystemNatives.Provider {
         if (lpFileSizeLow == 0xffffffff) {
             final int err = Native.getLastError();
             logger.warn("error [{}] when executing native method GetCompressedFileSizeW for file [{}]", err, path);
-            return null;
+            return OptionalLong.empty();
         }
 
         final long allocatedSize = (((long) lpFileSizeHigh.getValue()) << 32) | (lpFileSizeLow & 0xffffffffL);
@@ -92,6 +89,6 @@ final class WindowsFileSystemNatives implements FileSystemNatives.Provider {
                 path
             );
         }
-        return allocatedSize;
+        return OptionalLong.of(allocatedSize);
     }
 }

@@ -414,8 +414,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         String useRealMemoryUsageSetting = HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey();
         String totalCircuitBreakerLimitSettingKey = HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey();
 
-        Settings settings = Settings.builder()
-            .put(useRealMemoryUsageSetting, true).build();
+        Settings settings = Settings.builder().put(useRealMemoryUsageSetting, true).build();
         client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
         checkLimitSize(client, 0.95);
 
@@ -426,16 +425,11 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         client().admin().cluster().prepareUpdateSettings().setPersistentSettings(setTrueAndMemorySettings).get();
         checkLimitSize(client, 0.8);
 
-        Settings setFalseSettings = Settings.builder()
-            .put(useRealMemoryUsageSetting, false)
-            .build();
+        Settings setFalseSettings = Settings.builder().put(useRealMemoryUsageSetting, false).build();
         client().admin().cluster().prepareUpdateSettings().setPersistentSettings(setFalseSettings).get();
         checkLimitSize(client, 0.8);
 
-        Settings resetSettings = Settings.builder()
-            .putNull(totalCircuitBreakerLimitSettingKey)
-            .putNull(useRealMemoryUsageSetting)
-            .build();
+        Settings resetSettings = Settings.builder().putNull(totalCircuitBreakerLimitSettingKey).putNull(useRealMemoryUsageSetting).build();
         client().admin().cluster().prepareUpdateSettings().setPersistentSettings(resetSettings).get();
     }
 

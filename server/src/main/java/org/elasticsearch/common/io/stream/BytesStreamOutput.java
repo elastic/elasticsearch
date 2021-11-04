@@ -12,13 +12,19 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
+import java.nio.ByteOrder;
+import java.util.ArrayList;
 
 /**
  * A @link {@link StreamOutput} that uses {@link BigArrays} to acquire pages of
@@ -26,48 +32,48 @@ import java.io.IOException;
  */
 public class BytesStreamOutput extends BytesStream {
 
-    protected final BigArrays bigArrays;
+    private static final BytesRefRecycler NON_RECYCLING_INSTANCE = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
+    private static final VarHandle VH_BE_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
+    private static final VarHandle VH_BE_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
+    private static final int MIN_SIZE = 64;
 
-    @Nullable
-    protected ByteArray bytes;
-    protected int count;
+    protected final ArrayList<Recycler.V<BytesRef>> pages = new ArrayList<>(4);
+    private final Recycler<BytesRef> recycler;
+    private final int recyclerPageSize;
+    private int pageSize;
+    private int pageIndex = -1;
+    private int currentCapacity = 0;
+    private int currentPageOffset;
 
-    /**
-     * Create a non recycling {@link BytesStreamOutput} with an initial capacity of 0.
-     */
     public BytesStreamOutput() {
-        // since this impl is not recycling anyway, don't bother aligning to
-        // the page size, this will even save memory
-        this(0);
+        this(MIN_SIZE);
     }
 
-    /**
-     * Create a non recycling {@link BytesStreamOutput} with enough initial pages acquired
-     * to satisfy the capacity given by expected size.
-     *
-     * @param expectedSize the expected maximum size of the stream in bytes.
-     */
     public BytesStreamOutput(int expectedSize) {
-        this(expectedSize, BigArrays.NON_RECYCLING_INSTANCE);
+        this(expectedSize, NON_RECYCLING_INSTANCE);
     }
 
-    protected BytesStreamOutput(int expectedSize, BigArrays bigArrays) {
-        this.bigArrays = bigArrays;
-        if (expectedSize != 0) {
-            this.bytes = bigArrays.newByteArray(expectedSize, false);
+    protected BytesStreamOutput(int expectedSize, Recycler<BytesRef> recycler) {
+        this.recycler = recycler;
+        try (Recycler.V<BytesRef> obtain = recycler.obtain()) {
+            recyclerPageSize = obtain.v().length;
+            pageSize = Math.min(nextPowerOfTwo(Math.max(expectedSize, MIN_SIZE)), recyclerPageSize);
         }
+        this.currentPageOffset = pageSize;
+        ensureCapacityFromPosition(expectedSize);
     }
 
     @Override
     public long position() {
-        return count;
+        return ((long) pageSize * pageIndex) + currentPageOffset;
     }
 
     @Override
     public void writeByte(byte b) {
-        ensureCapacity(count + 1L);
-        bytes.set(count, b);
-        count++;
+        ensureCapacity(1);
+        BytesRef currentPage = pages.get(pageIndex).v();
+        currentPage.bytes[currentPage.offset + currentPageOffset] = b;
+        currentPageOffset++;
     }
 
     @Override
@@ -83,24 +89,59 @@ public class BytesStreamOutput extends BytesStream {
         }
 
         // get enough pages for new size
-        ensureCapacity(((long) count) + length);
+        ensureCapacity(length);
 
         // bulk copy
-        bytes.set(count, b, offset, length);
+        int bytesToCopy = length;
+        int srcOff = offset;
+        int j = 0;
+        while (true) {
+            BytesRef currentPage = pages.get(pageIndex + j).v();
+            int toCopyThisLoop = Math.min(pageSize - currentPageOffset, bytesToCopy);
+            System.arraycopy(b, srcOff, currentPage.bytes, currentPage.offset + currentPageOffset, toCopyThisLoop);
+            srcOff += toCopyThisLoop;
+            bytesToCopy -= toCopyThisLoop;
+            if (bytesToCopy > 0) {
+                currentPageOffset = 0;
+            } else {
+                currentPageOffset += toCopyThisLoop;
+                break;
+            }
+            j++;
+        }
 
         // advance
-        count += length;
+        pageIndex += j;
+    }
+
+    @Override
+    public void writeInt(int i) throws IOException {
+        if (4 > (pageSize - currentPageOffset)) {
+            super.writeInt(i);
+        } else {
+            BytesRef currentPage = pages.get(pageIndex).v();
+            VH_BE_INT.set(currentPage.bytes, currentPage.offset + currentPageOffset, i);
+            currentPageOffset += 4;
+        }
+    }
+
+    @Override
+    public void writeLong(long i) throws IOException {
+        if (8 > (pageSize - currentPageOffset)) {
+            super.writeLong(i);
+        } else {
+            BytesRef currentPage = pages.get(pageIndex).v();
+            VH_BE_LONG.set(currentPage.bytes, currentPage.offset + currentPageOffset, i);
+            currentPageOffset += 8;
+        }
     }
 
     @Override
     public void reset() {
-        // shrink list of pages
-        if (bytes != null && bytes.size() > PageCacheRecycler.PAGE_SIZE_IN_BYTES) {
-            bytes = bigArrays.resize(bytes, PageCacheRecycler.PAGE_SIZE_IN_BYTES);
-        }
-
-        // go back to start
-        count = 0;
+        Releasables.close(pages);
+        pages.clear();
+        pageIndex = -1;
+        currentPageOffset = pageSize;
     }
 
     @Override
@@ -110,18 +151,17 @@ public class BytesStreamOutput extends BytesStream {
 
     @Override
     public void seek(long position) {
-        ensureCapacity(position);
-        count = (int) position;
+        ensureCapacityFromPosition(position);
+        this.pageIndex = (int) position / pageSize;
+        this.currentPageOffset = (int) position % pageSize;
     }
 
     public void skip(int length) {
-        seek(((long) count) + length);
+        seek(position() + length);
     }
 
     @Override
-    public void close() {
-        // empty for now.
-    }
+    public void close() {}
 
     /**
      * Returns the current size of the buffer.
@@ -131,15 +171,123 @@ public class BytesStreamOutput extends BytesStream {
      * @see ByteArrayOutputStream#size()
      */
     public int size() {
-        return count;
+        return Math.toIntExact(position());
     }
 
     @Override
     public BytesReference bytes() {
-        if (bytes == null) {
+        int position = (int) position();
+        if (position == 0) {
             return BytesArray.EMPTY;
+        } else {
+            final int adjustment;
+            final int bytesInLastPage;
+            final int remainder = position % pageSize;
+            if (remainder != 0) {
+                adjustment = 1;
+                bytesInLastPage = remainder;
+            } else {
+                adjustment = 0;
+                bytesInLastPage = pageSize;
+            }
+            final int pageCount = (position / pageSize) + adjustment;
+            if (pageCount == 1) {
+                BytesRef page = pages.get(0).v();
+                return new BytesArray(page.bytes, page.offset, bytesInLastPage);
+            } else {
+                BytesReference[] references = new BytesReference[pageCount];
+                for (int i = 0; i < pageCount - 1; ++i) {
+                    references[i] = new BytesArray(this.pages.get(i).v());
+                }
+                BytesRef last = this.pages.get(pageCount - 1).v();
+                references[pageCount - 1] = new BytesArray(last.bytes, last.offset, bytesInLastPage);
+                return CompositeBytesReference.of(references);
+            }
         }
-        return BytesReference.fromByteArray(bytes, count);
+    }
+
+    private static int nextPowerOfTwo(int i) {
+        int highestOneBit = Integer.highestOneBit(i);
+        if (i == highestOneBit) {
+            return i;
+        } else {
+            return highestOneBit << 1;
+        }
+    }
+
+    private void ensureCapacity(int bytesNeeded) {
+        if (bytesNeeded > pageSize - currentPageOffset) {
+            ensureCapacityFromPosition(position() + bytesNeeded);
+        }
+    }
+
+    protected void ensureCapacityFromPosition(long newPosition) {
+        while (newPosition > currentCapacity) {
+            if (newPosition > Integer.MAX_VALUE) {
+                throw new IllegalArgumentException(getClass().getSimpleName() + " cannot hold more than 2GB of data");
+            }
+            if (pageSize != recyclerPageSize) {
+                assert pages.size() <= 1;
+                assert pageIndex <= 0;
+                pageSize = Math.min(nextPowerOfTwo((int) newPosition), recyclerPageSize);
+                Recycler.V<BytesRef> maybeOldPage = pageIndex == -1 ? null : pages.get(0);
+                pages.clear();
+                handleSinglePageResize(maybeOldPage);
+                currentCapacity = pageSize;
+            } else {
+                Recycler.V<BytesRef> newPage = recycler.obtain();
+                assert pageSize == newPage.v().length;
+                pages.add(newPage);
+                // We are at the end of the current page, increment page index
+                if (currentPageOffset == pageSize) {
+                    pageIndex++;
+                    currentPageOffset = 0;
+                }
+                currentCapacity += pageSize;
+            }
+        }
+    }
+
+    private void handleSinglePageResize(Recycler.V<BytesRef> maybeOldPage) {
+        final BytesRef newBytePage;
+        if (pageSize == recyclerPageSize) {
+            Recycler.V<BytesRef> newPage = recycler.obtain();
+            assert pageSize == newPage.v().length;
+            pages.add(newPage);
+            newBytePage = newPage.v();
+        } else {
+            newBytePage = new BytesRef(pageSize);
+            pages.add(new NonRecycled(newBytePage));
+        }
+        if (maybeOldPage != null) {
+            BytesRef oldBytePage = maybeOldPage.v();
+            System.arraycopy(oldBytePage.bytes, oldBytePage.offset, newBytePage.bytes, newBytePage.offset, currentPageOffset);
+        } else {
+            pageIndex++;
+            currentPageOffset = 0;
+        }
+    }
+
+    private static class NonRecycled implements Recycler.V<BytesRef> {
+
+        private final BytesRef bytePage;
+
+        private NonRecycled(BytesRef bytePage) {
+            this.bytePage = bytePage;
+        }
+
+        @Override
+        public void close() {}
+
+        @Override
+        public BytesRef v() {
+            return bytePage;
+        }
+
+        @Override
+        public boolean isRecycled() {
+            return false;
+        }
     }
 
     /**
@@ -148,7 +296,7 @@ public class BytesStreamOutput extends BytesStream {
      * @return copy of the bytes in this instances
      */
     public BytesReference copyBytes() {
-        final byte[] keyBytes = new byte[count];
+        final byte[] keyBytes = new byte[size()];
         int offset = 0;
         final BytesRefIterator iterator = bytes().iterator();
         try {
@@ -162,24 +310,4 @@ public class BytesStreamOutput extends BytesStream {
         }
         return new BytesArray(keyBytes);
     }
-
-    /**
-     * Returns the number of bytes used by the underlying {@link org.elasticsearch.common.util.ByteArray}
-     * @see org.elasticsearch.common.util.ByteArray#ramBytesUsed()
-     */
-    public long ramBytesUsed() {
-        return bytes.ramBytesUsed();
-    }
-
-    protected void ensureCapacity(long offset) {
-        if (offset > Integer.MAX_VALUE) {
-            throw new IllegalArgumentException(getClass().getSimpleName() + " cannot hold more than 2GB of data");
-        }
-        if (bytes == null) {
-            this.bytes = bigArrays.newByteArray(BigArrays.overSize(offset, PageCacheRecycler.PAGE_SIZE_IN_BYTES, 1), false);
-        } else {
-            bytes = bigArrays.grow(bytes, offset);
-        }
-    }
-
 }

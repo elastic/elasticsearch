@@ -651,7 +651,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         }
 
         @Override
-        protected void ensureCapacity(long offset) {
+        protected void ensureCapacityFromPosition(long offset) {
             if (offset > limit) {
                 throw new IllegalArgumentException(
                     "Can't store an async search response larger than ["
@@ -662,7 +662,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                         + "] setting."
                 );
             }
-            super.ensureCapacity(offset);
+            super.ensureCapacityFromPosition(offset);
         }
     }
 }

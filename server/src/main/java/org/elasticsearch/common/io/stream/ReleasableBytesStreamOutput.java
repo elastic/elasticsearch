@@ -30,12 +30,17 @@ public class ReleasableBytesStreamOutput extends BytesStreamOutput implements Re
     }
 
     public ReleasableBytesStreamOutput(int expectedSize, BigArrays bigArrays) {
-        super(expectedSize, bigArrays);
+        // TODO: FIX!!!!!!!!
+        super(expectedSize);
     }
 
     @Override
     public void close() {
-        Releasables.close(bytes);
+        try {
+            Releasables.close(pages);
+        } finally {
+            pages.clear();
+        }
     }
 
     @Override

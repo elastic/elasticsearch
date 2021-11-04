@@ -44,9 +44,9 @@ public final class FileSystemNatives {
                 provider = WindowsFileSystemNatives.getInstance();
             }
         } catch (ClassNotFoundException e) {
-            logger.warn("JNA not found. FileSystems native methods will be disabled.", e);
-        } catch (UnsatisfiedLinkError e) {
-            logger.warn("unable to load JNA native support library, FileSystems native methods will be disabled.", e);
+            logger.warn("JNA not found. FileSystemNatives methods will be disabled.", e);
+        } catch (LinkageError e) {
+            logger.warn("unable to load JNA native support library, FileSystemNatives methods will be disabled.", e);
         } finally {
             JNA_PROVIDER = provider;
         }

@@ -30,15 +30,13 @@ final class WindowsFileSystemNatives implements FileSystemNatives.Provider {
     private static final WindowsFileSystemNatives INSTANCE = new WindowsFileSystemNatives();
 
     private WindowsFileSystemNatives() {
-        if (Constants.WINDOWS) {
-            try {
-                Native.register("kernel32");
-                logger.debug("windows/Kernel32 library loaded");
-            } catch (NoClassDefFoundError e) {
-                logger.warn("JNA not found. native methods and handlers will be disabled.");
-            } catch (UnsatisfiedLinkError e) {
-                logger.warn("unable to link Windows/Kernel32 library. native methods and handlers will be disabled.");
-            }
+        assert Constants.WINDOWS : Constants.OS_NAME;
+        try {
+            Native.register("kernel32");
+            logger.debug("windows/Kernel32 library loaded");
+        } catch (LinkageError e) {
+            logger.warn("unable to link Windows/Kernel32 library. native methods and handlers will be disabled.", e);
+            throw e;
         }
     }
 

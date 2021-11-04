@@ -61,8 +61,10 @@ public class XContentHelperTests extends ESTestCase {
     }
 
     public void testMergingListsWithSameContent() {
-        Map<String, Object> defaults = getMap("dynamic_date_formats", getList("strict_date_optional_time", "yyyy/MM/dd HH:mm:ss Z||yyyy/MM/dd Z"));
-        Map<String, Object> content = getMap("dynamic_date_formats", getList("strict_date_optional_time", "yyyy/MM/dd HH:mm:ss Z||yyyy/MM/dd Z"));
+        Map<String, Object> defaults = getMap("dynamic_date_formats",
+            getList("strict_date_optional_time", "yyyy/MM/dd HH:mm:ss Z||yyyy/MM/dd Z"));
+        Map<String, Object> content = getMap("dynamic_date_formats",
+            getList("strict_date_optional_time", "yyyy/MM/dd HH:mm:ss Z||yyyy/MM/dd Z"));
 
         Map<String, Object> expected = getMap("dynamic_date_formats",
             getList("strict_date_optional_time", "yyyy/MM/dd HH:mm:ss Z||yyyy/MM/dd Z"));

@@ -34,6 +34,9 @@ public abstract class NlpConfigUpdate implements InferenceConfigUpdate, NamedXCo
             throw ExceptionsHelper.badRequestException("unknown tokenization type expecting one of [bert] got {}", tokenziation.keySet());
         }
         Object truncate = bert.remove("truncate");
+        if (truncate == null) {
+            return null;
+        }
         return new BertTokenizationUpdate(Tokenization.Truncate.fromString(truncate.toString()));
     }
 
@@ -79,6 +82,11 @@ public abstract class NlpConfigUpdate implements InferenceConfigUpdate, NamedXCo
 
     public abstract XContentBuilder doXContentBody(XContentBuilder builder, ToXContent.Params params) throws IOException;
 
+    /**
+     * Required because this class implements 2 interfaces defining the
+     * method {@code String getName()} and the compiler insists it must
+     * be resolved here in the abstract class
+     */
     @Override
     public String getName() {
         return InferenceConfigUpdate.super.getName();

@@ -12,6 +12,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -27,6 +28,7 @@ public class LuceneDocument implements Iterable<IndexableField> {
     private final String prefix;
     private final List<IndexableField> fields;
     private Map<Object, IndexableField> keyedFields;
+    private Map<String, IndexableField> dimensionFields;
 
     LuceneDocument(String path, LuceneDocument parent) {
         fields = new ArrayList<>();
@@ -97,6 +99,26 @@ public class LuceneDocument implements Iterable<IndexableField> {
      */
     public IndexableField getByKey(Object key) {
         return keyedFields == null ? null : keyedFields.get(key);
+    }
+
+    /**
+     * Add a dimension field
+     */
+    public void addDimensionField(IndexableField field) {
+        if (dimensionFields == null) {
+            dimensionFields = new HashMap<>();
+        } else if (dimensionFields.containsKey(field.name())) {
+            throw new IllegalArgumentException("Dimension field [" + field.name() + "] cannot be a multi-valued field.");
+        }
+        dimensionFields.put(field.name(), field);
+        add(field);
+    }
+
+    public List<IndexableField> getDimensionFields() {
+        if (dimensionFields == null) {
+            return Collections.emptyList();
+        }
+        return new ArrayList<>(dimensionFields.values());
     }
 
     public IndexableField[] getFields(String name) {

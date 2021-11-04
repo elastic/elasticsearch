@@ -20,8 +20,8 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.geometry.utils.Geohash;
-import org.elasticsearch.index.TimeSeriesIdGenerator;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 
 import java.io.IOException;
@@ -695,7 +695,7 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public Object format(BytesRef value) {
             try {
-                return TimeSeriesIdGenerator.parse(new BytesArray(value).streamInput());
+                return TimeSeriesIdFieldMapper.parse(new BytesArray(value).streamInput());
             } catch (IOException e) {
                 throw new IllegalArgumentException("error formatting tsid: " + e.getMessage(), e);
             }

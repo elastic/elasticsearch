@@ -31,7 +31,6 @@ import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
-import org.elasticsearch.index.TimeSeriesIdGenerator;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -566,16 +565,17 @@ public final class KeywordFieldMapper extends FieldMapper {
         return (KeywordFieldType) super.fieldType();
     }
 
-    private static String value(XContentParser parser, String nullValue) throws IOException {
-        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-            return nullValue;
-        }
-        return parser.textOrNull();
-    }
-
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        indexValue(context, value(context.parser(), nullValue));
+        String value;
+        XContentParser parser = context.parser();
+        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+            value = nullValue;
+        } else {
+            value = parser.textOrNull();
+        }
+
+        indexValue(context, value);
     }
 
     @Override
@@ -610,13 +610,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             Field field = new KeywordField(fieldType().name(), binaryValue, fieldType);
             if (dimension) {
-                // Check that a dimension field is single-valued and not an array
-                if (context.doc().getByKey(fieldType().name()) != null) {
-                    throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be a multi-valued field.");
-                }
-                // Add dimension field with key so that we ensure it is single-valued.
-                // Dimension fields are always indexed.
-                context.doc().addWithKey(fieldType().name(), field);
+                // Add dimension field with key so that we ensure it is single-valued. Dimension fields are always indexed.
+                context.doc().addDimensionField(field);
             } else {
                 context.doc().add(field);
             }
@@ -674,63 +669,5 @@ public final class KeywordFieldMapper extends FieldMapper {
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), indexAnalyzers, scriptCompiler).dimension(dimension).init(this);
-    }
-
-    @Override
-    protected TimeSeriesIdGenerator.Component selectTimeSeriesIdComponents() {
-        if (false == dimension) {
-            return null;
-        }
-        if (ignoreAbove != Defaults.IGNORE_ABOVE) {
-            throw new IllegalArgumentException("[ignore_above] not supported by dimensions");
-        }
-        if (normalizerName != null) {
-            throw new IllegalArgumentException("[normalizer] not supported by dimensions");
-        }
-        return new KeywordTsidGen(nullValue);
-    }
-
-    public static TimeSeriesIdGenerator.LeafComponent timeSeriesIdGenerator(String nullValue) {
-        if (nullValue == null) {
-            return KeywordTsidGen.DEFAULT;
-        }
-        return new KeywordTsidGen(nullValue);
-    }
-
-    private static class KeywordTsidGen extends TimeSeriesIdGenerator.StringLeaf {
-        private static final KeywordTsidGen DEFAULT = new KeywordTsidGen(null);
-
-        private final String nullValue;
-
-        KeywordTsidGen(String nullValue) {
-            this.nullValue = nullValue;
-        }
-
-        @Override
-        protected String extractString(XContentParser parser) throws IOException {
-            return value(parser, nullValue);
-        }
-
-        @Override
-        public String toString() {
-            return "kwd[" + nullValue + "]";
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == this) {
-                return true;
-            }
-            if (obj == null || obj.getClass() != getClass()) {
-                return false;
-            }
-            KeywordTsidGen other = (KeywordTsidGen) obj;
-            return Objects.equals(nullValue, other.nullValue);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(nullValue);
-        }
     }
 }

@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.TimeSeriesIdGenerator;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -73,15 +72,14 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
             )
         );
 
+        Map<String, Object> v = TimeSeriesIdFieldMapper.parse(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes));
+
         assertThat(
             doc.rootDoc().getBinaryValue("_tsid"),
             equalTo(new BytesRef("\u0002\bkw_fields\u0005value\n" + "long_fieldl\u0000\u0000\u0000\u0000\u0000\u0000\u0000d"))
         );
         assertThat(doc.rootDoc().getField("kw_field").binaryValue(), equalTo(new BytesRef("value")));
         assertThat(doc.rootDoc().getField("long_field").numericValue(), equalTo(100L));
-
-        // TODo: Remove
-        TimeSeriesIdGenerator.parse(new ByteArrayStreamInput(doc.rootDoc().getBinaryValue("_tsid").bytes));
     }
 
     public void testDisabledInStandardMode() throws Exception {

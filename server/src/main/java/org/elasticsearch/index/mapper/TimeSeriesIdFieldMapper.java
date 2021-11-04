@@ -11,11 +11,13 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.ByteBlockPool;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.TimeSeriesIdGenerator;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -25,8 +27,9 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -41,6 +44,24 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
     public static final String CONTENT_TYPE = "_tsid";
     public static final TimeSeriesIdFieldType FIELD_TYPE = new TimeSeriesIdFieldType();
     private static final TimeSeriesIdFieldMapper INSTANCE = new TimeSeriesIdFieldMapper();
+
+    /**
+     * The maximum length of the tsid. The value itself comes from a range check in
+     * Lucene's writer for utf-8 doc values.
+     */
+    private static final int LIMIT = ByteBlockPool.BYTE_BLOCK_SIZE - 2;
+    /**
+     * Maximum length of the name of dimension. We picked this so that we could
+     * comfortable fit 16 dimensions inside {@link #LIMIT}.
+     */
+    private static final int DIMENSION_NAME_LIMIT = 512;
+    /**
+     * The maximum length of any single dimension. We picked this so that we could
+     * comfortable fit 16 dimensions inside {@link #LIMIT}. This should be quite
+     * comfortable given that dimensions are typically going to be less than a
+     * hundred bytes each, but we're being paranoid here.
+     */
+    private static final int DIMENSION_VALUE_LIMIT = 1024;
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
@@ -106,78 +127,88 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void preParse(DocumentParserContext context) throws IOException {
-        if (context.indexSettings().getMode() != IndexMode.TIME_SERIES) {
-            return;
-        }
-        assert fieldType().isSearchable() == false;
-
-        TimeSeriesIdGenerator timeSeriesIdGenerator = TimeSeriesIdGenerator.build(context.root().selectTimeSeriesIdComponents());
-        BytesReference timeSeriesId = timeSeriesIdGenerator.generate(
-            context.sourceToParse().source(),
-            context.sourceToParse().getXContentType()
-        );
-        assert timeSeriesId != null : "In time series mode _tsid cannot be null";
-        context.doc().add(new SortedSetDocValuesField(fieldType().name(), timeSeriesId.toBytesRef()));
-    }
-
-    @Override
     public void postParse(DocumentParserContext context) throws IOException {
         if (context.indexSettings().getMode() != IndexMode.TIME_SERIES) {
             return;
         }
         assert fieldType().isSearchable() == false;
 
-        List<IndexableField> fields = context.rootDoc().getFields();
-        if (fields.size() == 0) {
+        List<IndexableField> dimensionFields = context.doc().getDimensionFields();
+        if (dimensionFields.isEmpty()) {
             throw new IllegalArgumentException("Dimension fields are missing");
         }
+        Collections.sort(dimensionFields, Comparator.comparing(IndexableField::name));
 
-        BytesReference timeSeriesId = generate(context);
-        if (timeSeriesId != null) {
-            timeSeriesId.utf8ToString();
-        }
-    }
-
-    private BytesReference generate(DocumentParserContext context) throws IOException {
-        List<String> dimensionNames = new ArrayList<>();
-
-
-        LuceneDocument document = context.rootDoc();
-//        List<Map.Entry<String, CheckedConsumer<StreamOutput, IOException>>> values = new ArrayList<>();
-//        root.collectDimensionNames("", dimensionNames::add);
-//        if (dimensionNames.isEmpty()) {
-//            throw new IllegalArgumentException("There aren't any mapped dimensions");
-//        }
-
-        for (String fieldName : dimensionNames) {
-            IndexableField field = document.getByKey(fieldName);
-        }
-        return null;
-        /*
-        if (values.isEmpty()) {
-            Collections.sort(dimensionNames);
-            throw new IllegalArgumentException("Document must contain one of the dimensions " + dimensionNames);
-        }
-        Collections.sort(values, Map.Entry.comparingByKey());
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.writeVInt(values.size());
-            for (Map.Entry<String, CheckedConsumer<StreamOutput, IOException>> v : values) {
-                out.writeBytesRef(new BytesRef(v.getKey())); // Write in utf-8 instead of writeString's utf-16-ish thing
-                v.getValue().accept(out);
-            }
-            BytesReference bytes = out.bytes();
-            if (bytes.length() > LIMIT) {
-                throw new IllegalArgumentException("tsid longer than [" + LIMIT + "] bytes [" + bytes.length() + "]");
-            }
-            return bytes;
-        }
+            out.writeVInt(dimensionFields.size());
+            for (IndexableField field : dimensionFields) {
+                int len = UnicodeUtil.calcUTF16toUTF8Length(field.name(), 0, field.name().length());
+                if (len > DIMENSION_NAME_LIMIT) {
+                    throw new IllegalArgumentException(
+                        "Dimension name must be less than [" + DIMENSION_NAME_LIMIT + "] bytes but [" + field.name() + "] was [" + len + "]"
+                    );
+                }
+                out.writeBytesRef(new BytesRef(field.name())); // Write in utf-8 instead of writeString's utf-16-ish thing
 
-         */
+                if (field.numericValue() != null) {
+                    Number number = field.numericValue();
+                    out.write((byte) 'l');
+                    out.writeLong(number.longValue());
+                } else if (field.binaryValue() != null) {
+                    /*
+                     * Write in utf8 instead of StreamOutput#writeString which is utf-16-ish
+                     * so its easier for folks to reason about the space taken up. Mostly
+                     * it'll be smaller too.
+                     */
+                    BytesRef bytes = field.binaryValue();
+                    if (bytes.length > DIMENSION_VALUE_LIMIT) {
+                        throw new IllegalArgumentException("longer than [" + DIMENSION_VALUE_LIMIT + "] bytes [" + bytes.length + "]");
+                    }
+                    out.write((byte) 's');
+                    out.writeBytesRef(bytes);
+                } else {
+                    throw new IllegalArgumentException("null values not allowed");
+                }
+            }
+
+            BytesReference timeSeriesId = out.bytes();
+            if (timeSeriesId.length() > LIMIT) {
+                throw new IllegalArgumentException("tsid longer than [" + LIMIT + "] bytes [" + timeSeriesId.length() + "]");
+            }
+            assert timeSeriesId != null : "In time series mode _tsid cannot be null";
+            context.doc().add(new SortedSetDocValuesField(fieldType().name(), timeSeriesId.toBytesRef()));
+        }
     }
 
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    /**
+     * Parse the {@code _tsid} into a human readable map.
+     */
+    public static Map<String, Object> parse(StreamInput in) throws IOException {
+        int size = in.readVInt();
+        Map<String, Object> result = new LinkedHashMap<String, Object>(size);
+        for (int i = 0; i < size; i++) {
+            String name = in.readString();
+            try {
+                int type = in.read();
+                switch (type) {
+                    case (byte) 's':
+                        result.put(name, in.readBytesRef().utf8ToString());
+                        break;
+                    case (byte) 'l':
+                        result.put(name, in.readLong());
+                        break;
+                    default:
+                        throw new IllegalArgumentException("known type [" + type + "]");
+                }
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("can't parse [" + name + "]: " + e.getMessage(), e);
+            }
+        }
+        return result;
     }
 }

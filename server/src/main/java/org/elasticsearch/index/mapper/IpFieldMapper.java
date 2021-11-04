@@ -22,10 +22,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.TimeSeriesIdGenerator;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
@@ -502,12 +500,8 @@ public class IpFieldMapper extends FieldMapper {
         if (indexed) {
             Field field = new InetAddressPoint(fieldType().name(), address);
             if (dimension) {
-                // Add dimension field with key so that we ensure it is single-valued.
-                // Dimension fields are always indexed.
-                if (context.doc().getByKey(fieldType().name()) != null) {
-                    throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be a multi-valued field.");
-                }
-                context.doc().addWithKey(fieldType().name(), field);
+                // Add dimension field so that we ensure it is single-valued. Dimension fields are always indexed.
+                context.doc().addDimensionField(field);
             } else {
                 context.doc().add(field);
             }
@@ -535,58 +529,5 @@ public class IpFieldMapper extends FieldMapper {
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), scriptCompiler, ignoreMalformedByDefault, indexCreatedVersion).dimension(dimension).init(this);
-    }
-
-    @Override
-    protected TimeSeriesIdGenerator.Component selectTimeSeriesIdComponents() {
-        if (false == dimension) {
-            return null;
-        }
-        return timeSeriesIdGenerator(nullValue);
-    }
-
-    public static TimeSeriesIdGenerator.LeafComponent timeSeriesIdGenerator(InetAddress nullValue) {
-        if (nullValue == null) {
-            return IpTsidGen.DEFAULT;
-        }
-        return new IpTsidGen(nullValue);
-    }
-
-    private static class IpTsidGen extends TimeSeriesIdGenerator.StringLeaf {
-        private static final IpTsidGen DEFAULT = new IpTsidGen(null);
-
-        private final InetAddress nullValue;
-
-        IpTsidGen(InetAddress nullValue) {
-            this.nullValue = nullValue;
-        }
-
-        @Override
-        protected String extractString(XContentParser parser) throws IOException {
-            InetAddress value = value(parser, nullValue);
-            return value == null ? null : NetworkAddress.format(value);
-        }
-
-        @Override
-        public String toString() {
-            return "ip[" + nullValue + "]";
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == this) {
-                return true;
-            }
-            if (obj == null || obj.getClass() != getClass()) {
-                return false;
-            }
-            IpTsidGen other = (IpTsidGen) obj;
-            return Objects.equals(nullValue, other.nullValue);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(nullValue);
-        }
     }
 }

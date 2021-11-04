@@ -36,6 +36,9 @@ BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
     setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
     setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
     setting 'xpack.security.enabled', 'false'
+    if (BuildParams.isSnapshotBuild() == false && bwcVersion.toString() == project.version) {
+      systemProperty 'es.index_mode_feature_flag_registered', 'true'
+    }
   }
 
   String oldVersion = bwcVersion.toString()

@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
@@ -101,10 +102,17 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     builder.failure(task, e);
                 }
             }
-            String reason = "bulk rollover ["
-                + tasks.stream().map(t -> t.sourceIndex.get() + "->" + t.rolloverIndex.get()).collect(Collectors.joining())
-                + "]";
-            state = allocationService.reroute(state, reason);
+
+            var reason = new StringBuilder();
+            Strings.collectionToDelimitedStringWithLimit(
+                (Iterable<String>) () -> tasks.stream().map(t -> t.sourceIndex.get() + "->" + t.rolloverIndex.get()).iterator(),
+                ",",
+                "bulk rollover [",
+                "]",
+                1024,
+                reason
+            );
+            state = allocationService.reroute(state, reason.toString());
             return builder.build(state);
         };
     }

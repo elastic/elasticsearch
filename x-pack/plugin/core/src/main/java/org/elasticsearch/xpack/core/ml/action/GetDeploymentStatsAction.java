@@ -34,6 +34,7 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsAction.Response> {
 
@@ -185,6 +186,14 @@ public class GetDeploymentStatsAction extends ActionType<GetDeploymentStatsActio
 
                 public RoutingStateAndReason getRoutingState() {
                     return routingState;
+                }
+
+                public Optional<Long> getInferenceCount() {
+                    return Optional.ofNullable(inferenceCount);
+                }
+
+                public Optional<Double> getAvgInferenceTime() {
+                    return Optional.ofNullable(avgInferenceTime);
                 }
 
                 @Override

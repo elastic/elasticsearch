@@ -74,6 +74,20 @@ public class XContentHelperTests extends ESTestCase {
         assertThat(content, Matchers.equalTo(expected));
     }
 
+    public void testMergingListsWithDifferentContent() {
+        Map<String, Object> defaults = getMap("dynamic_date_formats",
+            getList("strict_date_optional_time", "yyyy.MM.dd HH:mm:ss Z"));
+        Map<String, Object> content = getMap("dynamic_date_formats",
+            getList("strict_date_optional_time", "dd-MMM-yyyy HH:mm:ss Z"));
+
+        Map<String, Object> expected = getMap("dynamic_date_formats",
+            getList("strict_date_optional_time", "yyyy.MM.dd HH:mm:ss Z", "dd-MMM-yyyy HH:mm:ss Z"));
+
+        XContentHelper.mergeDefaults(content, defaults);
+
+        assertThat(content, Matchers.equalTo(expected));
+    }
+
     public void testMergingListsRemovesDuplicates() {
         Map<String, Object> defaults = getMap("tags", getList("cluster_id", "cluster_region"));
         Map<String, Object> content = getMap("tags", getList("cluster_id", "cluster_name"));

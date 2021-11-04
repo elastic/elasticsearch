@@ -198,7 +198,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     }
 
     private void ensureCapacity(int bytesNeeded) {
-        if (pageSize - currentPageOffset >= bytesNeeded == false) {
+        if (bytesNeeded > pageSize - currentPageOffset) {
             ensureCapacityFromPosition(position() + bytesNeeded);
         }
     }

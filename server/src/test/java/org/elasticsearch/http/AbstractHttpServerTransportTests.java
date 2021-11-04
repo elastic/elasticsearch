@@ -196,7 +196,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         }
     }
 
-    public void testHandlingCompatibleVersionParsing() {
+    public void testHandlingCompatibleVersionParsingErrors() {
+        // a compatible version exception (v7 on accept and v8 on content-type) should be handled gracefully
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         try (
@@ -209,7 +210,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             FakeRestRequest.FakeHttpRequest fakeHttpRequest = new FakeRestRequest.FakeHttpRequest(
                 RestRequest.Method.GET,
                 "/",
-                new BytesArray(randomByteArrayOfLength(between(0, 20))),
+                new BytesArray(randomByteArrayOfLength(between(1, 20))),
                 headers
             );
 

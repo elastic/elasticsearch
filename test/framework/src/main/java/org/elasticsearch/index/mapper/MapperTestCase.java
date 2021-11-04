@@ -227,14 +227,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     protected final void assertParseMinimalWarnings() {
         String[] warnings = getParseMinimalWarnings();
         if (warnings.length > 0) {
-            assertWarnings(Level.WARN, warnings);
+            assertWarnings(warnings);
         }
     }
 
     protected final void assertParseMaximalWarnings() {
         String[] warnings = getParseMaximalWarnings();
         if (warnings.length > 0) {
-            assertWarnings(Level.WARN, warnings);
+            assertWarnings(warnings);
         }
     }
 
@@ -729,7 +729,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.nullField("field"))));
         }
 
-        assertWarnings(Level.WARN, getParseMinimalWarnings());
+        assertWarnings(getParseMinimalWarnings());
     }
 
     protected boolean allowsNullValues() {

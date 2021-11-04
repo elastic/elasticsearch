@@ -129,30 +129,36 @@ public class MlInitializationServiceIT extends MlNativeAutodetectIntegTestCase {
             }
         }
 
-        IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest()
-            .addAliasAction(IndicesAliasesRequest.AliasActions.add()
-                .index(".ml-anomalies-7")
-                .alias(".ml-anomalies-write")
-                .writeIndex(true))
-            .addAliasAction(IndicesAliasesRequest.AliasActions.add()
-                .index(".ml-state-000001")
-                .alias(".ml-state-write")
-                .filter(QueryBuilders.termQuery("a", "b")))
-            .addAliasAction(IndicesAliasesRequest.AliasActions.add()
-                .index(".ml-stats-000001")
-                .alias(".ml-stats-write")
-                .indexRouting("some-index-routing"))
-            .addAliasAction(IndicesAliasesRequest.AliasActions.add()
-                .index(".ml-notifications-000002")
-                .alias(".ml-notifications-write")
-                .searchRouting("some-search-routing"))
-            .addAliasAction(IndicesAliasesRequest.AliasActions.add()
-                .index(".ml-annotations-000001")
-                .alias(".ml-annotations-write")
-                .writeIndex(true)
-                .filter(QueryBuilders.termQuery("a", "b"))
-                .indexRouting("some-index-routing")
-                .searchRouting("some-search-routing"));
+        IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest().addAliasAction(
+            IndicesAliasesRequest.AliasActions.add().index(".ml-anomalies-7").alias(".ml-anomalies-write").writeIndex(true)
+        )
+            .addAliasAction(
+                IndicesAliasesRequest.AliasActions.add()
+                    .index(".ml-state-000001")
+                    .alias(".ml-state-write")
+                    .filter(QueryBuilders.termQuery("a", "b"))
+            )
+            .addAliasAction(
+                IndicesAliasesRequest.AliasActions.add()
+                    .index(".ml-stats-000001")
+                    .alias(".ml-stats-write")
+                    .indexRouting("some-index-routing")
+            )
+            .addAliasAction(
+                IndicesAliasesRequest.AliasActions.add()
+                    .index(".ml-notifications-000002")
+                    .alias(".ml-notifications-write")
+                    .searchRouting("some-search-routing")
+            )
+            .addAliasAction(
+                IndicesAliasesRequest.AliasActions.add()
+                    .index(".ml-annotations-000001")
+                    .alias(".ml-annotations-write")
+                    .writeIndex(true)
+                    .filter(QueryBuilders.termQuery("a", "b"))
+                    .indexRouting("some-index-routing")
+                    .searchRouting("some-search-routing")
+            );
         assertAcked(client().admin().indices().aliases(indicesAliasesRequest).get());
 
         assertFalse(mlInitializationService.areMlInternalIndicesHidden());
@@ -163,42 +169,38 @@ public class MlInitializationServiceIT extends MlNativeAutodetectIntegTestCase {
         assertThat("Aliases were: " + indexToAliasesMap, indexToAliasesMap.size(), is(equalTo(5)));
         assertThat(
             indexToAliasesMap.get(".ml-anomalies-7"),
-            contains(AliasMetadata.builder(".ml-anomalies-write").isHidden(true).writeIndex(true).build()));
+            contains(AliasMetadata.builder(".ml-anomalies-write").isHidden(true).writeIndex(true).build())
+        );
         assertThat(
             indexToAliasesMap.get(".ml-state-000001"),
-            contains(AliasMetadata.builder(".ml-state-write")
-                .isHidden(true)
-                .filter(QueryBuilders.termQuery("a", "b").toString())
-                .build()));
+            contains(AliasMetadata.builder(".ml-state-write").isHidden(true).filter(QueryBuilders.termQuery("a", "b").toString()).build())
+        );
         assertThat(
             indexToAliasesMap.get(".ml-stats-000001"),
-            contains(AliasMetadata.builder(".ml-stats-write")
-                .isHidden(true)
-                .indexRouting("some-index-routing")
-                .build()));
+            contains(AliasMetadata.builder(".ml-stats-write").isHidden(true).indexRouting("some-index-routing").build())
+        );
         assertThat(
             indexToAliasesMap.get(".ml-notifications-000002"),
-            contains(AliasMetadata.builder(".ml-notifications-write")
-                .isHidden(true)
-                .searchRouting("some-search-routing")
-                .build()));
+            contains(AliasMetadata.builder(".ml-notifications-write").isHidden(true).searchRouting("some-search-routing").build())
+        );
         assertThat(
             indexToAliasesMap.get(".ml-annotations-000001"),
             contains(
-                AliasMetadata.builder(".ml-annotations-read")
-                    .isHidden(true)
-                    .build(),
+                AliasMetadata.builder(".ml-annotations-read").isHidden(true).build(),
                 AliasMetadata.builder(".ml-annotations-write")
                     .isHidden(true)
                     .writeIndex(true)
                     .filter(QueryBuilders.termQuery("a", "b").toString())
                     .indexRouting("some-index-routing")
                     .searchRouting("some-search-routing")
-                    .build()));
+                    .build()
+            )
+        );
     }
 
     private static ImmutableOpenMap<String, Settings> getIndexToSettingsMap(List<String> indexNames) {
-        GetSettingsResponse getSettingsResponse = client().admin().indices()
+        GetSettingsResponse getSettingsResponse = client().admin()
+            .indices()
             .prepareGetSettings()
             .setIndices(indexNames.toArray(String[]::new))
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
@@ -208,7 +210,8 @@ public class MlInitializationServiceIT extends MlNativeAutodetectIntegTestCase {
     }
 
     private static ImmutableOpenMap<String, List<AliasMetadata>> getIndexToAliasesMap(List<String> indexNames) {
-        GetAliasesResponse getAliasesResponse = client().admin().indices()
+        GetAliasesResponse getAliasesResponse = client().admin()
+            .indices()
             .prepareGetAliases()
             .setIndices(indexNames.toArray(String[]::new))
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)

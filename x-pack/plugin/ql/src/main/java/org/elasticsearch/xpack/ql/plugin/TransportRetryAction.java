@@ -6,36 +6,58 @@
  */
 package org.elasticsearch.xpack.ql.plugin;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.VersionMismatchException;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ql.util.Holder;
 
-import java.util.function.Consumer;
+import static org.elasticsearch.action.ActionListener.wrap;
 
-public final class TransportActionUtils {
+/**
+ * A base class for operations that will be retried in case first attempt failed with a {@code VersionMismatchException}.
+ * The second attempt will be performed on a node of an older version.
+ */
+public abstract class TransportRetryAction<Request extends ActionRequest, Response extends ActionResponse> extends HandledTransportAction<
+    Request,
+    Response> {
 
-    /**
-     * Execute a *QL request and re-try it in case the first request failed with a {@code VersionMismatchException}
-     *
-     * @param clusterService The cluster service instance
-     * @param onFailure On-failure handler in case the request doesn't fail with a {@code VersionMismatchException}
-     * @param queryRunner *QL query execution code, typically a Plan Executor running the query
-     * @param retryRequest Re-trial logic
-     * @param log Log4j logger
-     */
-    public static void executeRequestWithRetryAttempt(
-        ClusterService clusterService,
-        Consumer<Exception> onFailure,
-        Consumer<Consumer<Exception>> queryRunner,
-        Consumer<DiscoveryNode> retryRequest,
-        Logger log
+    private final Logger log = LogManager.getLogger(getClass());
+    private final ClusterService clusterService;
+    private final TransportService transportService;
+
+    protected TransportRetryAction(
+        String actionName,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Reader<Request> requestReader,
+        ClusterService clusterService
     ) {
+        super(actionName, transportService, actionFilters, requestReader);
+        this.clusterService = clusterService;
+        this.transportService = transportService;
+    }
 
+    @Override
+    protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+        executeWithRetry(task, request, listener);
+    }
+
+    private void executeWithRetry(Task task, Request request, ActionListener<Response> listener) {
         Holder<Boolean> retrySecondTime = new Holder<Boolean>(false);
-        queryRunner.accept(e -> {
+        ActionListener<Response> listenerWithRetryAction = wrap(listener::onResponse, e -> {
             // the search request likely ran on nodes with different versions of ES
             // we will retry on a node with an older version that should generate a backwards compatible _search request
             if (e instanceof SearchPhaseExecutionException
@@ -63,19 +85,33 @@ public final class TransportActionUtils {
                         );
                     }
                     // re-send the request to the older node
-                    retryRequest.accept(candidateNode);
+                    executeRetryRequest(candidateNode, request, listener);
                 } else {
                     retrySecondTime.set(true);
                 }
             } else {
-                onFailure.accept(e);
+                listener.onFailure(e);
             }
         });
+        executeRequest(task, request, listenerWithRetryAction);
         if (retrySecondTime.get()) {
             if (log.isDebugEnabled()) {
                 log.debug("No candidate node found, likely all were upgraded in the meantime. Re-trying the original request.");
             }
-            queryRunner.accept(onFailure);
+            executeRequest(task, request, listener);
         }
     }
+
+    protected void executeRetryRequest(DiscoveryNode candidateNode, Request request, ActionListener<Response> listener) {
+        transportService.sendRequest(
+            candidateNode,
+            this.actionName,
+            request,
+            new ActionListenerResponseHandler<>(listener, responseReader())
+        );
+    }
+
+    protected abstract void executeRequest(Task task, Request request, ActionListener<Response> listener);
+
+    public abstract Writeable.Reader<Response> responseReader();
 }

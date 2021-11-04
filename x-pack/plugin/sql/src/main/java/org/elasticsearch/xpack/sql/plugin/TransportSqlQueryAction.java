@@ -6,16 +6,13 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Tuple;
@@ -28,6 +25,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.ql.async.AsyncTaskManagementService;
+import org.elasticsearch.xpack.ql.plugin.TransportRetryAction;
 import org.elasticsearch.xpack.ql.type.Schema;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
@@ -56,16 +54,14 @@ import java.util.Map;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
-import static org.elasticsearch.xpack.ql.plugin.TransportActionUtils.executeRequestWithRetryAttempt;
 import static org.elasticsearch.xpack.sql.plugin.Transports.clusterName;
 import static org.elasticsearch.xpack.sql.plugin.Transports.username;
 import static org.elasticsearch.xpack.sql.proto.Mode.CLI;
 
-public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequest, SqlQueryResponse>
+public class TransportSqlQueryAction extends TransportRetryAction<SqlQueryRequest, SqlQueryResponse>
     implements
         AsyncTaskManagementService.AsyncOperation<SqlQueryRequest, SqlQueryResponse, SqlQueryTask> {
 
-    private static final Logger log = LogManager.getLogger(TransportSqlQueryAction.class);
     private final SecurityContext securityContext;
     private final ClusterService clusterService;
     private final PlanExecutor planExecutor;
@@ -84,7 +80,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         SqlLicenseChecker sqlLicenseChecker,
         BigArrays bigArrays
     ) {
-        super(SqlQueryAction.NAME, transportService, actionFilters, SqlQueryRequest::new);
+        super(SqlQueryAction.NAME, transportService, actionFilters, SqlQueryRequest::new, clusterService);
 
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
@@ -110,7 +106,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
     }
 
     @Override
-    protected void doExecute(Task task, SqlQueryRequest request, ActionListener<SqlQueryResponse> listener) {
+    protected void executeRequest(Task task, SqlQueryRequest request, ActionListener<SqlQueryResponse> listener) {
         sqlLicenseChecker.checkIfSqlAllowed(request.mode());
         if (request.waitForCompletionTimeout() != null && request.waitForCompletionTimeout().getMillis() >= 0) {
             asyncTaskManagementService.asyncExecute(
@@ -159,22 +155,11 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         );
 
         if (Strings.hasText(request.cursor()) == false) {
-            executeRequestWithRetryAttempt(
-                clusterService,
-                listener::onFailure,
-                onFailure -> planExecutor.sql(
-                    cfg,
-                    request.query(),
-                    request.params(),
-                    wrap(p -> listener.onResponse(createResponseWithSchema(request, p, task)), onFailure)
-                ),
-                node -> transportService.sendRequest(
-                    node,
-                    SqlQueryAction.NAME,
-                    request,
-                    new ActionListenerResponseHandler<>(listener, SqlQueryResponse::new, ThreadPool.Names.SAME)
-                ),
-                log
+            planExecutor.sql(
+                cfg,
+                request.query(),
+                request.params(),
+                wrap(p -> listener.onResponse(createResponseWithSchema(request, p, task)), listener::onFailure)
             );
         } else {
             Tuple<Cursor, ZoneId> decoded = Cursors.decodeFromStringWithZone(request.cursor());
@@ -184,6 +169,11 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
                 wrap(p -> listener.onResponse(createResponse(request, decoded.v2(), null, p, task)), listener::onFailure)
             );
         }
+    }
+
+    @Override
+    public Reader<SqlQueryResponse> responseReader() {
+        return SqlQueryAction.INSTANCE.getResponseReader();
     }
 
     private static SqlQueryResponse createResponseWithSchema(SqlQueryRequest request, Page page, SqlQueryTask task) {

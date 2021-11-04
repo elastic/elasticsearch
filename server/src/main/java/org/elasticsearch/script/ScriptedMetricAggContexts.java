@@ -56,7 +56,7 @@ public class ScriptedMetricAggContexts {
 
         private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
         private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of("doc", value -> {
-            deprecationLogger.critical(
+            deprecationLogger.warn(
                 DeprecationCategory.SCRIPTING,
                 "map-script_doc",
                 "Accessing variable [doc] via [params.doc] from within an scripted metric agg map script "
@@ -64,7 +64,7 @@ public class ScriptedMetricAggContexts {
             );
             return value;
         }, "_doc", value -> {
-            deprecationLogger.critical(
+            deprecationLogger.warn(
                 DeprecationCategory.SCRIPTING,
                 "map-script__doc",
                 "Accessing variable [doc] via [params._doc] from within an scripted metric agg map script "
@@ -72,7 +72,7 @@ public class ScriptedMetricAggContexts {
             );
             return value;
         }, "_agg", value -> {
-            deprecationLogger.critical(
+            deprecationLogger.warn(
                 DeprecationCategory.SCRIPTING,
                 "map-script__agg",
                 "Accessing variable [_agg] via [params._agg] from within a scripted metric agg map script "

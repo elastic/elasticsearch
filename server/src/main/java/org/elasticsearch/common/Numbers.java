@@ -21,14 +21,11 @@ import java.nio.ByteOrder;
  */
 public final class Numbers {
 
-    private static final VarHandle BIG_ENDIAN_SHORT =
-        MethodHandles.byteArrayViewVarHandle(short[].class, ByteOrder.BIG_ENDIAN);
+    private static final VarHandle BIG_ENDIAN_SHORT = MethodHandles.byteArrayViewVarHandle(short[].class, ByteOrder.BIG_ENDIAN);
 
-    private static final VarHandle BIG_ENDIAN_INT =
-        MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
+    private static final VarHandle BIG_ENDIAN_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
 
-    private static final VarHandle BIG_ENDIAN_LONG =
-        MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
+    private static final VarHandle BIG_ENDIAN_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
 
     private static final BigInteger MAX_LONG_VALUE = BigInteger.valueOf(Long.MAX_VALUE);
     private static final BigInteger MIN_LONG_VALUE = BigInteger.valueOf(Long.MIN_VALUE);
@@ -36,15 +33,15 @@ public final class Numbers {
     private Numbers() {}
 
     public static short bytesToShort(byte[] bytes, int offset) {
-        return (short)BIG_ENDIAN_SHORT.get(bytes, offset);
+        return (short) BIG_ENDIAN_SHORT.get(bytes, offset);
     }
 
     public static int bytesToInt(byte[] bytes, int offset) {
-        return (int)BIG_ENDIAN_INT.get(bytes, offset);
+        return (int) BIG_ENDIAN_INT.get(bytes, offset);
     }
 
     public static long bytesToLong(byte[] bytes, int offset) {
-        return (long)BIG_ENDIAN_LONG.get(bytes, offset);
+        return (long) BIG_ENDIAN_LONG.get(bytes, offset);
     }
 
     public static long bytesToLong(BytesRef bytes) {
@@ -65,7 +62,7 @@ public final class Numbers {
      */
     public static byte[] shortToBytes(int val) {
         byte[] arr = new byte[2];
-        BIG_ENDIAN_SHORT.set(arr, 0, (short)val);
+        BIG_ENDIAN_SHORT.set(arr, 0, (short) val);
         return arr;
     }
 

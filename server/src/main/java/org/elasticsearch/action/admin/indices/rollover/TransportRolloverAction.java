@@ -103,16 +103,18 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 }
             }
 
-            var reason = new StringBuilder();
-            Strings.collectionToDelimitedStringWithLimit(
-                (Iterable<String>) () -> tasks.stream().map(t -> t.sourceIndex.get() + "->" + t.rolloverIndex.get()).iterator(),
-                ",",
-                "bulk rollover [",
-                "]",
-                1024,
-                reason
-            );
-            state = allocationService.reroute(state, reason.toString());
+            if (state != currentState) {
+                var reason = new StringBuilder();
+                Strings.collectionToDelimitedStringWithLimit(
+                    (Iterable<String>) () -> tasks.stream().map(t -> t.sourceIndex.get() + "->" + t.rolloverIndex.get()).iterator(),
+                    ",",
+                    "bulk rollover [",
+                    "]",
+                    1024,
+                    reason
+                );
+                state = allocationService.reroute(state, reason.toString());
+            }
             return builder.build(state);
         };
     }

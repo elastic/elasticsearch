@@ -123,9 +123,12 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         assertThat(result.get(".b").size(), equalTo(1));
         assertThat(result.get("c").size(), equalTo(1));
         assertWarnings(
-            Level.WARN,
-            "this request accesses system indices: [.b], but in a future major version, direct access to system "
-                + "indices will be prevented by default"
+            true,
+            new DeprecationWarning(
+                Level.WARN,
+                "this request accesses system indices: [.b], "
+                    + "but in a future major version, direct access to system indices will be prevented by default"
+            )
         );
     }
 
@@ -151,9 +154,12 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(".b").size(), equalTo(1));
         assertWarnings(
-            Level.WARN,
-            "this request accesses system indices: [.b], but in a future major version, direct access to system "
-                + "indices will be prevented by default"
+            true,
+            new DeprecationWarning(
+                Level.WARN,
+                "this request accesses system indices: [.b], "
+                    + "but in a future major version, direct access to system indices will be prevented by default"
+            )
         );
     }
 
@@ -178,9 +184,12 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(".b").size(), equalTo(1));
         assertWarnings(
-            Level.WARN,
-            "this request accesses system indices: [.b], but in a future major version, direct access to system "
-                + "indices will be prevented by default"
+            true,
+            new DeprecationWarning(
+                Level.WARN,
+                "this request accesses system indices: [.b], "
+                    + "but in a future major version, direct access to system indices will be prevented by default"
+            )
         );
     }
 

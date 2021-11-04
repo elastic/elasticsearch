@@ -109,27 +109,34 @@ Whether the vectors should be indexed to support efficient k-nearest neighbor se
 
 `similarity`::
 
-The vector similarity metric to use in kNN search. When `index` is
-enabled, this parameter is required. The following options are supported:
+The vector similarity metric to use in kNN search. Documents are ranked by
+their vector field's similarity to the query vector. The `_score` of each
+document will be derived from the similarity, in a way that ensures scores are
+positive and that a larger score corresponds to a higher ranking.
++
+When `index` is enabled, this parameter is required. The following options are supported:
 
 `l2_norm`:::
 Computes similarity based on the L^2^ distance (also known as Euclidean
-distance) between the vectors.
+distance) between the vectors. The document `_score` is computed as
+`1 / (1 + l2_norm(query, vector)^2)`.`
 
 `dot_product`:::
 Computes the dot product of two vectors. This option provides an optimized way
 to perform cosine similarity. In order to use it, all vectors must be of unit
-length, including both document and query vectors.
+length, including both document and query vectors. The document `_score` is
+computed as `(1 + dot_product(query, vector)) / 2`.
 
 `cosine`:::
 Computes the cosine similarity. Note that the most efficient way to perform
 cosine similarity is to normalize all vectors to unit length, and instead use
 `dot_product`. You should only use `cosine` if you need to preserve the
-original vectors and cannot normalize them in advance.
+original vectors and cannot normalize them in advance. The document `_score`
+is computed as `(1 + dot_product(query, vector)) / 2`.
 
-NOTE: Although they are conceptually related, this parameter is different
-from the <<similarity,`similarity`>> parameter on <<text,`text`>> fields
-and accepts a distinct set of options.
+NOTE: Although they are conceptually related, the `similarity` parameter is
+different from <<text,`text`>> field <<similarity,`similarity`>> and accepts
+a distinct set of options.
 
 `index_options`::
 

@@ -15,7 +15,6 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeometryNormalizer;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.MultiLine;
 import org.elasticsearch.geometry.MultiPoint;
@@ -185,7 +184,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
         }
         Geometry expectedGeom;
         if (lines.isEmpty()) {
-            expectedGeom = GeometryCollection.EMPTY;
+            expectedGeom = MultiLine.EMPTY;
         } else if (lines.size() == 1) {
             expectedGeom = new Line(lines.get(0).getX(), lines.get(0).getY());
         } else {

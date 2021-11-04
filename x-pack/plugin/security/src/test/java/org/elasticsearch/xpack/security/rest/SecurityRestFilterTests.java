@@ -59,7 +59,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class SecurityRestFilterTests extends ESTestCase {
@@ -93,7 +93,7 @@ public class SecurityRestFilterTests extends ESTestCase {
         }).when(authcService).authenticate(eq(request), anyActionListener());
         filter.handleRequest(request, channel, null);
         verify(restHandler).handleRequest(request, channel, null);
-        verifyZeroInteractions(channel);
+        verifyNoMoreInteractions(channel);
     }
 
     public void testProcessSecondaryAuthentication() throws Exception {
@@ -136,7 +136,7 @@ public class SecurityRestFilterTests extends ESTestCase {
         );
         filter.handleRequest(request, channel, null);
         verify(restHandler).handleRequest(request, channel, null);
-        verifyZeroInteractions(channel);
+        verifyNoMoreInteractions(channel);
 
         assertThat(secondaryAuthRef.get(), notNullValue());
         assertThat(secondaryAuthRef.get().getAuthentication(), sameInstance(secondaryAuthentication));
@@ -148,7 +148,7 @@ public class SecurityRestFilterTests extends ESTestCase {
         RestRequest request = mock(RestRequest.class);
         filter.handleRequest(request, channel, null);
         verify(restHandler).handleRequest(request, channel, null);
-        verifyZeroInteractions(channel, authcService);
+        verifyNoMoreInteractions(channel, authcService);
     }
 
     public void testProcessAuthenticationFailedNoTrace() throws Exception {
@@ -230,7 +230,7 @@ public class SecurityRestFilterTests extends ESTestCase {
         } else {
             assertThat(restResponse.content().utf8ToString(), not(containsString(ElasticsearchException.STACK_TRACE)));
         }
-        verifyZeroInteractions(restHandler);
+        verifyNoMoreInteractions(restHandler);
     }
 
     public void testProcessOptionsMethod() throws Exception {
@@ -238,8 +238,8 @@ public class SecurityRestFilterTests extends ESTestCase {
         when(request.method()).thenReturn(RestRequest.Method.OPTIONS);
         filter.handleRequest(request, channel, null);
         verify(restHandler).handleRequest(request, channel, null);
-        verifyZeroInteractions(channel);
-        verifyZeroInteractions(authcService);
+        verifyNoMoreInteractions(channel);
+        verifyNoMoreInteractions(authcService);
     }
 
     public void testProcessFiltersBodyCorrectly() throws Exception {

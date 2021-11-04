@@ -17,7 +17,10 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ml.inference.results.NerResults.ENTITY_FIELD;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class NerResultsTests extends InferenceResultsTestCase<NerResults> {
     @Override
@@ -40,7 +43,8 @@ public class NerResultsTests extends InferenceResultsTestCase<NerResults> {
                     randomIntBetween(-1, 5),
                     randomIntBetween(5, 10)
                 )
-            ).limit(numEntities).collect(Collectors.toList())
+            ).limit(numEntities).collect(Collectors.toList()),
+            randomBoolean()
         );
     }
 
@@ -54,6 +58,11 @@ public class NerResultsTests extends InferenceResultsTestCase<NerResults> {
         }
         assertThat(resultList, hasSize(testInstance.getEntityGroups().size()));
         assertThat(asMap.get(testInstance.getResultsField()), equalTo(testInstance.getAnnotatedResult()));
+        if (testInstance.isTruncated) {
+            assertThat(asMap.get("is_truncated"), is(true));
+        } else {
+            assertThat(asMap, not(hasKey("is_truncated")));
+        }
         for (int i = 0; i < testInstance.getEntityGroups().size(); i++) {
             NerResults.EntityGroup entity = testInstance.getEntityGroups().get(i);
             Map<String, Object> map = resultList.get(i);

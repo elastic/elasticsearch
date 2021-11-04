@@ -3,6 +3,16 @@
 
 The following pages have moved or been deleted.
 
+[role="exclude",id="configuring-tls-docker"]
+== Encrypting communications in an {es} Docker Container
+
+Refer to <<docker-compose-file,Starting a multi-node cluster with Docker Compose>>.
+
+[role="exclude",id="next-getting-started-tls-docker"]
+=== Start a multi-node cluster with TLS enabled
+
+Refer to <<docker-compose-file,Starting a multi-node cluster with Docker Compose>>.
+
 // [START] Remote clusters
 
 [role="exclude",id="ccs-clients-integrations"]

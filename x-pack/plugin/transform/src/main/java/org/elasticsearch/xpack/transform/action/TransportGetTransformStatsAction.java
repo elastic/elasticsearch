@@ -72,19 +72,16 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
         Client client,
         Settings settings
     ) {
-        this(GetTransformStatsAction.NAME, transportService, actionFilters, clusterService, transformServices, client, settings);
-    }
-
-    protected TransportGetTransformStatsAction(
-        String name,
-        TransportService transportService,
-        ActionFilters actionFilters,
-        ClusterService clusterService,
-        TransformServices transformServices,
-        Client client,
-        Settings settings
-    ) {
-        super(name, clusterService, transportService, actionFilters, Request::new, Response::new, Response::new, ThreadPool.Names.SAME);
+        super(
+            GetTransformStatsAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            Request::new,
+            Response::new,
+            Response::new,
+            ThreadPool.Names.SAME
+        );
         this.transformConfigManager = transformServices.getConfigManager();
         this.transformCheckpointService = transformServices.getCheckpointService();
         this.client = client;

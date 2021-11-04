@@ -21,6 +21,10 @@ public class TokenizationResult {
         this.maxLength = -1;
     }
 
+    public boolean anyTruncated() {
+        return tokenizations.stream().anyMatch(Tokenization::isTruncated);
+    }
+
     public String getFromVocab(int tokenId) {
         return vocab.get(tokenId);
     }
@@ -29,9 +33,9 @@ public class TokenizationResult {
         return tokenizations;
     }
 
-    public void addTokenization(String input, String[] tokens, int[] tokenIds, int[] tokenMap) {
+    public void addTokenization(String input, boolean isTruncated, String[] tokens, int[] tokenIds, int[] tokenMap) {
         maxLength = Math.max(maxLength, tokenIds.length);
-        tokenizations.add(new Tokenization(input, tokens, tokenIds, tokenMap));
+        tokenizations.add(new Tokenization(input, isTruncated, tokens, tokenIds, tokenMap));
     }
 
     public void addTokenization(Tokenization tokenization) {
@@ -49,14 +53,16 @@ public class TokenizationResult {
         private final String[] tokens;
         private final int[] tokenIds;
         private final int[] tokenMap;
+        private final boolean truncated;
 
-        public Tokenization(String input, String[] tokens, int[] tokenIds, int[] tokenMap) {
+        public Tokenization(String input, boolean truncated, String[] tokens, int[] tokenIds, int[] tokenMap) {
             assert tokens.length == tokenIds.length;
             assert tokenIds.length == tokenMap.length;
             this.inputSeqs = input;
             this.tokens = tokens;
             this.tokenIds = tokenIds;
             this.tokenMap = tokenMap;
+            this.truncated = truncated;
         }
 
         /**
@@ -90,6 +96,10 @@ public class TokenizationResult {
 
         public String getInput() {
             return inputSeqs;
+        }
+
+        public boolean isTruncated() {
+            return truncated;
         }
     }
 }

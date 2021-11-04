@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.deprecation;
 
+import org.apache.logging.log4j.Level;
+import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.Strings;
@@ -18,8 +20,10 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -53,11 +57,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
         assertThat(issue, not(nullValue()));
         assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
-        assertThat(
-            issue.getMessage(),
-            equalTo("setting [node.removed_setting] is deprecated and will be removed in the next major version")
-        );
-        assertThat(issue.getDetails(), equalTo("the setting [node.removed_setting] is currently set to [value], remove this setting"));
+        assertThat(issue.getMessage(), equalTo("Setting [node.removed_setting] is deprecated"));
+        assertThat(issue.getDetails(), equalTo("Remove the [node.removed_setting] setting."));
         assertThat(issue.getUrl(), equalTo("https://removed-setting.example.com"));
     }
 
@@ -591,4 +592,60 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
     }
 
+    private List<DeprecationIssue> getDeprecationIssues(Settings settings, PluginsAndModules pluginsAndModules) {
+        final List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
+            DeprecationChecks.NODE_SETTINGS_CHECKS,
+            c -> c.apply(settings, pluginsAndModules)
+        );
+
+        return issues;
+    }
+
+    public void testLifecyleStepMasterTimeoutSetting() {
+        Settings settings = Settings.builder()
+            .put(LifecycleSettings.LIFECYCLE_STEP_MASTER_TIMEOUT_SETTING.getKey(), randomTimeValue())
+            .build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules);
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            "Setting [indices.lifecycle.step.master_timeout] is deprecated",
+            "https://ela.st/es-deprecation-8-lifecycle-master-timeout-setting",
+            "Remove the [indices.lifecycle.step.master_timeout] setting. As of 7.16 the timeout is always infinite.",
+            false,
+            null
+        );
+        assertThat(issues, hasItem(expected));
+        assertWarnings(
+            true,
+            new DeprecationWarning(
+                Level.WARN,
+                "[indices.lifecycle.step.master_timeout] setting was deprecated in Elasticsearch and will be removed in a future release!"
+                    + " See the breaking changes documentation for the next major version."
+            )
+        );
+    }
+
+    public void testEqlEnabledSetting() {
+        Settings settings = Settings.builder().put("xpack.eql.enabled", randomBoolean()).build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules);
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            "Setting [xpack.eql.enabled] is deprecated",
+            "https://ela.st/es-deprecation-8-eql-enabled-setting",
+            "Remove the [xpack.eql.enabled] setting. As of 7.9.2 basic license level features are always enabled.",
+            false,
+            null
+        );
+        assertThat(issues, hasItem(expected));
+        assertWarnings(
+            true,
+            new DeprecationWarning(
+                Level.WARN,
+                "[xpack.eql.enabled] setting was deprecated in Elasticsearch and will be removed in a future release!"
+                    + " See the breaking changes documentation for the next major version."
+            )
+        );
+    }
 }

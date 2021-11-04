@@ -156,7 +156,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
             return new IndexFieldData.Builder() {
                 @Override
                 public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-                    deprecationLogger.critical(DeprecationCategory.AGGREGATIONS, "id_field_data", ID_FIELD_DATA_DEPRECATION_MESSAGE);
+                    deprecationLogger.warn(DeprecationCategory.AGGREGATIONS, "id_field_data", ID_FIELD_DATA_DEPRECATION_MESSAGE);
                     final IndexFieldData<?> fieldData = fieldDataBuilder.build(cache, breakerService);
                     return new IndexFieldData<>() {
                         @Override
@@ -218,7 +218,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
             }
 
             @Override
-            public DocValuesField getScriptField(String name) {
+            public DocValuesField<?> getScriptField(String name) {
                 return new DelegateDocValuesField(new ScriptDocValues.Strings(getBytesValues()), name);
             }
 

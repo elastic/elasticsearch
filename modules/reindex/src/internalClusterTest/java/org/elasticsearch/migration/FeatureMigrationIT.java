@@ -96,6 +96,7 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         createRequest.setSettings(
             Settings.builder()
                 .put("index.version.created", NEEDS_UPGRADE_VERSION)
+                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
                 .put("index.hidden", true) // So we don't get a warning
                 .build()
         );
@@ -238,7 +239,12 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         CreateIndexRequestBuilder createRequest = prepareCreate(indexName);
         createRequest.setWaitForActiveShards(ActiveShardCount.ALL);
         if (descriptor.getSettings() != null) {
-            createRequest.setSettings(Settings.builder().put("index.version.created", Version.CURRENT).build());
+            createRequest.setSettings(
+                Settings.builder()
+                    .put("index.version.created", Version.CURRENT)
+                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                    .build()
+            );
         } else {
             createRequest.setSettings(
                 createSimpleSettings(

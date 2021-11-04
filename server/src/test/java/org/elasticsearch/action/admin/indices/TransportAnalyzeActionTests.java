@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.action.admin.indices;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.analysis.MockTokenFilter;
 import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenStream;
@@ -574,7 +575,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
 
         AnalyzeAction.Response analyze = TransportAnalyzeAction.analyze(req, registry, mockIndexService(), maxTokenCount);
         assertEquals(2, analyze.getTokens().size());
-        assertWarnings("Using deprecated token filter [deprecated]");
+        assertWarnings(Level.WARN, "Using deprecated token filter [deprecated]");
 
         // normalizer
         req = new AnalyzeAction.Request();

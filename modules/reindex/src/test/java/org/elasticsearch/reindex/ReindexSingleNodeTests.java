@@ -8,6 +8,7 @@
 
 package org.elasticsearch.reindex;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequestBuilder;
@@ -47,6 +48,6 @@ public class ReindexSingleNodeTests extends ESSingleNodeTestCase {
 
         assertHitCount(client().prepareSearch("dest").setSize(0).get(), subsetSize);
         assertHitCount(client().prepareSearch("dest").setQuery(new RangeQueryBuilder("foo").gte(0).lt(max - subsetSize)).get(), 0);
-        assertWarnings(ReindexValidator.SORT_DEPRECATED_MESSAGE);
+        assertWarnings(Level.WARN, ReindexValidator.SORT_DEPRECATED_MESSAGE);
     }
 }

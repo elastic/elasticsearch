@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -52,7 +53,7 @@ public class GetTransformActionResponseTests extends AbstractWireSerializingTran
         expectedInvalidTransforms.add(transforms.get(1).getId());
         expectedInvalidTransforms.add(transforms.get(3).getId());
         assertEquals(expectedInvalidTransforms, XContentMapValues.extractValue("invalid_transforms.transforms", responseAsMap));
-        assertWarnings(LoggerMessageFormat.format(Response.INVALID_TRANSFORMS_DEPRECATION_WARNING, 2));
+        assertWarnings(Level.WARN, LoggerMessageFormat.format(Response.INVALID_TRANSFORMS_DEPRECATION_WARNING, 2));
     }
 
     @SuppressWarnings("unchecked")

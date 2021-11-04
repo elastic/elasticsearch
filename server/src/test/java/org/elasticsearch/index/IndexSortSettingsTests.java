@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
@@ -183,7 +184,7 @@ public class IndexSortSettingsTests extends ESTestCase {
         MappedFieldType mft = new KeywordFieldMapper.KeywordFieldType("aliased");
         config.buildIndexSort(field -> mft, (ft, s) -> indexFieldDataService.getForField(ft, "index", s));
 
-        assertWarnings(
+        assertWarnings(Level.WARN,
             "Index sort for index [test] defined on field [field] which resolves to field [aliased]. "
                 + "You will not be able to define an index sort over aliased fields in new indexes"
         );

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.unit;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -321,7 +322,7 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
         String fractionalValue = "23.5" + unit.getSuffix();
         ByteSizeValue instance = ByteSizeValue.parseBytesSizeValue(fractionalValue, "test");
         assertEquals(fractionalValue, instance.toString());
-        assertWarnings(
+        assertWarnings(Level.WARN,
             "Fractional bytes values are deprecated. Use non-fractional bytes values instead: ["
                 + fractionalValue
                 + "] found for setting [test]"

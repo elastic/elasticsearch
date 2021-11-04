@@ -8,6 +8,7 @@
 
 package org.elasticsearch.analysis.common;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
@@ -57,7 +58,7 @@ public class CompoundAnalysisTests extends ESTestCase {
                 hasItems("donau", "dampf", "schiff", "donaudampfschiff", "spargel", "creme", "suppe", "spargelcremesuppe")
             );
         }
-        assertWarnings("Setting [version] on analysis component [custom7] has no effect and is deprecated");
+        assertWarnings(Level.WARN, "Setting [version] on analysis component [custom7] has no effect and is deprecated");
     }
 
     private List<String> analyze(Settings settings, String analyzerName, String text) throws IOException {

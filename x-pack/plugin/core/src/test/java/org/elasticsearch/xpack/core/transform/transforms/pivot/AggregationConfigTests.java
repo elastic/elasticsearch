@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -137,7 +138,7 @@ public class AggregationConfigTests extends AbstractSerializingTransformTestCase
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             AggregationConfig agg = AggregationConfig.fromXContent(parser, false);
             assertNull(agg.validate(null));
-            assertWarnings(MockDeprecatedAggregationBuilder.DEPRECATION_MESSAGE);
+            assertWarnings(Level.WARN, MockDeprecatedAggregationBuilder.DEPRECATION_MESSAGE);
         }
     }
 

@@ -10,6 +10,7 @@ package org.elasticsearch.index.analysis;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.MockTokenFilter;
 import org.apache.lucene.analysis.TokenStream;
@@ -432,7 +433,7 @@ public class AnalysisRegistryTests extends ESTestCase {
         new AnalysisModule(TestEnvironment.newEnvironment(settings), singletonList(plugin)).getAnalysisRegistry().build(idxSettings);
 
         // We should only get a warning from the token filter that is referenced in settings
-        assertWarnings("Using deprecated token filter [deprecated]");
+        assertWarnings(Level.WARN, "Using deprecated token filter [deprecated]");
 
         indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.getPreviousVersion())

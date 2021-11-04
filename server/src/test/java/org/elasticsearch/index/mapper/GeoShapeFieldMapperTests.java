@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.core.List;
@@ -210,7 +211,7 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
             b.startObject("keyword").field("type", "keyword").endObject();
             b.endObject();
         }));
-        assertWarnings("Adding multifields to [geo_shape] mappers has no effect and will be forbidden in future");
+        assertWarnings(Level.WARN, "Adding multifields to [geo_shape] mappers has no effect and will be forbidden in future");
     }
 
     @Override

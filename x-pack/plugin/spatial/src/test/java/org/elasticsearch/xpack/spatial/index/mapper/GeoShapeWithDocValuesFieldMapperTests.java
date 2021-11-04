@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.spatial.index.mapper;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
@@ -386,7 +387,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends MapperTestCase {
             b.startObject("keyword").field("type", "keyword").endObject();
             b.endObject();
         }));
-        assertWarnings("Adding multifields to [geo_shape] mappers has no effect and will be forbidden in future");
+        assertWarnings(Level.WARN, "Adding multifields to [geo_shape] mappers has no effect and will be forbidden in future");
     }
 
     public void testRandomVersionMapping() throws Exception {

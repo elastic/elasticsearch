@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.rollup.action;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
@@ -465,7 +466,7 @@ public class PutJobStateMachineTests extends ESTestCase {
         );
         PutRollupJobAction.Request request = new PutRollupJobAction.Request(config);
         TransportPutRollupJobAction.checkForDeprecatedTZ(request);
-        assertWarnings(
+        assertWarnings(Level.WARN,
             "Creating Rollup job [foo] with timezone [Japan], but [Japan] has been deprecated by the IANA.  " + "Use [Asia/Tokyo] instead."
         );
     }

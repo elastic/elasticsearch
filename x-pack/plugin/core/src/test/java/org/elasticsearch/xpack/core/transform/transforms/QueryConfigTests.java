@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -147,7 +148,7 @@ public class QueryConfigTests extends AbstractSerializingTransformTestCase<Query
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             QueryConfig query = QueryConfig.fromXContent(parser, false);
             assertNotNull(query.getQuery());
-            assertWarnings(MockDeprecatedQueryBuilder.DEPRECATION_MESSAGE);
+            assertWarnings(Level.WARN, MockDeprecatedQueryBuilder.DEPRECATION_MESSAGE);
         }
     }
 }

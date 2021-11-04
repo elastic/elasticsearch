@@ -1053,7 +1053,7 @@ public class RealmsTests extends ESTestCase {
         Environment env = TestEnvironment.newEnvironment(settings);
         new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
 
-        assertWarnings(
+        assertWarnings(Level.WARN,
             "Found realm "
                 + (invalidRealmNames.size() == 1 ? "name" : "names")
                 + " with reserved prefix [_]: ["

@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.action.admin.indices.alias.get;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -121,7 +122,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         assertThat(result.get("a").size(), equalTo(0));
         assertThat(result.get(".b").size(), equalTo(1));
         assertThat(result.get("c").size(), equalTo(1));
-        assertWarnings(
+        assertWarnings(Level.WARN,
             "this request accesses system indices: [.b], but in a future major version, direct access to system "
                 + "indices will be prevented by default"
         );
@@ -148,7 +149,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         );
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(".b").size(), equalTo(1));
-        assertWarnings(
+        assertWarnings(Level.WARN,
             "this request accesses system indices: [.b], but in a future major version, direct access to system "
                 + "indices will be prevented by default"
         );
@@ -174,7 +175,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         );
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(".b").size(), equalTo(1));
-        assertWarnings(
+        assertWarnings(Level.WARN,
             "this request accesses system indices: [.b], but in a future major version, direct access to system "
                 + "indices will be prevented by default"
         );
@@ -255,7 +256,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
             systemIndices
         );
         assertThat(result.size(), equalTo(0));
-        assertWarnings(
+        assertWarnings(Level.WARN,
             "this request accesses aliases with names reserved for system indices: [.y], but in a future major version, direct"
                 + " access to system indices and their aliases will not be allowed"
         );

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
@@ -438,7 +439,7 @@ public class PivotConfigTests extends AbstractSerializingTransformTestCase<Pivot
 
     public void testDeprecation() {
         PivotConfig pivotConfig = randomPivotConfigWithDeprecatedFields();
-        assertWarnings(TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED);
+        assertWarnings(Level.WARN, TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED);
     }
 
     private static String dotJoin(String... fields) {

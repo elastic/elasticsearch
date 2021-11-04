@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -226,14 +227,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     protected final void assertParseMinimalWarnings() {
         String[] warnings = getParseMinimalWarnings();
         if (warnings.length > 0) {
-            assertWarnings(warnings);
+            assertWarnings(Level.WARN, warnings);
         }
     }
 
     protected final void assertParseMaximalWarnings() {
         String[] warnings = getParseMaximalWarnings();
         if (warnings.length > 0) {
-            assertWarnings(warnings);
+            assertWarnings(Level.WARN, warnings);
         }
     }
 
@@ -728,7 +729,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.nullField("field"))));
         }
 
-        assertWarnings(getParseMinimalWarnings());
+        assertWarnings(Level.WARN,  getParseMinimalWarnings());
     }
 
     protected boolean allowsNullValues() {

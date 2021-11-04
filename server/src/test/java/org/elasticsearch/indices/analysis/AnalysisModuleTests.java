@@ -8,6 +8,7 @@
 
 package org.elasticsearch.indices.analysis;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharFilter;
 import org.apache.lucene.analysis.MockTokenizer;
@@ -117,7 +118,7 @@ public class AnalysisModuleTests extends ESTestCase {
     public void testSimpleConfigurationYaml() throws IOException {
         Settings settings = loadFromClasspath("/org/elasticsearch/index/analysis/test1.yml");
         testSimpleConfiguration(settings);
-        assertWarnings("Setting [version] on analysis component [custom7] has no effect and is deprecated");
+        assertWarnings(Level.WARN, "Setting [version] on analysis component [custom7] has no effect and is deprecated");
     }
 
     public void testVersionedAnalyzers() throws Exception {
@@ -131,7 +132,7 @@ public class AnalysisModuleTests extends ESTestCase {
         IndexAnalyzers indexAnalyzers = getIndexAnalyzers(newRegistry, settings2);
 
         assertThat(indexAnalyzers.get("custom7").analyzer(), is(instanceOf(StandardAnalyzer.class)));
-        assertWarnings("Setting [version] on analysis component [custom7] has no effect and is deprecated");
+        assertWarnings(Level.WARN, "Setting [version] on analysis component [custom7] has no effect and is deprecated");
     }
 
     private void testSimpleConfiguration(Settings settings) throws IOException {
@@ -229,7 +230,7 @@ public class AnalysisModuleTests extends ESTestCase {
                 .put(IndexMetadata.SETTING_VERSION_CREATED, version)
                 .build();
             getIndexAnalyzers(settings);
-            assertWarnings("The [standard] token filter is deprecated and will be removed in a future version.");
+            assertWarnings(Level.WARN, "The [standard] token filter is deprecated and will be removed in a future version.");
         }
     }
 

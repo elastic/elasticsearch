@@ -565,7 +565,8 @@ public final class DocumentParser {
                 parseCopyFields(context, copyToFields);
             }
         } else if (mapper instanceof FieldAliasMapper) {
-            throw new MapperParsingException("Cannot write to a field alias [" + mapper.name() + "].");
+            String verb = context.isWithinCopyTo() ? "copy" : "write";
+            throw new MapperParsingException("Cannot " + verb + " to a field alias [" + mapper.name() + "].");
         } else {
             throw new IllegalStateException(
                 "The provided mapper [" + mapper.name() + "] has an unrecognized type [" + mapper.getClass().getSimpleName() + "]."

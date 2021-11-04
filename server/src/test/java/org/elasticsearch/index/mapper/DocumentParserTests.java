@@ -1880,7 +1880,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             () -> mapper.parse(source(b -> b.field("text-field", "value")))
         );
 
-        assertEquals("Cannot copy to a field alias [alias-field].", exception.getCause().getMessage());
+        assertEquals("Cannot copy to a field alias [alias-field].", exception.getMessage());
     }
 
     public void testDynamicDottedFieldNameWithFieldAlias() throws Exception {

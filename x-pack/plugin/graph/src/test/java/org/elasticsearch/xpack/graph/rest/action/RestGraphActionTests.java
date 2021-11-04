@@ -55,7 +55,7 @@ public class RestGraphActionTests extends RestActionTestCase {
             ).withMethod(methodAndPath.v1()).withPath(methodAndPath.v2()).withContent(new BytesArray("{}"), null).build();
 
             dispatchRequest(request);
-            assertWarnings(RestGraphAction.TYPES_DEPRECATION_MESSAGE);
+            assertCriticalWarnings(RestGraphAction.TYPES_DEPRECATION_MESSAGE);
         }
     }
 }

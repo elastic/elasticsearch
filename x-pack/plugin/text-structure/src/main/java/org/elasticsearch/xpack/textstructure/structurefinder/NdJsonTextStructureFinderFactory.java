@@ -6,9 +6,8 @@
  */
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 
 import java.io.IOException;
@@ -40,8 +39,7 @@ public class NdJsonTextStructureFinderFactory implements TextStructureFinderFact
             for (String sampleLine : sampleLines) {
                 try (
                     XContentParser parser = jsonXContent.createParser(
-                        NamedXContentRegistry.EMPTY,
-                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                        XContentParserConfiguration.EMPTY,
                         new ContextPrintingStringReader(sampleLine)
                     )
                 ) {

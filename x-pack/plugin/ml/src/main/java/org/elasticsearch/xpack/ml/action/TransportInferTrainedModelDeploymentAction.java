@@ -20,11 +20,14 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
 import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
+import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
 import java.util.List;
 
@@ -34,11 +37,14 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
     InferTrainedModelDeploymentAction.Response,
     InferTrainedModelDeploymentAction.Response> {
 
+    private final TrainedModelProvider provider;
+
     @Inject
     public TransportInferTrainedModelDeploymentAction(
         ClusterService clusterService,
         TransportService transportService,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        TrainedModelProvider provider
     ) {
         super(
             InferTrainedModelDeploymentAction.NAME,
@@ -50,6 +56,7 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
             InferTrainedModelDeploymentAction.Response::new,
             ThreadPool.Names.SAME
         );
+        this.provider = provider;
     }
 
     @Override
@@ -58,16 +65,27 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
         InferTrainedModelDeploymentAction.Request request,
         ActionListener<InferTrainedModelDeploymentAction.Response> listener
     ) {
-        String deploymentId = request.getDeploymentId();
+        final String deploymentId = request.getDeploymentId();
         // We need to check whether there is at least an assigned task here, otherwise we cannot redirect to the
         // node running the job task.
-        TrainedModelAllocation allocation = TrainedModelAllocationMetadata.allocationForModelId(
-            clusterService.state(),
-            request.getDeploymentId()
-        ).orElse(null);
+        TrainedModelAllocation allocation = TrainedModelAllocationMetadata.allocationForModelId(clusterService.state(), deploymentId)
+            .orElse(null);
         if (allocation == null) {
-            String message = "Cannot perform requested action because deployment [" + deploymentId + "] is not started";
-            listener.onFailure(ExceptionsHelper.conflictStatusException(message));
+            // If there is no allocation, verify the model even exists so that we can provide a nicer error message
+            provider.getTrainedModel(deploymentId, GetTrainedModelsAction.Includes.empty(), ActionListener.wrap(config -> {
+                if (config.getModelType() != TrainedModelType.PYTORCH) {
+                    listener.onFailure(
+                        ExceptionsHelper.badRequestException(
+                            "Only [pytorch] models are supported by _infer, provided model [{}] has type [{}]",
+                            config.getModelId(),
+                            config.getModelType()
+                        )
+                    );
+                    return;
+                }
+                String message = "Cannot perform requested action because deployment [" + deploymentId + "] is not started";
+                listener.onFailure(ExceptionsHelper.conflictStatusException(message));
+            }, listener::onFailure));
             return;
         }
         String[] randomRunningNode = allocation.getStartedNodes();
@@ -80,6 +98,7 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
         int nodeIndex = Randomness.get().nextInt(randomRunningNode.length);
         request.setNodes(randomRunningNode[nodeIndex]);
         super.doExecute(task, request, listener);
+
     }
 
     @Override

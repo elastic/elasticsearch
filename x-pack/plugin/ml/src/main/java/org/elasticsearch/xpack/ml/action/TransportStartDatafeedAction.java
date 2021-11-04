@@ -58,7 +58,6 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedNodeSelector;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
@@ -101,7 +100,6 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     private final JobConfigProvider jobConfigProvider;
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final AnomalyDetectionAuditor auditor;
-    private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
     private final NamedXContentRegistry xContentRegistry;
     private final boolean remoteClusterClient;
 
@@ -138,7 +136,6 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         this.jobConfigProvider = jobConfigProvider;
         this.datafeedConfigProvider = datafeedConfigProvider;
         this.auditor = auditor;
-        this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
         this.xContentRegistry = xContentRegistry;
         this.remoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
     }
@@ -193,16 +190,11 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             return;
         }
 
-        if (migrationEligibilityCheck.datafeedIsEligibleForMigration(request.getParams().getDatafeedId(), state)) {
-            listener.onFailure(ExceptionsHelper.configHasNotBeenMigrated("start datafeed", request.getParams().getDatafeedId()));
-            return;
-        }
-
         AtomicReference<DatafeedConfig> datafeedConfigHolder = new AtomicReference<>();
         PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
 
         ActionListener<PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams>> waitForTaskListener =
-            new ActionListener<PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams>>() {
+            new ActionListener<>() {
                 @Override
                 public void onResponse(PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams> persistentTask) {
                     waitForDatafeedStarted(persistentTask.getId(), params, listener);
@@ -425,31 +417,28 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         Exception exception,
         ActionListener<NodeAcknowledgedResponse> listener
     ) {
-        persistentTasksService.sendRemoveRequest(
-            persistentTask.getId(),
-            new ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>() {
-                @Override
-                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
-                    // We succeeded in cancelling the persistent task, but the
-                    // problem that caused us to cancel it is the overall result
-                    listener.onFailure(exception);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.error(
-                        "["
-                            + persistentTask.getParams().getDatafeedId()
-                            + "] Failed to cancel persistent task that could "
-                            + "not be assigned due to ["
-                            + exception.getMessage()
-                            + "]",
-                        e
-                    );
-                    listener.onFailure(exception);
-                }
+        persistentTasksService.sendRemoveRequest(persistentTask.getId(), new ActionListener<>() {
+            @Override
+            public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
+                // We succeeded in cancelling the persistent task, but the
+                // problem that caused us to cancel it is the overall result
+                listener.onFailure(exception);
             }
-        );
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error(
+                    "["
+                        + persistentTask.getParams().getDatafeedId()
+                        + "] Failed to cancel persistent task that could "
+                        + "not be assigned due to ["
+                        + exception.getMessage()
+                        + "]",
+                    e
+                );
+                listener.onFailure(exception);
+            }
+        });
     }
 
     private ElasticsearchStatusException createUnlicensedError(

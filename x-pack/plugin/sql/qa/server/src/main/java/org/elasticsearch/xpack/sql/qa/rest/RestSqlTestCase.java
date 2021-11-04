@@ -1276,6 +1276,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/80089")
     public void testAsyncTextPaginated() throws IOException, InterruptedException {
         final Map<String, String> acceptMap = new HashMap<>() {
             {

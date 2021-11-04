@@ -50,7 +50,7 @@ public class FillMaskProcessorTests extends ESTestCase {
         int[] tokenIds = new int[] { 0, 1, 2, 3, 4, 5 };
 
         TokenizationResult tokenization = new TokenizationResult(vocab);
-        tokenization.addTokenization(input, tokens, tokenIds, tokenMap);
+        tokenization.addTokenization(input, false, tokens, tokenIds, tokenMap);
 
         String resultsField = randomAlphaOfLength(10);
         FillMaskResults result = (FillMaskResults) FillMaskProcessor.processResult(
@@ -73,7 +73,7 @@ public class FillMaskProcessorTests extends ESTestCase {
 
     public void testProcessResults_GivenMissingTokens() {
         TokenizationResult tokenization = new TokenizationResult(Collections.emptyList());
-        tokenization.addTokenization("", new String[] {}, new int[] {}, new int[] {});
+        tokenization.addTokenization("", false, new String[] {}, new int[] {}, new int[] {});
 
         PyTorchResult pyTorchResult = new PyTorchResult("1", new double[][][] { { {} } }, 0L, null);
         assertThat(

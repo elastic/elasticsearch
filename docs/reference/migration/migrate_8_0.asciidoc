@@ -145,9 +145,7 @@ include::migrate_8_0/threadpool.asciidoc[]
 include::migrate_8_0/transform.asciidoc[]
 include::migrate_8_0/transport.asciidoc[]
 include::migrate_8_0/watcher.asciidoc[]
-include::migrate_8_0/migrate_to_java_time.asciidoc[]
 
-////
 [discrete]
 [[deprecated-8.0]]
 === Deprecations
@@ -162,4 +160,29 @@ NOTE: Significant changes in behavior are deprecated in a minor release and
 the old behavior is supported until the next major release.
 To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
-////
+
+[discrete]
+[[breaking_80_settings_deprecations]]
+==== Settings deprecations
+
+[[deprecate-transient-cluster-settings]]
+.Transient cluster settings are deprecated.
+[%collapsible]
+====
+*Details* +
+Starting in 7.16, transient cluster settings are deprecated and will be removed in a future release. This is because transient
+cluster settings have an unpredictable lifecycle. Transient cluster settings do not survive full cluster restarts or
+cluster instability. In these cases, {es} recovers the cluster state
+from persistent storage, effectively erasing the transient settings. The loss of transient settings can happen
+unexpectedly, leading to a potentially undesired cluster configuration.
+
+*Impact* +
+To avoid deprecation warnings, discontinue use of transient settings when modifying
+your cluster settings through the `PUT _cluster/settings` REST API. Use persistent
+settings instead. See the
+{ref}/transient-settings-migration-guide.html[Transient settings migration
+guide]. 
+====
+
+include::migrate_8_0/migrate_to_java_time.asciidoc[]
+include::transient-settings-migration-guide.asciidoc[]

@@ -58,8 +58,6 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
 
     public static class Request extends BaseTasksRequest<Request> {
 
-        @Deprecated
-        public static final String ALLOW_NO_JOBS = "allow_no_jobs";
         public static final String ALLOW_NO_MATCH = "allow_no_match";
 
         private String jobId;

@@ -175,7 +175,7 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
         Map<String, List<InternalQueryContext>> parsedContextBytes;
         parsedContextBytes = CompletionSuggestionBuilder.parseContextBytes(
             builder.contextBytes,
-            xContentRegistry(),
+            parserConfig(),
             new ContextMappings(contextMappings)
         );
         Map<String, List<InternalQueryContext>> queryContexts = completionSuggestionCtx.getQueryContexts();

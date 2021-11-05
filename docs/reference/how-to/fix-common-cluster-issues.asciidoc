@@ -671,3 +671,40 @@ CPU usage or high JVM memory pressure. For tips, see <<high-cpu-usage>> and
 
 If you regularly trigger circuit breaker errors, see <<circuit-breaker-errors>>
 for tips on diagnosing and preventing them.
+
+[discrete]
+[[task-throughput]]
+=== Task Queue Backup
+
+{es} tracks its node task's thread pools. You can see an overview by using the 
+<<cat-thread-pool,cat thread pool API>>.
+
+[source,console]
+---
+GET /_cat/thread_pool?v&s=t,n&h=type,name,node_name,active,queue,rejected,completed
+---
+
+Tasks run per thread pool grouped by `name` and `node_name` which request CPU resources
+to process. They can therefore be effected by <<high-cpu-usage,depleted thread pool>> 
+resulting in <<rejected-requests,rejected requests>>. You may alternatively find a high
+queue correlating to a long running task, checked via the <<tasks,Task Management API>>
+looking for `running_time_in_nanos`.
+
+[source,console]
+----
+GET /_tasks?filter_path=nodes.*.tasks
+----
+
+If you find a particular thread pool queue is backed up, you'll want to inspect your 
+cluster node's <<cluster-nodes-hot-threads,Hot Threads>>. Polled periodically, 
+this will inform you if the thread has sufficient resources to progress and how 
+quickly its processing.
+
+[source,console]
+---
+GET /_nodes/hot_threads
+---
+
+If you find the active task's hot thread isn't progressing, you may consider cancelling
+the task. More frequently, you'll find it slowly progressing, in which case should
+review related feature settings to tune performance.

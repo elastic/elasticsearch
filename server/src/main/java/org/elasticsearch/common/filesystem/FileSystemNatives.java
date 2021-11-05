@@ -33,23 +33,22 @@ public final class FileSystemNatives {
         }
     }
 
-    private static final Provider JNA_PROVIDER;
-    static {
-        Provider provider = new NoopFileSystemNativesProvider();
+    private static final Provider JNA_PROVIDER = loadJnaProvider();
+
+    private static Provider loadJnaProvider() {
         try {
             // load one of the main JNA classes to see if the classes are available. this does not ensure that all native
             // libraries are available, only the ones necessary by JNA to function
             Class.forName("com.sun.jna.Native");
             if (Constants.WINDOWS) {
-                provider = WindowsFileSystemNatives.getInstance();
+                return WindowsFileSystemNatives.getInstance();
             }
         } catch (ClassNotFoundException e) {
             logger.warn("JNA not found. FileSystemNatives methods will be disabled.", e);
         } catch (LinkageError e) {
             logger.warn("unable to load JNA native support library, FileSystemNatives methods will be disabled.", e);
-        } finally {
-            JNA_PROVIDER = provider;
         }
+        return new NoopFileSystemNativesProvider();
     }
 
     private FileSystemNatives() {}

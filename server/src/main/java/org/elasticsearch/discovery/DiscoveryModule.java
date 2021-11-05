@@ -171,7 +171,7 @@ public class DiscoveryModule {
                     DeprecationCategory.SETTINGS,
                     "legacy-discovery-type",
                     "Support for setting [{}] to [{}] is deprecated and will be removed in a future version. Set this setting to [{}] "
-                        + "instead",
+                        + "instead.",
                     DISCOVERY_TYPE_SETTING.getKey(),
                     LEGACY_MULTI_NODE_DISCOVERY_TYPE,
                     MULTI_NODE_DISCOVERY_TYPE

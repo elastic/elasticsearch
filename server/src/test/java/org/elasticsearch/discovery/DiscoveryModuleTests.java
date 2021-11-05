@@ -200,7 +200,7 @@ public class DiscoveryModuleTests extends ESTestCase {
         );
         assertCriticalWarnings(
             "Support for setting [discovery.type] to [zen] is deprecated and will be removed in a future version. Set this setting to "
-                + "[multi-node] instead"
+                + "[multi-node] instead."
         );
     }
 }

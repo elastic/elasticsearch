@@ -167,7 +167,7 @@ public class DateUtils {
     public static ZoneId of(String zoneId) {
         String deprecatedId = DEPRECATED_SHORT_TIMEZONES.get(zoneId);
         if (deprecatedId != null) {
-            deprecationLogger.critical(
+            deprecationLogger.warn(
                 DeprecationCategory.PARSING,
                 "timezone",
                 "Use of short timezone id " + zoneId + " is deprecated. Use " + deprecatedId + " instead"

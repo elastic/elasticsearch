@@ -585,7 +585,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
             return field.getValue();
         }), emptyMap());
         Map<String, ScriptEngine> engines = singletonMap(scriptEngine.getType(), scriptEngine);
-        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
+        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
     }
 
     @Override

@@ -12,16 +12,16 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.network.CloseableChannel;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -37,18 +37,18 @@ final class OutboundHandler {
     private final Version version;
     private final StatsTracker statsTracker;
     private final ThreadPool threadPool;
-    private final BigArrays bigArrays;
+    private final Recycler<BytesRef> recycler;
 
     private volatile long slowLogThresholdMs = Long.MAX_VALUE;
 
     private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
 
-    OutboundHandler(String nodeName, Version version, StatsTracker statsTracker, ThreadPool threadPool, BigArrays bigArrays) {
+    OutboundHandler(String nodeName, Version version, StatsTracker statsTracker, ThreadPool threadPool, Recycler<BytesRef> recycler) {
         this.nodeName = nodeName;
         this.version = version;
         this.statsTracker = statsTracker;
         this.threadPool = threadPool;
-        this.bigArrays = bigArrays;
+        this.recycler = recycler;
     }
 
     void setSlowLogThreshold(TimeValue slowLogThreshold) {
@@ -151,11 +151,11 @@ final class OutboundHandler {
     }
 
     private void sendMessage(TcpChannel channel, OutboundMessage networkMessage, ActionListener<Void> listener) throws IOException {
-        final BytesStreamOutput bytesStreamOutput = new ReleasableBytesStreamOutput(bigArrays);
-        final ActionListener<Void> wrappedListener = ActionListener.runBefore(listener, bytesStreamOutput::close);
+        final RecyclerBytesStreamOutput byteStreamOutput = new RecyclerBytesStreamOutput(recycler);
+        final ActionListener<Void> wrappedListener = ActionListener.runBefore(listener, byteStreamOutput::close);
         final BytesReference message;
         try {
-            message = networkMessage.serialize(bytesStreamOutput);
+            message = networkMessage.serialize(byteStreamOutput);
         } catch (Exception e) {
             logger.warn(() -> new ParameterizedMessage("failed to serialize outbound message [{}]", networkMessage), e);
             wrappedListener.onFailure(e);

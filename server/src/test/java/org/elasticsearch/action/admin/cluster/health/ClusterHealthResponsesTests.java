@@ -49,7 +49,7 @@ public class ClusterHealthResponsesTests extends AbstractSerializingTestCase<Clu
             res.setTimedOut(randomBoolean());
             if (res.isTimedOut()) {
                 assertEquals(RestStatus.REQUEST_TIMEOUT, res.status());
-                assertWarnings(ClusterHealthResponse.CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG);
+                assertCriticalWarnings(ClusterHealthResponse.CLUSTER_HEALTH_REQUEST_TIMEOUT_DEPRECATION_MSG);
             } else {
                 assertEquals(RestStatus.OK, res.status());
             }

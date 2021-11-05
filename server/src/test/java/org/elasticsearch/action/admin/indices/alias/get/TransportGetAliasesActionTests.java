@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.action.admin.indices.alias.get;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -120,8 +121,12 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         assertThat(result.get(".b").size(), equalTo(1));
         assertThat(result.get("c").size(), equalTo(1));
         assertWarnings(
-            "this request accesses system indices: [.b], but in a future major version, direct access to system "
-                + "indices will be prevented by default"
+            true,
+            new DeprecationWarning(
+                Level.WARN,
+                "this request accesses system indices: [.b], "
+                    + "but in a future major version, direct access to system indices will be prevented by default"
+            )
         );
     }
 
@@ -147,8 +152,12 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(".b").size(), equalTo(1));
         assertWarnings(
-            "this request accesses system indices: [.b], but in a future major version, direct access to system "
-                + "indices will be prevented by default"
+            true,
+            new DeprecationWarning(
+                Level.WARN,
+                "this request accesses system indices: [.b], "
+                    + "but in a future major version, direct access to system indices will be prevented by default"
+            )
         );
     }
 
@@ -173,8 +182,12 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(".b").size(), equalTo(1));
         assertWarnings(
-            "this request accesses system indices: [.b], but in a future major version, direct access to system "
-                + "indices will be prevented by default"
+            true,
+            new DeprecationWarning(
+                Level.WARN,
+                "this request accesses system indices: [.b], "
+                    + "but in a future major version, direct access to system indices will be prevented by default"
+            )
         );
     }
 

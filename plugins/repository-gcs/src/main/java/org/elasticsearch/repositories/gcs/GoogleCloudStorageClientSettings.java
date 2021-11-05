@@ -87,7 +87,7 @@ public class GoogleCloudStorageClientSettings {
     static final Setting.AffixSetting<String> APPLICATION_NAME_SETTING = Setting.affixKeySetting(
         PREFIX,
         "application_name",
-        key -> new Setting<>(key, "repository-gcs", Function.identity(), Setting.Property.NodeScope, Setting.Property.Deprecated)
+        key -> new Setting<>(key, "repository-gcs", Function.identity(), Setting.Property.NodeScope, Setting.Property.DeprecatedWarning)
     );
 
     /** The credentials used by the client to connect to the Storage endpoint. */

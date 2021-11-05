@@ -1135,6 +1135,12 @@ public abstract class Rounding implements Writeable {
             public long round(long originalUtcMillis) {
                 long utcMillis = originalUtcMillis;
                 int attempts = 0;
+                /* 
+                 * We give up after 5000 attempts and throw an exception. The
+                 * most attempts I could get running locally are 500 - for
+                 * Asia/Tehran with an 80,000 day range. You just can't declare
+                 * ranges much larger than that in ES right now.   
+                 */
                 attempt: while (attempts < 5000) {
                     final Instant utcInstant = Instant.ofEpochMilli(utcMillis);
                     final LocalDateTime rawLocalDateTime = LocalDateTime.ofInstant(utcInstant, timeZone);
@@ -1187,8 +1193,7 @@ public abstract class Rounding implements Writeable {
                     this
                         + " failed to round "
                         + utcMillis
-                        + " down: transitioned backwards through too many daylight savings time"
-                        + " transitions is the earliest possible"
+                        + " down: transitioned backwards through too many daylight savings time transitions"
                 );
             }
 

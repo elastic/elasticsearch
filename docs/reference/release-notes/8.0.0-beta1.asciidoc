@@ -24,12 +24,10 @@ Also see <<breaking-changes-8.0,Breaking changes in 8.0>>.
   anomaly detection results for different jobs to be mixed.
   Wait for `8.0.0-rc1` before attempting to test upgrading a cluster
   where {ml} was used prior to version `7.7.0`.
-* System indices such as `.security` or `.kibana` are not hidden
-  indices, but they will be in the GA release. As a consequence,
-  these will be included in wildcard expansions for users that
-  have privileges to view them. Do not rely on this behavior; instead,
-  if you need to access a system index, do so directly, or use
-  a more specific wildcard.
+* System indices are not hidden and they are included in wildcard queries when using the `*` pattern.
+  Do not rely on this behavior, since they will be hidden in the GA release.
+  If you need to access a system index, specify the name, use  a more specific wildcard,
+  or use the `expand_wildcards` parameter in your query.
 * System indices are included in snapshots of all indices by default,
   and are restored by default when no indices are specified. This
   strange behavior was intended for backwards compatibility within

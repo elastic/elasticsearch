@@ -68,7 +68,7 @@ public class Docker {
     public static final Shell sh = new Shell();
     public static final DockerShell dockerShell = new DockerShell();
     public static final int STARTUP_SLEEP_INTERVAL_MILLISECONDS = 1000;
-    public static final int STARTUP_ATTEMPTS_MAX = 20;
+    public static final int STARTUP_ATTEMPTS_MAX = 30;
 
     /**
      * Tracks the currently running Docker image. An earlier implementation used a fixed container name,

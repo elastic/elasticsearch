@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
@@ -816,5 +817,64 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
 
     private static long mb(long size) {
         return new ByteSizeValue(size, ByteSizeUnit.MB).getBytes();
+    }
+
+    public void testUpdatingUseRealMemory() {
+        try (
+            HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(
+                Settings.EMPTY,
+                Collections.emptyList(),
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            )
+        ) {
+            // use real memory default true
+            assertTrue(service.isTrackRealMemoryUsage());
+            assertThat(service.getOverLimitStrategy(), instanceOf(HierarchyCircuitBreakerService.G1OverLimitStrategy.class));
+
+            // update use_real_memory to false
+            service.updateUseRealMemorySetting(false);
+            assertFalse(service.isTrackRealMemoryUsage());
+            assertThat(service.getOverLimitStrategy(), not(instanceOf(HierarchyCircuitBreakerService.G1OverLimitStrategy.class)));
+
+            // update use_real_memory to true
+            service.updateUseRealMemorySetting(true);
+            assertTrue(service.isTrackRealMemoryUsage());
+            assertThat(service.getOverLimitStrategy(), instanceOf(HierarchyCircuitBreakerService.G1OverLimitStrategy.class));
+        }
+    }
+
+    public void testApplySettingForUpdatingUseRealMemory() {
+        String useRealMemoryUsageSetting = HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey();
+        String totalCircuitBreakerLimitSetting = HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey();
+        Settings initialSettings = Settings.builder().put(useRealMemoryUsageSetting, "true").build();
+        ClusterSettings clusterSettings = new ClusterSettings(initialSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        try (
+            HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(
+                Settings.EMPTY,
+                Collections.emptyList(),
+                clusterSettings
+            )
+        ) {
+            // total.limit defaults to 95% of the JVM heap if use_real_memory is true
+            assertEquals(
+                MemorySizeValue.parseBytesSizeValueOrHeapRatio("95%", totalCircuitBreakerLimitSetting).getBytes(),
+                service.getParentLimit()
+            );
+
+            // total.limit defaults to 70% of the JVM heap if use_real_memory set to false
+            clusterSettings.applySettings(Settings.builder().put(useRealMemoryUsageSetting, false).build());
+            assertEquals(
+                MemorySizeValue.parseBytesSizeValueOrHeapRatio("70%", totalCircuitBreakerLimitSetting).getBytes(),
+                service.getParentLimit()
+            );
+
+            // total.limit defaults to 70% of the JVM heap if use_real_memory set to true
+            clusterSettings.applySettings(Settings.builder().put(useRealMemoryUsageSetting, true).build());
+            assertEquals(
+                MemorySizeValue.parseBytesSizeValueOrHeapRatio("95%", totalCircuitBreakerLimitSetting).getBytes(),
+                service.getParentLimit()
+            );
+        }
     }
 }

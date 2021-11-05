@@ -391,12 +391,12 @@ public class CacheFileTests extends ESTestCase {
 
     public void testCacheFileCreatedAsSparseFile() throws Exception {
         assumeTrue("This test uses a native method implemented only for Windows", Constants.WINDOWS);
-        final long ONE_MB = 1 << 20;
+        final long oneMb = 1 << 20;
 
         final Path file = createTempDir().resolve(UUIDs.randomBase64UUID(random()));
         final CacheFile cacheFile = new CacheFile(
             new CacheKey("_snap_uuid", "_snap_name", new ShardId("_name", "_uid", 0), "_filename"),
-            ONE_MB,
+            oneMb,
             file,
             NOOP
         );
@@ -420,7 +420,7 @@ public class CacheFileTests extends ESTestCase {
 
             sizeOnDisk = FileSystemNatives.allocatedSizeInBytes(file);
             assertTrue(sizeOnDisk.isPresent());
-            assertThat("Cache file should be sparse and not fully allocated on disk", sizeOnDisk.getAsLong(), lessThan(ONE_MB));
+            assertThat("Cache file should be sparse and not fully allocated on disk", sizeOnDisk.getAsLong(), lessThan(oneMb));
 
             fill(fileChannel, 0, Math.toIntExact(cacheFile.getLength()));
             fileChannel.force(false);
@@ -430,7 +430,7 @@ public class CacheFileTests extends ESTestCase {
             assertThat(
                 "Cache file should be fully allocated on disk (maybe more given cluster/block size)",
                 sizeOnDisk.getAsLong(),
-                greaterThanOrEqualTo(ONE_MB)
+                greaterThanOrEqualTo(oneMb)
             );
         } finally {
             cacheFile.release(listener);

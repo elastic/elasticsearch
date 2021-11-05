@@ -1372,8 +1372,8 @@ huge size:
 ---
 Value type missmatch fails shard:
   - skip:
-        version: " - 7.99.99"
-        reason: "Fixed in 8.0"
+        version: " - 8.0.99"
+        reason: "Fixed in 8.1"
 
   - do:
       indices.create:

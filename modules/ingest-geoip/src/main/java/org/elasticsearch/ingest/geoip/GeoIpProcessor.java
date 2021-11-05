@@ -409,7 +409,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
             // noop, should be removed in 9.0
             Object value = config.remove("fallback_to_default_databases");
             if (value != null) {
-                DEPRECATION_LOGGER.critical(DeprecationCategory.OTHER, "default_databases_message", DEFAULT_DATABASES_DEPRECATION_MESSAGE);
+                DEPRECATION_LOGGER.warn(DeprecationCategory.OTHER, "default_databases_message", DEFAULT_DATABASES_DEPRECATION_MESSAGE);
             }
 
             DatabaseReaderLazyLoader lazyLoader = databaseNodeService.getDatabase(databaseFile);

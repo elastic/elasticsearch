@@ -432,7 +432,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
                         hasEntry("ecs.version", "1.7"),
                         hasEntry(KEY_FIELD_NAME, "deprecated_settings"),
                         hasEntry("event.dataset", "deprecation.elasticsearch"),
-                        hasEntry("log.level", "CRITICAL"),
+                        hasEntry("log.level", "WARN"),
                         hasKey("log.logger"),
                         hasEntry("message", "[deprecated_settings] usage is deprecated. use [settings] instead")
                     ),
@@ -450,9 +450,61 @@ public class DeprecationHttpIT extends ESRestTestCase {
                         hasEntry("ecs.version", "1.7"),
                         hasEntry(KEY_FIELD_NAME, "deprecated_route_GET_/_test_cluster/deprecated_settings"),
                         hasEntry("event.dataset", "deprecation.elasticsearch"),
-                        hasEntry("log.level", "CRITICAL"),
+                        hasEntry("log.level", "WARN"),
                         hasKey("log.logger"),
                         hasEntry("message", "[/_test_cluster/deprecated_settings] exists for deprecated tests")
+                    )
+                )
+            );
+        }, 30, TimeUnit.SECONDS);
+
+    }
+
+    /**
+     * Check that a deprecation message with CRITICAL level can be recorded to an index
+     */
+    public void testDeprecationCriticalWarnMessagesCanBeIndexed() throws Exception {
+
+        final Request request = new Request("GET", "/_test_cluster/only_deprecated_setting");
+        final RequestOptions options = request.getOptions()
+            .toBuilder()
+            .addHeader("X-Opaque-Id", "xOpaqueId-testDeprecationCriticalWarnMessagesCanBeIndexed")
+            .build();
+        request.setOptions(options);
+        request.setEntity(
+            buildSettingsRequest(
+                Collections.singletonList(TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE3),
+                "deprecation_critical"
+            )
+        );
+        assertOK(client().performRequest(request));
+
+        assertBusy(() -> {
+            List<Map<String, Object>> documents = getIndexedDeprecations();
+
+            logger.warn(documents);
+            assertThat(documents, hasSize(1));
+
+            assertThat(
+                documents,
+                containsInAnyOrder(
+                    allOf(
+                        hasKey("@timestamp"),
+                        hasKey("elasticsearch.cluster.name"),
+                        hasKey("elasticsearch.cluster.uuid"),
+                        hasEntry(X_OPAQUE_ID_FIELD_NAME, "xOpaqueId-testDeprecationCriticalWarnMessagesCanBeIndexed"),
+                        hasEntry("elasticsearch.event.category", "settings"),
+                        hasKey("elasticsearch.node.id"),
+                        hasKey("elasticsearch.node.name"),
+                        hasEntry("data_stream.dataset", "deprecation.elasticsearch"),
+                        hasEntry("data_stream.namespace", "default"),
+                        hasEntry("data_stream.type", "logs"),
+                        hasEntry("ecs.version", "1.7"),
+                        hasEntry(KEY_FIELD_NAME, "deprecated_critical_settings"),
+                        hasEntry("event.dataset", "deprecation.elasticsearch"),
+                        hasEntry("log.level", "CRITICAL"),
+                        hasKey("log.logger"),
+                        hasEntry("message", "[deprecated_settings] usage is deprecated. use [settings] instead")
                     )
                 )
             );
@@ -520,7 +572,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
                         hasEntry("ecs.version", "1.7"),
                         hasEntry(KEY_FIELD_NAME, "deprecated_route_GET_/_test_cluster/deprecated_settings"),
                         hasEntry("event.dataset", "deprecation.elasticsearch"),
-                        hasEntry("log.level", "CRITICAL"),
+                        hasEntry("log.level", "WARN"),
                         hasKey("log.logger"),
                         hasEntry("message", "[/_test_cluster/deprecated_settings] exists for deprecated tests")
                     )
@@ -535,7 +587,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
      */
     public void testCompatibleMessagesCanBeIndexed() throws Exception {
 
-        final Request compatibleRequest = new Request("GET", "/_test_cluster/deprecated_settings");
+        final Request compatibleRequest = new Request("GET", "/_test_cluster/compat_only");
         final RequestOptions compatibleOptions = compatibleRequest.getOptions()
             .toBuilder()
             .addHeader("X-Opaque-Id", "xOpaqueId-testCompatibleMessagesCanBeIndexed")
@@ -593,14 +645,14 @@ public class DeprecationHttpIT extends ESRestTestCase {
                         hasKey("elasticsearch.cluster.name"),
                         hasKey("elasticsearch.cluster.uuid"),
                         hasEntry(X_OPAQUE_ID_FIELD_NAME, "xOpaqueId-testCompatibleMessagesCanBeIndexed"),
-                        hasEntry("elasticsearch.event.category", "api"),
+                        hasEntry("elasticsearch.event.category", "compatible_api"),
                         hasKey("elasticsearch.node.id"),
                         hasKey("elasticsearch.node.name"),
                         hasEntry("data_stream.dataset", "deprecation.elasticsearch"),
                         hasEntry("data_stream.namespace", "default"),
                         hasEntry("data_stream.type", "logs"),
                         hasEntry("ecs.version", "1.7"),
-                        hasEntry(KEY_FIELD_NAME, "deprecated_route_GET_/_test_cluster/deprecated_settings"),
+                        hasEntry(KEY_FIELD_NAME, "deprecated_route_GET_/_test_cluster/compat_only"),
                         hasEntry("event.dataset", "deprecation.elasticsearch"),
                         hasEntry("log.level", "CRITICAL"),
                         hasKey("log.logger"),

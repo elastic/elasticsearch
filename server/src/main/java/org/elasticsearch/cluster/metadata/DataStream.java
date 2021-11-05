@@ -254,16 +254,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.remove(index);
         assert backingIndices.size() == indices.size() - 1;
-        return new DataStream(
-            name,
-            timeStampField,
-            backingIndices,
-            generation + 1,
-            metadata,
-            hidden,
-            replicated,
-            system
-        );
+        return new DataStream(name, timeStampField, backingIndices, generation + 1, metadata, hidden, replicated, system);
     }
 
     /**
@@ -295,16 +286,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
             );
         }
         backingIndices.set(backingIndexPosition, newBackingIndex);
-        return new DataStream(
-            name,
-            timeStampField,
-            backingIndices,
-            generation + 1,
-            metadata,
-            hidden,
-            replicated,
-            system
-        );
+        return new DataStream(name, timeStampField, backingIndices, generation + 1, metadata, hidden, replicated, system);
     }
 
     /**

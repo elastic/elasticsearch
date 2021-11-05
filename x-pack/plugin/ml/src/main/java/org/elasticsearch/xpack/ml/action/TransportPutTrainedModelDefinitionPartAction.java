@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import com.unboundid.util.Base64;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -20,6 +22,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -95,10 +98,11 @@ public class TransportPutTrainedModelDefinitionPartAction extends TransportMaste
                 new TrainedModelDefinitionDoc.Builder().setModelId(request.getModelId())
                     .setDocNum(request.getPart())
                     .setEos(isEos)
-                    .setDefinitionLength(request.getDefinition().length())
+                    // We need definition length, not base64 encoded, that is what the total definition length is
+                    .setDefinitionLength(new BytesArray(Base64.decode(request.getDefinition())).length())
                     .setTotalDefinitionLength(request.getTotalDefinitionLength())
                     .setCompressionVersion(TrainedModelConfig.CURRENT_DEFINITION_COMPRESSION_VERSION)
-                    .setBinaryData(request.getDefinition())
+                    .setBinaryData(new BytesArray(request.getDefinition()))
                     .build(),
                 indexName,
                 ActionListener.wrap(stored -> {

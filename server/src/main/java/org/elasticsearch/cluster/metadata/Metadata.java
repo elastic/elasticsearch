@@ -210,7 +210,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     private final String[] visibleClosedIndices;
 
     private SortedMap<String, IndexAbstraction> indicesLookup;
-    private final Map<String, Entry> deduplicated;
+    private final Map<String, Entry> cache;
 
     private Metadata(
         String clusterUUID,
@@ -233,7 +233,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         String[] allClosedIndices,
         String[] visibleClosedIndices,
         SortedMap<String, IndexAbstraction> indicesLookup,
-        Map<String, Entry> deduplicated
+        Map<String, Entry> cache
     ) {
         this.clusterUUID = clusterUUID;
         this.clusterUUIDCommitted = clusterUUIDCommitted;
@@ -255,7 +255,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         this.allClosedIndices = allClosedIndices;
         this.visibleClosedIndices = visibleClosedIndices;
         this.indicesLookup = indicesLookup;
-        this.deduplicated = deduplicated;
+        this.cache = cache;
     }
 
     public Metadata withIncrementedVersion() {
@@ -280,7 +280,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             allClosedIndices,
             visibleClosedIndices,
             indicesLookup,
-            deduplicated
+            cache
         );
     }
 
@@ -1139,7 +1139,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             this.templates = ImmutableOpenMap.builder(metadata.templates);
             this.customs = ImmutableOpenMap.builder(metadata.customs);
             previousIndicesLookup = metadata.getIndicesLookup();
-            this.deduplicated = new HashMap<>(metadata.deduplicated);
+            this.cache = new HashMap<>(metadata.cache);
         }
 
         public Builder put(IndexMetadata.Builder indexMetadataBuilder) {
@@ -1718,7 +1718,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 allClosedIndicesArray,
                 visibleClosedIndicesArray,
                 indicesLookup,
-                deduplicated
+                cache
             );
         }
 
@@ -1938,16 +1938,16 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return builder.build();
         }
 
-        private Map<String, Entry> deduplicated = new HashMap<>();
+        private Map<String, Entry> cache = new HashMap<>();
 
         public MappingMetadata reuseMappings(CompressedXContent mappingSource, String previousDigest) {
             String digest = MappingMetadata.computeDigest(mappingSource);
-            Entry entry = deduplicated.get(digest);
+            Entry entry = cache.get(digest);
             if (entry != null) {
-                deduplicated.put(digest, new Entry(entry.refCounter + 1, entry.mapping));
+                cache.put(digest, new Entry(entry.refCounter + 1, entry.mapping));
             } else {
                 entry = new Entry(1, new MappingMetadata(mappingSource, digest));
-                deduplicated.put(digest, entry);
+                cache.put(digest, entry);
                 if (previousDigest != null) {
                     removeDuplicated(previousDigest);
                 }
@@ -1961,12 +1961,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 digest = MappingMetadata.computeDigest(mappingMetadata.source());
             }
 
-            Entry entry = deduplicated.get(digest);
+            Entry entry = cache.get(digest);
             if (entry != null) {
-                deduplicated.put(digest, new Entry(entry.refCounter + 1, entry.mapping));
+                cache.put(digest, new Entry(entry.refCounter + 1, entry.mapping));
             } else {
                 entry = new Entry(1, new MappingMetadata(mappingMetadata, digest));
-                deduplicated.put(digest, entry);
+                cache.put(digest, entry);
             }
             return entry.mapping;
         }
@@ -1974,12 +1974,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         public MappingMetadata reuseMappings(String type, Map<String, Object> mapping) {
             String mappingAsString = Strings.toString((builder, params) -> builder.mapContents(mapping), ToXContent.EMPTY_PARAMS);
             String digest = MappingMetadata.computeDigest(mappingAsString);
-            Entry entry = deduplicated.get(digest);
+            Entry entry = cache.get(digest);
             if (entry != null) {
-                deduplicated.put(digest, new Entry(entry.refCounter + 1, entry.mapping));
+                cache.put(digest, new Entry(entry.refCounter + 1, entry.mapping));
             } else {
                 entry = new Entry(1, new MappingMetadata(type, mapping, mappingAsString, digest));
-                deduplicated.put(digest, entry);
+                cache.put(digest, entry);
             }
             return entry.mapping;
         }
@@ -1990,28 +1990,28 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             }
 
             String digest = indexMetadata.mapping().getDigest();
-            Entry entry = deduplicated.get(digest);
+            Entry entry = cache.get(digest);
             if (entry != null) {
-                deduplicated.put(digest, new Entry(entry.refCounter + 1, entry.mapping));
+                cache.put(digest, new Entry(entry.refCounter + 1, entry.mapping));
                 IndexMetadata.Builder imBuilder = new IndexMetadata.Builder(indexMetadata);
                 imBuilder.putMapping(entry.mapping);
                 return imBuilder.build();
             } else {
                 entry = new Entry(1, indexMetadata.mapping());
-                deduplicated.put(digest, entry);
+                cache.put(digest, entry);
                 return indexMetadata;
             }
         }
 
         public void removeDuplicated(String digest) {
-            Entry entry = deduplicated.get(digest);
+            Entry entry = cache.get(digest);
             if (entry == null) {
                 return;
             }
             if (entry.refCounter == 1) {
-                deduplicated.remove(digest);
+                cache.remove(digest);
             } else {
-                deduplicated.put(digest, new Entry(entry.refCounter - 1, entry.mapping));
+                cache.put(digest, new Entry(entry.refCounter - 1, entry.mapping));
             }
         }
 

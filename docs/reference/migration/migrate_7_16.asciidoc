@@ -269,10 +269,10 @@ The following settings are now deprecated:
 ** xpack.monitoring.exporters.*.bulk.timeout
 ** xpack.monitoring.exporters.*.connection.timeout
 ** xpack.monitoring.exporters.*.connection.read_timeout
-** xpack.monitoring.exporters.*.headers.*
+** xpack.monitoring.exporters.\*.headers.*
 ** xpack.monitoring.exporters.*.proxy.base_path
 ** xpack.monitoring.exporters.*.sniff.enabled
-** xpack.monitoring.exporters.*.ssl.*
+** xpack.monitoring.exporters.\*.ssl.*
 ** xpack.monitoring.exporters.*.wait_master.timeout
 ** xpack.monitoring.migration.decommission_alerts
 ====

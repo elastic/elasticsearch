@@ -46,7 +46,7 @@ public class BytesArrayTests extends AbstractBytesReferenceTestCase {
             byte[] array = pbr.array();
             assertNotNull(array);
             // TODO: Check this makes sense
-//            assertEquals(sizes[i], array.length - pbr.arrayOffset());
+            // assertEquals(sizes[i], array.length - pbr.arrayOffset());
             assertSame(array, pbr.array());
         }
     }

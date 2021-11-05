@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.startsWith;
 public class EarlyDeprecationIndexingIT extends ESRestTestCase {
 
     /**
-     * In TestDeprecationPlugin#onNodeStarted we simulate a very early deprecation that can happen before the template is loaded
+     * In EarlyDeprecationTestPlugin#onNodeStarted we simulate a very early deprecation that can happen before the template is loaded
      * The indexing has to be delayed until templates are loaded.
      * This test confirms by checking the settings that a data stream is created (not an index with defaults)
      * and that an early deprecation warning is not lost
@@ -70,7 +70,6 @@ public class EarlyDeprecationIndexingIT extends ESRestTestCase {
                 )
             );
         }, 30, TimeUnit.SECONDS);
-
     }
 
     private Response getIndexSettings() throws Exception {

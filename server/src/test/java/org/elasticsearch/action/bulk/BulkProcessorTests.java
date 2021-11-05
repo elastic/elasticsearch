@@ -494,7 +494,6 @@ public class BulkProcessorTests extends ESTestCase {
             bulkProcessor.flush();
             assertThat(attemptRef.get(), equalTo(1));
         }
-
     }
 
     private BulkProcessor.Listener emptyListener() {

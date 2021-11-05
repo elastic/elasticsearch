@@ -38,10 +38,6 @@ examine the description and examples of that category. For more information, see
 [[ml-get-category-path-parms]]
 == {api-path-parms-title}
 
-`<job_id>`::
-(Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
-
 `<category_id>`::
 (Optional, long) Identifier for the category, which is unique in the job. If you
 specify neither the category ID nor the `partition_field_value`, the API returns
@@ -49,6 +45,9 @@ information about all categories. If you specify only the
 `partition_field_value`, it returns information about all categories for the
 specified partition.
 
+`<job_id>`::
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 [[ml-get-category-query-parms]]
 == {api-query-parms-title}

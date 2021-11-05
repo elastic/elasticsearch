@@ -30,7 +30,7 @@ Also see <<breaking-changes-8.0,Breaking changes in 8.0>>.
   or use the `expand_wildcards` parameter in your query.
 * System indices are included in snapshots of all indices by default,
   and are restored by default when no indices are specified. This
-  strange behavior was intended for backwards compatibility within
+ behavior was intended for backwards compatibility within
   the 7.x line. In 8.0, all system indices should be handled through
   the `feature_states` parameter of the snapshot or restore request.
 

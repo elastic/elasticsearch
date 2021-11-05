@@ -484,6 +484,56 @@ public class PyTorchModelIT extends ESRestTestCase {
         );
     }
 
+    public void testTruncation() throws IOException {
+        String modelId = "no-truncation";
+
+        Request request = new Request("PUT", "/_ml/trained_models/" + modelId);
+        request.setJsonEntity(
+            "{  "
+                + "    \"description\": \"simple model for testing\",\n"
+                + "    \"model_type\": \"pytorch\",\n"
+                + "    \"inference_config\": {\n"
+                + "        \"pass_through\": {\n"
+                + "            \"tokenization\": {"
+                + "              \"bert\": {"
+                + "                \"with_special_tokens\": false,"
+                + "                \"truncate\": \"none\","
+                + "                \"max_sequence_length\": 2"
+                + "              }\n"
+                + "            }\n"
+                + "        }\n"
+                + "    }\n"
+                + "}"
+        );
+        client().performRequest(request);
+
+        putVocabulary(List.of("once", "twice", "thrice"), modelId);
+        putModelDefinition(modelId);
+        startDeployment(modelId, AllocationStatus.State.FULLY_ALLOCATED.toString());
+
+        String input = "once twice thrice";
+        ResponseException ex = expectThrows(ResponseException.class, () -> infer("once twice thrice", modelId));
+        assertThat(
+            ex.getMessage(),
+            containsString("Input too large. The tokenized input length [3] exceeds the maximum sequence length [2]")
+        );
+
+        request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
+        request.setJsonEntity(
+            "{"
+                + "\"docs\": [{\"input\":\""
+                + input
+                + "\"}],"
+                + "\"inference_config\": { "
+                + "  \"pass_through\": {"
+                + "    \"tokenization\": {\"bert\": {\"truncate\": \"first\"}}"
+                + "    }"
+                + "  }"
+                + "}"
+        );
+        client().performRequest(request);
+    }
+
     private int sumInferenceCountOnNodes(List<Map<String, Object>> nodes) {
         int inferenceCount = 0;
         for (var node : nodes) {

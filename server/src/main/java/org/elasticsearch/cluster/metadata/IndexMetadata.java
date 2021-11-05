@@ -70,9 +70,10 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_PARAM;
-import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.IP_VALIDATOR;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
+import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.validateIpValue;
+import static org.elasticsearch.common.settings.Setting.stringListSetting;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
@@ -351,17 +352,18 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final String INDEX_ROUTING_REQUIRE_GROUP_PREFIX = "index.routing.allocation.require";
     public static final String INDEX_ROUTING_INCLUDE_GROUP_PREFIX = "index.routing.allocation.include";
     public static final String INDEX_ROUTING_EXCLUDE_GROUP_PREFIX = "index.routing.allocation.exclude";
-    public static final Setting.AffixSetting<String> INDEX_ROUTING_REQUIRE_GROUP_SETTING = Setting.prefixKeySetting(
+
+    public static final Setting.AffixSetting<List<String>> INDEX_ROUTING_REQUIRE_GROUP_SETTING = Setting.prefixKeySetting(
         INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".",
-        key -> Setting.simpleString(key, value -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.IndexScope)
+        key -> stringListSetting(key, value -> validateIpValue(key, value), Property.Dynamic, Property.IndexScope)
     );
-    public static final Setting.AffixSetting<String> INDEX_ROUTING_INCLUDE_GROUP_SETTING = Setting.prefixKeySetting(
+    public static final Setting.AffixSetting<List<String>> INDEX_ROUTING_INCLUDE_GROUP_SETTING = Setting.prefixKeySetting(
         INDEX_ROUTING_INCLUDE_GROUP_PREFIX + ".",
-        key -> Setting.simpleString(key, value -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.IndexScope)
+        key -> stringListSetting(key, value -> validateIpValue(key, value), Property.Dynamic, Property.IndexScope)
     );
-    public static final Setting.AffixSetting<String> INDEX_ROUTING_EXCLUDE_GROUP_SETTING = Setting.prefixKeySetting(
+    public static final Setting.AffixSetting<List<String>> INDEX_ROUTING_EXCLUDE_GROUP_SETTING = Setting.prefixKeySetting(
         INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + ".",
-        key -> Setting.simpleString(key, value -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.IndexScope)
+        key -> stringListSetting(key, value -> validateIpValue(key, value), Property.Dynamic, Property.IndexScope)
     );
     public static final Setting.AffixSetting<String> INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING = Setting.prefixKeySetting(
         "index.routing.allocation.initial_recovery.",
@@ -1395,26 +1397,26 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     filledInSyncAllocationIds.put(i, Collections.emptySet());
                 }
             }
-            final Map<String, String> requireMap = INDEX_ROUTING_REQUIRE_GROUP_SETTING.getAsMap(settings);
+            var requireMap = INDEX_ROUTING_REQUIRE_GROUP_SETTING.getAsMap(settings);
             final DiscoveryNodeFilters requireFilters;
             if (requireMap.isEmpty()) {
                 requireFilters = null;
             } else {
-                requireFilters = DiscoveryNodeFilters.buildFromKeyValue(AND, requireMap);
+                requireFilters = DiscoveryNodeFilters.buildFromKeyValues(AND, requireMap);
             }
-            Map<String, String> includeMap = INDEX_ROUTING_INCLUDE_GROUP_SETTING.getAsMap(settings);
+            var includeMap = INDEX_ROUTING_INCLUDE_GROUP_SETTING.getAsMap(settings);
             final DiscoveryNodeFilters includeFilters;
             if (includeMap.isEmpty()) {
                 includeFilters = null;
             } else {
-                includeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, includeMap);
+                includeFilters = DiscoveryNodeFilters.buildFromKeyValues(OR, includeMap);
             }
-            Map<String, String> excludeMap = INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getAsMap(settings);
+            var excludeMap = INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getAsMap(settings);
             final DiscoveryNodeFilters excludeFilters;
             if (excludeMap.isEmpty()) {
                 excludeFilters = null;
             } else {
-                excludeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, excludeMap);
+                excludeFilters = DiscoveryNodeFilters.buildFromKeyValues(OR, excludeMap);
             }
             Map<String, String> initialRecoveryMap = INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getAsMap(settings);
             final DiscoveryNodeFilters initialRecoveryFilters;

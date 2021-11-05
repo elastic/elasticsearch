@@ -1625,6 +1625,10 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(key, (s) -> defaultPercentage, (s) -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key), properties);
     }
 
+    public static Setting<List<String>> stringListSetting(String key, Validator<List<String>> validator, Property... properties) {
+        return listSetting(key, List.of(), Function.identity(), validator, properties);
+    }
+
     public static <T> Setting<List<T>> listSetting(
         final String key,
         final List<String> defaultStringValue,

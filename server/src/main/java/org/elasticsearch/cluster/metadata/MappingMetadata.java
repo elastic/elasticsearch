@@ -55,10 +55,6 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
     }
 
     public MappingMetadata(CompressedXContent mapping) {
-        this(mapping, computeDigest(mapping));
-    }
-
-    public MappingMetadata(CompressedXContent mapping, String digest) {
         this.source = mapping;
         Map<String, Object> mappingMap = XContentHelper.convertToMap(mapping.compressedReference(), true).v2();
         if (mappingMap.size() != 1) {
@@ -66,7 +62,7 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         }
         this.type = mappingMap.keySet().iterator().next();
         this.routingRequired = routingRequired((Map<?, ?>) mappingMap.get(this.type));
-        this.digest = digest;
+        this.digest = computeDigest(mapping);
     }
 
     public MappingMetadata(String type, Map<String, Object> mapping) {
@@ -83,28 +79,6 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         }
         this.routingRequired = routingRequired(withoutType);
         this.digest = computeDigest(mappingAsString);
-    }
-
-    public MappingMetadata(String type, Map<String, Object> mapping, String mappingAsString, String digest) {
-        this.type = type;
-        try {
-            this.source = new CompressedXContent(mappingAsString);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);  // XContent exception, should never happen
-        }
-        Map<?, ?> withoutType = mapping;
-        if (mapping.size() == 1 && mapping.containsKey(type)) {
-            withoutType = (Map<?, ?>) mapping.get(type);
-        }
-        this.routingRequired = routingRequired(withoutType);
-        this.digest = digest;
-    }
-
-    MappingMetadata(MappingMetadata source, String digest) {
-        this.type = source.type;
-        this.source = source.source;
-        this.routingRequired = source.routingRequired;
-        this.digest = digest;
     }
 
     static String computeDigest(CompressedXContent source) {

@@ -21,8 +21,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -72,7 +70,7 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
 
     public MappingMetadata(String type, Map<String, Object> mapping) {
         this.type = type;
-        String mappingAsString = Strings.toString((builder, params) -> builder.mapContents(mapping), ToXContent.EMPTY_PARAMS);
+        String mappingAsString = Strings.toString((builder, params) -> builder.mapContents(mapping));
         try {
             this.source = new CompressedXContent(mappingAsString);
         } catch (IOException e) {

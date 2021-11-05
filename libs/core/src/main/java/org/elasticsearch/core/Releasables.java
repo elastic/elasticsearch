@@ -46,9 +46,7 @@ public enum Releasables {
 
     /** Release the provided {@link Releasable}s. */
     public static void close(Releasable... releasables) {
-        if (releasables != null) {
-            close(Arrays.asList(releasables));
-        }
+        close(Arrays.asList(releasables));
     }
 
     /** Release the provided {@link Releasable}s expecting no exception to by thrown by any of them. */

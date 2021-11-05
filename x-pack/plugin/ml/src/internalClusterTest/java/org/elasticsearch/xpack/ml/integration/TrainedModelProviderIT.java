@@ -14,6 +14,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.license.License;
 import org.elasticsearch.xcontent.ToXContent;
@@ -143,6 +144,82 @@ public class TrainedModelProviderIT extends MlSingleNodeTestCase {
         assertThat(getConfigHolder.get().getMetadata(), hasKey("total_feature_importance"));
         assertThat(getConfigHolder.get().getMetadata(), hasKey("feature_importance_baseline"));
         assertThat(getConfigHolder.get().getMetadata(), hasKey("hyperparameters"));
+    }
+
+    public void testGetTrainedModelConfigWithMultiDocDefinition() throws Exception {
+        String modelId = "test-get-trained-model-config";
+        TrainedModelConfig config = buildTrainedModelConfig(modelId);
+
+        AtomicReference<Void> dummy = new AtomicReference<>();
+        AtomicReference<Boolean> booleanDummy = new AtomicReference<>();
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+
+        BytesReference definition = config.getCompressedDefinition();
+
+        blockingCall(
+            listener -> trainedModelProvider.storeTrainedModelDefinitionDoc(
+                new TrainedModelDefinitionDoc(
+                    new BytesArray(definition.array(), 0, definition.length() - 5),
+                    modelId,
+                    0,
+                    (long) definition.length(),
+                    definition.length() - 5,
+                    1,
+                    false
+                ),
+                listener
+            ),
+            dummy::set,
+            e -> fail(e.getMessage())
+        );
+        blockingCall(
+            listener -> trainedModelProvider.storeTrainedModelDefinitionDoc(
+                new TrainedModelDefinitionDoc(
+                    new BytesArray(definition.array(), definition.length() - 5, 5),
+                    modelId,
+                    1,
+                    (long) definition.length(),
+                    5,
+                    1,
+                    true
+                ),
+                listener
+            ),
+            dummy::set,
+            e -> fail(e.getMessage())
+        );
+        blockingCall(
+            listener -> trainedModelProvider.storeTrainedModelConfig(
+                new TrainedModelConfig.Builder(config).clearDefinition().build(),
+                listener
+            ),
+            booleanDummy::set,
+            e -> fail(e.getMessage())
+        );
+        blockingCall(
+            listener -> trainedModelProvider.refreshInferenceIndex(listener),
+            new AtomicReference<RefreshResponse>(),
+            new AtomicReference<>()
+        );
+
+        AtomicReference<TrainedModelConfig> getConfigHolder = new AtomicReference<>();
+        blockingCall(
+            listener -> trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.forModelDefinition(), listener),
+            getConfigHolder,
+            exceptionHolder
+        );
+        if (exceptionHolder.get() != null) {
+            throw exceptionHolder.get();
+        }
+        getConfigHolder.get().ensureParsedDefinition(xContentRegistry());
+        assertThat(getConfigHolder.get(), is(not(nullValue())));
+        assertThat(getConfigHolder.get(), equalTo(config));
+        assertThat(getConfigHolder.get().getModelDefinition(), is(not(nullValue())));
+
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            // Should not throw
+            getConfigHolder.get().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        }
     }
 
     public void testGetTrainedModelConfigWithoutDefinition() throws Exception {

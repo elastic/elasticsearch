@@ -22,17 +22,12 @@ public final class FileSystemNatives {
 
     private static final Logger logger = LogManager.getLogger(FileSystemNatives.class);
 
+    @FunctionalInterface
     interface Provider {
         OptionalLong allocatedSizeInBytes(Path path);
     }
 
-    private static final class NoopFileSystemNativesProvider implements Provider {
-        @Override
-        public OptionalLong allocatedSizeInBytes(Path path) {
-            return OptionalLong.empty();
-        }
-    }
-
+    private static final Provider NOOP_FILE_SYSTEM_NATIVES_PROVIDER = path -> OptionalLong.empty();
     private static final Provider JNA_PROVIDER = loadJnaProvider();
 
     private static Provider loadJnaProvider() {
@@ -48,7 +43,7 @@ public final class FileSystemNatives {
         } catch (LinkageError e) {
             logger.warn("unable to load JNA native support library, FileSystemNatives methods will be disabled.", e);
         }
-        return new NoopFileSystemNativesProvider();
+        return NOOP_FILE_SYSTEM_NATIVES_PROVIDER;
     }
 
     private FileSystemNatives() {}

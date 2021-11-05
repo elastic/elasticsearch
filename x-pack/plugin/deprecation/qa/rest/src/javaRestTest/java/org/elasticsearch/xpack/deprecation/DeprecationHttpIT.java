@@ -14,7 +14,6 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -37,7 +36,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -50,7 +48,6 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
@@ -60,11 +57,6 @@ import static org.hamcrest.Matchers.hasSize;
  * Tests that deprecation message are returned via response headers, and can be indexed into a data stream.
  */
 public class DeprecationHttpIT extends ESRestTestCase {
-
-    /**
-     * Same as <code>DeprecationIndexingAppender#DEPRECATION_MESSAGES_DATA_STREAM</code>, but that class isn't visible from here.
-     */
-    private static final String DATA_STREAM_NAME = ".logs-deprecation.elasticsearch-default";
 
     @Before
     public void assertIndexingIsEnabled() throws Exception {
@@ -80,18 +72,20 @@ public class DeprecationHttpIT extends ESRestTestCase {
 
         // assert index does not exist, which will prevent previous tests to interfere
         assertBusy(() -> {
+            //index is created on startup in TestDeprecationPlugin.onNodeStarted
+            resetDeprecationIndexAndCache();
             try {
-                client().performRequest(new Request("GET", "/_data_stream/" + DATA_STREAM_NAME));
+                client().performRequest(new Request("GET", "/_data_stream/" + DeprecationTestUtils.DATA_STREAM_NAME));
             } catch (ResponseException e) {
                 if (e.getResponse().getStatusLine().getStatusCode() == 404) {
                     return;
                 }
             }
-            List<Map<String, Object>> documents = getIndexedDeprecations();
+            List<Map<String, Object>> documents = DeprecationTestUtils.getIndexedDeprecations(client());
             logger.warn(documents);
             // if data stream is still present, that means that previous test (could be different class) created a deprecation
             // hence resetting again
-            resetDeprecationIndexAndCache();
+
             fail("Index should be removed on startup");
         }, 30, TimeUnit.SECONDS);
     }
@@ -109,7 +103,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
         assertBusy(() -> {
             try {
                 client().performRequest(new Request("DELETE", "_logging/deprecation_cache"));
-                client().performRequest(new Request("DELETE", "/_data_stream/" + DATA_STREAM_NAME));
+                client().performRequest(new Request("DELETE", "/_data_stream/" + DeprecationTestUtils.DATA_STREAM_NAME));
             } catch (Exception e) {
                 throw new AssertionError(e);
             }
@@ -181,7 +175,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
             }
 
             assertBusy(() -> {
-                List<Map<String, Object>> documents = getIndexedDeprecations();
+                List<Map<String, Object>> documents = DeprecationTestUtils.getIndexedDeprecations(client());
                 logger.warn(documents);
                 assertThat(documents, hasSize(2));
             });
@@ -330,7 +324,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
         assertOK(client().performRequest(postRequest));
 
         assertBusy(() -> {
-            List<Map<String, Object>> documents = getIndexedDeprecations();
+            List<Map<String, Object>> documents = DeprecationTestUtils.getIndexedDeprecations(client());
 
             logger.warn(documents);
             assertThat(documents, hasSize(3));
@@ -365,7 +359,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
         assertOK(client().performRequest(postRequest));
 
         assertBusy(() -> {
-            List<Map<String, Object>> documents = getIndexedDeprecations();
+            List<Map<String, Object>> documents = DeprecationTestUtils.getIndexedDeprecations(client());
 
             logger.warn(documents);
             assertThat(documents, hasSize(2));
@@ -410,7 +404,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
         assertOK(client().performRequest(request));
 
         assertBusy(() -> {
-            List<Map<String, Object>> documents = getIndexedDeprecations();
+            List<Map<String, Object>> documents = DeprecationTestUtils.getIndexedDeprecations(client());
 
             logger.warn(documents);
             assertThat(documents, hasSize(2));
@@ -480,7 +474,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
         assertOK(client().performRequest(request));
 
         assertBusy(() -> {
-            List<Map<String, Object>> documents = getIndexedDeprecations();
+            List<Map<String, Object>> documents = DeprecationTestUtils.getIndexedDeprecations(client());
 
             logger.warn(documents);
             assertThat(documents, hasSize(2));
@@ -562,7 +556,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
         );
 
         assertBusy(() -> {
-            List<Map<String, Object>> documents = getIndexedDeprecations();
+            List<Map<String, Object>> documents = DeprecationTestUtils.getIndexedDeprecations(client());
 
             logger.warn(documents);
             assertThat(documents, hasSize(2));
@@ -625,7 +619,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
         assertOK(client().performRequest(deprecatedRequest));
 
         assertBusy(() -> {
-            List<Map<String, Object>> documents = getIndexedDeprecations();
+            List<Map<String, Object>> documents = DeprecationTestUtils.getIndexedDeprecations(client());
 
             logger.warn(documents);
             assertThat(documents, hasSize(4));
@@ -660,38 +654,6 @@ public class DeprecationHttpIT extends ESRestTestCase {
         request.setJsonEntity("{ \"persistent\": { \"cluster.deprecation_indexing.enabled\": " + value + " } }");
         final Response response = client().performRequest(request);
         assertOK(response);
-    }
-
-    private List<Map<String, Object>> getIndexedDeprecations() throws IOException {
-        Response response;
-        try {
-            client().performRequest(new Request("POST", "/" + DATA_STREAM_NAME + "/_refresh?ignore_unavailable=true"));
-            response = client().performRequest(new Request("GET", "/" + DATA_STREAM_NAME + "/_search"));
-        } catch (Exception e) {
-            // It can take a moment for the index to be created. If it doesn't exist then the client
-            // throws an exception. Translate it into an assertion error so that assertBusy() will
-            // continue trying.
-            throw new AssertionError(e);
-        }
-        assertOK(response);
-
-        ObjectMapper mapper = new ObjectMapper();
-        final JsonNode jsonNode = mapper.readTree(response.getEntity().getContent());
-
-        final int hits = jsonNode.at("/hits/total/value").intValue();
-        assertThat(hits, greaterThan(0));
-
-        List<Map<String, Object>> documents = new ArrayList<>();
-
-        for (int i = 0; i < hits; i++) {
-            final JsonNode hit = jsonNode.at("/hits/hits/" + i + "/_source");
-
-            final Map<String, Object> document = new HashMap<>();
-            hit.fields().forEachRemaining(entry -> document.put(entry.getKey(), entry.getValue().textValue()));
-
-            documents.add(document);
-        }
-        return documents;
     }
 
     private List<String> getWarningHeaders(Header[] headers) {

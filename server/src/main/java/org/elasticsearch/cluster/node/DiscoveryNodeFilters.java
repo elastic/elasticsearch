@@ -61,7 +61,7 @@ public class DiscoveryNodeFilters {
         return new DiscoveryNodeFilters(opType, bFilters);
     }
 
-    public static DiscoveryNodeFilters buildFromKeyValues(OpType opType, Map<String,List<String>> filters) {
+    public static DiscoveryNodeFilters buildFromKeyValues(OpType opType, Map<String, List<String>> filters) {
         Map<String, String[]> bFilters = new HashMap<>();
         for (var entry : filters.entrySet()) {
             String[] values = entry.getValue().toArray(String[]::new);

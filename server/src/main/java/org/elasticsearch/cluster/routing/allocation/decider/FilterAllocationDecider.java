@@ -23,9 +23,9 @@ import org.elasticsearch.common.settings.Settings;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.validateIpValue;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
+import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.validateIpValue;
 import static org.elasticsearch.common.settings.Setting.stringListSetting;
 
 /**

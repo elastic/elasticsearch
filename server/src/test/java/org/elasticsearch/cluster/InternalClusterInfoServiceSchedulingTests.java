@@ -59,7 +59,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         final ClusterApplierService clusterApplierService = new ClusterApplierService("test", settings, clusterSettings, threadPool) {
             @Override
             protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
-                return new MockSinglePrioritizingExecutor("mock-executor", deterministicTaskQueue, threadPool);
+                return new MockSinglePrioritizingExecutor("mock-executor", "", deterministicTaskQueue, threadPool);
             }
         };
 

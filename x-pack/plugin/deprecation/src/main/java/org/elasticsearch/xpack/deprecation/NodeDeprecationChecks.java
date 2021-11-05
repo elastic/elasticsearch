@@ -10,41 +10,53 @@ package org.elasticsearch.xpack.deprecation;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.coordination.DiscoveryUpgradeService;
 import org.elasticsearch.cluster.coordination.JoinHelper;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfigurationKeys;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.discovery.zen.FaultDetection;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.gateway.DanglingIndicesState;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeRoleSettings;
+import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
+import org.elasticsearch.transport.Compression;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.SniffConnectionStrategy;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.monitoring.Monitoring;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -331,17 +343,24 @@ class NodeDeprecationChecks {
         final ClusterState clusterState,
         final XPackLicenseState licenseState
     ) {
-        return checkDeprecatedSetting(
-            settings,
-            pluginsAndModules,
-            RemoteClusterService.ENABLE_REMOTE_CLUSTERS,
-            Setting.boolSetting(
-                "node.remote_cluster_client",
-                RemoteClusterService.ENABLE_REMOTE_CLUSTERS,
-                Property.Deprecated,
-                Property.NodeScope
-            ),
-            "https://ela.st/es-deprecation-7-cluster-remote-connect-setting"
+        if (RemoteClusterService.ENABLE_REMOTE_CLUSTERS.exists(settings) == false) {
+            return null;
+        }
+        final String deprecatedSettingKey = RemoteClusterService.ENABLE_REMOTE_CLUSTERS.getKey();
+        final String message = String.format(Locale.ROOT, "Setting [%s] is deprecated", deprecatedSettingKey);
+        final String details = String.format(
+            Locale.ROOT,
+            "Remove the [%s] setting. Use the [remote_cluster_client] role instead. Set [node.roles] to [data_frozen,master,"
+                + "remote_cluster_client,data,data_content,data_hot,data_warm,data_cold,ingest] on eligible cross-cluster client nodes.",
+            deprecatedSettingKey
+        );
+        return new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            message,
+            "https://ela.st/es-deprecation-7-cluster-remote-connect-setting",
+            details,
+            false,
+            null
         );
     }
 
@@ -502,28 +521,14 @@ class NodeDeprecationChecks {
         return checkRemovedSetting(settings, removedSetting, url, additionalDetailMessage, DeprecationIssue.Level.CRITICAL);
     }
 
-    static DeprecationIssue checkDeprecatedSetting(
-        final Settings settings,
-        final Setting<?> deprecatedSetting,
-        final String url,
-        final String whenRemoved
-    ) {
+    static DeprecationIssue checkDeprecatedSetting(final Settings settings, final Setting<?> deprecatedSetting, final String url) {
         if (deprecatedSetting.exists(settings) == false) {
             return null;
         }
         final String deprecatedSettingKey = deprecatedSetting.getKey();
         final String value = deprecatedSetting.get(settings).toString();
-        final String message = String.format(
-            Locale.ROOT,
-            "setting [%s] is deprecated and will be removed " + whenRemoved,
-            deprecatedSettingKey
-        );
-        final String details = String.format(
-            Locale.ROOT,
-            "the setting [%s] is currently set to [%s], remove this setting",
-            deprecatedSettingKey,
-            value
-        );
+        final String message = String.format(Locale.ROOT, "Setting [%s] is deprecated", deprecatedSettingKey);
+        final String details = String.format(Locale.ROOT, "Remove the [%s] setting.", deprecatedSettingKey, value);
         return new DeprecationIssue(DeprecationIssue.Level.WARNING, message, url, details, false, null);
     }
 
@@ -585,9 +590,10 @@ class NodeDeprecationChecks {
         if (dataPaths.size() > 1) {
             return new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
-                "multiple [path.data] entries are deprecated, use a single data directory",
+                "Specifying multiple data paths is deprecated",
                 "https://ela.st/es-deprecation-7-multiple-paths",
-                "Multiple data paths are deprecated. Instead, use RAID or other system level features to utilize multiple disks.",
+                "The [path.data] setting contains a list of paths. Specify a single path as a string. Use RAID or other system level "
+                    + "features to utilize multiple disks. If multiple data paths are configured, the node will fail to start in 8.0. ",
                 false,
                 null
             );
@@ -663,7 +669,7 @@ class NodeDeprecationChecks {
             String key = DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey();
             String disableDiskDecider = DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey();
             return new DeprecationIssue(
-                DeprecationIssue.Level.WARNING,
+                DeprecationIssue.Level.CRITICAL,
                 String.format(
                     Locale.ROOT,
                     "Disabling disk watermarks for single node clusters is deprecated and no longer the default",
@@ -1191,7 +1197,7 @@ class NodeDeprecationChecks {
         return checkRemovedSetting(
             settings,
             NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING,
-            "https://ela.st/es-deprecation-7-node-local-storage-setting",
+            "https://ela.st/es-deprecation-7-max-local-storage-nodes",
             "All nodes require local storage in 8.0 and cannot share data paths.",
             DeprecationIssue.Level.CRITICAL
         );
@@ -1248,8 +1254,9 @@ class NodeDeprecationChecks {
                 DeprecationIssue.Level.WARNING,
                 ScriptService.USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE,
                 "https://ela.st/es-deprecation-7-script-context-cache",
-                "found deprecated script context caches in use, change setting to compilation rate or remove "
-                    + "setting to use the default",
+                "Remove the context-specific cache settings and set [script.max_compilations_rate] to configure the rate limit for the "
+                    + "general cache. If no limit is set, the rate defaults to 150 compilations per five minutes: 150/5m. Context-specific "
+                    + "caches are no longer needed to prevent system scripts from triggering rate limits.",
                 false,
                 null
             );
@@ -1272,16 +1279,16 @@ class NodeDeprecationChecks {
                 .collect(Collectors.joining(","));
             return new DeprecationIssue(
                 DeprecationIssue.Level.WARNING,
+                "Setting a context-specific rate limit is deprecated",
+                "https://ela.st/es-deprecation-7-script-context-cache",
                 String.format(
                     Locale.ROOT,
-                    "Setting context-specific rate limits [%s] is deprecated."
-                        + " Use [%s] to rate limit the compilation of user scripts."
-                        + " Context-specific caches are no longer needed to prevent system scripts from triggering rate limits.",
+                    "Remove the context-specific rate limit settings: [%s]. Instead, set [%s] to configure the "
+                        + "rate limit for the general cache.  If no limit is set, the rate defaults to 150 compilations per five minutes: "
+                        + "150/5m. Context-specific caches are no longer needed to prevent system scripts from triggering rate limits.",
                     maxSettings,
                     ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING.getKey()
                 ),
-                "https://ela.st/es-deprecation-7-script-context-cache",
-                String.format(Locale.ROOT, "[%s] is deprecated and will be removed in a future release", maxSettings),
                 false,
                 null
             );
@@ -1304,16 +1311,15 @@ class NodeDeprecationChecks {
                 .collect(Collectors.joining(","));
             return new DeprecationIssue(
                 DeprecationIssue.Level.WARNING,
+                "Setting a context-specific cache size is deprecated",
+                "https://ela.st/es-deprecation-7-script-context-cache",
                 String.format(
                     Locale.ROOT,
-                    "Setting a context-specific cache size [%s] is deprecated."
-                        + " Use [%s] to configure the size of the general cache for scripts."
-                        + " Context-specific caches are no longer needed to prevent system scripts from triggering rate limits.",
-                    cacheSizeSettings,
-                    ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING.getKey()
+                    "Remove the context-specific cache size settings: [%s]. Instead, set [script.cache_max_size] to configure the size of "
+                        + "the general cache. Context-specific caches are no longer needed to prevent system scripts from triggering rate"
+                        + " limits.",
+                    cacheSizeSettings
                 ),
-                "https://ela.st/es-deprecation-7-script-context-cache",
-                String.format(Locale.ROOT, "[%s] is deprecated and will be removed in a future release", cacheSizeSettings),
                 false,
                 null
             );
@@ -1336,16 +1342,15 @@ class NodeDeprecationChecks {
                 .collect(Collectors.joining(","));
             return new DeprecationIssue(
                 DeprecationIssue.Level.WARNING,
+                "Setting a context-specific cache expiration is deprecated",
+                "https://ela.st/es-deprecation-7-script-context-cache",
                 String.format(
                     Locale.ROOT,
-                    "Setting a context-specific cache expiration [%s] is deprecated."
-                        + " Use [%s] to configure the expiration of the general cache."
-                        + " Context-specific caches are no longer needed to prevent system scripts from triggering rate limits.",
-                    cacheExpireSettings,
-                    ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING.getKey()
+                    "Remove the context-specific cache expiration settings: [%s]. Instead, set [script.cache.expire] to configure the "
+                        + "expiration of the general cache. Context-specific caches are no longer needed to prevent system scripts from "
+                        + "triggering rate limits.",
+                    cacheExpireSettings
                 ),
-                "https://ela.st/es-deprecation-7-script-context-cache",
-                String.format(Locale.ROOT, "[%s] is deprecated and will be removed in a future release", cacheExpireSettings),
                 false,
                 null
             );
@@ -1418,10 +1423,9 @@ class NodeDeprecationChecks {
     }
 
     private static final String MONITORING_SETTING_DEPRECATION_LINK = "https://ela.st/es-deprecation-7-monitoring-settings";
-    private static final String MONITORING_SETTING_REMOVAL_TIME = "after 8.0";
 
     static DeprecationIssue genericMonitoringSetting(final Settings settings, final Setting<?> deprecated) {
-        return checkDeprecatedSetting(settings, deprecated, MONITORING_SETTING_DEPRECATION_LINK, MONITORING_SETTING_REMOVAL_TIME);
+        return checkDeprecatedSetting(settings, deprecated, MONITORING_SETTING_DEPRECATION_LINK);
     }
 
     static DeprecationIssue genericMonitoringAffixSetting(final Settings settings, final String deprecatedSuffix) {
@@ -1787,6 +1791,309 @@ class NodeDeprecationChecks {
             "https://ela.st/es-deprecation-7-monitoring-exporter-create-legacy-template-setting",
             DeprecationIssue.Level.WARNING,
             settings
+        );
+    }
+
+    static DeprecationIssue checkSettingNoReplacement(Settings settings, Setting<?> deprecatedSetting, String url) {
+        assert deprecatedSetting.isDeprecated() : deprecatedSetting;
+        if (deprecatedSetting.exists(settings) == false) {
+            return null;
+        }
+        final String deprecatedSettingKey = deprecatedSetting.getKey();
+        final String message = String.format(Locale.ROOT, "Setting [%s] is deprecated", deprecatedSettingKey);
+        final String details = String.format(Locale.ROOT, "Remove the [%s] setting.", deprecatedSetting.getKey());
+        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
+    }
+
+    static DeprecationIssue checkReroutePrioritySetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Priority> deprecatedSetting = ShardStateAction.FOLLOW_UP_REROUTE_PRIORITY_SETTING;
+        String url = "https://ela.st/es-deprecation-7-reroute-priority-setting";
+        return checkRemovedSetting(
+            settings,
+            deprecatedSetting,
+            url,
+            "In a future release this setting will have no effect and the priority will always be NORMAL."
+        );
+    }
+
+    static DeprecationIssue checkZenBwcPingTimeoutSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<TimeValue> deprecatedSetting = DiscoveryUpgradeService.BWC_PING_TIMEOUT_SETTING;
+        String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkZenUnsafeBootstrappingOnUpgradeSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Boolean> deprecatedSetting = DiscoveryUpgradeService.ENABLE_UNSAFE_BOOTSTRAPPING_ON_UPGRADE_SETTING;
+        String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkZenCommitTimeoutSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<TimeValue> deprecatedSetting = DiscoverySettings.COMMIT_TIMEOUT_SETTING;
+        String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkZenPublishDiffEnableSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Boolean> deprecatedSetting = DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING;
+        String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkZenConnectOnNetworkDisconnectSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Boolean> deprecatedSetting = FaultDetection.CONNECT_ON_NETWORK_DISCONNECT_SETTING;
+        String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkZenPingIntervalSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<TimeValue> deprecatedSetting = FaultDetection.PING_INTERVAL_SETTING;
+        String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkZenPingTimeoutSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<TimeValue> deprecatedSetting = FaultDetection.PING_TIMEOUT_SETTING;
+        String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkZenPingRetriesSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Integer> deprecatedSetting = FaultDetection.PING_RETRIES_SETTING;
+        String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkZenRegisterConnectionListenerSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Boolean> deprecatedSetting = FaultDetection.REGISTER_CONNECTION_LISTENER_SETTING;
+        String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkAutoImportDanglingIndicesSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Boolean> deprecatedSetting = DanglingIndicesState.AUTO_IMPORT_DANGLING_INDICES_SETTING;
+        String url = "https://ela.st/es-deprecation-7-auto-import-dangling-indices-setting";
+        return checkRemovedSetting(settings, deprecatedSetting, url, "Use of this setting is unsafe.");
+    }
+
+    static DeprecationIssue checkHttpContentTypeRequiredSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Boolean> deprecatedSetting = HttpTransportSettings.SETTING_HTTP_CONTENT_TYPE_REQUIRED;
+        String url = "https://ela.st/es-deprecation-7-http-content-type-required-setting";
+        return checkRemovedSetting(settings, deprecatedSetting, url, "This setting no longer has any effect.");
+    }
+
+    static DeprecationIssue checkFsRepositoryCompressionSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Boolean> deprecatedSetting = FsRepository.REPOSITORIES_COMPRESS_SETTING;
+        Setting<Boolean> replacementSetting = FsRepository.COMPRESS_SETTING;
+        String url = "https://ela.st/es-deprecation-7-filesystem-repository-compression-setting";
+        return checkDeprecatedSetting(settings, pluginsAndModules, deprecatedSetting, replacementSetting, url);
+    }
+
+    static DeprecationIssue checkHttpTcpNoDelaySetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Boolean> deprecatedSetting = HttpTransportSettings.OLD_SETTING_HTTP_TCP_NO_DELAY;
+        Setting<Boolean> replacementSetting = HttpTransportSettings.SETTING_HTTP_TCP_NO_DELAY;
+        String url = "https://ela.st/es-deprecation-7-transport-settings";
+        return checkDeprecatedSetting(settings, pluginsAndModules, deprecatedSetting, replacementSetting, url);
+    }
+
+    static DeprecationIssue checkNetworkTcpConnectTimeoutSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<TimeValue> deprecatedSetting = NetworkService.TCP_CONNECT_TIMEOUT;
+        Setting<TimeValue> replacementSetting = TransportSettings.CONNECT_TIMEOUT;
+        String url = "https://ela.st/es-deprecation-7-transport-settings";
+        return checkDeprecatedSetting(settings, pluginsAndModules, deprecatedSetting, replacementSetting, url);
+    }
+
+    static DeprecationIssue checkTransportTcpConnectTimeoutSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<TimeValue> deprecatedSetting = TransportSettings.TCP_CONNECT_TIMEOUT;
+        Setting<TimeValue> replacementSetting = TransportSettings.CONNECT_TIMEOUT;
+        String url = "https://ela.st/es-deprecation-7-transport-settings";
+        return checkDeprecatedSetting(settings, pluginsAndModules, deprecatedSetting, replacementSetting, url);
+    }
+
+    static DeprecationIssue checkTransportPortSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<String> deprecatedSetting = TransportSettings.OLD_PORT;
+        Setting<String> replacementSetting = TransportSettings.PORT;
+        String url = "https://ela.st/es-deprecation-7-transport-settings";
+        return checkDeprecatedSetting(settings, pluginsAndModules, deprecatedSetting, replacementSetting, url);
+    }
+
+    static DeprecationIssue checkTcpNoDelaySetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Boolean> deprecatedSetting = TransportSettings.OLD_TCP_NO_DELAY;
+        Setting<Boolean> replacementSetting = TransportSettings.TCP_NO_DELAY;
+        String url = "https://ela.st/es-deprecation-7-transport-settings";
+        return checkDeprecatedSetting(settings, pluginsAndModules, deprecatedSetting, replacementSetting, url);
+    }
+
+    static DeprecationIssue checkTransportCompressSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Compression.Enabled> deprecatedSetting = TransportSettings.OLD_TRANSPORT_COMPRESS;
+        Setting<Compression.Enabled> replacementSetting = TransportSettings.TRANSPORT_COMPRESS;
+        String url = "https://ela.st/es-deprecation-7-transport-settings";
+        return checkDeprecatedSetting(settings, pluginsAndModules, deprecatedSetting, replacementSetting, url);
+    }
+
+    static DeprecationIssue checkXpackDataFrameEnabledSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Boolean> deprecatedSetting = Setting.boolSetting(
+            "xpack.data_frame.enabled",
+            true,
+            Setting.Property.NodeScope,
+            Setting.Property.Deprecated
+        );
+        String url = "https://ela.st/es-deprecation-7-xpack-dataframe-setting";
+        return checkRemovedSetting(settings, deprecatedSetting, url, "As of 7.9.2 basic license level features are always enabled.");
+    }
+
+    static DeprecationIssue checkWatcherHistoryCleanerServiceSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Boolean> deprecatedSetting = Monitoring.CLEAN_WATCHER_HISTORY;
+        String url = "https://ela.st/es-deprecation-7-watcher-history-cleaner-setting";
+        return checkRemovedSetting(
+            settings,
+            deprecatedSetting,
+            url,
+            "Watcher history indices are now managed by the watch-history-ilm-policy ILM policy."
+        );
+    }
+
+    static DeprecationIssue checkLifecyleStepMasterTimeoutSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<TimeValue> deprecatedSetting = LifecycleSettings.LIFECYCLE_STEP_MASTER_TIMEOUT_SETTING;
+        String url = "https://ela.st/es-deprecation-7-lifecycle-master-timeout-setting";
+        return checkRemovedSetting(
+            settings,
+            deprecatedSetting,
+            url,
+            "As of 7.16 the timeout is always infinite.",
+            DeprecationIssue.Level.WARNING
+        );
+    }
+
+    static DeprecationIssue checkEqlEnabledSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Boolean> deprecatedSetting = Setting.boolSetting(
+            "xpack.eql.enabled",
+            true,
+            Setting.Property.NodeScope,
+            Setting.Property.DeprecatedWarning
+        );
+        String url = "https://ela.st/es-deprecation-7-eql-enabled-setting";
+        return checkRemovedSetting(
+            settings,
+            deprecatedSetting,
+            url,
+            "As of 7.9.2 basic license level features are always enabled.",
+            DeprecationIssue.Level.WARNING
         );
     }
 }

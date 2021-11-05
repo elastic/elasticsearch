@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -60,13 +61,27 @@ public class DeprecationChecks {
     static final List<
         NodeDeprecationCheck<Settings, PluginsAndModules, ClusterState, XPackLicenseState, DeprecationIssue>> NODE_SETTINGS_CHECKS;
 
+    private static Set<Setting<Boolean>> getAllDeprecatedNodeRolesSettings() {
+        Set<Setting<Boolean>> deprecatedNodeRolesSettings = DiscoveryNode.getPossibleRoles()
+            .stream()
+            .map(r -> r.legacySetting())
+            .filter(s -> s != null)
+            .collect(Collectors.toSet());
+        deprecatedNodeRolesSettings.add(
+            Setting.boolSetting("node.voting_only", false, Setting.Property.Deprecated, Setting.Property.NodeScope)
+        );
+        deprecatedNodeRolesSettings.add(Setting.boolSetting("node.ml", true, Setting.Property.Deprecated, Setting.Property.NodeScope));
+        deprecatedNodeRolesSettings.add(
+            Setting.boolSetting("node.transform", true, Setting.Property.Deprecated, Setting.Property.NodeScope)
+        );
+        return deprecatedNodeRolesSettings;
+    }
+
     static {
         final Stream<
             NodeDeprecationCheck<Settings, PluginsAndModules, ClusterState, XPackLicenseState, DeprecationIssue>> legacyRoleSettings =
-                DiscoveryNode.getPossibleRoles()
-                    .stream()
-                    .filter(r -> r.legacySetting() != null)
-                    .map(r -> (s, p, t, c) -> NodeDeprecationChecks.checkLegacyRoleSettings(r.legacySetting(), s, p));
+                getAllDeprecatedNodeRolesSettings().stream()
+                    .map(setting -> (s, p, t, c) -> NodeDeprecationChecks.checkLegacyRoleSettings(setting, s, p));
         NODE_SETTINGS_CHECKS = Stream.concat(
             legacyRoleSettings,
             Stream.of(
@@ -175,7 +190,30 @@ public class DeprecationChecks {
                 NodeDeprecationChecks::checkScriptContextCache,
                 NodeDeprecationChecks::checkScriptContextCompilationsRateLimitSetting,
                 NodeDeprecationChecks::checkScriptContextCacheSizeSetting,
-                NodeDeprecationChecks::checkScriptContextCacheExpirationSetting
+                NodeDeprecationChecks::checkScriptContextCacheExpirationSetting,
+                NodeDeprecationChecks::checkReroutePrioritySetting,
+                NodeDeprecationChecks::checkZenBwcPingTimeoutSetting,
+                NodeDeprecationChecks::checkZenUnsafeBootstrappingOnUpgradeSetting,
+                NodeDeprecationChecks::checkZenCommitTimeoutSetting,
+                NodeDeprecationChecks::checkZenPublishDiffEnableSetting,
+                NodeDeprecationChecks::checkZenConnectOnNetworkDisconnectSetting,
+                NodeDeprecationChecks::checkZenPingIntervalSetting,
+                NodeDeprecationChecks::checkZenPingTimeoutSetting,
+                NodeDeprecationChecks::checkZenPingRetriesSetting,
+                NodeDeprecationChecks::checkZenRegisterConnectionListenerSetting,
+                NodeDeprecationChecks::checkAutoImportDanglingIndicesSetting,
+                NodeDeprecationChecks::checkHttpContentTypeRequiredSetting,
+                NodeDeprecationChecks::checkFsRepositoryCompressionSetting,
+                NodeDeprecationChecks::checkHttpTcpNoDelaySetting,
+                NodeDeprecationChecks::checkNetworkTcpConnectTimeoutSetting,
+                NodeDeprecationChecks::checkTransportTcpConnectTimeoutSetting,
+                NodeDeprecationChecks::checkTransportPortSetting,
+                NodeDeprecationChecks::checkTcpNoDelaySetting,
+                NodeDeprecationChecks::checkTransportCompressSetting,
+                NodeDeprecationChecks::checkXpackDataFrameEnabledSetting,
+                NodeDeprecationChecks::checkWatcherHistoryCleanerServiceSetting,
+                NodeDeprecationChecks::checkLifecyleStepMasterTimeoutSetting,
+                NodeDeprecationChecks::checkEqlEnabledSetting
             )
         ).collect(Collectors.toList());
     }
@@ -198,6 +236,8 @@ public class DeprecationChecks {
             (clusterState, indexMetadata) -> IndexDeprecationChecks.checkIndexMatrixFiltersSetting(indexMetadata),
             (clusterState, indexMetadata) -> IndexDeprecationChecks.checkGeoShapeMappings(indexMetadata),
             (clusterState, indexMetadata) -> IndexDeprecationChecks.frozenIndexSettingCheck(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.httpContentTypeRequiredSettingCheck(indexMetadata),
+            (clusterState, indexMetadata) -> IndexDeprecationChecks.mapperDyamicSettingCheck(indexMetadata),
             IndexDeprecationChecks::emptyDataTierPreferenceCheck
         )
     );

@@ -24,15 +24,18 @@ Also see <<breaking-changes-8.0,Breaking changes in 8.0>>.
   anomaly detection results for different jobs to be mixed.
   Wait for `8.0.0-rc1` before attempting to test upgrading a cluster
   where {ml} was used prior to version `7.7.0`.
-* System indices are not hidden and they are included in wildcard queries when using the `*` pattern.
-  Do not rely on this behavior, since they will be hidden in the GA release.
-  If you need to access a system index, specify the name, use  a more specific wildcard,
-  or use the `expand_wildcards` parameter in your query.
+* System indices are not hidden and they are included in wildcard queries when
+  using the `*` pattern. Do not rely on this behavior, since they will be
+  hidden in the GA release. If you need to access a system index, specify the
+  name, use a more specific wildcard, or use the `expand_wildcards` parameter
+  in your query.
 * System indices are included in snapshots of all indices by default,
-  and are restored by default when no indices are specified. This
- behavior was intended for backwards compatibility within
-  the 7.x line. In 8.0, all system indices should be handled through
-  the `feature_states` parameter of the snapshot or restore request.
+  and are restored by default when no indices are specified. This is because
+  system indices are included in the implicit default "*" wildcard for
+  snapshot and restore operations. This behavior was intended for backwards
+  compatibility within the 7.x line. In 8.0, all system indices should be
+  handled through the `feature_states` parameter of the snapshot or restore
+  request.
 
 [[breaking-8.0.0-beta1]]
 [float]

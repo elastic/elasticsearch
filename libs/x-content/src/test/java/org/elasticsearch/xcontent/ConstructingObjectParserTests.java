@@ -817,7 +817,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
             );
             StructRemovalField parse = StructRemovalField.PARSER.parse(parser, null);
 
-            assertWarnings("The field old_name has been removed and is being ignored");
+            assertCriticalWarnings("The field old_name has been removed and is being ignored");
         }
     }
 

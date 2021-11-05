@@ -267,6 +267,24 @@ public class TrainedModelIT extends ESRestTestCase {
         assertThat(response, containsString("\"count\":2"));
     }
 
+    public void testPutModelPartUpdatesEstimatedMemoryUsage() throws IOException {
+        String modelId = "a-model";
+        int size = 300;
+        putPyTorchModel(modelId);
+
+        Response getModel = client().performRequest(new Request("GET", MachineLearning.BASE_PATH + "trained_models/" + modelId));
+        assertThat(getModel.getStatusLine().getStatusCode(), equalTo(200));
+        String response = EntityUtils.toString(getModel.getEntity());
+        assertThat(response, containsString("\"estimated_heap_memory_usage_bytes\":0"));
+
+        putModelDefinitionPart(modelId, size);
+
+        getModel = client().performRequest(new Request("GET", MachineLearning.BASE_PATH + "trained_models/" + modelId));
+        assertThat(getModel.getStatusLine().getStatusCode(), equalTo(200));
+        response = EntityUtils.toString(getModel.getEntity());
+        assertThat(response, containsString("\"estimated_heap_memory_usage_bytes\":300"));
+    }
+
     private void putRegressionModel(String modelId) throws IOException {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             TrainedModelDefinition.Builder definition = new TrainedModelDefinition.Builder().setPreProcessors(Collections.emptyList())
@@ -282,6 +300,35 @@ public class TrainedModelIT extends ESRestTestCase {
             model.setJsonEntity(XContentHelper.convertToJson(BytesReference.bytes(builder), false, XContentType.JSON));
             assertThat(client().performRequest(model).getStatusLine().getStatusCode(), equalTo(200));
         }
+    }
+
+    private void putPyTorchModel(String modelId) throws IOException {
+        Request request = new Request("PUT", "/_ml/trained_models/" + modelId);
+        request.setJsonEntity(
+            "{  "
+                + "    \"description\": \"simple model for testing\",\n"
+                + "    \"model_type\": \"pytorch\",\n"
+                + "    \"inference_config\": {\n"
+                + "        \"pass_through\": {\n"
+                + "        }\n"
+                + "    }\n"
+                + "}"
+        );
+        client().performRequest(request);
+    }
+
+    private void putModelDefinitionPart(String modelId, int totalSize) throws IOException {
+        Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/definition/0");
+        request.setJsonEntity(
+            "{  "
+                + "\"total_definition_length\": "
+                + totalSize
+                + ","
+                + "\"definition\": \"UEsDBAAACAgAAAAAAAAAAAAAAAAAAAAAAAAUAA4Ac2ltcGxlbW9kZW==\","
+                + "\"total_parts\": 3"
+                + "}"
+        );
+        client().performRequest(request);
     }
 
     private static TrainedModel buildRegression() {

@@ -173,6 +173,10 @@ public class TrainedModelProvider {
     }
 
     public void storeTrainedModelConfig(TrainedModelConfig trainedModelConfig, ActionListener<Boolean> listener) {
+        storeTrainedModelConfig(trainedModelConfig, false, listener);
+    }
+
+    public void storeTrainedModelConfig(TrainedModelConfig trainedModelConfig, boolean allowOverwrite, ActionListener<Boolean> listener) {
         if (MODELS_STORED_AS_RESOURCE.contains(trainedModelConfig.getModelId())) {
             listener.onFailure(
                 new ResourceAlreadyExistsException(
@@ -189,6 +193,9 @@ public class TrainedModelProvider {
             trainedModelConfig
         );
         request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        if (allowOverwrite) {
+            request.opType(DocWriteRequest.OpType.INDEX);
+        }
 
         executeAsyncWithOrigin(
             client,

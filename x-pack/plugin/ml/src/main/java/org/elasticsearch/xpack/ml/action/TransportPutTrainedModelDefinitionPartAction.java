@@ -33,10 +33,15 @@ import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartAction.Request;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
+import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelLocation;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
@@ -89,6 +94,9 @@ public class TransportPutTrainedModelDefinitionPartAction extends TransportMaste
                 );
                 return;
             }
+
+            boolean setMemoryUsage = config.getModelType() == TrainedModelType.PYTORCH && config.getEstimatedHeapMemory() == 0;
+
             final boolean isEos = request.getPart() == request.getTotalParts() - 1;
             final String indexName = ((IndexLocation) location).getIndexName();
             trainedModelProvider.storeTrainedModelDefinitionDoc(
@@ -101,26 +109,79 @@ public class TransportPutTrainedModelDefinitionPartAction extends TransportMaste
                     .setBinaryData(request.getDefinition())
                     .build(),
                 indexName,
-                ActionListener.wrap(stored -> {
-                    if (isEos) {
-                        client.admin()
-                            .indices()
-                            .prepareRefresh(indexName)
-                            .execute(ActionListener.wrap(refreshed -> listener.onResponse(AcknowledgedResponse.TRUE), failure -> {
-                                logger.warn(
-                                    () -> new ParameterizedMessage("[{}] failed to refresh index [{}]", request.getModelId(), indexName),
-                                    failure
-                                );
-                                listener.onResponse(AcknowledgedResponse.TRUE);
-                            }));
-                        return;
+                ActionListener.wrap(response -> {
+                    if (setMemoryUsage) {
+                        updateConfigMemoryUsage(
+                            config,
+                            request.getTotalDefinitionLength(),
+                            ActionListener.wrap(
+                                updated -> refreshIndices(isEos, indexName, setMemoryUsage, config.getModelId(), listener),
+                                listener::onFailure
+                            )
+                        );
+                    } else {
+                        refreshIndices(isEos, indexName, setMemoryUsage, config.getModelId(), listener);
                     }
-                    listener.onResponse(AcknowledgedResponse.TRUE);
                 }, listener::onFailure)
             );
         }, listener::onFailure);
 
         trainedModelProvider.getTrainedModel(request.getModelId(), GetTrainedModelsAction.Includes.empty(), configActionListener);
+    }
+
+    private void updateConfigMemoryUsage(
+        TrainedModelConfig config,
+        long totalDefinitionLength,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        TrainedModelConfig updatedConfig = new TrainedModelConfig.Builder(config).setEstimatedHeapMemory(totalDefinitionLength).build();
+        trainedModelProvider.storeTrainedModelConfig(
+            updatedConfig,
+            false,
+            ActionListener.wrap(response -> listener.onResponse(AcknowledgedResponse.TRUE), e -> {
+                // The definition doc has been written successfully
+                // so don't fail the write here.
+                logger.warn(
+                    new ParameterizedMessage(
+                        "failed to update [{}] for model [{}]",
+                        TrainedModelConfig.ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName(),
+                        config.getModelId()
+                    ),
+                    e
+                );
+                listener.onResponse(AcknowledgedResponse.TRUE);
+            })
+        );
+    }
+
+    private void refreshIndices(
+        boolean refreshLocation,
+        String storedIndex,
+        boolean refreshConfig,
+        String modelId,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        if (refreshLocation == false && refreshConfig == false) {
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return;
+        }
+
+        List<String> indices = new ArrayList<>();
+        if (refreshLocation) {
+            indices.add(storedIndex);
+        }
+        if (refreshConfig) {
+            indices.add(InferenceIndexConstants.LATEST_INDEX_NAME);
+        }
+
+        client.admin()
+            .indices()
+            .prepareRefresh(indices.toArray(String[]::new))
+            .execute(ActionListener.wrap(refreshed -> listener.onResponse(AcknowledgedResponse.TRUE), failure -> {
+                logger.warn(() -> new ParameterizedMessage("[{}] failed to refresh index {}", modelId, indices), failure);
+                listener.onResponse(AcknowledgedResponse.TRUE);
+            }));
+
     }
 
     @Override

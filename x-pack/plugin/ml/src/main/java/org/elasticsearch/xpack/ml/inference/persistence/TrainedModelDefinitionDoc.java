@@ -86,7 +86,7 @@ public class TrainedModelDefinitionDoc implements ToXContentObject {
     private final int compressionVersion;
     private final boolean eos;
 
-    private TrainedModelDefinitionDoc(
+    public TrainedModelDefinitionDoc(
         BytesReference binaryData,
         String modelId,
         int docNum,

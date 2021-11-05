@@ -1220,8 +1220,7 @@ public class TrainedModelProvider {
         return results;
     }
 
-    private static BytesReference getDefinitionFromDocs(List<TrainedModelDefinitionDoc> docs, String modelId)
-        throws ElasticsearchException {
+    static BytesReference getDefinitionFromDocs(List<TrainedModelDefinitionDoc> docs, String modelId) throws ElasticsearchException {
 
         // If the user requested the compressed data string, we need access to the underlying bytes.
         // BytesArray gives us that access.

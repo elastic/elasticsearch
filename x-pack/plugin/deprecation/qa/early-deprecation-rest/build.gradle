@@ -6,11 +6,12 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 
 esplugin {
   description 'Deprecated query plugin'
-  classname 'org.elasticsearch.xpack.deprecation.TestDeprecationPlugin'
+  classname 'org.elasticsearch.xpack.deprecation.EarlyDeprecationTestPlugin'
 }
 
 dependencies {
   javaRestTestImplementation project(path: ':x-pack:plugin:deprecation:qa:common')
+
   javaRestTestImplementation project(':client:rest-high-level')
   javaRestTestImplementation("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
   javaRestTestImplementation("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")

@@ -8,15 +8,12 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.plugins.ActionPlugin;
-import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestController;
@@ -32,13 +29,7 @@ import static java.util.Collections.singletonList;
 /**
  * Adds {@link TestDeprecationHeaderRestAction} for testing deprecation requests via HTTP.
  */
-public class TestDeprecationPlugin extends Plugin implements ActionPlugin, SearchPlugin, ClusterPlugin {
-    private DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TestDeprecationPlugin.class);
-
-    @Override
-    public void onNodeStarted() {
-        deprecationLogger.warn(DeprecationCategory.API, "early_deprecation", "Early deprecation emitted after node is started up");
-    }
+public class TestDeprecationPlugin extends Plugin implements ActionPlugin, SearchPlugin {
 
     @Override
     public List<RestHandler> getRestHandlers(

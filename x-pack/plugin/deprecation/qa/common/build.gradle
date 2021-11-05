@@ -1,0 +1,13 @@
+import org.elasticsearch.gradle.util.GradleUtils
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+apply plugin: 'elasticsearch.build'
+tasks.named("test").configure { enabled = false }
+
+dependencies {
+  implementation project(':test:framework')
+  //TODO when do we use api vs implementation? why do we need licenses here?
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+}
+

@@ -24,11 +24,11 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.script.field.ToScriptField.ToDoubleScriptField;
+import org.elasticsearch.script.field.ToScriptField;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -163,10 +163,10 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
     ) throws IOException {
         MappedFieldType idFieldType = new KeywordFieldMapper.KeywordFieldType("id");
 
-        SortedNumericIndexFieldData fieldData = new SortedNumericIndexFieldData(
+        SortedDoublesIndexFieldData fieldData = new SortedDoublesIndexFieldData(
             "price",
             IndexNumericFieldData.NumericType.DOUBLE,
-            ToDoubleScriptField.INSTANCE
+            ToScriptField.DOUBLE
         );
         FunctionScoreQuery query = new FunctionScoreQuery(
             new MatchAllDocsQuery(),

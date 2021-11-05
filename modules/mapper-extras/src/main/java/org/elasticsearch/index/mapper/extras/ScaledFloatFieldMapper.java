@@ -27,7 +27,7 @@ import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -40,7 +40,6 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DocValuesField;
 import org.elasticsearch.script.field.ToScriptField;
-import org.elasticsearch.script.field.ToScriptField.ToScaledFloatScriptField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -260,12 +259,12 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
             return (cache, breakerService) -> {
-                final IndexNumericFieldData scaledValues = new SortedNumericIndexFieldData.Builder(
+                final IndexNumericFieldData scaledValues = new SortedDoublesIndexFieldData.Builder(
                     name(),
                     IndexNumericFieldData.NumericType.LONG,
-                    ToScaledFloatScriptField.INSTANCE
+                    ToScriptField.SCALED_FLOAT
                 ).build(cache, breakerService);
-                return new ScaledFloatIndexFieldData(scaledValues, scalingFactor, ToScaledFloatScriptField.INSTANCE);
+                return new ScaledFloatIndexFieldData(scaledValues, scalingFactor, ToScriptField.SCALED_FLOAT);
             };
         }
 
@@ -469,9 +468,13 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         private final IndexNumericFieldData scaledFieldData;
         private final double scalingFactor;
-        private final ToScriptField toScriptField;
+        private final ToScriptField<SortedNumericDoubleValues> toScriptField;
 
-        ScaledFloatIndexFieldData(IndexNumericFieldData scaledFieldData, double scalingFactor, ToScriptField toScriptField) {
+        ScaledFloatIndexFieldData(
+            IndexNumericFieldData scaledFieldData,
+            double scalingFactor,
+            ToScriptField<SortedNumericDoubleValues> toScriptField
+        ) {
             this.scaledFieldData = scaledFieldData;
             this.scalingFactor = scalingFactor;
             this.toScriptField = toScriptField;
@@ -523,9 +526,13 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         private final LeafNumericFieldData scaledFieldData;
         private final double scalingFactorInverse;
-        private final ToScriptField toScriptField;
+        private final ToScriptField<SortedNumericDoubleValues> toScriptField;
 
-        ScaledFloatLeafFieldData(LeafNumericFieldData scaledFieldData, double scalingFactor, ToScriptField toScriptField) {
+        ScaledFloatLeafFieldData(
+            LeafNumericFieldData scaledFieldData,
+            double scalingFactor,
+            ToScriptField<SortedNumericDoubleValues> toScriptField
+        ) {
             this.scaledFieldData = scaledFieldData;
             this.scalingFactorInverse = 1d / scalingFactor;
             this.toScriptField = toScriptField;

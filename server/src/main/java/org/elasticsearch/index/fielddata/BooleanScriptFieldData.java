@@ -24,9 +24,9 @@ public final class BooleanScriptFieldData extends IndexNumericFieldData {
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final BooleanFieldScript.LeafFactory leafFactory;
-        protected final ToScriptField toScriptField;
+        protected final ToScriptField<SortedNumericDocValues> toScriptField;
 
-        public Builder(String name, BooleanFieldScript.LeafFactory leafFactory, ToScriptField toScriptField) {
+        public Builder(String name, BooleanFieldScript.LeafFactory leafFactory, ToScriptField<SortedNumericDocValues> toScriptField) {
             this.name = name;
             this.leafFactory = leafFactory;
             this.toScriptField = toScriptField;
@@ -40,9 +40,13 @@ public final class BooleanScriptFieldData extends IndexNumericFieldData {
 
     private final String fieldName;
     private final BooleanFieldScript.LeafFactory leafFactory;
-    protected final ToScriptField toScriptField;
+    protected final ToScriptField<SortedNumericDocValues> toScriptField;
 
-    private BooleanScriptFieldData(String fieldName, BooleanFieldScript.LeafFactory leafFactory, ToScriptField toScriptField) {
+    private BooleanScriptFieldData(
+        String fieldName,
+        BooleanFieldScript.LeafFactory leafFactory,
+        ToScriptField<SortedNumericDocValues> toScriptField
+    ) {
         this.fieldName = fieldName;
         this.leafFactory = leafFactory;
         this.toScriptField = toScriptField;
@@ -69,7 +73,7 @@ public final class BooleanScriptFieldData extends IndexNumericFieldData {
 
     @Override
     public BooleanScriptLeafFieldData loadDirect(LeafReaderContext context) {
-        return new BooleanScriptLeafFieldData(new BooleanScriptDocValues(leafFactory.newInstance(context)), toScriptField);
+        return new BooleanScriptLeafFieldData(new BooleanScriptDocValues(leafFactory.newInstance(context)), ToScriptField.BOOLEAN);
     }
 
     @Override
@@ -84,9 +88,9 @@ public final class BooleanScriptFieldData extends IndexNumericFieldData {
 
     public static class BooleanScriptLeafFieldData extends LeafLongFieldData {
         private final BooleanScriptDocValues booleanScriptDocValues;
-        protected final ToScriptField toScriptField;
+        protected final ToScriptField<SortedNumericDocValues> toScriptField;
 
-        BooleanScriptLeafFieldData(BooleanScriptDocValues booleanScriptDocValues, ToScriptField toScriptField) {
+        BooleanScriptLeafFieldData(BooleanScriptDocValues booleanScriptDocValues, ToScriptField<SortedNumericDocValues> toScriptField) {
             super(0);
             this.booleanScriptDocValues = booleanScriptDocValues;
             this.toScriptField = toScriptField;

@@ -19,6 +19,7 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.sandbox.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
@@ -34,6 +35,8 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -42,13 +45,6 @@ import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.field.ToScriptField;
-import org.elasticsearch.script.field.ToScriptField.ToByteScriptField;
-import org.elasticsearch.script.field.ToScriptField.ToDoubleScriptField;
-import org.elasticsearch.script.field.ToScriptField.ToFloatScriptField;
-import org.elasticsearch.script.field.ToScriptField.ToHalfFloatScriptField;
-import org.elasticsearch.script.field.ToScriptField.ToIntScriptField;
-import org.elasticsearch.script.field.ToScriptField.ToLongScriptField;
-import org.elasticsearch.script.field.ToScriptField.ToShortScriptField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -62,6 +58,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -223,7 +220,7 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     public enum NumberType {
-        HALF_FLOAT("half_float", NumericType.HALF_FLOAT, ToHalfFloatScriptField.INSTANCE) {
+        HALF_FLOAT("half_float", NumericType.HALF_FLOAT) {
             @Override
             public Float parse(Object value, boolean coerce) {
                 final float result = parseToFloat(value);
@@ -339,7 +336,7 @@ public class NumberFieldMapper extends FieldMapper {
                 }
             }
         },
-        FLOAT("float", NumericType.FLOAT, ToFloatScriptField.INSTANCE) {
+        FLOAT("float", NumericType.FLOAT) {
             @Override
             public Float parse(Object value, boolean coerce) {
                 final float result;
@@ -441,7 +438,7 @@ public class NumberFieldMapper extends FieldMapper {
                 }
             }
         },
-        DOUBLE("double", NumericType.DOUBLE, ToDoubleScriptField.INSTANCE) {
+        DOUBLE("double", NumericType.DOUBLE) {
             @Override
             public Double parse(Object value, boolean coerce) {
                 double parsed = objectToDouble(value);
@@ -526,7 +523,7 @@ public class NumberFieldMapper extends FieldMapper {
                 }
             }
         },
-        BYTE("byte", NumericType.BYTE, ToByteScriptField.INSTANCE) {
+        BYTE("byte", NumericType.BYTE) {
             @Override
             public Byte parse(Object value, boolean coerce) {
                 double doubleValue = objectToDouble(value);
@@ -592,7 +589,7 @@ public class NumberFieldMapper extends FieldMapper {
                 return value.byteValue();
             }
         },
-        SHORT("short", NumericType.SHORT, ToShortScriptField.INSTANCE) {
+        SHORT("short", NumericType.SHORT) {
             @Override
             public Short parse(Object value, boolean coerce) {
                 double doubleValue = objectToDouble(value);
@@ -654,7 +651,7 @@ public class NumberFieldMapper extends FieldMapper {
                 return value.shortValue();
             }
         },
-        INTEGER("integer", NumericType.INT, ToIntScriptField.INSTANCE) {
+        INTEGER("integer", NumericType.INT) {
             @Override
             public Integer parse(Object value, boolean coerce) {
                 double doubleValue = objectToDouble(value);
@@ -775,7 +772,7 @@ public class NumberFieldMapper extends FieldMapper {
                 return fields;
             }
         },
-        LONG("long", NumericType.LONG, ToLongScriptField.INSTANCE) {
+        LONG("long", NumericType.LONG) {
             @Override
             public Long parse(Object value, boolean coerce) {
                 return objectToLong(value, coerce);
@@ -870,13 +867,11 @@ public class NumberFieldMapper extends FieldMapper {
         private final String name;
         private final NumericType numericType;
         private final TypeParser parser;
-        private final ToScriptField toScriptField;
 
-        NumberType(String name, NumericType numericType, ToScriptField toScriptField) {
+        NumberType(String name, NumericType numericType) {
             this.name = name;
             this.numericType = numericType;
             this.parser = new TypeParser((n, c) -> new Builder(n, this, c.scriptCompiler(), c.getSettings()));
-            this.toScriptField = toScriptField;
         }
 
         /** Get the associated type name. */
@@ -891,10 +886,6 @@ public class NumberFieldMapper extends FieldMapper {
 
         public final TypeParser parser() {
             return parser;
-        }
-
-        public final ToScriptField getToScriptField() {
-            return toScriptField;
         }
 
         public abstract Query termQuery(String field, Object value);
@@ -1069,6 +1060,24 @@ public class NumberFieldMapper extends FieldMapper {
         }
     }
 
+    private static final Map<NumberType, ToScriptField<SortedNumericDocValues>> INTEGRAL_TYPE_TO_SCRIPT_FIELDS;
+    private static final Map<NumberType, ToScriptField<SortedNumericDoubleValues>> FLOATING_POINT_TYPE_TO_SCRIPT_FIELDS;
+
+    static {
+        Map<NumberType, ToScriptField<SortedNumericDocValues>> integralTypeToScriptFields = new HashMap<>(4);
+        integralTypeToScriptFields.put(NumberType.BYTE, ToScriptField.BYTE);
+        integralTypeToScriptFields.put(NumberType.SHORT, ToScriptField.SHORT);
+        integralTypeToScriptFields.put(NumberType.INTEGER, ToScriptField.INT);
+        integralTypeToScriptFields.put(NumberType.LONG, ToScriptField.LONG);
+        INTEGRAL_TYPE_TO_SCRIPT_FIELDS = Collections.unmodifiableMap(integralTypeToScriptFields);
+
+        Map<NumberType, ToScriptField<SortedNumericDoubleValues>> floatingPointTypeToScriptfields = new HashMap<>(3);
+        floatingPointTypeToScriptfields.put(NumberType.HALF_FLOAT, ToScriptField.HALF_FLOAT);
+        floatingPointTypeToScriptfields.put(NumberType.FLOAT, ToScriptField.FLOAT);
+        floatingPointTypeToScriptfields.put(NumberType.DOUBLE, ToScriptField.DOUBLE);
+        FLOATING_POINT_TYPE_TO_SCRIPT_FIELDS = Collections.unmodifiableMap(floatingPointTypeToScriptfields);
+    }
+
     public static class NumberFieldType extends SimpleMappedFieldType {
 
         private final NumberType type;
@@ -1179,7 +1188,11 @@ public class NumberFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(name(), type.numericType(), type.getToScriptField());
+            if (type.numericType().isFloatingPoint()) {
+                return new SortedDoublesIndexFieldData.Builder(name(), type.numericType(), FLOATING_POINT_TYPE_TO_SCRIPT_FIELDS.get(type));
+            } else {
+                return new SortedNumericIndexFieldData.Builder(name(), type.numericType(), INTEGRAL_TYPE_TO_SCRIPT_FIELDS.get(type));
+            }
         }
 
         @Override

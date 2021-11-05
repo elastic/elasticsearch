@@ -29,7 +29,6 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DelegateDocValuesField;
-import org.elasticsearch.script.field.DocValuesField;
 import org.elasticsearch.script.field.ToScriptField;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -84,18 +83,7 @@ public class Murmur3FieldMapper extends FieldMapper {
     // this only exists so a check can be done to match the field type to using murmur3 hashing...
     public static class Murmur3FieldType extends MappedFieldType {
 
-        public static class ToMurmur3ScriptField extends ToScriptField {
-
-            public static final ToMurmur3ScriptField INSTANCE = new ToMurmur3ScriptField();
-
-            private ToMurmur3ScriptField() {
-
-            }
-
-            public DocValuesField<?> getScriptField(SortedNumericDocValues sortedNumericDocValues, String name) {
-                return new DelegateDocValuesField(new Longs(sortedNumericDocValues), name);
-            }
-        }
+        public static final ToScriptField<SortedNumericDocValues> TO_SCRIPT_FIELD = (dv, n) -> new DelegateDocValuesField(new Longs(dv), n);
 
         private Murmur3FieldType(String name, boolean isStored, Map<String, String> meta) {
             super(name, false, isStored, true, TextSearchInfo.NONE, meta);
@@ -109,7 +97,7 @@ public class Murmur3FieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, ToMurmur3ScriptField.INSTANCE);
+            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, TO_SCRIPT_FIELD);
         }
 
         @Override

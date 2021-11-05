@@ -49,7 +49,7 @@ public abstract class LeafDoubleFieldData implements LeafNumericFieldData {
         return FieldData.castToLong(getDoubleValues());
     }
 
-    public static LeafNumericFieldData empty(final int maxDoc, ToScriptField toScriptField) {
+    public static LeafNumericFieldData empty(final int maxDoc, ToScriptField<SortedNumericDoubleValues> toScriptField) {
         return new LeafDoubleFieldData(0) {
 
             @Override

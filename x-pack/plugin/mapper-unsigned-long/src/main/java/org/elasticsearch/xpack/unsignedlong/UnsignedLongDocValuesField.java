@@ -26,18 +26,7 @@ import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.BIGIN
 
 public class UnsignedLongDocValuesField implements UnsignedLongField, DocValuesField<Long> {
 
-    public static class ToUnsignedLongScriptField extends ToScriptField {
-
-        public static final ToUnsignedLongScriptField INSTANCE = new ToUnsignedLongScriptField();
-
-        private ToUnsignedLongScriptField() {
-
-        }
-
-        public DocValuesField<?> getScriptField(SortedNumericDocValues sortedNumericDocValues, String name) {
-            return new UnsignedLongDocValuesField(sortedNumericDocValues, name);
-        }
-    }
+    public static final ToScriptField<SortedNumericDocValues> TO_SCRIPT_FIELD = UnsignedLongDocValuesField::new;
 
     private final SortedNumericDocValues input;
     private final String name;

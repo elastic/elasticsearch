@@ -12,21 +12,15 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.field.DocValuesField;
@@ -41,16 +35,17 @@ import java.util.Collections;
 import java.util.Objects;
 
 /**
- * FieldData backed by {@link LeafReader#getSortedNumericDocValues(String)}
+ * FieldData for integral types
+ * backed by {@link LeafReader#getSortedNumericDocValues(String)}
  * @see DocValuesType#SORTED_NUMERIC
  */
 public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final NumericType numericType;
-        protected final ToScriptField toScriptField;
+        protected final ToScriptField<SortedNumericDocValues> toScriptField;
 
-        public Builder(String name, NumericType numericType, ToScriptField toScriptField) {
+        public Builder(String name, NumericType numericType, ToScriptField<SortedNumericDocValues> toScriptField) {
             this.name = name;
             this.numericType = numericType;
             this.toScriptField = toScriptField;
@@ -65,11 +60,12 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     private final NumericType numericType;
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;
-    protected final ToScriptField toScriptField;
+    protected final ToScriptField<SortedNumericDocValues> toScriptField;
 
-    public SortedNumericIndexFieldData(String fieldName, NumericType numericType, ToScriptField toScriptField) {
+    public SortedNumericIndexFieldData(String fieldName, NumericType numericType, ToScriptField<SortedNumericDocValues> toScriptField) {
         this.fieldName = fieldName;
         this.numericType = Objects.requireNonNull(numericType);
+        assert this.numericType.isFloatingPoint() == false;
         this.valuesSourceType = numericType.getValuesSourceType();
         this.toScriptField = toScriptField;
     }
@@ -86,7 +82,7 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
 
     @Override
     protected boolean sortRequiresCustomComparator() {
-        return numericType == NumericType.HALF_FLOAT;
+        return false;
     }
 
     @Override
@@ -136,18 +132,11 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
         final LeafReader reader = context.reader();
         final String field = fieldName;
 
-        switch (numericType) {
-            case HALF_FLOAT:
-                return new SortedNumericHalfFloatFieldData(reader, field, toScriptField);
-            case FLOAT:
-                return new SortedNumericFloatFieldData(reader, field, toScriptField);
-            case DOUBLE:
-                return new SortedNumericDoubleFieldData(reader, field, toScriptField);
-            case DATE_NANOSECONDS:
-                return new NanoSecondFieldData(reader, field, toScriptField);
-            default:
-                return new SortedNumericLongFieldData(reader, field, toScriptField);
+        if (numericType == NumericType.DATE_NANOSECONDS) {
+            return new NanoSecondFieldData(reader, field, toScriptField);
         }
+
+        return new SortedNumericLongFieldData(reader, field, toScriptField);
     }
 
     /**
@@ -158,9 +147,9 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
 
         private final LeafReader reader;
         private final String fieldName;
-        protected final ToScriptField toScriptField;
+        protected final ToScriptField<SortedNumericDocValues> toScriptField;
 
-        NanoSecondFieldData(LeafReader reader, String fieldName, ToScriptField toScriptField) {
+        NanoSecondFieldData(LeafReader reader, String fieldName, ToScriptField<SortedNumericDocValues> toScriptField) {
             super(0L);
             this.reader = reader;
             this.fieldName = fieldName;
@@ -222,9 +211,9 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
     static final class SortedNumericLongFieldData extends LeafLongFieldData {
         final LeafReader reader;
         final String field;
-        protected final ToScriptField toScriptField;
+        protected final ToScriptField<SortedNumericDocValues> toScriptField;
 
-        SortedNumericLongFieldData(LeafReader reader, String field, ToScriptField toScriptField) {
+        SortedNumericLongFieldData(LeafReader reader, String field, ToScriptField<SortedNumericDocValues> toScriptField) {
             super(0L);
             this.reader = reader;
             this.field = field;
@@ -248,250 +237,6 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
         @Override
         public DocValuesField<?> getScriptField(String name) {
             return toScriptField.getScriptField(getLongValues(), name);
-        }
-    }
-
-    /**
-     * FieldData implementation for 16-bit float values.
-     * <p>
-     * Order of values within a document is consistent with
-     * {@link Float#compareTo(Float)}, hence the following reversible
-     * transformation is applied at both index and search:
-     * {@code bits ^ (bits >> 15) & 0x7fff}
-     * <p>
-     * Although the API is multi-valued, most codecs in Lucene specialize
-     * for the case where documents have at most one value. In this case
-     * {@link FieldData#unwrapSingleton(SortedNumericDoubleValues)} will return
-     * the underlying single-valued NumericDoubleValues representation.
-     */
-    static final class SortedNumericHalfFloatFieldData extends LeafDoubleFieldData {
-        final LeafReader reader;
-        final String field;
-        protected final ToScriptField toScriptField;
-
-        SortedNumericHalfFloatFieldData(LeafReader reader, String field, ToScriptField toScriptField) {
-            super(0L);
-            this.reader = reader;
-            this.field = field;
-            this.toScriptField = toScriptField;
-        }
-
-        @Override
-        public SortedNumericDoubleValues getDoubleValues() {
-            try {
-                SortedNumericDocValues raw = DocValues.getSortedNumeric(reader, field);
-
-                NumericDocValues single = DocValues.unwrapSingleton(raw);
-                if (single != null) {
-                    return FieldData.singleton(new SingleHalfFloatValues(single));
-                } else {
-                    return new MultiHalfFloatValues(raw);
-                }
-            } catch (IOException e) {
-                throw new IllegalStateException("Cannot load doc values", e);
-            }
-        }
-
-        @Override
-        public Collection<Accountable> getChildResources() {
-            return Collections.emptyList();
-        }
-
-        @Override
-        public DocValuesField<?> getScriptField(String name) {
-            return toScriptField.getScriptField(getDoubleValues(), name);
-        }
-    }
-
-    /**
-     * Wraps a NumericDocValues and exposes a single 16-bit float per document.
-     */
-    static final class SingleHalfFloatValues extends NumericDoubleValues {
-        final NumericDocValues in;
-
-        SingleHalfFloatValues(NumericDocValues in) {
-            this.in = in;
-        }
-
-        @Override
-        public double doubleValue() throws IOException {
-            return HalfFloatPoint.sortableShortToHalfFloat((short) in.longValue());
-        }
-
-        @Override
-        public boolean advanceExact(int doc) throws IOException {
-            return in.advanceExact(doc);
-        }
-    }
-
-    /**
-     * Wraps a SortedNumericDocValues and exposes multiple 16-bit floats per document.
-     */
-    static final class MultiHalfFloatValues extends SortedNumericDoubleValues {
-        final SortedNumericDocValues in;
-
-        MultiHalfFloatValues(SortedNumericDocValues in) {
-            this.in = in;
-        }
-
-        @Override
-        public boolean advanceExact(int target) throws IOException {
-            return in.advanceExact(target);
-        }
-
-        @Override
-        public double nextValue() throws IOException {
-            return HalfFloatPoint.sortableShortToHalfFloat((short) in.nextValue());
-        }
-
-        @Override
-        public int docValueCount() {
-            return in.docValueCount();
-        }
-    }
-
-    /**
-     * FieldData implementation for 32-bit float values.
-     * <p>
-     * Order of values within a document is consistent with
-     * {@link Float#compareTo(Float)}, hence the following reversible
-     * transformation is applied at both index and search:
-     * {@code bits ^ (bits >> 31) & 0x7fffffff}
-     * <p>
-     * Although the API is multi-valued, most codecs in Lucene specialize
-     * for the case where documents have at most one value. In this case
-     * {@link FieldData#unwrapSingleton(SortedNumericDoubleValues)} will return
-     * the underlying single-valued NumericDoubleValues representation.
-     */
-    static final class SortedNumericFloatFieldData extends LeafDoubleFieldData {
-        final LeafReader reader;
-        final String field;
-        protected final ToScriptField toScriptField;
-
-        SortedNumericFloatFieldData(LeafReader reader, String field, ToScriptField toScriptField) {
-            super(0L);
-            this.reader = reader;
-            this.field = field;
-            this.toScriptField = toScriptField;
-        }
-
-        @Override
-        public SortedNumericDoubleValues getDoubleValues() {
-            try {
-                SortedNumericDocValues raw = DocValues.getSortedNumeric(reader, field);
-
-                NumericDocValues single = DocValues.unwrapSingleton(raw);
-                if (single != null) {
-                    return FieldData.singleton(new SingleFloatValues(single));
-                } else {
-                    return new MultiFloatValues(raw);
-                }
-            } catch (IOException e) {
-                throw new IllegalStateException("Cannot load doc values", e);
-            }
-        }
-
-        @Override
-        public Collection<Accountable> getChildResources() {
-            return Collections.emptyList();
-        }
-
-        @Override
-        public DocValuesField<?> getScriptField(String name) {
-            return toScriptField.getScriptField(getDoubleValues(), name);
-        }
-    }
-
-    /**
-     * Wraps a NumericDocValues and exposes a single 32-bit float per document.
-     */
-    static final class SingleFloatValues extends NumericDoubleValues {
-        final NumericDocValues in;
-
-        SingleFloatValues(NumericDocValues in) {
-            this.in = in;
-        }
-
-        @Override
-        public double doubleValue() throws IOException {
-            return NumericUtils.sortableIntToFloat((int) in.longValue());
-        }
-
-        @Override
-        public boolean advanceExact(int doc) throws IOException {
-            return in.advanceExact(doc);
-        }
-    }
-
-    /**
-     * Wraps a SortedNumericDocValues and exposes multiple 32-bit floats per document.
-     */
-    static final class MultiFloatValues extends SortedNumericDoubleValues {
-        final SortedNumericDocValues in;
-
-        MultiFloatValues(SortedNumericDocValues in) {
-            this.in = in;
-        }
-
-        @Override
-        public boolean advanceExact(int target) throws IOException {
-            return in.advanceExact(target);
-        }
-
-        @Override
-        public double nextValue() throws IOException {
-            return NumericUtils.sortableIntToFloat((int) in.nextValue());
-        }
-
-        @Override
-        public int docValueCount() {
-            return in.docValueCount();
-        }
-    }
-
-    /**
-     * FieldData implementation for 64-bit double values.
-     * <p>
-     * Order of values within a document is consistent with
-     * {@link Double#compareTo(Double)}, hence the following reversible
-     * transformation is applied at both index and search:
-     * {@code bits ^ (bits >> 63) & 0x7fffffffffffffffL}
-     * <p>
-     * Although the API is multi-valued, most codecs in Lucene specialize
-     * for the case where documents have at most one value. In this case
-     * {@link FieldData#unwrapSingleton(SortedNumericDoubleValues)} will return
-     * the underlying single-valued NumericDoubleValues representation.
-     */
-    static final class SortedNumericDoubleFieldData extends LeafDoubleFieldData {
-        final LeafReader reader;
-        final String field;
-        protected final ToScriptField toScriptField;
-
-        SortedNumericDoubleFieldData(LeafReader reader, String field, ToScriptField toScriptField) {
-            super(0L);
-            this.reader = reader;
-            this.field = field;
-            this.toScriptField = toScriptField;
-        }
-
-        @Override
-        public SortedNumericDoubleValues getDoubleValues() {
-            try {
-                SortedNumericDocValues raw = DocValues.getSortedNumeric(reader, field);
-                return FieldData.sortableLongBitsToDoubles(raw);
-            } catch (IOException e) {
-                throw new IllegalStateException("Cannot load doc values", e);
-            }
-        }
-
-        @Override
-        public Collection<Accountable> getChildResources() {
-            return Collections.emptyList();
-        }
-
-        @Override
-        public DocValuesField<?> getScriptField(String name) {
-            return toScriptField.getScriptField(getDoubleValues(), name);
         }
     }
 }

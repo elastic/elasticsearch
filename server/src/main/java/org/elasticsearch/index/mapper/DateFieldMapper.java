@@ -14,6 +14,7 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.sandbox.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.Query;
@@ -40,8 +41,6 @@ import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.field.ToScriptField;
-import org.elasticsearch.script.field.ToScriptField.ToDateMillisScriptField;
-import org.elasticsearch.script.field.ToScriptField.ToDateNanosScriptField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -79,7 +78,7 @@ public final class DateFieldMapper extends FieldMapper {
     private static final DateMathParser EPOCH_MILLIS_PARSER = DateFormatter.forPattern("epoch_millis").toDateMathParser();
 
     public enum Resolution {
-        MILLISECONDS(CONTENT_TYPE, NumericType.DATE, ToDateMillisScriptField.INSTANCE) {
+        MILLISECONDS(CONTENT_TYPE, NumericType.DATE, ToScriptField.DATE_MILLIS) {
             @Override
             public long convert(Instant instant) {
                 return instant.toEpochMilli();
@@ -115,7 +114,7 @@ public final class DateFieldMapper extends FieldMapper {
                 return LongPoint.newDistanceFeatureQuery(field, boost, origin, pivot.getMillis());
             }
         },
-        NANOSECONDS(DATE_NANOS_CONTENT_TYPE, NumericType.DATE_NANOSECONDS, ToDateNanosScriptField.INSTANCE) {
+        NANOSECONDS(DATE_NANOS_CONTENT_TYPE, NumericType.DATE_NANOSECONDS, ToScriptField.DATE_NANOS) {
             @Override
             public long convert(Instant instant) {
                 return toLong(instant);
@@ -159,9 +158,9 @@ public final class DateFieldMapper extends FieldMapper {
 
         private final String type;
         private final NumericType numericType;
-        private final ToScriptField toScriptField;
+        private final ToScriptField<SortedNumericDocValues> toScriptField;
 
-        Resolution(String type, NumericType numericType, ToScriptField toScriptField) {
+        Resolution(String type, NumericType numericType, ToScriptField<SortedNumericDocValues> toScriptField) {
             this.type = type;
             this.numericType = numericType;
             this.toScriptField = toScriptField;
@@ -175,7 +174,7 @@ public final class DateFieldMapper extends FieldMapper {
             return numericType;
         }
 
-        ToScriptField getDefaultToScriptField() {
+        ToScriptField<SortedNumericDocValues> getDefaultToScriptField() {
             return toScriptField;
         }
 

@@ -24,9 +24,9 @@ public final class DateScriptFieldData extends IndexNumericFieldData {
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final DateFieldScript.LeafFactory leafFactory;
-        protected final ToScriptField toScriptField;
+        protected final ToScriptField<SortedNumericDocValues> toScriptField;
 
-        public Builder(String name, DateFieldScript.LeafFactory leafFactory, ToScriptField toScriptField) {
+        public Builder(String name, DateFieldScript.LeafFactory leafFactory, ToScriptField<SortedNumericDocValues> toScriptField) {
             this.name = name;
             this.leafFactory = leafFactory;
             this.toScriptField = toScriptField;
@@ -40,9 +40,13 @@ public final class DateScriptFieldData extends IndexNumericFieldData {
 
     private final String fieldName;
     private final DateFieldScript.LeafFactory leafFactory;
-    protected final ToScriptField toScriptField;
+    protected final ToScriptField<SortedNumericDocValues> toScriptField;
 
-    private DateScriptFieldData(String fieldName, DateFieldScript.LeafFactory leafFactory, ToScriptField toScriptField) {
+    private DateScriptFieldData(
+        String fieldName,
+        DateFieldScript.LeafFactory leafFactory,
+        ToScriptField<SortedNumericDocValues> toScriptField
+    ) {
         this.fieldName = fieldName;
         this.leafFactory = leafFactory;
         this.toScriptField = toScriptField;
@@ -84,9 +88,9 @@ public final class DateScriptFieldData extends IndexNumericFieldData {
 
     public static class DateScriptLeafFieldData extends LeafLongFieldData {
         private final LongScriptDocValues longScriptDocValues;
-        protected final ToScriptField toScriptField;
+        protected final ToScriptField<SortedNumericDocValues> toScriptField;
 
-        DateScriptLeafFieldData(LongScriptDocValues longScriptDocValues, ToScriptField toScriptField) {
+        DateScriptLeafFieldData(LongScriptDocValues longScriptDocValues, ToScriptField<SortedNumericDocValues> toScriptField) {
             super(0);
             this.longScriptDocValues = longScriptDocValues;
             this.toScriptField = toScriptField;

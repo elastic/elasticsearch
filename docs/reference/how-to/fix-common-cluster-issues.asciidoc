@@ -676,8 +676,8 @@ for tips on diagnosing and preventing them.
 [[task-throughput]]
 === Task Queue Backup
 
-{es} tracks its node task's thread pools. You can see an overview by using the 
-<<cat-thread-pool,cat thread pool API>>.
+{es} tracks its node task's <<modules-threadpool,thread pools>>. You can see 
+an overview by using the <<cat-thread-pool,cat thread pool API>>.
 
 [source,console]
 ---

@@ -32,7 +32,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
@@ -1129,11 +1128,14 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         public Builder put(IndexMetadata.Builder indexMetadataBuilder) {
             // we know its a new one, increment the version and store
             indexMetadataBuilder.version(indexMetadataBuilder.version() + 1);
+            reuseMappings(indexMetadataBuilder);
             IndexMetadata indexMetadata = indexMetadataBuilder.build();
-            indexMetadata = reuseMappings(indexMetadata);
             IndexMetadata previous = indices.put(indexMetadata.getIndex().getName(), indexMetadata);
             if (unsetPreviousIndicesLookup(previous, indexMetadata)) {
                 previousIndicesLookup = null;
+            }
+            if (previous != null && previous.mapping() != null) {
+                cleanupUnusedEntry(previous.mapping().getDigest());
             }
             return this;
         }
@@ -1150,6 +1152,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             IndexMetadata previous = indices.put(indexMetadata.getIndex().getName(), indexMetadata);
             if (unsetPreviousIndicesLookup(previous, indexMetadata)) {
                 previousIndicesLookup = null;
+            }
+            if (previous != null && previous.mapping() != null) {
+                cleanupUnusedEntry(previous.mapping().getDigest());
             }
             return this;
         }
@@ -1203,7 +1208,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
             var indexMetadata = indices.remove(index);
             if (indexMetadata.mapping() != null) {
-                removeDuplicated(indexMetadata.mapping().getDigest());
+                cleanupUnusedEntry(indexMetadata.mapping().getDigest());
             }
             return this;
         }
@@ -1928,51 +1933,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
         private Map<String, Entry> cache = new HashMap<>();
 
-        public MappingMetadata reuseMappings(CompressedXContent mappingSource, String previousDigest) {
-            String digest = MappingMetadata.computeDigest(mappingSource);
-            Entry entry = cache.get(digest);
-            if (entry != null) {
-                cache.put(digest, new Entry(entry.refCounter + 1, entry.mapping));
-            } else {
-                entry = new Entry(1, new MappingMetadata(mappingSource, digest));
-                cache.put(digest, entry);
-                if (previousDigest != null) {
-                    removeDuplicated(previousDigest);
-                }
-            }
-            return entry.mapping;
-        }
-
-        public MappingMetadata reuseMappings(MappingMetadata mappingMetadata) {
-            String digest = mappingMetadata.getDigest();
-            if (digest == null) {
-                digest = MappingMetadata.computeDigest(mappingMetadata.source());
-            }
-
-            Entry entry = cache.get(digest);
-            if (entry != null) {
-                cache.put(digest, new Entry(entry.refCounter + 1, entry.mapping));
-            } else {
-                entry = new Entry(1, new MappingMetadata(mappingMetadata, digest));
-                cache.put(digest, entry);
-            }
-            return entry.mapping;
-        }
-
-        public MappingMetadata reuseMappings(String type, Map<String, Object> mapping) {
-            String mappingAsString = Strings.toString((builder, params) -> builder.mapContents(mapping), ToXContent.EMPTY_PARAMS);
-            String digest = MappingMetadata.computeDigest(mappingAsString);
-            Entry entry = cache.get(digest);
-            if (entry != null) {
-                cache.put(digest, new Entry(entry.refCounter + 1, entry.mapping));
-            } else {
-                entry = new Entry(1, new MappingMetadata(type, mapping, mappingAsString, digest));
-                cache.put(digest, entry);
-            }
-            return entry.mapping;
-        }
-
-        public IndexMetadata reuseMappings(IndexMetadata indexMetadata) {
+        private IndexMetadata reuseMappings(IndexMetadata indexMetadata) {
             if (indexMetadata.mapping() == null) {
                 return indexMetadata;
             }
@@ -1991,7 +1952,23 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             }
         }
 
-        public void removeDuplicated(String digest) {
+        private void reuseMappings(IndexMetadata.Builder indexMetadataBuilder) {
+            if (indexMetadataBuilder.mapping() == null) {
+                return;
+            }
+
+            String digest = indexMetadataBuilder.mapping().getDigest();
+            Entry entry = cache.get(digest);
+            if (entry != null) {
+                cache.put(digest, new Entry(entry.refCounter + 1, entry.mapping));
+                indexMetadataBuilder.putMapping(entry.mapping);
+            } else {
+                entry = new Entry(1, indexMetadataBuilder.mapping());
+                cache.put(digest, entry);
+            }
+        }
+
+        private void cleanupUnusedEntry(String digest) {
             Entry entry = cache.get(digest);
             if (entry == null) {
                 return;

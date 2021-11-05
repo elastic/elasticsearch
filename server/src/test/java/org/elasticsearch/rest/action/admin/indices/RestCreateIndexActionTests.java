@@ -112,7 +112,7 @@ public class RestCreateIndexActionTests extends ESTestCase {
             .build();
 
         action.prepareRequest(deprecatedRequest, mock(NodeClient.class));
-        assertWarnings(RestCreateIndexAction.TYPES_DEPRECATION_MESSAGE);
+        assertCriticalWarnings(RestCreateIndexAction.TYPES_DEPRECATION_MESSAGE);
 
         RestRequest validRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
             .withPath("/some_index")
@@ -149,6 +149,6 @@ public class RestCreateIndexActionTests extends ESTestCase {
         CreateIndexRequest createIndexRequest = action.prepareRequestV7(request);
         // some_type is replaced with _doc
         assertThat(createIndexRequest.mappings(), equalTo("{\"_doc\":{\"properties\":{\"field1\":{\"type\":\"text\"}}}}"));
-        assertWarnings(RestCreateIndexAction.TYPES_DEPRECATION_MESSAGE);
+        assertCriticalWarnings(RestCreateIndexAction.TYPES_DEPRECATION_MESSAGE);
     }
 }

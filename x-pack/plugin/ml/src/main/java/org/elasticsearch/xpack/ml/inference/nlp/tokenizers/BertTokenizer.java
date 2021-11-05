@@ -52,7 +52,6 @@ public class BertTokenizer implements NlpTokenizer {
     private final boolean doTokenizeCjKChars;
     private final boolean doStripAccents;
     private final boolean withSpecialTokens;
-    private final Tokenization.Truncate truncate;
     private final Set<String> neverSplit;
     private final int maxSequenceLength;
     private final NlpTask.RequestBuilder requestBuilder;
@@ -64,7 +63,6 @@ public class BertTokenizer implements NlpTokenizer {
         boolean doTokenizeCjKChars,
         boolean doStripAccents,
         boolean withSpecialTokens,
-        Tokenization.Truncate truncate,
         int maxSequenceLength,
         Function<BertTokenizer, NlpTask.RequestBuilder> requestBuilderFactory,
         Set<String> neverSplit
@@ -76,7 +74,6 @@ public class BertTokenizer implements NlpTokenizer {
         this.doTokenizeCjKChars = doTokenizeCjKChars;
         this.doStripAccents = doStripAccents;
         this.withSpecialTokens = withSpecialTokens;
-        this.truncate = truncate;
         this.neverSplit = Sets.union(neverSplit, NEVER_SPLIT);
         this.maxSequenceLength = maxSequenceLength;
         this.requestBuilder = requestBuilderFactory.apply(this);
@@ -113,7 +110,7 @@ public class BertTokenizer implements NlpTokenizer {
      * @return A {@link Tokenization}
      */
     @Override
-    public TokenizationResult.Tokenization tokenize(String seq) {
+    public TokenizationResult.Tokenization tokenize(String seq, Tokenization.Truncate truncate) {
         var innerResult = innerTokenize(seq);
         List<WordPieceTokenizer.TokenAndId> wordPieceTokens = innerResult.v1();
         List<Integer> tokenPositionMap = innerResult.v2();
@@ -164,7 +161,7 @@ public class BertTokenizer implements NlpTokenizer {
     }
 
     @Override
-    public TokenizationResult.Tokenization tokenize(String seq1, String seq2) {
+    public TokenizationResult.Tokenization tokenize(String seq1, String seq2, Tokenization.Truncate truncate) {
         var innerResult = innerTokenize(seq1);
         List<WordPieceTokenizer.TokenAndId> wordPieceTokenSeq1s = innerResult.v1();
         List<Integer> tokenPositionMapSeq1 = innerResult.v2();
@@ -295,7 +292,6 @@ public class BertTokenizer implements NlpTokenizer {
         protected boolean doLowerCase = false;
         protected boolean doTokenizeCjKChars = true;
         protected boolean withSpecialTokens = true;
-        protected Tokenization.Truncate truncate = Tokenization.Truncate.FIRST;
         protected int maxSequenceLength;
         protected Boolean doStripAccents = null;
         protected Set<String> neverSplit;
@@ -307,7 +303,6 @@ public class BertTokenizer implements NlpTokenizer {
             this.doLowerCase = tokenization.doLowerCase();
             this.withSpecialTokens = tokenization.withSpecialTokens();
             this.maxSequenceLength = tokenization.maxSequenceLength();
-            this.truncate = tokenization.getTruncate();
         }
 
         private static SortedMap<String, Integer> buildSortedVocab(List<String> vocab) {
@@ -358,11 +353,6 @@ public class BertTokenizer implements NlpTokenizer {
             return this;
         }
 
-        public Builder setTruncate(Tokenization.Truncate truncate) {
-            this.truncate = truncate;
-            return this;
-        }
-
         public BertTokenizer build() {
             // if not set strip accents defaults to the value of doLowerCase
             if (doStripAccents == null) {
@@ -380,7 +370,6 @@ public class BertTokenizer implements NlpTokenizer {
                 doTokenizeCjKChars,
                 doStripAccents,
                 withSpecialTokens,
-                truncate,
                 maxSequenceLength,
                 requestBuilderFactory,
                 neverSplit

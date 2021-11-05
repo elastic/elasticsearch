@@ -1,7 +1,7 @@
 [[targz]]
 === Install {es} from archive on Linux or MacOS
 
-{es} is as a `.tar.gz` archive for Linux and MacOS.
+{es} is available as a `.tar.gz` archive for Linux and MacOS.
 
 include::license.asciidoc[]
 
@@ -80,9 +80,6 @@ endif::include-xpack[]
 [[targz-running]]
 include::targz-start.asciidoc[]
 
-[[targz-security]]
-include::targz-security.asciidoc[]
-
 :os-dir:       $ES_HOME
 
 include::check-running.asciidoc[]
@@ -94,7 +91,7 @@ option on the command line.
 include::targz-daemon.asciidoc[]
 
 [[targz-configuring]]
-==== Configuring {es} on the command line
+==== Configure {es} on the command line
 
 {es} loads its configuration from the `$ES_HOME/config/elasticsearch.yml`
 file by default. The format of this config file is explained in

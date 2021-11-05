@@ -1,4 +1,4 @@
-==== Checking that Elasticsearch is running
+==== Check that Elasticsearch is running
 
 You can test that your {es} node is running by sending an HTTPS request to port
 `9200` on `localhost`:

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.slm.history;
+package org.elasticsearch.xpack.slm.history;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;

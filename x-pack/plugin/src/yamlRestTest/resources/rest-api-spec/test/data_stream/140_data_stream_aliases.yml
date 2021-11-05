@@ -193,3 +193,70 @@
   - do:
       indices.get_alias: {}
   - match: {log-foobar.aliases.my-alias: {}}
+
+---
+"Fix IndexNotFoundException error when handling remove alias action":
+  - skip:
+      version: " - 8.0.99"
+      reason: "backport pending"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [log-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [ log-* ]
+          template:
+            settings:
+              index.number_of_replicas: 0
+          data_stream: { }
+
+  - do:
+      indices.create_data_stream:
+        name: log-foobar
+  - is_true: acknowledged
+
+  - do:
+      indices.create:
+        index: test1
+        body:
+          aliases:
+            test: {}
+
+  - do:
+      indices.create:
+        index: test2
+        body:
+          aliases:
+            test: {}
+
+  - do:
+      indices.create:
+        index: test3
+        body:
+          aliases:
+            test: {}
+
+  - do:
+      indices.get_alias: { }
+  - match: { test1.aliases.test: { } }
+  - match: { test2.aliases.test: { } }
+  - match: { test3.aliases.test: { } }
+
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - remove:
+                index: '*'
+                alias: test
+  - is_true: acknowledged
+
+  - do:
+      indices.get_alias: {}
+  - match: {test1.aliases: {}}
+  - match: {test2.aliases: {}}
+  - match: {test3.aliases: {}}
+

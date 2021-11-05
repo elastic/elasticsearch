@@ -108,7 +108,14 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
     public static final Setting.AffixSetting<Integer> SCRIPT_CACHE_SIZE_SETTING = Setting.affixKeySetting(
         CONTEXT_PREFIX,
         "cache_max_size",
-        key -> Setting.intSetting(key, SCRIPT_GENERAL_CACHE_SIZE_SETTING, 0, Property.NodeScope, Property.Dynamic, Property.Deprecated)
+        key -> Setting.intSetting(
+            key,
+            SCRIPT_GENERAL_CACHE_SIZE_SETTING,
+            0,
+            Property.NodeScope,
+            Property.Dynamic,
+            Property.DeprecatedWarning
+        )
     );
 
     public static final Setting.AffixSetting<TimeValue> SCRIPT_CACHE_EXPIRE_SETTING = Setting.affixKeySetting(
@@ -120,7 +127,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
             TimeValue.timeValueMillis(0),
             Property.NodeScope,
             Property.Dynamic,
-            Property.Deprecated
+            Property.DeprecatedWarning
         )
     );
 
@@ -138,7 +145,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
                 : new ScriptCache.CompilationRate(value),
             Property.NodeScope,
             Property.Dynamic,
-            Property.Deprecated
+            Property.DeprecatedWarning
         )
     );
 

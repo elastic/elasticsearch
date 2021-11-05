@@ -173,9 +173,6 @@ final class LinuxFileSystemNatives implements FileSystemNatives.Provider {
         public long tv_sec;
         public long tv_nsec;
 
-        // required by JNA
-        public Time() {}
-
         @Override
         protected List<String> getFieldOrder() {
             return Arrays.asList("tv_sec", "tv_nsec");

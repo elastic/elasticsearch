@@ -331,12 +331,19 @@ pipeline attempts to change the `_index` field, the indexing request will fail.
 
 [[index-mapping-dimension-fields-limit]]
 `index.mapping.dimension_fields.limit`::
-experimental:[] 
-For internal use by Elastic only. Maximum number of time series dimensions for
-the index. Defaults to `16`.
 +
+--
+experimental:[]
+
+.For internal use by Elastic only.
+[%collapsible]
+====
+Maximum number of time series dimensions for the index. Defaults to `16`.
+
 You can mark a field as a dimension using the `time_series_dimension` mapping
 parameter.
+====
+--
 
 [[index-hidden]] `index.hidden`::
 

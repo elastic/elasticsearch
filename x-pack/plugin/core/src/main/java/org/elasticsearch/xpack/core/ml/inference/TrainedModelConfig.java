@@ -51,6 +51,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -356,7 +357,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     }
 
     public boolean isAllocateOnly() {
-        return inferenceConfig.isAllocateOnly();
+        return Optional.ofNullable(inferenceConfig).map(InferenceConfig::isAllocateOnly).orElse(false);
     }
 
     @Override
@@ -885,7 +886,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         }
 
         public static LazyModelDefinition fromStreamInput(StreamInput input) throws IOException {
-            if (input.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO adjust on backport
+            if (input.getVersion().onOrAfter(Version.V_8_0_0)) {
                 return new LazyModelDefinition(input.readBytesReference(), null);
             } else {
                 return fromBase64String(input.readString());
@@ -949,7 +950,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO adjust on backport
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
                 out.writeBytesReference(getCompressedDefinition());
             } else {
                 out.writeString(getBase64CompressedDefinition());

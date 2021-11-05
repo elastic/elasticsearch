@@ -343,7 +343,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
                     )
                 );
             } catch (IOException e) {
-                throw new AssertionError(e);
+                throw new AssertionError("no actual IO happens here", e);
             }
         }
 

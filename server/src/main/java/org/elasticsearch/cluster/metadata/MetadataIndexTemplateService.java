@@ -325,7 +325,7 @@ public class MetadataIndexTemplateService {
 
     @Nullable
     private static CompressedXContent wrapMappingsIfNecessary(@Nullable CompressedXContent mappings, NamedXContentRegistry xContentRegistry)
-        throws Exception {
+        throws IOException {
         // Mappings in templates don't have to include _doc, so update
         // the mappings to include this single type if necessary
 

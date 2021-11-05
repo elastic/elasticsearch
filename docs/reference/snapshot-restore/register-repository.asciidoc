@@ -79,7 +79,7 @@ Supported snapshot repository types vary based on your deployment type.
 [[ess-repo-types]]
 ==== {ess} repository types
 
-{ess} deployments automatically register the
+{ess-trial}[{ess} deployments] automatically register the
 {cloud}/ec-snapshot-restore.html[`found-snapshots`] repository. {ess} uses this
 repository and the `cloud-snapshot-policy` to take periodic snapshots of your
 cluster. You can also use the `found-snapshots` repository for your own

@@ -38,7 +38,9 @@ import static org.elasticsearch.datastreams.SystemDataStreamSnapshotIT.SystemDat
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.oneOf;
 
@@ -59,7 +61,7 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertTrue(response.isAcknowledged());
     }
 
-    public void testSystemDataStreamSnapshotIT() throws Exception {
+    public void testSystemDataStreamInGlobalState() throws Exception {
         Path location = randomRepoPath();
         createRepository(REPO, "fs", location);
 
@@ -74,8 +76,7 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
             .setId("42")
             .setSource("{ \"@timestamp\": \"2099-03-08T11:06:07.000Z\", \"name\": \"my-name\" }", XContentType.JSON)
             .setOpType(DocWriteRequest.OpType.CREATE)
-            .execute()
-            .actionGet();
+            .get();
         assertThat(indexRepsonse.status().getStatus(), oneOf(200, 201));
 
         {
@@ -90,7 +91,7 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .cluster()
                 .prepareCreateSnapshot(REPO, SNAPSHOT)
                 .setWaitForCompletion(true)
-                .setIncludeGlobalState(false)
+                .setIncludeGlobalState(true)
                 .execute()
         );
 
@@ -107,11 +108,33 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
             assertThat(indicesRemaining.indices(), arrayWithSize(0));
         }
 
+        // Make sure requesting the data stream by name throws.
+        // For some reason, expectThrows() isn't working for me here, hence the try/catch.
+        try {
+            client().admin()
+                .cluster()
+                .prepareRestoreSnapshot(REPO, SNAPSHOT)
+                .setIndices(".test-data-stream")
+                .setWaitForCompletion(true)
+                .setRestoreGlobalState(randomBoolean()) // this shouldn't matter
+                .get();
+        } catch (Exception e) {
+            assertThat(e, instanceOf(IllegalArgumentException.class));
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "requested system data streams [.test-data-stream], but system data streams can only be restored as part of a feature "
+                        + "state"
+                )
+            );
+        }
+
+        // Now actually restore the data stream
         RestoreSnapshotResponse restoreSnapshotResponse = client().admin()
             .cluster()
             .prepareRestoreSnapshot(REPO, SNAPSHOT)
             .setWaitForCompletion(true)
-            .setRestoreGlobalState(false)
+            .setRestoreGlobalState(true)
             .get();
         assertEquals(restoreSnapshotResponse.getRestoreInfo().totalShards(), restoreSnapshotResponse.getRestoreInfo().successfulShards());
 

@@ -493,7 +493,7 @@ These settings include:
 * <<shard-allocation-awareness,Allocation awareness>> cluster settings
 
 To review your allocation settings, use the <<indices-get-settings,get index
-settings>> and <<cluster-get-settings,get cluster settings>> APIs.
+settings>> and <<cluster-get-settings,cluster get settings>> APIs.
 
 [source,console]
 ----

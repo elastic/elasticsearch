@@ -179,7 +179,7 @@ public class MlInitializationService implements ClusterStateListener {
             for (ObjectObjectCursor<String, List<AliasMetadata>> entry : getAliasesResponse.getAliases()) {
                 String index = entry.key;
                 for (AliasMetadata existingAliasMetadata : entry.value) {
-                    if (existingAliasMetadata.isHidden() == null || existingAliasMetadata.isHidden() == false) {
+                    if (existingAliasMetadata.isHidden() != null && existingAliasMetadata.isHidden()) {
                         continue;
                     }
                     IndicesAliasesRequest.AliasActions addReplacementAliasAction = IndicesAliasesRequest.AliasActions.add()

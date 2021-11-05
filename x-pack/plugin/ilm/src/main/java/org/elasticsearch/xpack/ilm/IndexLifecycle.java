@@ -81,8 +81,6 @@ import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleStatsAction;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.StartSLMAction;
 import org.elasticsearch.xpack.core.slm.action.StopSLMAction;
-import org.elasticsearch.xpack.core.slm.history.SnapshotHistoryStore;
-import org.elasticsearch.xpack.core.slm.history.SnapshotLifecycleTemplateRegistry;
 import org.elasticsearch.xpack.ilm.action.RestDeleteLifecycleAction;
 import org.elasticsearch.xpack.ilm.action.RestExplainLifecycleAction;
 import org.elasticsearch.xpack.ilm.action.RestGetLifecycleAction;
@@ -131,6 +129,8 @@ import org.elasticsearch.xpack.slm.action.TransportGetSnapshotLifecycleStatsActi
 import org.elasticsearch.xpack.slm.action.TransportPutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.slm.action.TransportStartSLMAction;
 import org.elasticsearch.xpack.slm.action.TransportStopSLMAction;
+import org.elasticsearch.xpack.slm.history.SnapshotHistoryStore;
+import org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -145,6 +145,9 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
 
 public class IndexLifecycle extends Plugin implements ActionPlugin {
+
+    public static final List<NamedXContentRegistry.Entry> NAMED_X_CONTENT_ENTRIES = xContentEntries();
+
     private final SetOnce<IndexLifecycleService> indexLifecycleInitialisationService = new SetOnce<>();
     private final SetOnce<ILMHistoryStore> ilmHistoryStore = new SetOnce<>();
     private final SetOnce<SnapshotLifecycleService> snapshotLifecycleService = new SetOnce<>();
@@ -272,6 +275,10 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
 
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
+        return NAMED_X_CONTENT_ENTRIES;
+    }
+
+    private static List<NamedXContentRegistry.Entry> xContentEntries() {
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>(
             Arrays.asList(
                 // Custom Metadata
@@ -320,8 +327,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                 new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RollupILMAction.NAME), RollupILMAction::parse)
             );
         }
-
-        return entries;
+        return List.copyOf(entries);
     }
 
     @Override

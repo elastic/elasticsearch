@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[ml-get-snapshot]]
 = Get model snapshots API
 ++++

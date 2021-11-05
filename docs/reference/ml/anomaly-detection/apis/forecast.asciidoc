@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[ml-forecast]]
 = Forecast jobs API
 ++++

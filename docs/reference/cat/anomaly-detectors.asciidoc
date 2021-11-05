@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[cat-anomaly-detectors]]
 === cat anomaly detectors API
 ++++

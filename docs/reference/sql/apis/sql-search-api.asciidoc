@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[sql-search-api]]
 === SQL search API
 ++++

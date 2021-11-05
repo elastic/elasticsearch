@@ -54,3 +54,15 @@ PUT _ilm/policy/my_policy
   }
 }
 --------------------------------------------------
+
+[[ilm-forcemerge-tuning]]
+==== Tuning
+
+<<indices-forcemerge,Force Merge>> is a valuable but expensive cluster task. 
+You want to spread its tasks and 
+<<ilm-with-existing-indices.html#ilm-existing-indices-apply,avoid pileups>>.
+If you experience forcemerge <<task-throughput,task throughput>> issues, it's
+frequently due to not allowing your `thread_pool.force_merge.size` 
+<<cluster-get-settings,Cluster Settings>> to parallel process. This setting
+has cascade effects and should only be incremented slowly while monitoring 
+cluster performance, but can speed up Force Merge processing.

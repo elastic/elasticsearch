@@ -30,6 +30,7 @@ final class WindowsFileSystemNatives implements FileSystemNatives.Provider {
     private static final WindowsFileSystemNatives INSTANCE = new WindowsFileSystemNatives();
 
     private static final int INVALID_FILE_SIZE = -1;
+    private static final int NO_ERROR = 0;
 
     private WindowsFileSystemNatives() {
         assert Constants.WINDOWS : Constants.OS_NAME;
@@ -75,8 +76,10 @@ final class WindowsFileSystemNatives implements FileSystemNatives.Provider {
         final int lpFileSizeLow = GetCompressedFileSizeW(fileName, lpFileSizeHigh);
         if (lpFileSizeLow == INVALID_FILE_SIZE) {
             final int err = Native.getLastError();
-            logger.warn("error [{}] when executing native method GetCompressedFileSizeW for file [{}]", err, path);
-            return OptionalLong.empty();
+            if (err != NO_ERROR) {
+                logger.warn("error [{}] when executing native method GetCompressedFileSizeW for file [{}]", err, path);
+                return OptionalLong.empty();
+            }
         }
 
         // convert lpFileSizeLow to unsigned long and combine with signed/shifted lpFileSizeHigh

@@ -72,7 +72,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
 
         // assert index does not exist, which will prevent previous tests to interfere
         assertBusy(() -> {
-            //index is created on startup in TestDeprecationPlugin.onNodeStarted
+            // index is created on startup in TestDeprecationPlugin.onNodeStarted
             resetDeprecationIndexAndCache();
             try {
                 client().performRequest(new Request("GET", "/_data_stream/" + DeprecationTestUtils.DATA_STREAM_NAME));
@@ -474,7 +474,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
         assertOK(client().performRequest(request));
 
         assertBusy(() -> {
-            List<Map<String, Object>> documents = getIndexedDeprecations();
+            List<Map<String, Object>> documents = DeprecationTestUtils.getIndexedDeprecations(client());
 
             logger.warn(documents);
             assertThat(documents, hasSize(1));

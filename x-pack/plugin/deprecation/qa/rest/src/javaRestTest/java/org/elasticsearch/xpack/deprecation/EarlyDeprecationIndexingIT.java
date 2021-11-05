@@ -28,7 +28,6 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -57,7 +56,6 @@ public class EarlyDeprecationIndexingIT extends ESRestTestCase {
             assertThat(index.get("auto_expand_replicas").asText(), equalTo("0-1"));
             assertThat(index.get("hidden").asText(), equalTo("true"));
         }, 30, TimeUnit.SECONDS);
-
 
         assertBusy(() -> {
             List<Map<String, Object>> documents = DeprecationTestUtils.getIndexedDeprecations(client());

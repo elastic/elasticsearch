@@ -113,7 +113,6 @@ public class Deprecation extends Plugin implements ActionPlugin {
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(USE_X_OPAQUE_ID_IN_FILTERING, rateLimitingFilterForIndexing::setUseXOpaqueId);
 
-
         final DeprecationIndexingComponent component = DeprecationIndexingComponent.createDeprecationIndexingComponent(
             client,
             environment.settings(),

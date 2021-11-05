@@ -63,7 +63,8 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
         Settings settings,
         RateLimitingFilter rateLimitingFilterForIndexing,
         boolean enableDeprecationLogIndexingDefault,
-        ClusterService clusterService) {
+        ClusterService clusterService
+    ) {
         this.rateLimitingFilterForIndexing = rateLimitingFilterForIndexing;
         this.clusterService = clusterService;
 
@@ -93,13 +94,15 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
         Settings settings,
         RateLimitingFilter rateLimitingFilterForIndexing,
         boolean enableDeprecationLogIndexingDefault,
-        ClusterService clusterService) {
-        final DeprecationIndexingComponent deprecationIndexingComponent =
-            new DeprecationIndexingComponent(client,
-                settings,
-                rateLimitingFilterForIndexing,
-                enableDeprecationLogIndexingDefault,
-                clusterService);
+        ClusterService clusterService
+    ) {
+        final DeprecationIndexingComponent deprecationIndexingComponent = new DeprecationIndexingComponent(
+            client,
+            settings,
+            rateLimitingFilterForIndexing,
+            enableDeprecationLogIndexingDefault,
+            clusterService
+        );
 
         clusterService.addListener(deprecationIndexingComponent);
         clusterService.getClusterSettings()
@@ -184,8 +187,7 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
 
     private static class DeprecationBulkListener implements BulkProcessor.Listener {
         @Override
-        public void beforeBulk(long executionId, BulkRequest request) {
-        }
+        public void beforeBulk(long executionId, BulkRequest request) {}
 
         @Override
         public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {

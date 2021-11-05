@@ -179,12 +179,19 @@ PUT _snapshot/my_read_only_url_repository
 [[snapshots-source-only-repository]]
 ==== Source-only repository
 
-A source-only repository lets you to create minimal, source-only snapshots that take up to 50% less space on disk.
-Source-only snapshots contain stored fields and index metadata. They do not include index or doc values structures
-and are not searchable when restored. After restoring a source-only snapshot, you must <<docs-reindex,reindex>>
-the data into a new index.
+You can use a source-only repository to take minimal, source-only snapshots that
+use up to 50% less disk space than regular snapshots.
 
-Source-only repositories must use another snapshot repository for snapshot storage.
+Unlike other repository types, a source-only repository doesn't directly store
+snapshots. It delegates storage to another registered snapshot repository.
+
+When you take a snapshot using a source-only repository, {es} creates a
+source-only snapshot in the delegated storage repository. This source-only
+snapshot only contains stored fields and index metadata. It doesn't include
+index or doc values structures and isn't immediately searchable when restored.
+
+After you restore data from a source-only snapshot, you must
+<<docs-reindex,reindex>> it into a new data stream or index.
 
 [IMPORTANT]
 ==================================================
@@ -201,9 +208,10 @@ When you restore a source-only snapshot:
 
 ==================================================
 
-Use {kib} or the <<put-snapshot-repo-api,create snapshot repository API>> to
-register a source-only repository. When you register the repository, you must
-specify another snapshot repository to use for snapshot storage.
+Before registering a source-only repository, use {kib} or the
+<<put-snapshot-repo-api,create snapshot repository API>> to register a snapshot
+repository of another type to use for storage. Then register the source-only
+repository and specify the delegated storage repository in the request.
 
 [source,console]
 ----

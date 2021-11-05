@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.rest.action.apikey;
@@ -9,28 +10,35 @@ package org.elasticsearch.xpack.security.rest.action.apikey;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
+import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
+import java.util.List;
+
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 /**
  * Rest action to get one or more API keys information.
  */
-public final class RestGetApiKeyAction extends ApiKeyBaseRestHandler {
+public final class RestGetApiKeyAction extends SecurityBaseRestHandler {
 
-    public RestGetApiKeyAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
+    public RestGetApiKeyAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
-        controller.registerHandler(RestRequest.Method.GET, "/_security/api_key", this);
+    }
+
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(GET, "/_security/api_key"));
     }
 
     @Override
@@ -39,20 +47,21 @@ public final class RestGetApiKeyAction extends ApiKeyBaseRestHandler {
         final String apiKeyName = request.param("name");
         final String userName = request.param("username");
         final String realmName = request.param("realm_name");
-        final GetApiKeyRequest getApiKeyRequest = new GetApiKeyRequest(realmName, userName, apiKeyId, apiKeyName);
-        return channel -> client.execute(GetApiKeyAction.INSTANCE, getApiKeyRequest,
-                new RestBuilderListener<GetApiKeyResponse>(channel) {
-                    @Override
-                    public RestResponse buildResponse(GetApiKeyResponse getApiKeyResponse, XContentBuilder builder) throws Exception {
-                        getApiKeyResponse.toXContent(builder, channel.request());
+        final boolean myApiKeysOnly = request.paramAsBoolean("owner", false);
+        final GetApiKeyRequest getApiKeyRequest = new GetApiKeyRequest(realmName, userName, apiKeyId, apiKeyName, myApiKeysOnly);
+        return channel -> client.execute(GetApiKeyAction.INSTANCE, getApiKeyRequest, new RestBuilderListener<GetApiKeyResponse>(channel) {
+            @Override
+            public RestResponse buildResponse(GetApiKeyResponse getApiKeyResponse, XContentBuilder builder) throws Exception {
+                getApiKeyResponse.toXContent(builder, channel.request());
 
-                        // return HTTP status 404 if no API key found for API key id
-                        if (Strings.hasText(apiKeyId) && getApiKeyResponse.getApiKeyInfos().length == 0) {
-                            return new BytesRestResponse(RestStatus.NOT_FOUND, builder);
-                        }
-                        return new BytesRestResponse(RestStatus.OK, builder);
-                    }
-                });
+                // return HTTP status 404 if no API key found for API key id
+                if (Strings.hasText(apiKeyId) && getApiKeyResponse.getApiKeyInfos().length == 0) {
+                    return new BytesRestResponse(RestStatus.NOT_FOUND, builder);
+                }
+                return new BytesRestResponse(RestStatus.OK, builder);
+            }
+
+        });
     }
 
     @Override

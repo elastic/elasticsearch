@@ -1,0 +1,3 @@
+grant codeBase "${codebase.doesnotexist}" {
+  permission java.lang.RuntimePermission "getClassLoader";
+};

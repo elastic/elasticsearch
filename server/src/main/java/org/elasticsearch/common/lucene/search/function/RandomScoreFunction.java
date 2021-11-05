@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.lucene.search.function;
 
@@ -23,8 +12,8 @@ import com.carrotsearch.hppc.BitMixer;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.util.StringHelper;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
 import java.io.IOException;
@@ -57,7 +46,7 @@ public class RandomScoreFunction extends ScoreFunction {
     public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) {
         final SortedBinaryDocValues values;
         if (fieldData != null) {
-            AtomicFieldData leafData = fieldData.load(ctx);
+            LeafFieldData leafData = fieldData.load(ctx);
             values = leafData.getBytesValues();
             if (values == null) throw new NullPointerException("failed to get fielddata");
         } else {
@@ -77,15 +66,16 @@ public class RandomScoreFunction extends ScoreFunction {
                     // field has no value
                     hash = saltedSeed;
                 }
-                return (hash & 0x00FFFFFF) / (float)(1 << 24); // only use the lower 24 bits to construct a float from 0.0-1.0
+                return (hash & 0x00FFFFFF) / (float) (1 << 24); // only use the lower 24 bits to construct a float from 0.0-1.0
             }
 
             @Override
             public Explanation explainScore(int docId, Explanation subQueryScore) throws IOException {
                 String field = fieldData == null ? null : fieldData.getFieldName();
                 return Explanation.match(
-                        (float) score(docId, subQueryScore.getValue().floatValue()),
-                        "random score function (seed: " + originalSeed + ", field: " + field + ")");
+                    (float) score(docId, subQueryScore.getValue().floatValue()),
+                    "random score function (seed: " + originalSeed + ", field: " + field + ")"
+                );
             }
         };
     }
@@ -98,8 +88,7 @@ public class RandomScoreFunction extends ScoreFunction {
     @Override
     protected boolean doEquals(ScoreFunction other) {
         RandomScoreFunction randomScoreFunction = (RandomScoreFunction) other;
-        return this.originalSeed == randomScoreFunction.originalSeed
-                && this.saltedSeed == randomScoreFunction.saltedSeed;
+        return this.originalSeed == randomScoreFunction.originalSeed && this.saltedSeed == randomScoreFunction.saltedSeed;
     }
 
     @Override

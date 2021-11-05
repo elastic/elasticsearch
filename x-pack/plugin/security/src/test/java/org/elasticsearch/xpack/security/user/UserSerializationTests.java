@@ -1,14 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.user;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.InternalUserSerializationHelper;
+import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -24,8 +27,7 @@ import static org.hamcrest.Matchers.sameInstance;
 public class UserSerializationTests extends ESTestCase {
 
     public void testWriteToAndReadFrom() throws Exception {
-        User user = new User(randomAlphaOfLengthBetween(4, 30),
-                generateRandomStringArray(20, 30, false));
+        User user = new User(randomAlphaOfLengthBetween(4, 30), generateRandomStringArray(20, 30, false));
         BytesStreamOutput output = new BytesStreamOutput();
 
         User.writeTo(user, output);
@@ -39,9 +41,11 @@ public class UserSerializationTests extends ESTestCase {
 
     public void testWriteToAndReadFromWithRunAs() throws Exception {
         User authUser = new User(randomAlphaOfLengthBetween(4, 30), generateRandomStringArray(20, 30, false));
-        User user = new User(randomAlphaOfLengthBetween(4, 30),
+        User user = new User(
+            randomAlphaOfLengthBetween(4, 30),
             randomBoolean() ? generateRandomStringArray(20, 30, false) : null,
-            authUser);
+            authUser
+        );
 
         BytesStreamOutput output = new BytesStreamOutput();
 
@@ -87,6 +91,16 @@ public class UserSerializationTests extends ESTestCase {
         assertThat(readFrom.authenticatedUser(), is(XPackUser.INSTANCE));
     }
 
+    public void testAsyncSearchUserReadAndWrite() throws Exception {
+        BytesStreamOutput output = new BytesStreamOutput();
+
+        InternalUserSerializationHelper.writeTo(AsyncSearchUser.INSTANCE, output);
+        User readFrom = InternalUserSerializationHelper.readFrom(output.bytes().streamInput());
+
+        assertThat(readFrom, is(sameInstance(AsyncSearchUser.INSTANCE)));
+        assertThat(readFrom.authenticatedUser(), is(AsyncSearchUser.INSTANCE));
+    }
+
     public void testFakeInternalUserSerialization() throws Exception {
         BytesStreamOutput output = new BytesStreamOutput();
         output.writeBoolean(true);
@@ -113,5 +127,12 @@ public class UserSerializationTests extends ESTestCase {
         readFrom = User.readFrom(output.bytes().streamInput());
 
         assertEquals(kibanaUser, readFrom);
+
+        final KibanaSystemUser kibanaSystemUser = new KibanaSystemUser(true);
+        output = new BytesStreamOutput();
+        User.writeTo(kibanaSystemUser, output);
+        readFrom = User.readFrom(output.bytes().streamInput());
+
+        assertEquals(kibanaSystemUser, readFrom);
     }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.authc.kerberos;
@@ -16,8 +17,8 @@ import org.apache.kerby.kerberos.kerb.server.SimpleKdcServer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -34,6 +35,9 @@ import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 import javax.net.ServerSocketFactory;
+
+import static org.elasticsearch.test.ESTestCase.assertBusy;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Utility wrapper around Apache {@link SimpleKdcServer} backed by Unboundid
@@ -90,9 +94,7 @@ public class SimpleKdcLdapServer {
         AccessController.doPrivileged(new PrivilegedExceptionAction<Void>() {
             @Override
             public Void run() throws Exception {
-                if (ESTestCase.awaitBusy(() -> init()) == false) {
-                    throw new IllegalStateException("could not initialize SimpleKdcLdapServer");
-                }
+                assertBusy(() -> assertTrue("Failed to initialize SimpleKdcLdapServer", init()));
                 return null;
             }
         });
@@ -140,8 +142,17 @@ public class SimpleKdcLdapServer {
 
     private void createLdapBackendConf() throws IOException {
         String backendConf = KdcConfigKey.KDC_IDENTITY_BACKEND.getPropertyKey()
-                + " = org.apache.kerby.kerberos.kdc.identitybackend.LdapIdentityBackend\n" + "host=127.0.0.1\n" + "port=" + ldapPort + "\n"
-                + "admin_dn=uid=admin,ou=system," + baseDn + "\n" + "admin_pw=secret\n" + "base_dn=" + baseDn;
+            + " = org.apache.kerby.kerberos.kdc.identitybackend.LdapIdentityBackend\n"
+            + "host=127.0.0.1\n"
+            + "port="
+            + ldapPort
+            + "\n"
+            + "admin_dn=uid=admin,ou=system,"
+            + baseDn
+            + "\n"
+            + "admin_pw=secret\n"
+            + "base_dn="
+            + baseDn;
         Files.write(this.workDir.resolve("backend.conf"), backendConf.getBytes(StandardCharsets.UTF_8));
         assert Files.exists(this.workDir.resolve("backend.conf"));
     }
@@ -218,7 +229,7 @@ public class SimpleKdcLdapServer {
 
     /**
      * Stop Simple Kdc Server
-     * 
+     *
      * @throws PrivilegedActionException when privileged action threw exception
      */
     public synchronized void stop() throws PrivilegedActionException {
@@ -248,8 +259,9 @@ public class SimpleKdcLdapServer {
 
     private static int getServerPort(String transport) {
         if (transport != null && transport.trim().equalsIgnoreCase("TCP")) {
-            try (ServerSocket serverSocket = ServerSocketFactory.getDefault().createServerSocket(0, 1,
-                    InetAddress.getByName("127.0.0.1"))) {
+            try (
+                ServerSocket serverSocket = ServerSocketFactory.getDefault().createServerSocket(0, 1, InetAddress.getByName("127.0.0.1"))
+            ) {
                 serverSocket.setReuseAddress(true);
                 return serverSocket.getLocalPort();
             } catch (Exception ex) {

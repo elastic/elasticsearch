@@ -1,73 +1,45 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
-
-import static java.util.Collections.emptyList;
 
 /**
  * Represents a series of declarations.
  */
-public final class SDeclBlock extends AStatement {
+public class SDeclBlock extends AStatement {
 
-    private final List<SDeclaration> declarations;
+    private final List<SDeclaration> declarationNodes;
 
-    public SDeclBlock(Location location, List<SDeclaration> declarations) {
-        super(location);
+    public SDeclBlock(int identifier, Location location, List<SDeclaration> declarationNodes) {
+        super(identifier, location);
 
-        this.declarations = Collections.unmodifiableList(declarations);
+        this.declarationNodes = Collections.unmodifiableList(declarationNodes);
+    }
+
+    public List<SDeclaration> getDeclarationNodes() {
+        return declarationNodes;
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        for (SDeclaration declaration : declarations) {
-            declaration.extractVariables(variables);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitDeclBlock(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        for (SDeclaration declarationNode : declarationNodes) {
+            declarationNode.visit(userTreeVisitor, scope);
         }
-    }
-
-    @Override
-    void analyze(Locals locals) {
-        for (SDeclaration declaration : declarations) {
-            declaration.analyze(locals);
-        }
-
-        statementCount = declarations.size();
-    }
-
-    @Override
-    void write(MethodWriter writer, Globals globals) {
-        for (AStatement declaration : declarations) {
-            declaration.write(writer, globals);
-        }
-    }
-
-    @Override
-    public String toString() {
-        return multilineToString(emptyList(), declarations);
     }
 }

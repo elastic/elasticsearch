@@ -1,0 +1,15 @@
+{
+  "properties" : {
+    "weight" : 0.8,
+    "language" : {
+      "en" : {
+        "lang" : "English",
+        "available" : true
+      },
+      "fr" : {
+        "lang" : "French",
+        "available" : false
+      }
+    }
+  }
+}

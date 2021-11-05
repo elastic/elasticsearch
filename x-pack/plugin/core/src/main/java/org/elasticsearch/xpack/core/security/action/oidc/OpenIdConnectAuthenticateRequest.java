@@ -1,10 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.oidc;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
@@ -38,15 +40,24 @@ public class OpenIdConnectAuthenticateRequest extends ActionRequest {
      */
     private String nonce;
 
+    /**
+     * The name of the OIDC Realm that should consume the authentication request
+     */
+    private String realm;
+
     public OpenIdConnectAuthenticateRequest() {
 
     }
 
     public OpenIdConnectAuthenticateRequest(StreamInput in) throws IOException {
-        super.readFrom(in);
+        super(in);
         redirectUri = in.readString();
         state = in.readString();
         nonce = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
+            realm = in.readOptionalString();
+        }
+
     }
 
     public String getRedirectUri() {
@@ -73,6 +84,14 @@ public class OpenIdConnectAuthenticateRequest extends ActionRequest {
         this.nonce = nonce;
     }
 
+    public String getRealm() {
+        return realm;
+    }
+
+    public void setRealm(String realm) {
+        this.realm = realm;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -94,15 +113,12 @@ public class OpenIdConnectAuthenticateRequest extends ActionRequest {
         out.writeString(redirectUri);
         out.writeString(state);
         out.writeString(nonce);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+        if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
+            out.writeOptionalString(realm);
+        }
     }
 
     public String toString() {
-        return "{redirectUri=" + redirectUri + ", state=" + state + ", nonce=" + nonce + "}";
+        return "{redirectUri=" + redirectUri + ", state=" + state + ", nonce=" + nonce + ", realm=" + realm + "}";
     }
 }
-

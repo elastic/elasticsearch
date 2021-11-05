@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.graph.action;
 
@@ -17,8 +18,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseUtils;
@@ -36,10 +37,10 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.Sampler;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms.Bucket;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms.Bucket;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -48,6 +49,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.graph.action.GraphExploreAction;
+import org.elasticsearch.xpack.graph.Graph;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -57,7 +59,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 
 /**
  * Performs a series of elasticsearch queries and aggregations to explore
@@ -83,9 +84,14 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
     }
 
     @Inject
-    public TransportGraphExploreAction(ThreadPool threadPool, NodeClient client, TransportService transportService,
-                                       ActionFilters actionFilters, XPackLicenseState licenseState) {
-        super(GraphExploreAction.NAME, transportService, actionFilters, (Supplier<GraphExploreRequest>)GraphExploreRequest::new);
+    public TransportGraphExploreAction(
+        ThreadPool threadPool,
+        NodeClient client,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        XPackLicenseState licenseState
+    ) {
+        super(GraphExploreAction.NAME, transportService, actionFilters, GraphExploreRequest::new);
         this.threadPool = threadPool;
         this.client = client;
         this.licenseState = licenseState;
@@ -93,7 +99,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
 
     @Override
     protected void doExecute(Task task, GraphExploreRequest request, ActionListener<GraphExploreResponse> listener) {
-        if (licenseState.isGraphAllowed()) {
+        if (Graph.GRAPH_FEATURE.check(licenseState)) {
             new AsyncGraphAction(request, listener).start();
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.GRAPH));
@@ -159,7 +165,6 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             hopFindings.get(currentHopNumber).get(vertex.getField()).remove(vertex);
         }
 
-
         /**
          * Step out from some existing vertex terms looking for useful
          * connections
@@ -181,8 +186,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             currentHopNumber++;
             Hop currentHop = request.getHop(currentHopNumber);
 
-            final SearchRequest searchRequest = new SearchRequest(request.indices()).types(request.types()).indicesOptions(
-                    request.indicesOptions());
+            final SearchRequest searchRequest = new SearchRequest(request.indices()).indicesOptions(request.indicesOptions());
             if (request.routing() != null) {
                 searchRequest.routing(request.routing());
             }
@@ -200,11 +204,11 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             AggregationBuilder sampleAgg = null;
             if (request.sampleDiversityField() != null) {
                 DiversifiedAggregationBuilder diversifiedSampleAgg = AggregationBuilders.diversifiedSampler("sample")
-                        .shardSize(request.sampleSize());
+                    .shardSize(request.sampleSize());
                 diversifiedSampleAgg.field(request.sampleDiversityField());
                 diversifiedSampleAgg.maxDocsPerValue(request.maxDocsPerDiversityValue());
                 sampleAgg = diversifiedSampleAgg;
-            }else{
+            } else {
                 sampleAgg = AggregationBuilders.sampler("sample").shardSize(request.sampleSize());
             }
 
@@ -220,10 +224,9 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
 
             rootBool.must(sourceTermsOrClause);
 
-
-            //Now build the agg tree that will channel the content ->
-            //   base agg is terms agg for terms from last wave (one per field),
-            //      under each is a sig_terms agg to find next candidates (again, one per field)...
+            // Now build the agg tree that will channel the content ->
+            // base agg is terms agg for terms from last wave (one per field),
+            // under each is a sig_terms agg to find next candidates (again, one per field)...
             for (int fieldNum = 0; fieldNum < lastHop.getNumberVertexRequests(); fieldNum++) {
                 VertexRequest lastVr = lastHop.getVertexRequest(fieldNum);
                 Set<Vertex> lastWaveVerticesForField = lastHopFindings.get(lastVr.fieldName());
@@ -236,36 +239,40 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                     terms[i++] = v.getTerm();
                 }
                 TermsAggregationBuilder lastWaveTermsAgg = AggregationBuilders.terms("field" + fieldNum)
-                        .includeExclude(new IncludeExclude(terms, null))
-                        .shardMinDocCount(1)
-                        .field(lastVr.fieldName()).minDocCount(1)
-                        // Map execution mode used because Sampler agg keeps us
-                        // focused on smaller sets of high quality docs and therefore
-                        // examine smaller volumes of terms
-                        .executionHint("map")
-                        .size(terms.length);
+                    .includeExclude(new IncludeExclude(terms, null))
+                    .shardMinDocCount(1)
+                    .field(lastVr.fieldName())
+                    .minDocCount(1)
+                    // Map execution mode used because Sampler agg keeps us
+                    // focused on smaller sets of high quality docs and therefore
+                    // examine smaller volumes of terms
+                    .executionHint("map")
+                    .size(terms.length);
                 sampleAgg.subAggregation(lastWaveTermsAgg);
                 for (int f = 0; f < currentHop.getNumberVertexRequests(); f++) {
                     VertexRequest vr = currentHop.getVertexRequest(f);
-                    int size=vr.size();
+                    int size = vr.size();
                     if (vr.fieldName().equals(lastVr.fieldName())) {
-                        //We have the potential for self-loops as we are looking at the same field so add 1 to the requested size
+                        // We have the potential for self-loops as we are looking at the same field so add 1 to the requested size
                         // because we need to eliminate fieldA:termA -> fieldA:termA links that are likely to be in the results.
                         size++;
                     }
                     if (request.useSignificance()) {
                         SignificantTermsAggregationBuilder nextWaveSigTerms = AggregationBuilders.significantTerms("field" + f)
-                                .field(vr.fieldName())
-                                .minDocCount(vr.minDocCount()).shardMinDocCount(vr.shardMinDocCount()).executionHint("map").size(size);
-//                        nextWaveSigTerms.significanceHeuristic(new PercentageScore.PercentageScoreBuilder());
-                        //Had some issues with no significant terms being returned when asking for small
+                            .field(vr.fieldName())
+                            .minDocCount(vr.minDocCount())
+                            .shardMinDocCount(vr.shardMinDocCount())
+                            .executionHint("map")
+                            .size(size);
+                        // nextWaveSigTerms.significanceHeuristic(new PercentageScore.PercentageScoreBuilder());
+                        // Had some issues with no significant terms being returned when asking for small
                         // number of final results (eg 1) and only one shard. Setting shard_size higher helped.
                         if (size < 10) {
                             nextWaveSigTerms.shardSize(10);
                         }
                         // Alternative choices of significance algo didn't seem to be improvements....
-//                        nextWaveSigTerms.significanceHeuristic(new GND.GNDBuilder(true));
-//                        nextWaveSigTerms.significanceHeuristic(new ChiSquare.ChiSquareBuilder(false, true));
+                        // nextWaveSigTerms.significanceHeuristic(new GND.GNDBuilder(true));
+                        // nextWaveSigTerms.significanceHeuristic(new ChiSquare.ChiSquareBuilder(false, true));
 
                         if (vr.hasIncludeClauses()) {
                             String[] includes = vr.includeValuesAsStringArray();
@@ -285,13 +292,15 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                         }
                         lastWaveTermsAgg.subAggregation(nextWaveSigTerms);
                     } else {
-                        TermsAggregationBuilder nextWavePopularTerms = AggregationBuilders.terms("field" + f).field(vr.fieldName())
-                                .minDocCount(vr.minDocCount()).shardMinDocCount(vr.shardMinDocCount())
-                                // Map execution mode used because Sampler agg keeps us
-                                // focused on smaller sets of high quality docs and therefore
-                                // examine smaller volumes of terms
-                                .executionHint("map")
-                                .size(size);
+                        TermsAggregationBuilder nextWavePopularTerms = AggregationBuilders.terms("field" + f)
+                            .field(vr.fieldName())
+                            .minDocCount(vr.minDocCount())
+                            .shardMinDocCount(vr.shardMinDocCount())
+                            // Map execution mode used because Sampler agg keeps us
+                            // focused on smaller sets of high quality docs and therefore
+                            // examine smaller volumes of terms
+                            .executionHint("map")
+                            .size(size);
                         if (vr.hasIncludeClauses()) {
                             String[] includes = vr.includeValuesAsStringArray();
                             nextWavePopularTerms.includeExclude(new IncludeExclude(includes, null));
@@ -313,7 +322,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
 
             // System.out.println(source);
             logger.trace("executing expansion graph search request");
-            client.search(searchRequest, new ActionListener<SearchResponse>() {
+            client.search(searchRequest, new ActionListener.Delegating<>(listener) {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
                     // System.out.println(searchResponse);
@@ -344,17 +353,22 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
 
                 }
 
-
                 // Add new vertices and apportion share of total signal along
                 // connections
-                private void addAndScoreNewVertices(Hop lastHop, Hop currentHop, Sampler sample, double totalSignalOutput,
-                        ArrayList<Connection> newConnections, ArrayList<Vertex> newVertices) {
+                private void addAndScoreNewVertices(
+                    Hop lastHop,
+                    Hop currentHop,
+                    Sampler sample,
+                    double totalSignalOutput,
+                    ArrayList<Connection> newConnections,
+                    ArrayList<Vertex> newVertices
+                ) {
                     // Gather all matching terms into the graph and propagate
                     // signals
                     for (int j = 0; j < lastHop.getNumberVertexRequests(); j++) {
                         VertexRequest lastVr = lastHop.getVertexRequest(j);
                         Terms lastWaveTerms = sample.getAggregations().get("field" + j);
-                        if(lastWaveTerms == null){
+                        if (lastWaveTerms == null) {
                             // There were no terms from the previous phase that needed pursuing
                             continue;
                         }
@@ -370,8 +384,8 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                                     SignificantTerms significantTerms = lastWaveTerm.getAggregations().get("field" + k);
                                     if (significantTerms != null) {
                                         for (Bucket bucket : significantTerms.getBuckets()) {
-                                            if ((vr.fieldName().equals(fromVertex.getField())) &&
-                                                    (bucket.getKeyAsString().equals(fromVertex.getTerm()))) {
+                                            if ((vr.fieldName().equals(fromVertex.getField()))
+                                                && (bucket.getKeyAsString().equals(fromVertex.getTerm()))) {
                                                 // Avoid self-joins
                                                 continue;
                                             }
@@ -382,8 +396,14 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
 
                                             Vertex toVertex = getVertex(vr.fieldName(), bucket.getKeyAsString());
                                             if (toVertex == null) {
-                                                toVertex = addVertex(vr.fieldName(), bucket.getKeyAsString(), signalStrength,
-                                                        currentHopNumber, bucket.getSupersetDf(), bucket.getSubsetDf());
+                                                toVertex = addVertex(
+                                                    vr.fieldName(),
+                                                    bucket.getKeyAsString(),
+                                                    signalStrength,
+                                                    currentHopNumber,
+                                                    bucket.getSupersetDf(),
+                                                    bucket.getSubsetDf()
+                                                );
                                                 newVertices.add(toVertex);
                                             } else {
                                                 toVertex.setWeight(toVertex.getWeight() + signalStrength);
@@ -406,8 +426,14 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
 
                                             Vertex toVertex = getVertex(vr.fieldName(), bucket.getKeyAsString());
                                             if (toVertex == null) {
-                                                toVertex = addVertex(vr.fieldName(), bucket.getKeyAsString(), signalStrength,
-                                                        currentHopNumber, 0, 0);
+                                                toVertex = addVertex(
+                                                    vr.fieldName(),
+                                                    bucket.getKeyAsString(),
+                                                    signalStrength,
+                                                    currentHopNumber,
+                                                    0,
+                                                    0
+                                                );
                                                 newVertices.add(toVertex);
                                             } else {
                                                 toVertex.setWeight(toVertex.getWeight() + signalStrength);
@@ -420,7 +446,6 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                         }
                     }
                 }
-
 
                 // Having let the signals from the last results rattle around the graph
                 // we have adjusted weights for the various vertices we encountered.
@@ -459,7 +484,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                         }
                     }
                 }
-                //TODO right now we only trim down to the best N vertices. We might also want to offer
+                // TODO right now we only trim down to the best N vertices. We might also want to offer
                 // clients the option to limit to the best M connections. One scenario where this is required
                 // is if the "from" and "to" nodes are a client-supplied set of includes e.g. a list of
                 // music artists then the client may be wanting to draw only the most-interesting connections
@@ -486,7 +511,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                                     if (significantTerms != null) {
                                         for (Bucket bucket : significantTerms.getBuckets()) {
                                             if ((vr.fieldName().equals(lastVr.fieldName()))
-                                                    && (bucket.getKeyAsString().equals(lastWaveTerm.getKeyAsString()))) {
+                                                && (bucket.getKeyAsString().equals(lastWaveTerm.getKeyAsString()))) {
                                                 // don't count self joins (term A obviously co-occurs with term A)
                                                 continue;
                                             } else {
@@ -501,7 +526,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                                     if (terms != null) {
                                         for (org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket bucket : terms.getBuckets()) {
                                             if ((vr.fieldName().equals(lastVr.fieldName()))
-                                                    && (bucket.getKeyAsString().equals(lastWaveTerm.getKeyAsString()))) {
+                                                && (bucket.getKeyAsString().equals(lastWaveTerm.getKeyAsString()))) {
                                                 // don't count self joins (term A obviously co-occurs with term A)
                                                 continue;
                                             } else {
@@ -515,17 +540,12 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                     }
                     return totalSignalOutput;
                 }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-            }
             });
         }
 
         private void addUserDefinedIncludesToQuery(Hop hop, BoolQueryBuilder sourceTermsOrClause) {
             for (int i = 0; i < hop.getNumberVertexRequests(); i++) {
-                VertexRequest vr=hop.getVertexRequest(i);
+                VertexRequest vr = hop.getVertexRequest(i);
                 if (vr.hasIncludeClauses()) {
                     addNormalizedBoosts(sourceTermsOrClause, vr);
                 }
@@ -543,8 +563,9 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                 for (Entry<String, Set<Vertex>> entry : lastHopFindings.entrySet()) {
                     for (Vertex vertex : entry.getValue()) {
                         sourceTermsOrClause.should(
-                                QueryBuilders.constantScoreQuery(
-                                        QueryBuilders.termQuery(vertex.getField(), vertex.getTerm())).boost((float) vertex.getWeight()));
+                            QueryBuilders.constantScoreQuery(QueryBuilders.termQuery(vertex.getField(), vertex.getTerm()))
+                                .boost((float) vertex.getWeight())
+                        );
                     }
                 }
 
@@ -568,8 +589,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
         public synchronized void start() {
             try {
 
-                final SearchRequest searchRequest = new SearchRequest(request.indices()).types(request.types()).indicesOptions(
-                        request.indicesOptions());
+                final SearchRequest searchRequest = new SearchRequest(request.indices()).indicesOptions(request.indicesOptions());
                 if (request.routing() != null) {
                     searchRequest.routing(request.routing());
                 }
@@ -579,7 +599,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                 AggregationBuilder rootSampleAgg = null;
                 if (request.sampleDiversityField() != null) {
                     DiversifiedAggregationBuilder diversifiedRootSampleAgg = AggregationBuilders.diversifiedSampler("sample")
-                            .shardSize(request.sampleSize());
+                        .shardSize(request.sampleSize());
                     diversifiedRootSampleAgg.field(request.sampleDiversityField());
                     diversifiedRootSampleAgg.maxDocsPerValue(request.maxDocsPerDiversityValue());
                     rootSampleAgg = diversifiedRootSampleAgg;
@@ -587,13 +607,10 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                     rootSampleAgg = AggregationBuilders.sampler("sample").shardSize(request.sampleSize());
                 }
 
-
-
                 Hop rootHop = request.getHop(0);
 
                 // Add any user-supplied criteria to the root query as a should clause
                 rootBool.must(rootHop.guidingQuery());
-
 
                 // If any of the root terms have an "include" restriction then
                 // we add a root-level MUST clause that
@@ -605,16 +622,18 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                     rootBool.must(includesContainer);
                 }
 
-
                 for (int i = 0; i < rootHop.getNumberVertexRequests(); i++) {
                     VertexRequest vr = rootHop.getVertexRequest(i);
                     if (request.useSignificance()) {
                         SignificantTermsAggregationBuilder sigBuilder = AggregationBuilders.significantTerms("field" + i);
-                        sigBuilder.field(vr.fieldName()).shardMinDocCount(vr.shardMinDocCount()).minDocCount(vr.minDocCount())
-                                // Map execution mode used because Sampler agg
-                                // keeps us focused on smaller sets of high quality
-                                // docs and therefore examine smaller volumes of terms
-                                .executionHint("map").size(vr.size());
+                        sigBuilder.field(vr.fieldName())
+                            .shardMinDocCount(vr.shardMinDocCount())
+                            .minDocCount(vr.minDocCount())
+                            // Map execution mode used because Sampler agg
+                            // keeps us focused on smaller sets of high quality
+                            // docs and therefore examine smaller volumes of terms
+                            .executionHint("map")
+                            .size(vr.size());
                         // It is feasible that clients could provide a choice of
                         // significance heuristic at some point e.g:
                         // sigBuilder.significanceHeuristic(new
@@ -622,7 +641,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
 
                         if (vr.hasIncludeClauses()) {
                             String[] includes = vr.includeValuesAsStringArray();
-                            sigBuilder.includeExclude(new IncludeExclude(includes,null));
+                            sigBuilder.includeExclude(new IncludeExclude(includes, null));
                             sigBuilder.size(includes.length);
                         }
                         if (vr.hasExcludeClauses()) {
@@ -635,11 +654,11 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                         // thinking about certainty of significance scores -
                         // perhaps less necessary when considering popularity
                         // termsBuilder.field(vr.fieldName()).shardMinDocCount(shardMinDocCount)
-                        //       .minDocCount(minDocCount).executionHint("map").size(vr.size());
+                        // .minDocCount(minDocCount).executionHint("map").size(vr.size());
                         termsBuilder.field(vr.fieldName()).executionHint("map").size(vr.size());
                         if (vr.hasIncludeClauses()) {
                             String[] includes = vr.includeValuesAsStringArray();
-                            termsBuilder.includeExclude(new IncludeExclude(includes,null));
+                            termsBuilder.includeExclude(new IncludeExclude(includes, null));
                             termsBuilder.size(includes.length);
                         }
                         if (vr.hasExcludeClauses()) {
@@ -649,18 +668,15 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                     }
                 }
 
-
                 // Run the search
-                SearchSourceBuilder source = new SearchSourceBuilder()
-                    .query(rootBool)
-                    .aggregation(rootSampleAgg).size(0);
+                SearchSourceBuilder source = new SearchSourceBuilder().query(rootBool).aggregation(rootSampleAgg).size(0);
                 if (request.timeout() != null) {
                     source.timeout(request.timeout());
                 }
                 searchRequest.source(source);
                 // System.out.println(source);
                 logger.trace("executing initial graph search request");
-                client.search(searchRequest, new ActionListener<SearchResponse>() {
+                client.search(searchRequest, new ActionListener.Delegating<>(listener) {
                     @Override
                     public void onResponse(SearchResponse searchResponse) {
                         addShardFailures(searchResponse.getShardFailures());
@@ -668,7 +684,6 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
 
                         // Determine the total scores for all interesting terms
                         double totalSignalStrength = getInitialTotalSignalStrength(rootHop, sample);
-
 
                         // Now gather the best matching terms and compute signal weight according to their
                         // share of the total signal strength
@@ -679,8 +694,14 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                                 List<? extends Bucket> buckets = significantTerms.getBuckets();
                                 for (Bucket bucket : buckets) {
                                     double signalWeight = bucket.getSignificanceScore() / totalSignalStrength;
-                                    addVertex(vr.fieldName(), bucket.getKeyAsString(), signalWeight,
-                                            currentHopNumber, bucket.getSupersetDf(), bucket.getSubsetDf());
+                                    addVertex(
+                                        vr.fieldName(),
+                                        bucket.getKeyAsString(),
+                                        signalWeight,
+                                        currentHopNumber,
+                                        bucket.getSupersetDf(),
+                                        bucket.getSubsetDf()
+                                    );
                                 }
                             } else {
                                 Terms terms = sample.getAggregations().get("field" + j);
@@ -718,11 +739,6 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                         }
                         return totalSignalStrength;
                     }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
                 });
             } catch (Exception e) {
                 logger.error("unable to execute the graph query", e);
@@ -732,7 +748,6 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
 
         private void addNormalizedBoosts(BoolQueryBuilder includesContainer, VertexRequest vr) {
             TermBoost[] termBoosts = vr.includeValues();
-
 
             if ((includesContainer.should().size() + termBoosts.length) > BooleanQuery.getMaxClauseCount()) {
                 // Too many terms - we need a cheaper form of query to execute this
@@ -768,7 +783,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
         }
 
         void addShardFailures(ShardOperationFailedException[] failures) {
-            if (!CollectionUtils.isEmpty(failures)) {
+            if (CollectionUtils.isEmpty(failures) == false) {
                 ShardOperationFailedException[] duplicates = new ShardOperationFailedException[shardFailures.length + failures.length];
                 System.arraycopy(shardFailures, 0, duplicates, 0, shardFailures.length);
                 System.arraycopy(failures, 0, duplicates, shardFailures.length, failures.length);
@@ -780,7 +795,6 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             long took = threadPool.relativeTimeInMillis() - startTime;
             return new GraphExploreResponse(took, timedOut.get(), shardFailures, vertices, connections, request.returnDetailedInfo());
         }
-
 
     }
 }

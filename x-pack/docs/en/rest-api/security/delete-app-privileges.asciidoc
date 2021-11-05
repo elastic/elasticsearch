@@ -5,27 +5,15 @@
 <titleabbrev>Delete application privileges</titleabbrev>
 ++++
 
-Removes 
-{stack-ov}/security-privileges.html#application-privileges[application privileges].
+Removes <<application-privileges,application privileges>>.
 
-==== Request
+[[security-api-delete-privilege-request]]
+==== {api-request-title}
 
-`DELETE /_security/privilege/<application>/<privilege>` 
+`DELETE /_security/privilege/<application>/<privilege>`
 
-//==== Description
-
-==== Path Parameters
-
-`application` (required)::
-  (string) The name of the application. Application privileges are always
-  associated with exactly one application.
-
-`privilege` (required)::
-  (string) The name of the privilege.
-
-// ==== Request Body
-
-==== Authorization
+[[security-api-delete-privilege-prereqs]]
+==== {api-prereq-title}
 
 To use this API, you must have either:
 
@@ -33,22 +21,32 @@ To use this API, you must have either:
 - the _"Manage Application Privileges"_ global privilege for the application being referenced
   in the request
 
-==== Examples
+[[security-api-delete-privilege-path-params]]
+==== {api-path-parms-title}
 
-The following example deletes the `read` application privilege from the 
+`application`::
+  (Required, string) The name of the application. Application privileges are
+  always associated with exactly one application.
+
+`privilege`::
+  (Required, string) The name of the privilege.
+
+[[security-api-delete-privilege-example]]
+==== {api-examples-title}
+
+The following example deletes the `read` application privilege from the
 `myapp` application:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 DELETE /_security/privilege/myapp/read
 --------------------------------------------------
-// CONSOLE
-// TEST[setup:app0102_privileges] 
+// TEST[setup:app0102_privileges]
 
-If the role is successfully deleted, the request returns `{"found": true}`.
+If the privilege is successfully deleted, the request returns `{"found": true}`.
 Otherwise, `found` is set to false.
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "myapp": {
@@ -58,5 +56,4 @@ Otherwise, `found` is set to false.
   }
 }
 --------------------------------------------------
-// TESTRESPONSE
 

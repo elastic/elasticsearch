@@ -1,29 +1,72 @@
 [[cluster-nodes-hot-threads]]
-== Nodes hot_threads
+=== Nodes hot threads API
+++++
+<titleabbrev>Nodes hot threads</titleabbrev>
+++++
+
+Returns the hot threads on each selected node in the cluster.
+
+
+[[cluster-nodes-hot-threads-api-request]]
+==== {api-request-title}
+
+`GET /_nodes/hot_threads` +
+
+`GET /_nodes/<node_id>/hot_threads`
+
+[[cluster-nodes-hot-threads-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
+
+[[cluster-nodes-hot-threads-api-desc]]
+==== {api-description-title}
 
 This API yields a breakdown of the hot threads on each selected node in the
-cluster. Its endpoints are `/_nodes/hot_threads` and
-`/_nodes/{nodes}/hot_threads`:
+cluster. The output is plain text with a breakdown of each node's top hot 
+threads.
 
-[source,js]
+
+[[cluster-nodes-hot-threads-api-path-params]]
+==== {api-path-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
+
+
+[[cluster-nodes-hot-threads-api-query-params]]
+==== {api-query-parms-title}
+
+
+`ignore_idle_threads`::
+		(Optional, Boolean) If true, known idle threads (e.g. waiting in a socket 
+		select, or to get a task from an empty queue) are filtered out. Defaults to 
+		true.
+
+`interval`::
+		(Optional, <<time-units, time units>>) The interval to do the second 
+		sampling of threads. Defaults to `500ms`.
+		
+`snapshots`::
+		(Optional, integer) Number of samples of thread stacktrace. Defaults to 
+		`10`.
+
+`threads`::
+		(Optional, integer) Specifies the number of hot threads to provide 
+		information for. Defaults to `3`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+`type`::
+		(Optional, string) The type to sample. Available options are `block`, `cpu`, and 
+		`wait`. Defaults to `cpu`.
+
+
+[[cluster-nodes-hot-threads-api-example]]
+==== {api-examples-title}
+
+[source,console]
 --------------------------------------------------
 GET /_nodes/hot_threads
 GET /_nodes/nodeId1,nodeId2/hot_threads
 --------------------------------------------------
-// CONSOLE
-
-The first command gets the hot threads of all the nodes in the cluster. The
-second command gets the hot threads of only `nodeId1` and `nodeId2`. Nodes can
-be selected using <<cluster-nodes,node filters>>.
-
-The output is plain text with a breakdown of each node's top hot threads.  The
-allowed parameters are:
-
-[horizontal]
-`threads`:: 	number of hot threads to provide, defaults to 3.
-`interval`:: 	the interval to do the second sampling of threads.
-				Defaults to 500ms.
-`type`:: 		The type to sample, defaults to cpu, but supports wait and
-				block to see hot threads that are in wait or block state.
-`ignore_idle_threads`::    If true, known idle threads (e.g. waiting in a socket select, or to
-			   get a task from an empty queue) are filtered out.  Defaults to true.

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.engine;
@@ -55,9 +44,12 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
     public void testPruneAll() throws IOException {
         try (Directory dir = newDirectory()) {
             IndexWriterConfig iwc = newIndexWriterConfig();
-            RecoverySourcePruneMergePolicy mp = new RecoverySourcePruneMergePolicy("extra_source", MatchNoDocsQuery::new,
-                newLogMergePolicy());
-            iwc.setMergePolicy(mp);
+            RecoverySourcePruneMergePolicy mp = new RecoverySourcePruneMergePolicy(
+                "extra_source",
+                MatchNoDocsQuery::new,
+                newLogMergePolicy()
+            );
+            iwc.setMergePolicy(new ShuffleForcedMergePolicy(mp));
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 for (int i = 0; i < 20; i++) {
                     if (i > 0 && randomBoolean()) {
@@ -87,28 +79,30 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                         CodecReader codecReader = (CodecReader) leafReader;
                         StandardDirectoryReader sdr = (StandardDirectoryReader) reader;
                         SegmentInfos segmentInfos = sdr.getSegmentInfos();
-                        MergePolicy.MergeSpecification forcedMerges = mp.findForcedDeletesMerges(segmentInfos,
+                        MergePolicy.MergeSpecification forcedMerges = mp.findForcedDeletesMerges(
+                            segmentInfos,
                             new MergePolicy.MergeContext() {
-                            @Override
-                            public int numDeletesToMerge(SegmentCommitInfo info) {
-                                return info.info.maxDoc() - 1;
-                            }
+                                @Override
+                                public int numDeletesToMerge(SegmentCommitInfo info) {
+                                    return info.info.maxDoc() - 1;
+                                }
 
-                            @Override
-                            public int numDeletedDocs(SegmentCommitInfo info) {
-                                return info.info.maxDoc() - 1;
-                            }
+                                @Override
+                                public int numDeletedDocs(SegmentCommitInfo info) {
+                                    return info.info.maxDoc() - 1;
+                                }
 
-                            @Override
-                            public InfoStream getInfoStream() {
-                                return new NullInfoStream();
-                            }
+                                @Override
+                                public InfoStream getInfoStream() {
+                                    return new NullInfoStream();
+                                }
 
-                            @Override
-                            public Set<SegmentCommitInfo> getMergingSegments() {
-                                return Collections.emptySet();
+                                @Override
+                                public Set<SegmentCommitInfo> getMergingSegments() {
+                                    return Collections.emptySet();
+                                }
                             }
-                        });
+                        );
                         // don't wrap if there is nothing to do
                         assertSame(codecReader, forcedMerges.merges.get(0).wrapForMerge(codecReader));
                     }
@@ -117,12 +111,12 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
         }
     }
 
-
     public void testPruneSome() throws IOException {
         try (Directory dir = newDirectory()) {
             IndexWriterConfig iwc = newIndexWriterConfig();
-            iwc.setMergePolicy(new RecoverySourcePruneMergePolicy("extra_source",
-                () -> new TermQuery(new Term("even", "true")), iwc.getMergePolicy()));
+            iwc.setMergePolicy(
+                new RecoverySourcePruneMergePolicy("extra_source", () -> new TermQuery(new Term("even", "true")), iwc.getMergePolicy())
+            );
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 for (int i = 0; i < 20; i++) {
                     if (i > 0 && randomBoolean()) {
@@ -163,8 +157,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
     public void testPruneNone() throws IOException {
         try (Directory dir = newDirectory()) {
             IndexWriterConfig iwc = newIndexWriterConfig();
-            iwc.setMergePolicy(new RecoverySourcePruneMergePolicy("extra_source",
-                () -> new MatchAllDocsQuery(), iwc.getMergePolicy()));
+            iwc.setMergePolicy(new RecoverySourcePruneMergePolicy("extra_source", () -> new MatchAllDocsQuery(), iwc.getMergePolicy()));
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 for (int i = 0; i < 20; i++) {
                     if (i > 0 && randomBoolean()) {

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authc;
 
@@ -49,8 +50,12 @@ public interface AuthenticationFailureHandler {
      * @param context The context of the request that failed authentication that could not be authenticated
      * @return ElasticsearchSecurityException with the appropriate headers and message
      */
-    ElasticsearchSecurityException failedAuthentication(TransportMessage message, AuthenticationToken token, String action,
-                                                        ThreadContext context);
+    ElasticsearchSecurityException failedAuthentication(
+        TransportMessage message,
+        AuthenticationToken token,
+        String action,
+        ThreadContext context
+    );
 
     /**
      * The method is called when an exception has occurred while processing the REST request. This could be an error that

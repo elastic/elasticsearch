@@ -1,0 +1,82 @@
+[role="xpack"]
+[testenv="platinum"]
+[[stop-dfanalytics]]
+= Stop {dfanalytics-jobs} API
+
+[subs="attributes"]
+++++
+<titleabbrev>Stop {dfanalytics-jobs}</titleabbrev>
+++++
+
+Stops one or more {dfanalytics-jobs}.
+
+
+[[ml-stop-dfanalytics-request]]
+== {api-request-title}
+
+`POST _ml/data_frame/analytics/<data_frame_analytics_id>/_stop` +
+
+`POST _ml/data_frame/analytics/<data_frame_analytics_id>,<data_frame_analytics_id>/_stop` +
+
+`POST _ml/data_frame/analytics/_all/_stop`
+
+[[ml-stop-dfanalytics-prereq]]
+== {api-prereq-title}
+
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
+
+
+[[ml-stop-dfanalytics-desc]]
+== {api-description-title}
+
+A {dfanalytics-job} can be started and stopped multiple times throughout its 
+lifecycle.
+
+You can stop multiple {dfanalytics-jobs} in a single API request by using a 
+comma-separated list of {dfanalytics-jobs} or a wildcard expression. You can 
+stop all {dfanalytics-job} by using _all or by specifying * as the 
+<data_frame_analytics_id>.
+
+[[ml-stop-dfanalytics-path-params]]
+== {api-path-parms-title}
+
+`<data_frame_analytics_id>`::
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-define]
+  
+[[ml-stop-dfanalytics-query-params]]
+== {api-query-parms-title}  
+  
+`allow_no_match`::
+(Optional, Boolean) 
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match]
+
+
+`force`::
+  (Optional, Boolean) If true, the {dfanalytics-job} is stopped forcefully.
+  
+`timeout`::
+(Optional, <<time-units,time units>>) 
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=timeout-stop]
+
+
+[[ml-stop-dfanalytics-example]]
+== {api-examples-title}
+
+The following example stops the `loganalytics` {dfanalytics-job}:
+
+[source,console]
+--------------------------------------------------
+POST _ml/data_frame/analytics/loganalytics/_stop
+--------------------------------------------------
+// TEST[skip:TBD]
+
+When the {dfanalytics-job} stops, you receive the following results:
+
+[source,console-result]
+----
+{
+  "stopped" : true
+}
+----

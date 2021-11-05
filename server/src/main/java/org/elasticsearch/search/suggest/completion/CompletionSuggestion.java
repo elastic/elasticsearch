@@ -1,37 +1,26 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -45,6 +34,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.search.SearchHit.unknownMetaFieldConsumer;
 import static org.elasticsearch.search.suggest.Suggest.COMPARATOR;
 
 /**
@@ -64,9 +54,6 @@ import static org.elasticsearch.search.suggest.Suggest.COMPARATOR;
  *
  */
 public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestion.Entry> {
-
-    @Deprecated
-    public static final int TYPE = 4;
 
     private boolean skipDuplicates;
 
@@ -118,8 +105,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
 
     @Override
     public boolean equals(Object other) {
-        return super.equals(other)
-            && Objects.equals(skipDuplicates, ((CompletionSuggestion) other).skipDuplicates);
+        return super.equals(other) && Objects.equals(skipDuplicates, ((CompletionSuggestion) other).skipDuplicates);
     }
 
     @Override
@@ -207,11 +193,10 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                     if (top.advanceToNextOption()) {
                         pq.updateTop();
                     } else {
-                        //options exhausted for this shard
+                        // options exhausted for this shard
                         pq.pop();
                     }
-                    if (leader.skipDuplicates == false ||
-                        seenSurfaceForms.add(current.getText().toString())) {
+                    if (leader.skipDuplicates == false || seenSurfaceForms.add(current.getText().toString())) {
                         options.add(current);
                         if (options.size() >= size) {
                             break;
@@ -231,11 +216,6 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 option.setShardIndex(shardIndex);
             }
         }
-    }
-
-    @Override
-    public int getWriteableType() {
-        return TYPE;
     }
 
     @Override
@@ -260,12 +240,14 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
             return new Option(in);
         }
 
-        private static ObjectParser<Entry, Void> PARSER = new ObjectParser<>("CompletionSuggestionEntryParser", true,
-                Entry::new);
-
+        private static final ObjectParser<Entry, Void> PARSER = new ObjectParser<>("CompletionSuggestionEntryParser", true, Entry::new);
         static {
             declareCommonFields(PARSER);
-            PARSER.declareObjectArray(Entry::addOptions, (p,c) -> Option.fromXContent(p), new ParseField(OPTIONS));
+            /*
+             * The use of a lambda expression instead of the method reference Entry::addOptions is a workaround for a JDK 14 compiler bug.
+             * The bug is: https://bugs.java.com/bugdatabase/view_bug.do?bug_id=JDK-8242214
+             */
+            PARSER.declareObjectArray((e, o) -> e.addOptions(o), (p, c) -> Option.fromXContent(p), new ParseField(OPTIONS));
         }
 
         public static Entry fromXContent(XContentParser parser) {
@@ -353,28 +335,38 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 return builder;
             }
 
-            private static ObjectParser<Map<String, Object>, Void> PARSER = new ObjectParser<>("CompletionOptionParser",
-                    true, HashMap::new);
+            private static final ObjectParser<Map<String, Object>, Void> PARSER = new ObjectParser<>(
+                "CompletionOptionParser",
+                unknownMetaFieldConsumer,
+                HashMap::new
+            );
 
             static {
                 SearchHit.declareInnerHitsParseFields(PARSER);
-                PARSER.declareString((map, value) -> map.put(Suggestion.Entry.Option.TEXT.getPreferredName(), value),
-                        Suggestion.Entry.Option.TEXT);
-                PARSER.declareFloat((map, value) -> map.put(Suggestion.Entry.Option.SCORE.getPreferredName(), value),
-                        Suggestion.Entry.Option.SCORE);
-                PARSER.declareObject((map, value) -> map.put(CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName(), value),
-                        (p,c) -> parseContexts(p), CompletionSuggestion.Entry.Option.CONTEXTS);
+                PARSER.declareString(
+                    (map, value) -> map.put(Suggestion.Entry.Option.TEXT.getPreferredName(), value),
+                    Suggestion.Entry.Option.TEXT
+                );
+                PARSER.declareFloat(
+                    (map, value) -> map.put(Suggestion.Entry.Option.SCORE.getPreferredName(), value),
+                    Suggestion.Entry.Option.SCORE
+                );
+                PARSER.declareObject(
+                    (map, value) -> map.put(CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName(), value),
+                    (p, c) -> parseContexts(p),
+                    CompletionSuggestion.Entry.Option.CONTEXTS
+                );
             }
 
             private static Map<String, Set<String>> parseContexts(XContentParser parser) throws IOException {
                 Map<String, Set<String>> contexts = new HashMap<>();
-                while((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
+                while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
                     String key = parser.currentName();
-                    ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
+                    ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
                     Set<String> values = new HashSet<>();
-                    while((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser::getTokenLocation);
+                    while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser);
                         values.add(parser.text());
                     }
                     contexts.put(key, values);
@@ -388,8 +380,9 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 Text text = new Text((String) values.get(Suggestion.Entry.Option.TEXT.getPreferredName()));
                 Float score = (Float) values.get(Suggestion.Entry.Option.SCORE.getPreferredName());
                 @SuppressWarnings("unchecked")
-                Map<String, Set<String>> contexts = (Map<String, Set<String>>) values
-                        .get(CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName());
+                Map<String, Set<String>> contexts = (Map<String, Set<String>>) values.get(
+                    CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName()
+                );
                 if (contexts == null) {
                     contexts = Collections.emptyMap();
                 }
@@ -433,7 +426,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 stringBuilder.append(" score:");
                 stringBuilder.append(getScore());
                 stringBuilder.append(" context:[");
-                for (Map.Entry<String, Set<String>> entry: contexts.entrySet()) {
+                for (Map.Entry<String, Set<String>> entry : contexts.entrySet()) {
                     stringBuilder.append(" ");
                     stringBuilder.append(entry.getKey());
                     stringBuilder.append(":");

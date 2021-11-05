@@ -1,18 +1,9 @@
 /*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache license, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the license for the specific language governing permissions and
- * limitations under the license.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.seqno;
@@ -20,7 +11,6 @@ package org.elasticsearch.index.seqno;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -38,11 +28,11 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Collections;
 
-import static org.elasticsearch.mock.orig.Mockito.never;
-import static org.elasticsearch.mock.orig.Mockito.when;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class GlobalCheckpointSyncActionTests extends ESTestCase {
 
@@ -57,8 +47,14 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
         threadPool = new TestThreadPool(getClass().getName());
         transport = new CapturingTransport();
         clusterService = createClusterService(threadPool);
-        transportService = transport.createTransportService(clusterService.getSettings(), threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,  boundAddress -> clusterService.localNode(), null, Collections.emptySet());
+        transportService = transport.createTransportService(
+            clusterService.getSettings(),
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            boundAddress -> clusterService.localNode(),
+            null,
+            Collections.emptySet()
+        );
         transportService.start();
         transportService.acceptIncomingRequests();
         shardStateAction = new ShardStateAction(clusterService, transportService, null, null, threadPool);
@@ -93,14 +89,16 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
         final long globalCheckpoint = randomIntBetween(Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED), Integer.MAX_VALUE);
         final long lastSyncedGlobalCheckpoint;
         if (randomBoolean() && globalCheckpoint != SequenceNumbers.NO_OPS_PERFORMED) {
-            lastSyncedGlobalCheckpoint =
-                    randomIntBetween(Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED), Math.toIntExact(globalCheckpoint) - 1);
+            lastSyncedGlobalCheckpoint = randomIntBetween(
+                Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED),
+                Math.toIntExact(globalCheckpoint) - 1
+            );
             assert lastSyncedGlobalCheckpoint < globalCheckpoint;
         } else {
             lastSyncedGlobalCheckpoint = globalCheckpoint;
         }
 
-        when(indexShard.getGlobalCheckpoint()).thenReturn(globalCheckpoint);
+        when(indexShard.getLastKnownGlobalCheckpoint()).thenReturn(globalCheckpoint);
         when(indexShard.getLastSyncedGlobalCheckpoint()).thenReturn(lastSyncedGlobalCheckpoint);
 
         final GlobalCheckpointSyncAction action = new GlobalCheckpointSyncAction(
@@ -110,13 +108,17 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
             indicesService,
             threadPool,
             shardStateAction,
-            new ActionFilters(Collections.emptySet()),
-            new IndexNameExpressionResolver());
+            new ActionFilters(Collections.emptySet())
+        );
         final GlobalCheckpointSyncAction.Request primaryRequest = new GlobalCheckpointSyncAction.Request(indexShard.shardId());
         if (randomBoolean()) {
             action.shardOperationOnPrimary(primaryRequest, indexShard, ActionTestUtils.assertNoFailureListener(r -> {}));
         } else {
-            action.shardOperationOnReplica(new GlobalCheckpointSyncAction.Request(indexShard.shardId()), indexShard);
+            action.shardOperationOnReplica(
+                new GlobalCheckpointSyncAction.Request(indexShard.shardId()),
+                indexShard,
+                ActionTestUtils.assertNoFailureListener(r -> {})
+            );
         }
 
         if (durability == Translog.Durability.ASYNC || lastSyncedGlobalCheckpoint == globalCheckpoint) {

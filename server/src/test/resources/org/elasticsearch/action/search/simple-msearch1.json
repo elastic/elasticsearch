@@ -1,12 +1,12 @@
-{"index":"test", "ignore_unavailable" : true, "expand_wildcards" : "open,closed"}}
+{"index":"test", "ignore_unavailable" : true, "expand_wildcards" : "open,closed"}
 {"query" : {"match_all" :{}}}
-{"index" : "test", "type" : "type1", "expand_wildcards" : ["open", "closed"]}
+{"index" : "test", "expand_wildcards" : ["open", "closed"]}
 {"query" : {"match_all" :{}}}
-{"index":"test", "ignore_unavailable" : false, "expand_wildcards" : ["open"]}}
+{"index":"test", "ignore_unavailable" : false, "expand_wildcards" : ["open"]}
 {"query" : {"match_all" :{}}}
-{"index":"test", "ignore_unavailable" : true, "allow_no_indices": true, "expand_wildcards" : ["open", "closed"]}}
+{"index":"test", "ignore_unavailable" : true, "allow_no_indices": true, "expand_wildcards" : ["open", "closed"]}
 {"query" : {"match_all" :{}}}
-{"index":"test", "ignore_unavailable" : true, "allow_no_indices": false, "expand_wildcards" : ["closed"]}}
+{"index":"test", "ignore_unavailable" : true, "allow_no_indices": false, "expand_wildcards" : ["closed"]}
 {"query" : {"match_all" :{}}}
 {}
 {"query" : {"match_all" :{}}}

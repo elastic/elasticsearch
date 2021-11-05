@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xpack.sql.client.ClientVersion;
 import org.elasticsearch.xpack.sql.client.HttpClient;
-import org.elasticsearch.xpack.sql.client.Version;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.MainResponse;
 import org.elasticsearch.xpack.sql.proto.Mode;
@@ -16,11 +17,13 @@ import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.proto.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.sql.client.StringUtils.EMPTY;
 
 /**
@@ -29,6 +32,7 @@ import static org.elasticsearch.xpack.sql.client.StringUtils.EMPTY;
  */
 class JdbcHttpClient {
     private final HttpClient httpClient;
+    private final JdbcConnection jdbcConn;
     private final JdbcConfiguration conCfg;
     private InfoResponse serverInfo;
 
@@ -36,13 +40,14 @@ class JdbcHttpClient {
      * The SQLException is the only type of Exception the JDBC API can throw (and that the user expects).
      * If we remove it, we need to make sure no other types of Exceptions (runtime or otherwise) are thrown
      */
-    JdbcHttpClient(JdbcConfiguration conCfg) throws SQLException {
-        this(conCfg, true);
+    JdbcHttpClient(JdbcConnection jdbcConn) throws SQLException {
+        this(jdbcConn, true);
     }
 
-    JdbcHttpClient(JdbcConfiguration conCfg, boolean checkServer) throws SQLException {
+    JdbcHttpClient(JdbcConnection jdbcConn, boolean checkServer) throws SQLException {
+        this.jdbcConn = jdbcConn;
+        conCfg = jdbcConn.config();
         httpClient = new HttpClient(conCfg);
-        this.conCfg = conCfg;
         if (checkServer) {
             this.serverInfo = fetchServerInfo();
             checkServerVersion();
@@ -55,16 +60,23 @@ class JdbcHttpClient {
 
     Cursor query(String sql, List<SqlTypedParamValue> params, RequestMeta meta) throws SQLException {
         int fetch = meta.fetchSize() > 0 ? meta.fetchSize() : conCfg.pageSize();
-        SqlQueryRequest sqlRequest = new SqlQueryRequest(sql, params, conCfg.zoneId(),
-                fetch,
-                TimeValue.timeValueMillis(meta.timeoutInMs()),
-                TimeValue.timeValueMillis(meta.queryTimeoutInMs()),
-                null,
-                Boolean.FALSE,
-                null,
-                new RequestInfo(Mode.JDBC),
-                conCfg.fieldMultiValueLeniency(),
-                conCfg.indexIncludeFrozen());
+        SqlQueryRequest sqlRequest = new SqlQueryRequest(
+            sql,
+            params,
+            conCfg.zoneId(),
+            jdbcConn.getCatalog(),
+            fetch,
+            TimeValue.timeValueMillis(meta.queryTimeoutInMs()),
+            TimeValue.timeValueMillis(meta.pageTimeoutInMs()),
+            null,
+            Boolean.FALSE,
+            null,
+            new RequestInfo(Mode.JDBC, ClientVersion.CURRENT),
+            conCfg.fieldMultiValueLeniency(),
+            conCfg.indexIncludeFrozen(),
+            conCfg.binaryCommunication(),
+            emptyMap()
+        );
         SqlQueryResponse response = httpClient.query(sqlRequest);
         return new DefaultCursor(this, response.cursor(), toJdbcColumnInfo(response.columns()), response.rows(), meta);
     }
@@ -74,8 +86,13 @@ class JdbcHttpClient {
      * the scroll id to use to fetch the next page.
      */
     Tuple<String, List<List<Object>>> nextPage(String cursor, RequestMeta meta) throws SQLException {
-        SqlQueryRequest sqlRequest = new SqlQueryRequest(cursor, TimeValue.timeValueMillis(meta.timeoutInMs()),
-                TimeValue.timeValueMillis(meta.queryTimeoutInMs()), new RequestInfo(Mode.JDBC));
+        SqlQueryRequest sqlRequest = new SqlQueryRequest(
+            cursor,
+            TimeValue.timeValueMillis(meta.queryTimeoutInMs()),
+            TimeValue.timeValueMillis(meta.pageTimeoutInMs()),
+            new RequestInfo(Mode.JDBC),
+            conCfg.binaryCommunication()
+        );
         SqlQueryResponse response = httpClient.query(sqlRequest);
         return new Tuple<>(response.cursor(), response.rows());
     }
@@ -93,16 +110,18 @@ class JdbcHttpClient {
 
     private InfoResponse fetchServerInfo() throws SQLException {
         MainResponse mainResponse = httpClient.serverInfo();
-        Version version = Version.fromString(mainResponse.getVersion());
-        return new InfoResponse(mainResponse.getClusterName(), version.major, version.minor, version.revision);
+        SqlVersion version = SqlVersion.fromString(mainResponse.getVersion());
+        return new InfoResponse(mainResponse.getClusterName(), version);
     }
-    
+
     private void checkServerVersion() throws SQLException {
-        if (serverInfo.majorVersion != Version.CURRENT.major
-                || serverInfo.minorVersion != Version.CURRENT.minor
-                || serverInfo.revisionVersion != Version.CURRENT.revision) {
-            throw new SQLException("This version of the JDBC driver is only compatible with Elasticsearch version " +
-                    Version.CURRENT.toString() + ", attempting to connect to a server version " + serverInfo.versionString());
+        if (ClientVersion.isServerCompatible(serverInfo.version) == false) {
+            throw new SQLException(
+                "This version of the JDBC driver is only compatible with Elasticsearch version "
+                    + ClientVersion.CURRENT.majorMinorToString()
+                    + " or newer; attempting to connect to a server version "
+                    + serverInfo.version.toString()
+            );
         }
     }
 

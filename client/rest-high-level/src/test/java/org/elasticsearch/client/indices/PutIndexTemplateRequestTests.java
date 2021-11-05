@@ -1,69 +1,54 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.client.AbstractRequestTestCase;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Arrays;
-import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.core.Is.is;
 
-public class PutIndexTemplateRequestTests extends AbstractXContentTestCase<PutIndexTemplateRequest> {
+public class PutIndexTemplateRequestTests extends AbstractRequestTestCase<
+    PutIndexTemplateRequest,
+    org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest> {
+
     public void testValidateErrorMessage() throws Exception {
-        expectThrows(IllegalArgumentException.class, () -> new PutIndexTemplateRequest(null));
-        expectThrows(IllegalArgumentException.class, () -> new PutIndexTemplateRequest("test").name(null));
-        PutIndexTemplateRequest request = new PutIndexTemplateRequest("test");
-        ActionRequestValidationException withoutPattern = request.validate();
-        assertThat(withoutPattern.getMessage(), containsString("index patterns are missing"));
-
-        request.name("foo");
-        ActionRequestValidationException withoutIndexPatterns = request.validate();
-        assertThat(withoutIndexPatterns.validationErrors(), hasSize(1));
-        assertThat(withoutIndexPatterns.getMessage(), containsString("index patterns are missing"));
-
-        request.patterns(Collections.singletonList("test-*"));
-        ActionRequestValidationException noError = request.validate();
-        assertThat(noError, is(nullValue()));
+        expectThrows(IllegalArgumentException.class, () -> new PutIndexTemplateRequest(null, null));
+        expectThrows(IllegalArgumentException.class, () -> new PutIndexTemplateRequest("test", List.of("index")).name(null));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new PutIndexTemplateRequest("test", null));
+        assertThat(e.getMessage(), containsString("index patterns are missing"));
+        e = expectThrows(IllegalArgumentException.class, () -> new PutIndexTemplateRequest("test", List.of()));
+        assertThat(e.getMessage(), containsString("index patterns are missing"));
+        new PutIndexTemplateRequest("test", List.of("index"));
     }
 
     @Override
-    protected PutIndexTemplateRequest createTestInstance() {
-        PutIndexTemplateRequest request = new PutIndexTemplateRequest("test");
+    protected PutIndexTemplateRequest createClientTestInstance() {
+        PutIndexTemplateRequest request = new PutIndexTemplateRequest(
+            "test",
+            List.of(ESTestCase.generateRandomStringArray(20, 100, false, false))
+        );
         if (randomBoolean()) {
             request.version(randomInt());
         }
         if (randomBoolean()) {
             request.order(randomInt());
         }
-        request.patterns(Arrays.asList(generateRandomStringArray(20, 100, false, false)));
         int numAlias = between(0, 5);
         for (int i = 0; i < numAlias; i++) {
             // some ASCII or Latin-1 control characters, especially newline, can lead to
@@ -79,10 +64,18 @@ public class PutIndexTemplateRequestTests extends AbstractXContentTestCase<PutIn
         }
         if (randomBoolean()) {
             try {
-                request.mapping(XContentFactory.jsonBuilder().startObject()
-                    .startObject("properties")
-                    .startObject("field-" + randomInt()).field("type", randomFrom("keyword", "text")).endObject()
-                    .endObject().endObject());
+                request.mapping(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("_doc")
+                        .startObject("properties")
+                        .startObject("field-" + randomInt())
+                        .field("type", randomFrom("keyword", "text"))
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                );
             } catch (IOException ex) {
                 throw new UncheckedIOException(ex);
             }
@@ -94,23 +87,31 @@ public class PutIndexTemplateRequestTests extends AbstractXContentTestCase<PutIn
     }
 
     @Override
-    protected PutIndexTemplateRequest doParseInstance(XContentParser parser) throws IOException {
-        return new PutIndexTemplateRequest("test").source(parser.map());
+    protected org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest doParseToServerInstance(XContentParser parser)
+        throws IOException {
+        return new org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest("test").source(parser.map());
     }
 
     @Override
-    protected void assertEqualInstances(PutIndexTemplateRequest expected, PutIndexTemplateRequest actual) {
-        assertNotSame(expected, actual);
-        assertThat(actual.version(), equalTo(expected.version()));
-        assertThat(actual.order(), equalTo(expected.order()));
-        assertThat(actual.patterns(), equalTo(expected.patterns()));
-        assertThat(actual.aliases(), equalTo(expected.aliases()));
-        assertThat(actual.mappings(), equalTo(expected.mappings()));
-        assertThat(actual.settings(), equalTo(expected.settings()));
+    protected void assertInstances(
+        org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest serverInstance,
+        PutIndexTemplateRequest clientTestInstance
+    ) {
+        assertNotSame(serverInstance, clientTestInstance);
+        assertThat(serverInstance.version(), equalTo(clientTestInstance.version()));
+        assertThat(serverInstance.order(), equalTo(clientTestInstance.order()));
+        assertThat(serverInstance.patterns(), equalTo(clientTestInstance.patterns()));
+        assertThat(serverInstance.aliases(), equalTo(clientTestInstance.aliases()));
+        String mapping = null;
+        if (clientTestInstance.mappings() != null) {
+            try {
+                mapping = XContentHelper.convertToJson(clientTestInstance.mappings(), false, XContentType.JSON);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+        assertThat(serverInstance.mappings(), equalTo(mapping));
+        assertThat(serverInstance.settings(), equalTo(clientTestInstance.settings()));
     }
 
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
 }

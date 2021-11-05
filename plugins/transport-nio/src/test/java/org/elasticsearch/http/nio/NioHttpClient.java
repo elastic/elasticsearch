@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.http.nio;
@@ -25,14 +14,16 @@ import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
+import io.netty.handler.codec.http.HttpContentDecompressor;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpRequestEncoder;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseDecoder;
-import org.apache.logging.log4j.Logger;
+
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.network.NetworkService;
@@ -42,14 +33,15 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.nio.BytesChannelContext;
 import org.elasticsearch.nio.ChannelFactory;
+import org.elasticsearch.nio.Config;
 import org.elasticsearch.nio.EventHandler;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
-import org.elasticsearch.nio.NioSelectorGroup;
+import org.elasticsearch.nio.NioChannelHandler;
 import org.elasticsearch.nio.NioSelector;
+import org.elasticsearch.nio.NioSelectorGroup;
 import org.elasticsearch.nio.NioServerSocketChannel;
 import org.elasticsearch.nio.NioSocketChannel;
-import org.elasticsearch.nio.ReadWriteHandler;
 import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.nio.WriteOperation;
 import org.elasticsearch.tasks.Task;
@@ -92,8 +84,11 @@ class NioHttpClient implements Closeable {
 
     NioHttpClient() {
         try {
-            nioGroup = new NioSelectorGroup(daemonThreadFactory(Settings.EMPTY, "nio-http-client"), 1,
-                (s) -> new EventHandler(this::onException, s));
+            nioGroup = new NioSelectorGroup(
+                daemonThreadFactory(Settings.EMPTY, "nio-http-client"),
+                1,
+                (s) -> new EventHandler(this::onException, s)
+            );
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -110,15 +105,17 @@ class NioHttpClient implements Closeable {
         return sendRequests(remoteAddress, requests);
     }
 
-    public final FullHttpResponse post(InetSocketAddress remoteAddress, FullHttpRequest httpRequest) throws InterruptedException {
+    public final FullHttpResponse send(InetSocketAddress remoteAddress, FullHttpRequest httpRequest) throws InterruptedException {
         Collection<FullHttpResponse> responses = sendRequests(remoteAddress, Collections.singleton(httpRequest));
         assert responses.size() == 1 : "expected 1 and only 1 http response";
         return responses.iterator().next();
     }
 
     public final NioSocketChannel connect(InetSocketAddress remoteAddress) {
-        ChannelFactory<NioServerSocketChannel, NioSocketChannel> factory = new ClientChannelFactory(new CountDownLatch(0), new
-            ArrayList<>());
+        ChannelFactory<NioServerSocketChannel, NioSocketChannel> factory = new ClientChannelFactory(
+            new CountDownLatch(0),
+            new ArrayList<>()
+        );
         try {
             NioSocketChannel nioSocketChannel = nioGroup.openChannel(remoteAddress, factory);
             PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
@@ -177,17 +174,22 @@ class NioHttpClient implements Closeable {
         private final Collection<FullHttpResponse> content;
 
         private ClientChannelFactory(CountDownLatch latch, Collection<FullHttpResponse> content) {
-            super(new RawChannelFactory(NetworkService.TCP_NO_DELAY.get(Settings.EMPTY),
+            super(
+                NetworkService.TCP_NO_DELAY.get(Settings.EMPTY),
                 NetworkService.TCP_KEEP_ALIVE.get(Settings.EMPTY),
+                NetworkService.TCP_KEEP_IDLE.get(Settings.EMPTY),
+                NetworkService.TCP_KEEP_INTERVAL.get(Settings.EMPTY),
+                NetworkService.TCP_KEEP_COUNT.get(Settings.EMPTY),
                 NetworkService.TCP_REUSE_ADDRESS.get(Settings.EMPTY),
                 Math.toIntExact(NetworkService.TCP_SEND_BUFFER_SIZE.get(Settings.EMPTY).getBytes()),
-                Math.toIntExact(NetworkService.TCP_RECEIVE_BUFFER_SIZE.get(Settings.EMPTY).getBytes())));
+                Math.toIntExact(NetworkService.TCP_RECEIVE_BUFFER_SIZE.get(Settings.EMPTY).getBytes())
+            );
             this.latch = latch;
             this.content = content;
         }
 
         @Override
-        public NioSocketChannel createChannel(NioSelector selector, java.nio.channels.SocketChannel channel) throws IOException {
+        public NioSocketChannel createChannel(NioSelector selector, java.nio.channels.SocketChannel channel, Config.Socket socketConfig) {
             NioSocketChannel nioSocketChannel = new NioSocketChannel(channel);
             HttpClientHandler handler = new HttpClientHandler(nioSocketChannel, latch, content);
             Consumer<Exception> exceptionHandler = (e) -> {
@@ -195,19 +197,29 @@ class NioHttpClient implements Closeable {
                 onException(e);
                 nioSocketChannel.close();
             };
-            SocketChannelContext context = new BytesChannelContext(nioSocketChannel, selector, exceptionHandler, handler,
-                InboundChannelBuffer.allocatingInstance());
+            SocketChannelContext context = new BytesChannelContext(
+                nioSocketChannel,
+                selector,
+                socketConfig,
+                exceptionHandler,
+                handler,
+                InboundChannelBuffer.allocatingInstance()
+            );
             nioSocketChannel.setContext(context);
             return nioSocketChannel;
         }
 
         @Override
-        public NioServerSocketChannel createServerChannel(NioSelector selector, ServerSocketChannel channel) {
+        public NioServerSocketChannel createServerChannel(
+            NioSelector selector,
+            ServerSocketChannel channel,
+            Config.ServerSocket socketConfig
+        ) {
             throw new UnsupportedOperationException("Cannot create server channel");
         }
     }
 
-    private static class HttpClientHandler implements ReadWriteHandler {
+    private static class HttpClientHandler implements NioChannelHandler {
 
         private final NettyAdaptor adaptor;
         private final CountDownLatch latch;
@@ -220,6 +232,7 @@ class NioHttpClient implements Closeable {
             List<ChannelHandler> handlers = new ArrayList<>(5);
             handlers.add(new HttpResponseDecoder());
             handlers.add(new HttpRequestEncoder());
+            handlers.add(new HttpContentDecompressor());
             handlers.add(new HttpObjectAggregator(maxContentLength));
 
             adaptor = new NettyAdaptor(handlers.toArray(new ChannelHandler[0]));
@@ -227,7 +240,7 @@ class NioHttpClient implements Closeable {
         }
 
         @Override
-        public void channelRegistered() {}
+        public void channelActive() {}
 
         @Override
         public WriteOperation createWriteOperation(SocketChannelContext context, Object message, BiConsumer<Void, Exception> listener) {
@@ -271,28 +284,41 @@ class NioHttpClient implements Closeable {
             int bytesConsumed = adaptor.read(channelBuffer.sliceAndRetainPagesTo(channelBuffer.getIndex()));
             Object message;
             while ((message = adaptor.pollInboundMessage()) != null) {
-                handleRequest(message);
+                handleResponse(message);
             }
 
             return bytesConsumed;
         }
 
         @Override
+        public boolean closeNow() {
+            return false;
+        }
+
+        @Override
         public void close() throws IOException {
             try {
                 adaptor.close();
+                // After closing the pipeline, we must poll to see if any new messages are available. This
+                // is because HTTP supports a channel being closed as an end of content marker.
+                Object message;
+                while ((message = adaptor.pollInboundMessage()) != null) {
+                    handleResponse(message);
+                }
             } catch (Exception e) {
                 throw new IOException(e);
             }
         }
 
-        private void handleRequest(Object message) {
+        private void handleResponse(Object message) {
             final FullHttpResponse response = (FullHttpResponse) message;
-            DefaultFullHttpResponse newResponse = new DefaultFullHttpResponse(response.protocolVersion(),
+            DefaultFullHttpResponse newResponse = new DefaultFullHttpResponse(
+                response.protocolVersion(),
                 response.status(),
                 Unpooled.copiedBuffer(response.content()),
                 response.headers().copy(),
-                response.trailingHeaders().copy());
+                response.trailingHeaders().copy()
+            );
             response.release();
             content.add(newResponse);
             latch.countDown();

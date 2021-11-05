@@ -1,18 +1,13 @@
-[[shards-allocation]]
-=== Cluster level shard allocation
+[[cluster-shard-allocation-settings]]
+==== Cluster-level shard allocation settings
 
-Shard allocation is the process of allocating shards to nodes. This can
-happen during initial recovery, replica allocation, rebalancing, or
-when nodes are added or removed.
+You can use the following settings to control shard allocation and recovery:
 
-[float]
-=== Shard allocation settings
-
-The following _dynamic_ settings may be used to control shard allocation and recovery:
-
+[[cluster-routing-allocation-enable]]
 `cluster.routing.allocation.enable`::
 +
 --
+(<<dynamic-cluster-setting,Dynamic>>)
 Enable or disable allocation for specific kinds of shards:
 
 * `all` -             (default) Allows shard allocation for all kinds of shards.
@@ -21,53 +16,65 @@ Enable or disable allocation for specific kinds of shards:
 * `none` -            No shard allocations of any kind are allowed for any indices.
 
 This setting does not affect the recovery of local primary shards when
-restarting a node.  A restarted node that has a copy of an unassigned primary
+restarting a node. A restarted node that has a copy of an unassigned primary
 shard will recover that primary immediately, assuming that its allocation id matches
 one of the active allocation ids in the cluster state.
 
 --
 
 `cluster.routing.allocation.node_concurrent_incoming_recoveries`::
-
+     (<<dynamic-cluster-setting,Dynamic>>)
      How many concurrent incoming shard recoveries are allowed to happen on a node. Incoming recoveries are the recoveries
      where the target shard (most likely the replica unless a shard is relocating) is allocated on the node. Defaults to `2`.
 
 `cluster.routing.allocation.node_concurrent_outgoing_recoveries`::
-
+     (<<dynamic-cluster-setting,Dynamic>>)
      How many concurrent outgoing shard recoveries are allowed to happen on a node. Outgoing recoveries are the recoveries
      where the source shard (most likely the primary unless a shard is relocating) is allocated on the node. Defaults to `2`.
 
 `cluster.routing.allocation.node_concurrent_recoveries`::
-
+     (<<dynamic-cluster-setting,Dynamic>>)
      A shortcut to set both `cluster.routing.allocation.node_concurrent_incoming_recoveries` and
      `cluster.routing.allocation.node_concurrent_outgoing_recoveries`.
 
 
 `cluster.routing.allocation.node_initial_primaries_recoveries`::
-
+    (<<dynamic-cluster-setting,Dynamic>>)
     While the recovery of replicas happens over the network, the recovery of
     an unassigned primary after node restart uses data from the local disk.
     These should be fast so more initial primary recoveries can happen in
-    parallel on the same node.  Defaults to `4`.
+    parallel on the same node. Defaults to `4`.
 
-
+[[cluster-routing-allocation-same-shard-host]]
 `cluster.routing.allocation.same_shard.host`::
-
+      (<<dynamic-cluster-setting,Dynamic>>)
       Allows to perform a check to prevent allocation of multiple instances of
       the same shard on a single host, based on host name and host address.
       Defaults to `false`, meaning that no check is performed by default. This
       setting only applies if multiple nodes are started on the same machine.
 
-[float]
-=== Shard rebalancing settings
+[[shards-rebalancing-settings]]
+==== Shard rebalancing settings
 
-The following _dynamic_ settings may be used to control the rebalancing of
-shards across the cluster:
+A cluster is _balanced_ when it has an equal number of shards on each node
+without having a concentration of shards from any index on any node. {es} runs
+an automatic process called _rebalancing_ which moves shards between the nodes
+in your cluster to improve its balance. Rebalancing obeys all other shard
+allocation rules such as <<cluster-shard-allocation-filtering,allocation
+filtering>> and <<forced-awareness,forced awareness>> which may prevent it from
+completely balancing the cluster. In that case, rebalancing strives to achieve
+the most balanced cluster possible within the rules you have configured. If you
+are using <<data-tiers,data tiers>> then {es} automatically applies allocation
+filtering rules to place each shard within the appropriate tier. These rules
+mean that the balancer works independently within each tier.
 
+You can use the following settings to control the rebalancing of shards across
+the cluster:
 
 `cluster.routing.rebalance.enable`::
 +
 --
+(<<dynamic-cluster-setting,Dynamic>>)
 Enable or disable rebalancing for specific kinds of shards:
 
 * `all` -         (default) Allows shard balancing for all kinds of shards.
@@ -80,6 +87,7 @@ Enable or disable rebalancing for specific kinds of shards:
 `cluster.routing.allocation.allow_rebalance`::
 +
 --
+(<<dynamic-cluster-setting,Dynamic>>)
 Specify when shard rebalancing is allowed:
 
 
@@ -89,37 +97,42 @@ Specify when shard rebalancing is allowed:
 --
 
 `cluster.routing.allocation.cluster_concurrent_rebalance`::
-
+      (<<dynamic-cluster-setting,Dynamic>>)
       Allow to control how many concurrent shard rebalances are
       allowed cluster wide. Defaults to `2`. Note that this setting
       only controls the number of concurrent shard relocations due
       to imbalances in the cluster. This setting does not limit shard
-      relocations due to <<allocation-filtering,allocation filtering>>
-      or <<forced-awareness,forced awareness>>.
+      relocations due to <<cluster-shard-allocation-filtering,allocation
+      filtering>> or <<forced-awareness,forced awareness>>.
 
-[float]
-=== Shard balancing heuristics
+[[shards-rebalancing-heuristics]]
+==== Shard balancing heuristics settings
 
-The following settings are used together to determine where to place each
-shard.  The cluster is balanced when no allowed rebalancing operation can bring the weight
-of any node closer to the weight of any other node by more than the `balance.threshold`.
+Rebalancing works by computing a _weight_ for each node based on its allocation
+of shards, and then moving shards between nodes to reduce the weight of the
+heavier nodes and increase the weight of the lighter ones. The cluster is
+balanced when there is no possible shard movement that can bring the weight of
+any node closer to the weight of any other node by more than a configurable
+threshold. The following settings allow you to control the details of these
+calculations.
 
 `cluster.routing.allocation.balance.shard`::
-
+     (<<dynamic-cluster-setting,Dynamic>>)
      Defines the weight factor for the total number of shards allocated on a node
-     (float). Defaults to `0.45f`.  Raising this raises the tendency to
+     (float). Defaults to `0.45f`. Raising this raises the tendency to
      equalize the number of shards across all nodes in the cluster.
 
 `cluster.routing.allocation.balance.index`::
-
+     (<<dynamic-cluster-setting,Dynamic>>)
      Defines the weight factor for the number of shards per index allocated
-      on a specific node (float). Defaults to `0.55f`.  Raising this raises the
+      on a specific node (float). Defaults to `0.55f`. Raising this raises the
       tendency to equalize the number of shards per index across all nodes in
       the cluster.
 
 `cluster.routing.allocation.balance.threshold`::
+     (<<dynamic-cluster-setting,Dynamic>>)
      Minimal optimization value of operations that should be performed (non
-      negative float). Defaults to `1.0f`.  Raising this will cause the cluster
+      negative float). Defaults to `1.0f`. Raising this will cause the cluster
       to be less aggressive about optimizing the shard balance.
 
 

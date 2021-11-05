@@ -1,53 +1,43 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ccr.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-public class FollowInfoAction extends Action<FollowInfoAction.Response> {
+public class FollowInfoAction extends ActionType<FollowInfoAction.Response> {
 
     public static final String NAME = "cluster:monitor/ccr/follow_info";
 
     public static final FollowInfoAction INSTANCE = new FollowInfoAction();
 
     private FollowInfoAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, FollowInfoAction.Response::new);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> {
 
         private String[] followerIndices;
 
-        public Request() {
-        }
+        public Request() {}
 
         public String[] getFollowerIndices() {
             return followerIndices;
@@ -108,7 +98,6 @@ public class FollowInfoAction extends Action<FollowInfoAction.Response> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeList(followInfos);
         }
 
@@ -155,8 +144,13 @@ public class FollowInfoAction extends Action<FollowInfoAction.Response> {
             private final Status status;
             private final FollowParameters parameters;
 
-            public FollowerInfo(String followerIndex, String remoteCluster, String leaderIndex, Status status,
-                                FollowParameters parameters) {
+            public FollowerInfo(
+                String followerIndex,
+                String remoteCluster,
+                String leaderIndex,
+                Status status,
+                FollowParameters parameters
+            ) {
                 this.followerIndex = followerIndex;
                 this.remoteCluster = remoteCluster;
                 this.leaderIndex = leaderIndex;
@@ -224,11 +218,11 @@ public class FollowInfoAction extends Action<FollowInfoAction.Response> {
                 if (this == o) return true;
                 if (o == null || getClass() != o.getClass()) return false;
                 FollowerInfo that = (FollowerInfo) o;
-                return Objects.equals(followerIndex, that.followerIndex) &&
-                    Objects.equals(remoteCluster, that.remoteCluster) &&
-                    Objects.equals(leaderIndex, that.leaderIndex) &&
-                    status == that.status &&
-                    Objects.equals(parameters, that.parameters);
+                return Objects.equals(followerIndex, that.followerIndex)
+                    && Objects.equals(remoteCluster, that.remoteCluster)
+                    && Objects.equals(leaderIndex, that.leaderIndex)
+                    && status == that.status
+                    && Objects.equals(parameters, that.parameters);
             }
 
             @Override

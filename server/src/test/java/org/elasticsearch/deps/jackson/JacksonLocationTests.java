@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.deps.jackson;
@@ -23,6 +12,7 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
+
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 
@@ -33,10 +23,10 @@ import static org.hamcrest.Matchers.equalTo;
 public class JacksonLocationTests extends ESTestCase {
     public void testLocationExtraction() throws IOException {
         // {
-        //    "index" : "test",
-        //    "source" : {
-        //         value : "something"
-        //    }
+        // "index" : "test",
+        // "source" : {
+        // value : "something"
+        // }
         // }
         BytesStreamOutput os = new BytesStreamOutput();
         JsonGenerator gen = new JsonFactory().createGenerator(os);
@@ -59,17 +49,17 @@ public class JacksonLocationTests extends ESTestCase {
         assertThat(parser.nextToken(), equalTo(JsonToken.FIELD_NAME)); // "index"
         assertThat(parser.nextToken(), equalTo(JsonToken.VALUE_STRING));
         assertThat(parser.nextToken(), equalTo(JsonToken.FIELD_NAME)); // "source"
-//        JsonLocation location1 = parser.getCurrentLocation();
-//        parser.skipChildren();
-//        JsonLocation location2 = parser.getCurrentLocation();
-//
-//        byte[] sourceData = new byte[(int) (location2.getByteOffset() - location1.getByteOffset())];
-//        System.arraycopy(data, (int) location1.getByteOffset(), sourceData, 0, sourceData.length);
-//
-//        JsonParser sourceParser = new JsonFactory().createJsonParser(new FastByteArrayInputStream(sourceData));
-//        assertThat(sourceParser.nextToken(), equalTo(JsonToken.START_OBJECT));
-//        assertThat(sourceParser.nextToken(), equalTo(JsonToken.FIELD_NAME)); // "value"
-//        assertThat(sourceParser.nextToken(), equalTo(JsonToken.VALUE_STRING));
-//        assertThat(sourceParser.nextToken(), equalTo(JsonToken.END_OBJECT));
+        // JsonLocation location1 = parser.getCurrentLocation();
+        // parser.skipChildren();
+        // JsonLocation location2 = parser.getCurrentLocation();
+        //
+        // byte[] sourceData = new byte[(int) (location2.getByteOffset() - location1.getByteOffset())];
+        // System.arraycopy(data, (int) location1.getByteOffset(), sourceData, 0, sourceData.length);
+        //
+        // JsonParser sourceParser = new JsonFactory().createJsonParser(new FastByteArrayInputStream(sourceData));
+        // assertThat(sourceParser.nextToken(), equalTo(JsonToken.START_OBJECT));
+        // assertThat(sourceParser.nextToken(), equalTo(JsonToken.FIELD_NAME)); // "value"
+        // assertThat(sourceParser.nextToken(), equalTo(JsonToken.VALUE_STRING));
+        // assertThat(sourceParser.nextToken(), equalTo(JsonToken.END_OBJECT));
     }
 }

@@ -1,17 +1,18 @@
 /*
- *  Copyright 2001-2014 Stephen Colebourne
+ * @notice
+ * Copyright 2001-2014 Stephen Colebourne
  *
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *   http://www.apache.org/licenses/LICENSE-2.0
  *
- *  Unless required by applicable law or agreed to in writing, software
- *  distributed under the License is distributed on an "AS IS" BASIS,
- *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *  See the License for the specific language governing permissions and
- *  limitations under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 package org.elasticsearch.common.time;
 
@@ -39,12 +40,8 @@ class DateUtilsRounding {
     // see org.joda.time.chrono.BasicGJChronology
     private static final long[] MIN_TOTAL_MILLIS_BY_MONTH_ARRAY;
     private static final long[] MAX_TOTAL_MILLIS_BY_MONTH_ARRAY;
-    private static final int[] MIN_DAYS_PER_MONTH_ARRAY = {
-        31,28,31,30,31,30,31,31,30,31,30,31
-    };
-    private static final int[] MAX_DAYS_PER_MONTH_ARRAY = {
-        31,29,31,30,31,30,31,31,30,31,30,31
-    };
+    private static final int[] MIN_DAYS_PER_MONTH_ARRAY = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+    private static final int[] MAX_DAYS_PER_MONTH_ARRAY = { 31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
 
     static {
         MIN_TOTAL_MILLIS_BY_MONTH_ARRAY = new long[12];
@@ -53,13 +50,11 @@ class DateUtilsRounding {
         long minSum = 0;
         long maxSum = 0;
         for (int i = 0; i < 11; i++) {
-            long millis = MIN_DAYS_PER_MONTH_ARRAY[i]
-                * (long) MILLIS_PER_DAY;
+            long millis = MIN_DAYS_PER_MONTH_ARRAY[i] * (long) MILLIS_PER_DAY;
             minSum += millis;
             MIN_TOTAL_MILLIS_BY_MONTH_ARRAY[i + 1] = minSum;
 
-            millis = MAX_DAYS_PER_MONTH_ARRAY[i]
-                * (long) MILLIS_PER_DAY;
+            millis = MAX_DAYS_PER_MONTH_ARRAY[i] * (long) MILLIS_PER_DAY;
             maxSum += millis;
             MAX_TOTAL_MILLIS_BY_MONTH_ARRAY[i + 1] = maxSum;
         }
@@ -92,8 +87,27 @@ class DateUtilsRounding {
         return (year * 365L + (leapYears - DAYS_0000_TO_1970)) * MILLIS_PER_DAY; // millis per day
     }
 
-    private static boolean isLeapYear(final int year) {
-        return ((year & 3) == 0) && ((year % 100) != 0 || (year % 400) == 0);
+    static boolean isLeapYear(final int year) {
+        // Joda had
+        // return ((year & 3) == 0) && ((year % 100) != 0 || (year % 400) == 0);
+        // But we've replaced that with this:
+        if ((year & 3) != 0) {
+            return false;
+        }
+        if (year % 100 != 0) {
+            return true;
+        }
+        return ((year / 100) & 3) == 0;
+        /*
+         * It is a little faster because it saves a division. We don't have good
+         * measurements for this method on its own, but this change speeds up
+         * rounding the nearest month by about 8%.
+         *
+         * Note: If you decompile this method to x86 assembly you won't see the
+         * division you'd expect from % 100 and / 100. Instead you'll see a funny
+         * sequence of bit twiddling operations which the jvm thinks is faster.
+         * Division is slow so it almost certainly is.
+         */
     }
 
     private static final long AVERAGE_MILLIS_PER_YEAR_DIVIDED_BY_TWO = MILLIS_PER_YEAR / 2;
@@ -148,27 +162,26 @@ class DateUtilsRounding {
         // the instant isn't measured in milliseconds, but in units of
         // (128/125)seconds.
 
-        int i = (int)((utcMillis - utcMillisAtStartOfYear(year)) >> 10);
+        int i = (int) ((utcMillis - utcMillisAtStartOfYear(year)) >> 10);
 
         // There are 86400000 milliseconds per day, but divided by 1024 is
         // 84375. There are 84375 (128/125)seconds per day.
 
-        return
-            (isLeapYear(year))
-                ? ((i < 182 * 84375)
+        return (isLeapYear(year))
+            ? ((i < 182 * 84375)
                 ? ((i < 91 * 84375)
-                ? ((i < 31 * 84375) ? 1 : (i < 60 * 84375) ? 2 : 3)
-                : ((i < 121 * 84375) ? 4 : (i < 152 * 84375) ? 5 : 6))
+                    ? ((i < 31 * 84375) ? 1 : (i < 60 * 84375) ? 2 : 3)
+                    : ((i < 121 * 84375) ? 4 : (i < 152 * 84375) ? 5 : 6))
                 : ((i < 274 * 84375)
-                ? ((i < 213 * 84375) ? 7 : (i < 244 * 84375) ? 8 : 9)
-                : ((i < 305 * 84375) ? 10 : (i < 335 * 84375) ? 11 : 12)))
-                : ((i < 181 * 84375)
+                    ? ((i < 213 * 84375) ? 7 : (i < 244 * 84375) ? 8 : 9)
+                    : ((i < 305 * 84375) ? 10 : (i < 335 * 84375) ? 11 : 12)))
+            : ((i < 181 * 84375)
                 ? ((i < 90 * 84375)
-                ? ((i < 31 * 84375) ? 1 : (i < 59 * 84375) ? 2 : 3)
-                : ((i < 120 * 84375) ? 4 : (i < 151 * 84375) ? 5 : 6))
+                    ? ((i < 31 * 84375) ? 1 : (i < 59 * 84375) ? 2 : 3)
+                    : ((i < 120 * 84375) ? 4 : (i < 151 * 84375) ? 5 : 6))
                 : ((i < 273 * 84375)
-                ? ((i < 212 * 84375) ? 7 : (i < 243 * 84375) ? 8 : 9)
-                : ((i < 304 * 84375) ? 10 : (i < 334 * 84375) ? 11 : 12)));
+                    ? ((i < 212 * 84375) ? 7 : (i < 243 * 84375) ? 8 : 9)
+                    : ((i < 304 * 84375) ? 10 : (i < 334 * 84375) ? 11 : 12)));
     }
 
     // see org.joda.time.chrono.BasicGJChronology

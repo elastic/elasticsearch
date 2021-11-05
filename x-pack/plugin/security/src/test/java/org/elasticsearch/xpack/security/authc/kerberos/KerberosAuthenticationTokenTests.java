@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.authc.kerberos;
@@ -19,8 +20,8 @@ import java.util.Base64;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class KerberosAuthenticationTokenTests extends ESTestCase {
@@ -46,46 +47,59 @@ public class KerberosAuthenticationTokenTests extends ESTestCase {
 
     public void testExtractTokenForNegotiateAuthorizationHeaderWithNoTokenShouldThrowException() throws IOException {
         final String header = randomFrom(KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER_PREFIX, "negotiate ", "Negotiate      ");
-        final ElasticsearchSecurityException e =
-                expectThrows(ElasticsearchSecurityException.class, () -> KerberosAuthenticationToken.extractToken(header));
-        assertThat(e.getMessage(),
-                equalTo("invalid negotiate authentication header value, expected base64 encoded token but value is empty"));
+        final ElasticsearchSecurityException e = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> KerberosAuthenticationToken.extractToken(header)
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo("invalid negotiate authentication header value, expected base64 encoded token but value is empty")
+        );
         assertContainsAuthenticateHeader(e);
     }
 
     public void testExtractTokenForNotBase64EncodedTokenThrowsException() throws IOException {
         final String notBase64Token = "[B@6499375d";
 
-        final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
-                () -> KerberosAuthenticationToken.extractToken(KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER_PREFIX + notBase64Token));
-        assertThat(e.getMessage(),
-                equalTo("invalid negotiate authentication header value, could not decode base64 token " + notBase64Token));
+        final ElasticsearchSecurityException e = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> KerberosAuthenticationToken.extractToken(KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER_PREFIX + notBase64Token)
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo("invalid negotiate authentication header value, could not decode base64 token " + notBase64Token)
+        );
         assertContainsAuthenticateHeader(e);
     }
 
     public void testKerberoAuthenticationTokenClearCredentials() {
         byte[] inputBytes = randomByteArrayOfLength(5);
         final String base64Token = Base64.getEncoder().encodeToString(inputBytes);
-        final KerberosAuthenticationToken kerbAuthnToken =
-                KerberosAuthenticationToken.extractToken(KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER_PREFIX + base64Token);
+        final KerberosAuthenticationToken kerbAuthnToken = KerberosAuthenticationToken.extractToken(
+            KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER_PREFIX + base64Token
+        );
         kerbAuthnToken.clearCredentials();
         Arrays.fill(inputBytes, (byte) 0);
         assertArrayEquals(inputBytes, (byte[]) kerbAuthnToken.credentials());
     }
 
     public void testEqualsHashCode() {
-        final KerberosAuthenticationToken kerberosAuthenticationToken =
-                new KerberosAuthenticationToken("base64EncodedToken".getBytes(StandardCharsets.UTF_8));
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(kerberosAuthenticationToken, (original) -> {
-            return new KerberosAuthenticationToken((byte[]) original.credentials());
-        });
+        final KerberosAuthenticationToken kerberosAuthenticationToken = new KerberosAuthenticationToken(
+            "base64EncodedToken".getBytes(StandardCharsets.UTF_8)
+        );
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            kerberosAuthenticationToken,
+            (original) -> { return new KerberosAuthenticationToken((byte[]) original.credentials()); }
+        );
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(kerberosAuthenticationToken, (original) -> {
             byte[] originalCreds = (byte[]) original.credentials();
             return new KerberosAuthenticationToken(Arrays.copyOf(originalCreds, originalCreds.length));
         });
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(kerberosAuthenticationToken, (original) -> {
-            return new KerberosAuthenticationToken((byte[]) original.credentials());
-        }, KerberosAuthenticationTokenTests::mutateTestItem);
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            kerberosAuthenticationToken,
+            (original) -> { return new KerberosAuthenticationToken((byte[]) original.credentials()); },
+            KerberosAuthenticationTokenTests::mutateTestItem
+        );
     }
 
     private static KerberosAuthenticationToken mutateTestItem(KerberosAuthenticationToken original) {

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search;
@@ -22,14 +11,14 @@ package org.elasticsearch.search;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.SearchHit.NestedIdentity;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -73,12 +62,9 @@ public class NestedIdentityTests extends ESTestCase {
         nestedIdentity.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         assertEquals(
-              "{\n" +
-              "  \"_nested\" : {\n" +
-              "    \"field\" : \"foo\",\n" +
-              "    \"offset\" : 5\n" +
-              "  }\n" +
-              "}", Strings.toString(builder));
+            "{\n" + "  \"_nested\" : {\n" + "    \"field\" : \"foo\",\n" + "    \"offset\" : 5\n" + "  }\n" + "}",
+            Strings.toString(builder)
+        );
 
         nestedIdentity = new NestedIdentity("foo", 5, new NestedIdentity("bar", 3, null));
         builder = JsonXContent.contentBuilder();
@@ -87,16 +73,18 @@ public class NestedIdentityTests extends ESTestCase {
         nestedIdentity.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         assertEquals(
-              "{\n" +
-              "  \"_nested\" : {\n" +
-              "    \"field\" : \"foo\",\n" +
-              "    \"offset\" : 5,\n" +
-              "    \"_nested\" : {\n" +
-              "      \"field\" : \"bar\",\n" +
-              "      \"offset\" : 3\n" +
-              "    }\n" +
-              "  }\n" +
-              "}", Strings.toString(builder));
+            "{\n"
+                + "  \"_nested\" : {\n"
+                + "    \"field\" : \"foo\",\n"
+                + "    \"offset\" : 5,\n"
+                + "    \"_nested\" : {\n"
+                + "      \"field\" : \"bar\",\n"
+                + "      \"offset\" : 3\n"
+                + "    }\n"
+                + "  }\n"
+                + "}",
+            Strings.toString(builder)
+        );
     }
 
     /**
@@ -125,10 +113,9 @@ public class NestedIdentityTests extends ESTestCase {
         }
         List<Supplier<NestedIdentity>> mutations = new ArrayList<>();
         int offset = original.getOffset();
-        NestedIdentity child = (NestedIdentity) original.getChild();
+        NestedIdentity child = original.getChild();
         String fieldName = original.getField().string();
-        mutations.add(() ->
-            new NestedIdentity(original.getField().string() + "_prefix", offset, child));
+        mutations.add(() -> new NestedIdentity(original.getField().string() + "_prefix", offset, child));
         mutations.add(() -> new NestedIdentity(fieldName, offset + 1, child));
         mutations.add(() -> new NestedIdentity(fieldName, offset, mutate(child)));
         return randomFrom(mutations).get();

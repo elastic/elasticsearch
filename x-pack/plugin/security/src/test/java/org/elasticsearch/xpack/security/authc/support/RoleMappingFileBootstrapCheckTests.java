@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.support;
 
@@ -29,24 +30,20 @@ public class RoleMappingFileBootstrapCheckTests extends AbstractBootstrapCheckTe
 
     private static final RealmConfig.RealmIdentifier REALM_ID = new RealmConfig.RealmIdentifier("ldap", "ldap-realm-name");
     private static final String ROLE_MAPPING_FILE_SETTING = RealmSettings.getFullSettingKey(
-            REALM_ID, DnRoleMapperSettings.ROLE_MAPPING_FILE_SETTING);
+        REALM_ID,
+        DnRoleMapperSettings.ROLE_MAPPING_FILE_SETTING
+    );
 
     protected Settings settings;
 
     @Before
     public void init() throws IOException {
-        settings = Settings.builder()
-                .put("resource.reload.interval.high", "100ms")
-                .put("path.home", createTempDir())
-                .build();
+        settings = Settings.builder().put("resource.reload.interval.high", "100ms").put("path.home", createTempDir()).build();
     }
 
     public void testBootstrapCheckOfValidFile() {
         Path file = getDataPath("role_mapping.yml");
-        Settings ldapSettings = Settings.builder()
-                .put(settings)
-                .put(ROLE_MAPPING_FILE_SETTING, file.toAbsolutePath())
-                .build();
+        Settings ldapSettings = Settings.builder().put(settings).put(ROLE_MAPPING_FILE_SETTING, file.toAbsolutePath()).build();
         RealmConfig config = getRealmConfig(ldapSettings);
         final BootstrapCheck check = RoleMappingFileBootstrapCheck.create(config);
         assertThat(check, notNullValue());
@@ -55,16 +52,18 @@ public class RoleMappingFileBootstrapCheckTests extends AbstractBootstrapCheckTe
     }
 
     private static RealmConfig getRealmConfig(Settings settings) {
-        return new RealmConfig(REALM_ID, settings, TestEnvironment.newEnvironment(settings), new ThreadContext(Settings.EMPTY));
+        return new RealmConfig(
+            REALM_ID,
+            Settings.builder().put(settings).put(RealmSettings.getFullSettingKey(REALM_ID, RealmSettings.ORDER_SETTING), 0).build(),
+            TestEnvironment.newEnvironment(settings),
+            new ThreadContext(Settings.EMPTY)
+        );
     }
 
     public void testBootstrapCheckOfMissingFile() {
         final String fileName = randomAlphaOfLength(10);
         Path file = createTempDir().resolve(fileName);
-        Settings ldapSettings = Settings.builder()
-                .put(settings)
-                .put(ROLE_MAPPING_FILE_SETTING, file.toAbsolutePath())
-                .build();
+        Settings ldapSettings = Settings.builder().put(settings).put(ROLE_MAPPING_FILE_SETTING, file.toAbsolutePath()).build();
         RealmConfig config = getRealmConfig(ldapSettings);
         final BootstrapCheck check = RoleMappingFileBootstrapCheck.create(config);
         assertThat(check, notNullValue());
@@ -81,10 +80,7 @@ public class RoleMappingFileBootstrapCheckTests extends AbstractBootstrapCheckTe
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
         Files.write(file, Collections.singletonList("junk"), StandardCharsets.UTF_16);
 
-        Settings ldapSettings = Settings.builder()
-                .put(settings)
-                .put(ROLE_MAPPING_FILE_SETTING, file.toAbsolutePath())
-                .build();
+        Settings ldapSettings = Settings.builder().put(settings).put(ROLE_MAPPING_FILE_SETTING, file.toAbsolutePath()).build();
         RealmConfig config = getRealmConfig(ldapSettings);
         final BootstrapCheck check = RoleMappingFileBootstrapCheck.create(config);
         assertThat(check, notNullValue());
@@ -101,10 +97,7 @@ public class RoleMappingFileBootstrapCheckTests extends AbstractBootstrapCheckTe
         // A DN must have at least 1 '=' symbol
         Files.write(file, Collections.singletonList("role: not-a-dn"));
 
-        Settings ldapSettings = Settings.builder()
-                .put(settings)
-                .put(ROLE_MAPPING_FILE_SETTING, file.toAbsolutePath())
-                .build();
+        Settings ldapSettings = Settings.builder().put(settings).put(ROLE_MAPPING_FILE_SETTING, file.toAbsolutePath()).build();
         RealmConfig config = getRealmConfig(ldapSettings);
         final BootstrapCheck check = RoleMappingFileBootstrapCheck.create(config);
         assertThat(check, notNullValue());

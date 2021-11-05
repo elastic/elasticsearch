@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.cleaner;
 
@@ -10,9 +11,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractLifecycleRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,8 +39,13 @@ public class CleanerService extends AbstractLifecycleComponent {
 
     private volatile TimeValue globalRetention;
 
-    CleanerService(Settings settings, ClusterSettings clusterSettings, XPackLicenseState licenseState, ThreadPool threadPool,
-                   ExecutionScheduler executionScheduler) {
+    CleanerService(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        XPackLicenseState licenseState,
+        ThreadPool threadPool,
+        ExecutionScheduler executionScheduler
+    ) {
         this.licenseState = licenseState;
         this.threadPool = threadPool;
         this.executionScheduler = executionScheduler;
@@ -57,8 +63,7 @@ public class CleanerService extends AbstractLifecycleComponent {
     @Override
     protected void doStart() {
         logger.debug("starting cleaning service");
-        threadPool.schedule(runnable, executionScheduler.nextExecutionDelay(ZonedDateTime.now(Clock.systemDefaultZone())),
-            executorName());
+        threadPool.schedule(runnable, executionScheduler.nextExecutionDelay(ZonedDateTime.now(Clock.systemDefaultZone())), executorName());
         logger.debug("cleaning service started");
     }
 
@@ -82,36 +87,19 @@ public class CleanerService extends AbstractLifecycleComponent {
 
     /**
      * Get the retention that can be used.
-     * <p>
-     * This will ignore the global retention if the license does not allow retention updates.
      *
      * @return Never {@code null}
-     * @see XPackLicenseState#isUpdateRetentionAllowed()
      */
     public TimeValue getRetention() {
-        // we only care about their value if they are allowed to set it
-        if (licenseState.isUpdateRetentionAllowed() && globalRetention != null) {
-            return globalRetention;
-        }
-        else {
-            return MonitoringField.HISTORY_DURATION.getDefault(Settings.EMPTY);
-        }
+        return globalRetention;
     }
 
     /**
      * Set the global retention. This is expected to be used by the cluster settings to dynamically control the global retention time.
-     * <p>
-     * Even if the current license prevents retention updates, it will accept the change so that they do not need to re-set it if they
-     * upgrade their license (they can always unset it).
      *
      * @param globalRetention The global retention to use dynamically.
      */
     public void setGlobalRetention(TimeValue globalRetention) {
-        // notify the user that their setting will be ignored until they get the right license
-        if (licenseState.isUpdateRetentionAllowed() == false) {
-            logger.warn("[{}] setting will be ignored until an appropriate license is applied", MonitoringField.HISTORY_DURATION.getKey());
-        }
-
         this.globalRetention = globalRetention;
     }
 
@@ -165,11 +153,6 @@ public class CleanerService extends AbstractLifecycleComponent {
 
         @Override
         protected void doRunInLifecycle() throws Exception {
-            if (licenseState.isMonitoringAllowed() == false) {
-                logger.debug("cleaning service is disabled due to invalid license");
-                return;
-            }
-
             // fetch the retention, which is depends on a bunch of rules
             TimeValue retention = getRetention();
 
@@ -246,9 +229,7 @@ public class CleanerService extends AbstractLifecycleComponent {
         @Override
         public TimeValue nextExecutionDelay(ZonedDateTime now) {
             // Runs at 01:00 AM today or the next day if it's too late
-            ZonedDateTime next = now.toLocalDate()
-                .atStartOfDay(now.getZone())
-                .plusHours(1);
+            ZonedDateTime next = now.toLocalDate().atStartOfDay(now.getZone()).plusHours(1);
             // if it's not after now, then it needs to be the next day!
             if (next.isAfter(now) == false) {
                 next = next.plusDays(1);

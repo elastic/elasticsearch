@@ -1,60 +1,55 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.stats.IndexStats;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.AliasAction;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
-import org.elasticsearch.cluster.metadata.MetaDataIndexAliasesService;
-import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.regex.Pattern;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 /**
@@ -62,233 +57,323 @@ import java.util.stream.Collectors;
  */
 public class TransportRolloverAction extends TransportMasterNodeAction<RolloverRequest, RolloverResponse> {
 
-    private static final Pattern INDEX_NAME_PATTERN = Pattern.compile("^.*-\\d+$");
-    private final MetaDataCreateIndexService createIndexService;
-    private final MetaDataIndexAliasesService indexAliasesService;
+    private static final Logger logger = LogManager.getLogger(TransportRolloverAction.class);
+    private static final ClusterStateTaskConfig ROLLOVER_TASK_CONFIG = ClusterStateTaskConfig.build(Priority.NORMAL);
+
+    private final MetadataRolloverService rolloverService;
     private final ActiveShardsObserver activeShardsObserver;
     private final Client client;
+    private final ClusterStateTaskExecutor<RolloverTask> rolloverTaskExecutor;
 
     @Inject
-    public TransportRolloverAction(TransportService transportService, ClusterService clusterService,
-                                   ThreadPool threadPool, MetaDataCreateIndexService createIndexService,
-                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                   MetaDataIndexAliasesService indexAliasesService, Client client) {
-        super(RolloverAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-            RolloverRequest::new);
-        this.createIndexService = createIndexService;
-        this.indexAliasesService = indexAliasesService;
+    public TransportRolloverAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        MetadataRolloverService rolloverService,
+        Client client,
+        AllocationService allocationService
+    ) {
+        super(
+            RolloverAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            RolloverRequest::new,
+            indexNameExpressionResolver,
+            RolloverResponse::new,
+            ThreadPool.Names.SAME
+        );
+        this.rolloverService = rolloverService;
         this.client = client;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
-    }
+        this.rolloverTaskExecutor = (currentState, tasks) -> {
+            ClusterStateTaskExecutor.ClusterTasksResult.Builder<RolloverTask> builder = ClusterStateTaskExecutor.ClusterTasksResult
+                .builder();
+            ClusterState state = currentState;
+            for (RolloverTask task : tasks) {
+                try {
+                    state = task.performRollover(state);
+                    builder.success(task);
+                } catch (Exception e) {
+                    builder.failure(task, e);
+                }
+            }
 
-    @Override
-    protected String executor() {
-        // we go async right away
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected RolloverResponse newResponse() {
-        return new RolloverResponse();
+            if (state != currentState) {
+                var reason = new StringBuilder();
+                Strings.collectionToDelimitedStringWithLimit(
+                    (Iterable<String>) () -> tasks.stream().map(t -> t.sourceIndex.get() + "->" + t.rolloverIndex.get()).iterator(),
+                    ",",
+                    "bulk rollover [",
+                    "]",
+                    1024,
+                    reason
+                );
+                state = allocationService.reroute(state, reason.toString());
+            }
+            return builder.build(state);
+        };
     }
 
     @Override
     protected ClusterBlockException checkBlock(RolloverRequest request, ClusterState state) {
-        IndicesOptions indicesOptions = IndicesOptions.fromOptions(true, true,
-            request.indicesOptions().expandWildcardsOpen(), request.indicesOptions().expandWildcardsClosed());
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE,
-            indexNameExpressionResolver.concreteIndexNames(state, indicesOptions, request.indices()));
+        IndicesOptions indicesOptions = IndicesOptions.fromOptions(
+            true,
+            true,
+            request.indicesOptions().expandWildcardsOpen(),
+            request.indicesOptions().expandWildcardsClosed()
+        );
+
+        return state.blocks()
+            .indicesBlockedException(
+                ClusterBlockLevel.METADATA_WRITE,
+                indexNameExpressionResolver.concreteIndexNames(state, indicesOptions, request)
+            );
     }
 
     @Override
-    protected void masterOperation(final RolloverRequest rolloverRequest, final ClusterState state,
-                                   final ActionListener<RolloverResponse> listener) {
-        final MetaData metaData = state.metaData();
-        validate(metaData, rolloverRequest);
-        final AliasOrIndex.Alias alias = (AliasOrIndex.Alias) metaData.getAliasAndIndexLookup().get(rolloverRequest.getAlias());
-        final IndexMetaData indexMetaData = alias.getWriteIndex();
-        final boolean explicitWriteIndex = Boolean.TRUE.equals(indexMetaData.getAliases().get(alias.getAliasName()).writeIndex());
-        final String sourceProvidedName = indexMetaData.getSettings().get(IndexMetaData.SETTING_INDEX_PROVIDED_NAME,
-            indexMetaData.getIndex().getName());
-        final String sourceIndexName = indexMetaData.getIndex().getName();
-        final String unresolvedName = (rolloverRequest.getNewIndexName() != null)
-            ? rolloverRequest.getNewIndexName()
-            : generateRolloverIndexName(sourceProvidedName, indexNameExpressionResolver);
-        final String rolloverIndexName = indexNameExpressionResolver.resolveDateMathExpression(unresolvedName);
-        MetaDataCreateIndexService.validateIndexName(rolloverIndexName, state); // will fail if the index already exists
-        checkNoDuplicatedAliasInIndexTemplate(metaData, rolloverIndexName, rolloverRequest.getAlias());
-        client.admin().indices().prepareStats(rolloverRequest.getAlias()).clear().setDocs(true).execute(
-            new ActionListener<IndicesStatsResponse>() {
-                @Override
-                public void onResponse(IndicesStatsResponse statsResponse) {
-                    final Map<String, Boolean> conditionResults = evaluateConditions(rolloverRequest.getConditions().values(),
-                        metaData.index(sourceIndexName), statsResponse);
+    protected void masterOperation(
+        Task task,
+        final RolloverRequest rolloverRequest,
+        final ClusterState oldState,
+        final ActionListener<RolloverResponse> listener
+    ) throws Exception {
 
-                    if (rolloverRequest.isDryRun()) {
-                        listener.onResponse(
-                            new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults, true, false, false, false));
-                        return;
-                    }
-                    List<Condition<?>> metConditions =  rolloverRequest.getConditions().values().stream()
-                        .filter(condition -> conditionResults.get(condition.toString())).collect(Collectors.toList());
-                    if (conditionResults.size() == 0 || metConditions.size() > 0) {
-                        CreateIndexClusterStateUpdateRequest updateRequest = prepareCreateIndexRequest(unresolvedName, rolloverIndexName,
-                            rolloverRequest);
-                        createIndexService.createIndex(updateRequest, ActionListener.wrap(createIndexClusterStateUpdateResponse -> {
-                            final IndicesAliasesClusterStateUpdateRequest aliasesUpdateRequest;
-                            if (explicitWriteIndex) {
-                                aliasesUpdateRequest = prepareRolloverAliasesWriteIndexUpdateRequest(sourceIndexName,
-                                    rolloverIndexName, rolloverRequest);
-                            } else {
-                                aliasesUpdateRequest = prepareRolloverAliasesUpdateRequest(sourceIndexName,
-                                    rolloverIndexName, rolloverRequest);
-                            }
-                            indexAliasesService.indicesAliases(aliasesUpdateRequest,
-                                ActionListener.wrap(aliasClusterStateUpdateResponse -> {
-                                    if (aliasClusterStateUpdateResponse.isAcknowledged()) {
-                                        clusterService.submitStateUpdateTask("update_rollover_info", new ClusterStateUpdateTask() {
-                                            @Override
-                                            public ClusterState execute(ClusterState currentState) {
-                                                RolloverInfo rolloverInfo = new RolloverInfo(rolloverRequest.getAlias(), metConditions,
-                                                    threadPool.absoluteTimeInMillis());
-                                                return ClusterState.builder(currentState)
-                                                    .metaData(MetaData.builder(currentState.metaData())
-                                                        .put(IndexMetaData.builder(currentState.metaData().index(sourceIndexName))
-                                                            .putRolloverInfo(rolloverInfo))).build();
-                                            }
+        Metadata metadata = oldState.metadata();
 
-                                            @Override
-                                            public void onFailure(String source, Exception e) {
-                                                listener.onFailure(e);
-                                            }
+        IndicesStatsRequest statsRequest = new IndicesStatsRequest().indices(rolloverRequest.getRolloverTarget())
+            .clear()
+            .indicesOptions(IndicesOptions.fromOptions(true, false, true, true))
+            .docs(true);
+        statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
+        // Rollover can sometimes happen concurrently, to handle these cases, we treat rollover in the same way we would treat a
+        // "synchronized" block, in that we have a "before" world, where we calculate naming and condition matching, we then enter our
+        // synchronization (in this case, the submitStateUpdateTask which is serialized on the master node), where we then regenerate the
+        // names and re-check conditions. More explanation follows inline below.
+        client.execute(
+            IndicesStatsAction.INSTANCE,
+            statsRequest,
 
-                                            @Override
-                                            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                                                activeShardsObserver.waitForActiveShards(new String[]{rolloverIndexName},
-                                                    rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
-                                                    rolloverRequest.masterNodeTimeout(),
-                                                    isShardsAcknowledged -> listener.onResponse(new RolloverResponse(
-                                                        sourceIndexName, rolloverIndexName, conditionResults, false, true, true,
-                                                        isShardsAcknowledged)),
-                                                    listener::onFailure);
-                                            }
-                                        });
-                                    } else {
-                                        listener.onResponse(new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults,
-                                                                                    false, true, false, false));
-                                    }
-                                }, listener::onFailure));
-                        }, listener::onFailure));
-                    } else {
-                        // conditions not met
-                        listener.onResponse(
-                            new RolloverResponse(sourceIndexName, rolloverIndexName, conditionResults, false, false, false, false)
-                        );
-                    }
+            ActionListener.wrap(statsResponse -> {
+                // Now that we have the stats for the cluster, we need to know the
+                // names of the index for which we should evaluate
+                // conditions, as well as what our newly created index *would* be.
+                final MetadataRolloverService.NameResolution trialRolloverNames = rolloverService.resolveRolloverNames(
+                    oldState,
+                    rolloverRequest.getRolloverTarget(),
+                    rolloverRequest.getNewIndexName(),
+                    rolloverRequest.getCreateIndexRequest()
+                );
+                final String trialSourceIndexName = trialRolloverNames.sourceName;
+                final String trialRolloverIndexName = trialRolloverNames.rolloverName;
+
+                rolloverService.validateIndexName(oldState, trialRolloverIndexName);
+
+                // Evaluate the conditions, so that we can tell without a cluster state update whether a rollover would occur.
+                final Map<String, Boolean> trialConditionResults = evaluateConditions(
+                    rolloverRequest.getConditions().values(),
+                    buildStats(metadata.index(trialSourceIndexName), statsResponse)
+                );
+
+                // If this is a dry run, return with the results without invoking a cluster state update
+                if (rolloverRequest.isDryRun()) {
+                    listener.onResponse(
+                        new RolloverResponse(trialSourceIndexName, trialRolloverIndexName, trialConditionResults, true, false, false, false)
+                    );
+                    return;
                 }
 
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
+                final List<Condition<?>> trialMetConditions = rolloverRequest.getConditions()
+                    .values()
+                    .stream()
+                    .filter(condition -> trialConditionResults.get(condition.toString()))
+                    .collect(Collectors.toList());
+
+                final RolloverResponse trailRolloverResponse = new RolloverResponse(
+                    trialSourceIndexName,
+                    trialRolloverIndexName,
+                    trialConditionResults,
+                    false,
+                    false,
+                    false,
+                    false
+                );
+
+                // Pre-check the conditions to see whether we should submit a new cluster state task
+                if (trialConditionResults.size() == 0 || trialMetConditions.size() > 0) {
+                    String source = "rollover_index source [" + trialRolloverIndexName + "] to target [" + trialRolloverIndexName + "]";
+                    RolloverTask rolloverTask = new RolloverTask(rolloverRequest, statsResponse, trailRolloverResponse, listener);
+                    clusterService.submitStateUpdateTask(source, rolloverTask, ROLLOVER_TASK_CONFIG, rolloverTaskExecutor, rolloverTask);
+                } else {
+                    // conditions not met
+                    listener.onResponse(trailRolloverResponse);
                 }
-            }
+            }, listener::onFailure)
         );
     }
 
-    static IndicesAliasesClusterStateUpdateRequest prepareRolloverAliasesUpdateRequest(String oldIndex, String newIndex,
-                                                                                       RolloverRequest request) {
-        final List<AliasAction> actions = List.of(
-                new AliasAction.Add(newIndex, request.getAlias(), null, null, null, null),
-                new AliasAction.Remove(oldIndex, request.getAlias()));
-        return new IndicesAliasesClusterStateUpdateRequest(actions)
-            .ackTimeout(request.ackTimeout())
-            .masterNodeTimeout(request.masterNodeTimeout());
-    }
+    static Map<String, Boolean> evaluateConditions(final Collection<Condition<?>> conditions, @Nullable final Condition.Stats stats) {
+        Objects.requireNonNull(conditions, "conditions must not be null");
 
-    static IndicesAliasesClusterStateUpdateRequest prepareRolloverAliasesWriteIndexUpdateRequest(String oldIndex, String newIndex,
-                                                                                                 RolloverRequest request) {
-        final List<AliasAction> actions = List.of(
-                new AliasAction.Add(newIndex, request.getAlias(), null, null, null, true),
-                new AliasAction.Add(oldIndex, request.getAlias(), null, null, null, false));
-        return new IndicesAliasesClusterStateUpdateRequest(actions)
-            .ackTimeout(request.ackTimeout())
-            .masterNodeTimeout(request.masterNodeTimeout());
-    }
-
-
-    static String generateRolloverIndexName(String sourceIndexName, IndexNameExpressionResolver indexNameExpressionResolver) {
-        String resolvedName = indexNameExpressionResolver.resolveDateMathExpression(sourceIndexName);
-        final boolean isDateMath = sourceIndexName.equals(resolvedName) == false;
-        if (INDEX_NAME_PATTERN.matcher(resolvedName).matches()) {
-            int numberIndex = sourceIndexName.lastIndexOf("-");
-            assert numberIndex != -1 : "no separator '-' found";
-            int counter = Integer.parseInt(sourceIndexName.substring(numberIndex + 1, isDateMath ? sourceIndexName.length()-1 :
-                sourceIndexName.length()));
-            String newName = sourceIndexName.substring(0, numberIndex) + "-" + String.format(Locale.ROOT, "%06d", ++counter)
-                + (isDateMath ? ">" : "");
-            return newName;
+        if (stats != null) {
+            return conditions.stream()
+                .map(condition -> condition.evaluate(stats))
+                .collect(Collectors.toMap(result -> result.condition.toString(), result -> result.matched));
         } else {
-            throw new IllegalArgumentException("index name [" + sourceIndexName + "] does not match pattern '^.*-\\d+$'");
+            // no conditions matched
+            return conditions.stream().collect(Collectors.toMap(Condition::toString, cond -> false));
         }
     }
 
-    static Map<String, Boolean> evaluateConditions(final Collection<Condition<?>> conditions,
-                                                   final DocsStats docsStats, final IndexMetaData metaData) {
-        final long numDocs = docsStats == null ? 0 : docsStats.getCount();
-        final long indexSize = docsStats == null ? 0 : docsStats.getTotalSizeInBytes();
-        final Condition.Stats stats = new Condition.Stats(numDocs, metaData.getCreationDate(), new ByteSizeValue(indexSize));
-        return conditions.stream()
-            .map(condition -> condition.evaluate(stats))
-            .collect(Collectors.toMap(result -> result.condition.toString(), result -> result.matched));
-    }
+    static Condition.Stats buildStats(@Nullable final IndexMetadata metadata, @Nullable final IndicesStatsResponse statsResponse) {
+        if (metadata == null) {
+            return null;
+        } else {
+            final Optional<IndexStats> indexStats = Optional.ofNullable(statsResponse)
+                .map(stats -> stats.getIndex(metadata.getIndex().getName()));
 
-    static Map<String, Boolean> evaluateConditions(final Collection<Condition<?>> conditions, final IndexMetaData metaData,
-                                                    final IndicesStatsResponse statsResponse) {
-        return evaluateConditions(conditions, statsResponse.getIndex(metaData.getIndex().getName()).getPrimaries().getDocs(), metaData);
-    }
+            final DocsStats docsStats = indexStats.map(stats -> stats.getPrimaries().getDocs()).orElse(null);
 
-    static void validate(MetaData metaData, RolloverRequest request) {
-        final AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(request.getAlias());
-        if (aliasOrIndex == null) {
-            throw new IllegalArgumentException("source alias does not exist");
+            final long maxPrimaryShardSize = indexStats.stream()
+                .map(IndexStats::getShards)
+                .filter(Objects::nonNull)
+                .flatMap(Arrays::stream)
+                .filter(shard -> shard.getShardRouting().primary())
+                .map(ShardStats::getStats)
+                .mapToLong(shard -> shard.docs.getTotalSizeInBytes())
+                .max()
+                .orElse(0);
+
+            return new Condition.Stats(
+                docsStats == null ? 0 : docsStats.getCount(),
+                metadata.getCreationDate(),
+                new ByteSizeValue(docsStats == null ? 0 : docsStats.getTotalSizeInBytes()),
+                new ByteSizeValue(maxPrimaryShardSize)
+            );
         }
-        if (aliasOrIndex.isAlias() == false) {
-            throw new IllegalArgumentException("source alias is a concrete index");
-        }
-        final AliasOrIndex.Alias alias = (AliasOrIndex.Alias) aliasOrIndex;
-        if (alias.getWriteIndex() == null) {
-            throw new IllegalArgumentException("source alias [" + alias.getAliasName() + "] does not point to a write index");
-        }
     }
 
-    static CreateIndexClusterStateUpdateRequest prepareCreateIndexRequest(final String providedIndexName, final String targetIndexName,
-                                                                          final RolloverRequest rolloverRequest) {
+    class RolloverTask implements ClusterStateTaskListener {
 
-        final CreateIndexRequest createIndexRequest = rolloverRequest.getCreateIndexRequest();
-        createIndexRequest.cause("rollover_index");
-        createIndexRequest.index(targetIndexName);
-        return new CreateIndexClusterStateUpdateRequest(createIndexRequest,
-            "rollover_index", targetIndexName, providedIndexName)
-            .ackTimeout(createIndexRequest.timeout())
-            .masterNodeTimeout(createIndexRequest.masterNodeTimeout())
-            .settings(createIndexRequest.settings())
-            .aliases(createIndexRequest.aliases())
-            .waitForActiveShards(ActiveShardCount.NONE) // not waiting for shards here, will wait on the alias switch operation
-            .mappings(createIndexRequest.mappings());
-    }
+        private final RolloverRequest rolloverRequest;
+        private final IndicesStatsResponse statsResponse;
+        private final RolloverResponse trialRolloverResponse;
+        private final ActionListener<RolloverResponse> listener;
 
-    /**
-     * If the newly created index matches with an index template whose aliases contains the rollover alias,
-     * the rollover alias will point to multiple indices. This causes indexing requests to be rejected.
-     * To avoid this, we make sure that there is no duplicated alias in index templates before creating a new index.
-     */
-    static void checkNoDuplicatedAliasInIndexTemplate(MetaData metaData, String rolloverIndexName, String rolloverRequestAlias) {
-        final List<IndexTemplateMetaData> matchedTemplates = MetaDataIndexTemplateService.findTemplates(metaData, rolloverIndexName);
-        for (IndexTemplateMetaData template : matchedTemplates) {
-            if (template.aliases().containsKey(rolloverRequestAlias)) {
-                throw new IllegalArgumentException(String.format(Locale.ROOT,
-                    "Rollover alias [%s] can point to multiple indices, found duplicated alias [%s] in index template [%s]",
-                    rolloverRequestAlias, template.aliases().keys(), template.name()));
+        private final AtomicBoolean conditionsMet = new AtomicBoolean(false);
+        // Holders for what our final source and rolled over index names are as well as the
+        // conditions met to cause the rollover, these are needed so we wait on and report
+        // the correct indices and conditions in the clusterStateProcessed method
+        private final SetOnce<String> sourceIndex = new SetOnce<>();
+        private final SetOnce<String> rolloverIndex = new SetOnce<>();
+        private final SetOnce<Map<String, Boolean>> conditionResults = new SetOnce<>();
+
+        RolloverTask(
+            RolloverRequest rolloverRequest,
+            IndicesStatsResponse statsResponse,
+            RolloverResponse trialRolloverResponse,
+            ActionListener<RolloverResponse> listener
+        ) {
+            this.rolloverRequest = rolloverRequest;
+            this.statsResponse = statsResponse;
+            this.trialRolloverResponse = trialRolloverResponse;
+            this.listener = listener;
+        }
+
+        ClusterState performRollover(ClusterState currentState) throws Exception {
+            // Regenerate the rollover names, as a rollover could have happened
+            // in between the pre-check and the cluster state update
+            final MetadataRolloverService.NameResolution rolloverNames = rolloverService.resolveRolloverNames(
+                currentState,
+                rolloverRequest.getRolloverTarget(),
+                rolloverRequest.getNewIndexName(),
+                rolloverRequest.getCreateIndexRequest()
+            );
+            final String sourceIndexName = rolloverNames.sourceName;
+
+            // Re-evaluate the conditions, now with our final source index name
+            final Map<String, Boolean> postConditionResults = evaluateConditions(
+                rolloverRequest.getConditions().values(),
+                buildStats(currentState.metadata().index(sourceIndexName), statsResponse)
+            );
+            final List<Condition<?>> metConditions = rolloverRequest.getConditions()
+                .values()
+                .stream()
+                .filter(condition -> postConditionResults.get(condition.toString()))
+                .collect(Collectors.toList());
+            // Update the final condition results so they can be used when returning the response
+            conditionResults.set(postConditionResults);
+
+            if (postConditionResults.size() == 0 || metConditions.size() > 0) {
+                conditionsMet.set(true);
+                // Perform the actual rollover
+                MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
+                    currentState,
+                    rolloverRequest.getRolloverTarget(),
+                    rolloverRequest.getNewIndexName(),
+                    rolloverRequest.getCreateIndexRequest(),
+                    metConditions,
+                    false,
+                    false
+                );
+                logger.trace("rollover result [{}]", rolloverResult);
+
+                // Update the "final" source and resulting rollover index names.
+                // Note that we use the actual rollover result for these, because
+                // even though we're single threaded, it's possible for the
+                // rollover names generated before the actual rollover to be
+                // different due to things like date resolution
+                sourceIndex.set(rolloverResult.sourceIndexName);
+                rolloverIndex.set(rolloverResult.rolloverIndexName);
+
+                // Return the new rollover cluster state, which includes the changes that create the new index
+                return rolloverResult.clusterState;
+            } else {
+                // Upon re-evaluation of the conditions, none were met, so
+                // therefore do not perform a rollover, returning the current
+                // cluster state.
+                return currentState;
+            }
+        }
+
+        @Override
+        public void onFailure(String source, Exception e) {
+            listener.onFailure(e);
+        }
+
+        @Override
+        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            // Now assuming we have a new state and the name of the rolled over index, we need to wait for the
+            // configured number of active shards, as well as return the names of the indices that were rolled/created
+            if (conditionsMet.get()) {
+                assert sourceIndex.get() != null : "source index missing on successful rollover";
+                assert rolloverIndex.get() != null : "rollover index missing on successful rollover";
+                assert conditionResults.get() != null : "matching rollover conditions missing on successful rollover";
+
+                activeShardsObserver.waitForActiveShards(
+                    new String[] { rolloverIndex.get() },
+                    rolloverRequest.getCreateIndexRequest().waitForActiveShards(),
+                    rolloverRequest.masterNodeTimeout(),
+                    isShardsAcknowledged -> listener.onResponse(
+                        new RolloverResponse(
+                            sourceIndex.get(),
+                            rolloverIndex.get(),
+                            conditionResults.get(),
+                            false,
+                            true,
+                            true,
+                            isShardsAcknowledged
+                        )
+                    ),
+                    listener::onFailure
+                );
+            } else {
+                // We did not roll over due to conditions not being met inside the cluster state update
+                listener.onResponse(trialRolloverResponse);
             }
         }
     }

@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.oidc;
 
 import com.nimbusds.oauth2.sdk.id.Issuer;
-import org.elasticsearch.common.Nullable;
+
+import org.elasticsearch.core.Nullable;
 
 import java.net.URI;
 import java.util.Objects;
@@ -22,10 +24,16 @@ public class OpenIdConnectProviderConfiguration {
     private final Issuer issuer;
     private final String jwkSetPath;
 
-    public OpenIdConnectProviderConfiguration(Issuer issuer, String jwkSetPath, URI authorizationEndpoint,
-                                              URI tokenEndpoint, @Nullable URI userinfoEndpoint, @Nullable URI endsessionEndpoint) {
+    public OpenIdConnectProviderConfiguration(
+        Issuer issuer,
+        String jwkSetPath,
+        URI authorizationEndpoint,
+        @Nullable URI tokenEndpoint,
+        @Nullable URI userinfoEndpoint,
+        @Nullable URI endsessionEndpoint
+    ) {
         this.authorizationEndpoint = Objects.requireNonNull(authorizationEndpoint, "Authorization Endpoint must be provided");
-        this.tokenEndpoint = Objects.requireNonNull(tokenEndpoint, "Token Endpoint must be provided");
+        this.tokenEndpoint = tokenEndpoint;
         this.userinfoEndpoint = userinfoEndpoint;
         this.endsessionEndpoint = endsessionEndpoint;
         this.issuer = Objects.requireNonNull(issuer, "OP Issuer must be provided");

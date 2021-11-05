@@ -1,0 +1,33 @@
+--
+:api: ccr-resume-auto-follow-pattern
+:request: ResumeAutoFollowPatternRequest
+:response: AcknowledgedResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Resume Auto Follow Pattern API
+
+[id="{upid}-{api}-request"]
+==== Request
+
+The Resume Auto Follow Pattern API allows you to resume the activity
+ for a pause auto follow pattern.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The name of the auto follow pattern.
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ indicates if the resume auto follow pattern request was received.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Whether or not the resume auto follow pattern request was acknowledged.
+
+include::../execution.asciidoc[]

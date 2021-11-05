@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing.allocation.command;
@@ -27,12 +16,12 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Optional;
@@ -108,29 +97,49 @@ public class AllocateStalePrimaryAllocationCommand extends BasePrimaryAllocation
             return explainOrThrowMissingRoutingNode(allocation, explain, discoNode);
         }
 
-        final ShardRouting shardRouting;
         try {
-            shardRouting = allocation.routingTable().shardRoutingTable(index, shardId).primaryShard();
+            allocation.routingTable().shardRoutingTable(index, shardId).primaryShard();
         } catch (IndexNotFoundException | ShardNotFoundException e) {
             return explainOrThrowRejectedCommand(explain, allocation, e);
         }
-        if (shardRouting.unassigned() == false) {
+
+        ShardRouting shardRouting = null;
+        for (ShardRouting shard : allocation.routingNodes().unassigned()) {
+            if (shard.getIndexName().equals(index) && shard.getId() == shardId && shard.primary()) {
+                shardRouting = shard;
+                break;
+            }
+        }
+        if (shardRouting == null) {
             return explainOrThrowRejectedCommand(explain, allocation, "primary [" + index + "][" + shardId + "] is already assigned");
         }
 
         if (acceptDataLoss == false) {
-            String dataLossWarning = "allocating an empty primary for [" + index + "][" + shardId + "] can result in data loss. Please " +
-                "confirm by setting the accept_data_loss parameter to true";
+            String dataLossWarning = "allocating an empty primary for ["
+                + index
+                + "]["
+                + shardId
+                + "] can result in data loss. Please "
+                + "confirm by setting the accept_data_loss parameter to true";
             return explainOrThrowRejectedCommand(explain, allocation, dataLossWarning);
         }
 
         if (shardRouting.recoverySource().getType() != RecoverySource.Type.EXISTING_STORE) {
-            return explainOrThrowRejectedCommand(explain, allocation,
-                "trying to allocate an existing primary shard [" + index + "][" + shardId + "], while no such shard has ever been active");
+            return explainOrThrowRejectedCommand(
+                explain,
+                allocation,
+                "trying to allocate an existing primary shard [" + index + "][" + shardId + "], while no such shard has ever been active"
+            );
         }
 
-        initializeUnassignedShard(allocation, routingNodes, routingNode, shardRouting, null,
-            RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE);
+        initializeUnassignedShard(
+            allocation,
+            routingNodes,
+            routingNode,
+            shardRouting,
+            null,
+            RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE
+        );
         return new RerouteExplanation(this, allocation.decision(Decision.YES, name() + " (allocation command)", "ignore deciders"));
     }
 

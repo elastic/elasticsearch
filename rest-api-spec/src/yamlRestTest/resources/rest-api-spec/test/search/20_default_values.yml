@@ -1,0 +1,85 @@
+setup:
+  - do:
+      indices.create:
+          index:  test_2
+  - do:
+      indices.create:
+          index:  test_1
+  - do:
+      index:
+          index:  test_1
+          id:     1
+          body:   { foo: bar }
+
+  - do:
+      index:
+          index:  test_2
+          id:     42
+          body:   { foo: bar }
+
+  - do:
+      indices.refresh:
+        index: [test_1, test_2]
+
+---
+"Basic search":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: _all
+        body:
+          query:
+            match:
+              foo: bar
+
+  - match: {hits.total: 2}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_1
+        body:
+          query:
+            match:
+              foo: bar
+
+  - match: {hits.total: 1}
+  - match: {hits.hits.0._index: test_1 }
+  - match: {hits.hits.0._id:    "1"    }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_2
+        body:
+          query:
+            match:
+              foo: bar
+
+  - match: {hits.total: 1}
+  - match: {hits.hits.0._index: test_2 }
+  - match: {hits.hits.0._id:    "42"   }
+
+---
+"Search body without query element":
+
+    - do:
+        catch: bad_request
+        search:
+          rest_total_hits_as_int: true
+          body:
+            match:
+              foo: bar
+
+---
+"Search with new response format":
+
+  - do:
+      search:
+        body:
+          query:
+            match_all: {}
+
+  - match: {hits.total.value: 2}
+  - match: {hits.total.relation: eq}

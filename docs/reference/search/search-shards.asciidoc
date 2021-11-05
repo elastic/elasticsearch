@@ -1,38 +1,91 @@
 [[search-shards]]
-== Search Shards API
+=== Search shards API
+++++
+<titleabbrev>Search shards</titleabbrev>
+++++
+
+Returns the indices and shards that a search request would be executed against.
+
+[source,console]
+--------------------------------------------------
+GET /my-index-000001/_search_shards
+--------------------------------------------------
+// TEST[s/^/PUT my-index-000001\n{"settings":{"index.number_of_shards":5}}\n/]
+
+
+[[search-shards-api-request]]
+==== {api-request-title}
+
+`GET /<target>/_search_shards`
+
+[[search-shards-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`view_index_metadata` or `manage` <<privileges-list-indices,index privilege>>
+for the target data stream, index, or alias.
+
+[[search-shards-api-desc]]
+==== {api-description-title}
 
 The search shards api returns the indices and shards that a search request would
 be executed against. This can give useful feedback for working out issues or
 planning optimizations with routing and shard preferences. When filtered aliases
-are used, the filter is returned as part of the `indices` section [5.1.0] Added in 5.1.0.
+are used, the filter is returned as part of the `indices` section.
 
-The `index` may be a single value, or comma-separated.
 
-[float]
-=== Usage
+[[search-shards-api-path-params]]
+==== {api-path-parms-title}
 
-Full example:
+`<target>`::
+(Optional, string) Comma-separated list of data streams, indices, and aliases to
+search. Supports wildcards (`*`). To search all data streams and indices, omit
+this parameter or use `*` or `_all`.
 
-[source,js]
+[[search-shards-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `true`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
++
+--
+Defaults to `open`.
+--
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=preference]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
+
+
+[[search-shards-api-example]]
+==== {api-examples-title}
+
+[source,console]
 --------------------------------------------------
-GET /twitter/_search_shards
+GET /my-index-000001/_search_shards
 --------------------------------------------------
-// CONSOLE
-// TEST[s/^/PUT twitter\n{"settings":{"index.number_of_shards":5}}\n/]
+// TEST[s/^/PUT my-index-000001\n{"settings":{"index.number_of_shards":5}}\n/]
 
-This will yield the following result:
+The API returns the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "nodes": ...,
   "indices" : {
-    "twitter": { }
+    "my-index-000001": { }
   },
   "shards": [
     [
       {
-        "index": "twitter",
+        "index": "my-index-000001",
         "node": "JklnKbD7Tyqi9TP3_Q_tBg",
         "primary": true,
         "shard": 0,
@@ -43,7 +96,7 @@ This will yield the following result:
     ],
     [
       {
-        "index": "twitter",
+        "index": "my-index-000001",
         "node": "JklnKbD7Tyqi9TP3_Q_tBg",
         "primary": true,
         "shard": 1,
@@ -54,7 +107,7 @@ This will yield the following result:
     ],
     [
       {
-        "index": "twitter",
+        "index": "my-index-000001",
         "node": "JklnKbD7Tyqi9TP3_Q_tBg",
         "primary": true,
         "shard": 2,
@@ -65,7 +118,7 @@ This will yield the following result:
     ],
     [
       {
-        "index": "twitter",
+        "index": "my-index-000001",
         "node": "JklnKbD7Tyqi9TP3_Q_tBg",
         "primary": true,
         "shard": 3,
@@ -76,7 +129,7 @@ This will yield the following result:
     ],
     [
       {
-        "index": "twitter",
+        "index": "my-index-000001",
         "node": "JklnKbD7Tyqi9TP3_Q_tBg",
         "primary": true,
         "shard": 4,
@@ -96,28 +149,27 @@ This will yield the following result:
 // TESTRESPONSE[s/bU_KLGJISbW0RejwnwDPKw/$body.shards.3.0.allocation_id.id/]
 // TESTRESPONSE[s/DMs7_giNSwmdqVukF7UydA/$body.shards.4.0.allocation_id.id/]
 
-And specifying the same request, this time with a routing value:
+Specifying the same request, this time with a routing value:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-GET /twitter/_search_shards?routing=foo,bar
+GET /my-index-000001/_search_shards?routing=foo,bar
 --------------------------------------------------
-// CONSOLE
-// TEST[s/^/PUT twitter\n{"settings":{"index.number_of_shards":5}}\n/]
+// TEST[s/^/PUT my-index-000001\n{"settings":{"index.number_of_shards":5}}\n/]
 
-This will yield the following result:
+The API returns the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "nodes": ...,
   "indices" : {
-      "twitter": { }
+      "my-index-000001": { }
   },
   "shards": [
     [
       {
-        "index": "twitter",
+        "index": "my-index-000001",
         "node": "JklnKbD7Tyqi9TP3_Q_tBg",
         "primary": true,
         "shard": 2,
@@ -128,7 +180,7 @@ This will yield the following result:
     ],
     [
       {
-        "index": "twitter",
+        "index": "my-index-000001",
         "node": "JklnKbD7Tyqi9TP3_Q_tBg",
         "primary": true,
         "shard": 3,
@@ -145,24 +197,5 @@ This will yield the following result:
 // TESTRESPONSE[s/0TvkCyF7TAmM1wHP4a42-A/$body.shards.1.0.allocation_id.id/]
 // TESTRESPONSE[s/fMju3hd1QHWmWrIgFnI4Ww/$body.shards.0.0.allocation_id.id/]
 
-This time the search will only be executed against two of the shards, because
-routing values have been specified.
-
-[float]
-=== All parameters:
-
-[horizontal]
-`routing`::
-    A comma-separated list of routing values to take into account when
-    determining which shards a request would be executed against.
-
-`preference`::
-    Controls a `preference` of which shard replicas to execute the search
-    request on. By default, the operation is randomized between the shard
-    replicas. See the link:search-request-preference.html[preference]
-    documentation for a list of all acceptable values.
-
-`local`::
-    A boolean value whether to read the cluster state locally in order to
-    determine where shards are allocated instead of using the Master node's
-    cluster state.
+Because of the specified routing values,
+the search is only executed against two of the shards.

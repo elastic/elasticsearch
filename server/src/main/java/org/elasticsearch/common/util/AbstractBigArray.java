@@ -1,28 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.core.Releasables;
 
 import java.lang.reflect.Array;
 import java.util.Arrays;
@@ -110,7 +99,7 @@ abstract class AbstractBigArray extends AbstractArray {
         cache[page] = v;
         assert Array.getLength(v.v()) == expectedSize;
         return v.v();
-      }
+    }
 
     protected final byte[] newBytePage(int page) {
         if (recycler != null) {
@@ -118,24 +107,6 @@ abstract class AbstractBigArray extends AbstractArray {
             return registerNewPage(v, page, PageCacheRecycler.BYTE_PAGE_SIZE);
         } else {
             return new byte[PageCacheRecycler.BYTE_PAGE_SIZE];
-        }
-    }
-
-    protected final int[] newIntPage(int page) {
-        if (recycler != null) {
-            final Recycler.V<int[]> v = recycler.intPage(clearOnResize);
-            return registerNewPage(v, page, PageCacheRecycler.INT_PAGE_SIZE);
-        } else {
-            return new int[PageCacheRecycler.INT_PAGE_SIZE];
-        }
-    }
-
-    protected final long[] newLongPage(int page) {
-        if (recycler != null) {
-            final Recycler.V<long[]> v = recycler.longPage(clearOnResize);
-            return registerNewPage(v, page, PageCacheRecycler.LONG_PAGE_SIZE);
-        } else {
-            return new long[PageCacheRecycler.LONG_PAGE_SIZE];
         }
     }
 
@@ -160,6 +131,40 @@ abstract class AbstractBigArray extends AbstractArray {
         if (recycler != null) {
             Releasables.close(cache);
             cache = null;
+        }
+    }
+
+    /**
+     * Fills an array with a value by copying it to itself, increasing copy ranges in each iteration
+     */
+    protected static final void fillBySelfCopy(byte[] page, int fromBytes, int toBytes, int initialCopyBytes) {
+        for (int pos = fromBytes + initialCopyBytes; pos < toBytes;) {
+            int sourceBytesLength = pos - fromBytes; // source bytes available to be copied
+            int copyBytesLength = Math.min(sourceBytesLength, toBytes - pos); // number of bytes to actually copy
+            System.arraycopy(page, fromBytes, page, pos, copyBytesLength);
+            pos += copyBytesLength;
+        }
+    }
+
+    /**
+     * Bulk copies array to paged array
+     */
+    public void set(long index, byte[] buf, int offset, int len, byte[][] pages, int shift) {
+        assert index + len <= size();
+        int pageIndex = pageIndex(index);
+        final int indexInPage = indexInPage(index);
+        if (indexInPage + len <= pageSize()) {
+            System.arraycopy(buf, offset << shift, pages[pageIndex], indexInPage << shift, len << shift);
+        } else {
+            int copyLen = pageSize() - indexInPage;
+            System.arraycopy(buf, offset << shift, pages[pageIndex], indexInPage, copyLen << shift);
+            do {
+                ++pageIndex;
+                offset += copyLen;
+                len -= copyLen;
+                copyLen = Math.min(len, pageSize());
+                System.arraycopy(buf, offset << shift, pages[pageIndex], 0, copyLen << shift);
+            } while (len > copyLen);
         }
     }
 

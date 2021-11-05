@@ -1,32 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.sort;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -35,6 +18,12 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.mockito.Mockito;
@@ -51,7 +40,7 @@ public class NestedSortBuilderTests extends ESTestCase {
 
     @BeforeClass
     public static void init() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
         namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
         xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
     }
@@ -118,18 +107,20 @@ public class NestedSortBuilderTests extends ESTestCase {
         NestedSortBuilder mutated = original.getNestedSort();
         int parameter = randomIntBetween(0, 2);
         switch (parameter) {
-        case 0:
-            mutated = new NestedSortBuilder(original.getPath()+"_suffix");
-            mutated.setFilter(original.getFilter());
-            mutated.setNestedSort(original.getNestedSort());
-            break;
-        case 1:
-            mutated.setFilter(randomValueOtherThan(original.getFilter(), AbstractSortTestCase::randomNestedFilter));
-            break;
-        case 2:
-        default:
-            mutated.setNestedSort(randomValueOtherThan(original.getNestedSort(), () -> NestedSortBuilderTests.createRandomNestedSort(3)));
-            break;
+            case 0:
+                mutated = new NestedSortBuilder(original.getPath() + "_suffix");
+                mutated.setFilter(original.getFilter());
+                mutated.setNestedSort(original.getNestedSort());
+                break;
+            case 1:
+                mutated.setFilter(randomValueOtherThan(original.getFilter(), AbstractSortTestCase::randomNestedFilter));
+                break;
+            case 2:
+            default:
+                mutated.setNestedSort(
+                    randomValueOtherThan(original.getNestedSort(), () -> NestedSortBuilderTests.createRandomNestedSort(3))
+                );
+                break;
         }
         return mutated;
     }
@@ -139,8 +130,11 @@ public class NestedSortBuilderTests extends ESTestCase {
      */
     public void testEqualsAndHashcode() {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
-            EqualsHashCodeTestUtils.checkEqualsAndHashCode(createRandomNestedSort(3), NestedSortBuilderTests::copy,
-                    NestedSortBuilderTests::mutate);
+            EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+                createRandomNestedSort(3),
+                NestedSortBuilderTests::copy,
+                NestedSortBuilderTests::mutate
+            );
         }
     }
 
@@ -150,7 +144,7 @@ public class NestedSortBuilderTests extends ESTestCase {
     public void testRewrite() throws IOException {
         QueryBuilder filterThatRewrites = new MatchNoneQueryBuilder() {
             @Override
-            protected QueryBuilder doRewrite(org.elasticsearch.index.query.QueryRewriteContext queryShardContext) throws IOException {
+            protected QueryBuilder doRewrite(org.elasticsearch.index.query.QueryRewriteContext queryRewriteContext) throws IOException {
                 return new MatchAllQueryBuilder();
             }
         };
@@ -190,8 +184,7 @@ public class NestedSortBuilderTests extends ESTestCase {
         original = new NestedSortBuilder("firstLevel");
         ConstantScoreQueryBuilder constantScoreQueryBuilder = new ConstantScoreQueryBuilder(filterThatRewrites);
         original.setFilter(constantScoreQueryBuilder);
-        NestedSortBuilder nestedSortThatRewrites = new NestedSortBuilder("thirdLevel")
-                .setFilter(filterThatRewrites);
+        NestedSortBuilder nestedSortThatRewrites = new NestedSortBuilder("thirdLevel").setFilter(filterThatRewrites);
         original.setNestedSort(new NestedSortBuilder("secondLevel").setNestedSort(nestedSortThatRewrites));
         rewritten = original.rewrite(mockRewriteContext);
         assertNotSame(rewritten, original);

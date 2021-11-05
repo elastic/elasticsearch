@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authc;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Collections;
@@ -63,8 +64,10 @@ public abstract class Realm implements Comparable<Realm> {
      * @return Map of authentication failure response headers.
      */
     public Map<String, List<String>> getAuthenticationFailureHeaders() {
-        return Collections.singletonMap("WWW-Authenticate",
-                Collections.singletonList("Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\""));
+        return Collections.singletonMap(
+            "WWW-Authenticate",
+            Collections.singletonList("Basic realm=\"" + XPackField.SECURITY + "\" charset=\"UTF-8\"")
+        );
     }
 
     @Override
@@ -118,7 +121,7 @@ public abstract class Realm implements Comparable<Realm> {
      * @param token           The authentication token
      * @param listener        The listener to pass the authentication result to
      */
-    public abstract void authenticate(AuthenticationToken token, ActionListener<AuthenticationResult> listener);
+    public abstract void authenticate(AuthenticationToken token, ActionListener<AuthenticationResult<User>> listener);
 
     /**
      * Looks up the user identified the String identifier. A successful lookup will call the {@link ActionListener#onResponse}
@@ -147,8 +150,7 @@ public abstract class Realm implements Comparable<Realm> {
      *
      * @see DelegatedAuthorizationSettings
      */
-    public void initialize(Iterable<Realm> realms, XPackLicenseState licenseState) {
-    }
+    public void initialize(Iterable<Realm> realms, XPackLicenseState licenseState) {}
 
     /**
      * A factory interface to construct a security realm.

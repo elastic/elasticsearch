@@ -1,0 +1,33 @@
+--
+:api: slm-put-snapshot-lifecycle-policy
+:request: PutSnapshotLifecyclePolicyRequest
+:response: AcknowledgedResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Create or update snapshot lifecycle policy API
+
+
+[id="{upid}-{api}-request"]
+==== Request
+
+Creates or updates a snapshot lifecycle management policy.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The +{response}+ indicates if the request was received.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Whether or not the request was acknowledged.
+
+include::../execution.asciidoc[]
+

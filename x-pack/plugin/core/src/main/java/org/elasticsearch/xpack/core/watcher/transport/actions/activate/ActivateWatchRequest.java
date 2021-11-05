@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.transport.actions.activate;
 
@@ -62,7 +63,7 @@ public class ActivateWatchRequest extends ActionRequest {
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (watchId == null){
+        if (watchId == null) {
             validationException = ValidateActions.addValidationError("watch id is missing", validationException);
         } else if (WatcherUtils.isValidId(watchId) == false) {
             validationException = ValidateActions.addValidationError("watch id contains whitespace", validationException);
@@ -71,14 +72,7 @@ public class ActivateWatchRequest extends ActionRequest {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public String toString() {
-        return activate ?
-                "activate [" + watchId + "]" :
-                "deactivate [" + watchId + "]";
+        return activate ? "activate [" + watchId + "]" : "deactivate [" + watchId + "]";
     }
 }

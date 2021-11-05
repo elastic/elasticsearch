@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ccr.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -17,9 +18,9 @@ import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 
 import java.io.IOException;
@@ -29,24 +30,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 
-public class FollowStatsAction extends Action<FollowStatsAction.StatsResponses> {
+public class FollowStatsAction extends ActionType<FollowStatsAction.StatsResponses> {
 
     public static final String NAME = "cluster:monitor/ccr/follow_stats";
 
     public static final FollowStatsAction INSTANCE = new FollowStatsAction();
 
     private FollowStatsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public StatsResponses newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public Writeable.Reader<StatsResponses> getResponseReader() {
-        return StatsResponses::new;
+        super(NAME, FollowStatsAction.StatsResponses::new);
     }
 
     public static class StatsResponses extends BaseTasksResponse implements ToXContentObject {
@@ -58,9 +49,10 @@ public class FollowStatsAction extends Action<FollowStatsAction.StatsResponses> 
         }
 
         public StatsResponses(
-                final List<TaskOperationFailure> taskFailures,
-                final List<? extends FailedNodeException> nodeFailures,
-                final List<StatsResponse> statsResponse) {
+            final List<TaskOperationFailure> taskFailures,
+            final List<? extends FailedNodeException> nodeFailures,
+            final List<StatsResponse> statsResponse
+        ) {
             super(taskFailures, nodeFailures);
             this.statsResponse = statsResponse;
         }
@@ -81,9 +73,8 @@ public class FollowStatsAction extends Action<FollowStatsAction.StatsResponses> 
             // sort by index name, then shard ID
             final Map<String, Map<Integer, StatsResponse>> taskResponsesByIndex = new TreeMap<>();
             for (final StatsResponse statsResponse : statsResponse) {
-                taskResponsesByIndex.computeIfAbsent(
-                        statsResponse.status().followerIndex(),
-                        k -> new TreeMap<>()).put(statsResponse.status().getShardId(), statsResponse);
+                taskResponsesByIndex.computeIfAbsent(statsResponse.status().followerIndex(), k -> new TreeMap<>())
+                    .put(statsResponse.status().getShardId(), statsResponse);
             }
             builder.startObject();
             {

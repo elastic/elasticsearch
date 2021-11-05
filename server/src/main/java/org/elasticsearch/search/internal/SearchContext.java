@@ -1,46 +1,27 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.internal;
-
 
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.action.search.SearchTask;
+import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
-import org.elasticsearch.common.util.concurrent.RefCounted;
-import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
@@ -49,90 +30,69 @@ import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
-import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
+import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
+import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
-import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
-import java.util.ArrayList;
-import java.util.EnumMap;
+import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * This class encapsulates the state needed to execute a search. It holds a reference to the
  * shards point in time snapshot (IndexReader / ContextIndexSearcher) and allows passing on
  * state from one query / fetch phase to another.
- *
- * This class also implements {@link RefCounted} since in some situations like in {@link org.elasticsearch.search.SearchService}
- * a SearchContext can be closed concurrently due to independent events ie. when an index gets removed. To prevent accessing closed
- * IndexReader / IndexSearcher instances the SearchContext can be guarded by a reference count and fail if it's been closed by
- * an external event.
  */
-// For reference why we use RefCounted here see #20095
-public abstract class SearchContext extends AbstractRefCounted implements Releasable {
+public abstract class SearchContext implements Releasable {
 
     public static final int DEFAULT_TERMINATE_AFTER = 0;
     public static final int TRACK_TOTAL_HITS_ACCURATE = Integer.MAX_VALUE;
     public static final int TRACK_TOTAL_HITS_DISABLED = -1;
     public static final int DEFAULT_TRACK_TOTAL_HITS_UP_TO = 10000;
 
-    private Map<Lifetime, List<Releasable>> clearables = null;
+    protected final List<Releasable> releasables = new CopyOnWriteArrayList<>();
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private InnerHitsContext innerHitsContext;
 
-    protected SearchContext() {
-        super("search_context");
-    }
+    private Query rewriteQuery;
 
-    public abstract void setTask(SearchTask task);
+    protected SearchContext() {}
 
-    public abstract SearchTask getTask();
+    public abstract void setTask(SearchShardTask task);
+
+    public abstract SearchShardTask getTask();
 
     public abstract boolean isCancelled();
 
     @Override
     public final void close() {
-        if (closed.compareAndSet(false, true)) { // prevent double closing
-            decRef();
+        if (closed.compareAndSet(false, true)) {
+            Releasables.close(releasables);
         }
     }
-
-    @Override
-    protected final void closeInternal() {
-        try {
-            clearReleasables(Lifetime.CONTEXT);
-        } finally {
-            doClose();
-        }
-    }
-
-    @Override
-    protected void alreadyClosed() {
-        throw new IllegalStateException("search context is already closed can't increment refCount current count [" + refCount() + "]");
-    }
-
-    protected abstract void doClose();
 
     /**
      * Should be called before executing the main query and after all other parameters have been set.
-     * @param rewrite if the set query should be rewritten against the searcher returned from {@link #searcher()}
      */
-    public abstract void preProcess(boolean rewrite);
+    public abstract void preProcess();
 
     /** Automatically apply all required filters to the given query such as
      *  alias filters, types filters, etc. */
     public abstract Query buildFilteredQuery(Query query);
 
-    public abstract long id();
+    public abstract ShardSearchContextId id();
 
     public abstract String source();
 
@@ -144,13 +104,7 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract int numberOfShards();
 
-    public abstract float queryBoost();
-
-    public abstract long getOriginNanoTime();
-
     public abstract ScrollContext scrollContext();
-
-    public abstract SearchContext scrollContext(ScrollContext scroll);
 
     public abstract SearchContextAggregations aggregations();
 
@@ -160,9 +114,9 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract SearchExtBuilder getSearchExt(String name);
 
-    public abstract SearchContextHighlight highlight();
+    public abstract SearchHighlightContext highlight();
 
-    public abstract void highlight(SearchContextHighlight highlight);
+    public abstract void highlight(SearchHighlightContext highlight);
 
     public InnerHitsContext innerHits() {
         if (innerHitsContext == null) {
@@ -182,6 +136,36 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract void addRescore(RescoreContext rescore);
 
+    public final RescoreDocIds rescoreDocIds() {
+        final List<RescoreContext> rescore = rescore();
+        if (rescore == null) {
+            return RescoreDocIds.EMPTY;
+        }
+        Map<Integer, Set<Integer>> rescoreDocIds = null;
+        for (int i = 0; i < rescore.size(); i++) {
+            final Set<Integer> docIds = rescore.get(i).getRescoredDocs();
+            if (docIds != null && docIds.isEmpty() == false) {
+                if (rescoreDocIds == null) {
+                    rescoreDocIds = new HashMap<>();
+                }
+                rescoreDocIds.put(i, docIds);
+            }
+        }
+        return rescoreDocIds == null ? RescoreDocIds.EMPTY : new RescoreDocIds(rescoreDocIds);
+    }
+
+    public final void assignRescoreDocIds(RescoreDocIds rescoreDocIds) {
+        final List<RescoreContext> rescore = rescore();
+        if (rescore != null) {
+            for (int i = 0; i < rescore.size(); i++) {
+                final Set<Integer> docIds = rescoreDocIds.getId(i);
+                if (docIds != null) {
+                    rescore.get(i).setRescoredDocs(docIds);
+                }
+            }
+        }
+    }
+
     public abstract boolean hasScriptFields();
 
     public abstract ScriptFieldsContext scriptFields();
@@ -197,23 +181,25 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract SearchContext fetchSourceContext(FetchSourceContext fetchSourceContext);
 
-    public abstract DocValueFieldsContext docValueFieldsContext();
+    public abstract FetchDocValuesContext docValuesContext();
 
-    public abstract SearchContext docValueFieldsContext(DocValueFieldsContext docValueFieldsContext);
+    public abstract SearchContext docValuesContext(FetchDocValuesContext docValuesContext);
+
+    /**
+     * The context related to retrieving fields.
+     */
+    public abstract FetchFieldsContext fetchFieldsContext();
+
+    /**
+     * Sets the context related to retrieving fields.
+     */
+    public abstract SearchContext fetchFieldsContext(FetchFieldsContext fetchFieldsContext);
 
     public abstract ContextIndexSearcher searcher();
 
     public abstract IndexShard indexShard();
 
-    public abstract MapperService mapperService();
-
-    public abstract SimilarityService similarityService();
-
-    public abstract BigArrays bigArrays();
-
     public abstract BitsetFilterCache bitsetFilterCache();
-
-    public abstract <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType);
 
     public abstract TimeValue timeout();
 
@@ -263,16 +249,31 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract ParsedQuery parsedPostFilter();
 
-    public abstract Query aliasFilter();
-
     public abstract SearchContext parsedQuery(ParsedQuery query);
 
     public abstract ParsedQuery parsedQuery();
 
     /**
-     * The query to execute, might be rewritten.
+     * The query to execute, not rewritten.
      */
     public abstract Query query();
+
+    /**
+     * The query to execute in its rewritten form.
+     */
+    public final Query rewrittenQuery() {
+        if (query() == null) {
+            throw new IllegalStateException("preProcess must be called first");
+        }
+        if (rewriteQuery == null) {
+            try {
+                this.rewriteQuery = searcher().rewrite(query());
+            } catch (IOException exc) {
+                throw new QueryShardException(getSearchExecutionContext(), "rewrite failed", exc);
+            }
+        }
+        return rewriteQuery;
+    }
 
     public abstract int from();
 
@@ -283,13 +284,6 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
     public abstract SearchContext size(int size);
 
     public abstract boolean hasStoredFields();
-
-    public abstract boolean hasStoredFieldsContext();
-
-    /**
-     * A shortcut function to see whether there is a storedFieldsContext and it says the fields are requested.
-     */
-    public abstract boolean storedFieldsRequested();
 
     public abstract StoredFieldsContext storedFieldsContext();
 
@@ -316,23 +310,9 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract int[] docIdsToLoad();
 
-    public abstract int docIdsToLoadFrom();
-
     public abstract int docIdsToLoadSize();
 
-    public abstract SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadFrom, int docsIdsToLoadSize);
-
-    public abstract void accessed(long accessTime);
-
-    public abstract long lastAccessTime();
-
-    public abstract long keepAlive();
-
-    public abstract void keepAlive(long keepAlive);
-
-    public SearchLookup lookup() {
-        return getQueryShardContext().lookup();
-    }
+    public abstract SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadSize);
 
     public abstract DfsSearchResult dfsResult();
 
@@ -348,51 +328,18 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
     public abstract Profilers getProfilers();
 
     /**
-     * Schedule the release of a resource. The time when {@link Releasable#close()} will be called on this object
-     * is function of the provided {@link Lifetime}.
+     * Adds a releasable that will be freed when this context is closed.
      */
-    public void addReleasable(Releasable releasable, Lifetime lifetime) {
-        if (clearables == null) {
-            clearables = new EnumMap<>(Lifetime.class);
-        }
-        List<Releasable> releasables = clearables.get(lifetime);
-        if (releasables == null) {
-            releasables = new ArrayList<>();
-            clearables.put(lifetime, releasables);
-        }
+    public void addReleasable(Releasable releasable) {   // TODO most Releasables are managed by their callers. We probably don't need this.
         releasables.add(releasable);
-    }
-
-    public void clearReleasables(Lifetime lifetime) {
-        if (clearables != null) {
-            List<List<Releasable>>releasables = new ArrayList<>();
-            for (Lifetime lc : Lifetime.values()) {
-                if (lc.compareTo(lifetime) > 0) {
-                    break;
-                }
-                List<Releasable> remove = clearables.remove(lc);
-                if (remove != null) {
-                    releasables.add(remove);
-                }
-            }
-            Releasables.close(Iterables.flatten(releasables));
-        }
     }
 
     /**
      * @return true if the request contains only suggest
      */
     public final boolean hasOnlySuggest() {
-        return request().source() != null
-            && request().source().isSuggestOnly();
+        return request().source() != null && request().source().isSuggestOnly();
     }
-
-    /**
-     * Looks up the given field, but does not restrict to fields in the types set on this context.
-     */
-    public abstract MappedFieldType smartNameFieldType(String name);
-
-    public abstract ObjectMapper getObjectMapper(String name);
 
     /**
      * Returns time in milliseconds that can be used for relative time calculations.
@@ -403,25 +350,7 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
     /** Return a view of the additional query collectors that should be run for this context. */
     public abstract Map<Class<?>, Collector> queryCollectors();
 
-    /**
-     * The life time of an object that is used during search execution.
-     */
-    public enum Lifetime {
-        /**
-         * This life time is for objects that only live during collection time.
-         */
-        COLLECTION,
-        /**
-         * This life time is for objects that need to live until the end of the current search phase.
-         */
-        PHASE,
-        /**
-         * This life time is for objects that need to live until the search context they are attached to is destroyed.
-         */
-        CONTEXT
-    }
-
-    public abstract QueryShardContext getQueryShardContext();
+    public abstract SearchExecutionContext getSearchExecutionContext();
 
     @Override
     public String toString() {
@@ -439,4 +368,6 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
         result.append(" query=[").append(query()).append("]");
         return result.toString();
     }
+
+    public abstract ReaderContext readerContext();
 }

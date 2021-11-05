@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr.action;
 
@@ -57,9 +58,11 @@ public class StatsResponsesTests extends AbstractWireSerializingTestCase<FollowS
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
+                randomNonNegativeLong(),
                 Collections.emptyNavigableMap(),
-                randomLong(),
-                randomBoolean() ? new ElasticsearchException("fatal error") : null);
+                randomNonNegativeLong(),
+                randomBoolean() ? new ElasticsearchException("fatal error") : null
+            );
             responses.add(new FollowStatsAction.StatsResponse(status));
         }
         return new FollowStatsAction.StatsResponses(Collections.emptyList(), Collections.emptyList(), responses);

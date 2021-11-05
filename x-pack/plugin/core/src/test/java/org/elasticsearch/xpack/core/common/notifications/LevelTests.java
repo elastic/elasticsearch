@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.common.notifications;
 
@@ -12,18 +13,18 @@ import static org.hamcrest.Matchers.equalTo;
 public class LevelTests extends ESTestCase {
 
     public void testFromString() {
-        assertEquals(Level.INFO, Level.fromString("info"));
-        assertEquals(Level.INFO, Level.fromString("INFO"));
-        assertEquals(Level.WARNING, Level.fromString("warning"));
-        assertEquals(Level.WARNING, Level.fromString("WARNING"));
-        assertEquals(Level.ERROR, Level.fromString("error"));
-        assertEquals(Level.ERROR, Level.fromString("ERROR"));
+        assertThat(Level.fromString("info"), equalTo(Level.INFO));
+        assertThat(Level.fromString("INFO"), equalTo(Level.INFO));
+        assertThat(Level.fromString("warning"), equalTo(Level.WARNING));
+        assertThat(Level.fromString("WARNING"), equalTo(Level.WARNING));
+        assertThat(Level.fromString("error"), equalTo(Level.ERROR));
+        assertThat(Level.fromString("ERROR"), equalTo(Level.ERROR));
     }
 
     public void testToString() {
-        assertEquals("info", Level.INFO.toString());
-        assertEquals("warning", Level.WARNING.toString());
-        assertEquals("error", Level.ERROR.toString());
+        assertThat(Level.INFO.toString(), equalTo("info"));
+        assertThat(Level.WARNING.toString(), equalTo("warning"));
+        assertThat(Level.ERROR.toString(), equalTo("error"));
     }
 
     public void testValidOrdinals() {

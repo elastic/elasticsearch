@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed.persistence;
 
@@ -29,12 +30,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -42,21 +37,30 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -64,17 +68,17 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.BiConsumer;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.ClientHelper.filterSecurityHeaders;
 
 /**
  * This class implements CRUD operation for the
  * datafeed configuration document
  *
  * The number of datafeeds returned in a search it limited to
- * {@link AnomalyDetectorsIndex#CONFIG_INDEX_MAX_RESULTS_WINDOW}.
+ * {@link MlConfigIndex#CONFIG_INDEX_MAX_RESULTS_WINDOW}.
  * In most cases we expect 10s or 100s of datafeeds to be defined and
  * a search for all datafeeds should return all.
  */
@@ -84,9 +88,7 @@ public class DatafeedConfigProvider {
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
 
-    public static final Map<String, String> TO_XCONTENT_PARAMS = Map.of(
-        ToXContentParams.FOR_INTERNAL_STORAGE, "true",
-        ToXContentParams.INCLUDE_TYPE, "true");
+    public static final Map<String, String> TO_XCONTENT_PARAMS = Map.of(ToXContentParams.FOR_INTERNAL_STORAGE, "true");
 
     public DatafeedConfigProvider(Client client, NamedXContentRegistry xContentRegistry) {
         this.client = client;
@@ -105,12 +107,7 @@ public class DatafeedConfigProvider {
 
         if (headers.isEmpty() == false) {
             // Filter any values in headers that aren't security fields
-            DatafeedConfig.Builder builder = new DatafeedConfig.Builder(config);
-            Map<String, String> securityHeaders = headers.entrySet().stream()
-                    .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-            builder.setHeaders(securityHeaders);
-            config = builder.build();
+            config = new DatafeedConfig.Builder(config).setHeaders(filterSecurityHeaders(headers)).build();
         }
 
         final String datafeedId = config.getId();
@@ -118,23 +115,19 @@ public class DatafeedConfigProvider {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = config.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
 
-            IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.configIndexName())
-                    .id(DatafeedConfig.documentId(datafeedId))
-                    .source(source)
-                    .opType(DocWriteRequest.OpType.CREATE)
-                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            IndexRequest indexRequest = new IndexRequest(MlConfigIndex.indexName()).id(DatafeedConfig.documentId(datafeedId))
+                .source(source)
+                .opType(DocWriteRequest.OpType.CREATE)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-            executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(
-                    listener::onResponse,
-                    e -> {
-                        if (e instanceof VersionConflictEngineException) {
-                            // the dafafeed already exists
-                            listener.onFailure(ExceptionsHelper.datafeedAlreadyExists(datafeedId));
-                        } else {
-                            listener.onFailure(e);
-                        }
-                    }
-            ));
+            executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, ActionListener.wrap(listener::onResponse, e -> {
+                if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
+                    // the dafafeed already exists
+                    listener.onFailure(ExceptionsHelper.datafeedAlreadyExists(datafeedId));
+                } else {
+                    listener.onFailure(e);
+                }
+            }));
 
         } catch (IOException e) {
             listener.onFailure(new ElasticsearchParseException("Failed to serialise datafeed config with id [" + config.getId() + "]", e));
@@ -153,7 +146,7 @@ public class DatafeedConfigProvider {
      * @param datafeedConfigListener The config listener
      */
     public void getDatafeedConfig(String datafeedId, ActionListener<DatafeedConfig.Builder> datafeedConfigListener) {
-        GetRequest getRequest = new GetRequest(AnomalyDetectorsIndex.configIndexName(), DatafeedConfig.documentId(datafeedId));
+        GetRequest getRequest = new GetRequest(MlConfigIndex.indexName(), DatafeedConfig.documentId(datafeedId));
         executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener<GetResponse>() {
             @Override
             public void onResponse(GetResponse getResponse) {
@@ -164,6 +157,7 @@ public class DatafeedConfigProvider {
                 BytesReference source = getResponse.getSourceAsBytesRef();
                 parseLenientlyFromSource(source, datafeedConfigListener);
             }
+
             @Override
             public void onFailure(Exception e) {
                 if (e.getClass() == IndexNotFoundException.class) {
@@ -185,32 +179,61 @@ public class DatafeedConfigProvider {
      * @param jobIds    The jobs to find the datafeeds of
      * @param listener  Datafeed Id listener
      */
-    public void findDatafeedsForJobIds(Collection<String> jobIds, ActionListener<Set<String>> listener) {
+    public void findDatafeedIdsForJobIds(Collection<String> jobIds, ActionListener<Set<String>> listener) {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildDatafeedJobIdsQuery(jobIds));
         sourceBuilder.fetchSource(false);
         sourceBuilder.docValueField(DatafeedConfig.ID.getPreferredName(), null);
 
-        SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
-                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .setSize(jobIds.size())
-                .setSource(sourceBuilder).request();
+        SearchRequest searchRequest = client.prepareSearch(MlConfigIndex.indexName())
+            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .setSize(jobIds.size())
+            .setSource(sourceBuilder)
+            .request();
 
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
-                ActionListener.<SearchResponse>wrap(
-                        response -> {
-                            Set<String> datafeedIds = new HashSet<>();
-                            // There cannot be more than one datafeed per job
-                            assert response.getHits().getTotalHits().value <= jobIds.size();
-                            SearchHit[] hits = response.getHits().getHits();
+        executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
+            ML_ORIGIN,
+            searchRequest,
+            ActionListener.<SearchResponse>wrap(response -> {
+                Set<String> datafeedIds = new HashSet<>();
+                // There cannot be more than one datafeed per job
+                assert response.getHits().getTotalHits().value <= jobIds.size();
+                SearchHit[] hits = response.getHits().getHits();
 
-                            for (SearchHit hit : hits) {
-                                datafeedIds.add(hit.field(DatafeedConfig.ID.getPreferredName()).getValue());
-                            }
+                for (SearchHit hit : hits) {
+                    datafeedIds.add(hit.field(DatafeedConfig.ID.getPreferredName()).getValue());
+                }
 
-                            listener.onResponse(datafeedIds);
-                        },
-                        listener::onFailure)
-                , client::search);
+                listener.onResponse(datafeedIds);
+            }, listener::onFailure),
+            client::search
+        );
+    }
+
+    public void findDatafeedsByJobIds(Collection<String> jobIds, ActionListener<Map<String, DatafeedConfig.Builder>> listener) {
+        SearchRequest searchRequest = client.prepareSearch(MlConfigIndex.indexName())
+            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .setSize(jobIds.size())
+            .setSource(new SearchSourceBuilder().query(buildDatafeedJobIdsQuery(jobIds)))
+            .request();
+
+        executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
+            ML_ORIGIN,
+            searchRequest,
+            ActionListener.<SearchResponse>wrap(response -> {
+                Map<String, DatafeedConfig.Builder> datafeedsByJobId = new HashMap<>();
+                // There cannot be more than one datafeed per job
+                assert response.getHits().getTotalHits().value <= jobIds.size();
+                SearchHit[] hits = response.getHits().getHits();
+                for (SearchHit hit : hits) {
+                    DatafeedConfig.Builder builder = parseLenientlyFromSource(hit.getSourceRef());
+                    datafeedsByJobId.put(builder.getJobId(), builder);
+                }
+                listener.onResponse(datafeedsByJobId);
+            }, listener::onFailure),
+            client::search
+        );
     }
 
     /**
@@ -219,24 +242,17 @@ public class DatafeedConfigProvider {
      * @param datafeedId The datafeed id
      * @param actionListener Deleted datafeed listener
      */
-    public void deleteDatafeedConfig(String datafeedId,  ActionListener<DeleteResponse> actionListener) {
-        DeleteRequest request = new DeleteRequest(AnomalyDetectorsIndex.configIndexName(), DatafeedConfig.documentId(datafeedId));
+    public void deleteDatafeedConfig(String datafeedId, ActionListener<DeleteResponse> actionListener) {
+        DeleteRequest request = new DeleteRequest(MlConfigIndex.indexName(), DatafeedConfig.documentId(datafeedId));
         request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteAction.INSTANCE, request, new ActionListener<DeleteResponse>() {
-            @Override
-            public void onResponse(DeleteResponse deleteResponse) {
-                if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
-                    actionListener.onFailure(ExceptionsHelper.missingDatafeedException(datafeedId));
-                    return;
-                }
-                assert deleteResponse.getResult() == DocWriteResponse.Result.DELETED;
-                actionListener.onResponse(deleteResponse);
+        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteAction.INSTANCE, request, actionListener.delegateFailure((l, deleteResponse) -> {
+            if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                l.onFailure(ExceptionsHelper.missingDatafeedException(datafeedId));
+                return;
             }
-            @Override
-            public void onFailure(Exception e) {
-                actionListener.onFailure(e);
-            }
-        });
+            assert deleteResponse.getResult() == DocWriteResponse.Result.DELETED;
+            l.onResponse(deleteResponse);
+        }));
     }
 
     /**
@@ -254,19 +270,22 @@ public class DatafeedConfigProvider {
      *                  extra validations. {@code validator} must call the passed listener
      * @param updatedConfigListener Updated datafeed config listener
      */
-    public void updateDatefeedConfig(String datafeedId, DatafeedUpdate update, Map<String, String> headers,
-                                     BiConsumer<DatafeedConfig, ActionListener<Boolean>> validator,
-                                     ActionListener<DatafeedConfig> updatedConfigListener) {
-        GetRequest getRequest = new GetRequest(AnomalyDetectorsIndex.configIndexName(), DatafeedConfig.documentId(datafeedId));
+    public void updateDatefeedConfig(
+        String datafeedId,
+        DatafeedUpdate update,
+        Map<String, String> headers,
+        BiConsumer<DatafeedConfig, ActionListener<Boolean>> validator,
+        ActionListener<DatafeedConfig> updatedConfigListener
+    ) {
+        GetRequest getRequest = new GetRequest(MlConfigIndex.indexName(), DatafeedConfig.documentId(datafeedId));
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener<GetResponse>() {
+        executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener.Delegating<>(updatedConfigListener) {
             @Override
             public void onResponse(GetResponse getResponse) {
                 if (getResponse.isExists() == false) {
-                    updatedConfigListener.onFailure(ExceptionsHelper.missingDatafeedException(datafeedId));
+                    delegate.onFailure(ExceptionsHelper.missingDatafeedException(datafeedId));
                     return;
                 }
-                final long version = getResponse.getVersion();
                 final long seqNo = getResponse.getSeqNo();
                 final long primaryTerm = getResponse.getPrimaryTerm();
                 BytesReference source = getResponse.getSourceAsBytesRef();
@@ -274,8 +293,7 @@ public class DatafeedConfigProvider {
                 try {
                     configBuilder = parseLenientlyFromSource(source);
                 } catch (IOException e) {
-                    updatedConfigListener.onFailure(
-                            new ElasticsearchParseException("Failed to parse datafeed config [" + datafeedId + "]", e));
+                    delegate.onFailure(new ElasticsearchParseException("Failed to parse datafeed config [" + datafeedId + "]", e));
                     return;
                 }
 
@@ -283,40 +301,28 @@ public class DatafeedConfigProvider {
                 try {
                     updatedConfig = update.apply(configBuilder.build(), headers);
                 } catch (Exception e) {
-                    updatedConfigListener.onFailure(e);
+                    delegate.onFailure(e);
                     return;
                 }
 
                 ActionListener<Boolean> validatedListener = ActionListener.wrap(
-                        ok -> {
-                            indexUpdatedConfig(updatedConfig, seqNo, primaryTerm, ActionListener.wrap(
-                                    indexResponse -> {
-                                        assert indexResponse.getResult() == DocWriteResponse.Result.UPDATED;
-                                        updatedConfigListener.onResponse(updatedConfig);
-                                    },
-                                    updatedConfigListener::onFailure));
-                        },
-                        updatedConfigListener::onFailure
+                    ok -> indexUpdatedConfig(updatedConfig, seqNo, primaryTerm, ActionListener.wrap(indexResponse -> {
+                        assert indexResponse.getResult() == DocWriteResponse.Result.UPDATED;
+                        delegate.onResponse(updatedConfig);
+                    }, delegate::onFailure)),
+                    delegate::onFailure
                 );
-
                 validator.accept(updatedConfig, validatedListener);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                updatedConfigListener.onFailure(e);
             }
         });
     }
 
-    private void indexUpdatedConfig(DatafeedConfig updatedConfig, long seqNo, long primaryTerm,
-                                    ActionListener<IndexResponse> listener) {
+    private void indexUpdatedConfig(DatafeedConfig updatedConfig, long seqNo, long primaryTerm, ActionListener<IndexResponse> listener) {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder updatedSource = updatedConfig.toXContent(builder, new ToXContent.MapParams(TO_XCONTENT_PARAMS));
-            IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.configIndexName())
-                    .id(DatafeedConfig.documentId(updatedConfig.getId()))
-                    .source(updatedSource)
-                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            IndexRequest indexRequest = new IndexRequest(MlConfigIndex.indexName()).id(DatafeedConfig.documentId(updatedConfig.getId()))
+                .source(updatedSource)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
             indexRequest.setIfSeqNo(seqNo);
             indexRequest.setIfPrimaryTerm(primaryTerm);
@@ -325,7 +331,8 @@ public class DatafeedConfigProvider {
 
         } catch (IOException e) {
             listener.onFailure(
-                    new ElasticsearchParseException("Failed to serialise datafeed config with id [" + updatedConfig.getId() + "]", e));
+                new ElasticsearchParseException("Failed to serialise datafeed config with id [" + updatedConfig.getId() + "]", e)
+            );
         }
     }
 
@@ -348,107 +355,123 @@ public class DatafeedConfigProvider {
      * </ul>
      *
      * @param expression the expression to resolve
-     * @param allowNoDatafeeds if {@code false}, an error is thrown when no name matches the {@code expression}.
+     * @param allowNoMatch if {@code false}, an error is thrown when no name matches the {@code expression}.
      *                     This only applies to wild card expressions, if {@code expression} is not a
      *                     wildcard then setting this true will not suppress the exception
+     * @param tasks The current tasks meta-data. For expanding IDs when datafeeds might have missing configurations
+     * @param allowMissingConfigs If a datafeed has a task, but is missing a config, allow the ID to be expanded via the existing task
      * @param listener The expanded datafeed IDs listener
      */
-    public void expandDatafeedIds(String expression, boolean allowNoDatafeeds, ActionListener<SortedSet<String>> listener) {
-        String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
+    public void expandDatafeedIds(
+        String expression,
+        boolean allowNoMatch,
+        PersistentTasksCustomMetadata tasks,
+        boolean allowMissingConfigs,
+        ActionListener<SortedSet<String>> listener
+    ) {
+        String[] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildDatafeedIdQuery(tokens));
         sourceBuilder.sort(DatafeedConfig.ID.getPreferredName());
         sourceBuilder.fetchSource(false);
         sourceBuilder.docValueField(DatafeedConfig.ID.getPreferredName(), null);
 
-        SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
-                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .setSource(sourceBuilder)
-                .setSize(AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
-                .request();
+        SearchRequest searchRequest = client.prepareSearch(MlConfigIndex.indexName())
+            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .setSource(sourceBuilder)
+            .setSize(MlConfigIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
+            .request();
 
-        ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoDatafeeds);
+        ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoMatch);
+        Collection<String> matchingStartedDatafeedIds = matchingDatafeedIdsWithTasks(tokens, tasks);
 
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
-                ActionListener.<SearchResponse>wrap(
-                        response -> {
-                            SortedSet<String> datafeedIds = new TreeSet<>();
-                            SearchHit[] hits = response.getHits().getHits();
-                            for (SearchHit hit : hits) {
-                                datafeedIds.add(hit.field(DatafeedConfig.ID.getPreferredName()).getValue());
-                            }
+        executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
+            ML_ORIGIN,
+            searchRequest,
+            ActionListener.<SearchResponse>wrap(response -> {
+                SortedSet<String> datafeedIds = new TreeSet<>();
+                SearchHit[] hits = response.getHits().getHits();
+                for (SearchHit hit : hits) {
+                    datafeedIds.add(hit.field(DatafeedConfig.ID.getPreferredName()).getValue());
+                }
+                if (allowMissingConfigs) {
+                    datafeedIds.addAll(matchingStartedDatafeedIds);
+                }
 
-                            requiredMatches.filterMatchedIds(datafeedIds);
-                            if (requiredMatches.hasUnmatchedIds()) {
-                                // some required datafeeds were not found
-                                listener.onFailure(ExceptionsHelper.missingDatafeedException(requiredMatches.unmatchedIdsString()));
-                                return;
-                            }
+                requiredMatches.filterMatchedIds(datafeedIds);
+                if (requiredMatches.hasUnmatchedIds()) {
+                    // some required datafeeds were not found
+                    listener.onFailure(ExceptionsHelper.missingDatafeedException(requiredMatches.unmatchedIdsString()));
+                    return;
+                }
 
-                            listener.onResponse(datafeedIds);
-                        },
-                        listener::onFailure)
-                , client::search);
+                listener.onResponse(datafeedIds);
+            }, listener::onFailure),
+            client::search
+        );
 
     }
 
     /**
-     * The same logic as {@link #expandDatafeedIds(String, boolean, ActionListener)} but
+     * The same logic as {@link #expandDatafeedIds(String, boolean, PersistentTasksCustomMetadata, boolean, ActionListener)} but
      * the full datafeed configuration is returned.
      *
-     * See {@link #expandDatafeedIds(String, boolean, ActionListener)}
+     * See {@link #expandDatafeedIds(String, boolean, PersistentTasksCustomMetadata, boolean, ActionListener)}
      *
      * @param expression the expression to resolve
-     * @param allowNoDatafeeds if {@code false}, an error is thrown when no name matches the {@code expression}.
+     * @param allowNoMatch if {@code false}, an error is thrown when no name matches the {@code expression}.
      *                     This only applies to wild card expressions, if {@code expression} is not a
      *                     wildcard then setting this true will not suppress the exception
      * @param listener The expanded datafeed config listener
      */
-    public void expandDatafeedConfigs(String expression, boolean allowNoDatafeeds, ActionListener<List<DatafeedConfig.Builder>> listener) {
-        String [] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
+    public void expandDatafeedConfigs(String expression, boolean allowNoMatch, ActionListener<List<DatafeedConfig.Builder>> listener) {
+        String[] tokens = ExpandedIdsMatcher.tokenizeExpression(expression);
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(buildDatafeedIdQuery(tokens));
         sourceBuilder.sort(DatafeedConfig.ID.getPreferredName());
 
-        SearchRequest searchRequest = client.prepareSearch(AnomalyDetectorsIndex.configIndexName())
-                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .setSource(sourceBuilder)
-                .setSize(AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
-                .request();
+        SearchRequest searchRequest = client.prepareSearch(MlConfigIndex.indexName())
+            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .setSource(sourceBuilder)
+            .setSize(MlConfigIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
+            .request();
 
-        ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoDatafeeds);
+        ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoMatch);
 
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
-                ActionListener.<SearchResponse>wrap(
-                        response -> {
-                            List<DatafeedConfig.Builder> datafeeds = new ArrayList<>();
-                            Set<String> datafeedIds = new HashSet<>();
-                            SearchHit[] hits = response.getHits().getHits();
-                            for (SearchHit hit : hits) {
-                                try {
-                                    BytesReference source = hit.getSourceRef();
-                                    DatafeedConfig.Builder datafeed = parseLenientlyFromSource(source);
-                                    datafeeds.add(datafeed);
-                                    datafeedIds.add(datafeed.getId());
-                                } catch (IOException e) {
-                                    // TODO A better way to handle this rather than just ignoring the error?
-                                    logger.error("Error parsing datafeed configuration [" + hit.getId() + "]", e);
-                                }
-                            }
+        executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
+            ML_ORIGIN,
+            searchRequest,
+            ActionListener.<SearchResponse>wrap(response -> {
+                List<DatafeedConfig.Builder> datafeeds = new ArrayList<>();
+                Set<String> datafeedIds = new HashSet<>();
+                SearchHit[] hits = response.getHits().getHits();
+                for (SearchHit hit : hits) {
+                    try {
+                        BytesReference source = hit.getSourceRef();
+                        DatafeedConfig.Builder datafeed = parseLenientlyFromSource(source);
+                        datafeeds.add(datafeed);
+                        datafeedIds.add(datafeed.getId());
+                    } catch (IOException e) {
+                        // TODO A better way to handle this rather than just ignoring the error?
+                        logger.error("Error parsing datafeed configuration [" + hit.getId() + "]", e);
+                    }
+                }
 
-                            requiredMatches.filterMatchedIds(datafeedIds);
-                            if (requiredMatches.hasUnmatchedIds()) {
-                                // some required datafeeds were not found
-                                listener.onFailure(ExceptionsHelper.missingDatafeedException(requiredMatches.unmatchedIdsString()));
-                                return;
-                            }
+                requiredMatches.filterMatchedIds(datafeedIds);
+                if (requiredMatches.hasUnmatchedIds()) {
+                    // some required datafeeds were not found
+                    listener.onFailure(ExceptionsHelper.missingDatafeedException(requiredMatches.unmatchedIdsString()));
+                    return;
+                }
 
-                            listener.onResponse(datafeeds);
-                        },
-                        listener::onFailure)
-                , client::search);
+                listener.onResponse(datafeeds);
+            }, listener::onFailure),
+            client::search
+        );
 
     }
 
-    private QueryBuilder buildDatafeedIdQuery(String [] tokens) {
+    private QueryBuilder buildDatafeedIdQuery(String[] tokens) {
         QueryBuilder datafeedQuery = new TermQueryBuilder(DatafeedConfig.CONFIG_TYPE.getPreferredName(), DatafeedConfig.TYPE);
         if (Strings.isAllOrWildcard(tokens)) {
             // match all
@@ -479,6 +502,10 @@ public class DatafeedConfigProvider {
         return boolQueryBuilder;
     }
 
+    static Collection<String> matchingDatafeedIdsWithTasks(String[] datafeedIdPatterns, PersistentTasksCustomMetadata tasksMetadata) {
+        return MlStrings.findMatching(datafeedIdPatterns, MlTasks.startedDatafeedIds(tasksMetadata));
+    }
+
     private QueryBuilder buildDatafeedJobIdsQuery(Collection<String> jobIds) {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
         boolQueryBuilder.filter(new TermQueryBuilder(DatafeedConfig.CONFIG_TYPE.getPreferredName(), DatafeedConfig.TYPE));
@@ -486,10 +513,12 @@ public class DatafeedConfigProvider {
         return boolQueryBuilder;
     }
 
-    private void parseLenientlyFromSource(BytesReference source, ActionListener<DatafeedConfig.Builder> datafeedConfigListener)  {
-        try (InputStream stream = source.streamInput();
-             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                     .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
+    private void parseLenientlyFromSource(BytesReference source, ActionListener<DatafeedConfig.Builder> datafeedConfigListener) {
+        try (
+            InputStream stream = source.streamInput();
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
+        ) {
             datafeedConfigListener.onResponse(DatafeedConfig.LENIENT_PARSER.apply(parser, null));
         } catch (Exception e) {
             datafeedConfigListener.onFailure(e);
@@ -497,9 +526,11 @@ public class DatafeedConfigProvider {
     }
 
     private DatafeedConfig.Builder parseLenientlyFromSource(BytesReference source) throws IOException {
-        try (InputStream stream = source.streamInput();
-             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                     .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
+        try (
+            InputStream stream = source.streamInput();
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
+        ) {
             return DatafeedConfig.LENIENT_PARSER.apply(parser, null);
         }
     }

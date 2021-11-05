@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
@@ -16,9 +17,12 @@ public class AuthenticateResponse extends ActionResponse {
 
     private Authentication authentication;
 
-    public AuthenticateResponse() {}
+    public AuthenticateResponse(StreamInput in) throws IOException {
+        super(in);
+        authentication = new Authentication(in);
+    }
 
-    public AuthenticateResponse(Authentication authentication){
+    public AuthenticateResponse(Authentication authentication) {
         this.authentication = authentication;
     }
 
@@ -28,14 +32,7 @@ public class AuthenticateResponse extends ActionResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         authentication.writeTo(out);
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        authentication = new Authentication(in);
     }
 
 }

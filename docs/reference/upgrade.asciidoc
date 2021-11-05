@@ -3,12 +3,96 @@
 
 [partintro]
 --
+ifeval::["{release-state}"!="released"]
+[[upgrade-pre-release]]
+IMPORTANT: This documentation is for a pre-release of {es} {minor-version}. 
+Upgrades from pre-release builds are not supported and
+could result in errors or data loss. 
+If you upgrade from a released version to a pre-release verion for testing, 
+discard the contents of the cluster when you are done.
+Do not attempt to upgrade to the final release. 
+endif::[]
+
 {es} can usually be upgraded using a <<rolling-upgrades,Rolling upgrade>>
 process so upgrading does not interrupt service. Rolling upgrades are supported:
 
 * Between minor versions
-* From 5.6 to 6.7
-* From 6.7 to {version}
+* From 5.6 to 6.8
+* From 6.8 to {prev-major-version}
+* From {prev-major-version} to {version}
+ifeval::[ "{bare_version}" != "{minor-version}.0" ]
+* From any version since {minor-version}.0 to {version}
+endif::[]
+
+[TIP]
+====
+For rolling upgrades between major versions, we recommend
+using the {kibana-ref}/upgrade-assistant.html[Kibana Upgrade Assistant].
+
+The upgrade assistant identifies deprecated settings in your cluster and guides
+you through the process of resolving issues, including reindexing.
+
+We also recommend checking your <<deprecation-logging,deprecation logs>> for any
+other functionality that may have changed.
+====
+
+[discrete]
+[[upgrade-paths]]
+=== Upgrade paths to {version}
+
+[cols="<1,3",options="header",]
+|====
+|Upgrade from   
+|Recommended upgrade path to {version}
+
+ifeval::[ "{bare_version}" != "{minor-version}.0" ]
+|A previous {minor-version} version (e.g., {minor-version}.0)
+|<<rolling-upgrades,Rolling upgrade>> to {version}
+endif::[]
+
+|{prev-major-version}
+|<<rolling-upgrades,Rolling upgrade>> to {version}
+
+|7.0–7.15
+a|
+. {ref-7x}/rolling-upgrades.html[Rolling upgrade] to 7.16
+. <<rolling-upgrades,Rolling upgrade>> to {version}
+
+|6.8
+a|
+. {ref-7x}/rolling-upgrades.html[Rolling upgrade] to 7.16
+. <<rolling-upgrades,Rolling upgrade>> to {version}
+
+|6.0–6.7
+a|
+
+. https://www.elastic.co/guide/en/elasticsearch/reference/6.8/rolling-upgrades.html[Rolling upgrade] to 6.8
+. {ref-7x}/rolling-upgrades.html[Rolling upgrade] to 7.16
+. <<rolling-upgrades,Rolling upgrade>> to {version}
+|====
+
+
+[WARNING]
+====
+The upgrade path from 6.8 to 7.0 is *not* supported (both full cluster restart and rolling upgrade).
+====
+
+To upgrade directly to {version} from 6.7 or earlier, you must shut down the
+cluster, install {version}, and restart. For more information, see
+<<restart-upgrade, Full cluster restart upgrade>>.
+
+[discrete]
+[[upgrade-downgrade]]
+=== Downgrades
+
+In-place downgrades to earlier versions are *not* supported. To downgrade to an
+earlier version, <<snapshots-restore-snapshot,restore a snapshot>> taken prior
+to the version upgrade.
+
+
+[discrete]
+[[upgrade-index-compatibility]]
+=== Index compatibility
 
 {es} can read indices created in the previous major version. If you
 have indices created in 5.x or before, you must reindex or delete them
@@ -21,24 +105,11 @@ When upgrading to a new version of {es}, you need to upgrade each
 of the products in your Elastic Stack. For more information, see the
 {stack-ref}/upgrading-elastic-stack.html[Elastic Stack Installation and Upgrade Guide].
 
-To upgrade directly to {version} from 6.6 or earlier, you must shut down the
-cluster, install {version}, and restart. For more information, see
-<<restart-upgrade, Full cluster restart upgrade>>.
+[discrete]
+[[upgrade-fips-java17]]
+=== FIPS Compliance and Java 17
 
-[float]
-== Preparing to upgrade
-
-Before upgrading {es}:
-
-. Check the <<deprecation-logging, deprecation log>> to see if you are using
-any deprecated features and update your code accordingly. By default,
-deprecation warnings are logged when the log level is set to `WARN`.
-. Review the <<breaking-changes,breaking changes>> and make any necessary changes
-to your code and configuration for {version}.
-. If you use custom plugins, make sure compatible versions are available.
-. Test upgrades in a dev environment before upgrading your production cluster.
-. <<modules-snapshots,Back up your data!>> You must have a snapshot of your
-data to roll back to an earlier version.
+include::{xes-repo-dir}/security/fips-java17.asciidoc[]
 
 --
 
@@ -47,3 +118,5 @@ include::upgrade/rolling_upgrade.asciidoc[]
 include::upgrade/cluster_restart.asciidoc[]
 
 include::upgrade/reindex_upgrade.asciidoc[]
+
+include::upgrade/archived-settings.asciidoc[]

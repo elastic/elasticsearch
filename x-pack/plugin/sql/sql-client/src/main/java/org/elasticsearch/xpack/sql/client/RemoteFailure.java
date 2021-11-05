@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.client;
 
@@ -87,12 +88,14 @@ public class RemoteFailure {
     private final Map<String, List<String>> metadata;
     private final RemoteFailure cause;
 
-    RemoteFailure(String type,
-                  String reason,
-                  String remoteTrace,
-                  Map<String, String> headers,
-                  Map<String, List<String>> metadata,
-                  RemoteFailure cause) {
+    RemoteFailure(
+        String type,
+        String reason,
+        String remoteTrace,
+        Map<String, String> headers,
+        Map<String, List<String>> metadata,
+        RemoteFailure cause
+    ) {
         this.type = type;
         this.reason = reason;
         this.remoteTrace = remoteTrace;
@@ -145,8 +148,9 @@ public class RemoteFailure {
         * but, alas, we aren't going to modularize those out any time soon. */
         JsonToken token = parser.nextToken();
         if (token != JsonToken.START_OBJECT) {
-            throw new IllegalArgumentException("Expected error to start with [START_OBJECT] but started with [" + token
-                    + "][" + parser.getText() + "]");
+            throw new IllegalArgumentException(
+                "Expected error to start with [START_OBJECT] but started with [" + token + "][" + parser.getText() + "]"
+            );
         }
         String fieldName = null;
         while ((token = parser.nextToken()) != JsonToken.END_OBJECT) {
@@ -154,20 +158,26 @@ public class RemoteFailure {
                 fieldName = parser.getCurrentName();
             } else {
                 switch (fieldName) {
-                case "error":
-                    if (token != JsonToken.START_OBJECT) {
-                        throw new IOException("Expected [error] to be an object but was [" + token + "][" + parser.getText() + "]");
-                    }
-                    exception = parseFailure(parser);
-                    continue;
-                case "status":
-                    if (token != JsonToken.VALUE_NUMBER_INT) {
-                        throw new IOException("Expected [status] to be a string but was [" + token + "][" + parser.getText() + "]");
-                    }
-                    // Intentionally ignored
-                    continue;
-                default:
-                    throw new IOException("Expected one of [error, status] but got [" + fieldName + "][" + parser.getText() + "]");
+                    case "error":
+                        if (token != JsonToken.START_OBJECT && token != JsonToken.VALUE_STRING) {
+                            throw new IOException(
+                                "Expected [error] to be an object or string but was [" + token + "][" + parser.getText() + "]"
+                            );
+                        }
+                        if (token == JsonToken.VALUE_STRING) {
+                            exception = new RemoteFailure(StringUtils.EMPTY, parser.getText(), null, null, null, null);
+                        } else {
+                            exception = parseFailure(parser);
+                        }
+                        continue;
+                    case "status":
+                        if (token != JsonToken.VALUE_NUMBER_INT) {
+                            throw new IOException("Expected [status] to be a string but was [" + token + "][" + parser.getText() + "]");
+                        }
+                        // Intentionally ignored
+                        continue;
+                    default:
+                        throw new IOException("Expected one of [error, status] but got [" + fieldName + "][" + parser.getText() + "]");
                 }
             }
         }
@@ -192,49 +202,51 @@ public class RemoteFailure {
                 fieldName = parser.getCurrentName();
             } else {
                 switch (fieldName) {
-                case "caused_by":
-                    if (token != JsonToken.START_OBJECT) {
-                        throw new IOException("Expected [caused_by] to be an object but was [" + token + "][" + parser.getText() + "]");
-                    }
-                    cause = parseFailure(parser);
-                    break;
-                case "header":
-                    if (token != JsonToken.START_OBJECT) {
-                        throw new IOException("Expected [header] to be an object but was [" + token + "][" + parser.getText() + "]");
-                    }
-                    headers = parseHeaders(parser);
-                    break;
-                case "reason":
-                    switch (token) {
-                    case VALUE_STRING:
-                        reason = parser.getText();
+                    case "caused_by":
+                        if (token != JsonToken.START_OBJECT) {
+                            throw new IOException("Expected [caused_by] to be an object but was [" + token + "][" + parser.getText() + "]");
+                        }
+                        cause = parseFailure(parser);
                         break;
-                    case VALUE_NULL:
+                    case "header":
+                        if (token != JsonToken.START_OBJECT) {
+                            throw new IOException("Expected [header] to be an object but was [" + token + "][" + parser.getText() + "]");
+                        }
+                        headers = parseHeaders(parser);
+                        break;
+                    case "reason":
+                        switch (token) {
+                            case VALUE_STRING:
+                                reason = parser.getText();
+                                break;
+                            case VALUE_NULL:
+                                break;
+                            default:
+                                throw new IOException("Expected [reason] to be a string but was [" + token + "][" + parser.getText() + "]");
+                        }
+                        break;
+                    case "root_cause":
+                        if (token != JsonToken.START_ARRAY) {
+                            throw new IOException("Expected [root_cause] to be an array but was [" + token + "][" + parser.getText() + "]");
+                        }
+                        parser.skipChildren();   // Intentionally ignored
+                        break;
+                    case "stack_trace":
+                        if (token != JsonToken.VALUE_STRING) {
+                            throw new IOException(
+                                "Expected [stack_trace] to be a string but was [" + token + "][" + parser.getText() + "]"
+                            );
+                        }
+                        remoteTrace = parser.getText();
+                        break;
+                    case "type":
+                        if (token != JsonToken.VALUE_STRING) {
+                            throw new IOException("Expected [type] to be a string but was [" + token + "][" + parser.getText() + "]");
+                        }
+                        type = parser.getText();
                         break;
                     default:
-                        throw new IOException("Expected [reason] to be a string but was [" + token + "][" + parser.getText() + "]");
-                    }
-                    break;
-                case "root_cause":
-                    if (token != JsonToken.START_ARRAY) {
-                        throw new IOException("Expected [root_cause] to be an array but was [" + token + "][" + parser.getText() + "]");
-                    }
-                    parser.skipChildren();   // Intentionally ignored
-                    break;
-                case "stack_trace":
-                    if (token != JsonToken.VALUE_STRING) {
-                        throw new IOException("Expected [stack_trace] to be a string but was [" + token + "][" + parser.getText() + "]");
-                    }
-                    remoteTrace = parser.getText();
-                    break;
-                case "type":
-                    if (token != JsonToken.VALUE_STRING) {
-                        throw new IOException("Expected [type] to be a string but was [" + token + "][" + parser.getText() + "]");
-                    }
-                    type = parser.getText();
-                    break;
-                default:
-                    metadata.putAll(parseMetadata(parser));
+                        metadata.putAll(parseMetadata(parser));
                 }
             }
         }
@@ -280,7 +292,7 @@ public class RemoteFailure {
             // Arrays of objects are not supported yet and just ignored and skipped.
             final List<String> values = new ArrayList<>();
             while ((token = parser.nextToken()) != JsonToken.END_ARRAY) {
-                if (token ==JsonToken.VALUE_STRING) {
+                if (token == JsonToken.VALUE_STRING) {
                     values.add(parser.getText());
                 } else {
                     parser.skipChildren();
@@ -329,9 +341,8 @@ public class RemoteFailure {
         }
         String parserLocation = "";
         if (parser != null) {
-            parserLocation = " at [line " + parser.getTokenLocation().getLineNr()
-                    + " col " + parser.getTokenLocation().getColumnNr() + "]";
+            parserLocation = " at [line " + parser.getTokenLocation().getLineNr() + " col " + parser.getTokenLocation().getColumnNr() + "]";
         }
-        return "Can't parse error from Elasticsearch [" + message + "]" + parserLocation + ". "  + responseMessage;
+        return "Can't parse error from Elasticsearch [" + message + "]" + parserLocation + ". " + responseMessage;
     }
 }

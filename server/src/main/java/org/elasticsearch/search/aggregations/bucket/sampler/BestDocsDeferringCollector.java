@@ -1,24 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket.sampler;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreDoc;
@@ -28,10 +18,10 @@ import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.MultiBucketCollector;
@@ -83,7 +73,7 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
     /** Set the deferred collectors. */
     @Override
     public void setDeferredCollector(Iterable<BucketCollector> deferredCollectors) {
-        this.deferred = MultiBucketCollector.wrap(deferredCollectors);
+        this.deferred = MultiBucketCollector.wrap(true, deferredCollectors);
     }
 
     @Override
@@ -127,7 +117,6 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
     public void postCollection() throws IOException {
         runDeferredAggs();
     }
-
 
     @Override
     public void prepareSelectedBuckets(long... selectedBuckets) throws IOException {
@@ -254,25 +243,30 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
         }
 
         public void replayRelatedMatches(List<ScoreDoc> sd) throws IOException {
-            final LeafBucketCollector leafCollector = deferred.getLeafCollector(readerContext);
-            leafCollector.setScorer(this);
+            try {
+                final LeafBucketCollector leafCollector = deferred.getLeafCollector(readerContext);
+                leafCollector.setScorer(this);
 
-            currentScore = 0;
-            currentDocId = -1;
-            if (maxDocId < 0) {
-                return;
-            }
-            for (ScoreDoc scoreDoc : sd) {
-                // Doc ids from TopDocCollector are root-level Reader so
-                // need rebasing
-                int rebased = scoreDoc.doc - readerContext.docBase;
-                if ((rebased >= 0) && (rebased <= maxDocId)) {
-                    currentScore = scoreDoc.score;
-                    currentDocId = rebased;
-                    // We stored the bucket ID in Lucene's shardIndex property
-                    // for convenience.
-                    leafCollector.collect(rebased, scoreDoc.shardIndex);
+                currentScore = 0;
+                currentDocId = -1;
+                if (maxDocId < 0) {
+                    return;
                 }
+                for (ScoreDoc scoreDoc : sd) {
+                    // Doc ids from TopDocCollector are root-level Reader so
+                    // need rebasing
+                    int rebased = scoreDoc.doc - readerContext.docBase;
+                    if ((rebased >= 0) && (rebased <= maxDocId)) {
+                        currentScore = scoreDoc.score;
+                        currentDocId = rebased;
+                        // We stored the bucket ID in Lucene's shardIndex property
+                        // for convenience.
+                        leafCollector.collect(rebased, scoreDoc.shardIndex);
+                    }
+                }
+            } catch (CollectionTerminatedException e) {
+                // collection was terminated prematurely
+                // continue with the following leaf
             }
         }
 
@@ -300,6 +294,9 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
     }
 
     public int getDocCount(long parentBucket) {
+        if (perBucketSamples.size() <= parentBucket) {
+            return 0;
+        }
         PerParentBucketSamples sampler = perBucketSamples.get((int) parentBucket);
         if (sampler == null) {
             // There are conditions where no docs are collected and the aggs

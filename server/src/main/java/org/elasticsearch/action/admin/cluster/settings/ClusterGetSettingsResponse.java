@@ -1,38 +1,28 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.settings;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * This response is specific to the REST client. {@link org.elasticsearch.action.admin.cluster.state.ClusterStateResponse}
@@ -48,15 +38,14 @@ public class ClusterGetSettingsResponse extends ActionResponse implements ToXCon
     static final String TRANSIENT_FIELD = "transient";
     static final String DEFAULTS_FIELD = "defaults";
 
-    private static final ConstructingObjectParser<ClusterGetSettingsResponse, Void> PARSER =
-        new ConstructingObjectParser<>(
-            "cluster_get_settings_response",
-            true,
-            a -> {
-                Settings defaultSettings = a[2] == null ? Settings.EMPTY : (Settings) a[2];
-                return new ClusterGetSettingsResponse((Settings) a[0], (Settings) a[1], defaultSettings);
-            }
-        );
+    private static final ConstructingObjectParser<ClusterGetSettingsResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "cluster_get_settings_response",
+        true,
+        a -> {
+            Settings defaultSettings = a[2] == null ? Settings.EMPTY : (Settings) a[2];
+            return new ClusterGetSettingsResponse((Settings) a[0], (Settings) a[1], defaultSettings);
+        }
+    );
     static {
         PARSER.declareObject(constructorArg(), (p, c) -> Settings.fromXContent(p), new ParseField(PERSISTENT_FIELD));
         PARSER.declareObject(constructorArg(), (p, c) -> Settings.fromXContent(p), new ParseField(TRANSIENT_FIELD));
@@ -147,9 +136,9 @@ public class ClusterGetSettingsResponse extends ActionResponse implements ToXCon
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ClusterGetSettingsResponse that = (ClusterGetSettingsResponse) o;
-        return Objects.equals(transientSettings, that.transientSettings) &&
-            Objects.equals(persistentSettings, that.persistentSettings) &&
-            Objects.equals(defaultSettings, that.defaultSettings);
+        return Objects.equals(transientSettings, that.transientSettings)
+            && Objects.equals(persistentSettings, that.persistentSettings)
+            && Objects.equals(defaultSettings, that.defaultSettings);
     }
 
     @Override
@@ -161,4 +150,7 @@ public class ClusterGetSettingsResponse extends ActionResponse implements ToXCon
     public String toString() {
         return Strings.toString(this);
     }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {}
 }

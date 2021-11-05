@@ -1,0 +1,33 @@
+{
+  "cluster.post_voting_config_exclusions_with_node_name_part":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/voting-config-exclusions.html",
+      "description":"Updates the cluster voting config exclusions by node_name (not node ids or node names)."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/vnd.elasticsearch+json;compatible-with=7"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_cluster/voting_config_exclusions/{node_name}",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "node_name":{
+              "type":"string",
+              "description":"A comma-separated list of node descriptors of the nodes to exclude from the voting configuration."
+            }
+          },
+          "deprecated":{
+            "version":"7.8.0",
+            "description":"node_name is deprecated, use node_names or node_ids instead"
+          }
+        }
+      ]
+    }
+  }
+}

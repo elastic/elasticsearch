@@ -1,37 +1,29 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.node;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.Nullable;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 
 public class DiscoveryNodeFilters {
+
+    static final Set<String> NON_ATTRIBUTE_NAMES = Set.of("_ip", "_host_ip", "_publish_ip", "host", "_id", "_name", "name");
 
     public enum OpType {
         AND,
@@ -59,7 +51,7 @@ public class DiscoveryNodeFilters {
         Map<String, String[]> bFilters = new HashMap<>();
         for (Map.Entry<String, String> entry : filters.entrySet()) {
             String[] values = Strings.tokenizeToStringArray(entry.getValue(), ",");
-            if (values.length > 0) {
+            if (values.length > 0 && entry.getKey() != null) {
                 bFilters.put(entry.getKey(), values);
             }
         }
@@ -73,19 +65,44 @@ public class DiscoveryNodeFilters {
 
     private final OpType opType;
 
-    DiscoveryNodeFilters(OpType opType, Map<String, String[]> filters) {
+    @Nullable
+    private final DiscoveryNodeFilters withoutTierPreferences;
+
+    private DiscoveryNodeFilters(OpType opType, Map<String, String[]> filters) {
         this.opType = opType;
-        this.filters = filters;
+        this.filters = Map.copyOf(filters);
+        this.withoutTierPreferences = doTrimTier(this);
     }
 
     private boolean matchByIP(String[] values, @Nullable String hostIp, @Nullable String publishIp) {
-        for (String value : values) {
+        for (String ipOrHost : values) {
+            String value = InetAddresses.isInetAddress(ipOrHost) ? NetworkAddress.format(InetAddresses.forString(ipOrHost)) : ipOrHost;
             boolean matchIp = Regex.simpleMatch(value, hostIp) || Regex.simpleMatch(value, publishIp);
             if (matchIp) {
                 return matchIp;
             }
         }
         return false;
+    }
+
+    /**
+     * Removes any filters that should not be considered, returning a new
+     * {@link DiscoveryNodeFilters} object. If the filtered object has no
+     * filters after trimming, {@code null} is returned.
+     */
+    @Nullable
+    public static DiscoveryNodeFilters trimTier(@Nullable DiscoveryNodeFilters original) {
+        return original == null ? null : original.withoutTierPreferences;
+    }
+
+    private static DiscoveryNodeFilters doTrimTier(DiscoveryNodeFilters original) {
+        if (original.filters.containsKey("_tier_preference") == false) {
+            return original;
+        }
+        final Map<String, String[]> newFilters = new HashMap<>(original.filters);
+        final String[] removed = newFilters.remove("_tier_preference");
+        assert removed != null;
+        return newFilters.isEmpty() ? null : new DiscoveryNodeFilters(original.opType, newFilters);
     }
 
     public boolean match(DiscoveryNode node) {
@@ -208,6 +225,14 @@ public class DiscoveryNodeFilters {
         } else {
             return true;
         }
+    }
+
+    /**
+     *
+     * @return true if this filter only contains attribute values, i.e., no node specific info.
+     */
+    public boolean isOnlyAttributeValueFilter() {
+        return filters.keySet().stream().anyMatch(NON_ATTRIBUTE_NAMES::contains) == false;
     }
 
     /**

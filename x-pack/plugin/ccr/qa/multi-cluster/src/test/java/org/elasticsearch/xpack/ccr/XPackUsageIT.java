@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ObjectPath;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.xcontent.ObjectPath;
 
 import java.io.IOException;
 import java.util.Map;
@@ -22,7 +24,7 @@ public class XPackUsageIT extends ESCCRRestTestCase {
 
     public void testXPackCcrUsage() throws Exception {
         if ("follow".equals(targetCluster) == false) {
-            logger.info("skipping test, waiting for target cluster [follow]" );
+            logger.info("skipping test, waiting for target cluster [follow]");
             return;
         }
 
@@ -70,11 +72,8 @@ public class XPackUsageIT extends ESCCRRestTestCase {
 
     private void createLeaderIndex(String indexName) throws IOException {
         try (RestClient leaderClient = buildLeaderClient()) {
-            Settings settings = Settings.builder()
-                .put("index.soft_deletes.enabled", true)
-                .build();
             Request request = new Request("PUT", "/" + indexName);
-            request.setJsonEntity("{\"settings\": " + Strings.toString(settings) + "}");
+            request.setJsonEntity("{}");
             assertOK(leaderClient.performRequest(request));
         }
     }
@@ -83,7 +82,7 @@ public class XPackUsageIT extends ESCCRRestTestCase {
         Request request = new Request("GET", "/_xpack/usage");
         Map<String, ?> response = toMap(client().performRequest(request));
         logger.info("xpack usage response={}", response);
-        return  (Map<?, ?>) response.get("ccr");
+        return (Map<?, ?>) response.get("ccr");
     }
 
     private void assertIndexFollowingActive(String expectedFollowerIndex) throws IOException {
@@ -93,6 +92,12 @@ public class XPackUsageIT extends ESCCRRestTestCase {
         assertThat(actualFollowerIndex, equalTo(expectedFollowerIndex));
         String followStatus = ObjectPath.eval("follower_indices.0.status", response);
         assertThat(followStatus, equalTo("active"));
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
 }

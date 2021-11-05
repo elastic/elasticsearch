@@ -1,40 +1,26 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -52,11 +38,11 @@ public class ExpectedReciprocalRankTests extends ESTestCase {
     public void testProbabilityOfRelevance() {
         ExpectedReciprocalRank err = new ExpectedReciprocalRank(5);
         assertEquals(0.0, err.probabilityOfRelevance(0), 0.0);
-        assertEquals(1d/32d, err.probabilityOfRelevance(1), 0.0);
-        assertEquals(3d/32d, err.probabilityOfRelevance(2), 0.0);
-        assertEquals(7d/32d, err.probabilityOfRelevance(3), 0.0);
-        assertEquals(15d/32d, err.probabilityOfRelevance(4), 0.0);
-        assertEquals(31d/32d, err.probabilityOfRelevance(5), 0.0);
+        assertEquals(1d / 32d, err.probabilityOfRelevance(1), 0.0);
+        assertEquals(3d / 32d, err.probabilityOfRelevance(2), 0.0);
+        assertEquals(7d / 32d, err.probabilityOfRelevance(3), 0.0);
+        assertEquals(15d / 32d, err.probabilityOfRelevance(4), 0.0);
+        assertEquals(31d / 32d, err.probabilityOfRelevance(5), 0.0);
     }
 
     /**
@@ -75,7 +61,7 @@ public class ExpectedReciprocalRankTests extends ESTestCase {
      */
     public void testERRAt() {
         List<RatedDocument> rated = new ArrayList<>();
-        Integer[] relevanceRatings = new Integer[] { 3, 2, 0, 1};
+        Integer[] relevanceRatings = new Integer[] { 3, 2, 0, 1 };
         SearchHit[] hits = createSearchHits(rated, relevanceRatings);
         ExpectedReciprocalRank err = new ExpectedReciprocalRank(3, 0, 3);
         assertEquals(0.8984375, err.evaluate("id", hits, rated).metricScore(), DELTA);
@@ -100,7 +86,7 @@ public class ExpectedReciprocalRankTests extends ESTestCase {
      */
     public void testERRMissingRatings() {
         List<RatedDocument> rated = new ArrayList<>();
-        Integer[] relevanceRatings = new Integer[] { 3, null, 0, 1};
+        Integer[] relevanceRatings = new Integer[] { 3, null, 0, 1 };
         SearchHit[] hits = createSearchHits(rated, relevanceRatings);
         ExpectedReciprocalRank err = new ExpectedReciprocalRank(3, null, 4);
         EvalQueryQuality evaluation = err.evaluate("id", hits, rated);
@@ -117,8 +103,8 @@ public class ExpectedReciprocalRankTests extends ESTestCase {
             if (relevanceRatings[i] != null) {
                 rated.add(new RatedDocument("index", Integer.toString(i), relevanceRatings[i]));
             }
-            hits[i] = new SearchHit(i, Integer.toString(i), new Text(MapperService.SINGLE_MAPPING_NAME), Collections.emptyMap());
-            hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null, OriginalIndices.NONE));
+            hits[i] = new SearchHit(i, Integer.toString(i), Collections.emptyMap(), Collections.emptyMap());
+            hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null));
         }
         return hits;
     }
@@ -138,7 +124,7 @@ public class ExpectedReciprocalRankTests extends ESTestCase {
     }
 
     private void assertParsedCorrect(String xContent, Integer expectedUnknownDocRating, int expectedMaxRelevance, int expectedK)
-            throws IOException {
+        throws IOException {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {
             ExpectedReciprocalRank errAt = ExpectedReciprocalRank.fromXContent(parser);
             assertEquals(expectedUnknownDocRating, errAt.getUnknownDocRating());
@@ -175,8 +161,10 @@ public class ExpectedReciprocalRankTests extends ESTestCase {
         try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
             parser.nextToken();
             parser.nextToken();
-            XContentParseException exception = expectThrows(XContentParseException.class,
-                    () -> DiscountedCumulativeGain.fromXContent(parser));
+            XContentParseException exception = expectThrows(
+                XContentParseException.class,
+                () -> DiscountedCumulativeGain.fromXContent(parser)
+            );
             assertThat(exception.getMessage(), containsString("[dcg] unknown field"));
         }
     }
@@ -189,31 +177,42 @@ public class ExpectedReciprocalRankTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         ExpectedReciprocalRank original = createTestItem();
-        ExpectedReciprocalRank deserialized = ESTestCase.copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()),
-                ExpectedReciprocalRank::new);
+        ExpectedReciprocalRank deserialized = ESTestCase.copyWriteable(
+            original,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            ExpectedReciprocalRank::new
+        );
         assertEquals(deserialized, original);
         assertEquals(deserialized.hashCode(), original.hashCode());
         assertNotSame(deserialized, original);
     }
 
     public void testEqualsAndHash() throws IOException {
-        checkEqualsAndHashCode(createTestItem(), original -> {
-            return new ExpectedReciprocalRank(original.getMaxRelevance(), original.getUnknownDocRating(), original.getK());
-        }, ExpectedReciprocalRankTests::mutateTestItem);
+        checkEqualsAndHashCode(
+            createTestItem(),
+            original -> { return new ExpectedReciprocalRank(original.getMaxRelevance(), original.getUnknownDocRating(), original.getK()); },
+            ExpectedReciprocalRankTests::mutateTestItem
+        );
     }
 
     private static ExpectedReciprocalRank mutateTestItem(ExpectedReciprocalRank original) {
         switch (randomIntBetween(0, 2)) {
-        case 0:
-            return new ExpectedReciprocalRank(original.getMaxRelevance() + 1, original.getUnknownDocRating(), original.getK());
-        case 1:
-            return new ExpectedReciprocalRank(original.getMaxRelevance(),
-                    randomValueOtherThan(original.getUnknownDocRating(), () -> randomIntBetween(0, 10)), original.getK());
-        case 2:
-            return new ExpectedReciprocalRank(original.getMaxRelevance(), original.getUnknownDocRating(),
-                    randomValueOtherThan(original.getK(), () -> randomIntBetween(1, 10)));
-        default:
-            throw new IllegalArgumentException("mutation variant not allowed");
+            case 0:
+                return new ExpectedReciprocalRank(original.getMaxRelevance() + 1, original.getUnknownDocRating(), original.getK());
+            case 1:
+                return new ExpectedReciprocalRank(
+                    original.getMaxRelevance(),
+                    randomValueOtherThan(original.getUnknownDocRating(), () -> randomIntBetween(0, 10)),
+                    original.getK()
+                );
+            case 2:
+                return new ExpectedReciprocalRank(
+                    original.getMaxRelevance(),
+                    original.getUnknownDocRating(),
+                    randomValueOtherThan(original.getK(), () -> randomIntBetween(1, 10))
+                );
+            default:
+                throw new IllegalArgumentException("mutation variant not allowed");
         }
     }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
@@ -9,23 +10,20 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.elasticsearch.search.sort.SortBuilder;
-import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.querydsl.container.AttributeSort;
+import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.querydsl.container.AttributeSort;
+import org.elasticsearch.xpack.ql.querydsl.container.ScriptSort;
+import org.elasticsearch.xpack.ql.querydsl.container.Sort;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.querydsl.container.ScoreSort;
-import org.elasticsearch.xpack.sql.querydsl.container.ScriptSort;
-import org.elasticsearch.xpack.sql.querydsl.container.Sort;
 
-import java.util.List;
-
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 import static org.elasticsearch.search.sort.SortBuilders.scoreSort;
@@ -34,8 +32,6 @@ import static org.elasticsearch.search.sort.SortBuilders.scriptSort;
 public abstract class SourceGenerator {
 
     private SourceGenerator() {}
-
-    private static final List<String> NO_STORED_FIELD = singletonList(StoredFieldsContext._NONE_);
 
     public static SearchSourceBuilder sourceBuilder(QueryContainer container, QueryBuilder filter, Integer size) {
         QueryBuilder finalQuery = null;
@@ -55,14 +51,13 @@ public abstract class SourceGenerator {
         final SearchSourceBuilder source = new SearchSourceBuilder();
         source.query(finalQuery);
 
-        SqlSourceBuilder sortBuilder = new SqlSourceBuilder();
+        QlSourceBuilder sortBuilder = new QlSourceBuilder();
         // Iterate through all the columns requested, collecting the fields that
         // need to be retrieved from the result documents
 
         // NB: the sortBuilder takes care of eliminating duplicates
         container.fields().forEach(f -> f.v1().collectFields(sortBuilder));
         sortBuilder.build(source);
-        optimize(sortBuilder, source);
 
         // add the aggs (if present)
         AggregationBuilder aggBuilder = container.aggs().asAggBuilder();
@@ -76,13 +71,21 @@ public abstract class SourceGenerator {
         // set page size
         if (size != null) {
             int sz = container.limit() > 0 ? Math.min(container.limit(), size) : size;
+            // now take into account the the minimum page (if set)
+            // that is, return the multiple of the minimum page size closer to the set size
+            int minSize = container.minPageSize();
+            sz = minSize > 0 ? (Math.max(sz / minSize, 1) * minSize) : sz;
 
             if (source.size() == -1) {
                 source.size(sz);
             }
-            // limit the composite aggs only for non-local sorting
-            if (aggBuilder instanceof CompositeAggregationBuilder && container.sortingColumns().isEmpty()) {
-                ((CompositeAggregationBuilder) aggBuilder).size(sz);
+            if (aggBuilder instanceof CompositeAggregationBuilder) {
+                // limit the composite aggs only for non-local sorting
+                if (container.sortingColumns().isEmpty()) {
+                    ((CompositeAggregationBuilder) aggBuilder).size(sz);
+                } else {
+                    ((CompositeAggregationBuilder) aggBuilder).size(size);
+                }
             }
         }
 
@@ -101,7 +104,7 @@ public abstract class SourceGenerator {
             source.sort("_doc");
             return;
         }
-        for (Sort sortable : container.sort()) {
+        for (Sort sortable : container.sort().values()) {
             SortBuilder<?> sortBuilder = null;
 
             if (sortable instanceof AttributeSort) {
@@ -112,14 +115,12 @@ public abstract class SourceGenerator {
                 if (attr instanceof FieldAttribute) {
                     FieldAttribute fa = ((FieldAttribute) attr).exactAttribute();
 
-                    sortBuilder = fieldSort(fa.name())
-                            .missing(as.missing().position())
-                            .unmappedType(fa.dataType().esType);
-                    
+                    sortBuilder = fieldSort(fa.name()).missing(as.missing().searchOrder(as.direction()))
+                        .unmappedType(fa.dataType().esType());
+
                     if (fa.isNested()) {
-                        FieldSortBuilder fieldSort = fieldSort(fa.name())
-                                .missing(as.missing().position())
-                                .unmappedType(fa.dataType().esType);
+                        FieldSortBuilder fieldSort = fieldSort(fa.name()).missing(as.missing().searchOrder(as.direction()))
+                            .unmappedType(fa.dataType().esType());
 
                         NestedSortBuilder newSort = new NestedSortBuilder(fa.nestedParent().name());
                         NestedSortBuilder nestedSort = fieldSort.getNestedSort();
@@ -143,8 +144,10 @@ public abstract class SourceGenerator {
                 }
             } else if (sortable instanceof ScriptSort) {
                 ScriptSort ss = (ScriptSort) sortable;
-                sortBuilder = scriptSort(ss.script().toPainless(),
-                        ss.script().outputType().isNumeric() ? ScriptSortType.NUMBER : ScriptSortType.STRING);
+                sortBuilder = scriptSort(
+                    ss.script().toPainless(),
+                    ss.script().outputType().isNumeric() ? ScriptSortType.NUMBER : ScriptSortType.STRING
+                );
             } else if (sortable instanceof ScoreSort) {
                 sortBuilder = scoreSort();
             }
@@ -156,29 +159,15 @@ public abstract class SourceGenerator {
         }
     }
 
-    private static void optimize(SqlSourceBuilder sqlSource, SearchSourceBuilder builder) {
-        if (sqlSource.sourceFields.isEmpty()) {
-            disableSource(builder);
-        }
-    }
-
     private static void optimize(QueryContainer query, SearchSourceBuilder builder) {
         // if only aggs are needed, don't retrieve any docs and remove scoring
         if (query.isAggsOnly()) {
             builder.size(0);
             builder.trackScores(false);
-            // disable source fetching (only doc values are used)
-            disableSource(builder);
         }
         if (query.shouldTrackHits()) {
             builder.trackTotalHits(true);
         }
-    }
-
-    private static void disableSource(SearchSourceBuilder builder) {
         builder.fetchSource(FetchSourceContext.DO_NOT_FETCH_SOURCE);
-        if (builder.storedFields() == null) {
-            builder.storedFields(NO_STORED_FIELD);
-        }
     }
 }

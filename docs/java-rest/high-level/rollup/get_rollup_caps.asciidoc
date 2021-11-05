@@ -3,9 +3,11 @@
 :request: GetRollupCapsRequest
 :response: GetRollupCapsResponse
 --
-
+[role="xpack"]
 [id="{upid}-x-pack-{api}"]
 === Get Rollup Capabilities API
+
+experimental::[]
 
 The Get Rollup Capabilities API allows the user to query a target index pattern (`logstash-*`, etc)
 and determine if there are any rollup jobs that are/were configured to rollup that pattern.
@@ -38,7 +40,7 @@ include-tagged::{doc-tests-file}[x-pack-{api}-execute]
 
 The returned +{response}+ holds lists and maps of values which correspond to the capabilities
 of the target index/index pattern (what jobs were configured for the pattern, where the data is stored, what
-aggregations are available, etc).  It provides essentially the same data as the original job configuration,
+aggregations are available, etc). It provides essentially the same data as the original job configuration,
 just presented in a different manner.
 
 For example, if we had created a job with the following config:

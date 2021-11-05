@@ -1,0 +1,7 @@
+apply plugin: 'elasticsearch.build'
+tasks.named("test").configure { enabled = false }
+
+dependencies {
+  implementation project(':test:framework')
+}
+

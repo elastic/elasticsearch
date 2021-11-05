@@ -1,45 +1,37 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.authenticated-testclusters'
 
 dependencies {
-  testCompile project(':x-pack:qa')
+  testImplementation project(':x-pack:qa')
 }
 
-integTest {
-  includePackaged = true
+restResources {
+  restTests {
+    includeCore '*'
+  }
 }
 
-integTestRunner {
-  systemProperty 'tests.rest.blacklist',
-    [
-     'index/10_with_id/Index with ID',
-     'indices.get_alias/10_basic/Get alias against closed indices'
-    ].join(',')
-
-  systemProperty 'tests.rest.cluster.username', System.getProperty('tests.rest.cluster.username', 'test_user')
-  systemProperty 'tests.rest.cluster.password', System.getProperty('tests.rest.cluster.password', 'x-pack-test-password')
+tasks.named("integTest").configure {
+    systemProperty 'tests.rest.blacklist',
+      [
+        'index/10_with_id/Index with ID',
+        'indices.get_alias/10_basic/Get alias against closed indices'
+      ].join(',')
 }
 
-integTestCluster {
-  setting 'xpack.ilm.enabled', 'false'
-  setting 'xpack.security.enabled', 'true'
+testClusters.matching { it.name == "integTest" }.configureEach {
+  testDistribution = 'DEFAULT'
   setting 'xpack.watcher.enabled', 'false'
-  setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
-  setupCommand 'setupDummyUser',
-               'bin/elasticsearch-users',
-               'useradd', System.getProperty('tests.rest.cluster.username', 'test_user'),
-               '-p', System.getProperty('tests.rest.cluster.password', 'x-pack-test-password'),
-               '-r', 'superuser'
-  waitCondition = { node, ant ->
-    File tmpFile = new File(node.cwd, 'wait.success')
-    ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
-            dest: tmpFile.toString(),
-            username: 'test_user',
-            password: 'x-pack-test-password',
-            ignoreerrors: true,
-            retries: 10)
-    return tmpFile.exists()
+  setting 'indices.lifecycle.history_index_enabled', 'false'
+  setting 'xpack.security.autoconfiguration.enabled', 'false'
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.index_mode_feature_flag_registered', 'true'
   }
 }

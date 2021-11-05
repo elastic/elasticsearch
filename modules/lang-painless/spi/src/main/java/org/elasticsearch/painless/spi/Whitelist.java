@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless.spi;
@@ -35,25 +24,6 @@ import java.util.Objects;
  */
 public final class Whitelist {
 
-    private static final String[] BASE_WHITELIST_FILES = new String[] {
-        "org.elasticsearch.txt",
-        "java.lang.txt",
-        "java.math.txt",
-        "java.text.txt",
-        "java.time.txt",
-        "java.time.chrono.txt",
-        "java.time.format.txt",
-        "java.time.temporal.txt",
-        "java.time.zone.txt",
-        "java.util.txt",
-        "java.util.function.txt",
-        "java.util.regex.txt",
-        "java.util.stream.txt"
-    };
-
-    public static final List<Whitelist> BASE_WHITELISTS =
-        Collections.singletonList(WhitelistLoader.loadFromResourceFiles(Whitelist.class, BASE_WHITELIST_FILES));
-
     /** The {@link ClassLoader} used to look up the whitelisted Java classes, constructors, methods, and fields. */
     public final ClassLoader classLoader;
 
@@ -70,8 +40,13 @@ public final class Whitelist {
     public final List<WhitelistInstanceBinding> whitelistInstanceBindings;
 
     /** Standard constructor. All values must be not {@code null}. */
-    public Whitelist(ClassLoader classLoader, List<WhitelistClass> whitelistClasses, List<WhitelistMethod> whitelistImportedMethods,
-            List<WhitelistClassBinding> whitelistClassBindings, List<WhitelistInstanceBinding> whitelistInstanceBindings) {
+    public Whitelist(
+        ClassLoader classLoader,
+        List<WhitelistClass> whitelistClasses,
+        List<WhitelistMethod> whitelistImportedMethods,
+        List<WhitelistClassBinding> whitelistClassBindings,
+        List<WhitelistInstanceBinding> whitelistInstanceBindings
+    ) {
 
         this.classLoader = Objects.requireNonNull(classLoader);
         this.whitelistClasses = Collections.unmodifiableList(Objects.requireNonNull(whitelistClasses));

@@ -1,13 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
+ * Licensed to Elasticsearch B.V. under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
+ * ownership. Elasticsearch B.V. licenses this file to you under
  * the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -45,6 +45,7 @@ import java.util.function.Supplier;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -52,13 +53,14 @@ import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class RestClientTests extends RestClientTestCase {
 
     public void testCloseIsIdempotent() throws IOException {
         List<Node> nodes = singletonList(new Node(new HttpHost("localhost", 9200)));
         CloseableHttpAsyncClient closeableHttpAsyncClient = mock(CloseableHttpAsyncClient.class);
-        RestClient restClient = new RestClient(closeableHttpAsyncClient, new Header[0], nodes, null, null, null, false);
+        RestClient restClient = new RestClient(closeableHttpAsyncClient, new Header[0], nodes, null, null, null, false, false);
         restClient.close();
         verify(closeableHttpAsyncClient, times(1)).close();
         restClient.close();
@@ -170,10 +172,7 @@ public class RestClientTests extends RestClientTestCase {
             assertEquals("node cannot be null", e.getMessage());
         }
         try (RestClient restClient = createRestClient()) {
-            restClient.setNodes(Arrays.asList(
-                new Node(new HttpHost("localhost", 9200)),
-                null,
-                new Node(new HttpHost("localhost", 9201))));
+            restClient.setNodes(Arrays.asList(new Node(new HttpHost("localhost", 9200)), null, new Node(new HttpHost("localhost", 9201))));
             fail("setNodes should have failed");
         } catch (NullPointerException e) {
             assertEquals("node cannot be null", e.getMessage());
@@ -260,8 +259,8 @@ public class RestClientTests extends RestClientTestCase {
          */
         {
             String message = "NodeSelector [NONE] rejected all nodes, living ["
-                    + "[host=http://1, version=1], [host=http://2, version=2], "
-                    + "[host=http://3, version=3]] and dead []";
+                + "[host=http://1, version=1], [host=http://2, version=2], "
+                + "[host=http://3, version=3]] and dead []";
             assertEquals(message, assertSelectAllRejected(nodeTuple, emptyBlacklist, noNodes));
         }
 
@@ -298,8 +297,8 @@ public class RestClientTests extends RestClientTestCase {
              * their nodes are blacklisted AND blocked.
              */
             String message = "NodeSelector [NONE] rejected all nodes, living [] and dead ["
-                    + "[host=http://1, version=1], [host=http://2, version=2], "
-                    + "[host=http://3, version=3]]";
+                + "[host=http://1, version=1], [host=http://2, version=2], "
+                + "[host=http://3, version=3]]";
             assertEquals(message, assertSelectAllRejected(nodeTuple, blacklist, noNodes));
 
             /*
@@ -326,16 +325,19 @@ public class RestClientTests extends RestClientTestCase {
         }
     }
 
-    private void assertSelectLivingHosts(List<Node> expectedNodes, NodeTuple<List<Node>> nodeTuple,
-            Map<HttpHost, DeadHostState> blacklist, NodeSelector nodeSelector) throws IOException {
+    private void assertSelectLivingHosts(
+        List<Node> expectedNodes,
+        NodeTuple<List<Node>> nodeTuple,
+        Map<HttpHost, DeadHostState> blacklist,
+        NodeSelector nodeSelector
+    ) throws IOException {
         int iterations = 1000;
         AtomicInteger lastNodeIndex = new AtomicInteger(0);
         assertEquals(expectedNodes, RestClient.selectNodes(nodeTuple, blacklist, lastNodeIndex, nodeSelector));
         // Calling it again rotates the set of results
         for (int i = 1; i < iterations; i++) {
             Collections.rotate(expectedNodes, 1);
-            assertEquals("iteration " + i, expectedNodes,
-                    RestClient.selectNodes(nodeTuple, blacklist, lastNodeIndex, nodeSelector));
+            assertEquals("iteration " + i, expectedNodes, RestClient.selectNodes(nodeTuple, blacklist, lastNodeIndex, nodeSelector));
         }
     }
 
@@ -343,8 +345,11 @@ public class RestClientTests extends RestClientTestCase {
      * Assert that {@link RestClient#selectNodes} fails on the provided arguments.
      * @return the message in the exception thrown by the failure
      */
-    private static String assertSelectAllRejected( NodeTuple<List<Node>> nodeTuple,
-            Map<HttpHost, DeadHostState> blacklist, NodeSelector nodeSelector) {
+    private static String assertSelectAllRejected(
+        NodeTuple<List<Node>> nodeTuple,
+        Map<HttpHost, DeadHostState> blacklist,
+        NodeSelector nodeSelector
+    ) {
         try {
             RestClient.selectNodes(nodeTuple, blacklist, new AtomicInteger(0), nodeSelector);
             throw new AssertionError("expected selectHosts to fail");
@@ -355,7 +360,7 @@ public class RestClientTests extends RestClientTestCase {
 
     private static RestClient createRestClient() {
         List<Node> nodes = Collections.singletonList(new Node(new HttpHost("localhost", 9200)));
-        return new RestClient(mock(CloseableHttpAsyncClient.class), new Header[] {}, nodes, null, null, null, false);
+        return new RestClient(mock(CloseableHttpAsyncClient.class), new Header[] {}, nodes, null, null, null, false, false);
     }
 
     public void testRoundRobin() throws IOException {
@@ -369,22 +374,34 @@ public class RestClientTests extends RestClientTestCase {
         }
         NodeTuple<List<Node>> nodeTuple = new NodeTuple<>(nodes, authCache);
 
-        //test the transition from negative to positive values
+        // test the transition from negative to positive values
         AtomicInteger lastNodeIndex = new AtomicInteger(-numNodes);
         assertNodes(nodeTuple, lastNodeIndex, 50);
         assertEquals(-numNodes + 50, lastNodeIndex.get());
 
-        //test the highest positive values up to MAX_VALUE
+        // test the highest positive values up to MAX_VALUE
         lastNodeIndex.set(Integer.MAX_VALUE - numNodes * 10);
         assertNodes(nodeTuple, lastNodeIndex, numNodes * 10);
         assertEquals(Integer.MAX_VALUE, lastNodeIndex.get());
 
-        //test the transition from MAX_VALUE to MIN_VALUE
-        //this is the only time where there is most likely going to be a jump from a node
-        //to another one that's not necessarily the next one.
+        // test the transition from MAX_VALUE to MIN_VALUE
+        // this is the only time where there is most likely going to be a jump from a node
+        // to another one that's not necessarily the next one.
         assertEquals(Integer.MIN_VALUE, lastNodeIndex.incrementAndGet());
         assertNodes(nodeTuple, lastNodeIndex, 50);
         assertEquals(Integer.MIN_VALUE + 50, lastNodeIndex.get());
+    }
+
+    public void testIsRunning() {
+        List<Node> nodes = Collections.singletonList(new Node(new HttpHost("localhost", 9200)));
+        CloseableHttpAsyncClient client = mock(CloseableHttpAsyncClient.class);
+        RestClient restClient = new RestClient(client, new Header[] {}, nodes, null, null, null, false, false);
+
+        when(client.isRunning()).thenReturn(true);
+        assertTrue(restClient.isRunning());
+
+        when(client.isRunning()).thenReturn(false);
+        assertFalse(restClient.isRunning());
     }
 
     private static void assertNodes(NodeTuple<List<Node>> nodeTuple, AtomicInteger lastNodeIndex, int runs) throws IOException {
@@ -395,8 +412,12 @@ public class RestClientTests extends RestClientTestCase {
          */
         int expectedOffset = distance > 0 ? nodeTuple.nodes.size() - distance : Math.abs(distance);
         for (int i = 0; i < runs; i++) {
-            Iterable<Node> selectedNodes = RestClient.selectNodes(nodeTuple, Collections.<HttpHost, DeadHostState>emptyMap(),
-                    lastNodeIndex, NodeSelector.ANY);
+            Iterable<Node> selectedNodes = RestClient.selectNodes(
+                nodeTuple,
+                Collections.<HttpHost, DeadHostState>emptyMap(),
+                lastNodeIndex,
+                NodeSelector.ANY
+            );
             List<Node> expectedNodes = nodeTuple.nodes;
             int index = 0;
             for (Node actualNode : selectedNodes) {

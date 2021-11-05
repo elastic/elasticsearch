@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.calendars;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Operator;
 import org.elasticsearch.xpack.core.ml.job.config.RuleAction;
@@ -26,9 +27,8 @@ import static org.hamcrest.Matchers.containsString;
 public class ScheduledEventTests extends AbstractSerializingTestCase<ScheduledEvent> {
 
     public static ScheduledEvent createScheduledEvent(String calendarId) {
-        Instant start = Instant.ofEpochMilli(Instant.now().toEpochMilli());
-        return new ScheduledEvent(randomAlphaOfLength(10), start, start.plusSeconds(randomIntBetween(1, 10000)),
-                calendarId, null);
+        Instant start = Instant.now();
+        return new ScheduledEvent(randomAlphaOfLength(10), start, start.plusSeconds(randomIntBetween(1, 10000)), calendarId, null);
     }
 
     @Override
@@ -70,7 +70,7 @@ public class ScheduledEventTests extends AbstractSerializingTestCase<ScheduledEv
         assertEquals(0, conditionEndTime % bucketSpanSecs);
 
         long eventTime = event.getEndTime().getEpochSecond() - conditionStartTime;
-        long numbBucketsInEvent = (eventTime + bucketSpanSecs -1) / bucketSpanSecs;
+        long numbBucketsInEvent = (eventTime + bucketSpanSecs - 1) / bucketSpanSecs;
         assertEquals(bucketSpanSecs * (bucketCount + numbBucketsInEvent), conditionEndTime);
     }
 
@@ -86,16 +86,15 @@ public class ScheduledEventTests extends AbstractSerializingTestCase<ScheduledEv
         builder.startTime(now);
         e = expectThrows(ElasticsearchStatusException.class, builder::build);
         assertEquals("Field [end_time] cannot be null", e.getMessage());
-        builder.endTime(now.plusSeconds(1*60*60));
+        builder.endTime(now.plusSeconds(1 * 60 * 60));
         e = expectThrows(ElasticsearchStatusException.class, builder::build);
         assertEquals("Field [calendar_id] cannot be null", e.getMessage());
         builder.calendarId("foo");
         builder.build();
 
-
         builder = new ScheduledEvent.Builder().description("f").calendarId("c");
         builder.startTime(now);
-        builder.endTime(now.minusSeconds(2*60*60));
+        builder.endTime(now.minusSeconds(2 * 60 * 60));
 
         e = expectThrows(ElasticsearchStatusException.class, builder::build);
         assertThat(e.getMessage(), containsString("must come before end time"));
@@ -104,8 +103,10 @@ public class ScheduledEventTests extends AbstractSerializingTestCase<ScheduledEv
     public void testStrictParser() throws IOException {
         String json = "{\"foo\":\"bar\"}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                    () -> ScheduledEvent.STRICT_PARSER.apply(parser, null));
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> ScheduledEvent.STRICT_PARSER.apply(parser, null)
+            );
 
             assertThat(e.getMessage(), containsString("unknown field [foo]"));
         }

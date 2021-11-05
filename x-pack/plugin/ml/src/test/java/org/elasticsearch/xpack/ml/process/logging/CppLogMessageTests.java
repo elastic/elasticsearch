@@ -1,18 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.process.logging;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -35,15 +36,15 @@ public class CppLogMessageTests extends AbstractSerializingTestCase<CppLogMessag
 
     public void testParseWithMissingTimestamp() throws IOException {
         XContent xContent = XContentFactory.xContent(XContentType.JSON);
-        Instant before = Instant.now();
+        Instant before = Instant.ofEpochMilli(Instant.now().toEpochMilli());
 
         String input = "{\"logger\":\"controller\",\"level\":\"INFO\","
-                + "\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 1\",\"class\":\"ml\","
-                + "\"method\":\"core::SomeNoiseMaker\",\"file\":\"Noisemaker.cc\",\"line\":333}\n";
+            + "\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 1\",\"class\":\"ml\","
+            + "\"method\":\"core::SomeNoiseMaker\",\"file\":\"Noisemaker.cc\",\"line\":333}\n";
         XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, input);
         CppLogMessage msg = CppLogMessage.PARSER.apply(parser, null);
 
-        Instant after = Instant.now();
+        Instant after = Instant.ofEpochMilli(Instant.now().toEpochMilli());
         assertTrue(before.isBefore(msg.getTimestamp()) || before.equals(msg.getTimestamp()));
         assertTrue(after.isAfter(msg.getTimestamp()) || after.equals(msg.getTimestamp()));
     }

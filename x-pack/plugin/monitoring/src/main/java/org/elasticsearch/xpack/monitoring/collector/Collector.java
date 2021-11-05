@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.collector;
 
@@ -13,10 +14,10 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
@@ -39,8 +40,14 @@ public abstract class Collector {
     /**
      * List of indices names whose stats will be exported (default to all indices)
      */
-    public static final Setting<List<String>> INDICES =
-            listSetting(collectionSetting("indices"), emptyList(), Function.identity(), Property.Dynamic, Property.NodeScope);
+    public static final Setting<List<String>> INDICES = listSetting(
+        collectionSetting("indices"),
+        emptyList(),
+        Function.identity(),
+        Property.Dynamic,
+        Property.NodeScope,
+        Setting.Property.DeprecatedWarning
+    );
 
     private final String name;
     private final Setting<TimeValue> collectionTimeoutSetting;
@@ -49,8 +56,12 @@ public abstract class Collector {
     protected final XPackLicenseState licenseState;
     protected final Logger logger;
 
-    public Collector(final String name, final ClusterService clusterService,
-                     final Setting<TimeValue> timeoutSetting, final XPackLicenseState licenseState) {
+    public Collector(
+        final String name,
+        final ClusterService clusterService,
+        final Setting<TimeValue> timeoutSetting,
+        final XPackLicenseState licenseState
+    ) {
         this.name = name;
         this.clusterService = clusterService;
         this.collectionTimeoutSetting = timeoutSetting;
@@ -73,10 +84,6 @@ public abstract class Collector {
      * @param isElectedMaster true if the current local node is the elected master node
      */
     protected boolean shouldCollect(final boolean isElectedMaster) {
-        if (licenseState.isMonitoringAllowed() == false) {
-            logger.trace("collector [{}] can not collect data due to invalid license", name());
-            return false;
-        }
         return true;
     }
 
@@ -88,16 +95,15 @@ public abstract class Collector {
                 return doCollect(convertNode(timestamp, clusterService.localNode()), interval, clusterState);
             }
         } catch (ElasticsearchTimeoutException e) {
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("collector [{}] timed out when collecting data", name()));
+            logger.error("collector [{}] timed out when collecting data: {}", name(), e.getMessage());
         } catch (Exception e) {
             logger.error((Supplier<?>) () -> new ParameterizedMessage("collector [{}] failed to collect data", name()), e);
         }
         return null;
     }
 
-    protected abstract Collection<MonitoringDoc> doCollect(MonitoringDoc.Node node,
-                                                           long interval,
-                                                           ClusterState clusterState) throws Exception;
+    protected abstract Collection<MonitoringDoc> doCollect(MonitoringDoc.Node node, long interval, ClusterState clusterState)
+        throws Exception;
 
     /**
      * Returns a timestamp to use in {@link MonitoringDoc}
@@ -115,7 +121,7 @@ public abstract class Collector {
      * @return the cluster's UUID
      */
     protected static String clusterUuid(final ClusterState clusterState) {
-        return clusterState.metaData().clusterUUID();
+        return clusterState.metadata().clusterUUID();
     }
 
     /**
@@ -158,12 +164,14 @@ public abstract class Collector {
         if (node == null) {
             return null;
         }
-        return new MonitoringDoc.Node(node.getId(),
-                                      node.getHostName(),
-                                      node.getAddress().toString(),
-                                      node.getHostAddress(),
-                                      node.getName(),
-                                      timestamp);
+        return new MonitoringDoc.Node(
+            node.getId(),
+            node.getHostName(),
+            node.getAddress().toString(),
+            node.getHostAddress(),
+            node.getName(),
+            timestamp
+        );
     }
 
     protected static String collectionSetting(final String settingName) {
@@ -173,6 +181,6 @@ public abstract class Collector {
 
     protected static Setting<TimeValue> collectionTimeoutSetting(final String settingName) {
         String name = collectionSetting(settingName);
-        return timeSetting(name, TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope);
+        return timeSetting(name, TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope, Property.DeprecatedWarning);
     }
 }

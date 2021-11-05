@@ -1,61 +1,57 @@
-import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
-apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.internal-testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
 
 dependencies {
-    testCompile project(':x-pack:plugin:ccr:qa')
+  testImplementation project(':x-pack:plugin:ccr:qa')
 }
 
-task leaderClusterTest(type: RestIntegTestTask) {
-    mustRunAfter(precommit)
+def leaderCluster = testClusters.register('leader-cluster') {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.enabled', 'true'
+  user username: 'admin', password: 'admin-password', role: 'superuser'
 }
 
-leaderClusterTestCluster {
-    numNodes = 1
-    clusterName = 'leader-cluster'
-    setting 'xpack.license.self_generated.type', 'trial'
-    setting 'node.name', 'leader'
+def followCluster = testClusters.register('follow-cluster') {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.monitoring.collection.enabled', 'true'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.enabled', 'true'
+  user username: 'admin', password: 'admin-password', role: 'superuser'
+  setting 'cluster.remote.leader_cluster.seeds',
+          { "\"${leaderCluster.get().getAllTransportPortURI().get(0)}\"" }
+  nameCustomization = { 'follow' }
 }
 
-leaderClusterTestRunner {
-    systemProperty 'tests.target_cluster', 'leader'
+
+tasks.register('leader-cluster', RestIntegTestTask) {
+  mustRunAfter("precommit")
+  systemProperty 'tests.target_cluster', 'leader'
 }
 
-task followClusterTest(type: RestIntegTestTask) {}
-
-followClusterTestCluster {
-    dependsOn leaderClusterTestRunner
-    numNodes = 1
-    clusterName = 'follow-cluster'
-    setting 'xpack.monitoring.collection.enabled', 'true'
-    setting 'xpack.license.self_generated.type', 'trial'
-    setting 'cluster.remote.leader_cluster.seeds', "\"${-> leaderClusterTest.nodes.get(0).transportUri()}\""
-    setting 'node.name', 'follow'
+tasks.register('follow-cluster', RestIntegTestTask) {
+  dependsOn 'leader-cluster'
+  useCluster leaderCluster
+  systemProperty 'tests.target_cluster', 'follow'
+  nonInputProperties.systemProperty 'tests.leader_host',
+          "${-> leaderCluster.get().getAllHttpSocketURI().get(0)}"
 }
 
-followClusterTestRunner {
-    systemProperty 'tests.target_cluster', 'follow'
-    nonInputProperties.systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
+tasks.register("followClusterRestartTest", StandaloneRestIntegTestTask) {
+  dependsOn 'follow-cluster'
+  useCluster leaderCluster
+  useCluster followCluster
+
+  systemProperty 'tests.rest.load_packaged', 'false'
+  systemProperty 'tests.target_cluster', 'follow-restart'
+  doFirst {
+    followCluster.get().restart()
+    nonInputProperties.systemProperty 'tests.leader_host', leaderCluster.map(c-> c.getAllHttpSocketURI().get(0))
+    nonInputProperties.systemProperty 'tests.rest.cluster', followCluster.map(c -> c.getAllHttpSocketURI().join(","))
+  }
 }
 
-task followClusterRestartTest(type: RestIntegTestTask) {}
-
-followClusterRestartTestCluster {
-    dependsOn followClusterTestRunner
-    numNodes = 1
-    clusterName = 'follow-cluster'
-    dataDir = { nodeNumber -> followClusterTest.nodes[0].dataDir }
-    setting 'xpack.monitoring.collection.enabled', 'true'
-    setting 'xpack.license.self_generated.type', 'trial'
-    setting 'cluster.remote.leader_cluster.seeds', "\"${-> leaderClusterTest.nodes.get(0).transportUri()}\""
-    setting 'node.name', 'follow'
-}
-
-followClusterRestartTestRunner {
-    systemProperty 'tests.target_cluster', 'follow-restart'
-    nonInputProperties.systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
-    finalizedBy 'leaderClusterTestCluster#stop'
-}
-
-check.dependsOn followClusterRestartTest
-test.enabled = false
+tasks.named("check").configure { dependsOn "followClusterRestartTest" }

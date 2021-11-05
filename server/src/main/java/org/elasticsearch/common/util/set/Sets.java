@@ -1,24 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.util.set;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -37,8 +27,7 @@ import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 public final class Sets {
-    private Sets() {
-    }
+    private Sets() {}
 
     public static <T> HashSet<T> newHashSet(Iterator<T> iterator) {
         Objects.requireNonNull(iterator);
@@ -51,14 +40,14 @@ public final class Sets {
 
     public static <T> HashSet<T> newHashSet(Iterable<T> iterable) {
         Objects.requireNonNull(iterable);
-        return iterable instanceof Collection ? new HashSet<>((Collection)iterable) : newHashSet(iterable.iterator());
+        return iterable instanceof Collection ? new HashSet<>((Collection<T>) iterable) : newHashSet(iterable.iterator());
     }
 
+    @SafeVarargs
+    @SuppressWarnings("varargs")
     public static <T> HashSet<T> newHashSet(T... elements) {
         Objects.requireNonNull(elements);
-        HashSet<T> set = new HashSet<>(elements.length);
-        Collections.addAll(set, elements);
-        return set;
+        return new HashSet<>(Arrays.asList(elements));
     }
 
     public static <T> Set<T> newConcurrentHashSet() {
@@ -69,6 +58,12 @@ public final class Sets {
         Objects.requireNonNull(left);
         Objects.requireNonNull(right);
         return left.stream().noneMatch(right::contains);
+    }
+
+    public static <T> boolean haveNonEmptyIntersection(Set<T> left, Set<T> right) {
+        Objects.requireNonNull(left);
+        Objects.requireNonNull(right);
+        return left.stream().anyMatch(right::contains);
     }
 
     /**
@@ -83,7 +78,7 @@ public final class Sets {
     public static <T> Set<T> difference(Set<T> left, Set<T> right) {
         Objects.requireNonNull(left);
         Objects.requireNonNull(right);
-        return left.stream().filter(k -> !right.contains(k)).collect(Collectors.toSet());
+        return left.stream().filter(k -> right.contains(k) == false).collect(Collectors.toSet());
     }
 
     /**
@@ -172,8 +167,7 @@ public final class Sets {
             return Function.identity();
         }
 
-        static final Set<Characteristics> CHARACTERISTICS =
-            Collections.unmodifiableSet(EnumSet.of(Characteristics.IDENTITY_FINISH));
+        static final Set<Characteristics> CHARACTERISTICS = Collections.unmodifiableSet(EnumSet.of(Characteristics.IDENTITY_FINISH));
 
         @Override
         public Set<Characteristics> characteristics() {

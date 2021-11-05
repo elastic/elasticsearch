@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.process.logging;
 
@@ -16,12 +17,12 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -106,7 +107,7 @@ public class CppLogMessageHandler implements Closeable {
                 if (bytesRef == null) {
                     bytesRef = new BytesArray(readBuf, 0, bytesRead);
                 } else {
-                    bytesRef = new CompositeBytesReference(bytesRef, new BytesArray(readBuf, 0, bytesRead));
+                    bytesRef = CompositeBytesReference.of(bytesRef, new BytesArray(readBuf, 0, bytesRead));
                 }
                 bytesRef = parseMessages(xContent, bytesRef);
                 readBuf = new byte[readBufSize];
@@ -150,8 +151,8 @@ public class CppLogMessageHandler implements Closeable {
      * available instantly after the process starts.
      */
     public long getPid(Duration timeout) throws TimeoutException {
-        // There's an assumption here that 0 is not a valid PID.  This is certainly true for
-        // userland processes.  On Windows the "System Idle Process" has PID 0 and on *nix
+        // There's an assumption here that 0 is not a valid PID. This is certainly true for
+        // userland processes. On Windows the "System Idle Process" has PID 0 and on *nix
         // PID 0 is for "sched", which is part of the kernel.
         if (pid == 0) {
             try {
@@ -163,6 +164,21 @@ public class CppLogMessageHandler implements Closeable {
                 throw new TimeoutException("Timed out waiting for C++ process PID");
             }
         }
+        return pid;
+    }
+
+    /**
+     * Get the process ID of the C++ process if available.
+     *
+     * In contrast to {@link #getPid} this version will not wait/block.
+     *
+     * @return the pid or -1 if the pid is unknown
+     */
+    public long tryGetPid() {
+        if (pid == 0) {
+            return -1;
+        }
+
         return pid;
     }
 
@@ -234,7 +250,7 @@ public class CppLogMessageHandler implements Closeable {
             from = nextMarker + 1;
             if (from < bytesRef.length() && bytesRef.get(from) == (byte) 0) {
                 // This is to work around the problem of log4cxx on Windows
-                // outputting UTF-16 instead of UTF-8.  For full details see
+                // outputting UTF-16 instead of UTF-8. For full details see
                 // https://github.com/elastic/machine-learning-cpp/issues/385
                 ++from;
             }
@@ -246,9 +262,10 @@ public class CppLogMessageHandler implements Closeable {
     }
 
     private void parseMessage(XContent xContent, BytesReference bytesRef) {
-        try (InputStream stream = bytesRef.streamInput();
-             XContentParser parser = xContent
-                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+        try (
+            InputStream stream = bytesRef.streamInput();
+            XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+        ) {
             CppLogMessage msg = CppLogMessage.PARSER.apply(parser, null);
             Level level = Level.getLevel(msg.getLevel());
             if (level == null) {
@@ -273,16 +290,16 @@ public class CppLogMessageHandler implements Closeable {
             }
 
             // get out of here quickly if level isn't of interest
-            if (!LOGGER.isEnabled(level)) {
+            if (LOGGER.isEnabled(level) == false) {
                 return;
             }
 
             // log message summarization is disabled for debug
-            if (!LOGGER.isDebugEnabled()) {
+            if (LOGGER.isDebugEnabled() == false) {
                 // log summarization: log 1st message, count all consecutive messages arriving
                 // in a certain time window and summarize them as 1 message
                 if (msg.isSimilarTo(lastMessageSummary.message)
-                        && (lastMessageSummary.timestamp.until(msg.getTimestamp(), ChronoUnit.SECONDS) < MAX_MESSAGE_INTERVAL_SECONDS)) {
+                    && (lastMessageSummary.timestamp.until(msg.getTimestamp(), ChronoUnit.SECONDS) < MAX_MESSAGE_INTERVAL_SECONDS)) {
 
                     // this is a repeated message, so do not log it, but count
                     lastMessageSummary.count++;
@@ -298,8 +315,16 @@ public class CppLogMessageHandler implements Closeable {
             }
             // TODO: Is there a way to preserve the original timestamp when re-logging?
             if (jobId != null) {
-                LOGGER.log(level, "[{}] [{}/{}] [{}@{}] {}", jobId, msg.getLogger(), latestPid, msg.getFile(), msg.getLine(),
-                        latestMessage);
+                LOGGER.log(
+                    level,
+                    "[{}] [{}/{}] [{}@{}] {}",
+                    jobId,
+                    msg.getLogger(),
+                    latestPid,
+                    msg.getFile(),
+                    msg.getLine(),
+                    latestMessage
+                );
             } else {
                 LOGGER.log(level, "[{}/{}] [{}@{}] {}", msg.getLogger(), latestPid, msg.getFile(), msg.getLine(), latestMessage);
             }
@@ -322,11 +347,18 @@ public class CppLogMessageHandler implements Closeable {
             seenFatalError = true;
         } catch (IOException e) {
             if (jobId != null) {
-                LOGGER.warn(new ParameterizedMessage("[{}] IO failure receiving C++ log message: {}",
-                        new Object[] {jobId, bytesRef.utf8ToString()}), e);
+                LOGGER.warn(
+                    new ParameterizedMessage(
+                        "[{}] IO failure receiving C++ log message: {}",
+                        new Object[] { jobId, bytesRef.utf8ToString() }
+                    ),
+                    e
+                );
             } else {
-                LOGGER.warn(new ParameterizedMessage("IO failure receiving C++ log message: {}",
-                        new Object[] {bytesRef.utf8ToString()}), e);
+                LOGGER.warn(
+                    new ParameterizedMessage("IO failure receiving C++ log message: {}", new Object[] { bytesRef.utf8ToString() }),
+                    e
+                );
             }
         }
     }
@@ -335,23 +367,51 @@ public class CppLogMessageHandler implements Closeable {
         // edge case: for 1 repeat, only log the message as is
         if (lastMessageSummary.count > 1) {
             if (jobId != null) {
-                LOGGER.log(lastMessageSummary.level, "[{}] [{}/{}] [{}@{}] {} | repeated [{}]", jobId,
-                        lastMessageSummary.message.getLogger(), lastMessageSummary.message.getPid(), lastMessageSummary.message.getFile(),
-                        lastMessageSummary.message.getLine(), lastMessageSummary.message.getMessage(), lastMessageSummary.count);
+                LOGGER.log(
+                    lastMessageSummary.level,
+                    "[{}] [{}/{}] [{}@{}] {} | repeated [{}]",
+                    jobId,
+                    lastMessageSummary.message.getLogger(),
+                    lastMessageSummary.message.getPid(),
+                    lastMessageSummary.message.getFile(),
+                    lastMessageSummary.message.getLine(),
+                    lastMessageSummary.message.getMessage(),
+                    lastMessageSummary.count
+                );
             } else {
-                LOGGER.log(lastMessageSummary.level, "[{}/{}] [{}@{}] {} | repeated [{}]", lastMessageSummary.message.getLogger(),
-                        lastMessageSummary.message.getPid(), lastMessageSummary.message.getFile(), lastMessageSummary.message.getLine(),
-                        lastMessageSummary.message.getMessage(), lastMessageSummary.count);
+                LOGGER.log(
+                    lastMessageSummary.level,
+                    "[{}/{}] [{}@{}] {} | repeated [{}]",
+                    lastMessageSummary.message.getLogger(),
+                    lastMessageSummary.message.getPid(),
+                    lastMessageSummary.message.getFile(),
+                    lastMessageSummary.message.getLine(),
+                    lastMessageSummary.message.getMessage(),
+                    lastMessageSummary.count
+                );
             }
         } else {
             if (jobId != null) {
-                LOGGER.log(lastMessageSummary.level, "[{}] [{}/{}] [{}@{}] {}", jobId, lastMessageSummary.message.getLogger(),
-                        lastMessageSummary.message.getPid(), lastMessageSummary.message.getFile(), lastMessageSummary.message.getLine(),
-                        lastMessageSummary.message.getMessage());
+                LOGGER.log(
+                    lastMessageSummary.level,
+                    "[{}] [{}/{}] [{}@{}] {}",
+                    jobId,
+                    lastMessageSummary.message.getLogger(),
+                    lastMessageSummary.message.getPid(),
+                    lastMessageSummary.message.getFile(),
+                    lastMessageSummary.message.getLine(),
+                    lastMessageSummary.message.getMessage()
+                );
             } else {
-                LOGGER.log(lastMessageSummary.level, "[{}/{}] [{}@{}] {}", lastMessageSummary.message.getLogger(),
-                        lastMessageSummary.message.getPid(), lastMessageSummary.message.getFile(), lastMessageSummary.message.getLine(),
-                        lastMessageSummary.message.getMessage());
+                LOGGER.log(
+                    lastMessageSummary.level,
+                    "[{}/{}] [{}@{}] {}",
+                    lastMessageSummary.message.getLogger(),
+                    lastMessageSummary.message.getPid(),
+                    lastMessageSummary.message.getFile(),
+                    lastMessageSummary.message.getLine(),
+                    lastMessageSummary.message.getMessage()
+                );
             }
         }
     }

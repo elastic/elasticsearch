@@ -3,7 +3,7 @@
 :request: GetAutoFollowPatternRequest
 :response: GetAutoFollowPatternResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Get Auto Follow Pattern API
 

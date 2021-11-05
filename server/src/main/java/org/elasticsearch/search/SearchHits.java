@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search;
@@ -22,15 +11,15 @@ package org.elasticsearch.search;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,7 +36,7 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
     }
 
     public static SearchHits empty(boolean withTotalHits) {
-        // We shouldn't use static final instance, since that could directly be returned by native transport clients
+        // TODO: consider using static final instance
         return new SearchHits(EMPTY, withTotalHits ? new TotalHits(0, Relation.EQUAL_TO) : null, 0);
     }
 
@@ -67,8 +56,14 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
         this(hits, totalHits, maxScore, null, null, null);
     }
 
-    public SearchHits(SearchHit[] hits, @Nullable TotalHits totalHits, float maxScore, @Nullable SortField[] sortFields,
-                      @Nullable String collapseField, @Nullable Object[] collapseValues) {
+    public SearchHits(
+        SearchHit[] hits,
+        @Nullable TotalHits totalHits,
+        float maxScore,
+        @Nullable SortField[] sortFields,
+        @Nullable String collapseField,
+        @Nullable Object[] collapseValues
+    ) {
         this.hits = hits;
         this.totalHits = totalHits;
         this.maxScore = maxScore;
@@ -215,7 +210,7 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
     public static SearchHits fromXContent(XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             parser.nextToken();
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         }
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = null;
@@ -263,17 +258,23 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
         }
         SearchHits other = (SearchHits) obj;
         return Objects.equals(totalHits, other.totalHits)
-                && Objects.equals(maxScore, other.maxScore)
-                && Arrays.equals(hits, other.hits)
-                && Arrays.equals(sortFields, other.sortFields)
-                && Objects.equals(collapseField, other.collapseField)
-                && Arrays.equals(collapseValues, other.collapseValues);
+            && Objects.equals(maxScore, other.maxScore)
+            && Arrays.equals(hits, other.hits)
+            && Arrays.equals(sortFields, other.sortFields)
+            && Objects.equals(collapseField, other.collapseField)
+            && Arrays.equals(collapseValues, other.collapseValues);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(totalHits, maxScore, Arrays.hashCode(hits),
-            Arrays.hashCode(sortFields), collapseField, Arrays.hashCode(collapseValues));
+        return Objects.hash(
+            totalHits,
+            maxScore,
+            Arrays.hashCode(hits),
+            Arrays.hashCode(sortFields),
+            collapseField,
+            Arrays.hashCode(collapseValues)
+        );
     }
 
     public static TotalHits parseTotalHitsFragment(XContentParser parser) throws IOException {

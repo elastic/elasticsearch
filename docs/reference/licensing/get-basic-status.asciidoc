@@ -8,12 +8,12 @@
 
 This API enables you to check the status of your basic license.
 
-[float]
+[discrete]
 ==== Request
 
 `GET /_license/basic_status`
 
-[float]
+[discrete]
 ==== Description
 
 In order to initiate a basic license, you must not currently have a basic
@@ -25,22 +25,21 @@ https://www.elastic.co/subscriptions.
 ==== Authorization
 
 You must have `monitor` cluster privileges to use this API.
-For more information, see
-{xpack-ref}/security-privileges.html[Security Privileges].
+For more information, see <<security-privileges>>.
 
-[float]
+[discrete]
 ==== Examples
 
 The following example checks whether you are eligible to start a basic:
 
-[source,js]
+[source,console]
 ------------------------------------------------------------
 GET /_license/basic_status
 ------------------------------------------------------------
-// CONSOLE
 
 Example response:
-[source,js]
+
+[source,console-result]
 ------------------------------------------------------------
 {
   "eligible_to_start_basic": true

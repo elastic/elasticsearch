@@ -10,32 +10,38 @@
 
 Start the {ilm} ({ilm-init}) plugin.
 
-==== Request
+[[ilm-start-request]]
+==== {api-request-title}
 
 `POST /_ilm/start`
 
-==== Description
+[[ilm-start-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage_ilm`
+cluster privilege to use this API. For more information, see
+<<security-privileges>>.
+
+[[ilm-start-desc]]
+==== {api-description-title}
 
 Starts the {ilm-init} plugin if it is currently stopped. {ilm-init} is started
 automatically when the cluster is formed. Restarting {ilm-init} is only
 necessary if it has been stopped using the <<ilm-stop, Stop {ilm-init} API>>.
 
-==== Request Parameters
+[[ilm-start-query-params]]
+==== {api-query-parms-title}
 
-include::{docdir}/rest-api/timeoutparms.asciidoc[]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-==== Authorization
+[[ilm-start-example]]
+==== {api-examples-title}
 
-You must have the `manage_ilm` cluster privilege to use this API.
-For more information, see {stack-ov}/security-privileges.html[Security privileges].
-
-==== Examples
-
-The following example starts the ILM plugin.
+The following example starts the {ilm-init} plugin.
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy
 {
@@ -59,29 +65,24 @@ PUT _ilm/policy/my_policy
   }
 }
 
-PUT my_index
+PUT my-index-000001
 
 POST _ilm/stop
 --------------------------------------------------
-// CONSOLE
-// TEST
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST _ilm/start
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]
 
 If the request succeeds, you receive the following result:
 
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
   "acknowledged": true
 }
 --------------------------------------------------
-// CONSOLE
-// TESTRESPONSE

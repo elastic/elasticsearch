@@ -1,0 +1,138 @@
+--
+:api: evaluate-data-frame
+:request: EvaluateDataFrameRequest
+:response: EvaluateDataFrameResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Evaluate {dfanalytics} API
+
+
+Evaluates the {dfanalytics} for an annotated index.
+The API accepts an +{request}+ object and returns an +{response}+.
+
+[id="{upid}-{api}-request"]
+==== Evaluate {dfanalytics} request
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Constructing a new evaluation request
+<2> Reference to an existing index
+<3> The query with which to select data from indices
+<4> Evaluation to be performed
+
+==== Evaluation
+
+Evaluation to be performed.
+Currently, supported evaluations include: +OutlierDetection+, +Classification+, +Regression+.
+
+===== Outlier detection
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-evaluation-outlierdetection]
+--------------------------------------------------
+<1> Constructing a new evaluation
+<2> Name of the field in the index. Its value denotes the actual (i.e. ground truth) label for an example. Must be either true or false.
+<3> Name of the field in the index. Its value denotes the probability (as per some ML algorithm) of the example being classified as positive.
+<4> The remaining parameters are the metrics to be calculated based on the two fields described above
+<5> {wikipedia}/Precision_and_recall#Precision[Precision] calculated at thresholds: 0.4, 0.5 and 0.6
+<6> {wikipedia}/Precision_and_recall#Recall[Recall] calculated at thresholds: 0.5 and 0.7
+<7> {wikipedia}/Confusion_matrix[Confusion matrix] calculated at threshold 0.5
+<8> {wikipedia}/Receiver_operating_characteristic#Area_under_the_curve[AuC ROC] calculated and the curve points returned
+
+===== Classification
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-evaluation-classification]
+--------------------------------------------------
+<1> Constructing a new evaluation
+<2> Name of the field in the index. Its value denotes the actual (i.e. ground truth) class the example belongs to.
+<3> Name of the field in the index. Its value denotes the predicted (as per some ML algorithm) class of the example.
+<4> Name of the field in the index. Its value denotes the array of top classes. Must be nested.
+<5> The remaining parameters are the metrics to be calculated based on the two fields described above
+<6> Accuracy
+<7> Precision
+<8> Recall
+<9> Multiclass confusion matrix of size 3
+<10> {wikipedia}/Receiver_operating_characteristic#Area_under_the_curve[AuC ROC] calculated for class "cat" treated as positive and the rest as negative
+
+===== Regression
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-evaluation-regression]
+--------------------------------------------------
+<1> Constructing a new evaluation
+<2> Name of the field in the index. Its value denotes the actual (i.e. ground truth) value for an example.
+<3> Name of the field in the index. Its value denotes the predicted (as per some ML algorithm) value for the example.
+<4> The remaining parameters are the metrics to be calculated based on the two fields described above
+<5> {wikipedia}/Mean_squared_error[Mean squared error]
+<6> Mean squared logarithmic error
+<7> {wikipedia}/Huber_loss#Pseudo-Huber_loss_function[Pseudo Huber loss]
+<8> {wikipedia}/Coefficient_of_determination[R squared]
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ contains the requested evaluation metrics.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Fetching all the calculated metrics results
+
+==== Results
+
+===== Outlier detection
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-results-outlierdetection]
+--------------------------------------------------
+
+<1> Fetching precision metric by name
+<2> Fetching precision at a given (0.4) threshold
+<3> Fetching confusion matrix metric by name
+<4> Fetching confusion matrix at a given (0.5) threshold
+
+===== Classification
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-results-classification]
+--------------------------------------------------
+
+<1> Fetching accuracy metric by name
+<2> Fetching the actual accuracy value
+<3> Fetching precision metric by name
+<4> Fetching the actual precision value
+<5> Fetching recall metric by name
+<6> Fetching the actual recall value
+<7> Fetching multiclass confusion matrix metric by name
+<8> Fetching the contents of the confusion matrix
+<9> Fetching the number of classes that were not included in the matrix
+<10> Fetching AucRoc metric by name
+<11> Fetching the actual AucRoc score
+
+===== Regression
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-results-regression]
+--------------------------------------------------
+
+<1> Fetching mean squared error metric by name
+<2> Fetching the actual mean squared error value
+<3> Fetching mean squared logarithmic error metric by name
+<4> Fetching the actual mean squared logarithmic error value
+<5> Fetching pseudo Huber loss metric by name
+<6> Fetching the actual pseudo Huber loss value
+<7> Fetching R squared metric by name
+<8> Fetching the actual R squared value

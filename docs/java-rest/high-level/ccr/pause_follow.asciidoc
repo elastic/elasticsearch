@@ -3,7 +3,7 @@
 :request: PauseFollowRequest
 :response: AcknowledgedResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Pause Follow API
 

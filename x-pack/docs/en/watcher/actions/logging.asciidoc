@@ -1,5 +1,9 @@
+[role="xpack"]
 [[actions-logging]]
-=== Logging Action
+=== {watcher} logging Action
+++++
+<titleabbrev>Logging action</titleabbrev>
+++++
 
 Use the `logging` action to log text to the standard Elasticsearch
 logs. See <<logging-action-attributes>> for the supported attributes.
@@ -7,7 +11,7 @@ logs. See <<logging-action-attributes>> for the supported attributes.
 This action is primarily used during development and for debugging purposes.
 
 [[configuring-logging-actions]]
-==== Configuring Logging Actions
+==== Configuring logging actions
 
 You configure logging actions in the `actions` array. Action-specific attributes
 are specified using the `logging` keyword.
@@ -33,7 +37,7 @@ The following snippet shows a simple logging action definition:
 
 
 [[logging-action-attributes]]
-==== Logging Action Attributes
+==== Logging action attributes
 
 [options="header"]
 |======

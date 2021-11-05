@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.action;
 
@@ -57,9 +58,10 @@ public class MonitoringBulkResponseTests extends ESTestCase {
                 response = new MonitoringBulkResponse(Math.abs(randomLong()), randomBoolean());
             } else {
                 Exception exception = randomFrom(
-                        new ExportException(randomAlphaOfLength(5), new IllegalStateException(randomAlphaOfLength(5))),
-                        new IllegalStateException(randomAlphaOfLength(5)),
-                        new IllegalArgumentException(randomAlphaOfLength(5)));
+                    new ExportException(randomAlphaOfLength(5), new IllegalStateException(randomAlphaOfLength(5))),
+                    new IllegalStateException(randomAlphaOfLength(5)),
+                    new IllegalArgumentException(randomAlphaOfLength(5))
+                );
                 response = new MonitoringBulkResponse(Math.abs(randomLong()), new MonitoringBulkResponse.Error(exception));
             }
 
@@ -70,21 +72,14 @@ public class MonitoringBulkResponseTests extends ESTestCase {
 
             StreamInput streamInput = output.bytes().streamInput();
             streamInput.setVersion(version);
-            MonitoringBulkResponse response2 = new MonitoringBulkResponse();
-            response2.readFrom(streamInput);
-
+            MonitoringBulkResponse response2 = new MonitoringBulkResponse(streamInput);
             assertThat(response2.getTookInMillis(), equalTo(response.getTookInMillis()));
             if (response.getError() == null) {
                 assertThat(response2.getError(), is(nullValue()));
             } else {
                 assertThat(response2.getError(), is(notNullValue()));
             }
-
-            if (version.onOrAfter(Version.V_6_3_0)) {
-                assertThat(response2.isIgnored(), is(response.isIgnored()));
-            } else {
-                assertThat(response2.isIgnored(), is(false));
-            }
+            assertThat(response2.isIgnored(), is(response.isIgnored()));
         }
     }
 }

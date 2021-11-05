@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.scheduler;
@@ -52,16 +53,14 @@ public class EvilSchedulerEngineTests extends ESTestCase {
                     }
                 });
                 final CountDownLatch schedulerLatch = new CountDownLatch(1);
-                engine.add(new SchedulerEngine.Job(
-                        getTestName(),
-                        (startTime, now) -> {
-                            if (schedulerLatch.getCount() == 1) {
-                                schedulerLatch.countDown();
-                                return 0;
-                            } else {
-                                throw new AssertionError("nextScheduledTimeAfter invoked more than the expected number of times");
-                            }
-                        }));
+                engine.add(new SchedulerEngine.Job(getTestName(), (startTime, now) -> {
+                    if (schedulerLatch.getCount() == 1) {
+                        schedulerLatch.countDown();
+                        return 0;
+                    } else {
+                        throw new AssertionError("nextScheduledTimeAfter invoked more than the expected number of times");
+                    }
+                }));
 
                 uncaughtLatuch.await();
                 assertTrue(trigger.get());

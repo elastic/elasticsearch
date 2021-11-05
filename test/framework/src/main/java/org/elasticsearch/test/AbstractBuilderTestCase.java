@@ -1,27 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SeedUtils;
-import org.apache.lucene.index.IndexReader;
+
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -32,15 +22,15 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -48,29 +38,32 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
-import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.node.InternalSettingsPreparer;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.script.MockScriptEngine;
+import org.elasticsearch.script.MockScriptService;
+import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -90,17 +83,19 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
 
 public abstract class AbstractBuilderTestCase extends ESTestCase {
 
-    public static final String STRING_FIELD_NAME = "mapped_string";
-    public static final String STRING_ALIAS_FIELD_NAME = "mapped_string_alias";
-    protected static final String STRING_FIELD_NAME_2 = "mapped_string_2";
+    public static final String TEXT_FIELD_NAME = "mapped_string";
+    public static final String TEXT_ALIAS_FIELD_NAME = "mapped_string_alias";
+    protected static final String KEYWORD_FIELD_NAME = "mapped_string_2";
     protected static final String INT_FIELD_NAME = "mapped_int";
     protected static final String INT_ALIAS_FIELD_NAME = "mapped_int_field_alias";
     protected static final String INT_RANGE_FIELD_NAME = "mapped_int_range";
@@ -114,17 +109,38 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
     protected static final String GEO_POINT_FIELD_NAME = "mapped_geo_point";
     protected static final String GEO_POINT_ALIAS_FIELD_NAME = "mapped_geo_point_alias";
     protected static final String GEO_SHAPE_FIELD_NAME = "mapped_geo_shape";
-    protected static final String[] MAPPED_FIELD_NAMES = new String[]{STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME,
-        INT_FIELD_NAME, INT_RANGE_FIELD_NAME, DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_NANOS_FIELD_NAME, DATE_FIELD_NAME,
-        DATE_RANGE_FIELD_NAME, OBJECT_FIELD_NAME, GEO_POINT_FIELD_NAME, GEO_POINT_ALIAS_FIELD_NAME,
-        GEO_SHAPE_FIELD_NAME};
-    protected static final String[] MAPPED_LEAF_FIELD_NAMES = new String[]{STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME,
-        INT_FIELD_NAME, INT_RANGE_FIELD_NAME, DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_NANOS_FIELD_NAME,
-        DATE_FIELD_NAME, DATE_RANGE_FIELD_NAME,  GEO_POINT_FIELD_NAME, GEO_POINT_ALIAS_FIELD_NAME};
+    // we don't include the binary field in the arrays below as it is not searchable
+    protected static final String BINARY_FIELD_NAME = "mapped_binary";
+    protected static final String[] MAPPED_FIELD_NAMES = new String[] {
+        TEXT_FIELD_NAME,
+        TEXT_ALIAS_FIELD_NAME,
+        INT_FIELD_NAME,
+        INT_RANGE_FIELD_NAME,
+        DOUBLE_FIELD_NAME,
+        BOOLEAN_FIELD_NAME,
+        DATE_NANOS_FIELD_NAME,
+        DATE_FIELD_NAME,
+        DATE_RANGE_FIELD_NAME,
+        OBJECT_FIELD_NAME,
+        GEO_POINT_FIELD_NAME,
+        GEO_POINT_ALIAS_FIELD_NAME,
+        GEO_SHAPE_FIELD_NAME };
+    protected static final String[] MAPPED_LEAF_FIELD_NAMES = new String[] {
+        TEXT_FIELD_NAME,
+        TEXT_ALIAS_FIELD_NAME,
+        INT_FIELD_NAME,
+        INT_RANGE_FIELD_NAME,
+        DOUBLE_FIELD_NAME,
+        BOOLEAN_FIELD_NAME,
+        DATE_NANOS_FIELD_NAME,
+        DATE_FIELD_NAME,
+        DATE_RANGE_FIELD_NAME,
+        GEO_POINT_FIELD_NAME,
+        GEO_POINT_ALIAS_FIELD_NAME };
 
     private static final Map<String, String> ALIAS_TO_CONCRETE_FIELD_NAME = new HashMap<>();
     static {
-        ALIAS_TO_CONCRETE_FIELD_NAME.put(STRING_ALIAS_FIELD_NAME, STRING_FIELD_NAME);
+        ALIAS_TO_CONCRETE_FIELD_NAME.put(TEXT_ALIAS_FIELD_NAME, TEXT_FIELD_NAME);
         ALIAS_TO_CONCRETE_FIELD_NAME.put(INT_ALIAS_FIELD_NAME, INT_FIELD_NAME);
         ALIAS_TO_CONCRETE_FIELD_NAME.put(DATE_ALIAS_FIELD_NAME, DATE_FIELD_NAME);
         ALIAS_TO_CONCRETE_FIELD_NAME.put(GEO_POINT_ALIAS_FIELD_NAME, GEO_POINT_FIELD_NAME);
@@ -141,12 +157,20 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         return index;
     }
 
+    @SuppressWarnings("deprecation") // dependencies in server for geo_shape field should be decoupled
     protected Collection<Class<? extends Plugin>> getPlugins() {
+        return Collections.singletonList(TestGeoShapeFieldMapperPlugin.class);
+    }
+
+    /**
+     * Allows additional plugins other than the required `TestGeoShapeFieldMapperPlugin`
+     * Could probably be removed when dependencies against geo_shape is decoupled
+     */
+    protected Collection<Class<? extends Plugin>> getExtraPlugins() {
         return Collections.emptyList();
     }
 
-    protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-    }
+    protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {}
 
     @BeforeClass
     public static void beforeClass() {
@@ -180,9 +204,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
     protected Settings createTestIndexSettings() {
         // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
         Version indexVersionCreated = randomBoolean() ? Version.CURRENT : VersionUtils.randomIndexCompatibleVersion(random());
-        return Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, indexVersionCreated)
-            .build();
+        return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexVersionCreated).build();
     }
 
     protected static IndexSettings indexSettings() {
@@ -191,10 +213,6 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
 
     protected static String expectedFieldName(String builderFieldName) {
         return ALIAS_TO_CONCRETE_FIELD_NAME.getOrDefault(builderFieldName, builderFieldName);
-    }
-
-    protected Iterable<MappedFieldType> getMapping() {
-        return serviceHolder.mapperService.fieldTypes();
     }
 
     @AfterClass
@@ -215,32 +233,30 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             // this setup
             long masterSeed = SeedUtils.parseSeed(RandomizedTest.getContext().getRunnerSeedAsString());
             RandomizedTest.getContext().runWithPrivateRandomness(masterSeed, (Callable<Void>) () -> {
-                serviceHolder = new ServiceHolder(nodeSettings, createTestIndexSettings(), getPlugins(), nowInMillis,
-                        AbstractBuilderTestCase.this, true);
-                serviceHolderWithNoType = new ServiceHolder(nodeSettings, createTestIndexSettings(), getPlugins(), nowInMillis,
-                        AbstractBuilderTestCase.this, false);
+                Collection<Class<? extends Plugin>> plugins = new ArrayList<>(getPlugins());
+                plugins.addAll(getExtraPlugins());
+                serviceHolder = new ServiceHolder(
+                    nodeSettings,
+                    createTestIndexSettings(),
+                    plugins,
+                    nowInMillis,
+                    AbstractBuilderTestCase.this,
+                    true
+                );
+                serviceHolderWithNoType = new ServiceHolder(
+                    nodeSettings,
+                    createTestIndexSettings(),
+                    plugins,
+                    nowInMillis,
+                    AbstractBuilderTestCase.this,
+                    false
+                );
                 return null;
             });
         }
 
         serviceHolder.clientInvocationHandler.delegate = this;
         serviceHolderWithNoType.clientInvocationHandler.delegate = this;
-    }
-
-    protected static SearchContext getSearchContext(QueryShardContext context) {
-        TestSearchContext testSearchContext = new TestSearchContext(context) {
-            @Override
-            public MapperService mapperService() {
-                return serviceHolder.mapperService; // need to build / parse inner hits sort fields
-            }
-
-            @Override
-            public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-                return serviceHolder.indexFieldDataService.getForField(fieldType); // need to build / parse inner hits sort fields
-            }
-
-        };
-        return testSearchContext;
     }
 
     @After
@@ -264,24 +280,24 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
     }
 
     /**
-     * @return a new {@link QueryShardContext} with the provided reader
+     * @return a new {@link SearchExecutionContext} with the provided searcher
      */
-    protected static QueryShardContext createShardContext(IndexReader reader) {
-        return serviceHolder.createShardContext(reader);
+    protected static SearchExecutionContext createSearchExecutionContext(IndexSearcher searcher) {
+        return serviceHolder.createShardContext(searcher);
     }
 
     /**
-     * @return a new {@link QueryShardContext} based on an index with no type registered
+     * @return a new {@link SearchExecutionContext} based on an index with no type registered
      */
-    protected static QueryShardContext createShardContextWithNoType() {
+    protected static SearchExecutionContext createShardContextWithNoType() {
         return serviceHolderWithNoType.createShardContext(null);
     }
 
     /**
-     * @return a new {@link QueryShardContext} based on the base test index and queryParserService
+     * @return a new {@link SearchExecutionContext} based on the base test index and queryParserService
      */
-    protected static QueryShardContext createShardContext() {
-        return createShardContext(null);
+    protected static SearchExecutionContext createSearchExecutionContext() {
+        return createSearchExecutionContext(null);
     }
 
     private static class ClientInvocationHandler implements InvocationHandler {
@@ -289,8 +305,9 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
 
         @Override
         public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-            if (method.equals(Client.class.getMethod("get", GetRequest.class, ActionListener.class))){
+            if (method.equals(Client.class.getMethod("get", GetRequest.class, ActionListener.class))) {
                 GetResponse getResponse = delegate.executeGet((GetRequest) args[0]);
+                @SuppressWarnings("unchecked")  // We matched the method above.
                 ActionListener<GetResponse> listener = (ActionListener<GetResponse>) args[1];
                 if (randomBoolean()) {
                     listener.onResponse(getResponse);
@@ -298,8 +315,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                     new Thread(() -> listener.onResponse(getResponse)).start();
                 }
                 return null;
-            } else if (method.equals(Client.class.getMethod
-                ("multiTermVectors", MultiTermVectorsRequest.class))) {
+            } else if (method.equals(Client.class.getMethod("multiTermVectors", MultiTermVectorsRequest.class))) {
                 return new PlainActionFuture<MultiTermVectorsResponse>() {
                     @Override
                     public MultiTermVectorsResponse get() throws InterruptedException, ExecutionException {
@@ -328,50 +344,66 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         private final Client client;
         private final long nowInMillis;
 
-        ServiceHolder(Settings nodeSettings,
-                        Settings indexSettings,
-                        Collection<Class<? extends Plugin>> plugins,
-                        long nowInMillis,
-                        AbstractBuilderTestCase testCase,
-                        boolean registerType) throws IOException {
+        ServiceHolder(
+            Settings nodeSettings,
+            Settings indexSettings,
+            Collection<Class<? extends Plugin>> plugins,
+            long nowInMillis,
+            AbstractBuilderTestCase testCase,
+            boolean registerType
+        ) throws IOException {
             this.nowInMillis = nowInMillis;
-            Environment env = InternalSettingsPreparer.prepareEnvironment(nodeSettings, emptyMap(),
-                    null, () -> {
-                        throw new AssertionError("node.name must be set");
-                    });
+            Environment env = InternalSettingsPreparer.prepareEnvironment(
+                nodeSettings,
+                emptyMap(),
+                null,
+                () -> { throw new AssertionError("node.name must be set"); }
+            );
             PluginsService pluginsService;
             pluginsService = new PluginsService(nodeSettings, null, env.modulesFile(), env.pluginsFile(), plugins);
 
             client = (Client) Proxy.newProxyInstance(
-                    Client.class.getClassLoader(),
-                    new Class[]{Client.class},
-                    clientInvocationHandler);
+                Client.class.getClassLoader(),
+                new Class<?>[] { Client.class },
+                clientInvocationHandler
+            );
             ScriptModule scriptModule = createScriptModule(pluginsService.filterPlugins(ScriptPlugin.class));
             List<Setting<?>> additionalSettings = pluginsService.getPluginSettings();
-            SettingsModule settingsModule =
-                    new SettingsModule(nodeSettings, additionalSettings, pluginsService.getPluginSettingsFilter(), Collections.emptySet());
-            searchModule = new SearchModule(nodeSettings, false, pluginsService.filterPlugins(SearchPlugin.class));
+            SettingsModule settingsModule = new SettingsModule(
+                nodeSettings,
+                additionalSettings,
+                pluginsService.getPluginSettingsFilter(),
+                Collections.emptySet()
+            );
+            searchModule = new SearchModule(nodeSettings, pluginsService.filterPlugins(SearchPlugin.class));
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-            entries.addAll(indicesModule.getNamedWriteables());
+            entries.addAll(IndicesModule.getNamedWriteables());
             entries.addAll(searchModule.getNamedWriteables());
             namedWriteableRegistry = new NamedWriteableRegistry(entries);
-            xContentRegistry = new NamedXContentRegistry(Stream.of(
-                    searchModule.getNamedXContents().stream()
-                    ).flatMap(Function.identity()).collect(toList()));
+            xContentRegistry = new NamedXContentRegistry(
+                Stream.of(searchModule.getNamedXContents().stream()).flatMap(Function.identity()).collect(toList())
+            );
             IndexScopedSettings indexScopedSettings = settingsModule.getIndexScopedSettings();
             idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings, indexScopedSettings);
             AnalysisModule analysisModule = new AnalysisModule(TestEnvironment.newEnvironment(nodeSettings), emptyList());
             IndexAnalyzers indexAnalyzers = analysisModule.getAnalysisRegistry().build(idxSettings);
-            scriptService = scriptModule.getScriptService();
+            scriptService = new MockScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts);
             similarityService = new SimilarityService(idxSettings, null, Collections.emptyMap());
             MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
-            mapperService = new MapperService(idxSettings, indexAnalyzers, xContentRegistry, similarityService, mapperRegistry,
-                    () -> createShardContext(null));
+            mapperService = new MapperService(
+                idxSettings,
+                indexAnalyzers,
+                xContentRegistry,
+                similarityService,
+                mapperRegistry,
+                () -> createShardContext(null),
+                () -> false,
+                ScriptCompiler.NONE
+            );
             IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(nodeSettings, new IndexFieldDataCache.Listener() {
             });
-            indexFieldDataService = new IndexFieldDataService(idxSettings, indicesFieldDataCache,
-                    new NoneCircuitBreakerService(), mapperService);
+            indexFieldDataService = new IndexFieldDataService(idxSettings, indicesFieldDataCache, new NoneCircuitBreakerService());
             bitsetFilterCache = new BitsetFilterCache(idxSettings, new BitsetFilterCache.Listener() {
                 @Override
                 public void onCache(ShardId shardId, Accountable accountable) {
@@ -385,45 +417,109 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             });
 
             if (registerType) {
-                mapperService.merge("_doc", new CompressedXContent(Strings.toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
-                    STRING_FIELD_NAME, "type=text",
-                    STRING_FIELD_NAME_2, "type=keyword",
-                    STRING_ALIAS_FIELD_NAME, "type=alias,path=" + STRING_FIELD_NAME,
-                    INT_FIELD_NAME, "type=integer",
-                    INT_ALIAS_FIELD_NAME, "type=alias,path=" + INT_FIELD_NAME,
-                    INT_RANGE_FIELD_NAME, "type=integer_range",
-                    DOUBLE_FIELD_NAME, "type=double",
-                    BOOLEAN_FIELD_NAME, "type=boolean",
-                    DATE_NANOS_FIELD_NAME, "type=date_nanos",
-                    DATE_FIELD_NAME, "type=date",
-                    DATE_ALIAS_FIELD_NAME, "type=alias,path=" + DATE_FIELD_NAME,
-                    DATE_RANGE_FIELD_NAME, "type=date_range",
-                    OBJECT_FIELD_NAME, "type=object",
-                    GEO_POINT_FIELD_NAME, "type=geo_point",
-                    GEO_POINT_ALIAS_FIELD_NAME, "type=alias,path=" + GEO_POINT_FIELD_NAME,
-                    GEO_SHAPE_FIELD_NAME, "type=geo_shape"
-                ))), MapperService.MergeReason.MAPPING_UPDATE);
+                mapperService.merge(
+                    "_doc",
+                    new CompressedXContent(
+                        Strings.toString(
+                            PutMappingRequest.simpleMapping(
+                                TEXT_FIELD_NAME,
+                                "type=text",
+                                KEYWORD_FIELD_NAME,
+                                "type=keyword",
+                                TEXT_ALIAS_FIELD_NAME,
+                                "type=alias,path=" + TEXT_FIELD_NAME,
+                                INT_FIELD_NAME,
+                                "type=integer",
+                                INT_ALIAS_FIELD_NAME,
+                                "type=alias,path=" + INT_FIELD_NAME,
+                                INT_RANGE_FIELD_NAME,
+                                "type=integer_range",
+                                DOUBLE_FIELD_NAME,
+                                "type=double",
+                                BOOLEAN_FIELD_NAME,
+                                "type=boolean",
+                                DATE_NANOS_FIELD_NAME,
+                                "type=date_nanos",
+                                DATE_FIELD_NAME,
+                                "type=date",
+                                DATE_ALIAS_FIELD_NAME,
+                                "type=alias,path=" + DATE_FIELD_NAME,
+                                DATE_RANGE_FIELD_NAME,
+                                "type=date_range",
+                                OBJECT_FIELD_NAME,
+                                "type=object",
+                                GEO_POINT_FIELD_NAME,
+                                "type=geo_point",
+                                GEO_POINT_ALIAS_FIELD_NAME,
+                                "type=alias,path=" + GEO_POINT_FIELD_NAME,
+                                GEO_SHAPE_FIELD_NAME,
+                                "type=geo_shape",
+                                BINARY_FIELD_NAME,
+                                "type=binary"
+                            )
+                        )
+                    ),
+                    MapperService.MergeReason.MAPPING_UPDATE
+                );
                 // also add mappings for two inner field in the object field
-                mapperService.merge("_doc", new CompressedXContent("{\"properties\":{\"" + OBJECT_FIELD_NAME + "\":{\"type\":\"object\","
-                        + "\"properties\":{\"" + DATE_FIELD_NAME + "\":{\"type\":\"date\"},\"" +
-                        INT_FIELD_NAME + "\":{\"type\":\"integer\"}}}}}"),
-                    MapperService.MergeReason.MAPPING_UPDATE);
+                mapperService.merge(
+                    "_doc",
+                    new CompressedXContent(
+                        "{\"properties\":{\""
+                            + OBJECT_FIELD_NAME
+                            + "\":{\"type\":\"object\","
+                            + "\"properties\":{\""
+                            + DATE_FIELD_NAME
+                            + "\":{\"type\":\"date\"},\""
+                            + INT_FIELD_NAME
+                            + "\":{\"type\":\"integer\"}}}}}"
+                    ),
+                    MapperService.MergeReason.MAPPING_UPDATE
+                );
                 testCase.initializeAdditionalMappings(mapperService);
             }
         }
 
-        @Override
-        public void close() throws IOException {
+        public static Predicate<String> indexNameMatcher() {
+            // Simplistic index name matcher used for testing
+            return pattern -> Regex.simpleMatch(pattern, index.getName());
         }
 
-        QueryShardContext createShardContext(IndexReader reader) {
-            return new QueryShardContext(0, idxSettings, bitsetFilterCache, indexFieldDataService::getForField, mapperService,
-                similarityService, scriptService, xContentRegistry, namedWriteableRegistry, this.client, reader, () -> nowInMillis, null);
+        @Override
+        public void close() throws IOException {}
+
+        SearchExecutionContext createShardContext(IndexSearcher searcher) {
+            return new SearchExecutionContext(
+                0,
+                0,
+                idxSettings,
+                bitsetFilterCache,
+                indexFieldDataService::getForField,
+                mapperService,
+                mapperService.mappingLookup(),
+                similarityService,
+                scriptService,
+                xContentRegistry,
+                namedWriteableRegistry,
+                this.client,
+                searcher,
+                () -> nowInMillis,
+                null,
+                indexNameMatcher(),
+                () -> true,
+                null,
+                emptyMap()
+            );
         }
 
         ScriptModule createScriptModule(List<ScriptPlugin> scriptPlugins) {
             if (scriptPlugins == null || scriptPlugins.isEmpty()) {
-                return newTestScriptModule();
+                return new ScriptModule(Settings.EMPTY, singletonList(new ScriptPlugin() {
+                    @Override
+                    public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
+                        return new MockScriptEngine(MockScriptEngine.NAME, Collections.singletonMap("1", script -> "1"), emptyMap());
+                    }
+                }));
             }
             return new ScriptModule(Settings.EMPTY, scriptPlugins);
         }

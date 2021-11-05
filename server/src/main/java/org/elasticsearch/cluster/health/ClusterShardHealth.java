@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.health;
@@ -24,22 +13,22 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public final class ClusterShardHealth implements Writeable, ToXContentFragment {
     private static final String STATUS = "status";
@@ -49,20 +38,29 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
     private static final String UNASSIGNED_SHARDS = "unassigned_shards";
     private static final String PRIMARY_ACTIVE = "primary_active";
 
-    public static final ConstructingObjectParser<ClusterShardHealth, Integer> PARSER =
-        new ConstructingObjectParser<>("cluster_shard_health", true,
-                (parsedObjects, shardId) -> {
-                    int i = 0;
-                    boolean primaryActive = (boolean) parsedObjects[i++];
-                    int activeShards = (int) parsedObjects[i++];
-                    int relocatingShards = (int) parsedObjects[i++];
-                    int initializingShards = (int) parsedObjects[i++];
-                    int unassignedShards = (int) parsedObjects[i++];
-                    String statusStr = (String) parsedObjects[i];
-                    ClusterHealthStatus status = ClusterHealthStatus.fromString(statusStr);
-                    return new ClusterShardHealth(shardId, status, activeShards, relocatingShards, initializingShards, unassignedShards,
-                        primaryActive);
-                });
+    public static final ConstructingObjectParser<ClusterShardHealth, Integer> PARSER = new ConstructingObjectParser<>(
+        "cluster_shard_health",
+        true,
+        (parsedObjects, shardId) -> {
+            int i = 0;
+            boolean primaryActive = (boolean) parsedObjects[i++];
+            int activeShards = (int) parsedObjects[i++];
+            int relocatingShards = (int) parsedObjects[i++];
+            int initializingShards = (int) parsedObjects[i++];
+            int unassignedShards = (int) parsedObjects[i++];
+            String statusStr = (String) parsedObjects[i];
+            ClusterHealthStatus status = ClusterHealthStatus.fromString(statusStr);
+            return new ClusterShardHealth(
+                shardId,
+                status,
+                activeShards,
+                relocatingShards,
+                initializingShards,
+                unassignedShards,
+                primaryActive
+            );
+        }
+    );
 
     static {
         PARSER.declareBoolean(constructorArg(), new ParseField(PRIMARY_ACTIVE));
@@ -121,7 +119,7 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
 
     public ClusterShardHealth(final StreamInput in) throws IOException {
         shardId = in.readVInt();
-        status = ClusterHealthStatus.fromValue(in.readByte());
+        status = ClusterHealthStatus.readFrom(in);
         activeShards = in.readVInt();
         relocatingShards = in.readVInt();
         initializingShards = in.readVInt();
@@ -132,8 +130,15 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
     /**
      * For XContent Parser and serialization tests
      */
-    ClusterShardHealth(int shardId, ClusterHealthStatus status, int activeShards, int relocatingShards, int initializingShards,
-        int unassignedShards, boolean primaryActive) {
+    ClusterShardHealth(
+        int shardId,
+        ClusterHealthStatus status,
+        int activeShards,
+        int relocatingShards,
+        int initializingShards,
+        int unassignedShards,
+        boolean primaryActive
+    ) {
         this.shardId = shardId;
         this.status = status;
         this.activeShards = activeShards;
@@ -200,10 +205,11 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
         assert shardRouting.recoverySource() != null : "cannot invoke on a shard that has no recovery source" + shardRouting;
         final UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
         RecoverySource.Type recoveryType = shardRouting.recoverySource().getType();
-        if (unassignedInfo.getLastAllocationStatus() != AllocationStatus.DECIDERS_NO && unassignedInfo.getNumFailedAllocations() == 0
-                && (recoveryType == RecoverySource.Type.EMPTY_STORE
-                    || recoveryType == RecoverySource.Type.LOCAL_SHARDS
-                    || recoveryType == RecoverySource.Type.SNAPSHOT)) {
+        if (unassignedInfo.getLastAllocationStatus() != AllocationStatus.DECIDERS_NO
+            && unassignedInfo.getNumFailedAllocations() == 0
+            && (recoveryType == RecoverySource.Type.EMPTY_STORE
+                || recoveryType == RecoverySource.Type.LOCAL_SHARDS
+                || recoveryType == RecoverySource.Type.SNAPSHOT)) {
             return ClusterHealthStatus.YELLOW;
         } else {
             return ClusterHealthStatus.RED;
@@ -228,12 +234,12 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
     }
 
     public static ClusterShardHealth fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
         XContentParser.Token token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
         String shardIdStr = parser.currentName();
         ClusterShardHealth parsed = innerFromXContent(parser, Integer.valueOf(shardIdStr));
-        ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
         return parsed;
     }
 
@@ -245,15 +251,15 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof ClusterShardHealth)) return false;
+        if ((o instanceof ClusterShardHealth) == false) return false;
         ClusterShardHealth that = (ClusterShardHealth) o;
-        return shardId == that.shardId &&
-                activeShards == that.activeShards &&
-                relocatingShards == that.relocatingShards &&
-                initializingShards == that.initializingShards &&
-                unassignedShards == that.unassignedShards &&
-                primaryActive == that.primaryActive &&
-                status == that.status;
+        return shardId == that.shardId
+            && activeShards == that.activeShards
+            && relocatingShards == that.relocatingShards
+            && initializingShards == that.initializingShards
+            && unassignedShards == that.unassignedShards
+            && primaryActive == that.primaryActive
+            && status == that.status;
     }
 
     @Override

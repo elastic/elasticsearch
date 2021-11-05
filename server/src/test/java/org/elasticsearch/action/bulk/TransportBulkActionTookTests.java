@@ -1,50 +1,43 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
-
 
 package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.rest.action.document.RestBulkAction;
+import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -82,7 +75,14 @@ public class TransportBulkActionTookTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        clusterService = createClusterService(threadPool);
+        DiscoveryNode discoveryNode = new DiscoveryNode(
+            "node",
+            ESTestCase.buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            DiscoveryNodeRole.roles(),
+            VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)
+        );
+        clusterService = createClusterService(threadPool, discoveryNode);
     }
 
     @After
@@ -93,9 +93,14 @@ public class TransportBulkActionTookTests extends ESTestCase {
 
     private TransportBulkAction createAction(boolean controlled, AtomicLong expected) {
         CapturingTransport capturingTransport = new CapturingTransport();
-        TransportService transportService = capturingTransport.createTransportService(clusterService.getSettings(), threadPool,
+        TransportService transportService = capturingTransport.createTransportService(
+            clusterService.getSettings(),
+            threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            boundAddress -> clusterService.localNode(), null, Collections.emptySet());
+            boundAddress -> clusterService.localNode(),
+            null,
+            Collections.emptySet()
+        );
         transportService.start();
         transportService.acceptIncomingRequests();
         IndexNameExpressionResolver resolver = new Resolver();
@@ -103,60 +108,66 @@ public class TransportBulkActionTookTests extends ESTestCase {
 
         NodeClient client = new NodeClient(Settings.EMPTY, threadPool) {
             @Override
-            public <Request extends ActionRequest, Response extends ActionResponse>
-            void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
-                listener.onResponse((Response)new CreateIndexResponse());
+            @SuppressWarnings("unchecked")
+            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                listener.onResponse((Response) new CreateIndexResponse(false, false, null));
             }
         };
 
         if (controlled) {
 
             return new TestTransportBulkAction(
-                    threadPool,
-                    transportService,
-                    clusterService,
-                    null,
-                    client,
-                    actionFilters,
-                    resolver,
-                    null,
-                    expected::get) {
+                threadPool,
+                transportService,
+                clusterService,
+                client,
+                actionFilters,
+                resolver,
+                expected::get
+            ) {
 
                 @Override
                 void executeBulk(
-                        Task task,
-                        BulkRequest bulkRequest,
-                        long startTimeNanos,
-                        ActionListener<BulkResponse> listener,
-                        AtomicArray<BulkItemResponse> responses,
-                        Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {
+                    Task task,
+                    BulkRequest bulkRequest,
+                    long startTimeNanos,
+                    ActionListener<BulkResponse> listener,
+                    String executorName,
+                    AtomicArray<BulkItemResponse> responses,
+                    Map<String, IndexNotFoundException> indicesThatCannotBeCreated
+                ) {
                     expected.set(1000000);
-                    super.executeBulk(task, bulkRequest, startTimeNanos, listener, responses, indicesThatCannotBeCreated);
+                    super.executeBulk(task, bulkRequest, startTimeNanos, listener, executorName, responses, indicesThatCannotBeCreated);
                 }
             };
         } else {
             return new TestTransportBulkAction(
-                    threadPool,
-                    transportService,
-                    clusterService,
-                    null,
-                    client,
-                    actionFilters,
-                    resolver,
-                    null,
-                    System::nanoTime) {
+                threadPool,
+                transportService,
+                clusterService,
+                client,
+                actionFilters,
+                resolver,
+                System::nanoTime
+            ) {
 
                 @Override
                 void executeBulk(
-                        Task task,
-                        BulkRequest bulkRequest,
-                        long startTimeNanos,
-                        ActionListener<BulkResponse> listener,
-                        AtomicArray<BulkItemResponse> responses,
-                        Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {
+                    Task task,
+                    BulkRequest bulkRequest,
+                    long startTimeNanos,
+                    ActionListener<BulkResponse> listener,
+                    String executorName,
+                    AtomicArray<BulkItemResponse> responses,
+                    Map<String, IndexNotFoundException> indicesThatCannotBeCreated
+                ) {
                     long elapsed = spinForAtLeastOneMillisecond();
                     expected.set(elapsed);
-                    super.executeBulk(task, bulkRequest, startTimeNanos, listener, responses, indicesThatCannotBeCreated);
+                    super.executeBulk(task, bulkRequest, startTimeNanos, listener, executorName, responses, indicesThatCannotBeCreated);
                 }
             };
         }
@@ -187,12 +198,14 @@ public class TransportBulkActionTookTests extends ESTestCase {
             public void onResponse(BulkResponse bulkItemResponses) {
                 if (controlled) {
                     assertThat(
-                            bulkItemResponses.getTook().getMillis(),
-                            equalTo(TimeUnit.MILLISECONDS.convert(expected.get(), TimeUnit.NANOSECONDS)));
+                        bulkItemResponses.getTook().getMillis(),
+                        equalTo(TimeUnit.MILLISECONDS.convert(expected.get(), TimeUnit.NANOSECONDS))
+                    );
                 } else {
                     assertThat(
-                            bulkItemResponses.getTook().getMillis(),
-                            greaterThanOrEqualTo(TimeUnit.MILLISECONDS.convert(expected.get(), TimeUnit.NANOSECONDS)));
+                        bulkItemResponses.getTook().getMillis(),
+                        greaterThanOrEqualTo(TimeUnit.MILLISECONDS.convert(expected.get(), TimeUnit.NANOSECONDS))
+                    );
                 }
             }
 
@@ -201,11 +214,13 @@ public class TransportBulkActionTookTests extends ESTestCase {
 
             }
         });
-        //This test's JSON contains outdated references to types
-        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     static class Resolver extends IndexNameExpressionResolver {
+        Resolver() {
+            super(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE);
+        }
+
         @Override
         public String[] concreteIndexNames(ClusterState state, IndicesRequest request) {
             return request.indices();
@@ -215,37 +230,26 @@ public class TransportBulkActionTookTests extends ESTestCase {
     static class TestTransportBulkAction extends TransportBulkAction {
 
         TestTransportBulkAction(
-                ThreadPool threadPool,
-                TransportService transportService,
-                ClusterService clusterService,
-                TransportShardBulkAction shardBulkAction,
-                NodeClient client,
-                ActionFilters actionFilters,
-                IndexNameExpressionResolver indexNameExpressionResolver,
-                AutoCreateIndex autoCreateIndex,
-                LongSupplier relativeTimeProvider) {
+            ThreadPool threadPool,
+            TransportService transportService,
+            ClusterService clusterService,
+            NodeClient client,
+            ActionFilters actionFilters,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            LongSupplier relativeTimeProvider
+        ) {
             super(
-                    threadPool,
-                    transportService,
-                    clusterService,
-                    null,
-                    shardBulkAction,
-                    client,
-                    actionFilters,
-                    indexNameExpressionResolver,
-                    autoCreateIndex,
-                    relativeTimeProvider);
+                threadPool,
+                transportService,
+                clusterService,
+                null,
+                client,
+                actionFilters,
+                indexNameExpressionResolver,
+                new IndexingPressure(Settings.EMPTY),
+                EmptySystemIndices.INSTANCE,
+                relativeTimeProvider
+            );
         }
-
-        @Override
-        boolean needToCheck() {
-            return randomBoolean();
-        }
-
-        @Override
-        boolean shouldAutoCreate(String index, ClusterState state) {
-            return randomBoolean();
-        }
-
     }
 }

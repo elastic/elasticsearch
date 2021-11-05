@@ -1,29 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.shard;
 
-
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.io.PathUtilsForTesting;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeEnvironment.NodePath;
@@ -90,7 +78,7 @@ public class NewPathForShardTests extends ESTestCase {
 
         @Override
         public FileStore getFileStore(Path path) throws IOException {
-            if (path.toString().contains(aPathPart)) {
+            if (path.toString().contains(aPathPart) || (path.toString() + path.getFileSystem().getSeparator()).contains(aPathPart)) {
                 return aFileStore;
             } else {
                 return bFileStore;
@@ -130,7 +118,7 @@ public class NewPathForShardTests extends ESTestCase {
 
         @Override
         public long getTotalSpace() throws IOException {
-            return usableSpace*3;
+            return usableSpace * 3;
         }
 
         @Override
@@ -140,7 +128,7 @@ public class NewPathForShardTests extends ESTestCase {
 
         @Override
         public long getUnallocatedSpace() throws IOException {
-            return usableSpace*2;
+            return usableSpace * 2;
         }
 
         @Override
@@ -172,12 +160,12 @@ public class NewPathForShardTests extends ESTestCase {
         Path path = PathUtils.get(createTempDir().toString());
 
         // Use 2 data paths:
-        String[] paths = new String[] {path.resolve("a").toString(),
-                                       path.resolve("b").toString()};
+        String[] paths = new String[] { path.resolve("a").toString(), path.resolve("b").toString() };
 
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), path)
-            .putList(Environment.PATH_DATA_SETTING.getKey(), paths).build();
+            .putList(Environment.PATH_DATA_SETTING.getKey(), paths)
+            .build();
         NodeEnvironment nodeEnv = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
 
         // Make sure all our mocking above actually worked:
@@ -192,7 +180,7 @@ public class NewPathForShardTests extends ESTestCase {
         bFileStore.usableSpace = 1000;
 
         ShardId shardId = new ShardId("index", "_na_", 0);
-        ShardPath result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, Collections.<Path,Integer>emptyMap());
+        ShardPath result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, Collections.<Path, Integer>emptyMap());
         assertTrue(result.getDataPath().toString().contains(aPathPart));
 
         // Test the reverse: b has lots of free space, but a has little, so new shard should go to b:
@@ -200,14 +188,14 @@ public class NewPathForShardTests extends ESTestCase {
         bFileStore.usableSpace = 100000;
 
         shardId = new ShardId("index", "_na_", 0);
-        result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, Collections.<Path,Integer>emptyMap());
+        result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, Collections.<Path, Integer>emptyMap());
         assertTrue(result.getDataPath().toString().contains(bPathPart));
 
         // Now a and be have equal usable space; we allocate two shards to the node, and each should go to different paths:
         aFileStore.usableSpace = 100000;
         bFileStore.usableSpace = 100000;
 
-        Map<Path,Integer> dataPathToShardCount = new HashMap<>();
+        Map<Path, Integer> dataPathToShardCount = new HashMap<>();
         ShardPath result1 = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, dataPathToShardCount);
         createFakeShard(result1);
         dataPathToShardCount.put(NodeEnvironment.shardStatePathToDataPath(result1.getDataPath()), 1);
@@ -227,12 +215,12 @@ public class NewPathForShardTests extends ESTestCase {
         Path path = PathUtils.get(createTempDir().toString());
 
         // Use 2 data paths:
-        String[] paths = new String[] {path.resolve("a").toString(),
-                                       path.resolve("b").toString()};
+        String[] paths = new String[] { path.resolve("a").toString(), path.resolve("b").toString() };
 
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), path)
-            .putList(Environment.PATH_DATA_SETTING.getKey(), paths).build();
+            .putList(Environment.PATH_DATA_SETTING.getKey(), paths)
+            .build();
         NodeEnvironment nodeEnv = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
 
         // Make sure all our mocking above actually worked:
@@ -247,21 +235,23 @@ public class NewPathForShardTests extends ESTestCase {
         bFileStore.usableSpace = 10000;
 
         ShardId shardId = new ShardId("index", "uid1", 0);
-        ShardPath result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, Collections.<Path,Integer>emptyMap());
+        ShardPath result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, Collections.<Path, Integer>emptyMap());
         createFakeShard(result);
         // First shard should go to a
         assertThat(result.getDataPath().toString(), containsString(aPathPart));
 
         shardId = new ShardId("index", "uid1", 1);
-        result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, Collections.<Path,Integer>emptyMap());
+        result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, Collections.<Path, Integer>emptyMap());
         createFakeShard(result);
         // Second shard should go to b
         assertThat(result.getDataPath().toString(), containsString(bPathPart));
 
-        Map<Path,Integer> dataPathToShardCount = new HashMap<>();
+        Map<Path, Integer> dataPathToShardCount = new HashMap<>();
         shardId = new ShardId("index2", "uid2", 0);
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index2",
-                Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 3).build());
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(
+            "index2",
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).build()
+        );
         ShardPath result1 = ShardPath.selectNewPathForShard(nodeEnv, shardId, idxSettings, 100, dataPathToShardCount);
         createFakeShard(result1);
         dataPathToShardCount.put(NodeEnvironment.shardStatePathToDataPath(result1.getDataPath()), 1);
@@ -284,12 +274,12 @@ public class NewPathForShardTests extends ESTestCase {
         Path path = PathUtils.get(createTempDir().toString());
 
         // Use 2 data paths:
-        String[] paths = new String[] {path.resolve("a").toString(),
-                                       path.resolve("b").toString()};
+        String[] paths = new String[] { path.resolve("a").toString(), path.resolve("b").toString() };
 
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), path)
-            .putList(Environment.PATH_DATA_SETTING.getKey(), paths).build();
+            .putList(Environment.PATH_DATA_SETTING.getKey(), paths)
+            .build();
         NodeEnvironment nodeEnv = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
 
         aFileStore.usableSpace = 100000;
@@ -309,12 +299,12 @@ public class NewPathForShardTests extends ESTestCase {
         Path path = PathUtils.get(createTempDir().toString());
 
         // Use 2 data paths:
-        String[] paths = new String[] {path.resolve("a").toString(),
-                                       path.resolve("b").toString()};
+        String[] paths = new String[] { path.resolve("a").toString(), path.resolve("b").toString() };
 
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), path)
-            .putList(Environment.PATH_DATA_SETTING.getKey(), paths).build();
+            .putList(Environment.PATH_DATA_SETTING.getKey(), paths)
+            .build();
         NodeEnvironment nodeEnv = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
 
         // Make sure all our mocking above actually worked:
@@ -352,8 +342,10 @@ public class NewPathForShardTests extends ESTestCase {
         dataPathToShardCount.compute(NodeEnvironment.shardStatePathToDataPath(result.getDataPath()), (k, v) -> v == null ? 1 : v + 1);
 
         shardId = new ShardId("index2", "uid2", 0);
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index2",
-                Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 3).build());
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(
+            "index2",
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).build()
+        );
         ShardPath result1 = ShardPath.selectNewPathForShard(nodeEnv, shardId, idxSettings, 100, dataPathToShardCount);
         createFakeShard(result1);
         dataPathToShardCount.compute(NodeEnvironment.shardStatePathToDataPath(result1.getDataPath()), (k, v) -> v == null ? 1 : v + 1);

@@ -1,31 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -35,12 +24,12 @@ import java.util.Map;
 import static java.util.Map.entry;
 
 /** a class the returns dynamic information with respect to the last commit point of this shard */
-public final class CommitStats implements Streamable, ToXContentFragment {
+public final class CommitStats implements Writeable, ToXContentFragment {
 
-    private Map<String, String> userData;
-    private long generation;
-    private String id; // lucene commit id in base 64;
-    private int numDocs;
+    private final Map<String, String> userData;
+    private final long generation;
+    private final String id; // lucene commit id in base 64;
+    private final int numDocs;
 
     public CommitStats(SegmentInfos segmentInfos) {
         // clone the map to protect against concurrent changes
@@ -51,13 +40,21 @@ public final class CommitStats implements Streamable, ToXContentFragment {
         numDocs = Lucene.getNumDocs(segmentInfos);
     }
 
-    private CommitStats() {
+    CommitStats(StreamInput in) throws IOException {
+        final int length = in.readVInt();
+        final var entries = new ArrayList<Map.Entry<String, String>>(length);
+        for (int i = length; i > 0; i--) {
+            entries.add(entry(in.readString(), in.readString()));
+        }
+        userData = Maps.ofEntries(entries);
+        generation = in.readLong();
+        id = in.readOptionalString();
+        numDocs = in.readInt();
     }
 
     public static CommitStats readOptionalCommitStatsFrom(StreamInput in) throws IOException {
-        return in.readOptionalStreamable(CommitStats::new);
+        return in.readOptionalWriteable(CommitStats::new);
     }
-
 
     public Map<String, String> getUserData() {
         return userData;
@@ -73,37 +70,10 @@ public final class CommitStats implements Streamable, ToXContentFragment {
     }
 
     /**
-     * A raw version of the commit id (see {@link SegmentInfos#getId()}
-     */
-    public Engine.CommitId getRawCommitId() {
-        return new Engine.CommitId(Base64.getDecoder().decode(id));
-    }
-
-    /**
-     * The synced-flush id of the commit if existed.
-     */
-    public String syncId() {
-        return userData.get(InternalEngine.SYNC_COMMIT_ID);
-    }
-
-    /**
      * Returns the number of documents in the in this commit
      */
     public int getNumDocs() {
         return numDocs;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        final int length = in.readVInt();
-        final var entries = new ArrayList<Map.Entry<String, String>>(length);
-        for (int i = length; i > 0; i--) {
-            entries.add(entry(in.readString(), in.readString()));
-        }
-        userData = Maps.ofEntries(entries);
-        generation = in.readLong();
-        id = in.readOptionalString();
-        numDocs = in.readInt();
     }
 
     @Override

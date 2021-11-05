@@ -1,0 +1,41 @@
+{
+    "properties" : {
+        "event" : {
+            "properties" : {
+                "category" : {
+                    "type" : "keyword"
+                }
+            }
+        },
+        "@timestamp" : {
+            "type" : "date"
+        },
+        "long_field" : {
+            "type" : "long"
+        },
+        "integer_field" : {
+            "type" : "integer"
+        },
+        "short_field" : {
+            "type" : "short"
+        },
+        "byte_field": {
+            "type" : "byte"
+        },
+        "double_field": {
+            "type" : "double"
+        },
+        "float_field" : {
+            "type" : "float"
+        },
+        "half_float_field" : {
+            "type" : "half_float"
+        },
+        "scaled_float_field": {
+            "type" : "scaled_float"
+        },
+        "wrong_int_type_field": {
+            "type" : "int"
+        }
+    }
+}

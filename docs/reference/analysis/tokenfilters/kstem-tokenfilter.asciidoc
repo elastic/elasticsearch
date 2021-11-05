@@ -1,6 +1,115 @@
 [[analysis-kstem-tokenfilter]]
-=== KStem Token Filter
+=== KStem token filter
+++++
+<titleabbrev>KStem</titleabbrev>
+++++
 
-The `kstem` token filter is a high performance filter for english. All
-terms must already be lowercased (use `lowercase` filter) for this
-filter to work correctly.
+Provides https://ciir.cs.umass.edu/pubfiles/ir-35.pdf[KStem]-based stemming for
+the English language. The `kstem` filter combines
+<<algorithmic-stemmers,algorithmic stemming>> with a built-in
+<<dictionary-stemmers,dictionary>>.
+
+The `kstem` filter tends to stem less aggressively than other English stemmer
+filters, such as the <<analysis-porterstem-tokenfilter,`porter_stem`>> filter.
+
+The `kstem` filter is equivalent to the
+<<analysis-stemmer-tokenfilter,`stemmer`>> filter's
+<<analysis-stemmer-tokenfilter-language-parm,`light_english`>> variant.
+
+This filter uses Lucene's
+{lucene-analysis-docs}/en/KStemFilter.html[KStemFilter].
+
+[[analysis-kstem-tokenfilter-analyze-ex]]
+==== Example
+
+The following analyze API request uses the `kstem` filter to stem `the foxes
+jumping quickly` to `the fox jump quick`:
+
+[source,console]
+----
+GET /_analyze
+{
+  "tokenizer": "standard",
+  "filter": [ "kstem" ],
+  "text": "the foxes jumping quickly"
+}
+----
+
+The filter produces the following tokens:
+
+[source,text]
+----
+[ the, fox, jump, quick ]
+----
+
+////
+[source,console-result]
+----
+{
+  "tokens": [
+    {
+      "token": "the",
+      "start_offset": 0,
+      "end_offset": 3,
+      "type": "<ALPHANUM>",
+      "position": 0
+    },
+    {
+      "token": "fox",
+      "start_offset": 4,
+      "end_offset": 9,
+      "type": "<ALPHANUM>",
+      "position": 1
+    },
+    {
+      "token": "jump",
+      "start_offset": 10,
+      "end_offset": 17,
+      "type": "<ALPHANUM>",
+      "position": 2
+    },
+    {
+      "token": "quick",
+      "start_offset": 18,
+      "end_offset": 25,
+      "type": "<ALPHANUM>",
+      "position": 3
+    }
+  ]
+}
+----
+////
+
+[[analysis-kstem-tokenfilter-analyzer-ex]]
+==== Add to an analyzer
+
+The following <<indices-create-index,create index API>> request uses the
+`kstem` filter to configure a new <<analysis-custom-analyzer,custom
+analyzer>>.
+
+[IMPORTANT]
+====
+To work properly, the `kstem` filter requires lowercase tokens. To ensure tokens
+are lowercased, add the <<analysis-lowercase-tokenfilter,`lowercase`>> filter
+before the `kstem` filter in the analyzer configuration.
+====
+
+[source,console]
+----
+PUT /my-index-000001
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_analyzer": {
+          "tokenizer": "whitespace",
+          "filter": [
+            "lowercase",
+            "kstem"
+          ]
+        }
+      }
+    }
+  }
+}
+----

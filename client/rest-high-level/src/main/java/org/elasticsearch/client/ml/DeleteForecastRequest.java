@@ -1,32 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,20 +25,21 @@ import java.util.Objects;
 /**
  * POJO for a delete forecast request
  */
-public class DeleteForecastRequest extends ActionRequest implements ToXContentObject {
+public class DeleteForecastRequest implements Validatable, ToXContentObject {
 
     public static final ParseField FORECAST_ID = new ParseField("forecast_id");
     public static final ParseField ALLOW_NO_FORECASTS = new ParseField("allow_no_forecasts");
     public static final ParseField TIMEOUT = new ParseField("timeout");
     public static final String ALL = "_all";
 
-    public static final ConstructingObjectParser<DeleteForecastRequest, Void> PARSER =
-        new ConstructingObjectParser<>("delete_forecast_request", (a) -> new DeleteForecastRequest((String) a[0]));
+    public static final ConstructingObjectParser<DeleteForecastRequest, Void> PARSER = new ConstructingObjectParser<>(
+        "delete_forecast_request",
+        (a) -> new DeleteForecastRequest((String) a[0])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
-        PARSER.declareStringOrNull(
-            (c, p) -> c.setForecastIds(Strings.commaDelimitedListToStringArray(p)), FORECAST_ID);
+        PARSER.declareStringOrNull((c, p) -> c.setForecastIds(Strings.commaDelimitedListToStringArray(p)), FORECAST_ID);
         PARSER.declareBoolean(DeleteForecastRequest::setAllowNoForecasts, ALLOW_NO_FORECASTS);
         PARSER.declareString(DeleteForecastRequest::timeout, TIMEOUT);
     }
@@ -148,20 +137,15 @@ public class DeleteForecastRequest extends ActionRequest implements ToXContentOb
         }
 
         DeleteForecastRequest that = (DeleteForecastRequest) other;
-        return Objects.equals(jobId, that.jobId) &&
-            Objects.equals(forecastIds, that.forecastIds) &&
-            Objects.equals(allowNoForecasts, that.allowNoForecasts) &&
-            Objects.equals(timeout, that.timeout);
+        return Objects.equals(jobId, that.jobId)
+            && Objects.equals(forecastIds, that.forecastIds)
+            && Objects.equals(allowNoForecasts, that.allowNoForecasts)
+            && Objects.equals(timeout, that.timeout);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(jobId, forecastIds, allowNoForecasts, timeout);
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
     }
 
     @Override

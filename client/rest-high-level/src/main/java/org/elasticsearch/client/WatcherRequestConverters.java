@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -36,7 +25,7 @@ import org.elasticsearch.client.watcher.StartWatchServiceRequest;
 import org.elasticsearch.client.watcher.StopWatchServiceRequest;
 import org.elasticsearch.client.watcher.WatcherStatsRequest;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
@@ -45,46 +34,37 @@ final class WatcherRequestConverters {
     private WatcherRequestConverters() {}
 
     static Request startWatchService(StartWatchServiceRequest startWatchServiceRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-                .addPathPartAsIs("_watcher")
-                .addPathPartAsIs("_start")
-                .build();
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_watcher").addPathPartAsIs("_start").build();
 
         return new Request(HttpPost.METHOD_NAME, endpoint);
     }
 
     static Request stopWatchService(StopWatchServiceRequest stopWatchServiceRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-                .addPathPartAsIs("_watcher")
-                .addPathPartAsIs("_stop")
-                .build();
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_watcher").addPathPartAsIs("_stop").build();
 
         return new Request(HttpPost.METHOD_NAME, endpoint);
     }
 
     static Request putWatch(PutWatchRequest putWatchRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_watcher", "watch")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_watcher", "watch")
             .addPathPart(putWatchRequest.getId())
             .build();
 
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params(request)
-            .withIfSeqNo(putWatchRequest.ifSeqNo())
+        RequestConverters.Params params = new RequestConverters.Params().withIfSeqNo(putWatchRequest.ifSeqNo())
             .withIfPrimaryTerm(putWatchRequest.ifPrimaryTerm());
         if (putWatchRequest.isActive() == false) {
             params.putParam("active", "false");
         }
+        request.addParameters(params.asMap());
         ContentType contentType = RequestConverters.createContentType(putWatchRequest.xContentType());
         BytesReference source = putWatchRequest.getSource();
         request.setEntity(new NByteArrayEntity(source.toBytesRef().bytes, 0, source.length(), contentType));
         return request;
     }
 
-
     static Request getWatch(GetWatchRequest getWatchRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_watcher", "watch")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_watcher", "watch")
             .addPathPart(getWatchRequest.getId())
             .build();
 
@@ -92,8 +72,7 @@ final class WatcherRequestConverters {
     }
 
     static Request deactivateWatch(DeactivateWatchRequest deactivateWatchRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_watcher")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_watcher")
             .addPathPartAsIs("watch")
             .addPathPart(deactivateWatchRequest.getWatchId())
             .addPathPartAsIs("_deactivate")
@@ -102,8 +81,7 @@ final class WatcherRequestConverters {
     }
 
     static Request deleteWatch(DeleteWatchRequest deleteWatchRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_watcher", "watch")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_watcher", "watch")
             .addPathPart(deleteWatchRequest.getId())
             .build();
 
@@ -112,13 +90,13 @@ final class WatcherRequestConverters {
     }
 
     static Request executeWatch(ExecuteWatchRequest executeWatchRequest) throws IOException {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_watcher", "watch")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_watcher", "watch")
             .addPathPart(executeWatchRequest.getId())       // will ignore if ID is null
-            .addPathPartAsIs("_execute").build();
+            .addPathPartAsIs("_execute")
+            .build();
 
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         if (executeWatchRequest.isDebug()) {
             params.putParam("debug", "true");
         }
@@ -128,14 +106,13 @@ final class WatcherRequestConverters {
         if (executeWatchRequest.recordExecution()) {
             params.putParam("record_execution", "true");
         }
-
+        request.addParameters(params.asMap());
         request.setEntity(RequestConverters.createEntity(executeWatchRequest, XContentType.JSON));
         return request;
     }
 
     public static Request ackWatch(AckWatchRequest ackWatchRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_watcher", "watch")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_watcher", "watch")
             .addPathPart(ackWatchRequest.getWatchId())
             .addPathPartAsIs("_ack")
             .addCommaSeparatedPathParts(ackWatchRequest.getActionIds())
@@ -145,8 +122,7 @@ final class WatcherRequestConverters {
     }
 
     static Request activateWatch(ActivateWatchRequest activateWatchRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_watcher", "watch")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_watcher", "watch")
             .addPathPart(activateWatchRequest.getWatchId())
             .addPathPartAsIs("_activate")
             .build();
@@ -158,7 +134,7 @@ final class WatcherRequestConverters {
         RequestConverters.EndpointBuilder builder = new RequestConverters.EndpointBuilder().addPathPartAsIs("_watcher", "stats");
         String endpoint = builder.build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        RequestConverters.Params parameters = new RequestConverters.Params(request);
+        RequestConverters.Params parameters = new RequestConverters.Params();
         StringBuilder metric = new StringBuilder();
         if (watcherStatsRequest.includeCurrentWatches()) {
             metric.append("current_watches");
@@ -172,6 +148,7 @@ final class WatcherRequestConverters {
         if (metric.length() > 0) {
             parameters.putParam("metric", metric.toString());
         }
+        request.addParameters(parameters.asMap());
         return request;
     }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core;
 
@@ -14,8 +15,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
+import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import java.util.Collections;
@@ -33,8 +33,10 @@ public class XPackPluginTests extends ESTestCase {
         }
         XPackPlugin xpackPlugin = createXPackPlugin(builder.put("path.home", createTempDir()).build());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, xpackPlugin::additionalSettings);
-        assertThat(e.getMessage(),
-            containsString("Directly setting [node.attr." + XPackPlugin.XPACK_INSTALLED_NODE_ATTR + "] is not permitted"));
+        assertThat(
+            e.getMessage(),
+            containsString("Directly setting [node.attr." + XPackPlugin.XPACK_INSTALLED_NODE_ATTR + "] is not permitted")
+        );
     }
 
     public void testXPackInstalledAttrExists() throws Exception {
@@ -48,22 +50,22 @@ public class XPackPluginTests extends ESTestCase {
         DiscoveryNodes.Builder discoveryNodes = DiscoveryNodes.builder();
 
         for (int i = 0; i < randomInt(3); i++) {
-            final Version version = VersionUtils.randomVersion(random());
             final Map<String, String> attributes;
-            if (randomBoolean() && version.onOrAfter(Version.V_6_3_0)) {
+            if (randomBoolean()) {
                 attributes = Collections.singletonMap(XPackPlugin.XPACK_INSTALLED_NODE_ATTR, "true");
             } else {
                 nodesCompatible = false;
                 attributes = Collections.emptyMap();
             }
 
-            discoveryNodes.add(new DiscoveryNode("node_" + i, buildNewFakeTransportAddress(), attributes, Collections.emptySet(),
-                Version.CURRENT));
+            discoveryNodes.add(
+                new DiscoveryNode("node_" + i, buildNewFakeTransportAddress(), attributes, Collections.emptySet(), Version.CURRENT)
+            );
         }
         ClusterState.Builder clusterStateBuilder = ClusterState.builder(ClusterName.DEFAULT);
 
         if (randomBoolean()) {
-            clusterStateBuilder.putCustom(TokenMetaData.TYPE, new TokenMetaData(Collections.emptyList(), new byte[0]));
+            clusterStateBuilder.putCustom(TokenMetadata.TYPE, new TokenMetadata(Collections.emptyList(), new byte[0]));
             compatible = true;
         } else {
             compatible = nodesCompatible;
@@ -75,14 +77,16 @@ public class XPackPluginTests extends ESTestCase {
         assertEquals(XPackPlugin.isReadyForXPackCustomMetadata(clusterState), compatible);
 
         if (compatible == false) {
-            IllegalStateException e = expectThrows(IllegalStateException.class,
-                () -> XPackPlugin.checkReadyForXPackCustomMetadata(clusterState));
+            IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> XPackPlugin.checkReadyForXPackCustomMetadata(clusterState)
+            );
             assertThat(e.getMessage(), containsString("The following nodes are not ready yet for enabling x-pack custom metadata:"));
         }
     }
 
     private XPackPlugin createXPackPlugin(Settings settings) throws Exception {
-        return new XPackPlugin(settings, null){
+        return new XPackPlugin(settings, null) {
 
             @Override
             protected void setSslService(SSLService sslService) {

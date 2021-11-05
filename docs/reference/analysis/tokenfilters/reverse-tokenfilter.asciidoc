@@ -1,4 +1,93 @@
 [[analysis-reverse-tokenfilter]]
-=== Reverse Token Filter
+=== Reverse token filter
+++++
+<titleabbrev>Reverse</titleabbrev>
+++++
 
-A token filter of type `reverse` that simply reverses each token.
+Reverses each token in a stream. For example, you can use the `reverse` filter
+to change `cat` to `tac`.
+
+Reversed tokens are useful for suffix-based searches,
+such as finding words that end in `-ion` or searching file names by their
+extension.
+
+This filter uses Lucene's
+{lucene-analysis-docs}/reverse/ReverseStringFilter.html[ReverseStringFilter].
+
+[[analysis-reverse-tokenfilter-analyze-ex]]
+==== Example
+
+The following <<indices-analyze,analyze API>> request uses the `reverse`
+filter to reverse each token in `quick fox jumps`:
+
+[source,console]
+--------------------------------------------------
+GET _analyze
+{
+  "tokenizer" : "standard",
+  "filter" : ["reverse"],
+  "text" : "quick fox jumps"
+}
+--------------------------------------------------
+
+The filter produces the following tokens:
+
+[source,text]
+--------------------------------------------------
+[ kciuq, xof, spmuj ]
+--------------------------------------------------
+
+/////////////////////
+[source,console-result]
+--------------------------------------------------
+{
+  "tokens" : [
+    {
+      "token" : "kciuq",
+      "start_offset" : 0,
+      "end_offset" : 5,
+      "type" : "<ALPHANUM>",
+      "position" : 0
+    },
+    {
+      "token" : "xof",
+      "start_offset" : 6,
+      "end_offset" : 9,
+      "type" : "<ALPHANUM>",
+      "position" : 1
+    },
+    {
+      "token" : "spmuj",
+      "start_offset" : 10,
+      "end_offset" : 15,
+      "type" : "<ALPHANUM>",
+      "position" : 2
+    }
+  ]
+}
+--------------------------------------------------
+/////////////////////
+
+[[analysis-reverse-tokenfilter-analyzer-ex]]
+==== Add to an analyzer
+
+The following <<indices-create-index,create index API>> request uses the
+`reverse` filter to configure a new
+<<analysis-custom-analyzer,custom analyzer>>.
+
+[source,console]
+--------------------------------------------------
+PUT reverse_example
+{
+  "settings" : {
+    "analysis" : {
+      "analyzer" : {
+        "whitespace_reverse" : {
+          "tokenizer" : "whitespace",
+          "filter" : ["reverse"]
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------

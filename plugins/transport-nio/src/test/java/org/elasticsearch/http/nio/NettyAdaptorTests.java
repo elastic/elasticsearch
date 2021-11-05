@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.http.nio;
@@ -26,6 +15,7 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import io.netty.channel.SimpleChannelInboundHandler;
+
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.test.ESTestCase;
 
@@ -44,7 +34,7 @@ public class NettyAdaptorTests extends ESTestCase {
             message.putInt(i);
         }
         message.flip();
-        ByteBuffer[] buffers = {message};
+        ByteBuffer[] buffers = { message };
         assertEquals(40, nettyAdaptor.read(buffers));
         assertEquals("0123456789", handler.result);
     }
@@ -57,7 +47,7 @@ public class NettyAdaptorTests extends ESTestCase {
             message.putInt(i);
         }
         message.flip();
-        ByteBuffer[] buffers = {message};
+        ByteBuffer[] buffers = { message };
         assertEquals(40, nettyAdaptor.read(buffers));
         assertEquals("0123456789", handler.result);
     }
@@ -69,20 +59,22 @@ public class NettyAdaptorTests extends ESTestCase {
             message.putInt(i);
         }
         message.flip();
-        ByteBuffer[] buffers = {message};
+        ByteBuffer[] buffers = { message };
         expectThrows(IllegalStateException.class, () -> nettyAdaptor.read(buffers));
     }
 
     public void testWriteInsidePipelineIsCaptured() {
         TenIntsToStringsHandler tenIntsToStringsHandler = new TenIntsToStringsHandler();
         PromiseCheckerHandler promiseCheckerHandler = new PromiseCheckerHandler();
-        NettyAdaptor nettyAdaptor = new NettyAdaptor(new CapitalizeWriteHandler(),
+        NettyAdaptor nettyAdaptor = new NettyAdaptor(
+            new CapitalizeWriteHandler(),
             promiseCheckerHandler,
             new WriteInMiddleHandler(),
-            tenIntsToStringsHandler);
+            tenIntsToStringsHandler
+        );
         byte[] bytes = "SHOULD_WRITE".getBytes(StandardCharsets.UTF_8);
         ByteBuffer message = ByteBuffer.wrap(bytes);
-        ByteBuffer[] buffers = {message};
+        ByteBuffer[] buffers = { message };
         assertNull(nettyAdaptor.pollOutboundOperation());
         nettyAdaptor.read(buffers);
         assertFalse(tenIntsToStringsHandler.wasCalled);
@@ -99,7 +91,7 @@ public class NettyAdaptorTests extends ESTestCase {
         CloseChannelHandler handler = new CloseChannelHandler();
         NettyAdaptor nettyAdaptor = new NettyAdaptor(handler);
         byte[] bytes = "SHOULD_CLOSE".getBytes(StandardCharsets.UTF_8);
-        ByteBuffer[] buffers = {ByteBuffer.wrap(bytes)};
+        ByteBuffer[] buffers = { ByteBuffer.wrap(bytes) };
         nettyAdaptor.addCloseListener((v, e) -> listenerCalled.set(true));
         assertFalse(listenerCalled.get());
         nettyAdaptor.read(buffers);

@@ -1,7 +1,11 @@
+[role="xpack"]
 [[trigger-schedule]]
-=== Schedule Trigger
+=== {watcher} schedule trigger
+++++
+<titleabbrev>Schedule trigger</titleabbrev>
+++++
 
-Schedule <<trigger, triggers>> define when the watch execution should start based
+Schedule <<trigger,triggers>> define when the watch execution should start based
 on date and time. All times are specified in UTC time.
 
 {watcher} uses the system clock to determine the current time. To ensure schedules
@@ -14,7 +18,7 @@ that's more frequent than the throttle period, the throttle period overrides the
 schedule. For example, if you set the throttle period to one minute (60000 ms)
 and set the schedule to every 10 seconds, the watch is executed no more than
 once per minute. For more information about throttling, see
-<<actions-ack-throttle, Acknowledgement and Throttling>>.
+<<actions-ack-throttle>>.
 
 {watcher} provides several types of schedule triggers:
 
@@ -26,23 +30,16 @@ once per minute. For more information about throttling, see
 * <<schedule-cron, `cron`>>
 * <<schedule-interval, `interval`>>
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/schedule/hourly.asciidoc
 include::schedule/hourly.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/schedule/daily.asciidoc
 include::schedule/daily.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/schedule/weekly.asciidoc
 include::schedule/weekly.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/schedule/monthly.asciidoc
 include::schedule/monthly.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/schedule/yearly.asciidoc
 include::schedule/yearly.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/schedule/cron.asciidoc
 include::schedule/cron.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/schedule/interval.asciidoc
 include::schedule/interval.asciidoc[]

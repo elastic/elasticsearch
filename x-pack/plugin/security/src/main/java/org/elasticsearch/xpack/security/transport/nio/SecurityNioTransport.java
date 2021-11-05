@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.transport.nio;
 
@@ -9,15 +10,17 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.nio.BytesChannelContext;
-import org.elasticsearch.nio.ChannelFactory;
+import org.elasticsearch.nio.Config;
 import org.elasticsearch.nio.InboundChannelBuffer;
+import org.elasticsearch.nio.NioChannelHandler;
 import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.ServerChannelContext;
@@ -34,13 +37,9 @@ import org.elasticsearch.transport.nio.TcpReadWriteHandler;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
 import org.elasticsearch.xpack.core.security.transport.SecurityTransportExceptionHandler;
-import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 
-import javax.net.ssl.SNIHostName;
-import javax.net.ssl.SSLEngine;
-import javax.net.ssl.SSLParameters;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.ServerSocketChannel;
@@ -49,6 +48,10 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
+
+import javax.net.ssl.SNIHostName;
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLParameters;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
@@ -65,24 +68,40 @@ public class SecurityNioTransport extends NioTransport {
     private static final Logger logger = LogManager.getLogger(SecurityNioTransport.class);
 
     private final SecurityTransportExceptionHandler exceptionHandler;
-    private final IPFilter authenticator;
+    private final IPFilter ipFilter;
     private final SSLService sslService;
-    private final Map<String, SSLConfiguration> profileConfiguration;
+    private final Map<String, SslConfiguration> profileConfiguration;
     private final boolean sslEnabled;
 
-    public SecurityNioTransport(Settings settings, Version version, ThreadPool threadPool, NetworkService networkService,
-                                PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
-                                CircuitBreakerService circuitBreakerService, @Nullable final IPFilter authenticator,
-                                SSLService sslService, NioGroupFactory groupFactory) {
-        super(settings, version, threadPool, networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService,
-            groupFactory);
+    public SecurityNioTransport(
+        Settings settings,
+        Version version,
+        ThreadPool threadPool,
+        NetworkService networkService,
+        PageCacheRecycler pageCacheRecycler,
+        NamedWriteableRegistry namedWriteableRegistry,
+        CircuitBreakerService circuitBreakerService,
+        @Nullable final IPFilter ipFilter,
+        SSLService sslService,
+        NioGroupFactory groupFactory
+    ) {
+        super(
+            settings,
+            version,
+            threadPool,
+            networkService,
+            pageCacheRecycler,
+            namedWriteableRegistry,
+            circuitBreakerService,
+            groupFactory
+        );
         this.exceptionHandler = new SecurityTransportExceptionHandler(logger, lifecycle, (c, e) -> super.onException(c, e));
-        this.authenticator = authenticator;
+        this.ipFilter = ipFilter;
         this.sslService = sslService;
         this.sslEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
         if (sslEnabled) {
-            final SSLConfiguration transportConfiguration = sslService.getSSLConfiguration(setting("transport.ssl."));
-            Map<String, SSLConfiguration> profileConfiguration = ProfileConfigurations.get(settings, sslService, transportConfiguration);
+            final SslConfiguration transportConfiguration = sslService.getSSLConfiguration(setting("transport.ssl."));
+            Map<String, SslConfiguration> profileConfiguration = ProfileConfigurations.get(settings, sslService, transportConfiguration);
             this.profileConfiguration = Collections.unmodifiableMap(profileConfiguration);
         } else {
             profileConfiguration = Collections.emptyMap();
@@ -92,8 +111,8 @@ public class SecurityNioTransport extends NioTransport {
     @Override
     protected void doStart() {
         super.doStart();
-        if (authenticator != null) {
-            authenticator.setBoundTransportAddress(boundAddress(), profileBoundAddresses());
+        if (ipFilter != null) {
+            ipFilter.setBoundTransportAddress(boundAddress(), profileBoundAddresses());
         }
     }
 
@@ -110,9 +129,6 @@ public class SecurityNioTransport extends NioTransport {
     @Override
     protected Function<DiscoveryNode, TcpChannelFactory> clientChannelFactoryFunction(ProfileSettings profileSettings) {
         return (node) -> {
-            final ChannelFactory.RawChannelFactory rawChannelFactory = new ChannelFactory.RawChannelFactory(profileSettings.tcpNoDelay,
-                profileSettings.tcpKeepAlive, profileSettings.reuseAddress, Math.toIntExact(profileSettings.sendBufferSize.getBytes()),
-                Math.toIntExact(profileSettings.receiveBufferSize.getBytes()));
             SNIHostName serverName;
             String configuredServerName = node.getAttributes().get("server_name");
             if (configuredServerName != null) {
@@ -124,46 +140,55 @@ public class SecurityNioTransport extends NioTransport {
             } else {
                 serverName = null;
             }
-            return new SecurityClientTcpChannelFactory(rawChannelFactory, serverName);
+            return new SecurityClientTcpChannelFactory(profileSettings, serverName);
         };
+    }
+
+    @Override
+    public boolean isSecure() {
+        return this.sslEnabled;
     }
 
     private class SecurityTcpChannelFactory extends TcpChannelFactory {
 
         private final String profileName;
         private final boolean isClient;
-        private final NioIPFilter ipFilter;
 
         private SecurityTcpChannelFactory(ProfileSettings profileSettings, boolean isClient) {
-            this(new RawChannelFactory(profileSettings.tcpNoDelay,
-                profileSettings.tcpKeepAlive,
-                profileSettings.reuseAddress,
-                Math.toIntExact(profileSettings.sendBufferSize.getBytes()),
-                Math.toIntExact(profileSettings.receiveBufferSize.getBytes())), profileSettings.profileName, isClient);
-        }
-
-        private SecurityTcpChannelFactory(RawChannelFactory rawChannelFactory, String profileName, boolean isClient) {
-            super(rawChannelFactory);
-            this.profileName = profileName;
+            super(profileSettings);
+            this.profileName = profileSettings.profileName;
             this.isClient = isClient;
-            this.ipFilter = new NioIPFilter(authenticator, profileName);
         }
 
         @Override
-        public NioTcpChannel createChannel(NioSelector selector, SocketChannel channel) throws IOException {
+        public NioTcpChannel createChannel(NioSelector selector, SocketChannel channel, Config.Socket socketConfig) throws IOException {
             NioTcpChannel nioChannel = new NioTcpChannel(isClient == false, profileName, channel);
-            TcpReadWriteHandler readWriteHandler = new TcpReadWriteHandler(nioChannel, SecurityNioTransport.this);
+            TcpReadWriteHandler readWriteHandler = new TcpReadWriteHandler(nioChannel, recycler, SecurityNioTransport.this);
+            final NioChannelHandler handler;
+            if (ipFilter != null) {
+                handler = new NioIPFilter(readWriteHandler, socketConfig.getRemoteAddress(), ipFilter, profileName);
+            } else {
+                handler = readWriteHandler;
+            }
             InboundChannelBuffer networkBuffer = new InboundChannelBuffer(pageAllocator);
             Consumer<Exception> exceptionHandler = (e) -> onException(nioChannel, e);
 
             SocketChannelContext context;
             if (sslEnabled) {
-                SSLDriver sslDriver = new SSLDriver(createSSLEngine(channel), pageAllocator, isClient);
+                SSLDriver sslDriver = new SSLDriver(createSSLEngine(socketConfig), pageAllocator, isClient);
                 InboundChannelBuffer applicationBuffer = new InboundChannelBuffer(pageAllocator);
-                context = new SSLChannelContext(nioChannel, selector, exceptionHandler, sslDriver, readWriteHandler, networkBuffer,
-                    applicationBuffer, ipFilter);
+                context = new SSLChannelContext(
+                    nioChannel,
+                    selector,
+                    socketConfig,
+                    exceptionHandler,
+                    sslDriver,
+                    handler,
+                    networkBuffer,
+                    applicationBuffer
+                );
             } else {
-                context = new BytesChannelContext(nioChannel, selector, exceptionHandler, readWriteHandler, networkBuffer, ipFilter);
+                context = new BytesChannelContext(nioChannel, selector, socketConfig, exceptionHandler, handler, networkBuffer);
             }
             nioChannel.setContext(context);
 
@@ -171,24 +196,28 @@ public class SecurityNioTransport extends NioTransport {
         }
 
         @Override
-        public NioTcpServerChannel createServerChannel(NioSelector selector, ServerSocketChannel channel) throws IOException {
+        public NioTcpServerChannel createServerChannel(
+            NioSelector selector,
+            ServerSocketChannel channel,
+            Config.ServerSocket socketConfig
+        ) {
             NioTcpServerChannel nioChannel = new NioTcpServerChannel(channel);
             Consumer<Exception> exceptionHandler = (e) -> onServerException(nioChannel, e);
             Consumer<NioSocketChannel> acceptor = SecurityNioTransport.this::acceptChannel;
-            ServerChannelContext context = new ServerChannelContext(nioChannel, this, selector, acceptor, exceptionHandler);
+            ServerChannelContext context = new ServerChannelContext(nioChannel, this, selector, socketConfig, acceptor, exceptionHandler);
             nioChannel.setContext(context);
             return nioChannel;
         }
 
-        protected SSLEngine createSSLEngine(SocketChannel channel) throws IOException {
+        protected SSLEngine createSSLEngine(Config.Socket socketConfig) throws IOException {
             SSLEngine sslEngine;
-            SSLConfiguration defaultConfig = profileConfiguration.get(TransportSettings.DEFAULT_PROFILE);
-            SSLConfiguration sslConfig = profileConfiguration.getOrDefault(profileName, defaultConfig);
-            boolean hostnameVerificationEnabled = sslConfig.verificationMode().isHostnameVerificationEnabled();
-            if (hostnameVerificationEnabled) {
-                InetSocketAddress inetSocketAddress = (InetSocketAddress) channel.getRemoteAddress();
+            SslConfiguration defaultConfig = profileConfiguration.get(TransportSettings.DEFAULT_PROFILE);
+            SslConfiguration sslConfig = profileConfiguration.getOrDefault(profileName, defaultConfig);
+            boolean hostnameVerificationEnabled = sslConfig.getVerificationMode().isHostnameVerificationEnabled();
+            if (hostnameVerificationEnabled && socketConfig.isAccepted() == false) {
+                InetSocketAddress remoteAddress = socketConfig.getRemoteAddress();
                 // we create the socket based on the name given. don't reverse DNS
-                sslEngine = sslService.createSSLEngine(sslConfig, inetSocketAddress.getHostString(), inetSocketAddress.getPort());
+                sslEngine = sslService.createSSLEngine(sslConfig, remoteAddress.getHostString(), remoteAddress.getPort());
             } else {
                 sslEngine = sslService.createSSLEngine(sslConfig, null, -1);
             }
@@ -200,19 +229,23 @@ public class SecurityNioTransport extends NioTransport {
 
         private final SNIHostName serverName;
 
-        private SecurityClientTcpChannelFactory(RawChannelFactory rawChannelFactory, SNIHostName serverName) {
-            super(rawChannelFactory, TransportSettings.DEFAULT_PROFILE, true);
+        private SecurityClientTcpChannelFactory(ProfileSettings profileSettings, SNIHostName serverName) {
+            super(profileSettings, true);
             this.serverName = serverName;
         }
 
         @Override
-        public NioTcpServerChannel createServerChannel(NioSelector selector, ServerSocketChannel channel) {
+        public NioTcpServerChannel createServerChannel(
+            NioSelector selector,
+            ServerSocketChannel channel,
+            Config.ServerSocket socketConfig
+        ) {
             throw new AssertionError("Cannot create TcpServerChannel with client factory");
         }
 
         @Override
-        protected SSLEngine createSSLEngine(SocketChannel channel) throws IOException {
-            SSLEngine sslEngine = super.createSSLEngine(channel);
+        protected SSLEngine createSSLEngine(Config.Socket socketConfig) throws IOException {
+            SSLEngine sslEngine = super.createSSLEngine(socketConfig);
             if (serverName != null) {
                 SSLParameters sslParameters = sslEngine.getSSLParameters();
                 sslParameters.setServerNames(Collections.singletonList(serverName));

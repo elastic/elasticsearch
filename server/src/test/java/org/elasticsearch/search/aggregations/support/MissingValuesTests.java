@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.support;
@@ -108,7 +97,7 @@ public class MissingValuesTests extends ESTestCase {
                 ords[i][j] = j;
             }
             for (int j = ords[i].length - 1; j >= 0; --j) {
-                final int maxOrd = j == ords[i].length - 1 ? numOrds : ords[i][j+1];
+                final int maxOrd = j == ords[i].length - 1 ? numOrds : ords[i][j + 1];
                 ords[i][j] = TestUtil.nextInt(random(), ords[i][j], maxOrd - 1);
             }
         }
@@ -158,8 +147,7 @@ public class MissingValuesTests extends ESTestCase {
                 assertTrue(withMissingReplaced.advanceExact(i));
                 if (ords[i].length > 0) {
                     for (int ord : ords[i]) {
-                        assertEquals(values[ord],
-                                withMissingReplaced.lookupOrd(withMissingReplaced.nextOrd()));
+                        assertEquals(values[ord], withMissingReplaced.lookupOrd(withMissingReplaced.nextOrd()));
                     }
                     assertEquals(SortedSetDocValues.NO_MORE_ORDS, withMissingReplaced.nextOrd());
                 } else {
@@ -213,7 +201,11 @@ public class MissingValuesTests extends ESTestCase {
         SortedSetDocValues sortedGlobalValues = asOrds(globalValues);
 
         LongUnaryOperator withMissingSegmentToGlobalOrd = MissingValues.getGlobalMapping(
-                sortedValues, sortedGlobalValues, segmentToGlobalOrd, missing);
+            sortedValues,
+            sortedGlobalValues,
+            segmentToGlobalOrd,
+            missing
+        );
         SortedSetDocValues withMissingValues = MissingValues.replaceMissing(sortedValues, missing);
         SortedSetDocValues withMissingGlobalValues = MissingValues.replaceMissing(sortedGlobalValues, missing);
 

@@ -1,37 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.lookup;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.script.field.DocValuesField;
 
 import java.io.IOException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -40,89 +25,70 @@ import java.util.function.Function;
 
 public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER
-            = new DeprecationLogger(LogManager.getLogger(LeafDocLookup.class));
-    static final String TYPES_DEPRECATION_KEY = "type-field-doc-lookup";
-    static final String TYPES_DEPRECATION_MESSAGE =
-            "[types removal] Looking up doc types [_type] in scripts is deprecated.";
-
-    private final Map<String, ScriptDocValues<?>> localCacheFieldData = new HashMap<>(4);
-
-    private final MapperService mapperService;
+    private final Function<String, MappedFieldType> fieldTypeLookup;
     private final Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup;
-
-    @Nullable
-    private final String[] types;
-
     private final LeafReaderContext reader;
 
     private int docId = -1;
 
-    LeafDocLookup(MapperService mapperService, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup, @Nullable String[] types,
-                  LeafReaderContext reader) {
-        this.mapperService = mapperService;
+    private final Map<String, DocValuesField<?>> localCacheScriptFieldData = new HashMap<>(4);
+
+    LeafDocLookup(
+        Function<String, MappedFieldType> fieldTypeLookup,
+        Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup,
+        LeafReaderContext reader
+    ) {
+        this.fieldTypeLookup = fieldTypeLookup;
         this.fieldDataLookup = fieldDataLookup;
-        this.types = types;
         this.reader = reader;
-    }
-
-    public MapperService mapperService() {
-        return this.mapperService;
-    }
-
-    public IndexFieldData<?> getForField(MappedFieldType fieldType) {
-        return fieldDataLookup.apply(fieldType);
     }
 
     public void setDocument(int docId) {
         this.docId = docId;
     }
 
-    @Override
-    public ScriptDocValues<?> get(Object key) {
-        // deprecate _type
-        if ("_type".equals(key)) {
-            DEPRECATION_LOGGER.deprecatedAndMaybeLog(TYPES_DEPRECATION_KEY, TYPES_DEPRECATION_MESSAGE);
-        }
-        // assume its a string...
-        String fieldName = key.toString();
-        ScriptDocValues<?> scriptValues = localCacheFieldData.get(fieldName);
-        if (scriptValues == null) {
-            final MappedFieldType fieldType = mapperService.fullName(fieldName);
+    public DocValuesField<?> getScriptField(String fieldName) {
+        DocValuesField<?> field = localCacheScriptFieldData.get(fieldName);
+
+        if (field == null) {
+            final MappedFieldType fieldType = fieldTypeLookup.apply(fieldName);
+
             if (fieldType == null) {
-                throw new IllegalArgumentException("No field found for [" + fieldName + "] in mapping with types " +
-                        Arrays.toString(types));
+                throw new IllegalArgumentException("No field found for [" + fieldName + "] in mapping");
             }
-            // load fielddata on behalf of the script: otherwise it would need additional permissions
-            // to deal with pagedbytes/ramusagestimator/etc
-            scriptValues = AccessController.doPrivileged(new PrivilegedAction<ScriptDocValues<?>>() {
+
+            // Load the field data on behalf of the script. Otherwise, it would require
+            // additional permissions to deal with pagedbytes/ramusagestimator/etc.
+            field = AccessController.doPrivileged(new PrivilegedAction<DocValuesField<?>>() {
                 @Override
-                public ScriptDocValues<?> run() {
-                    return fieldDataLookup.apply(fieldType).load(reader).getScriptValues();
+                public DocValuesField<?> run() {
+                    return fieldDataLookup.apply(fieldType).load(reader).getScriptField(fieldName);
                 }
             });
-            localCacheFieldData.put(fieldName, scriptValues);
+
+            localCacheScriptFieldData.put(fieldName, field);
         }
+
         try {
-            scriptValues.setNextDocId(docId);
-        } catch (IOException e) {
-            throw ExceptionsHelper.convertToElastic(e);
+            field.setNextDocId(docId);
+        } catch (IOException ioe) {
+            throw ExceptionsHelper.convertToElastic(ioe);
         }
-        return scriptValues;
+
+        return field;
+    }
+
+    @Override
+    public ScriptDocValues<?> get(Object key) {
+        String fieldName = key.toString();
+        return getScriptField(fieldName).getScriptDocValues();
     }
 
     @Override
     public boolean containsKey(Object key) {
-        // assume its a string...
         String fieldName = key.toString();
-        ScriptDocValues<?> scriptValues = localCacheFieldData.get(fieldName);
-        if (scriptValues == null) {
-            MappedFieldType fieldType = mapperService.fullName(fieldName);
-            if (fieldType == null) {
-                return false;
-            }
-        }
-        return true;
+        DocValuesField<?> docValuesField = localCacheScriptFieldData.get(fieldName);
+        return docValuesField != null || fieldTypeLookup.apply(fieldName) != null;
     }
 
     @Override

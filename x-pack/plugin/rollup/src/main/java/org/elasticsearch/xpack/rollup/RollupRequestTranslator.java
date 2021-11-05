@@ -1,10 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.rollup;
-
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
@@ -27,7 +26,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
-
 
 /**
  * This class provides a number of static utilities that help convert a non-rollup
@@ -128,13 +126,18 @@ public class RollupRequestTranslator {
         } else if (source.getWriteableName().equals(HistogramAggregationBuilder.NAME)) {
             return translateHistogram((HistogramAggregationBuilder) source, registry);
         } else if (RollupField.SUPPORTED_METRICS.contains(source.getWriteableName())) {
-            return translateVSLeaf((ValuesSourceAggregationBuilder.LeafOnly)source, registry);
+            return translateVSLeaf((ValuesSourceAggregationBuilder.LeafOnly) source, registry);
         } else if (source.getWriteableName().equals(TermsAggregationBuilder.NAME)) {
-            return translateTerms((TermsAggregationBuilder)source, registry);
+            return translateTerms((TermsAggregationBuilder) source, registry);
         } else {
-            throw new IllegalArgumentException("Unable to translate aggregation tree into Rollup.  Aggregation ["
-                    + source.getName() + "] is of type [" + source.getClass().getSimpleName() + "] which is " +
-                    "currently unsupported.");
+            throw new IllegalArgumentException(
+                "Unable to translate aggregation tree into Rollup.  Aggregation ["
+                    + source.getName()
+                    + "] is of type ["
+                    + source.getClass().getSimpleName()
+                    + "] which is "
+                    + "currently unsupported."
+            );
         }
     }
 
@@ -193,23 +196,18 @@ public class RollupRequestTranslator {
      * </ul>
      *
      */
-    private static List<AggregationBuilder> translateDateHistogram(DateHistogramAggregationBuilder source,
-                                                                   NamedWriteableRegistry registry) {
+    private static List<AggregationBuilder> translateDateHistogram(
+        DateHistogramAggregationBuilder source,
+        NamedWriteableRegistry registry
+    ) {
 
         return translateVSAggBuilder(source, registry, () -> {
-            DateHistogramAggregationBuilder rolledDateHisto
-                    = new DateHistogramAggregationBuilder(source.getName());
+            DateHistogramAggregationBuilder rolledDateHisto = new DateHistogramAggregationBuilder(source.getName());
 
             if (source.getCalendarInterval() != null) {
                 rolledDateHisto.calendarInterval(source.getCalendarInterval());
             } else if (source.getFixedInterval() != null) {
                 rolledDateHisto.fixedInterval(source.getFixedInterval());
-            } else if (source.dateHistogramInterval() != null) {
-                // We have to fall back to deprecated interval because we're not sure if this is fixed or cal
-                rolledDateHisto.dateHistogramInterval(source.dateHistogramInterval());
-            } else {
-                // if interval() was used we know it is fixed and can upgrade
-                rolledDateHisto.fixedInterval(new DateHistogramInterval(source.interval() + "ms"));
             }
 
             ZoneId timeZone = source.timeZone() == null ? DateHistogramGroupConfig.DEFAULT_ZONEID_TIMEZONE : source.timeZone();
@@ -226,7 +224,7 @@ public class RollupRequestTranslator {
             rolledDateHisto.minDocCount(source.minDocCount());
             rolledDateHisto.order(source.order());
             rolledDateHisto.field(RollupField.formatFieldName(source, RollupField.TIMESTAMP));
-            rolledDateHisto.setMetaData(source.getMetaData());
+            rolledDateHisto.setMetadata(source.getMetadata());
             return rolledDateHisto;
         });
     }
@@ -239,12 +237,10 @@ public class RollupRequestTranslator {
      * {@link #translateDateHistogram(DateHistogramAggregationBuilder, NamedWriteableRegistry)} for
      * a complete list of conventions, examples, etc
      */
-    private static List<AggregationBuilder> translateHistogram(HistogramAggregationBuilder source,
-                                                               NamedWriteableRegistry registry) {
+    private static List<AggregationBuilder> translateHistogram(HistogramAggregationBuilder source, NamedWriteableRegistry registry) {
 
         return translateVSAggBuilder(source, registry, () -> {
-            HistogramAggregationBuilder rolledHisto
-                    = new HistogramAggregationBuilder(source.getName());
+            HistogramAggregationBuilder rolledHisto = new HistogramAggregationBuilder(source.getName());
 
             rolledHisto.interval(source.interval());
             rolledHisto.offset(source.offset());
@@ -255,7 +251,7 @@ public class RollupRequestTranslator {
             rolledHisto.minDocCount(source.minDocCount());
             rolledHisto.order(source.order());
             rolledHisto.field(RollupField.formatFieldName(source, RollupField.VALUE));
-            rolledHisto.setMetaData(source.getMetaData());
+            rolledHisto.setMetadata(source.getMetadata());
             return rolledHisto;
         });
     }
@@ -314,12 +310,13 @@ public class RollupRequestTranslator {
      * </ul>
      *
      */
-    private static List<AggregationBuilder> translateTerms(TermsAggregationBuilder source,
-                                                           NamedWriteableRegistry registry) {
+    private static List<AggregationBuilder> translateTerms(TermsAggregationBuilder source, NamedWriteableRegistry registry) {
 
         return translateVSAggBuilder(source, registry, () -> {
-            TermsAggregationBuilder rolledTerms
-                    = new TermsAggregationBuilder(source.getName(), source.valueType());
+            TermsAggregationBuilder rolledTerms = new TermsAggregationBuilder(source.getName());
+            if (source.userValueTypeHint() != null) {
+                rolledTerms.userValueTypeHint(source.userValueTypeHint());
+            }
             rolledTerms.field(RollupField.formatFieldName(source, RollupField.VALUE));
             rolledTerms.includeExclude(source.includeExclude());
             if (source.collectMode() != null) {
@@ -354,8 +351,11 @@ public class RollupRequestTranslator {
      * @param <T> The type of ValueSourceAggBuilder that we are working with
      * @return the translated multi-bucket ValueSourceAggBuilder
      */
-    private static <T extends ValuesSourceAggregationBuilder> List<AggregationBuilder>
-        translateVSAggBuilder(ValuesSourceAggregationBuilder source, NamedWriteableRegistry registry, Supplier<T> factory) {
+    private static <T extends ValuesSourceAggregationBuilder<T>> List<AggregationBuilder> translateVSAggBuilder(
+        T source,
+        NamedWriteableRegistry registry,
+        Supplier<T> factory
+    ) {
 
         T rolled = factory.get();
 
@@ -370,8 +370,11 @@ public class RollupRequestTranslator {
 
         // Count is derived from a sum, e.g.
         // "my_date_histo._count": { "sum": { "field": "foo.date_histogram._count" } } }
-        rolled.subAggregation(new SumAggregationBuilder(RollupField.formatCountAggName(source.getName()))
-                .field(RollupField.formatFieldName(source, RollupField.COUNT_FIELD)));
+        rolled.subAggregation(
+            new SumAggregationBuilder(RollupField.formatCountAggName(source.getName())).field(
+                RollupField.formatFieldName(source, RollupField.COUNT_FIELD)
+            )
+        );
 
         return Collections.singletonList(rolled);
     }
@@ -446,8 +449,10 @@ public class RollupRequestTranslator {
      *                 most of the leafs to easily clone them
      * @return The translated leaf aggregation
      */
-    private static List<AggregationBuilder> translateVSLeaf(ValuesSourceAggregationBuilder.LeafOnly metric,
-                                                            NamedWriteableRegistry registry) {
+    private static List<AggregationBuilder> translateVSLeaf(
+        ValuesSourceAggregationBuilder.LeafOnly<?, ?> metric,
+        NamedWriteableRegistry registry
+    ) {
 
         List<AggregationBuilder> rolledMetrics;
 
@@ -464,8 +469,11 @@ public class RollupRequestTranslator {
 
             // Count is derived from a sum, e.g.
             // "the_avg._count": { "sum" : { "field" : "some_field.avg._count" }}
-            rolledMetrics.add(new SumAggregationBuilder(RollupField.formatCountAggName(metric.getName()))
-                    .field(RollupField.formatFieldName(metric, RollupField.COUNT_FIELD)));
+            rolledMetrics.add(
+                new SumAggregationBuilder(RollupField.formatCountAggName(metric.getName())).field(
+                    RollupField.formatFieldName(metric, RollupField.COUNT_FIELD)
+                )
+            );
 
             return rolledMetrics;
         }
@@ -476,13 +484,14 @@ public class RollupRequestTranslator {
             try {
                 output.writeString(metric.getType());
                 metric.writeTo(output);
-                try (StreamInput stream = output.bytes().streamInput();
-                     NamedWriteableAwareStreamInput in =
-                             new NamedWriteableAwareStreamInput(stream, registry)) {
+                try (
+                    StreamInput stream = output.bytes().streamInput();
+                    NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(stream, registry)
+                ) {
 
-                    ValuesSourceAggregationBuilder serialized
-                            = ((ValuesSourceAggregationBuilder)in.readNamedWriteable(AggregationBuilder.class))
-                            .field(RollupField.formatFieldName(metric, RollupField.VALUE));
+                    ValuesSourceAggregationBuilder<?> serialized = ((ValuesSourceAggregationBuilder) in.readNamedWriteable(
+                        AggregationBuilder.class
+                    )).field(RollupField.formatFieldName(metric, RollupField.VALUE));
 
                     return Collections.singletonList(serialized);
                 }

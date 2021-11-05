@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.transport.netty4;
@@ -28,37 +17,56 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.internal.net.NetUtils;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.node.Node;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
-import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpChannel;
+import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.TestProfiles;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportSettings;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.nio.channels.SocketChannel;
 import java.util.Collections;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase {
 
-    public static MockTransportService nettyFromThreadPool(Settings settings, ThreadPool threadPool, final Version version,
-                                                           ClusterSettings clusterSettings, boolean doHandshake) {
+    @Override
+    protected Transport build(Settings settings, final Version version, ClusterSettings clusterSettings, boolean doHandshake) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
-        Transport transport = new Netty4Transport(settings, version, threadPool, new NetworkService(Collections.emptyList()),
-            PageCacheRecycler.NON_RECYCLING_INSTANCE, namedWriteableRegistry, new NoneCircuitBreakerService()) {
+        return new Netty4Transport(
+            settings,
+            version,
+            threadPool,
+            new NetworkService(Collections.emptyList()),
+            PageCacheRecycler.NON_RECYCLING_INSTANCE,
+            namedWriteableRegistry,
+            new NoneCircuitBreakerService(),
+            new SharedGroupFactory(settings)
+        ) {
 
             @Override
-            public void executeHandshake(DiscoveryNode node, TcpChannel channel, ConnectionProfile profile,
-                                         ActionListener<Version> listener) {
+            public void executeHandshake(
+                DiscoveryNode node,
+                TcpChannel channel,
+                ConnectionProfile profile,
+                ActionListener<Version> listener
+            ) {
                 if (doHandshake) {
                     super.executeHandshake(node, channel, profile, listener);
                 } else {
@@ -66,24 +74,20 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
                 }
             }
         };
-        MockTransportService mockTransportService =
-            MockTransportService.createNewService(settings, transport, version, threadPool, clusterSettings, Collections.emptySet());
-        mockTransportService.start();
-        return mockTransportService;
-    }
-
-    @Override
-    protected MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake) {
-        settings = Settings.builder().put(settings).put(TransportSettings.PORT.getKey(), "0").build();
-        MockTransportService transportService = nettyFromThreadPool(settings, threadPool, version, clusterSettings, doHandshake);
-        transportService.start();
-        return transportService;
     }
 
     public void testConnectException() throws UnknownHostException {
         try {
-            serviceA.connectToNode(new DiscoveryNode("C", new TransportAddress(InetAddress.getByName("localhost"), 9876),
-                    emptyMap(), emptySet(),Version.CURRENT));
+            connectToNode(
+                serviceA,
+                new DiscoveryNode(
+                    "C",
+                    new TransportAddress(InetAddress.getByName("localhost"), 9876),
+                    emptyMap(),
+                    emptySet(),
+                    Version.CURRENT
+                )
+            );
             fail("Expected ConnectTransportException");
         } catch (ConnectTransportException e) {
             assertThat(e.getMessage(), containsString("connect_exception"));
@@ -91,27 +95,48 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
         }
     }
 
-    public void testBindUnavailableAddress() {
-        // this is on a lower level since it needs access to the TransportService before it's started
-        int port = serviceA.boundAddress().publishAddress().getPort();
-        Settings settings = Settings.builder()
-            .put(Node.NODE_NAME_SETTING.getKey(), "foobar")
-            .put(TransportSettings.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
-            .put(TransportSettings.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
-            .put(TransportSettings.PORT.getKey(), port)
-            .build();
-        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        BindTransportException bindTransportException = expectThrows(BindTransportException.class, () -> {
-            MockTransportService transportService =
-                    nettyFromThreadPool(settings, threadPool, Version.CURRENT, clusterSettings, true);
-            try {
-                transportService.start();
-            } finally {
-                transportService.stop();
-                transportService.close();
+    public void testDefaultKeepAliveSettings() throws IOException {
+        assumeTrue(
+            "setting default keepalive options not supported on this platform",
+            (IOUtils.LINUX || IOUtils.MAC_OS_X) && JavaVersion.current().compareTo(JavaVersion.parse("11")) >= 0
+        );
+        try (
+            MockTransportService serviceC = buildService("TS_C", Version.CURRENT, Settings.EMPTY);
+            MockTransportService serviceD = buildService("TS_D", Version.CURRENT, Settings.EMPTY)
+        ) {
+
+            try (Transport.Connection connection = openConnection(serviceC, serviceD.getLocalDiscoNode(), TestProfiles.LIGHT_PROFILE)) {
+                assertThat(connection, instanceOf(StubbableTransport.WrappedConnection.class));
+                Transport.Connection conn = ((StubbableTransport.WrappedConnection) connection).getConnection();
+                assertThat(conn, instanceOf(TcpTransport.NodeChannels.class));
+                TcpTransport.NodeChannels nodeChannels = (TcpTransport.NodeChannels) conn;
+                for (TcpChannel channel : nodeChannels.getChannels()) {
+                    assertFalse(channel.isServerChannel());
+                    checkDefaultKeepAliveOptions(channel);
+                }
+
+                assertThat(serviceD.getOriginalTransport(), instanceOf(TcpTransport.class));
+                for (TcpChannel channel : getAcceptedChannels((TcpTransport) serviceD.getOriginalTransport())) {
+                    assertTrue(channel.isServerChannel());
+                    checkDefaultKeepAliveOptions(channel);
+                }
             }
-        });
-        assertEquals("Failed to bind to ["+ port + "]", bindTransportException.getMessage());
+        }
     }
 
+    private void checkDefaultKeepAliveOptions(TcpChannel channel) throws IOException {
+        assertThat(channel, instanceOf(Netty4TcpChannel.class));
+        Netty4TcpChannel nettyChannel = (Netty4TcpChannel) channel;
+        assertThat(nettyChannel.getNettyChannel(), instanceOf(Netty4NioSocketChannel.class));
+        Netty4NioSocketChannel netty4NioSocketChannel = (Netty4NioSocketChannel) nettyChannel.getNettyChannel();
+        SocketChannel socketChannel = netty4NioSocketChannel.javaChannel();
+        assertThat(socketChannel.supportedOptions(), hasItem(NetUtils.getTcpKeepIdleSocketOptionOrNull()));
+        Integer keepIdle = socketChannel.getOption(NetUtils.getTcpKeepIdleSocketOptionOrNull());
+        assertNotNull(keepIdle);
+        assertThat(keepIdle, lessThanOrEqualTo(500));
+        assertThat(socketChannel.supportedOptions(), hasItem(NetUtils.getTcpKeepIntervalSocketOptionOrNull()));
+        Integer keepInterval = socketChannel.getOption(NetUtils.getTcpKeepIntervalSocketOptionOrNull());
+        assertNotNull(keepInterval);
+        assertThat(keepInterval, lessThanOrEqualTo(500));
+    }
 }

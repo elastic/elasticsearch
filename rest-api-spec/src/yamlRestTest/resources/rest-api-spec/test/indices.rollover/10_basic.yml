@@ -1,0 +1,151 @@
+---
+"Rollover index via API":
+
+
+  # create index with alias
+  - do:
+      indices.create:
+        index: logs-1
+        wait_for_active_shards: 1
+        body:
+          aliases:
+            logs_index: {}
+            logs_search: {}
+
+  # index document
+  - do:
+      index:
+        index: logs-1
+        id:    "1"
+        body:  { "foo": "hello world" }
+        # make this doc visible in index stats
+        refresh: true
+ 
+  - do:
+      get:
+        index: logs_search
+        id:    "1"
+
+  - match: { _index:   logs-1 }
+  - match: { _id:      "1"     }
+  - match: { _source:  { foo: "hello world" } }
+
+  # perform alias rollover
+  - do:
+      indices.rollover:
+        alias: "logs_search"
+        wait_for_active_shards: 1
+        body:
+          conditions:
+            max_docs: 1
+
+  - match: { old_index: logs-1 }
+  - match: { new_index: logs-000002 }
+  - match: { rolled_over: true }
+  - match: { dry_run: false }
+  - match: { conditions: { "[max_docs: 1]": true } }
+
+  # ensure new index is created
+  - do:
+      indices.exists:
+        index: logs-000002
+
+  - is_true: ''
+
+  # index into new index
+  - do:
+      index:
+        index: logs-000002
+        id:    "2"
+        body:  { "foo": "hello world" }
+
+  - do:
+      indices.refresh: {}
+
+  # check alias points to the new index
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: logs_search
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._index: "logs-000002"}
+
+---
+"Rollover no condition matched":
+  # create index with alias
+  - do:
+      indices.create:
+        index: logs-1
+        wait_for_active_shards: 1
+        body:
+          aliases:
+            logs_index: {}
+            logs_search: {}
+
+  # run again and verify results without rolling over
+  - do:
+      indices.rollover:
+        alias: "logs_search"
+        wait_for_active_shards: 1
+        body:
+          conditions:
+            max_docs: 1
+
+  - match: { old_index: logs-1 }
+  - match: { new_index: logs-000002 }
+  - match: { rolled_over: false }
+  - match: { dry_run: false }
+  - match: { conditions: { "[max_docs: 1]": false } }
+
+---
+"Rollover with dry-run but target index exists":
+
+  # create index with alias
+  - do:
+      indices.create:
+        index: logs-1
+        wait_for_active_shards: 1
+        body:
+          aliases:
+            logs_index: {}
+            logs_search: {}
+
+  - do:
+      indices.create:
+        index: logs-000002
+
+  - do:
+      # index_already_exists_exception was renamed to resource_arleady_exists_exception in 6.0
+      catch: /(index|resource)_already_exists_exception/
+      indices.rollover:
+        dry_run: true
+        alias: "logs_search"
+        wait_for_active_shards: 1
+        body:
+          conditions:
+            max_docs: 1
+
+  # also do it without dry_run
+  - do:
+      # index_already_exists_exception was renamed to resource_arleady_exists_exception in 6.0
+      catch: /(index|resource)_already_exists_exception/
+      indices.rollover:
+        dry_run: false
+        alias: "logs_search"
+        wait_for_active_shards: 1
+        body:
+          conditions:
+            max_docs: 1
+
+  - do:
+      catch: /invalid_index_name_exception/
+      indices.rollover:
+        new_index: invalid|index|name
+        dry_run: true
+        alias: "logs_search"
+        wait_for_active_shards: 1
+        body:
+          conditions:
+            max_docs: 1
+

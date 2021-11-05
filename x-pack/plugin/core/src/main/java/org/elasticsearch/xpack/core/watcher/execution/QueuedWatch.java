@@ -1,36 +1,41 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.execution;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 
-public class QueuedWatch implements Streamable, ToXContentObject {
+public class QueuedWatch implements Writeable, ToXContentObject {
 
     private String watchId;
     private String watchRecordId;
     private ZonedDateTime triggeredTime;
     private ZonedDateTime executionTime;
 
-    public QueuedWatch() {
-    }
-
     public QueuedWatch(WatchExecutionContext ctx) {
         this.watchId = ctx.id().watchId();
         this.watchRecordId = ctx.id().value();
         this.triggeredTime = ctx.triggerEvent().triggeredTime();
         this.executionTime = ctx.executionTime();
+    }
+
+    public QueuedWatch(StreamInput in) throws IOException {
+        watchId = in.readString();
+        watchRecordId = in.readString();
+        triggeredTime = Instant.ofEpochMilli(in.readVLong()).atZone(ZoneOffset.UTC);
+        executionTime = Instant.ofEpochMilli(in.readVLong()).atZone(ZoneOffset.UTC);
     }
 
     public String watchId() {
@@ -51,14 +56,6 @@ public class QueuedWatch implements Streamable, ToXContentObject {
 
     public void executionTime(ZonedDateTime executionTime) {
         this.executionTime = executionTime;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        watchId = in.readString();
-        watchRecordId = in.readString();
-        triggeredTime = Instant.ofEpochMilli(in.readVLong()).atZone(ZoneOffset.UTC);
-        executionTime = Instant.ofEpochMilli(in.readVLong()).atZone(ZoneOffset.UTC);
     }
 
     @Override

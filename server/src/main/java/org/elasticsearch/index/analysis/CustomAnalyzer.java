@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.analysis;
@@ -22,33 +11,29 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
+import org.elasticsearch.common.util.CollectionUtils;
 
 import java.io.Reader;
 
-public final class CustomAnalyzer extends Analyzer {
+public final class CustomAnalyzer extends Analyzer implements AnalyzerComponentsProvider {
 
-    private final String tokenizerName;
-    private final TokenizerFactory tokenizerFactory;
-
-    private final CharFilterFactory[] charFilters;
-
-    private final TokenFilterFactory[] tokenFilters;
-
+    private final AnalyzerComponents components;
     private final int positionIncrementGap;
     private final int offsetGap;
     private final AnalysisMode analysisMode;
 
-    public CustomAnalyzer(String tokenizerName, TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters,
-            TokenFilterFactory[] tokenFilters) {
-        this(tokenizerName, tokenizerFactory, charFilters, tokenFilters, 0, -1);
+    public CustomAnalyzer(TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters, TokenFilterFactory[] tokenFilters) {
+        this(tokenizerFactory, charFilters, tokenFilters, 0, -1);
     }
 
-    public CustomAnalyzer(String tokenizerName, TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters,
-            TokenFilterFactory[] tokenFilters, int positionIncrementGap, int offsetGap) {
-        this.tokenizerName = tokenizerName;
-        this.tokenizerFactory = tokenizerFactory;
-        this.charFilters = charFilters;
-        this.tokenFilters = tokenFilters;
+    public CustomAnalyzer(
+        TokenizerFactory tokenizerFactory,
+        CharFilterFactory[] charFilters,
+        TokenFilterFactory[] tokenFilters,
+        int positionIncrementGap,
+        int offsetGap
+    ) {
+        this.components = new AnalyzerComponents(tokenizerFactory, charFilters, tokenFilters);
         this.positionIncrementGap = positionIncrementGap;
         this.offsetGap = offsetGap;
         // merge and transfer token filter analysis modes with analyzer
@@ -59,23 +44,16 @@ public final class CustomAnalyzer extends Analyzer {
         this.analysisMode = mode;
     }
 
-    /**
-     * The name of the tokenizer as configured by the user.
-     */
-    public String getTokenizerName() {
-        return tokenizerName;
-    }
-
     public TokenizerFactory tokenizerFactory() {
-        return tokenizerFactory;
+        return this.components.getTokenizerFactory();
     }
 
     public TokenFilterFactory[] tokenFilters() {
-        return tokenFilters;
+        return this.components.getTokenFilters();
     }
 
     public CharFilterFactory[] charFilters() {
-        return charFilters;
+        return this.components.getCharFilters();
     }
 
     @Override
@@ -96,10 +74,15 @@ public final class CustomAnalyzer extends Analyzer {
     }
 
     @Override
+    public AnalyzerComponents getComponents() {
+        return this.components;
+    }
+
+    @Override
     protected TokenStreamComponents createComponents(String fieldName) {
-        Tokenizer tokenizer = tokenizerFactory.create();
+        Tokenizer tokenizer = this.tokenizerFactory().create();
         TokenStream tokenStream = tokenizer;
-        for (TokenFilterFactory tokenFilter : tokenFilters) {
+        for (TokenFilterFactory tokenFilter : tokenFilters()) {
             tokenStream = tokenFilter.create(tokenStream);
         }
         return new TokenStreamComponents(tokenizer, tokenStream);
@@ -107,7 +90,8 @@ public final class CustomAnalyzer extends Analyzer {
 
     @Override
     protected Reader initReader(String fieldName, Reader reader) {
-        if (charFilters != null && charFilters.length > 0) {
+        CharFilterFactory[] charFilters = charFilters();
+        if (CollectionUtils.isEmpty(charFilters) == false) {
             for (CharFilterFactory charFilter : charFilters) {
                 reader = charFilter.create(reader);
             }
@@ -117,18 +101,18 @@ public final class CustomAnalyzer extends Analyzer {
 
     @Override
     protected Reader initReaderForNormalization(String fieldName, Reader reader) {
-      for (CharFilterFactory charFilter : charFilters) {
-          reader = charFilter.normalize(reader);
-      }
-      return reader;
+        for (CharFilterFactory charFilter : charFilters()) {
+            reader = charFilter.normalize(reader);
+        }
+        return reader;
     }
 
     @Override
     protected TokenStream normalize(String fieldName, TokenStream in) {
-      TokenStream result = in;
-      for (TokenFilterFactory filter : tokenFilters) {
-          result = filter.normalize(result);
-      }
-      return result;
+        TokenStream result = in;
+        for (TokenFilterFactory filter : tokenFilters()) {
+            result = filter.normalize(result);
+        }
+        return result;
     }
 }

@@ -1,18 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.cli;
 
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
-import org.elasticsearch.core.internal.io.IOUtils;
+
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.ASN1Sequence;
 import org.bouncycastle.asn1.ASN1String;
 import org.bouncycastle.asn1.DEROctetString;
-import org.bouncycastle.asn1.DERTaggedObject;
+import org.bouncycastle.asn1.DLTaggedObject;
 import org.bouncycastle.asn1.pkcs.Attribute;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.asn1.x509.Extension;
@@ -25,24 +26,22 @@ import org.bouncycastle.openssl.PEMParser;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.PemUtils;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.security.cli.CertificateGenerateTool.CAInfo;
 import org.elasticsearch.xpack.security.cli.CertificateGenerateTool.CertificateInformation;
 import org.elasticsearch.xpack.security.cli.CertificateGenerateTool.Name;
-import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.elasticsearch.xpack.core.ssl.PemUtils;
-import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.BeforeClass;
-
-import javax.security.auth.x500.X500Principal;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -74,10 +73,14 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.test.TestMatchers.pathExists;
+import javax.security.auth.x500.X500Principal;
+
+import static org.elasticsearch.test.FileMatchers.pathExists;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -195,8 +198,8 @@ public class CertificateGenerateToolTests extends ESTestCase {
         Collection<CertificateInformation> certInfos = CertificateGenerateTool.parseFile(instanceFile);
         assertEquals(4, certInfos.size());
 
-        Map<String, CertificateInformation> certInfosMap =
-                certInfos.stream().collect(Collectors.toMap((c) -> c.name.originalName, Function.identity()));
+        Map<String, CertificateInformation> certInfosMap = certInfos.stream()
+            .collect(Collectors.toMap((c) -> c.name.originalName, Function.identity()));
         CertificateInformation certInfo = certInfosMap.get("node1");
         assertEquals(Collections.singletonList("127.0.0.1"), certInfo.ipAddresses);
         assertEquals(Collections.singletonList("localhost"), certInfo.dnsNames);
@@ -276,7 +279,7 @@ public class CertificateGenerateToolTests extends ESTestCase {
 
         final boolean generatedCa = randomBoolean();
         final char[] keyPassword = randomBoolean() ? SecuritySettingsSourceField.TEST_PASSWORD.toCharArray() : null;
-        final char[] pkcs12Password =  randomBoolean() ? randomAlphaOfLengthBetween(1, 12).toCharArray() : null;
+        final char[] pkcs12Password = randomBoolean() ? randomAlphaOfLengthBetween(1, 12).toCharArray() : null;
         assertFalse(Files.exists(outputFile));
         CAInfo caInfo = new CAInfo(caCert, keyPair.getPrivate(), generatedCa, keyPassword);
         CertificateGenerateTool.generateAndWriteSignedCertificates(outputFile, certInfos, caInfo, keysize, days, pkcs12Password);
@@ -315,8 +318,10 @@ public class CertificateGenerateToolTests extends ESTestCase {
                 }
             }
 
-            PrivateKey privateKey = PemUtils.readPrivateKey(zipRoot.resolve("ca").resolve("ca.key"), () -> keyPassword != null ?
-                        SecuritySettingsSourceField.TEST_PASSWORD.toCharArray() : null);
+            PrivateKey privateKey = PemUtils.readPrivateKey(
+                zipRoot.resolve("ca").resolve("ca.key"),
+                () -> keyPassword != null ? SecuritySettingsSourceField.TEST_PASSWORD.toCharArray() : null
+            );
             assertEquals(caInfo.privateKey, privateKey);
         } else {
             assertFalse(Files.exists(zipRoot.resolve("ca")));
@@ -337,12 +342,14 @@ public class CertificateGenerateToolTests extends ESTestCase {
                     assertNull(certificate.getSubjectAlternativeNames());
                 } else {
                     X509CertificateHolder x509CertHolder = new X509CertificateHolder(certificate.getEncoded());
-                    GeneralNames subjAltNames =
-                            GeneralNames.fromExtensions(x509CertHolder.getExtensions(), Extension.subjectAlternativeName);
+                    GeneralNames subjAltNames = GeneralNames.fromExtensions(
+                        x509CertHolder.getExtensions(),
+                        Extension.subjectAlternativeName
+                    );
                     assertSubjAltNames(subjAltNames, certInfo);
                 }
                 if (pkcs12Password != null) {
-                    assertThat(p12, pathExists(p12));
+                    assertThat(p12, pathExists());
                     try (InputStream in = Files.newInputStream(p12)) {
                         final KeyStore ks = KeyStore.getInstance("PKCS12");
                         ks.load(in, pkcs12Password);
@@ -353,7 +360,7 @@ public class CertificateGenerateToolTests extends ESTestCase {
                         assertThat(key, notNullValue());
                     }
                 } else {
-                    assertThat(p12, not(pathExists(p12)));
+                    assertThat(p12, not(pathExists()));
                 }
             }
         }
@@ -370,11 +377,19 @@ public class CertificateGenerateToolTests extends ESTestCase {
         }
 
         final int days = randomIntBetween(1, 1024);
-        CAInfo caInfo = CertificateGenerateTool.getCAInfo(terminal, "CN=foo", testNodeCertPath.toString(), testNodeKeyPath.toString(),
-                passwordPrompt ? null : "testnode".toCharArray(), passwordPrompt, env, randomFrom(1024, 2048), days);
+        CAInfo caInfo = CertificateGenerateTool.getCAInfo(
+            terminal,
+            "CN=foo",
+            testNodeCertPath.toString(),
+            testNodeKeyPath.toString(),
+            passwordPrompt ? null : "testnode".toCharArray(),
+            passwordPrompt,
+            env,
+            randomFrom(1024, 2048),
+            days
+        );
         assertTrue(terminal.getOutput().isEmpty());
-        assertEquals(caInfo.caCert.getSubjectX500Principal().getName(),
-                "CN=Elasticsearch Test Node,OU=elasticsearch,O=org");
+        assertEquals(caInfo.caCert.getSubjectX500Principal().getName(), "CN=Elasticsearch Test Node,OU=elasticsearch,O=org");
         assertThat(caInfo.privateKey.getAlgorithm(), containsString("RSA"));
         assertEquals(2048, ((RSAKey) caInfo.privateKey).getModulus().bitLength());
         assertFalse(caInfo.generated);
@@ -391,8 +406,17 @@ public class CertificateGenerateToolTests extends ESTestCase {
             password = "testnode".toCharArray();
         }
         final int keysize = randomFrom(1024, 2048);
-        caInfo = CertificateGenerateTool.getCAInfo(terminal, "CN=foo bar", null, null, password, passwordProtected && passwordPrompt, env,
-                keysize, days);
+        caInfo = CertificateGenerateTool.getCAInfo(
+            terminal,
+            "CN=foo bar",
+            null,
+            null,
+            password,
+            passwordProtected && passwordPrompt,
+            env,
+            keysize,
+            days
+        );
         assertTrue(terminal.getOutput().isEmpty());
         assertThat(caInfo.caCert, instanceOf(X509Certificate.class));
         assertEquals(caInfo.caCert.getSubjectX500Principal().getName(), "CN=foo bar");
@@ -456,8 +480,7 @@ public class CertificateGenerateToolTests extends ESTestCase {
     }
 
     private PKCS10CertificationRequest readCertificateRequest(Path path) throws Exception {
-        try (Reader reader = Files.newBufferedReader(path);
-             PEMParser pemParser = new PEMParser(reader)) {
+        try (Reader reader = Files.newBufferedReader(path); PEMParser pemParser = new PEMParser(reader)) {
             Object object = pemParser.readObject();
             assertThat(object, instanceOf(PKCS10CertificationRequest.class));
             return (PKCS10CertificationRequest) object;
@@ -489,11 +512,11 @@ public class CertificateGenerateToolTests extends ESTestCase {
                 assertThat(seq.size(), equalTo(2));
                 assertThat(seq.getObjectAt(0), instanceOf(ASN1ObjectIdentifier.class));
                 assertThat(seq.getObjectAt(0).toString(), equalTo(CN_OID));
-                assertThat(seq.getObjectAt(1), instanceOf(DERTaggedObject.class));
-                DERTaggedObject taggedName = (DERTaggedObject) seq.getObjectAt(1);
+                assertThat(seq.getObjectAt(1), instanceOf(DLTaggedObject.class));
+                DLTaggedObject taggedName = (DLTaggedObject) seq.getObjectAt(1);
                 assertThat(taggedName.getTagNo(), equalTo(0));
                 assertThat(taggedName.getObject(), instanceOf(ASN1String.class));
-                assertThat(taggedName.getObject().toString(), Matchers.isIn(certInfo.commonNames));
+                assertThat(taggedName.getObject().toString(), is(in(certInfo.commonNames)));
             } else {
                 fail("unknown general name with tag " + generalName.getTagNo());
             }
@@ -519,22 +542,23 @@ public class CertificateGenerateToolTests extends ESTestCase {
      */
     private Path writeInstancesTo(Path path) throws IOException {
         Iterable<String> instances = Arrays.asList(
-                "instances:",
-                "  - name: \"node1\"",
-                "    ip:",
-                "      - \"127.0.0.1\"",
-                "    dns: \"localhost\"",
-                "  - name: \"node2\"",
-                "    filename: \"node2\"",
-                "    ip: \"::1\"",
-                "    cn:",
-                "      - \"node2.elasticsearch\"",
-                "  - name: \"node3\"",
-                "    filename: \"node3\"",
-                "  - name: \"CN=different value\"",
-                "    filename: \"different file\"",
-                "    dns:",
-                "      - \"node4.mydomain.com\"");
+            "instances:",
+            "  - name: \"node1\"",
+            "    ip:",
+            "      - \"127.0.0.1\"",
+            "    dns: \"localhost\"",
+            "  - name: \"node2\"",
+            "    filename: \"node2\"",
+            "    ip: \"::1\"",
+            "    cn:",
+            "      - \"node2.elasticsearch\"",
+            "  - name: \"node3\"",
+            "    filename: \"node3\"",
+            "  - name: \"CN=different value\"",
+            "    filename: \"different file\"",
+            "    dns:",
+            "      - \"node4.mydomain.com\""
+        );
 
         return Files.write(path, instances, StandardCharsets.UTF_8);
     }

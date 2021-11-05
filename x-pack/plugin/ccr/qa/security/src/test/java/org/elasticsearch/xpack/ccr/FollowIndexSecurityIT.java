@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr;
 
@@ -9,22 +10,23 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -34,28 +36,23 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
     @Override
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue("test_ccr", new SecureString("x-pack-test-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     @Override
     protected Settings restAdminSettings() {
         String token = basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     public void testFollowIndex() throws Exception {
         final int numDocs = 16;
         final String allowedIndex = "allowed-index";
-        final String unallowedIndex  = "unallowed-index";
+        final String unallowedIndex = "unallowed-index";
         if ("leader".equals(targetCluster)) {
             logger.info("Running against leader cluster");
-            Settings indexSettings = Settings.builder().put("index.soft_deletes.enabled", true).build();
-            createIndex(allowedIndex, indexSettings);
-            createIndex(unallowedIndex, indexSettings);
+            createIndex(allowedIndex, Settings.EMPTY);
+            createIndex(unallowedIndex, Settings.EMPTY);
             for (int i = 0; i < numDocs; i++) {
                 logger.info("Indexing doc [{}]", i);
                 index(allowedIndex, Integer.toString(i), "field", i);
@@ -98,8 +95,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
 
             // User does not have manage_follow_index index privilege for 'unallowedIndex':
             e = expectThrows(ResponseException.class, () -> followIndex(client(), "leader_cluster", unallowedIndex, unallowedIndex));
-            assertThat(e.getMessage(),
-                containsString("action [indices:admin/xpack/ccr/put_follow] is unauthorized for user [test_ccr]"));
+            assertThat(e.getMessage(), containsString("action [indices:admin/xpack/ccr/put_follow] is unauthorized for user [test_ccr]"));
             // Verify that the follow index has not been created and no node tasks are running
             assertThat(indexExists(unallowedIndex), is(false));
             assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));
@@ -107,9 +103,14 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
             // User does have manage_follow_index index privilege on 'allowed' index,
             // but not read / monitor roles on 'disallowed' index:
             e = expectThrows(ResponseException.class, () -> followIndex(client(), "leader_cluster", unallowedIndex, allowedIndex));
-            assertThat(e.getMessage(), containsString("insufficient privileges to follow index [unallowed-index], " +
-                "privilege for action [indices:monitor/stats] is missing, " +
-                "privilege for action [indices:data/read/xpack/ccr/shard_changes] is missing"));
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "insufficient privileges to follow index [unallowed-index], "
+                        + "privilege for action [indices:monitor/stats] is missing, "
+                        + "privilege for action [indices:data/read/xpack/ccr/shard_changes] is missing"
+                )
+            );
             // Verify that the follow index has not been created and no node tasks are running
             assertThat(indexExists(unallowedIndex), is(false));
             assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));
@@ -118,13 +119,20 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
             pauseFollow(adminClient(), unallowedIndex);
 
             e = expectThrows(ResponseException.class, () -> resumeFollow(unallowedIndex));
-            assertThat(e.getMessage(), containsString("insufficient privileges to follow index [unallowed-index], " +
-                "privilege for action [indices:monitor/stats] is missing, " +
-                "privilege for action [indices:data/read/xpack/ccr/shard_changes] is missing"));
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "insufficient privileges to follow index [unallowed-index], "
+                        + "privilege for action [indices:monitor/stats] is missing, "
+                        + "privilege for action [indices:data/read/xpack/ccr/shard_changes] is missing"
+                )
+            );
             assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));
 
-            e = expectThrows(ResponseException.class,
-                () -> client().performRequest(new Request("POST", "/" + unallowedIndex + "/_ccr/unfollow")));
+            e = expectThrows(
+                ResponseException.class,
+                () -> client().performRequest(new Request("POST", "/" + unallowedIndex + "/_ccr/unfollow"))
+            );
             assertThat(e.getMessage(), containsString("action [indices:admin/xpack/ccr/unfollow] is unauthorized for user [test_ccr]"));
             assertOK(adminClient().performRequest(new Request("POST", "/" + unallowedIndex + "/_close")));
             assertOK(adminClient().performRequest(new Request("POST", "/" + unallowedIndex + "/_ccr/unfollow")));
@@ -134,8 +142,8 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
 
     public void testAutoFollowPatterns() throws Exception {
         assumeFalse("Test should only run when both clusters are running", "leader".equals(targetCluster));
-        String allowedIndex = "logs-eu-20190101";
-        String disallowedIndex = "logs-us-20190101";
+        String allowedIndex = "logs-eu_20190101";
+        String disallowedIndex = "logs-us_20190101";
 
         {
             Request request = new Request("PUT", "/_ccr/auto_follow/test_pattern");
@@ -145,16 +153,12 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
         }
 
         Request request = new Request("PUT", "/_ccr/auto_follow/test_pattern");
-        request.setJsonEntity("{\"leader_index_patterns\": [\"logs-eu-*\"], \"remote_cluster\": \"leader_cluster\"}");
+        request.setJsonEntity("{\"leader_index_patterns\": [\"logs-eu*\"], \"remote_cluster\": \"leader_cluster\"}");
         assertOK(client().performRequest(request));
 
         try (RestClient leaderClient = buildLeaderClient()) {
-            for (String index : new String[]{allowedIndex, disallowedIndex}) {
-                Settings settings = Settings.builder()
-                    .put("index.soft_deletes.enabled", true)
-                    .build();
-                String requestBody = "{\"settings\": " + Strings.toString(settings) +
-                    ", \"mappings\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}}";
+            for (String index : new String[] { allowedIndex, disallowedIndex }) {
+                String requestBody = "{\"mappings\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}}";
                 request = new Request("PUT", "/" + index);
                 request.setJsonEntity(requestBody);
                 assertOK(leaderClient.performRequest(request));
@@ -169,7 +173,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
         assertBusy(() -> {
             ensureYellow(allowedIndex);
             verifyDocuments(allowedIndex, 5, "*:*");
-        });
+        }, 30, TimeUnit.SECONDS);
         assertThat(indexExists(disallowedIndex), is(false));
         assertBusy(() -> {
             verifyCcrMonitoring(allowedIndex, allowedIndex);
@@ -187,11 +191,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
         final String forgetFollower = "forget-follower";
         if ("leader".equals(targetCluster)) {
             logger.info("running against leader cluster");
-            final Settings indexSettings = Settings.builder()
-                    .put("index.number_of_replicas", 0)
-                    .put("index.number_of_shards", 1)
-                    .put("index.soft_deletes.enabled", true)
-                    .build();
+            final Settings indexSettings = Settings.builder().put("index.number_of_replicas", 0).put("index.number_of_shards", 1).build();
             createIndex(forgetLeader, indexSettings);
         } else {
             logger.info("running against follower cluster");
@@ -202,14 +202,18 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
 
             assertOK(client().performRequest(new Request("POST", "/" + forgetFollower + "/_ccr/pause_follow")));
 
-            try (RestClient leaderClient = buildLeaderClient(restClientSettings())) {
+            try (RestClient leaderClient = buildLeaderClient(restAdminSettings())) {
                 final Request request = new Request("POST", "/" + forgetLeader + "/_ccr/forget_follower");
-                final String requestBody = "{" +
-                        "\"follower_cluster\":\"follow-cluster\"," +
-                        "\"follower_index\":\"" +  forgetFollower + "\"," +
-                        "\"follower_index_uuid\":\"" + followerIndexUUID + "\"," +
-                        "\"leader_remote_cluster\":\"leader_cluster\"" +
-                        "}";
+                final String requestBody = "{"
+                    + "\"follower_cluster\":\"follow-cluster\","
+                    + "\"follower_index\":\""
+                    + forgetFollower
+                    + "\","
+                    + "\"follower_index_uuid\":\""
+                    + followerIndexUUID
+                    + "\","
+                    + "\"leader_remote_cluster\":\"leader_cluster\""
+                    + "}";
                 request.setJsonEntity(requestBody);
                 final Response forgetFollowerResponse = leaderClient.performRequest(request);
                 assertOK(forgetFollowerResponse);
@@ -222,14 +226,90 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
                 final Request retentionLeasesRequest = new Request("GET", "/" + forgetLeader + "/_stats");
                 retentionLeasesRequest.addParameter("level", "shards");
                 final Response retentionLeasesResponse = leaderClient.performRequest(retentionLeasesRequest);
-                final ArrayList<Object> shardsStats =
-                        ObjectPath.createFromResponse(retentionLeasesResponse).evaluate("indices." + forgetLeader + ".shards.0");
+                final ArrayList<Object> shardsStats = ObjectPath.createFromResponse(retentionLeasesResponse)
+                    .evaluate("indices." + forgetLeader + ".shards.0");
                 assertThat(shardsStats, hasSize(1));
                 final Map<?, ?> shardStatsAsMap = (Map<?, ?>) shardsStats.get(0);
                 final Map<?, ?> retentionLeasesStats = (Map<?, ?>) shardStatsAsMap.get("retention_leases");
                 final List<?> leases = (List<?>) retentionLeasesStats.get("leases");
-                assertThat(leases, empty());
+                for (final Object lease : leases) {
+                    assertThat(((Map<?, ?>) lease).get("source"), equalTo(ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE));
+                }
             }
+        }
+    }
+
+    public void testCleanShardFollowTaskAfterDeleteFollower() throws Exception {
+        final String cleanLeader = "clean-leader";
+        final String cleanFollower = "clean-follower";
+        if ("leader".equals(targetCluster)) {
+            logger.info("running against leader cluster");
+            final Settings indexSettings = Settings.builder()
+                .put("index.number_of_replicas", 0)
+                .put("index.number_of_shards", 1)
+                .put("index.soft_deletes.enabled", true)
+                .build();
+            createIndex(cleanLeader, indexSettings);
+        } else {
+            logger.info("running against follower cluster");
+            followIndex(client(), "leader_cluster", cleanLeader, cleanFollower);
+
+            final Request request = new Request("DELETE", "/" + cleanFollower);
+            final Response response = client().performRequest(request);
+            assertOK(response);
+            // the shard follow task should have been cleaned up on behalf of the user, see ShardFollowTaskCleaner
+            assertBusy(() -> {
+                Map<String, Object> clusterState = toMap(adminClient().performRequest(new Request("GET", "/_cluster/state")));
+                List<?> tasks = (List<?>) XContentMapValues.extractValue("metadata.persistent_tasks.tasks", clusterState);
+                assertThat(tasks.size(), equalTo(0));
+                assertThat(countCcrNodeTasks(), equalTo(0));
+            });
+        }
+    }
+
+    public void testUnPromoteAndFollowDataStream() throws Exception {
+        if ("follow".equals(targetCluster) == false) {
+            return;
+        }
+
+        var numDocs = 64;
+        var dataStreamName = "logs-eu-monitor1";
+        var dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss", Locale.ROOT);
+
+        // Setup
+        {
+            createAutoFollowPattern(adminClient(), "test_pattern", "logs-eu*", "leader_cluster");
+        }
+        // Create data stream and ensure that is is auto followed
+        {
+            try (var leaderClient = buildLeaderClient()) {
+                for (var i = 0; i < numDocs; i++) {
+                    var indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
+                    indexRequest.addParameter("refresh", "true");
+                    indexRequest.setJsonEntity("{\"@timestamp\": \"" + dateFormat.format(new Date()) + "\",\"message\":\"abc\"}");
+                    assertOK(leaderClient.performRequest(indexRequest));
+                }
+                verifyDataStream(leaderClient, dataStreamName, backingIndexName(dataStreamName, 1));
+                verifyDocuments(leaderClient, dataStreamName, numDocs);
+            }
+            assertBusy(() -> {
+                verifyDataStream(client(), dataStreamName, backingIndexName(dataStreamName, 1));
+                ensureYellow(dataStreamName);
+                verifyDocuments(client(), dataStreamName, numDocs);
+            });
+        }
+        // promote and unfollow
+        {
+            var promoteRequest = new Request("POST", "/_data_stream/_promote/" + dataStreamName);
+            assertOK(client().performRequest(promoteRequest));
+            // Now that the data stream is a non replicated data stream, rollover.
+            var rolloverRequest = new Request("POST", "/" + dataStreamName + "/_rollover");
+            assertOK(client().performRequest(rolloverRequest));
+            // Unfollow .ds-logs-eu-monitor1-000001,
+            // which is now possible because this index can now be closed as it is no longer the write index.
+            pauseFollow(backingIndexName(dataStreamName, 1));
+            closeIndex(backingIndexName(dataStreamName, 1));
+            unfollow(backingIndexName(dataStreamName, 1));
         }
     }
 

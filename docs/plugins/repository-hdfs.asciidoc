@@ -25,7 +25,7 @@ plugin folder and point `HADOOP_HOME` variable to it; this should minimize the a
 Once installed, define the configuration for the `hdfs` repository through the
 {ref}/modules-snapshots.html[REST API]:
 
-[source,js]
+[source,console]
 ----
 PUT _snapshot/my_hdfs_repository
 {
@@ -37,7 +37,6 @@ PUT _snapshot/my_hdfs_repository
   }
 }
 ----
-// CONSOLE
 // TEST[skip:we don't have hdfs set up while testing this]
 
 The following settings are supported:
@@ -58,7 +57,7 @@ The following settings are supported:
 `conf.<key>`::
 
     Inlined configuration parameter to be added to Hadoop configuration. (Optional)
-    Only client oriented properties from the hadoop http://hadoop.apache.org/docs/current/hadoop-project-dist/hadoop-common/core-default.xml[core] and http://hadoop.apache.org/docs/current/hadoop-project-dist/hadoop-hdfs/hdfs-default.xml[hdfs] configuration files will be recognized by the plugin.
+    Only client oriented properties from the hadoop https://hadoop.apache.org/docs/current/hadoop-project-dist/hadoop-common/core-default.xml[core] and https://hadoop.apache.org/docs/current/hadoop-project-dist/hadoop-hdfs/hdfs-default.xml[hdfs] configuration files will be recognized by the plugin.
 
 `compress`::
 
@@ -79,7 +78,7 @@ include::repository-shared-settings.asciidoc[]
     link:repository-hdfs-security-runtime[Creating the Secure Repository]).
 
 [[repository-hdfs-availability]]
-[float]
+[discrete]
 ===== A Note on HDFS Availability
 When you initialize a repository, its settings are persisted in the cluster state. When a node comes online, it will
 attempt to initialize all repositories for which it has settings. If your cluster has an HDFS repository configured, then
@@ -107,7 +106,7 @@ methods are supported by the plugin:
     <<repository-hdfs-security-runtime>> for more info)
 
 [[repository-hdfs-security-keytabs]]
-[float]
+[discrete]
 ===== Principals and Keytabs
 Before attempting to connect to a secured HDFS cluster, provision the Kerberos principals and keytabs that the
 Elasticsearch nodes will use for authenticating to Kerberos. For maximum security and to avoid tripping up the Kerberos
@@ -138,13 +137,13 @@ host!
 
 // Setup at runtime (principal name)
 [[repository-hdfs-security-runtime]]
-[float]
+[discrete]
 ===== Creating the Secure Repository
 Once your keytab files are in place and your cluster is started, creating a secured HDFS repository is simple. Just
 add the name of the principal that you will be authenticating as in the repository settings under the
 `security.principal` option:
 
-[source,js]
+[source,console]
 ----
 PUT _snapshot/my_hdfs_repository
 {
@@ -156,13 +155,12 @@ PUT _snapshot/my_hdfs_repository
   }
 }
 ----
-// CONSOLE
 // TEST[skip:we don't have hdfs set up while testing this]
 
 If you are using different service principals for each node, you can use the `_HOST` pattern in your principal
 name. Elasticsearch will automatically replace the pattern with the hostname of the node at runtime:
 
-[source,js]
+[source,console]
 ----
 PUT _snapshot/my_hdfs_repository
 {
@@ -174,11 +172,10 @@ PUT _snapshot/my_hdfs_repository
   }
 }
 ----
-// CONSOLE
 // TEST[skip:we don't have hdfs set up while testing this]
 
 [[repository-hdfs-security-authorization]]
-[float]
+[discrete]
 ===== Authorization
 Once Elasticsearch is connected and authenticated to HDFS, HDFS will infer a username to use for
 authorizing file access for the client. By default, it picks this username from the primary part of

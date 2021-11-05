@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 
 import java.sql.SQLException;
 import java.util.List;
@@ -38,8 +39,7 @@ class DefaultCursor implements Cursor {
         if (row < rows.size() - 1) {
             row++;
             return true;
-        }
-        else {
+        } else {
             if (cursor.isEmpty() == false) {
                 Tuple<String, List<List<Object>>> nextPage = client.nextPage(cursor, meta);
                 cursor = nextPage.v1();

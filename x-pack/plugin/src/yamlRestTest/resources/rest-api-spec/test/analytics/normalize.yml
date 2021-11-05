@@ -1,0 +1,79 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      indices.create:
+        index: foo
+        body:
+          mappings:
+            properties:
+              timestamp:
+                type: date
+              user:
+                type: keyword
+
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: "foo"
+          - timestamp: "2017-01-01T05:00:00Z"
+            user: "a"
+
+          - index:
+              _index: "foo"
+          - timestamp: "2017-01-01T05:00:00Z"
+            user: "b"
+
+          - index:
+              _index: "foo"
+          - timestamp: "2017-01-01T05:00:00Z"
+            user: "c"
+
+          - index:
+              _index: "foo"
+          - timestamp: "2017-01-02T05:00:00Z"
+            user: "a"
+
+          - index:
+              _index: "foo"
+          - timestamp: "2017-01-02T05:00:00Z"
+            user: "b"
+
+          - index:
+              _index: "foo"
+          - timestamp: "2017-01-03T05:00:00Z"
+            user: "d"
+
+---
+"Basic Search":
+
+  - do:
+      search:
+        index: "foo"
+        body:
+          size: 0
+          aggs:
+            users_by_day:
+              date_histogram:
+                field: "timestamp"
+                calendar_interval: "day"
+              aggs:
+                percent_of_total_users:
+                  normalize:
+                    buckets_path: "_count"
+                    method: "percent_of_sum"
+
+  - length: { aggregations.users_by_day.buckets: 3 }
+  - match: { aggregations.users_by_day.buckets.0.key_as_string: "2017-01-01T00:00:00.000Z" }
+  - match: { aggregations.users_by_day.buckets.0.doc_count: 3 }
+  - match: { aggregations.users_by_day.buckets.0.percent_of_total_users.value: 0.5 }
+  - match: { aggregations.users_by_day.buckets.1.key_as_string: "2017-01-02T00:00:00.000Z" }
+  - match: { aggregations.users_by_day.buckets.1.doc_count: 2 }
+  - match: { aggregations.users_by_day.buckets.1.percent_of_total_users.value: 0.3333333333333333 }
+  - match: { aggregations.users_by_day.buckets.2.key_as_string: "2017-01-03T00:00:00.000Z" }
+  - match: { aggregations.users_by_day.buckets.2.doc_count: 1 }
+  - match: { aggregations.users_by_day.buckets.2.percent_of_total_users.value: 0.16666666666666666 }
+

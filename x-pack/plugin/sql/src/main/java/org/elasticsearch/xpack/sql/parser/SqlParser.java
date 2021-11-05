@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.parser;
 
 import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CharStream;
+import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonToken;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.DiagnosticErrorListener;
@@ -24,10 +26,12 @@ import org.antlr.v4.runtime.misc.Pair;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.parser.CaseChangingCharStream;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Collections;
@@ -39,6 +43,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static java.lang.String.format;
+import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 
 public class SqlParser {
 
@@ -50,7 +55,14 @@ public class SqlParser {
      * Used only in tests
      */
     public LogicalPlan createStatement(String sql) {
-        return createStatement(sql, Collections.emptyList());
+        return createStatement(sql, Collections.emptyList(), UTC);
+    }
+
+    /**
+     * Used only in tests
+     */
+    public LogicalPlan createStatement(String sql, ZoneId zoneId) {
+        return createStatement(sql, Collections.emptyList(), zoneId);
     }
 
     /**
@@ -59,11 +71,11 @@ public class SqlParser {
      * @param params - a list of parameters for the statement if the statement is parametrized
      * @return logical plan
      */
-    public LogicalPlan createStatement(String sql, List<SqlTypedParamValue> params) {
+    public LogicalPlan createStatement(String sql, List<SqlTypedParamValue> params, ZoneId zoneId) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", sql);
         }
-        return invokeParser(sql, params, SqlBaseParser::singleStatement, AstBuilder::plan);
+        return invokeParser(sql, params, zoneId, SqlBaseParser::singleStatement, AstBuilder::plan);
     }
 
     /**
@@ -81,15 +93,18 @@ public class SqlParser {
             log.debug("Parsing as expression: {}", expression);
         }
 
-        return invokeParser(expression, params, SqlBaseParser::singleExpression, AstBuilder::expression);
+        return invokeParser(expression, params, UTC, SqlBaseParser::singleExpression, AstBuilder::expression);
     }
 
-    private <T> T invokeParser(String sql,
-                               List<SqlTypedParamValue> params, Function<SqlBaseParser,
-                               ParserRuleContext> parseFunction,
-                               BiFunction<AstBuilder, ParserRuleContext, T> visitor) {
+    private <T> T invokeParser(
+        String sql,
+        List<SqlTypedParamValue> params,
+        ZoneId zoneId,
+        Function<SqlBaseParser, ParserRuleContext> parseFunction,
+        BiFunction<AstBuilder, ParserRuleContext, T> visitor
+    ) {
         try {
-            SqlBaseLexer lexer = new SqlBaseLexer(new CaseInsensitiveStream(sql));
+            SqlBaseLexer lexer = new SqlBaseLexer(new CaseChangingCharStream(CharStreams.fromString(sql), true));
 
             lexer.removeErrorListeners();
             lexer.addErrorListener(ERROR_LISTENER);
@@ -114,9 +129,7 @@ public class SqlParser {
                 for (Token t : tokenStream.getTokens()) {
                     String symbolicName = SqlBaseLexer.VOCABULARY.getSymbolicName(t.getType());
                     String literalName = SqlBaseLexer.VOCABULARY.getLiteralName(t.getType());
-                    log.info(format(Locale.ROOT, "  %-15s '%s'",
-                        symbolicName == null ? literalName : symbolicName,
-                        t.getText()));
+                    log.info(format(Locale.ROOT, "  %-15s '%s'", symbolicName == null ? literalName : symbolicName, t.getText()));
                 }
             }
 
@@ -126,10 +139,12 @@ public class SqlParser {
                 log.info("Parse tree {} " + tree.toStringTree());
             }
 
-            return visitor.apply(new AstBuilder(paramTokens), tree);
+            return visitor.apply(new AstBuilder(paramTokens, zoneId), tree);
         } catch (StackOverflowError e) {
-            throw new ParsingException("SQL statement is too large, " +
-                "causing stack overflow when generating the parsing tree: [{}]", sql);
+            throw new ParsingException(
+                "SQL statement is too large, " + "causing stack overflow when generating the parsing tree: [{}]",
+                sql
+            );
         }
     }
 
@@ -142,12 +157,24 @@ public class SqlParser {
 
         parser.addErrorListener(new DiagnosticErrorListener(false) {
             @Override
-            public void reportAttemptingFullContext(Parser recognizer, DFA dfa,
-                    int startIndex, int stopIndex, BitSet conflictingAlts, ATNConfigSet configs) {}
+            public void reportAttemptingFullContext(
+                Parser recognizer,
+                DFA dfa,
+                int startIndex,
+                int stopIndex,
+                BitSet conflictingAlts,
+                ATNConfigSet configs
+            ) {}
 
             @Override
-            public void reportContextSensitivity(Parser recognizer, DFA dfa,
-                    int startIndex, int stopIndex, int prediction, ATNConfigSet configs) {}
+            public void reportContextSensitivity(
+                Parser recognizer,
+                DFA dfa,
+                int startIndex,
+                int stopIndex,
+                int prediction,
+                ATNConfigSet configs
+            ) {}
         });
     }
 
@@ -162,20 +189,22 @@ public class SqlParser {
         public void exitBackQuotedIdentifier(SqlBaseParser.BackQuotedIdentifierContext context) {
             Token token = context.BACKQUOTED_IDENTIFIER().getSymbol();
             throw new ParsingException(
-                    "backquoted identifiers not supported; please use double quotes instead",
-                    null,
-                    token.getLine(),
-                    token.getCharPositionInLine());
+                "backquoted identifiers not supported; please use double quotes instead",
+                null,
+                token.getLine(),
+                token.getCharPositionInLine()
+            );
         }
 
         @Override
         public void exitDigitIdentifier(SqlBaseParser.DigitIdentifierContext context) {
             Token token = context.DIGIT_IDENTIFIER().getSymbol();
             throw new ParsingException(
-                    "identifiers must not start with a digit; please use double quotes",
-                    null,
-                    token.getLine(),
-                    token.getCharPositionInLine());
+                "identifiers must not start with a digit; please use double quotes",
+                null,
+                token.getLine(),
+                token.getCharPositionInLine()
+            );
         }
 
         @Override
@@ -184,18 +213,22 @@ public class SqlParser {
             context.getParent().removeLastChild();
 
             Token token = (Token) context.getChild(0).getPayload();
-            context.getParent().addChild(new CommonToken(
-                    new Pair<>(token.getTokenSource(), token.getInputStream()),
-                    SqlBaseLexer.IDENTIFIER,
-                    token.getChannel(),
-                    token.getStartIndex() + 1,
-                    token.getStopIndex() - 1));
+            context.getParent()
+                .addChild(
+                    new CommonToken(
+                        new Pair<>(token.getTokenSource(), token.getInputStream()),
+                        SqlBaseLexer.IDENTIFIER,
+                        token.getChannel(),
+                        token.getStartIndex() + 1,
+                        token.getStopIndex() - 1
+                    )
+                );
         }
 
         @Override
         public void exitNonReserved(SqlBaseParser.NonReservedContext context) {
             // tree cannot be modified during rule enter/exit _unless_ it's a terminal node
-            if (!(context.getChild(0) instanceof TerminalNode)) {
+            if ((context.getChild(0) instanceof TerminalNode) == false) {
                 int rule = ((ParserRuleContext) context.getChild(0)).getRuleIndex();
                 throw new ParsingException("nonReserved can only contain tokens. Found nested rule: " + ruleNames.get(rule));
             }
@@ -204,19 +237,29 @@ public class SqlParser {
             context.getParent().removeLastChild();
 
             Token token = (Token) context.getChild(0).getPayload();
-            context.getParent().addChild(new CommonToken(
-                    new Pair<>(token.getTokenSource(), token.getInputStream()),
-                    SqlBaseLexer.IDENTIFIER,
-                    token.getChannel(),
-                    token.getStartIndex(),
-                    token.getStopIndex()));
+            context.getParent()
+                .addChild(
+                    new CommonToken(
+                        new Pair<>(token.getTokenSource(), token.getInputStream()),
+                        SqlBaseLexer.IDENTIFIER,
+                        token.getChannel(),
+                        token.getStartIndex(),
+                        token.getStopIndex()
+                    )
+                );
         }
     }
 
     private static final BaseErrorListener ERROR_LISTENER = new BaseErrorListener() {
         @Override
-        public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol, int line,
-                int charPositionInLine, String message, RecognitionException e) {
+        public void syntaxError(
+            Recognizer<?, ?> recognizer,
+            Object offendingSymbol,
+            int line,
+            int charPositionInLine,
+            String message,
+            RecognitionException e
+        ) {
             throw new ParsingException(message, e, line, charPositionInLine);
         }
     };

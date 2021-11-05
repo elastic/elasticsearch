@@ -5,9 +5,13 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    extra_hosts:
+      - "kerberos.build.elastic.co:127.0.0.1"
     command: "bash /fixture/src/main/resources/provision/peppa.sh"
     volumes:
-      - ./build/shared/peppa:/fixture/build
+      - ./testfixtures_shared/shared/peppa:/fixture/build
+      # containers have bad entropy so mount /dev/urandom. Less secure but this is a test fixture.
+      - /dev/urandom:/dev/random
     ports:
       - "4444"
       - "88/udp"
@@ -16,9 +20,13 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    extra_hosts:
+      - "kerberos.build.elastic.co:127.0.0.1"
     command: "bash /fixture/src/main/resources/provision/hdfs.sh"
     volumes:
-      - ./build/shared/hdfs:/fixture/build
+      - ./testfixtures_shared/shared/hdfs:/fixture/build
+      # containers have bad entropy so mount /dev/urandom. Less secure but this is a test fixture.
+      - /dev/urandom:/dev/random
     ports:
       - "4444"
       - "88/udp"

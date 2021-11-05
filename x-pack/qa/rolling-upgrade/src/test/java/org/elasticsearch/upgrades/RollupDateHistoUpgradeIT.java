@@ -1,18 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.upgrades;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -28,13 +29,11 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
-
 public class RollupDateHistoUpgradeIT extends AbstractUpgradeTestCase {
-    private static final Version UPGRADE_FROM_VERSION =
-        Version.fromString(System.getProperty("tests.upgrade_from_version"));
+    private static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
 
     public void testDateHistoIntervalUpgrade() throws Exception {
-        assumeTrue("DateHisto interval changed in 7.1", UPGRADE_FROM_VERSION.before(Version.V_7_2_0));
+        assumeTrue("DateHisto interval changed in 7.2", UPGRADE_FROM_VERSION.before(Version.V_7_2_0));
         switch (CLUSTER_TYPE) {
             case OLD:
                 break;
@@ -72,28 +71,30 @@ public class RollupDateHistoUpgradeIT extends AbstractUpgradeTestCase {
 
             // create the rollup job with an old interval style
             final Request createRollupJobRequest = new Request("PUT", "_rollup/job/rollup-id-test");
-            createRollupJobRequest.setJsonEntity("{"
-                + "\"index_pattern\":\"target\","
-                + "\"rollup_index\":\"rollup\","
-                + "\"cron\":\"*/1 * * * * ?\","
-                + "\"page_size\":100,"
-                + "\"groups\":{"
-                + "    \"date_histogram\":{"
-                + "        \"field\":\"timestamp\","
-                + "        \"interval\":\"5m\""
-                + "      },"
-                +       "\"histogram\":{"
-                + "        \"fields\": [\"value\"],"
-                + "        \"interval\":1"
-                + "      },"
-                +       "\"terms\":{"
-                + "        \"fields\": [\"value\"]"
-                + "      }"
-                + "},"
-                + "\"metrics\":["
-                + "    {\"field\":\"value\",\"metrics\":[\"min\",\"max\",\"sum\"]}"
-                + "]"
-                + "}");
+            createRollupJobRequest.setJsonEntity(
+                "{"
+                    + "\"index_pattern\":\"target\","
+                    + "\"rollup_index\":\"rollup\","
+                    + "\"cron\":\"*/1 * * * * ?\","
+                    + "\"page_size\":100,"
+                    + "\"groups\":{"
+                    + "    \"date_histogram\":{"
+                    + "        \"field\":\"timestamp\","
+                    + "        \"interval\":\"5m\""
+                    + "      },"
+                    + "\"histogram\":{"
+                    + "        \"fields\": [\"value\"],"
+                    + "        \"interval\":1"
+                    + "      },"
+                    + "\"terms\":{"
+                    + "        \"fields\": [\"value\"]"
+                    + "      }"
+                    + "},"
+                    + "\"metrics\":["
+                    + "    {\"field\":\"value\",\"metrics\":[\"min\",\"max\",\"sum\"]}"
+                    + "]"
+                    + "}"
+            );
 
             Map<String, Object> createRollupJobResponse = entityAsMap(client().performRequest(createRollupJobRequest));
             assertThat(createRollupJobResponse.get("acknowledged"), equalTo(Boolean.TRUE));
@@ -121,8 +122,11 @@ public class RollupDateHistoUpgradeIT extends AbstractUpgradeTestCase {
             client().performRequest(new Request("POST", "rollup/_refresh"));
 
             List<String> ids = getSearchResults(2);
-            assertThat(ids.toString(), ids, containsInAnyOrder("rollup-id-test$AuaduUZW8tgWmFP87DgzSA",
-                "rollup-id-test$ehY4NAyVSy8xxUDZrNXXIA"));
+            assertThat(
+                ids.toString(),
+                ids,
+                containsInAnyOrder("rollup-id-test$AuaduUZW8tgWmFP87DgzSA", "rollup-id-test$ehY4NAyVSy8xxUDZrNXXIA")
+            );
         }
 
         if (CLUSTER_TYPE == ClusterType.MIXED && Booleans.parseBoolean(System.getProperty("tests.first_round")) == false) {
@@ -134,8 +138,15 @@ public class RollupDateHistoUpgradeIT extends AbstractUpgradeTestCase {
             client().performRequest(new Request("POST", "rollup/_refresh"));
 
             List<String> ids = getSearchResults(3);
-            assertThat(ids.toString(), ids, containsInAnyOrder("rollup-id-test$AuaduUZW8tgWmFP87DgzSA",
-                "rollup-id-test$ehY4NAyVSy8xxUDZrNXXIA", "rollup-id-test$60RGDSb92YI5LH4_Fnq_1g"));
+            assertThat(
+                ids.toString(),
+                ids,
+                containsInAnyOrder(
+                    "rollup-id-test$AuaduUZW8tgWmFP87DgzSA",
+                    "rollup-id-test$ehY4NAyVSy8xxUDZrNXXIA",
+                    "rollup-id-test$60RGDSb92YI5LH4_Fnq_1g"
+                )
+            );
 
         }
 
@@ -148,8 +159,16 @@ public class RollupDateHistoUpgradeIT extends AbstractUpgradeTestCase {
             client().performRequest(new Request("POST", "rollup/_refresh"));
 
             List<String> ids = getSearchResults(4);
-            assertThat(ids.toString(), ids, containsInAnyOrder("rollup-id-test$AuaduUZW8tgWmFP87DgzSA",
-                "rollup-id-test$ehY4NAyVSy8xxUDZrNXXIA", "rollup-id-test$60RGDSb92YI5LH4_Fnq_1g", "rollup-id-test$LAKZftDeQwsUtdPixrkkzQ"));
+            assertThat(
+                ids.toString(),
+                ids,
+                containsInAnyOrder(
+                    "rollup-id-test$AuaduUZW8tgWmFP87DgzSA",
+                    "rollup-id-test$ehY4NAyVSy8xxUDZrNXXIA",
+                    "rollup-id-test$60RGDSb92YI5LH4_Fnq_1g",
+                    "rollup-id-test$LAKZftDeQwsUtdPixrkkzQ"
+                )
+            );
         }
 
     }
@@ -240,8 +259,7 @@ public class RollupDateHistoUpgradeIT extends AbstractUpgradeTestCase {
     @SuppressWarnings("unchecked")
     private static Map<String, Object> getJob(Map<String, Object> jobsMap, String targetJobId) throws IOException {
 
-        List<Map<String, Object>> jobs =
-            (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", jobsMap);
+        List<Map<String, Object>> jobs = (List<Map<String, Object>>) XContentMapValues.extractValue("jobs", jobsMap);
 
         if (jobs == null) {
             return null;

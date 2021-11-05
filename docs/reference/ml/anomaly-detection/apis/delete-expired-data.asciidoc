@@ -1,0 +1,73 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-delete-expired-data]]
+= Delete expired data API
+++++
+<titleabbrev>Delete expired data</titleabbrev>
+++++
+
+Deletes expired and unused machine learning data.
+
+[[ml-delete-expired-data-request]]
+== {api-request-title}
+
+`DELETE _ml/_delete_expired_data` +
+
+`DELETE _ml/_delete_expired_data/<job_id>`
+
+[[ml-delete-expired-data-prereqs]]
+== {api-prereq-title}
+
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
+
+[[ml-delete-expired-data-desc]]
+== {api-description-title}
+
+Deletes all job results, model snapshots and forecast data that have exceeded
+their `retention days` period. Machine learning state documents that are not
+associated with any job are also deleted.
+
+You can limit the request to a single or set of {anomaly-jobs} by using a job 
+identifier, a group name, a comma-separated list of jobs, or a wildcard 
+expression. You can delete expired data for all {anomaly-jobs} by using `_all`, 
+by specifying `*` as the `<job_id>`, or by omitting the `<job_id>`.
+
+[[ml-delete-expired-data-path-parms]]
+== {api-path-parms-title}
+
+`<job_id>`::
+(Optional, string)
+Identifier for an {anomaly-job}. It can be a job identifier, a group name, or a
+wildcard expression.
+
+[[ml-delete-expired-data-request-body]]
+== {api-request-body-title}
+
+`requests_per_second`::
+(Optional, float) The desired requests per second for the deletion processes.
+The default behavior is no throttling.
+
+`timeout`::
+(Optional, string) How long can the underlying delete processes run until they are canceled.
+The default value is `8h` (8 hours).
+
+[[ml-delete-expired-data-example]]
+== {api-examples-title}
+
+The endpoint takes no arguments:
+
+[source,console]
+--------------------------------------------------
+DELETE _ml/_delete_expired_data
+--------------------------------------------------
+// TEST
+
+When the expired data is deleted, you receive the following response:
+
+[source,console-result]
+----
+{
+  "deleted": true
+}
+----

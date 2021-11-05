@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.apache.lucene.util.automaton.Automaton;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
@@ -28,15 +30,15 @@ import java.util.function.Predicate;
 public final class LimitedRole extends Role {
     private final Role limitedBy;
 
-    LimitedRole(String[] names, ClusterPermission cluster, IndicesPermission indices, ApplicationPermission application,
-            RunAsPermission runAs, Role limitedBy) {
-        super(names, cluster, indices, application, runAs);
-        assert limitedBy != null : "limiting role is required";
+    LimitedRole(
+        ClusterPermission cluster,
+        IndicesPermission indices,
+        ApplicationPermission application,
+        RunAsPermission runAs,
+        Role limitedBy
+    ) {
+        super(Objects.requireNonNull(limitedBy, "limiting role is required").names(), cluster, indices, application, runAs);
         this.limitedBy = limitedBy;
-    }
-
-    public Role limitedBy() {
-        return limitedBy;
     }
 
     @Override
@@ -56,18 +58,53 @@ public final class LimitedRole extends Role {
 
     @Override
     public RunAsPermission runAs() {
-        throw new UnsupportedOperationException("cannot retrieve cluster permission on limited role");
+        throw new UnsupportedOperationException("cannot retrieve run_as permission on limited role");
     }
 
     @Override
-    public IndicesAccessControl authorize(String action, Set<String> requestedIndicesOrAliases,
-                                          Map<String, AliasOrIndex> aliasAndIndexLookup,
-                                          FieldPermissionsCache fieldPermissionsCache) {
-        IndicesAccessControl indicesAccessControl =
-            super.authorize(action, requestedIndicesOrAliases, aliasAndIndexLookup, fieldPermissionsCache);
-        IndicesAccessControl limitedByIndicesAccessControl = limitedBy.authorize(action, requestedIndicesOrAliases, aliasAndIndexLookup,
-                fieldPermissionsCache);
+    public boolean hasFieldOrDocumentLevelSecurity() {
+        return super.hasFieldOrDocumentLevelSecurity() || limitedBy.hasFieldOrDocumentLevelSecurity();
+    }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        if (super.equals(o) == false) {
+            return false;
+        }
+        LimitedRole that = (LimitedRole) o;
+        return this.limitedBy.equals(that.limitedBy);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), limitedBy);
+    }
+
+    @Override
+    public IndicesAccessControl authorize(
+        String action,
+        Set<String> requestedIndicesOrAliases,
+        Map<String, IndexAbstraction> aliasAndIndexLookup,
+        FieldPermissionsCache fieldPermissionsCache
+    ) {
+        IndicesAccessControl indicesAccessControl = super.authorize(
+            action,
+            requestedIndicesOrAliases,
+            aliasAndIndexLookup,
+            fieldPermissionsCache
+        );
+        IndicesAccessControl limitedByIndicesAccessControl = limitedBy.authorize(
+            action,
+            requestedIndicesOrAliases,
+            aliasAndIndexLookup,
+            fieldPermissionsCache
+        );
         return indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
     }
 
@@ -76,8 +113,8 @@ public final class LimitedRole extends Role {
      * action on.
      */
     @Override
-    public Predicate<String> allowedIndicesMatcher(String action) {
-        Predicate<String> predicate = super.indices().allowedIndicesMatcher(action);
+    public Predicate<IndexAbstraction> allowedIndicesMatcher(String action) {
+        Predicate<IndexAbstraction> predicate = super.indices().allowedIndicesMatcher(action);
         predicate = predicate.and(limitedBy.indices().allowedIndicesMatcher(action));
         return predicate;
     }
@@ -85,7 +122,7 @@ public final class LimitedRole extends Role {
     @Override
     public Automaton allowedActionsMatcher(String index) {
         final Automaton allowedMatcher = super.allowedActionsMatcher(index);
-        final Automaton limitedByMatcher = super.allowedActionsMatcher(index);
+        final Automaton limitedByMatcher = limitedBy.allowedActionsMatcher(index);
         return Automatons.intersectAndMinimize(allowedMatcher, limitedByMatcher);
     }
 
@@ -112,25 +149,34 @@ public final class LimitedRole extends Role {
      * @return an instance of {@link ResourcePrivilegesMap}
      */
     @Override
-    public ResourcePrivilegesMap checkIndicesPrivileges(Set<String> checkForIndexPatterns, boolean allowRestrictedIndices,
-                                                        Set<String> checkForPrivileges) {
-        ResourcePrivilegesMap resourcePrivilegesMap = super.indices().checkResourcePrivileges(checkForIndexPatterns, allowRestrictedIndices,
-                checkForPrivileges);
-        ResourcePrivilegesMap resourcePrivilegesMapForLimitedRole = limitedBy.indices().checkResourcePrivileges(checkForIndexPatterns,
-                allowRestrictedIndices, checkForPrivileges);
+    public ResourcePrivilegesMap checkIndicesPrivileges(
+        Set<String> checkForIndexPatterns,
+        boolean allowRestrictedIndices,
+        Set<String> checkForPrivileges
+    ) {
+        ResourcePrivilegesMap resourcePrivilegesMap = super.indices().checkResourcePrivileges(
+            checkForIndexPatterns,
+            allowRestrictedIndices,
+            checkForPrivileges
+        );
+        ResourcePrivilegesMap resourcePrivilegesMapForLimitedRole = limitedBy.indices()
+            .checkResourcePrivileges(checkForIndexPatterns, allowRestrictedIndices, checkForPrivileges);
         return ResourcePrivilegesMap.intersection(resourcePrivilegesMap, resourcePrivilegesMapForLimitedRole);
     }
 
     /**
-     * Check if cluster permissions allow for the given action, also checks whether the limited by role allows the given actions
+     * Check if cluster permissions allow for the given action,
+     * also checks whether the limited by role allows the given actions in the context of given
+     * authentication.
      *
      * @param action cluster action
      * @param request {@link TransportRequest}
+     * @param authentication {@link Authentication}
      * @return {@code true} if action is allowed else returns {@code false}
      */
     @Override
-    public boolean checkClusterAction(String action, TransportRequest request) {
-        return super.checkClusterAction(action, request) && limitedBy.checkClusterAction(action, request);
+    public boolean checkClusterAction(String action, TransportRequest request, Authentication authentication) {
+        return super.checkClusterAction(action, request, authentication) && limitedBy.checkClusterAction(action, request, authentication);
     }
 
     /**
@@ -159,13 +205,20 @@ public final class LimitedRole extends Role {
      * @return an instance of {@link ResourcePrivilegesMap}
      */
     @Override
-    public ResourcePrivilegesMap checkApplicationResourcePrivileges(final String applicationName, Set<String> checkForResources,
-                                                                    Set<String> checkForPrivilegeNames,
-                                                                    Collection<ApplicationPrivilegeDescriptor> storedPrivileges) {
-        ResourcePrivilegesMap resourcePrivilegesMap = super.application().checkResourcePrivileges(applicationName, checkForResources,
-                checkForPrivilegeNames, storedPrivileges);
-        ResourcePrivilegesMap resourcePrivilegesMapForLimitedRole = limitedBy.application().checkResourcePrivileges(applicationName,
-                checkForResources, checkForPrivilegeNames, storedPrivileges);
+    public ResourcePrivilegesMap checkApplicationResourcePrivileges(
+        final String applicationName,
+        Set<String> checkForResources,
+        Set<String> checkForPrivilegeNames,
+        Collection<ApplicationPrivilegeDescriptor> storedPrivileges
+    ) {
+        ResourcePrivilegesMap resourcePrivilegesMap = super.application().checkResourcePrivileges(
+            applicationName,
+            checkForResources,
+            checkForPrivilegeNames,
+            storedPrivileges
+        );
+        ResourcePrivilegesMap resourcePrivilegesMapForLimitedRole = limitedBy.application()
+            .checkResourcePrivileges(applicationName, checkForResources, checkForPrivilegeNames, storedPrivileges);
         return ResourcePrivilegesMap.intersection(resourcePrivilegesMap, resourcePrivilegesMapForLimitedRole);
     }
 
@@ -183,7 +236,6 @@ public final class LimitedRole extends Role {
      */
     public static LimitedRole createLimitedRole(Role fromRole, Role limitedByRole) {
         Objects.requireNonNull(limitedByRole, "limited by role is required to create limited role");
-        return new LimitedRole(fromRole.names(), fromRole.cluster(), fromRole.indices(), fromRole.application(), fromRole.runAs(),
-                limitedByRole);
+        return new LimitedRole(fromRole.cluster(), fromRole.indices(), fromRole.application(), fromRole.runAs(), limitedByRole);
     }
 }

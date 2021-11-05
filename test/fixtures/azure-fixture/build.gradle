@@ -1,0 +1,29 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+apply plugin: 'elasticsearch.java'
+apply plugin: 'elasticsearch.test.fixtures'
+
+description = 'Fixture for Azure external service'
+tasks.named("test").configure { enabled = false }
+
+dependencies {
+  api project(':server')
+  api project(':test:framework')
+}
+
+tasks.named("preProcessFixture").configure {
+  dependsOn "jar", configurations.runtimeClasspath
+  doLast {
+    file("${testFixturesDir}/shared").mkdirs()
+    project.copy {
+      from jar
+      from configurations.runtimeClasspath
+      into "${testFixturesDir}/shared"
+    }
+  }
+}

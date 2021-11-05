@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.nio;
@@ -28,6 +17,7 @@ import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.util.Iterator;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -61,6 +51,7 @@ public class NioSelector implements Closeable {
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final CompletableFuture<Void> isRunningFuture = new CompletableFuture<>();
     private final AtomicReference<Thread> thread = new AtomicReference<>(null);
+    private final AtomicBoolean wokenUp = new AtomicBoolean(false);
 
     public NioSelector(EventHandler eventHandler) throws IOException {
         this(eventHandler, Selector.open());
@@ -113,8 +104,13 @@ public class NioSelector implements Closeable {
     }
 
     public void assertOnSelectorThread() {
-        assert isOnCurrentThread() : "Must be on selector thread [" + thread.get().getName() + "} to perform this operation. " +
-            "Currently on thread [" + Thread.currentThread().getName() + "].";
+        assert isOnCurrentThread()
+            : "Must be on selector thread ["
+                + thread.get().getName()
+                + "} to perform this operation. "
+                + "Currently on thread ["
+                + Thread.currentThread().getName()
+                + "].";
     }
 
     /**
@@ -153,7 +149,7 @@ public class NioSelector implements Closeable {
             preSelect();
             long nanosUntilNextTask = taskScheduler.nanosUntilNextTask(System.nanoTime());
             int ready;
-            if (nanosUntilNextTask == 0) {
+            if (wokenUp.getAndSet(false) || nanosUntilNextTask == 0) {
                 ready = selector.selectNow();
             } else {
                 long millisUntilNextTask = TimeUnit.NANOSECONDS.toMillis(nanosUntilNextTask);
@@ -171,10 +167,10 @@ public class NioSelector implements Closeable {
                         try {
                             processKey(sk);
                         } catch (CancelledKeyException cke) {
-                            eventHandler.genericChannelException((ChannelContext<?>) sk.attachment(),  cke);
+                            eventHandler.genericChannelException((ChannelContext<?>) sk.attachment(), cke);
                         }
                     } else {
-                        eventHandler.genericChannelException((ChannelContext<?>) sk.attachment(),  new CancelledKeyException());
+                        eventHandler.genericChannelException((ChannelContext<?>) sk.attachment(), new CancelledKeyException());
                     }
                 }
             }
@@ -195,7 +191,9 @@ public class NioSelector implements Closeable {
         cleanupPendingWrites();
         channelsToClose.addAll(channelsToRegister);
         channelsToRegister.clear();
-        channelsToClose.addAll(selector.keys().stream().map(sk -> (ChannelContext<?>) sk.attachment()).collect(Collectors.toList()));
+        channelsToClose.addAll(
+            selector.keys().stream().map(sk -> (ChannelContext<?>) sk.attachment()).filter(Objects::nonNull).collect(Collectors.toList())
+        );
         closePendingChannels();
     }
 
@@ -221,13 +219,10 @@ public class NioSelector implements Closeable {
         if (selectionKey.isAcceptable()) {
             assert context instanceof ServerChannelContext : "Only server channels can receive accept events";
             ServerChannelContext serverChannelContext = (ServerChannelContext) context;
-            int ops = selectionKey.readyOps();
-            if ((ops & SelectionKey.OP_ACCEPT) != 0) {
-                try {
-                    eventHandler.acceptChannel(serverChannelContext);
-                } catch (IOException e) {
-                    eventHandler.acceptException(serverChannelContext, e);
-                }
+            try {
+                eventHandler.acceptChannel(serverChannelContext);
+            } catch (IOException e) {
+                eventHandler.acceptException(serverChannelContext, e);
             }
         } else {
             assert context instanceof SocketChannelContext : "Only sockets channels can receive non-accept events";
@@ -279,29 +274,36 @@ public class NioSelector implements Closeable {
 
     /**
      * Queues a write operation to be handled by the event loop. This can be called by any thread and is the
-     * api available for non-selector threads to schedule writes.
+     * api available for non-selector threads to schedule writes. When invoked from the selector thread the write will be executed
+     * right away.
      *
      * @param writeOperation to be queued
      */
     public void queueWrite(WriteOperation writeOperation) {
-        queuedWrites.offer(writeOperation);
-        if (isOpen() == false) {
-            boolean wasRemoved = queuedWrites.remove(writeOperation);
-            if (wasRemoved) {
-                writeOperation.getListener().accept(null, new ClosedSelectorException());
-            }
+        if (isOnCurrentThread()) {
+            writeToChannel(writeOperation);
         } else {
-            wakeup();
+            queuedWrites.offer(writeOperation);
+            if (isOpen() == false) {
+                boolean wasRemoved = queuedWrites.remove(writeOperation);
+                if (wasRemoved) {
+                    writeOperation.getListener().accept(null, new ClosedSelectorException());
+                }
+            } else {
+                wakeup();
+            }
         }
     }
 
     public void queueChannelClose(NioChannel channel) {
         ChannelContext<?> context = channel.getContext();
         assert context.getSelector() == this : "Must schedule a channel for closure with its selector";
-        channelsToClose.offer(context);
         if (isOnCurrentThread() == false) {
+            channelsToClose.offer(context);
             ensureSelectorOpenForEnqueuing(channelsToClose, context);
             wakeup();
+        } else {
+            closeChannel(context);
         }
     }
 
@@ -313,9 +315,13 @@ public class NioSelector implements Closeable {
      */
     public void scheduleForRegistration(NioChannel channel) {
         ChannelContext<?> context = channel.getContext();
-        channelsToRegister.add(context);
-        ensureSelectorOpenForEnqueuing(channelsToRegister, context);
-        wakeup();
+        if (isOnCurrentThread() == false) {
+            channelsToRegister.add(context);
+            ensureSelectorOpenForEnqueuing(channelsToRegister, context);
+            wakeup();
+        } else {
+            registerChannel(context);
+        }
     }
 
     /**
@@ -326,25 +332,35 @@ public class NioSelector implements Closeable {
      *
      * @param writeOperation to be queued in a channel's buffer
      */
-    public void writeToChannel(WriteOperation writeOperation) {
+    private void writeToChannel(WriteOperation writeOperation) {
         assertOnSelectorThread();
         SocketChannelContext context = writeOperation.getChannel();
-        // If the channel does not currently have anything that is ready to flush, we should flush after
-        // the write operation is queued.
-        boolean shouldFlushAfterQueuing = context.readyForFlush() == false;
-        try {
-            SelectionKeyUtils.setWriteInterested(context.getSelectionKey());
-            context.queueWriteOperation(writeOperation);
-        } catch (Exception e) {
-            shouldFlushAfterQueuing = false;
-            executeFailedListener(writeOperation.getListener(), e);
-        }
 
-        if (shouldFlushAfterQueuing) {
-            if (context.selectorShouldClose() == false) {
-                handleWrite(context);
+        if (context.isOpen() == false) {
+            executeFailedListener(writeOperation.getListener(), new ClosedChannelException());
+        } else if (context.getSelectionKey() == null) {
+            // This should very rarely happen. The only times a channel is exposed outside the event loop,
+            // but might not registered is through the exception handler and channel accepted callbacks.
+            executeFailedListener(writeOperation.getListener(), new IllegalStateException("Channel not registered"));
+        } else {
+            // If the channel does not currently have anything that is ready to flush, we should flush after
+            // the write operation is queued.
+            boolean shouldFlushAfterQueuing = context.readyForFlush() == false;
+            try {
+                context.queueWriteOperation(writeOperation);
+            } catch (Exception e) {
+                shouldFlushAfterQueuing = false;
+                executeFailedListener(writeOperation.getListener(), e);
             }
-            eventHandler.postHandling(context);
+
+            if (shouldFlushAfterQueuing) {
+                // We only attempt the write if the connect process is complete and the context is not
+                // signalling that it should be closed.
+                if (context.isConnectComplete() && context.selectorShouldClose() == false) {
+                    handleWrite(context);
+                }
+                eventHandler.postHandling(context);
+            }
         }
     }
 
@@ -380,8 +396,10 @@ public class NioSelector implements Closeable {
     }
 
     private void wakeup() {
-        // TODO: Do we need the wakeup optimizations that some other libraries use?
-        selector.wakeup();
+        assert isOnCurrentThread() == false;
+        if (wokenUp.compareAndSet(false, true)) {
+            selector.wakeup();
+        }
     }
 
     private void handleWrite(SocketChannelContext context) {
@@ -414,41 +432,56 @@ public class NioSelector implements Closeable {
     private void setUpNewChannels() {
         ChannelContext<?> newChannel;
         while ((newChannel = this.channelsToRegister.poll()) != null) {
-            assert newChannel.getSelector() == this : "The channel must be registered with the selector with which it was created";
-            try {
-                if (newChannel.isOpen()) {
-                    eventHandler.handleRegistration(newChannel);
-                    if (newChannel instanceof SocketChannelContext) {
-                        attemptConnect((SocketChannelContext) newChannel, false);
-                    }
-                } else {
-                    eventHandler.registrationException(newChannel, new ClosedChannelException());
+            registerChannel(newChannel);
+        }
+    }
+
+    private void registerChannel(ChannelContext<?> newChannel) {
+        assert newChannel.getSelector() == this : "The channel must be registered with the selector with which it was created";
+        try {
+            if (newChannel.isOpen()) {
+                eventHandler.handleRegistration(newChannel);
+                channelActive(newChannel);
+                if (newChannel instanceof SocketChannelContext) {
+                    attemptConnect((SocketChannelContext) newChannel, false);
                 }
-            } catch (Exception e) {
-                eventHandler.registrationException(newChannel, e);
+            } else {
+                eventHandler.registrationException(newChannel, new ClosedChannelException());
+                closeChannel(newChannel);
             }
+        } catch (Exception e) {
+            eventHandler.registrationException(newChannel, e);
+            closeChannel(newChannel);
+        }
+    }
+
+    private void channelActive(ChannelContext<?> newChannel) {
+        try {
+            eventHandler.handleActive(newChannel);
+        } catch (IOException e) {
+            eventHandler.activeException(newChannel, e);
         }
     }
 
     private void closePendingChannels() {
         ChannelContext<?> channelContext;
         while ((channelContext = channelsToClose.poll()) != null) {
-            try {
-                eventHandler.handleClose(channelContext);
-            } catch (Exception e) {
-                eventHandler.closeException(channelContext, e);
-            }
+            closeChannel(channelContext);
+        }
+    }
+
+    private void closeChannel(final ChannelContext<?> channelContext) {
+        try {
+            eventHandler.handleClose(channelContext);
+        } catch (Exception e) {
+            eventHandler.closeException(channelContext, e);
         }
     }
 
     private void handleQueuedWrites() {
         WriteOperation writeOperation;
         while ((writeOperation = queuedWrites.poll()) != null) {
-            if (writeOperation.getChannel().isOpen()) {
-                writeToChannel(writeOperation);
-            } else {
-                executeFailedListener(writeOperation.getListener(), new ClosedChannelException());
-            }
+            writeToChannel(writeOperation);
         }
     }
 
@@ -470,7 +503,7 @@ public class NioSelector implements Closeable {
      * @param <O> the object type
      */
     private <O> void ensureSelectorOpenForEnqueuing(ConcurrentLinkedQueue<O> queue, O objectAdded) {
-        if (isOpen() == false && isOnCurrentThread() == false) {
+        if (isOpen() == false) {
             if (queue.remove(objectAdded)) {
                 throw new IllegalStateException("selector is already closed");
             }

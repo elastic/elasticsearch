@@ -1,26 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.shard;
 
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -81,15 +70,12 @@ public interface IndexEventListener {
      * @param currentState the new shard state
      * @param reason the reason for the state change if there is one, null otherwise
      */
-    default void indexShardStateChanged(IndexShard indexShard, @Nullable IndexShardState previousState,
-                                            IndexShardState currentState, @Nullable String reason) {}
-
-    /**
-     * Called when a shard is marked as inactive
-     *
-     * @param indexShard The shard that was marked inactive
-     */
-    default void onShardInactive(IndexShard indexShard) {}
+    default void indexShardStateChanged(
+        IndexShard indexShard,
+        @Nullable IndexShardState previousState,
+        IndexShardState currentState,
+        @Nullable String reason
+    ) {}
 
     /**
      * Called before the index gets created. Note that this is also called
@@ -127,10 +113,11 @@ public interface IndexEventListener {
     }
 
     /**
-     * Called before the index shard gets created.
+     * Called before the index shard gets created, before obtaining the shard lock.
+     * @param routing the routing entry that caused the shard to be created.
+     * @param indexSettings the shards index settings
      */
-    default void beforeIndexShardCreated(ShardId shardId, Settings indexSettings) {
-    }
+    default void beforeIndexShardCreated(ShardRouting routing, Settings indexSettings) {}
 
     /**
      * Called before the index shard gets deleted from disk
@@ -139,8 +126,7 @@ public interface IndexEventListener {
      * @param shardId The shard id
      * @param indexSettings the shards index settings
      */
-    default void beforeIndexShardDeleted(ShardId shardId, Settings indexSettings) {
-    }
+    default void beforeIndexShardDeleted(ShardId shardId, Settings indexSettings) {}
 
     /**
      * Called after the index shard has been deleted from disk.
@@ -150,15 +136,13 @@ public interface IndexEventListener {
      * @param shardId The shard id
      * @param indexSettings the shards index settings
      */
-    default void afterIndexShardDeleted(ShardId shardId, Settings indexSettings) {
-    }
+    default void afterIndexShardDeleted(ShardId shardId, Settings indexSettings) {}
 
     /**
      * Called on the Master node only before the {@link IndexService} instances is created to simulate an index creation.
      * This happens right before the index and it's metadata is registered in the cluster state
      */
-    default void beforeIndexAddedToCluster(Index index, Settings indexSettings) {
-    }
+    default void beforeIndexAddedToCluster(Index index, Settings indexSettings) {}
 
     /**
      * Called when the given shards store is created. The shard store is created before the shard is created.
@@ -174,4 +158,14 @@ public interface IndexEventListener {
      * @param shardId the shard ID the store belongs to
      */
     default void onStoreClosed(ShardId shardId) {}
+
+    /**
+     * Called before the index shard starts to recover.
+     * Note: unlike all other methods in this class, this method is not called using the cluster state update thread. When this method is
+     * called the shard already transitioned to the RECOVERING state.
+     *
+     * @param indexShard    the shard that is about to recover
+     * @param indexSettings the shard's index settings
+     */
+    default void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings) {}
 }

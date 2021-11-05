@@ -1,0 +1,193 @@
+[role="xpack"]
+[testenv="basic"]
+[[search-aggregations-metrics-boxplot-aggregation]]
+=== Boxplot aggregation
+++++
+<titleabbrev>Boxplot</titleabbrev>
+++++
+
+A `boxplot` metrics aggregation that computes boxplot of numeric values extracted from the aggregated documents.
+These values can be generated from specific numeric or <<histogram,histogram fields>> in the documents.
+
+The `boxplot` aggregation returns essential information for making a {wikipedia}/Box_plot[box plot]: minimum, maximum,
+median, first quartile (25th percentile)  and third quartile (75th percentile) values.
+
+==== Syntax
+
+A `boxplot` aggregation looks like this in isolation:
+
+[source,js]
+--------------------------------------------------
+{
+  "boxplot": {
+    "field": "load_time"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+Let's look at a boxplot representing load time:
+
+[source,console]
+--------------------------------------------------
+GET latency/_search
+{
+  "size": 0,
+  "aggs": {
+    "load_time_boxplot": {
+      "boxplot": {
+        "field": "load_time" <1>
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[setup:latency]
+<1> The field `load_time` must be a numeric field
+
+The response will look like this:
+
+[source,console-result]
+--------------------------------------------------
+{
+  ...
+
+ "aggregations": {
+    "load_time_boxplot": {
+      "min": 0.0,
+      "max": 990.0,
+      "q1": 165.0,
+      "q2": 445.0,
+      "q3": 725.0,
+      "lower": 0.0,
+      "upper": 990.0
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+
+In this case, the lower and upper whisker values are equal to the min and max. In general, these values are the 1.5 *
+IQR range, which is to say the nearest values to `q1 - (1.5 * IQR)` and `q3 + (1.5 * IQR)`. Since this is an approximation, the given values
+may not actually be observed values from the data, but should be within a reasonable error bound of them. While the Boxplot aggregation
+doesn't directly return outlier points, you can check if `lower > min` or `upper < max` to see if outliers exist on either side, and then
+query for them directly.
+
+==== Script
+
+If you need to create a boxplot for values that aren't indexed exactly you
+should create a <<runtime,runtime field>> and get the boxplot of that. For
+example, if your load times are in milliseconds but you want values calculated
+in seconds, use a runtime field to convert them:
+
+[source,console]
+----
+GET latency/_search
+{
+  "size": 0,
+  "runtime_mappings": {
+    "load_time.seconds": {
+      "type": "long",
+      "script": {
+        "source": "emit(doc['load_time'].value / params.timeUnit)",
+        "params": {
+          "timeUnit": 1000
+        }
+      }
+    }
+  },
+  "aggs": {
+    "load_time_boxplot": {
+      "boxplot": { "field": "load_time.seconds" }
+    }
+  }
+}
+----
+// TEST[setup:latency]
+// TEST[s/_search/_search?filter_path=aggregations/]
+// TEST[s/"timeUnit": 1000/"timeUnit": 10/]
+
+////
+[source,console-result]
+--------------------------------------------------
+{
+ "aggregations": {
+    "load_time_boxplot": {
+      "min": 0.0,
+      "max": 99.0,
+      "q1": 16.5,
+      "q2": 44.5,
+      "q3": 72.5,
+      "lower": 0.0,
+      "upper": 99.0
+    }
+  }
+}
+--------------------------------------------------
+////
+
+[[search-aggregations-metrics-boxplot-aggregation-approximation]]
+==== Boxplot values are (usually) approximate
+
+The algorithm used by the `boxplot` metric is called TDigest (introduced by
+Ted Dunning in
+https://github.com/tdunning/t-digest/blob/master/docs/t-digest-paper/histo.pdf[Computing Accurate Quantiles using T-Digests]).
+
+[WARNING]
+====
+Boxplot as other percentile aggregations are also
+{wikipedia}/Nondeterministic_algorithm[non-deterministic].
+This means you can get slightly different results using the same data.
+====
+
+[[search-aggregations-metrics-boxplot-aggregation-compression]]
+==== Compression
+
+Approximate algorithms must balance memory utilization with estimation accuracy.
+This balance can be controlled using a `compression` parameter:
+
+[source,console]
+--------------------------------------------------
+GET latency/_search
+{
+  "size": 0,
+  "aggs": {
+    "load_time_boxplot": {
+      "boxplot": {
+        "field": "load_time",
+        "compression": 200    <1>
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[setup:latency]
+
+<1> Compression controls memory usage and approximation error
+
+include::percentile-aggregation.asciidoc[tags=t-digest]
+
+==== Missing value
+
+The `missing` parameter defines how documents that are missing a value should be treated.
+By default they will be ignored but it is also possible to treat them as if they
+had a value.
+
+[source,console]
+--------------------------------------------------
+GET latency/_search
+{
+  "size": 0,
+  "aggs": {
+    "grade_boxplot": {
+      "boxplot": {
+        "field": "grade",
+        "missing": 10     <1>
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[setup:latency]
+
+<1> Documents without a value in the `grade` field will fall into the same bucket as documents that have the value `10`.

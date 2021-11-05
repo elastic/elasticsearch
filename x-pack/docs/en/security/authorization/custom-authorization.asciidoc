@@ -18,7 +18,7 @@ To create a custom roles provider:
   which are the role names to resolve, and an ActionListener, on which the set of resolved
   role descriptors are passed on as the response.
 . The custom roles provider implementation must take special care to not block on any I/O
-  operations.  It is the responsibility of the implementation to ensure asynchronous behavior
+  operations. It is the responsibility of the implementation to ensure asynchronous behavior
   and non-blocking calls, which is made easier by the fact that the `ActionListener` is
   provided on which to send the response when the roles have been resolved and the response
   is ready.
@@ -40,8 +40,8 @@ getRolesProviders(Settings settings, ResourceWatcherService resourceWatcherServi
 +
 The `getRolesProviders` method is used to provide a list of custom roles providers that
 will be used to resolve role names, if the role names could not be resolved by the reserved
-roles or native roles stores.   The list should be returned in the order that the custom role
-providers should be invoked to resolve roles.  For example, if `getRolesProviders` returns two
+roles or native roles stores. The list should be returned in the order that the custom role
+providers should be invoked to resolve roles. For example, if `getRolesProviders` returns two
 instances of roles providers, and both of them are able to resolve role `A`, then the resolved
 role descriptor that will be used for role `A` will be the one resolved by the first roles
 provider in the list.
@@ -109,7 +109,7 @@ bin/elasticsearch-plugin install file:///<path>/my-extension-plugin-1.0.zip
 ----------------------------------------
 
 . Add any configuration parameters for implementations in the extension to the
-`elasticsearch.yml` file.  The settings are not namespaced and you have access to any
+`elasticsearch.yml` file. The settings are not namespaced and you have access to any
 settings when constructing the extensions, although it is recommended to have a
 namespacing convention for extensions to keep your `elasticsearch.yml`
 configuration easy to understand.

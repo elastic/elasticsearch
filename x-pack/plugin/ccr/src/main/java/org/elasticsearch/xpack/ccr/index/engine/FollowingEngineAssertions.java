@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr.index.engine;
 
@@ -23,8 +24,8 @@ final class FollowingEngineAssertions {
          * that we also prevent issues in production code.
          */
         assert operation.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO;
-        assert (operation.origin() == Engine.Operation.Origin.PRIMARY) == (operation.versionType() == VersionType.EXTERNAL) :
-            "invalid version_type in a following engine; version_type=" + operation.versionType() + "origin=" + operation.origin();
+        assert (operation.origin() == Engine.Operation.Origin.PRIMARY) == (operation.versionType() == VersionType.EXTERNAL)
+            : "invalid version_type in a following engine; version_type=" + operation.versionType() + "origin=" + operation.origin();
         return true;
     }
 

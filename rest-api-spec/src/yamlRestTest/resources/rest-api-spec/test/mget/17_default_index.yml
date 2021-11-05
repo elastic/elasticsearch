@@ -1,0 +1,35 @@
+---
+"Default index/type":
+
+
+  - do:
+      indices.create:
+          index:  test_2
+  - do:
+      index:
+          index:  test_1
+          id:     1
+          body:   { foo: bar }
+
+  - do:
+      mget:
+        index:  test_1
+        body:
+          docs:
+            - { _index: test_2,              _id: 1}
+            - {                              _id: 2}
+            - {                              _id: 1}
+
+  - is_false: docs.0.found
+  - match:  { docs.0._index:     test_2      }
+  - match:  { docs.0._id:        "1"         }
+
+  - is_false: docs.1.found
+  - match:  { docs.1._index:     test_1      }
+  - match:  { docs.1._id:        "2"         }
+
+  - is_true:  docs.2.found
+  - match:  { docs.2._index:     test_1      }
+  - match:  { docs.2._id:        "1"         }
+  - match:  { docs.2._version:   1           }
+  - match:  { docs.2._source:    { foo: bar }}

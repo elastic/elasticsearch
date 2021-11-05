@@ -1,36 +1,63 @@
 [[query-dsl-boosting-query]]
-=== Boosting Query
+=== Boosting query
+++++
+<titleabbrev>Boosting</titleabbrev>
+++++
 
-The `boosting` query can be used to effectively demote results that
-match a given query. Unlike the "NOT" clause in bool query, this still
-selects documents that contain undesirable terms, but reduces their
-overall score.
+Returns documents matching a `positive` query while reducing the
+<<relevance-scores,relevance score>> of documents that also match a
+`negative` query.
 
-It accepts a `positive` query and a `negative` query.
-Only documents that match the `positive` query will be included
-in the results list, but documents that also match the `negative` query
-will be downgraded by multiplying the original `_score` of the document
-with the `negative_boost`.
+You can use the `boosting` query to demote certain documents without
+excluding them from the search results.
 
-[source,js]
---------------------------------------------------
+[[boosting-query-ex-request]]
+==== Example request
+
+[source,console]
+----
 GET /_search
 {
-    "query": {
-        "boosting" : {
-            "positive" : {
-                "term" : {
-                    "field1" : "value1"
-                }
-            },
-            "negative" : {
-                 "term" : {
-                     "field2" : "value2"
-                }
-            },
-            "negative_boost" : 0.2
+  "query": {
+    "boosting": {
+      "positive": {
+        "term": {
+          "text": "apple"
         }
+      },
+      "negative": {
+        "term": {
+          "text": "pie tart fruit crumble tree"
+        }
+      },
+      "negative_boost": 0.5
     }
+  }
 }
---------------------------------------------------
-// CONSOLE
+----
+
+[[boosting-top-level-params]]
+==== Top-level parameters for `boosting`
+
+`positive`::
+(Required, query object) Query you wish to run. Any returned documents must
+match this query.
+
+`negative`::
++
+--
+(Required, query object) Query used to decrease the <<relevance-scores,relevance
+score>> of matching documents.
+
+If a returned document matches the `positive` query and this query, the
+`boosting` query calculates the final <<relevance-scores,relevance score>> for
+the document as follows:
+
+. Take the original relevance score from the `positive` query.
+. Multiply the score by the `negative_boost` value.
+--
+
+`negative_boost`::
+(Required, float) Floating point number between `0` and `1.0` used to decrease
+the <<relevance-scores,relevance scores>> of documents matching the
+`negative` query.

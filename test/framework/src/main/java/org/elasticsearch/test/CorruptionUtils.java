@@ -1,26 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import org.apache.logging.log4j.Logger;
+
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.ChecksumIndexInput;
@@ -43,25 +33,21 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
-
 public final class CorruptionUtils {
     private static final Logger logger = LogManager.getLogger(CorruptionUtils.class);
+
     private CorruptionUtils() {}
 
     public static void corruptIndex(Random random, Path indexPath, boolean corruptSegments) throws IOException {
         // corrupt files
-        final Path[] filesToCorrupt =
-            Files.walk(indexPath)
-                .filter(p -> {
-                    final String name = p.getFileName().toString();
-                    boolean segmentFile = name.startsWith("segments_") || name.endsWith(".si");
-                        return Files.isRegularFile(p)
-                            && name.startsWith("extra") == false // Skip files added by Lucene's ExtrasFS
-                            && IndexWriter.WRITE_LOCK_NAME.equals(name) == false
-                            && (corruptSegments ? segmentFile : segmentFile == false);
-                    }
-                )
-                .toArray(Path[]::new);
+        final Path[] filesToCorrupt = Files.walk(indexPath).filter(p -> {
+            final String name = p.getFileName().toString();
+            boolean segmentFile = name.startsWith("segments_") || name.endsWith(".si");
+            return Files.isRegularFile(p)
+                && name.startsWith("extra") == false // Skip files added by Lucene's ExtrasFS
+                && IndexWriter.WRITE_LOCK_NAME.equals(name) == false
+                && (corruptSegments ? segmentFile : segmentFile == false);
+        }).toArray(Path[]::new);
         corruptFile(random, filesToCorrupt);
     }
 
@@ -79,14 +65,6 @@ public final class CorruptionUtils {
             }
             try (FileChannel raf = FileChannel.open(fileToCorrupt, StandardOpenOption.READ, StandardOpenOption.WRITE)) {
                 long maxPosition = raf.size();
-
-                if (fileToCorrupt.getFileName().toString().endsWith(".cfs") && maxPosition > 4) {
-                    // TODO: it is known that Lucene does not check the checksum of CFS file (CompoundFileS, like an archive)
-                    // see note at https://github.com/elastic/elasticsearch/pull/33911
-                    // so far, don't corrupt crc32 part of checksum (last 4 bytes) of cfs file
-                    // checksum is 8 bytes: first 4 bytes have to be zeros, while crc32 value is not verified
-                    maxPosition -= 4;
-                }
                 final int position = random.nextInt((int) Math.min(Integer.MAX_VALUE, maxPosition));
                 corruptAt(fileToCorrupt, raf, position);
             }
@@ -99,7 +77,7 @@ public final class CorruptionUtils {
                 input.seek(input.length() - CodecUtil.footerLength());
                 checksumAfterCorruption = input.getChecksum();
                 input.seek(input.length() - 8);
-                actualChecksumAfterCorruption = input.readLong();
+                actualChecksumAfterCorruption = CodecUtil.readBELong(input);
             }
             // we need to add assumptions here that the checksums actually really don't match there is a small chance to get collisions
             // in the checksum which is ok though....
@@ -110,9 +88,11 @@ public final class CorruptionUtils {
             msg.append("file: ").append(fileToCorrupt.getFileName()).append(" length: ");
             msg.append(dir.fileLength(fileToCorrupt.getFileName().toString()));
             logger.info("Checksum {}", msg);
-            assumeTrue("Checksum collision - " + msg.toString(),
-                    checksumAfterCorruption != checksumBeforeCorruption // collision
-                            || actualChecksumAfterCorruption != checksumBeforeCorruption); // checksum corrupted
+            assumeTrue(
+                "Checksum collision - " + msg.toString(),
+                checksumAfterCorruption != checksumBeforeCorruption // collision
+                    || actualChecksumAfterCorruption != checksumBeforeCorruption
+            ); // checksum corrupted
             assertThat("no file corrupted", fileToCorrupt, notNullValue());
         }
     }
@@ -133,9 +113,13 @@ public final class CorruptionUtils {
         // rewrite
         channel.position(filePointer);
         channel.write(bb);
-        logger.info("Corrupting file --  flipping at position {} from {} to {} file: {}", filePointer,
-                Integer.toHexString(oldValue), Integer.toHexString(newValue), path.getFileName());
+        logger.info(
+            "Corrupting file --  flipping at position {} from {} to {} file: {}",
+            filePointer,
+            Integer.toHexString(oldValue),
+            Integer.toHexString(newValue),
+            path.getFileName()
+        );
     }
-
 
 }

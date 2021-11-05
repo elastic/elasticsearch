@@ -1,18 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plan.physical;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.execution.search.Querier;
-import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
-import org.elasticsearch.xpack.sql.session.SchemaRowSet;
+import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.List;
 import java.util.Objects;
@@ -53,7 +54,7 @@ public class EsQueryExec extends LeafExec {
     }
 
     @Override
-    public void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
+    public void execute(SqlSession session, ActionListener<Page> listener) {
         Querier scroller = new Querier(session);
 
         scroller.query(output, queryContainer, index, listener);
@@ -76,8 +77,8 @@ public class EsQueryExec extends LeafExec {
 
         EsQueryExec other = (EsQueryExec) obj;
         return Objects.equals(index, other.index)
-                && Objects.equals(queryContainer, other.queryContainer)
-                && Objects.equals(output, other.output);
+            && Objects.equals(queryContainer, other.queryContainer)
+            && Objects.equals(output, other.output);
     }
 
     @Override

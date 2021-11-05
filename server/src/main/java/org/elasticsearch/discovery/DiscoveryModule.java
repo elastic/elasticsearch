@@ -1,32 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.discovery;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.Coordinator;
+import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
-import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -36,9 +27,10 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.gateway.GatewayMetaState;
+import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.plugins.DiscoveryPlugin;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.nio.file.Path;
@@ -68,22 +60,53 @@ public class DiscoveryModule {
 
     public static final String SINGLE_NODE_DISCOVERY_TYPE = "single-node";
 
-    public static final Setting<String> DISCOVERY_TYPE_SETTING =
-        new Setting<>("discovery.type", ZEN2_DISCOVERY_TYPE, Function.identity(), Property.NodeScope);
-    public static final Setting<List<String>> DISCOVERY_SEED_PROVIDERS_SETTING =
-        Setting.listSetting("discovery.seed_providers", Collections.emptyList(), Function.identity(),
-            Property.NodeScope);
+    public static final Setting<String> DISCOVERY_TYPE_SETTING = new Setting<>(
+        "discovery.type",
+        ZEN2_DISCOVERY_TYPE,
+        Function.identity(),
+        Property.NodeScope
+    );
+    public static final Setting<List<String>> DISCOVERY_SEED_PROVIDERS_SETTING = Setting.listSetting(
+        "discovery.seed_providers",
+        Collections.emptyList(),
+        Function.identity(),
+        Property.NodeScope
+    );
 
-    private final Discovery discovery;
+    public static final String DEFAULT_ELECTION_STRATEGY = "default";
 
-    public DiscoveryModule(Settings settings, ThreadPool threadPool, TransportService transportService,
-                           NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService, MasterService masterService,
-                           ClusterApplier clusterApplier, ClusterSettings clusterSettings, List<DiscoveryPlugin> plugins,
-                           AllocationService allocationService, Path configFile, GatewayMetaState gatewayMetaState) {
+    public static final Setting<String> ELECTION_STRATEGY_SETTING = new Setting<>(
+        "cluster.election.strategy",
+        DEFAULT_ELECTION_STRATEGY,
+        Function.identity(),
+        Property.NodeScope
+    );
+
+    private final Coordinator coordinator;
+
+    public DiscoveryModule(
+        Settings settings,
+        BigArrays bigArrays,
+        TransportService transportService,
+        Client client,
+        NamedWriteableRegistry namedWriteableRegistry,
+        NetworkService networkService,
+        MasterService masterService,
+        ClusterApplier clusterApplier,
+        ClusterSettings clusterSettings,
+        List<DiscoveryPlugin> plugins,
+        AllocationService allocationService,
+        Path configFile,
+        GatewayMetaState gatewayMetaState,
+        RerouteService rerouteService,
+        NodeHealthService nodeHealthService
+    ) {
         final Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators = new ArrayList<>();
         final Map<String, Supplier<SeedHostsProvider>> hostProviders = new HashMap<>();
         hostProviders.put("settings", () -> new SettingsBasedSeedHostsProvider(settings, transportService));
         hostProviders.put("file", () -> new FileBasedSeedHostsProvider(configFile));
+        final Map<String, ElectionStrategy> electionStrategies = new HashMap<>();
+        electionStrategies.put(DEFAULT_ELECTION_STRATEGY, ElectionStrategy.DEFAULT_INSTANCE);
         for (DiscoveryPlugin plugin : plugins) {
             plugin.getSeedHostProviders(transportService, networkService).forEach((key, value) -> {
                 if (hostProviders.put(key, value) != null) {
@@ -94,6 +117,11 @@ public class DiscoveryModule {
             if (joinValidator != null) {
                 joinValidators.add(joinValidator);
             }
+            plugin.getElectionStrategies().forEach((key, value) -> {
+                if (electionStrategies.put(key, value) != null) {
+                    throw new IllegalArgumentException("Cannot register election strategy [" + key + "] twice");
+                }
+            });
         }
 
         List<String> seedProviderNames = DISCOVERY_SEED_PROVIDERS_SETTING.get(settings);
@@ -112,7 +140,9 @@ public class DiscoveryModule {
         }
 
         List<SeedHostsProvider> filteredSeedProviders = seedProviderNames.stream()
-            .map(hostProviders::get).map(Supplier::get).collect(Collectors.toList());
+            .map(hostProviders::get)
+            .map(Supplier::get)
+            .collect(Collectors.toList());
 
         String discoveryType = DISCOVERY_TYPE_SETTING.get(settings);
 
@@ -124,12 +154,31 @@ public class DiscoveryModule {
             return Collections.unmodifiableList(addresses);
         };
 
+        final ElectionStrategy electionStrategy = electionStrategies.get(ELECTION_STRATEGY_SETTING.get(settings));
+        if (electionStrategy == null) {
+            throw new IllegalArgumentException("Unknown election strategy " + ELECTION_STRATEGY_SETTING.get(settings));
+        }
+
         if (ZEN2_DISCOVERY_TYPE.equals(discoveryType) || SINGLE_NODE_DISCOVERY_TYPE.equals(discoveryType)) {
-            discovery = new Coordinator(NODE_NAME_SETTING.get(settings),
-                settings, clusterSettings,
-                transportService, namedWriteableRegistry, allocationService, masterService,
-                () -> gatewayMetaState.getPersistedState(settings, (ClusterApplierService) clusterApplier), seedHostsProvider,
-                clusterApplier, joinValidators, new Random(Randomness.get().nextLong()));
+            coordinator = new Coordinator(
+                NODE_NAME_SETTING.get(settings),
+                settings,
+                clusterSettings,
+                bigArrays,
+                transportService,
+                client,
+                namedWriteableRegistry,
+                allocationService,
+                masterService,
+                gatewayMetaState::getPersistedState,
+                seedHostsProvider,
+                clusterApplier,
+                joinValidators,
+                new Random(Randomness.get().nextLong()),
+                rerouteService,
+                electionStrategy,
+                nodeHealthService
+            );
         } else {
             throw new IllegalArgumentException("Unknown discovery type [" + discoveryType + "]");
         }
@@ -137,7 +186,11 @@ public class DiscoveryModule {
         logger.info("using discovery type [{}] and seed hosts providers {}", discoveryType, seedProviderNames);
     }
 
-    public Discovery getDiscovery() {
-        return discovery;
+    public static boolean isSingleNodeDiscovery(Settings settings) {
+        return SINGLE_NODE_DISCOVERY_TYPE.equals(DISCOVERY_TYPE_SETTING.get(settings));
+    }
+
+    public Coordinator getCoordinator() {
+        return coordinator;
     }
 }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.support.replication;
@@ -26,10 +15,10 @@ import org.elasticsearch.action.admin.indices.refresh.TransportShardRefreshActio
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -44,8 +33,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * Requests that are run on a particular replica, first on the primary and then on the replicas like {@link IndexRequest} or
  * {@link TransportShardRefreshAction}.
  */
-public abstract class ReplicationRequest<Request extends ReplicationRequest<Request>> extends ActionRequest
-        implements IndicesRequest {
+public abstract class ReplicationRequest<Request extends ReplicationRequest<Request>> extends ActionRequest implements IndicesRequest {
 
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
@@ -67,15 +55,28 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     private long routedBasedOnClusterVersion = 0;
 
     public ReplicationRequest(StreamInput in) throws IOException {
+        this(null, in);
+    }
+
+    public ReplicationRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
         super(in);
-        if (in.readBoolean()) {
-            shardId = new ShardId(in);
+        final boolean thinRead = shardId != null;
+        if (thinRead) {
+            this.shardId = shardId;
         } else {
-            shardId = null;
+            this.shardId = in.readOptionalWriteable(ShardId::new);
         }
         waitForActiveShards = ActiveShardCount.readFrom(in);
         timeout = in.readTimeValue();
-        index = in.readString();
+        if (thinRead) {
+            if (in.readBoolean()) {
+                index = in.readString();
+            } else {
+                index = shardId.getIndexName();
+            }
+        } else {
+            index = in.readString();
+        }
         routedBasedOnClusterVersion = in.readVLong();
     }
 
@@ -120,7 +121,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
 
     @Override
     public String[] indices() {
-        return new String[]{index};
+        return new String[] { index };
     }
 
     @Override
@@ -169,7 +170,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
      * Used to prevent redirect loops, see also {@link TransportReplicationAction.ReroutePhase#doRun()}
      */
     @SuppressWarnings("unchecked")
-    Request routedBasedOnClusterVersion(long routedBasedOnClusterVersion) {
+    protected Request routedBasedOnClusterVersion(long routedBasedOnClusterVersion) {
         this.routedBasedOnClusterVersion = routedBasedOnClusterVersion;
         return (Request) this;
     }
@@ -188,17 +189,29 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalWriteable(shardId);
         waitForActiveShards.writeTo(out);
         out.writeTimeValue(timeout);
         out.writeString(index);
+        out.writeVLong(routedBasedOnClusterVersion);
+    }
+
+    /**
+     * Thin serialization that does not write {@link #shardId} and will only write {@link #index} if it is different from the index name in
+     * {@link #shardId}.
+     */
+    public void writeThin(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        waitForActiveShards.writeTo(out);
+        out.writeTimeValue(timeout);
+        if (shardId != null && index.equals(shardId.getIndexName())) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeString(index);
+        }
         out.writeVLong(routedBasedOnClusterVersion);
     }
 

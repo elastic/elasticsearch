@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.protocol.xpack.watcher;
 
@@ -12,8 +13,9 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.regex.Pattern;
@@ -42,7 +44,15 @@ public final class PutWatchRequest extends ActionRequest {
     public PutWatchRequest() {}
 
     public PutWatchRequest(StreamInput in) throws IOException {
-        readFrom(in);
+        super(in);
+        id = in.readString();
+        source = in.readBytesReference();
+        active = in.readBoolean();
+        xContentType = in.readEnum(XContentType.class);
+        ;
+        version = in.readZLong();
+        ifSeqNo = in.readZLong();
+        ifPrimaryTerm = in.readVLong();
     }
 
     public PutWatchRequest(String id, BytesReference source, XContentType xContentType) {
@@ -52,24 +62,12 @@ public final class PutWatchRequest extends ActionRequest {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        id = in.readString();
-        source = in.readBytesReference();
-        active = in.readBoolean();
-        xContentType = in.readEnum(XContentType.class);
-        version = in.readZLong();
-        ifSeqNo = in.readZLong();
-        ifPrimaryTerm = in.readVLong();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(id);
         out.writeBytesReference(source);
         out.writeBoolean(active);
-        out.writeEnum(xContentType);
+        XContentHelper.writeTo(out, xContentType);
         out.writeZLong(version);
         out.writeZLong(ifSeqNo);
         out.writeVLong(ifPrimaryTerm);
@@ -142,7 +140,7 @@ public final class PutWatchRequest extends ActionRequest {
      */
     public PutWatchRequest setIfSeqNo(long seqNo) {
         if (seqNo < 0 && seqNo != UNASSIGNED_SEQ_NO) {
-            throw new IllegalArgumentException("sequence numbers must be non negative. got [" +  seqNo + "].");
+            throw new IllegalArgumentException("sequence numbers must be non negative. got [" + seqNo + "].");
         }
         ifSeqNo = seqNo;
         return this;
@@ -193,7 +191,7 @@ public final class PutWatchRequest extends ActionRequest {
         if (source == null) {
             validationException = addValidationError("watch source is missing", validationException);
         }
-        if (xContentType == null) {
+        if (xContentType == null || (source != null && source.length() == 0)) {
             validationException = addValidationError("request body is missing", validationException);
         }
         if (ifSeqNo != UNASSIGNED_SEQ_NO && version != Versions.MATCH_ANY) {
@@ -203,8 +201,10 @@ public final class PutWatchRequest extends ActionRequest {
             validationException = addValidationError("ifSeqNo is set, but primary term is [0]", validationException);
         }
         if (ifPrimaryTerm != UNASSIGNED_PRIMARY_TERM && ifSeqNo == UNASSIGNED_SEQ_NO) {
-            validationException =
-                addValidationError("ifSeqNo is unassigned, but primary term is [" + ifPrimaryTerm + "]", validationException);
+            validationException = addValidationError(
+                "ifSeqNo is unassigned, but primary term is [" + ifPrimaryTerm + "]",
+                validationException
+            );
         }
 
         return validationException;

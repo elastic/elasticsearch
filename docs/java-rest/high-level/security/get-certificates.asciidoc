@@ -4,7 +4,7 @@
 :response: GetSslCertificatesResponse
 --
 
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === SSL Certificate API
 

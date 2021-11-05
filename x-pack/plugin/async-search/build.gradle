@@ -1,0 +1,23 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+esplugin {
+    name 'x-pack-async-search'
+    description 'A module which allows to track the progress of a search asynchronously.'
+    classname 'org.elasticsearch.xpack.search.AsyncSearch'
+    extendedPlugins = ['x-pack-core']
+}
+archivesBaseName = 'x-pack-async-search'
+
+addQaCheckDependencies()
+
+dependencies {
+  compileOnly project(":server")
+
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(path: xpackModule('async'))
+
+  internalClusterTestImplementation project(":modules:reindex")
+}
+
+

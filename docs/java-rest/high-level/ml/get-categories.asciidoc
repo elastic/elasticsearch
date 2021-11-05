@@ -3,15 +3,15 @@
 :request: GetCategoriesRequest
 :response: GetCategoriesResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
-=== Get Categories API
+=== Get categories API
 
-The Get Categories API retrieves one or more category results.
-It accepts a +{request}+ object and responds
-with a +{response}+ object.
+Retrieves one or more category results.
+It accepts a +{request}+ object and responds with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Get Categories Request
+==== Get categories request
 
 A +{request}+ object gets created with an existing non-null `jobId`.
 
@@ -19,28 +19,29 @@ A +{request}+ object gets created with an existing non-null `jobId`.
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
-<1> Constructing a new request referencing an existing `jobId`
+<1> Constructing a new request referencing an existing `jobId`.
 
-==== Optional Arguments
+==== Optional arguments
 The following arguments are optional:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-category-id]
 --------------------------------------------------
-<1> The id of the category to get. Otherwise it will return all categories.
+<1> The ID of the category to get. Otherwise, it will return all categories.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-page]
 --------------------------------------------------
-<1> The page parameters `from` and `size`. `from` specifies the number of categories to skip.
-`size` specifies the maximum number of categories to get. Defaults to `0` and `100` respectively.
+<1> The page parameters `from` and `size`. `from` specifies the number of
+categories to skip. `size` specifies the maximum number of categories to get.
+Defaults to `0` and `100` respectively.
 
 include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]
-==== Get Categories Response
+==== Get categories response
 
 The returned +{response}+ contains the requested categories:
 
@@ -48,5 +49,5 @@ The returned +{response}+ contains the requested categories:
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
-<1> The count of categories that were matched
-<2> The categories retrieved
+<1> The count of categories that were matched.
+<2> The categories retrieved.

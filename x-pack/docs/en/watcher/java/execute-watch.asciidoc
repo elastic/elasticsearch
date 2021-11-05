@@ -1,6 +1,6 @@
-[float]
+[discrete]
 [[api-java-execute-watch]]
-=== Execute Watch API
+=== Execute watch API
 
 This API enables on-demand execution of a watch stored in the `.watches` index.
 It can be used to test a watch without executing all its actions or by ignoring

@@ -1,0 +1,9 @@
+---
+jjbb-template: matrix-gradle-unix.yml
+vars:
+  - job-name: elastic+elasticsearch+%BRANCH%+periodic+java-matrix
+  - job-display-name: "elastic / elasticsearch # %BRANCH% - java compatibility matrix"
+  - job-description: "Testing of the Elasticsearch %BRANCH% branch java compatibility matrix.\n"
+  - matrix-yaml-file: ".ci/matrix-runtime-javas.yml"
+  - matrix-variable: ES_RUNTIME_JAVA
+  - gradle-args: "-Dbwc.checkout.align=true check"

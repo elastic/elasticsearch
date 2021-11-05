@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.join.query;
@@ -25,29 +14,30 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQueryBuilder> {
 
@@ -58,51 +48,46 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singletonList(ParentJoinPlugin.class);
-    }
-
-    @Override
-    protected Settings createTestIndexSettings() {
-        return Settings.builder()
-            .put(super.createTestIndexSettings())
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .build();
+        return Arrays.asList(ParentJoinPlugin.class, TestGeoShapeFieldMapperPlugin.class);
     }
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-        XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties")
+        XContentBuilder mapping = jsonBuilder().startObject()
+            .startObject("_doc")
+            .startObject("properties")
             .startObject("join_field")
-                .field("type", "join")
-                .startObject("relations")
-                    .field("parent", "child")
-                .endObject()
+            .field("type", "join")
+            .startObject("relations")
+            .field("parent", "child")
             .endObject()
-            .startObject(STRING_FIELD_NAME)
-                .field("type", "text")
             .endObject()
-            .startObject(STRING_FIELD_NAME_2)
-                .field("type", "keyword")
+            .startObject(TEXT_FIELD_NAME)
+            .field("type", "text")
+            .endObject()
+            .startObject(KEYWORD_FIELD_NAME)
+            .field("type", "keyword")
             .endObject()
             .startObject(INT_FIELD_NAME)
-                .field("type", "integer")
+            .field("type", "integer")
             .endObject()
             .startObject(DOUBLE_FIELD_NAME)
-                .field("type", "double")
+            .field("type", "double")
             .endObject()
             .startObject(BOOLEAN_FIELD_NAME)
-                .field("type", "boolean")
+            .field("type", "boolean")
             .endObject()
             .startObject(DATE_FIELD_NAME)
-                .field("type", "date")
+            .field("type", "date")
             .endObject()
             .startObject(OBJECT_FIELD_NAME)
-                .field("type", "object")
+            .field("type", "object")
             .endObject()
-            .endObject().endObject().endObject();
+            .endObject()
+            .endObject()
+            .endObject();
 
-        mapperService.merge(TYPE,
-            new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
+        mapperService.merge(TYPE, new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     @Override
@@ -111,28 +96,27 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
     }
 
     @Override
-    protected void doAssertLuceneQuery(ParentIdQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+    protected void doAssertLuceneQuery(ParentIdQueryBuilder queryBuilder, Query query, SearchExecutionContext context) {
         assertThat(query, Matchers.instanceOf(BooleanQuery.class));
         BooleanQuery booleanQuery = (BooleanQuery) query;
         assertThat(booleanQuery.clauses().size(), Matchers.equalTo(2));
-        BooleanQuery expected = new BooleanQuery.Builder()
-            .add(new TermQuery(new Term(JOIN_FIELD_NAME + "#" + PARENT_NAME, queryBuilder.getId())), BooleanClause.Occur.MUST)
-            .add(new TermQuery(new Term(JOIN_FIELD_NAME, queryBuilder.getType())), BooleanClause.Occur.FILTER)
-            .build();
+        BooleanQuery expected = new BooleanQuery.Builder().add(
+            new TermQuery(new Term(JOIN_FIELD_NAME + "#" + PARENT_NAME, queryBuilder.getId())),
+            BooleanClause.Occur.MUST
+        ).add(new TermQuery(new Term(JOIN_FIELD_NAME, queryBuilder.getType())), BooleanClause.Occur.FILTER).build();
         assertThat(expected, equalTo(query));
     }
 
     public void testFromJson() throws IOException {
-        String query =
-            "{\n" +
-                "  \"parent_id\" : {\n" +
-                "    \"type\" : \"child\",\n" +
-                "    \"id\" : \"123\",\n" +
-                "    \"ignore_unmapped\" : false,\n" +
-                "    \"boost\" : 3.0,\n" +
-                "    \"_name\" : \"name\"" +
-                "  }\n" +
-                "}";
+        String query = "{\n"
+            + "  \"parent_id\" : {\n"
+            + "    \"type\" : \"child\",\n"
+            + "    \"id\" : \"123\",\n"
+            + "    \"ignore_unmapped\" : false,\n"
+            + "    \"boost\" : 3.0,\n"
+            + "    \"_name\" : \"name\""
+            + "  }\n"
+            + "}";
         ParentIdQueryBuilder queryBuilder = (ParentIdQueryBuilder) parseQuery(query);
         checkGeneratedJson(query, queryBuilder);
         assertThat(queryBuilder.getType(), Matchers.equalTo("child"));
@@ -144,14 +128,22 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
     public void testIgnoreUnmapped() throws IOException {
         final ParentIdQueryBuilder queryBuilder = new ParentIdQueryBuilder("unmapped", "foo");
         queryBuilder.ignoreUnmapped(true);
-        Query query = queryBuilder.toQuery(createShardContext());
+        Query query = queryBuilder.toQuery(createSearchExecutionContext());
         assertThat(query, notNullValue());
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
 
         final ParentIdQueryBuilder failingQueryBuilder = new ParentIdQueryBuilder("unmapped", "foo");
         failingQueryBuilder.ignoreUnmapped(false);
-        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(createShardContext()));
+        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(createSearchExecutionContext()));
         assertThat(e.getMessage(), containsString("[" + ParentIdQueryBuilder.NAME + "] no relation found for child [unmapped]"));
     }
 
+    public void testDisallowExpensiveQueries() {
+        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.allowExpensiveQueries()).thenReturn(false);
+
+        ParentIdQueryBuilder queryBuilder = doCreateTestQueryBuilder();
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> queryBuilder.toQuery(searchExecutionContext));
+        assertEquals("[joining] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", e.getMessage());
+    }
 }

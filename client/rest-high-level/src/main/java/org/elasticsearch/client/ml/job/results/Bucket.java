@@ -1,30 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml.job.results;
 
+import org.elasticsearch.client.common.TimeUtil;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.client.ml.job.util.TimeUtil;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,13 +45,20 @@ public class Bucket implements ToXContentObject {
     public static final String RESULT_TYPE_VALUE = "bucket";
     public static final ParseField RESULT_TYPE_FIELD = new ParseField(RESULT_TYPE_VALUE);
 
-    public static final ConstructingObjectParser<Bucket, Void> PARSER =
-        new ConstructingObjectParser<>(RESULT_TYPE_VALUE, true, a -> new Bucket((String) a[0], (Date) a[1], (long) a[2]));
+    public static final ConstructingObjectParser<Bucket, Void> PARSER = new ConstructingObjectParser<>(
+        RESULT_TYPE_VALUE,
+        true,
+        a -> new Bucket((String) a[0], (Date) a[1], (long) a[2])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
-        PARSER.declareField(ConstructingObjectParser.constructorArg(),
-                (p) -> TimeUtil.parseTimeField(p, Result.TIMESTAMP.getPreferredName()), Result.TIMESTAMP, ValueType.VALUE);
+        PARSER.declareField(
+            ConstructingObjectParser.constructorArg(),
+            (p) -> TimeUtil.parseTimeField(p, Result.TIMESTAMP.getPreferredName()),
+            Result.TIMESTAMP,
+            ValueType.VALUE
+        );
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
         PARSER.declareDouble(Bucket::setAnomalyScore, ANOMALY_SCORE);
         PARSER.declareDouble(Bucket::setInitialAnomalyScore, INITIAL_ANOMALY_SCORE);
@@ -208,8 +204,19 @@ public class Bucket implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, timestamp, eventCount, initialAnomalyScore, anomalyScore, records,
-                isInterim, bucketSpan, bucketInfluencers, processingTimeMs, scheduledEvents);
+        return Objects.hash(
+            jobId,
+            timestamp,
+            eventCount,
+            initialAnomalyScore,
+            anomalyScore,
+            records,
+            isInterim,
+            bucketSpan,
+            bucketInfluencers,
+            processingTimeMs,
+            scheduledEvents
+        );
     }
 
     /**
@@ -227,12 +234,16 @@ public class Bucket implements ToXContentObject {
 
         Bucket that = (Bucket) other;
 
-        return Objects.equals(this.jobId, that.jobId) && Objects.equals(this.timestamp, that.timestamp)
-                && (this.eventCount == that.eventCount) && (this.bucketSpan == that.bucketSpan)
-                && (this.anomalyScore == that.anomalyScore) && (this.initialAnomalyScore == that.initialAnomalyScore)
-                && Objects.equals(this.records, that.records) && Objects.equals(this.isInterim, that.isInterim)
-                && Objects.equals(this.bucketInfluencers, that.bucketInfluencers)
-                && (this.processingTimeMs == that.processingTimeMs)
-                && Objects.equals(this.scheduledEvents, that.scheduledEvents);
+        return Objects.equals(this.jobId, that.jobId)
+            && Objects.equals(this.timestamp, that.timestamp)
+            && (this.eventCount == that.eventCount)
+            && (this.bucketSpan == that.bucketSpan)
+            && (this.anomalyScore == that.anomalyScore)
+            && (this.initialAnomalyScore == that.initialAnomalyScore)
+            && Objects.equals(this.records, that.records)
+            && Objects.equals(this.isInterim, that.isInterim)
+            && Objects.equals(this.bucketInfluencers, that.bucketInfluencers)
+            && (this.processingTimeMs == that.processingTimeMs)
+            && Objects.equals(this.scheduledEvents, that.scheduledEvents);
     }
 }

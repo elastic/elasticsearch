@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cli;
 
 import java.io.ByteArrayOutputStream;
+import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
@@ -33,8 +23,10 @@ import java.util.List;
  */
 public class MockTerminal extends Terminal {
 
-    private final ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-    private final PrintWriter writer = new PrintWriter(new OutputStreamWriter(buffer, StandardCharsets.UTF_8));
+    private final ByteArrayOutputStream stdoutBuffer = new ByteArrayOutputStream();
+    private final ByteArrayOutputStream stderrBuffer = new ByteArrayOutputStream();
+    private final PrintWriter writer = new PrintWriter(new OutputStreamWriter(stdoutBuffer, StandardCharsets.UTF_8));
+    private final PrintWriter errorWriter = new PrintWriter(new OutputStreamWriter(stderrBuffer, StandardCharsets.UTF_8));
 
     // A deque would be a perfect data structure for the FIFO queue of input values needed here. However,
     // to support the valid return value of readText being null (defined by Console), we need to be able
@@ -47,6 +39,8 @@ public class MockTerminal extends Terminal {
     private int textIndex = 0;
     private final List<String> secretInput = new ArrayList<>();
     private int secretIndex = 0;
+
+    private boolean hasOutputStream = true;
 
     public MockTerminal() {
         super("\n"); // always *nix newlines for tests
@@ -73,24 +67,49 @@ public class MockTerminal extends Terminal {
         return writer;
     }
 
+    @Override
+    public OutputStream getOutputStream() {
+        return hasOutputStream ? stdoutBuffer : null;
+    }
+
+    @Override
+    public PrintWriter getErrorWriter() {
+        return errorWriter;
+    }
+
+    public void setHasOutputStream(boolean hasOutputStream) {
+        this.hasOutputStream = hasOutputStream;
+    }
+
     /** Adds an an input that will be return from {@link #readText(String)}. Values are read in FIFO order. */
     public void addTextInput(String input) {
         textInput.add(input);
     }
 
-    /** Adds an an input that will be return from {@link #readText(String)}. Values are read in FIFO order. */
+    /** Adds an an input that will be return from {@link #readSecret(String)}. Values are read in FIFO order. */
     public void addSecretInput(String input) {
         secretInput.add(input);
     }
 
     /** Returns all output written to this terminal. */
     public String getOutput() throws UnsupportedEncodingException {
-        return buffer.toString("UTF-8");
+        return stdoutBuffer.toString("UTF-8");
+    }
+
+    /** Returns all bytes  written to this terminal. */
+    public byte[] getOutputBytes() {
+        return stdoutBuffer.toByteArray();
+    }
+
+    /** Returns all output written to this terminal. */
+    public String getErrorOutput() throws UnsupportedEncodingException {
+        return stderrBuffer.toString("UTF-8");
     }
 
     /** Wipes the input and output. */
     public void reset() {
-        buffer.reset();
+        stdoutBuffer.reset();
+        stderrBuffer.reset();
         textIndex = 0;
         textInput.clear();
         secretIndex = 0;

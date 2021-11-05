@@ -1,22 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -58,7 +59,7 @@ public class Bucket implements ToXContentObject, Writeable {
     /* *
      * Read and discard the old (prior to 6.5) perPartitionNormalization values
      */
-    public static Bucket readOldPerPartitionNormalization(StreamInput in)  throws IOException {
+    public static Bucket readOldPerPartitionNormalization(StreamInput in) throws IOException {
         in.readString();
         in.readString();
         in.readDouble();
@@ -69,21 +70,34 @@ public class Bucket implements ToXContentObject, Writeable {
     }
 
     private static ConstructingObjectParser<Bucket, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<Bucket, Void> parser = new ConstructingObjectParser<>(RESULT_TYPE_VALUE, ignoreUnknownFields,
-                a -> new Bucket((String) a[0], (Date) a[1], (long) a[2]));
+        ConstructingObjectParser<Bucket, Void> parser = new ConstructingObjectParser<>(
+            RESULT_TYPE_VALUE,
+            ignoreUnknownFields,
+            a -> new Bucket((String) a[0], (Date) a[1], (long) a[2])
+        );
 
         parser.declareString(ConstructingObjectParser.constructorArg(), JOB_ID);
-        parser.declareField(ConstructingObjectParser.constructorArg(),
-                p -> TimeUtils.parseTimeField(p, Result.TIMESTAMP.getPreferredName()), Result.TIMESTAMP, ValueType.VALUE);
+        parser.declareField(
+            ConstructingObjectParser.constructorArg(),
+            p -> TimeUtils.parseTimeField(p, Result.TIMESTAMP.getPreferredName()),
+            Result.TIMESTAMP,
+            ValueType.VALUE
+        );
         parser.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
         parser.declareDouble(Bucket::setAnomalyScore, ANOMALY_SCORE);
         parser.declareDouble(Bucket::setInitialAnomalyScore, INITIAL_ANOMALY_SCORE);
         parser.declareBoolean(Bucket::setInterim, Result.IS_INTERIM);
         parser.declareLong(Bucket::setEventCount, EVENT_COUNT);
-        parser.declareObjectArray(Bucket::setRecords, ignoreUnknownFields ? AnomalyRecord.LENIENT_PARSER : AnomalyRecord.STRICT_PARSER,
-                RECORDS);
-        parser.declareObjectArray(Bucket::setBucketInfluencers, ignoreUnknownFields ?
-                BucketInfluencer.LENIENT_PARSER : BucketInfluencer.STRICT_PARSER, BUCKET_INFLUENCERS);
+        parser.declareObjectArray(
+            Bucket::setRecords,
+            ignoreUnknownFields ? AnomalyRecord.LENIENT_PARSER : AnomalyRecord.STRICT_PARSER,
+            RECORDS
+        );
+        parser.declareObjectArray(
+            Bucket::setBucketInfluencers,
+            ignoreUnknownFields ? BucketInfluencer.LENIENT_PARSER : BucketInfluencer.STRICT_PARSER,
+            BUCKET_INFLUENCERS
+        );
         parser.declareLong(Bucket::setProcessingTimeMs, PROCESSING_TIME_MS);
         parser.declareString((bucket, s) -> {}, Result.RESULT_TYPE);
         parser.declareStringArray(Bucket::setScheduledEvents, SCHEDULED_EVENTS);
@@ -134,16 +148,8 @@ public class Bucket implements ToXContentObject, Writeable {
         isInterim = in.readBoolean();
         bucketInfluencers = in.readList(BucketInfluencer::new);
         processingTimeMs = in.readLong();
-        // bwc for perPartitionNormalization
-        if (in.getVersion().before(Version.V_6_5_0)) {
-            in.readList(Bucket::readOldPerPartitionNormalization);
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
-            scheduledEvents = in.readStringList();
-            if (scheduledEvents.isEmpty()) {
-                scheduledEvents = Collections.emptyList();
-            }
-        } else {
+        scheduledEvents = in.readStringList();
+        if (scheduledEvents.isEmpty()) {
             scheduledEvents = Collections.emptyList();
         }
     }
@@ -160,13 +166,7 @@ public class Bucket implements ToXContentObject, Writeable {
         out.writeBoolean(isInterim);
         out.writeList(bucketInfluencers);
         out.writeLong(processingTimeMs);
-        // bwc for perPartitionNormalization
-        if (out.getVersion().before(Version.V_6_5_0)) {
-            out.writeList(Collections.emptyList());
-        }
-        if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
-            out.writeStringCollection(scheduledEvents);
-        }
+        out.writeStringCollection(scheduledEvents);
     }
 
     @Override
@@ -236,6 +236,11 @@ public class Bucket implements ToXContentObject, Writeable {
         this.initialAnomalyScore = initialAnomalyScore;
     }
 
+    @Override
+    public String toString() {
+        return Strings.toString(this);
+    }
+
     /**
      * Get all the anomaly records associated with this bucket.
      * The records are not part of the bucket document. They will
@@ -301,8 +306,19 @@ public class Bucket implements ToXContentObject, Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, timestamp, eventCount, initialAnomalyScore, anomalyScore, records,
-                isInterim, bucketSpan, bucketInfluencers, processingTimeMs, scheduledEvents);
+        return Objects.hash(
+            jobId,
+            timestamp,
+            eventCount,
+            initialAnomalyScore,
+            anomalyScore,
+            records,
+            isInterim,
+            bucketSpan,
+            bucketInfluencers,
+            processingTimeMs,
+            scheduledEvents
+        );
     }
 
     /**
@@ -320,13 +336,17 @@ public class Bucket implements ToXContentObject, Writeable {
 
         Bucket that = (Bucket) other;
 
-        return Objects.equals(this.jobId, that.jobId) && Objects.equals(this.timestamp, that.timestamp)
-                && (this.eventCount == that.eventCount) && (this.bucketSpan == that.bucketSpan)
-                && (this.anomalyScore == that.anomalyScore) && (this.initialAnomalyScore == that.initialAnomalyScore)
-                && Objects.equals(this.records, that.records) && Objects.equals(this.isInterim, that.isInterim)
-                && Objects.equals(this.bucketInfluencers, that.bucketInfluencers)
-                && (this.processingTimeMs == that.processingTimeMs)
-                && Objects.equals(this.scheduledEvents, that.scheduledEvents);
+        return Objects.equals(this.jobId, that.jobId)
+            && Objects.equals(this.timestamp, that.timestamp)
+            && (this.eventCount == that.eventCount)
+            && (this.bucketSpan == that.bucketSpan)
+            && (this.anomalyScore == that.anomalyScore)
+            && (this.initialAnomalyScore == that.initialAnomalyScore)
+            && Objects.equals(this.records, that.records)
+            && Objects.equals(this.isInterim, that.isInterim)
+            && Objects.equals(this.bucketInfluencers, that.bucketInfluencers)
+            && (this.processingTimeMs == that.processingTimeMs)
+            && Objects.equals(this.scheduledEvents, that.scheduledEvents);
     }
 
     /**

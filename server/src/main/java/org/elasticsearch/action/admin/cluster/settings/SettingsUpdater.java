@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.settings;
@@ -24,10 +13,10 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 
 import java.util.Map;
 
@@ -56,7 +45,11 @@ final class SettingsUpdater {
     }
 
     synchronized ClusterState updateSettings(
-            final ClusterState currentState, final Settings transientToApply, final Settings persistentToApply, final Logger logger) {
+        final ClusterState currentState,
+        final Settings transientToApply,
+        final Settings persistentToApply,
+        final Logger logger
+    ) {
         boolean changed = false;
 
         /*
@@ -71,15 +64,21 @@ final class SettingsUpdater {
          *  - validate the incoming settings update combined with the existing known and valid settings
          *  - merge in the archived unknown or invalid settings
          */
-        final Tuple<Settings, Settings> partitionedTransientSettings =
-                partitionKnownAndValidSettings(currentState.metaData().transientSettings(), "transient", logger);
+        final Tuple<Settings, Settings> partitionedTransientSettings = partitionKnownAndValidSettings(
+            currentState.metadata().transientSettings(),
+            "transient",
+            logger
+        );
         final Settings knownAndValidTransientSettings = partitionedTransientSettings.v1();
         final Settings unknownOrInvalidTransientSettings = partitionedTransientSettings.v2();
         final Settings.Builder transientSettings = Settings.builder().put(knownAndValidTransientSettings);
         changed |= clusterSettings.updateDynamicSettings(transientToApply, transientSettings, transientUpdates, "transient");
 
-        final Tuple<Settings, Settings> partitionedPersistentSettings =
-                partitionKnownAndValidSettings(currentState.metaData().persistentSettings(), "persistent", logger);
+        final Tuple<Settings, Settings> partitionedPersistentSettings = partitionKnownAndValidSettings(
+            currentState.metadata().persistentSettings(),
+            "persistent",
+            logger
+        );
         final Settings knownAndValidPersistentSettings = partitionedPersistentSettings.v1();
         final Settings unknownOrInvalidPersistentSettings = partitionedPersistentSettings.v2();
         final Settings.Builder persistentSettings = Settings.builder().put(knownAndValidPersistentSettings);
@@ -94,26 +93,26 @@ final class SettingsUpdater {
             clusterSettings.validate(transientFinalSettings, true);
             clusterSettings.validate(persistentFinalSettings, true);
 
-            MetaData.Builder metaData = MetaData.builder(currentState.metaData())
-                    .transientSettings(Settings.builder().put(transientFinalSettings).put(unknownOrInvalidTransientSettings).build())
-                    .persistentSettings(Settings.builder().put(persistentFinalSettings).put(unknownOrInvalidPersistentSettings).build());
+            Metadata.Builder metadata = Metadata.builder(currentState.metadata())
+                .transientSettings(Settings.builder().put(transientFinalSettings).put(unknownOrInvalidTransientSettings).build())
+                .persistentSettings(Settings.builder().put(persistentFinalSettings).put(unknownOrInvalidPersistentSettings).build());
 
             ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
-            boolean updatedReadOnly = MetaData.SETTING_READ_ONLY_SETTING.get(metaData.persistentSettings())
-                    || MetaData.SETTING_READ_ONLY_SETTING.get(metaData.transientSettings());
+            boolean updatedReadOnly = Metadata.SETTING_READ_ONLY_SETTING.get(metadata.persistentSettings())
+                || Metadata.SETTING_READ_ONLY_SETTING.get(metadata.transientSettings());
             if (updatedReadOnly) {
-                blocks.addGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK);
+                blocks.addGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK);
             } else {
-                blocks.removeGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK);
+                blocks.removeGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK);
             }
-            boolean updatedReadOnlyAllowDelete = MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(metaData.persistentSettings())
-                    || MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(metaData.transientSettings());
+            boolean updatedReadOnlyAllowDelete = Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(metadata.persistentSettings())
+                || Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(metadata.transientSettings());
             if (updatedReadOnlyAllowDelete) {
-                blocks.addGlobalBlock(MetaData.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
+                blocks.addGlobalBlock(Metadata.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
             } else {
-                blocks.removeGlobalBlock(MetaData.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
+                blocks.removeGlobalBlock(Metadata.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
             }
-            clusterState = builder(currentState).metaData(metaData).blocks(blocks).build();
+            clusterState = builder(currentState).metadata(metadata).blocks(blocks).build();
         } else {
             clusterState = currentState;
         }
@@ -122,7 +121,7 @@ final class SettingsUpdater {
          * Now we try to apply things and if they are invalid we fail. This dry run will validate, parse settings, and trigger deprecation
          * logging, but will not actually apply them.
          */
-        final Settings settings = clusterState.metaData().settings();
+        final Settings settings = clusterState.metadata().settings();
         clusterSettings.validateUpdate(settings);
 
         return clusterState;
@@ -139,20 +138,24 @@ final class SettingsUpdater {
      * @return the partitioned settings
      */
     private Tuple<Settings, Settings> partitionKnownAndValidSettings(
-            final Settings settings, final String settingsType, final Logger logger) {
+        final Settings settings,
+        final String settingsType,
+        final Logger logger
+    ) {
         final Settings existingArchivedSettings = settings.filter(k -> k.startsWith(ARCHIVED_SETTINGS_PREFIX));
-        final Settings settingsExcludingExistingArchivedSettings =
-                settings.filter(k -> k.startsWith(ARCHIVED_SETTINGS_PREFIX) == false);
+        final Settings settingsExcludingExistingArchivedSettings = settings.filter(k -> k.startsWith(ARCHIVED_SETTINGS_PREFIX) == false);
         final Settings settingsWithUnknownOrInvalidArchived = clusterSettings.archiveUnknownOrInvalidSettings(
-                settingsExcludingExistingArchivedSettings,
-                e -> logUnknownSetting(settingsType, e, logger),
-                (e, ex) -> logInvalidSetting(settingsType, e, ex, logger));
+            settingsExcludingExistingArchivedSettings,
+            e -> logUnknownSetting(settingsType, e, logger),
+            (e, ex) -> logInvalidSetting(settingsType, e, ex, logger)
+        );
         return Tuple.tuple(
-                Settings.builder()
-                        .put(settingsWithUnknownOrInvalidArchived.filter(k -> k.startsWith(ARCHIVED_SETTINGS_PREFIX) == false))
-                        .put(existingArchivedSettings)
-                        .build(),
-                settingsWithUnknownOrInvalidArchived.filter(k -> k.startsWith(ARCHIVED_SETTINGS_PREFIX)));
+            Settings.builder()
+                .put(settingsWithUnknownOrInvalidArchived.filter(k -> k.startsWith(ARCHIVED_SETTINGS_PREFIX) == false))
+                .put(existingArchivedSettings)
+                .build(),
+            settingsWithUnknownOrInvalidArchived.filter(k -> k.startsWith(ARCHIVED_SETTINGS_PREFIX))
+        );
     }
 
     private void logUnknownSetting(final String settingType, final Map.Entry<String, String> e, final Logger logger) {
@@ -160,14 +163,20 @@ final class SettingsUpdater {
     }
 
     private void logInvalidSetting(
-            final String settingType, final Map.Entry<String, String> e, final IllegalArgumentException ex, final Logger logger) {
+        final String settingType,
+        final Map.Entry<String, String> e,
+        final IllegalArgumentException ex,
+        final Logger logger
+    ) {
         logger.warn(
-                (Supplier<?>)
-                        () -> new ParameterizedMessage("ignoring existing invalid {} setting: [{}] with value [{}]; archiving",
-                                settingType,
-                                e.getKey(),
-                                e.getValue()),
-                ex);
+            (Supplier<?>) () -> new ParameterizedMessage(
+                "ignoring existing invalid {} setting: [{}] with value [{}]; archiving",
+                settingType,
+                e.getKey(),
+                e.getValue()
+            ),
+            ex
+        );
     }
 
 }

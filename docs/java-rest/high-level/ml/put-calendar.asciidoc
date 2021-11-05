@@ -3,33 +3,35 @@
 :request: PutCalendarRequest
 :response: PutCalendarResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
-=== Put Calendar API
+=== Create calendars API
+
 Creates a new {ml} calendar.
 The API accepts a +{request}+ and responds
 with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Put Calendar Request
+==== Request
 
-A +{request}+ is constructed with a Calendar object
+A +{request}+ is constructed with a calendar object
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
-<1> Create a request with the given Calendar
+<1> Create a request with the given calendar.
 
 
 [id="{upid}-{api}-response"]
-==== Put Calendar Response
+==== Response
 
-The returned +{response}+ contains the created Calendar:
+The returned +{response}+ contains the created calendar:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
-<1> The created Calendar
+<1> The created calendar.
 
 include::../execution.asciidoc[]

@@ -1,30 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.analysis.common;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterIterator;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -53,15 +40,11 @@ import static org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter.STEM_
 
 public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER =
-        new DeprecationLogger(LogManager.getLogger(WordDelimiterTokenFilterFactory.class));
-
     private final byte[] charTypeTable;
     private final int flags;
     private final CharArraySet protoWords;
 
-    public WordDelimiterTokenFilterFactory(IndexSettings indexSettings, Environment env,
-            String name, Settings settings) {
+    public WordDelimiterTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
 
         // Sample Format for the type table:
@@ -103,10 +86,7 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-         return new WordDelimiterFilter(tokenStream,
-                     charTypeTable,
-                     flags,
-                     protoWords);
+        return new WordDelimiterFilter(tokenStream, charTypeTable, flags, protoWords);
     }
 
     @Override
@@ -131,21 +111,18 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
         SortedMap<Character, Byte> typeMap = new TreeMap<>();
         for (String rule : rules) {
             Matcher m = typePattern.matcher(rule);
-            if (!m.find())
+            if (m.find() == false) {
                 throw new RuntimeException("Invalid Mapping Rule : [" + rule + "]");
+            }
             String lhs = parseString(m.group(1).trim());
             Byte rhs = parseType(m.group(2).trim());
-            if (lhs.length() != 1)
-                throw new RuntimeException("Invalid Mapping Rule : ["
-                        + rule + "]. Only a single character is allowed.");
-            if (rhs == null)
-                throw new RuntimeException("Invalid Mapping Rule : [" + rule + "]. Illegal type.");
+            if (lhs.length() != 1) throw new RuntimeException("Invalid Mapping Rule : [" + rule + "]. Only a single character is allowed.");
+            if (rhs == null) throw new RuntimeException("Invalid Mapping Rule : [" + rule + "]. Illegal type.");
             typeMap.put(lhs.charAt(0), rhs);
         }
 
         // ensure the table is always at least as big as DEFAULT_WORD_DELIM_TABLE for performance
-        byte types[] = new byte[Math.max(
-                typeMap.lastKey() + 1, WordDelimiterIterator.DEFAULT_WORD_DELIM_TABLE.length)];
+        byte types[] = new byte[Math.max(typeMap.lastKey() + 1, WordDelimiterIterator.DEFAULT_WORD_DELIM_TABLE.length)];
         for (int i = 0; i < types.length; i++)
             types[i] = WordDelimiterIterator.getType(i);
         for (Map.Entry<Character, Byte> mapping : typeMap.entrySet())
@@ -154,20 +131,13 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
     }
 
     private static Byte parseType(String s) {
-        if (s.equals("LOWER"))
-            return WordDelimiterFilter.LOWER;
-        else if (s.equals("UPPER"))
-            return WordDelimiterFilter.UPPER;
-        else if (s.equals("ALPHA"))
-            return WordDelimiterFilter.ALPHA;
-        else if (s.equals("DIGIT"))
-            return WordDelimiterFilter.DIGIT;
-        else if (s.equals("ALPHANUM"))
-            return WordDelimiterFilter.ALPHANUM;
-        else if (s.equals("SUBWORD_DELIM"))
-            return WordDelimiterFilter.SUBWORD_DELIM;
-        else
-            return null;
+        if (s.equals("LOWER")) return WordDelimiterFilter.LOWER;
+        else if (s.equals("UPPER")) return WordDelimiterFilter.UPPER;
+        else if (s.equals("ALPHA")) return WordDelimiterFilter.ALPHA;
+        else if (s.equals("DIGIT")) return WordDelimiterFilter.DIGIT;
+        else if (s.equals("ALPHANUM")) return WordDelimiterFilter.ALPHANUM;
+        else if (s.equals("SUBWORD_DELIM")) return WordDelimiterFilter.SUBWORD_DELIM;
+        else return null;
     }
 
     private static String parseString(String s) {
@@ -178,8 +148,7 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
         while (readPos < len) {
             char c = s.charAt(readPos++);
             if (c == '\\') {
-                if (readPos >= len)
-                    throw new RuntimeException("Invalid escaped char in [" + s + "]");
+                if (readPos >= len) throw new RuntimeException("Invalid escaped char in [" + s + "]");
                 c = s.charAt(readPos++);
                 switch (c) {
                     case '\\':
@@ -201,8 +170,7 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
                         c = '\f';
                         break;
                     case 'u':
-                        if (readPos + 3 >= len)
-                            throw new RuntimeException("Invalid escaped char in [" + s + "]");
+                        if (readPos + 3 >= len) throw new RuntimeException("Invalid escaped char in [" + s + "]");
                         c = (char) Integer.parseInt(s.substring(readPos, readPos + 4), 16);
                         readPos += 4;
                         break;

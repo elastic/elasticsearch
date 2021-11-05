@@ -1,32 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
@@ -36,16 +27,24 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.hamcrest.Matchers.equalTo;
@@ -56,23 +55,24 @@ import static org.hamcrest.Matchers.nullValue;
 public class UnassignedInfoTests extends ESAllocationTestCase {
 
     public void testReasonOrdinalOrder() {
-        UnassignedInfo.Reason[] order = new UnassignedInfo.Reason[]{
-                UnassignedInfo.Reason.INDEX_CREATED,
-                UnassignedInfo.Reason.CLUSTER_RECOVERED,
-                UnassignedInfo.Reason.INDEX_REOPENED,
-                UnassignedInfo.Reason.DANGLING_INDEX_IMPORTED,
-                UnassignedInfo.Reason.NEW_INDEX_RESTORED,
-                UnassignedInfo.Reason.EXISTING_INDEX_RESTORED,
-                UnassignedInfo.Reason.REPLICA_ADDED,
-                UnassignedInfo.Reason.ALLOCATION_FAILED,
-                UnassignedInfo.Reason.NODE_LEFT,
-                UnassignedInfo.Reason.REROUTE_CANCELLED,
-                UnassignedInfo.Reason.REINITIALIZED,
-                UnassignedInfo.Reason.REALLOCATED_REPLICA,
-                UnassignedInfo.Reason.PRIMARY_FAILED,
-                UnassignedInfo.Reason.FORCED_EMPTY_PRIMARY,
-                UnassignedInfo.Reason.MANUAL_ALLOCATION,
-                UnassignedInfo.Reason.INDEX_CLOSED,};
+        UnassignedInfo.Reason[] order = new UnassignedInfo.Reason[] {
+            UnassignedInfo.Reason.INDEX_CREATED,
+            UnassignedInfo.Reason.CLUSTER_RECOVERED,
+            UnassignedInfo.Reason.INDEX_REOPENED,
+            UnassignedInfo.Reason.DANGLING_INDEX_IMPORTED,
+            UnassignedInfo.Reason.NEW_INDEX_RESTORED,
+            UnassignedInfo.Reason.EXISTING_INDEX_RESTORED,
+            UnassignedInfo.Reason.REPLICA_ADDED,
+            UnassignedInfo.Reason.ALLOCATION_FAILED,
+            UnassignedInfo.Reason.NODE_LEFT,
+            UnassignedInfo.Reason.REROUTE_CANCELLED,
+            UnassignedInfo.Reason.REINITIALIZED,
+            UnassignedInfo.Reason.REALLOCATED_REPLICA,
+            UnassignedInfo.Reason.PRIMARY_FAILED,
+            UnassignedInfo.Reason.FORCED_EMPTY_PRIMARY,
+            UnassignedInfo.Reason.MANUAL_ALLOCATION,
+            UnassignedInfo.Reason.INDEX_CLOSED,
+            UnassignedInfo.Reason.NODE_RESTARTING };
         for (int i = 0; i < order.length; i++) {
             assertThat(order[i].ordinal(), equalTo(i));
         }
@@ -81,10 +81,46 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
 
     public void testSerialization() throws Exception {
         UnassignedInfo.Reason reason = RandomPicks.randomFrom(random(), UnassignedInfo.Reason.values());
-        UnassignedInfo meta = reason == UnassignedInfo.Reason.ALLOCATION_FAILED ?
-            new UnassignedInfo(reason, randomBoolean() ? randomAlphaOfLength(4) : null, null,
-                randomIntBetween(1, 100), System.nanoTime(), System.currentTimeMillis(), false, AllocationStatus.NO_ATTEMPT):
-            new UnassignedInfo(reason, randomBoolean() ? randomAlphaOfLength(4) : null);
+        int failedAllocations = randomIntBetween(1, 100);
+        Set<String> failedNodes = IntStream.range(0, between(0, failedAllocations))
+            .mapToObj(n -> "failed-node-" + n)
+            .collect(Collectors.toSet());
+
+        UnassignedInfo meta;
+        if (reason == UnassignedInfo.Reason.ALLOCATION_FAILED) {
+            meta = new UnassignedInfo(
+                reason,
+                randomBoolean() ? randomAlphaOfLength(4) : null,
+                null,
+                failedAllocations,
+                System.nanoTime(),
+                System.currentTimeMillis(),
+                false,
+                AllocationStatus.NO_ATTEMPT,
+                failedNodes,
+                null
+            );
+        } else if (reason == UnassignedInfo.Reason.NODE_LEFT || reason == UnassignedInfo.Reason.NODE_RESTARTING) {
+            String lastAssignedNodeId = randomAlphaOfLength(10);
+            if (reason == UnassignedInfo.Reason.NODE_LEFT && randomBoolean()) {
+                // If the reason is `NODE_LEFT`, sometimes we'll have an empty lastAllocatedNodeId due to BWC
+                lastAssignedNodeId = null;
+            }
+            meta = new UnassignedInfo(
+                reason,
+                randomBoolean() ? randomAlphaOfLength(4) : null,
+                null,
+                0,
+                System.nanoTime(),
+                System.currentTimeMillis(),
+                false,
+                AllocationStatus.NO_ATTEMPT,
+                Collections.emptySet(),
+                lastAssignedNodeId
+            );
+        } else {
+            meta = new UnassignedInfo(reason, randomBoolean() ? randomAlphaOfLength(4) : null);
+        }
         BytesStreamOutput out = new BytesStreamOutput();
         meta.writeTo(out);
         out.close();
@@ -95,124 +131,186 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         assertThat(read.getMessage(), equalTo(meta.getMessage()));
         assertThat(read.getDetails(), equalTo(meta.getDetails()));
         assertThat(read.getNumFailedAllocations(), equalTo(meta.getNumFailedAllocations()));
+        assertThat(read.getFailedNodeIds(), equalTo(meta.getFailedNodeIds()));
+        assertThat(read.getLastAllocatedNodeId(), equalTo(meta.getLastAllocatedNodeId()));
     }
 
     public void testIndexCreated() {
-        MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT))
-                    .numberOfShards(randomIntBetween(1, 3)).numberOfReplicas(randomIntBetween(0, 3)))
-                .build();
+        Metadata metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder("test")
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(randomIntBetween(1, 3))
+                    .numberOfReplicas(randomIntBetween(0, 3))
+            )
+            .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-                .metaData(metaData)
-                .routingTable(RoutingTable.builder().addAsNew(metaData.index("test")).build()).build();
-        for (ShardRouting shard : clusterState.getRoutingNodes().shardsWithState(UNASSIGNED)) {
+            .metadata(metadata)
+            .routingTable(RoutingTable.builder().addAsNew(metadata.index("test")).build())
+            .build();
+        for (ShardRouting shard : shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED)) {
             assertThat(shard.unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.INDEX_CREATED));
         }
     }
 
     public void testClusterRecovered() {
-        MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT))
-                    .numberOfShards(randomIntBetween(1, 3)).numberOfReplicas(randomIntBetween(0, 3)))
-                .build();
+        Metadata metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder("test")
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(randomIntBetween(1, 3))
+                    .numberOfReplicas(randomIntBetween(0, 3))
+            )
+            .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-                .metaData(metaData)
-                .routingTable(RoutingTable.builder().addAsRecovery(metaData.index("test")).build()).build();
-        for (ShardRouting shard : clusterState.getRoutingNodes().shardsWithState(UNASSIGNED)) {
+            .metadata(metadata)
+            .routingTable(RoutingTable.builder().addAsRecovery(metadata.index("test")).build())
+            .build();
+        for (ShardRouting shard : shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED)) {
             assertThat(shard.unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.CLUSTER_RECOVERED));
         }
     }
 
     public void testIndexReopened() {
-        MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT))
-                    .numberOfShards(randomIntBetween(1, 3)).numberOfReplicas(randomIntBetween(0, 3)))
-                .build();
+        Metadata metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder("test")
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(randomIntBetween(1, 3))
+                    .numberOfReplicas(randomIntBetween(0, 3))
+            )
+            .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-                .metaData(metaData)
-                .routingTable(RoutingTable.builder().addAsFromCloseToOpen(metaData.index("test")).build()).build();
-        for (ShardRouting shard : clusterState.getRoutingNodes().shardsWithState(UNASSIGNED)) {
+            .metadata(metadata)
+            .routingTable(RoutingTable.builder().addAsFromCloseToOpen(metadata.index("test")).build())
+            .build();
+        for (ShardRouting shard : shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED)) {
             assertThat(shard.unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.INDEX_REOPENED));
         }
     }
 
     public void testNewIndexRestored() {
-        MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT))
-                    .numberOfShards(randomIntBetween(1, 3)).numberOfReplicas(randomIntBetween(0, 3)))
-                .build();
+        Metadata metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder("test")
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(randomIntBetween(1, 3))
+                    .numberOfReplicas(randomIntBetween(0, 3))
+            )
+            .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-                .metaData(metaData)
-                .routingTable(RoutingTable.builder().addAsNewRestore(metaData.index("test"), new SnapshotRecoverySource(
-                    UUIDs.randomBase64UUID(),
-                    new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID())), Version.CURRENT, "test"),
-                    new IntHashSet()).build()).build();
-        for (ShardRouting shard : clusterState.getRoutingNodes().shardsWithState(UNASSIGNED)) {
+            .metadata(metadata)
+            .routingTable(
+                RoutingTable.builder()
+                    .addAsNewRestore(
+                        metadata.index("test"),
+                        new SnapshotRecoverySource(
+                            UUIDs.randomBase64UUID(),
+                            new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID())),
+                            Version.CURRENT,
+                            new IndexId("test", UUIDs.randomBase64UUID(random()))
+                        ),
+                        new IntHashSet()
+                    )
+                    .build()
+            )
+            .build();
+        for (ShardRouting shard : shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED)) {
             assertThat(shard.unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.NEW_INDEX_RESTORED));
         }
     }
 
     public void testExistingIndexRestored() {
-        MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT))
-                    .numberOfShards(randomIntBetween(1, 3)).numberOfReplicas(randomIntBetween(0, 3)))
-                .build();
+        Metadata metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder("test")
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(randomIntBetween(1, 3))
+                    .numberOfReplicas(randomIntBetween(0, 3))
+            )
+            .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-                .metaData(metaData)
-                .routingTable(RoutingTable.builder().addAsRestore(metaData.index("test"),
-                    new SnapshotRecoverySource(
-                        UUIDs.randomBase64UUID(), new Snapshot("rep1",
-                        new SnapshotId("snp1", UUIDs.randomBase64UUID())), Version.CURRENT, "test")).build()).build();
-        for (ShardRouting shard : clusterState.getRoutingNodes().shardsWithState(UNASSIGNED)) {
+            .metadata(metadata)
+            .routingTable(
+                RoutingTable.builder()
+                    .addAsRestore(
+                        metadata.index("test"),
+                        new SnapshotRecoverySource(
+                            UUIDs.randomBase64UUID(),
+                            new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID())),
+                            Version.CURRENT,
+                            new IndexId("test", UUIDs.randomBase64UUID(random()))
+                        )
+                    )
+                    .build()
+            )
+            .build();
+        for (ShardRouting shard : shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED)) {
             assertThat(shard.unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.EXISTING_INDEX_RESTORED));
         }
     }
 
     public void testDanglingIndexImported() {
-        MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT))
-                    .numberOfShards(randomIntBetween(1, 3)).numberOfReplicas(randomIntBetween(0, 3)))
-                .build();
+        Metadata metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder("test")
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(randomIntBetween(1, 3))
+                    .numberOfReplicas(randomIntBetween(0, 3))
+            )
+            .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-                .metaData(metaData)
-                .routingTable(RoutingTable.builder().addAsFromDangling(metaData.index("test")).build()).build();
-        for (ShardRouting shard : clusterState.getRoutingNodes().shardsWithState(UNASSIGNED)) {
+            .metadata(metadata)
+            .routingTable(RoutingTable.builder().addAsFromDangling(metadata.index("test")).build())
+            .build();
+        for (ShardRouting shard : shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED)) {
             assertThat(shard.unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.DANGLING_INDEX_IMPORTED));
         }
     }
 
     public void testReplicaAdded() {
         AllocationService allocation = createAllocationService();
-        MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
-                .build();
-        final Index index = metaData.index("test").getIndex();
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+            .build();
+        final Index index = metadata.index("test").getIndex();
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-                .metaData(metaData)
-                .routingTable(RoutingTable.builder().addAsNew(metaData.index(index)).build()).build();
+            .metadata(metadata)
+            .routingTable(RoutingTable.builder().addAsNew(metadata.index(index)).build())
+            .build();
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
         clusterState = allocation.reroute(clusterState, "reroute");
         // starting primaries
-        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         IndexRoutingTable.Builder builder = IndexRoutingTable.builder(index);
         for (IndexShardRoutingTable indexShardRoutingTable : clusterState.routingTable().index(index)) {
             builder.addIndexShard(indexShardRoutingTable);
         }
         builder.addReplica();
         clusterState = ClusterState.builder(clusterState)
-            .routingTable(RoutingTable.builder(clusterState.routingTable()).add(builder).build()).build();
-        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(1));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).get(0).unassignedInfo(), notNullValue());
-        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).get(0).unassignedInfo().getReason(),
-            equalTo(UnassignedInfo.Reason.REPLICA_ADDED));
+            .routingTable(RoutingTable.builder(clusterState.routingTable()).add(builder).build())
+            .build();
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).size(), equalTo(1));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).get(0).unassignedInfo(), notNullValue());
+        assertThat(
+            shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).get(0).unassignedInfo().getReason(),
+            equalTo(UnassignedInfo.Reason.REPLICA_ADDED)
+        );
     }
 
     /**
      * The unassigned meta is kept when a shard goes to INITIALIZING, but cleared when it moves to STARTED.
      */
     public void testStateTransitionMetaHandling() {
-        ShardRouting shard = TestShardRouting.newShardRouting("test", 1, null, null,
-            true, ShardRoutingState.UNASSIGNED, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
+        ShardRouting shard = TestShardRouting.newShardRouting(
+            "test",
+            1,
+            null,
+            null,
+            true,
+            ShardRoutingState.UNASSIGNED,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
+        );
         assertThat(shard.unassignedInfo(), notNullValue());
         shard = shard.initialize("test_node", null, -1);
         assertThat(shard.state(), equalTo(ShardRoutingState.INITIALIZING));
@@ -227,31 +325,37 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
      */
     public void testNodeLeave() {
         AllocationService allocation = createAllocationService();
-        MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
-                .build();
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-                .metaData(metaData)
-                .routingTable(RoutingTable.builder().addAsNew(metaData.index("test")).build()).build();
+            .metadata(metadata)
+            .routingTable(RoutingTable.builder().addAsNew(metadata.index("test")).build())
+            .build();
         clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))).build();
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
+            .build();
         clusterState = allocation.reroute(clusterState, "reroute");
         // starting primaries
-        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         // starting replicas
-        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         assertThat(clusterState.getRoutingNodes().unassigned().size() > 0, equalTo(false));
         // remove node2 and reroute
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node2")).build();
         clusterState = allocation.disassociateDeadNodes(clusterState, true, "reroute");
         // verify that NODE_LEAVE is the reason for meta
         assertThat(clusterState.getRoutingNodes().unassigned().size() > 0, equalTo(true));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(1));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).get(0).unassignedInfo(), notNullValue());
-        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).get(0).unassignedInfo().getReason(),
-            equalTo(UnassignedInfo.Reason.NODE_LEFT));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).get(0).unassignedInfo().getUnassignedTimeInMillis(),
-            greaterThan(0L));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).size(), equalTo(1));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).get(0).unassignedInfo(), notNullValue());
+        assertThat(
+            shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).get(0).unassignedInfo().getReason(),
+            equalTo(UnassignedInfo.Reason.NODE_LEFT)
+        );
+        assertThat(
+            shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).get(0).unassignedInfo().getUnassignedTimeInMillis(),
+            greaterThan(0L)
+        );
     }
 
     /**
@@ -259,77 +363,232 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
      */
     public void testFailedShard() {
         AllocationService allocation = createAllocationService();
-        MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
-                .build();
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-                .metaData(metaData)
-                .routingTable(RoutingTable.builder().addAsNew(metaData.index("test")).build()).build();
+            .metadata(metadata)
+            .routingTable(RoutingTable.builder().addAsNew(metadata.index("test")).build())
+            .build();
         clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))).build();
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
+            .build();
         clusterState = allocation.reroute(clusterState, "reroute");
         // starting primaries
-        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         // starting replicas
-        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         assertThat(clusterState.getRoutingNodes().unassigned().size() > 0, equalTo(false));
         // fail shard
-        ShardRouting shardToFail = clusterState.getRoutingNodes().shardsWithState(STARTED).get(0);
-        clusterState = allocation.applyFailedShards(clusterState,
-            Collections.singletonList(new FailedShard(shardToFail, "test fail", null, randomBoolean())));
+        ShardRouting shardToFail = shardsWithState(clusterState.getRoutingNodes(), STARTED).get(0);
+        clusterState = allocation.applyFailedShards(
+            clusterState,
+            Collections.singletonList(new FailedShard(shardToFail, "test fail", null, randomBoolean()))
+        );
         // verify the reason and details
         assertThat(clusterState.getRoutingNodes().unassigned().size() > 0, equalTo(true));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(1));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).get(0).unassignedInfo(), notNullValue());
-        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).get(0).unassignedInfo().getReason(),
-            equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).get(0).unassignedInfo().getMessage(),
-            equalTo("failed shard on node [" + shardToFail.currentNodeId() + "]: test fail"));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).get(0).unassignedInfo().getDetails(),
-            equalTo("failed shard on node [" + shardToFail.currentNodeId() + "]: test fail"));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).get(0).unassignedInfo().getUnassignedTimeInMillis(),
-            greaterThan(0L));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).size(), equalTo(1));
+        assertThat(shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).get(0).unassignedInfo(), notNullValue());
+        assertThat(
+            shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).get(0).unassignedInfo().getReason(),
+            equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED)
+        );
+        assertThat(
+            shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).get(0).unassignedInfo().getMessage(),
+            equalTo("failed shard on node [" + shardToFail.currentNodeId() + "]: test fail")
+        );
+        assertThat(
+            shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).get(0).unassignedInfo().getDetails(),
+            equalTo("failed shard on node [" + shardToFail.currentNodeId() + "]: test fail")
+        );
+        assertThat(
+            shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).get(0).unassignedInfo().getUnassignedTimeInMillis(),
+            greaterThan(0L)
+        );
     }
 
     /**
-     * Verifies that delayed allocation calculation are correct.
+     * Verifies that delayed allocation calculation are correct when there are no registered node shutdowns.
      */
-    public void testRemainingDelayCalculation() throws Exception {
+    public void testRemainingDelayCalculationWithNoShutdowns() throws Exception {
+        checkRemainingDelayCalculation(
+            "bogusNodeId",
+            TimeValue.timeValueNanos(10),
+            Collections.emptyMap(),
+            TimeValue.timeValueNanos(10),
+            false
+        );
+    }
+
+    /**
+     * Verifies that delayed allocation calculations are correct when there are registered node shutdowns for nodes which are not relevant
+     * to the shard currently being evaluated.
+     */
+    public void testRemainingDelayCalculationsWithUnrelatedShutdowns() throws Exception {
+        String lastNodeId = "bogusNodeId";
+        Map<String, SingleNodeShutdownMetadata> shutdowns = new HashMap<>();
+        int numberOfShutdowns = randomIntBetween(1, 15);
+        for (int i = 0; i <= numberOfShutdowns; i++) {
+            final SingleNodeShutdownMetadata.Type type = randomFrom(EnumSet.allOf(SingleNodeShutdownMetadata.Type.class));
+            final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
+            SingleNodeShutdownMetadata shutdown = SingleNodeShutdownMetadata.builder()
+                .setNodeId(randomValueOtherThan(lastNodeId, () -> randomAlphaOfLengthBetween(5, 10)))
+                .setReason(this.getTestName())
+                .setStartedAtMillis(randomNonNegativeLong())
+                .setType(type)
+                .setTargetNodeName(targetNodeName)
+                .build();
+            shutdowns.put(shutdown.getNodeId(), shutdown);
+        }
+        checkRemainingDelayCalculation(lastNodeId, TimeValue.timeValueNanos(10), shutdowns, TimeValue.timeValueNanos(10), false);
+    }
+
+    /**
+     * Verifies that delay calculation is not impacted when the node the shard was last assigned to was registered for removal.
+     */
+    public void testRemainingDelayCalculationWhenNodeIsShuttingDownForRemoval() throws Exception {
+        String lastNodeId = "bogusNodeId";
+        Map<String, SingleNodeShutdownMetadata> shutdowns = new HashMap<>();
+        SingleNodeShutdownMetadata shutdown = SingleNodeShutdownMetadata.builder()
+            .setNodeId(lastNodeId)
+            .setReason(this.getTestName())
+            .setStartedAtMillis(randomNonNegativeLong())
+            .setType(SingleNodeShutdownMetadata.Type.REMOVE)
+            .build();
+        shutdowns.put(shutdown.getNodeId(), shutdown);
+
+        checkRemainingDelayCalculation(lastNodeId, TimeValue.timeValueNanos(10), shutdowns, TimeValue.timeValueNanos(10), false);
+    }
+
+    /**
+     * Verifies that the delay calculation uses the configured delay value for nodes known to be restarting, because they are registered for
+     * a `RESTART`-type shutdown, rather than the default global delay.
+     */
+    public void testRemainingDelayCalculationWhenNodeIsKnownToBeRestartingWithCustomDelay() throws Exception {
+        String lastNodeId = "bogusNodeId";
+        Map<String, SingleNodeShutdownMetadata> shutdowns = new HashMap<>();
+        SingleNodeShutdownMetadata shutdown = SingleNodeShutdownMetadata.builder()
+            .setNodeId(lastNodeId)
+            .setReason(this.getTestName())
+            .setStartedAtMillis(randomNonNegativeLong())
+            .setType(SingleNodeShutdownMetadata.Type.RESTART)
+            .setAllocationDelay(TimeValue.timeValueMinutes(1))
+            .build();
+        shutdowns.put(shutdown.getNodeId(), shutdown);
+
+        // Use a different index-level delay so this test will fail if that one gets used instead of the one from the shutdown metadata
+        checkRemainingDelayCalculation(lastNodeId, TimeValue.timeValueNanos(10), shutdowns, TimeValue.timeValueMinutes(1), true);
+    }
+
+    /**
+     * Verifies that the delay calculation uses the default delay value for nodes known to be restarting, because they are registered for
+     * a `RESTART`-type shutdown, rather than the default global delay.
+     */
+    public void testRemainingDelayCalculationWhenNodeIsKnownToBeRestartingWithDefaultDelay() throws Exception {
+        String lastNodeId = "bogusNodeId";
+        Map<String, SingleNodeShutdownMetadata> shutdowns = new HashMap<>();
+
+        // Note that we do not explicitly configure the reallocation delay here.
+        SingleNodeShutdownMetadata shutdown = SingleNodeShutdownMetadata.builder()
+            .setNodeId(lastNodeId)
+            .setReason(this.getTestName())
+            .setStartedAtMillis(randomNonNegativeLong())
+            .setType(SingleNodeShutdownMetadata.Type.RESTART)
+            .build();
+        shutdowns.put(shutdown.getNodeId(), shutdown);
+
+        // Use a different index-level delay so this test will fail if that one gets used instead of the one from the shutdown metadata
+        checkRemainingDelayCalculation(
+            lastNodeId,
+            TimeValue.timeValueNanos(10),
+            shutdowns,
+            SingleNodeShutdownMetadata.DEFAULT_RESTART_SHARD_ALLOCATION_DELAY,
+            true
+        );
+    }
+
+    public void testRemainingDelayUsesIndexLevelDelayIfNodeWasNotRestartingWhenShardBecameUnassigned() throws Exception {
+        String lastNodeId = "bogusNodeId";
+        Map<String, SingleNodeShutdownMetadata> shutdowns = new HashMap<>();
+
+        // Generate a random time value - but don't use nanos as extremely small values of nanos can break assertion calculations
+        final TimeValue shutdownDelay = TimeValue.parseTimeValue(
+            randomTimeValue(100, 1000, "d", "h", "ms", "s", "m", "micros"),
+            this.getTestName()
+        );
+        SingleNodeShutdownMetadata shutdown = SingleNodeShutdownMetadata.builder()
+            .setNodeId(lastNodeId)
+            .setReason(this.getTestName())
+            .setStartedAtMillis(randomNonNegativeLong())
+            .setType(SingleNodeShutdownMetadata.Type.RESTART)
+            .setAllocationDelay(shutdownDelay)
+            .build();
+        shutdowns.put(shutdown.getNodeId(), shutdown);
+
+        // We want an index level delay that's less than the shutdown delay to avoid picking the index-level delay because it's larger
+        final TimeValue indexLevelDelay = randomValueOtherThanMany(
+            tv -> shutdownDelay.compareTo(tv) < 0,
+            () -> TimeValue.parseTimeValue(randomTimeValue(1, 1000, "d", "h", "ms", "s", "m", "micros"), this.getTestName())
+        );
+
+        logger.info("index level delay: {}, shutdown delay: {}", indexLevelDelay, shutdownDelay);
+        checkRemainingDelayCalculation(lastNodeId, indexLevelDelay, shutdowns, indexLevelDelay, false);
+    }
+
+    private void checkRemainingDelayCalculation(
+        String lastNodeId,
+        TimeValue indexLevelTimeoutSetting,
+        Map<String, SingleNodeShutdownMetadata> nodeShutdowns,
+        TimeValue expectedTotalDelay,
+        boolean nodeRestarting
+    ) throws Exception {
         final long baseTime = System.nanoTime();
-        UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, "test", null, 0, baseTime,
-                                                           System.currentTimeMillis(), randomBoolean(), AllocationStatus.NO_ATTEMPT);
-        final long totalDelayNanos = TimeValue.timeValueMillis(10).nanos();
+        UnassignedInfo unassignedInfo = new UnassignedInfo(
+            nodeRestarting ? UnassignedInfo.Reason.NODE_RESTARTING : UnassignedInfo.Reason.NODE_LEFT,
+            "test",
+            null,
+            0,
+            baseTime,
+            System.currentTimeMillis(),
+            randomBoolean(),
+            AllocationStatus.NO_ATTEMPT,
+            Collections.emptySet(),
+            lastNodeId
+        );
+        final long totalDelayNanos = expectedTotalDelay.nanos();
         final Settings indexSettings = Settings.builder()
-            .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueNanos(totalDelayNanos)).build();
-        long delay = unassignedInfo.getRemainingDelay(baseTime, indexSettings);
+            .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), indexLevelTimeoutSetting)
+            .build();
+        long delay = unassignedInfo.getRemainingDelay(baseTime, indexSettings, nodeShutdowns);
         assertThat(delay, equalTo(totalDelayNanos));
-        long delta1 = randomIntBetween(1, (int) (totalDelayNanos - 1));
-        delay = unassignedInfo.getRemainingDelay(baseTime + delta1, indexSettings);
+        long delta1 = randomLongBetween(1, (totalDelayNanos - 1));
+        delay = unassignedInfo.getRemainingDelay(baseTime + delta1, indexSettings, nodeShutdowns);
         assertThat(delay, equalTo(totalDelayNanos - delta1));
-        delay = unassignedInfo.getRemainingDelay(baseTime + totalDelayNanos, indexSettings);
+        delay = unassignedInfo.getRemainingDelay(baseTime + totalDelayNanos, indexSettings, nodeShutdowns);
         assertThat(delay, equalTo(0L));
-        delay = unassignedInfo.getRemainingDelay(baseTime + totalDelayNanos + randomIntBetween(1, 20), indexSettings);
+        delay = unassignedInfo.getRemainingDelay(baseTime + totalDelayNanos + randomIntBetween(1, 20), indexSettings, nodeShutdowns);
         assertThat(delay, equalTo(0L));
     }
 
-
     public void testNumberOfDelayedUnassigned() throws Exception {
         MockAllocationService allocation = createAllocationService(Settings.EMPTY, new DelayedShardsMockGatewayAllocator());
-        MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
-                .put(IndexMetaData.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
-                .build();
+        Metadata metadata = Metadata.builder()
+            .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-                .metaData(metaData)
-                .routingTable(RoutingTable.builder().addAsNew(metaData.index("test1")).addAsNew(metaData.index("test2")).build()).build();
+            .metadata(metadata)
+            .routingTable(RoutingTable.builder().addAsNew(metadata.index("test1")).addAsNew(metadata.index("test2")).build())
+            .build();
         clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))).build();
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
+            .build();
         clusterState = allocation.reroute(clusterState, "reroute");
         assertThat(UnassignedInfo.getNumberOfDelayedUnassigned(clusterState), equalTo(0));
         // starting primaries
-        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         // starting replicas
-        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         assertThat(clusterState.getRoutingNodes().unassigned().size() > 0, equalTo(false));
         // remove node2 and reroute
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node2")).build();
@@ -344,23 +603,33 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         final TimeValue delayTest2 = TimeValue.timeValueMillis(randomIntBetween(1, 200));
         final long expectMinDelaySettingsNanos = Math.min(delayTest1.nanos(), delayTest2.nanos());
 
-        MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test1").settings(settings(Version.CURRENT).put(
-                    UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayTest1)).numberOfShards(1).numberOfReplicas(1))
-                .put(IndexMetaData.builder("test2").settings(settings(Version.CURRENT).put(
-                    UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayTest2)).numberOfShards(1).numberOfReplicas(1))
-                .build();
+        Metadata metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder("test1")
+                    .settings(settings(Version.CURRENT).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayTest1))
+                    .numberOfShards(1)
+                    .numberOfReplicas(1)
+            )
+            .put(
+                IndexMetadata.builder("test2")
+                    .settings(settings(Version.CURRENT).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayTest2))
+                    .numberOfShards(1)
+                    .numberOfReplicas(1)
+            )
+            .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-                .metaData(metaData)
-                .routingTable(RoutingTable.builder().addAsNew(metaData.index("test1")).addAsNew(metaData.index("test2")).build()).build();
+            .metadata(metadata)
+            .routingTable(RoutingTable.builder().addAsNew(metadata.index("test1")).addAsNew(metadata.index("test2")).build())
+            .build();
         clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))).build();
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
+            .build();
         clusterState = allocation.reroute(clusterState, "reroute");
         assertThat(UnassignedInfo.getNumberOfDelayedUnassigned(clusterState), equalTo(0));
         // starting primaries
-        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         // starting replicas
-        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+        clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         assertThat(clusterState.getRoutingNodes().unassigned().size() > 0, equalTo(false));
         // remove node2 and reroute
         final long baseTime = System.nanoTime();
@@ -375,8 +644,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             clusterState = allocation.reroute(clusterState, "time moved");
         }
 
-        assertThat(UnassignedInfo.findNextDelayedAllocation(baseTime + delta, clusterState),
-            equalTo(expectMinDelaySettingsNanos - delta));
+        assertThat(UnassignedInfo.findNextDelayedAllocation(baseTime + delta, clusterState), equalTo(expectMinDelaySettingsNanos - delta));
     }
 
     public void testAllocationStatusSerialization() throws IOException {
@@ -387,5 +655,40 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             AllocationStatus readStatus = AllocationStatus.readFrom(in);
             assertThat(readStatus, equalTo(allocationStatus));
         }
+    }
+
+    public static UnassignedInfo randomUnassignedInfo(String message) {
+        return randomUnassignedInfo(message, null);
+    }
+
+    /**
+     * Randomly generates an UnassignedInfo.
+     * @param message The message to be used.
+     * @param delayed Used for the `delayed` flag if provided.
+     * @return A randomly-generated UnassignedInfo with the given message and delayed value (if any)
+     */
+    public static UnassignedInfo randomUnassignedInfo(String message, @Nullable Boolean delayed) {
+        UnassignedInfo.Reason reason = randomFrom(UnassignedInfo.Reason.values());
+        String lastAllocatedNodeId = null;
+        boolean delayedFlag = delayed == null ? false : delayed;
+        if (reason == UnassignedInfo.Reason.NODE_LEFT || reason == UnassignedInfo.Reason.NODE_RESTARTING) {
+            if (randomBoolean() && delayed == null) {
+                delayedFlag = true;
+            }
+            lastAllocatedNodeId = randomAlphaOfLength(10);
+        }
+        int failedAllocations = reason == UnassignedInfo.Reason.ALLOCATION_FAILED ? 1 : 0;
+        return new UnassignedInfo(
+            reason,
+            message,
+            null,
+            failedAllocations,
+            System.nanoTime(),
+            System.currentTimeMillis(),
+            delayedFlag,
+            UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+            Collections.emptySet(),
+            lastAllocatedNodeId
+        );
     }
 }

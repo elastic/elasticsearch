@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.crypto;
 
@@ -12,16 +13,9 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.core.watcher.WatcherField;
+import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.xpack.core.security.SecurityField;
-import org.elasticsearch.common.CharArrays;
-
-import javax.crypto.BadPaddingException;
-import javax.crypto.Cipher;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.SecretKey;
-import javax.crypto.spec.IvParameterSpec;
-import javax.crypto.spec.SecretKeySpec;
+import org.elasticsearch.xpack.core.watcher.WatcherField;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -31,6 +25,13 @@ import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
+
+import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 
 /**
  * Service that provides cryptographic methods based on a shared system key
@@ -53,12 +54,23 @@ public class CryptoService {
     private static final String DEFAULT_KEY_ALGORITH = "AES";
     private static final int DEFAULT_KEY_LENGTH = 128;
 
-    private static final Setting<String> ENCRYPTION_ALGO_SETTING =
-            new Setting<>(SecurityField.setting("encryption.algorithm"), s -> DEFAULT_ENCRYPTION_ALGORITHM, s -> s, Property.NodeScope);
-    private static final Setting<Integer> ENCRYPTION_KEY_LENGTH_SETTING =
-            Setting.intSetting(SecurityField.setting("encryption_key.length"), DEFAULT_KEY_LENGTH, Property.NodeScope);
-    private static final Setting<String> ENCRYPTION_KEY_ALGO_SETTING =
-            new Setting<>(SecurityField.setting("encryption_key.algorithm"), DEFAULT_KEY_ALGORITH, s -> s, Property.NodeScope);
+    private static final Setting<String> ENCRYPTION_ALGO_SETTING = new Setting<>(
+        SecurityField.setting("encryption.algorithm"),
+        s -> DEFAULT_ENCRYPTION_ALGORITHM,
+        s -> s,
+        Property.NodeScope
+    );
+    private static final Setting<Integer> ENCRYPTION_KEY_LENGTH_SETTING = Setting.intSetting(
+        SecurityField.setting("encryption_key.length"),
+        DEFAULT_KEY_LENGTH,
+        Property.NodeScope
+    );
+    private static final Setting<String> ENCRYPTION_KEY_ALGO_SETTING = new Setting<>(
+        SecurityField.setting("encryption_key.algorithm"),
+        DEFAULT_KEY_ALGORITH,
+        s -> s,
+        Property.NodeScope
+    );
     private static final Logger logger = LogManager.getLogger(CryptoService.class);
 
     private final SecureRandom secureRandom = new SecureRandom();
@@ -79,11 +91,16 @@ public class CryptoService {
             throw new IllegalArgumentException("invalid key length [" + keyLength + "]. value must be a multiple of 8");
         }
 
-        SecretKey systemKey = readSystemKey(WatcherField.ENCRYPTION_KEY_SETTING.get(settings));
-        try {
-            encryptionKey = encryptionKey(systemKey, keyLength, keyAlgorithm);
-        } catch (NoSuchAlgorithmException nsae) {
-            throw new ElasticsearchException("failed to start crypto service. could not load encryption key", nsae);
+        try (InputStream in = WatcherField.ENCRYPTION_KEY_SETTING.get(settings)) {
+            if (in == null) {
+                throw new ElasticsearchException("setting [" + WatcherField.ENCRYPTION_KEY_SETTING.getKey() + "] must be set in keystore");
+            }
+            SecretKey systemKey = readSystemKey(in);
+            try {
+                encryptionKey = encryptionKey(systemKey, keyLength, keyAlgorithm);
+            } catch (NoSuchAlgorithmException nsae) {
+                throw new ElasticsearchException("failed to start crypto service. could not load encryption key", nsae);
+            }
         }
         assert encryptionKey != null : "the encryption key should never be null";
     }
@@ -94,7 +111,8 @@ public class CryptoService {
         final int read = Streams.readFully(in, keyBytes);
         if (read != keySizeBytes) {
             throw new IllegalArgumentException(
-                    "key size did not match expected value; was the key generated with elasticsearch-syskeygen?");
+                "key size did not match expected value; was the key generated with elasticsearch-syskeygen?"
+            );
         }
         return new SecretKeySpec(keyBytes, KEY_ALGO);
     }
@@ -116,7 +134,7 @@ public class CryptoService {
      * @return plaintext chars
      */
     public char[] decrypt(char[] chars) {
-        if (!isEncrypted(chars)) {
+        if (isEncrypted(chars) == false) {
             // Not encrypted
             return chars;
         }
@@ -175,7 +193,6 @@ public class CryptoService {
             throw new IllegalStateException("error decrypting data", e);
         }
     }
-
 
     private static Cipher cipher(int mode, String encryptionAlgorithm, SecretKey key, byte[] initializationVector) {
         try {

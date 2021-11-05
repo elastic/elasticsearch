@@ -1,34 +1,27 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.watcher.hlrc;
 
+import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.client.watcher.PutWatchResponse;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.client.AbstractHlrcXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
-public class PutWatchResponseTests extends AbstractHlrcXContentTestCase<
-    org.elasticsearch.protocol.xpack.watcher.PutWatchResponse, PutWatchResponse> {
+import static org.hamcrest.Matchers.equalTo;
+
+public class PutWatchResponseTests extends AbstractResponseTestCase<
+    org.elasticsearch.protocol.xpack.watcher.PutWatchResponse,
+    PutWatchResponse> {
 
     @Override
-    protected org.elasticsearch.protocol.xpack.watcher.PutWatchResponse createTestInstance() {
+    protected org.elasticsearch.protocol.xpack.watcher.PutWatchResponse createServerTestInstance(XContentType xContentType) {
         String id = randomAlphaOfLength(10);
         long seqNo = randomNonNegativeLong();
         long primaryTerm = randomLongBetween(1, 20);
@@ -38,23 +31,19 @@ public class PutWatchResponseTests extends AbstractHlrcXContentTestCase<
     }
 
     @Override
-    protected org.elasticsearch.protocol.xpack.watcher.PutWatchResponse doParseInstance(XContentParser parser) throws IOException {
-        return org.elasticsearch.protocol.xpack.watcher.PutWatchResponse.fromXContent(parser);
+    protected PutWatchResponse doParseToClientInstance(XContentParser parser) throws IOException {
+        return PutWatchResponse.fromXContent(parser);
     }
 
     @Override
-    public PutWatchResponse doHlrcParseInstance(XContentParser parser) throws IOException {
-        return org.elasticsearch.client.watcher.PutWatchResponse.fromXContent(parser);
-    }
-
-    @Override
-    public org.elasticsearch.protocol.xpack.watcher.PutWatchResponse convertHlrcToInternal(PutWatchResponse instance) {
-        return new org.elasticsearch.protocol.xpack.watcher.PutWatchResponse(instance.getId(), instance.getVersion(),
-            instance.getSeqNo(), instance.getPrimaryTerm(), instance.isCreated());
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
+    protected void assertInstances(
+        org.elasticsearch.protocol.xpack.watcher.PutWatchResponse serverTestInstance,
+        PutWatchResponse clientInstance
+    ) {
+        assertThat(clientInstance.getId(), equalTo(serverTestInstance.getId()));
+        assertThat(clientInstance.getSeqNo(), equalTo(serverTestInstance.getSeqNo()));
+        assertThat(clientInstance.getPrimaryTerm(), equalTo(serverTestInstance.getPrimaryTerm()));
+        assertThat(clientInstance.getVersion(), equalTo(serverTestInstance.getVersion()));
+        assertThat(clientInstance.isCreated(), equalTo(serverTestInstance.isCreated()));
     }
 }

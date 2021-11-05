@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test.rest.yaml;
@@ -22,8 +11,8 @@ package org.elasticsearch.test.rest.yaml;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,7 +28,7 @@ import java.util.regex.Pattern;
  * that can be used as input values in following requests and assertions.
  */
 public class Stash implements ToXContentFragment {
-    private static final Pattern EXTENDED_KEY = Pattern.compile("\\$\\{([^}]+)\\}");
+    private static final Pattern EXTENDED_KEY = Pattern.compile("(\\\\)?\\$\\{([^}]+)\\}");
     private static final Pattern PATH = Pattern.compile("\\$_path");
 
     private static final Logger logger = LogManager.getLogger(Stash.class);
@@ -98,7 +87,8 @@ public class Stash implements ToXContentFragment {
         }
         Matcher matcher = EXTENDED_KEY.matcher(key);
         /*
-         * String*Buffer* because that is what the Matcher API takes. In modern versions of java the uncontended synchronization is very,
+         * String*Buffer* because that is what the Matcher API takes. In
+         * modern versions of java the uncontended synchronization is very,
          * very cheap so that should not be a problem.
          */
         StringBuffer result = new StringBuffer(key.length());
@@ -106,7 +96,9 @@ public class Stash implements ToXContentFragment {
             throw new IllegalArgumentException("Doesn't contain any stash keys [" + key + "]");
         }
         do {
-            matcher.appendReplacement(result, Matcher.quoteReplacement(unstash(matcher.group(1)).toString()));
+            boolean unstash = matcher.group(1) == null;
+            String value = unstash ? unstash(matcher.group(2)).toString() : matcher.group(0).substring(1);
+            matcher.appendReplacement(result, Matcher.quoteReplacement(value));
         } while (matcher.find());
         matcher.appendTail(result);
         return result.toString();
@@ -162,8 +154,15 @@ public class Stash implements ToXContentFragment {
                 }
                 path.remove(path.size() - 1);
                 if (null != result.putIfAbsent(key, value)) {
-                    throw new IllegalArgumentException("Unstashing has caused a key conflict! The map is [" + result + "] and the key is ["
-                            + entry.getKey() + "] which unstashes to [" + key + "]");
+                    throw new IllegalArgumentException(
+                        "Unstashing has caused a key conflict! The map is ["
+                            + result
+                            + "] and the key is ["
+                            + entry.getKey()
+                            + "] which unstashes to ["
+                            + key
+                            + "]"
+                    );
                 }
             }
             return result;

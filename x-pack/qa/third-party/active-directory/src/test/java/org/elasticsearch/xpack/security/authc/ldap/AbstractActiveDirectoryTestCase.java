@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
@@ -9,9 +10,11 @@ import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPConnectionPool;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPInterface;
+
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslVerificationMode;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
@@ -21,7 +24,6 @@ import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.core.ssl.VerificationMode;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -51,7 +53,7 @@ public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
     public static final String PASSWORD = getFromEnv("TESTS_AD_USER_PASSWORD", "Passw0rd");
     public static final String AD_LDAP_PORT = getFromEnv("TESTS_AD_LDAP_PORT", getFromProperty("389"));
 
-    public static final String AD_LDAPS_PORT = getFromEnv("TESTS_AD_LDAPS_PORT",  getFromProperty("636"));
+    public static final String AD_LDAPS_PORT = getFromEnv("TESTS_AD_LDAPS_PORT", getFromProperty("636"));
     public static final String AD_GC_LDAP_PORT = getFromEnv("TESTS_AD_GC_LDAP_PORT", getFromProperty("3268"));
     public static final String AD_GC_LDAPS_PORT = getFromEnv("TESTS_AD_GC_LDAPS_PORT", getFromProperty("3269"));
     public static final String AD_DOMAIN = "ad.test.elasticsearch.com";
@@ -65,8 +67,7 @@ public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
         // We use certificates in PEM format and `ssl.certificate_authorities` instead of ssl.trustore
         // so that these tests can also run in a FIPS JVM where JKS keystores can't be used.
         certificatePaths = new ArrayList<>();
-        Files.walkFileTree(getDataPath
-            ("../ldap/support"), new SimpleFileVisitor<Path>() {
+        Files.walkFileTree(getDataPath("../ldap/support"), new SimpleFileVisitor<Path>() {
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                 String fileName = file.getFileName().toString();
@@ -78,27 +79,33 @@ public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
         });
         /*
          * Prior to each test we reinitialize the socket factory with a new SSLService so that we get a new SSLContext.
-         * If we re-use a SSLContext, previously connected sessions can get re-established which breaks hostname
+         * If we re-use an SSLContext, previously connected sessions can get re-established which breaks hostname
          * verification tests since a re-established connection does not perform hostname verification.
          */
         Settings.Builder builder = Settings.builder().put("path.home", createTempDir());
 
         // fake realms so ssl will get loaded
-        builder.putList("xpack.security.authc.realms.foo.ssl.certificate_authorities", certificatePaths);
-        builder.put("xpack.security.authc.realms.foo.ssl.verification_mode", VerificationMode.FULL);
-        builder.putList("xpack.security.authc.realms.bar.ssl.certificate_authorities", certificatePaths);
-        builder.put("xpack.security.authc.realms.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
+        builder.putList("xpack.security.authc.realms.active_directory.foo.ssl.certificate_authorities", certificatePaths);
+        builder.put("xpack.security.authc.realms.active_directory.foo.ssl.verification_mode", SslVerificationMode.FULL);
+        builder.putList("xpack.security.authc.realms.active_directory.bar.ssl.certificate_authorities", certificatePaths);
+        builder.put("xpack.security.authc.realms.active_directory.bar.ssl.verification_mode", SslVerificationMode.CERTIFICATE);
         globalSettings = builder.build();
         Environment environment = TestEnvironment.newEnvironment(globalSettings);
-        sslService = new SSLService(globalSettings, environment);
+        sslService = new SSLService(environment);
     }
 
-    Settings buildAdSettings(RealmConfig.RealmIdentifier realmId, String ldapUrl, String adDomainName, String userSearchDN,
-                             LdapSearchScope scope, boolean hostnameVerification) {
+    Settings buildAdSettings(
+        RealmConfig.RealmIdentifier realmId,
+        String ldapUrl,
+        String adDomainName,
+        String userSearchDN,
+        LdapSearchScope scope,
+        boolean hostnameVerification
+    ) {
         final String realmName = realmId.getName();
         Settings.Builder builder = Settings.builder()
             .putList(getFullSettingKey(realmId, SessionFactorySettings.URLS_SETTING), ldapUrl)
-            .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING), adDomainName)
+            .put(getFullSettingKey(realmId, ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING), adDomainName)
             .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_BASEDN_SETTING), userSearchDN)
             .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_SCOPE_SETTING), scope)
             .put(getFullSettingKey(realmName, ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING), AD_LDAP_PORT)
@@ -108,8 +115,10 @@ public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
             .put(getFullSettingKey(realmId, SessionFactorySettings.FOLLOW_REFERRALS_SETTING), FOLLOW_REFERRALS)
             .putList(getFullSettingKey(realmId, SSLConfigurationSettings.CAPATH_SETTING_REALM), certificatePaths);
         if (randomBoolean()) {
-            builder.put(getFullSettingKey(realmId, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM),
-                    hostnameVerification ? VerificationMode.FULL : VerificationMode.CERTIFICATE);
+            builder.put(
+                getFullSettingKey(realmId, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM),
+                hostnameVerification ? SslVerificationMode.FULL : SslVerificationMode.CERTIFICATE
+            );
         } else {
             builder.put(getFullSettingKey(realmId, SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING), hostnameVerification);
         }
@@ -129,8 +138,11 @@ public abstract class AbstractActiveDirectoryTestCase extends ESTestCase {
                         }
                     }
                 } catch (LDAPException e) {
-                    fail("Connection is not valid. It will not work on follow referral flow." +
-                            System.lineSeparator() + ExceptionsHelper.stackTrace(e));
+                    fail(
+                        "Connection is not valid. It will not work on follow referral flow."
+                            + System.lineSeparator()
+                            + ExceptionsHelper.stackTrace(e)
+                    );
                 }
                 return null;
             }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.shard;
@@ -34,15 +23,22 @@ public class ReplicationGroup {
     private final IndexShardRoutingTable routingTable;
     private final Set<String> inSyncAllocationIds;
     private final Set<String> trackedAllocationIds;
+    private final long version;
 
     private final Set<String> unavailableInSyncShards; // derived from the other fields
     private final List<ShardRouting> replicationTargets; // derived from the other fields
     private final List<ShardRouting> skippedShards; // derived from the other fields
 
-    public ReplicationGroup(IndexShardRoutingTable routingTable, Set<String> inSyncAllocationIds, Set<String> trackedAllocationIds) {
+    public ReplicationGroup(
+        IndexShardRoutingTable routingTable,
+        Set<String> inSyncAllocationIds,
+        Set<String> trackedAllocationIds,
+        long version
+    ) {
         this.routingTable = routingTable;
         this.inSyncAllocationIds = inSyncAllocationIds;
         this.trackedAllocationIds = trackedAllocationIds;
+        this.version = version;
 
         this.unavailableInSyncShards = Sets.difference(inSyncAllocationIds, routingTable.getAllAllocationIds());
         this.replicationTargets = new ArrayList<>();
@@ -55,8 +51,8 @@ public class ReplicationGroup {
                 if (trackedAllocationIds.contains(shard.allocationId().getId())) {
                     replicationTargets.add(shard);
                 } else {
-                    assert inSyncAllocationIds.contains(shard.allocationId().getId()) == false :
-                        "in-sync shard copy but not tracked: " + shard;
+                    assert inSyncAllocationIds.contains(shard.allocationId().getId()) == false
+                        : "in-sync shard copy but not tracked: " + shard;
                     skippedShards.add(shard);
                 }
                 if (shard.relocating()) {
@@ -65,12 +61,16 @@ public class ReplicationGroup {
                         replicationTargets.add(relocationTarget);
                     } else {
                         skippedShards.add(relocationTarget);
-                        assert inSyncAllocationIds.contains(relocationTarget.allocationId().getId()) == false :
-                            "in-sync shard copy but not tracked: " + shard;
+                        assert inSyncAllocationIds.contains(relocationTarget.allocationId().getId()) == false
+                            : "in-sync shard copy but not tracked: " + shard;
                     }
                 }
             }
         }
+    }
+
+    public long getVersion() {
+        return version;
     }
 
     public IndexShardRoutingTable getRoutingTable() {
@@ -79,6 +79,10 @@ public class ReplicationGroup {
 
     public Set<String> getInSyncAllocationIds() {
         return inSyncAllocationIds;
+    }
+
+    public Set<String> getTrackedAllocationIds() {
+        return trackedAllocationIds;
     }
 
     /**
@@ -103,7 +107,6 @@ public class ReplicationGroup {
         return skippedShards;
     }
 
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -111,8 +114,8 @@ public class ReplicationGroup {
 
         ReplicationGroup that = (ReplicationGroup) o;
 
-        if (!routingTable.equals(that.routingTable)) return false;
-        if (!inSyncAllocationIds.equals(that.inSyncAllocationIds)) return false;
+        if (routingTable.equals(that.routingTable) == false) return false;
+        if (inSyncAllocationIds.equals(that.inSyncAllocationIds) == false) return false;
         return trackedAllocationIds.equals(that.trackedAllocationIds);
     }
 
@@ -126,11 +129,14 @@ public class ReplicationGroup {
 
     @Override
     public String toString() {
-        return "ReplicationGroup{" +
-            "routingTable=" + routingTable +
-            ", inSyncAllocationIds=" + inSyncAllocationIds +
-            ", trackedAllocationIds=" + trackedAllocationIds +
-            '}';
+        return "ReplicationGroup{"
+            + "routingTable="
+            + routingTable
+            + ", inSyncAllocationIds="
+            + inSyncAllocationIds
+            + ", trackedAllocationIds="
+            + trackedAllocationIds
+            + '}';
     }
 
 }

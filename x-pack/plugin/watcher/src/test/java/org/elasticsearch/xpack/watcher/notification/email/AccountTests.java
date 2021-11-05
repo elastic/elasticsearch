@@ -1,25 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.email;
 
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.common.secret.Secret;
 import org.elasticsearch.xpack.watcher.notification.email.support.EmailServer;
 import org.junit.After;
 import org.junit.Before;
 
-import javax.mail.Address;
-import javax.mail.Message;
-import javax.mail.internet.InternetAddress;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+
+import javax.mail.Address;
+import javax.mail.Message;
+import javax.mail.internet.InternetAddress;
 
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
@@ -128,10 +130,12 @@ public class AccountTests extends ESTestCase {
         }
 
         // default properties
-        for (String name : new String[]{ "connection_timeout", "write_timeout", "timeout"}) {
+        for (String name : new String[] { "connection_timeout", "write_timeout", "timeout" }) {
             String propertyName = name.replaceAll("_", "");
-            smtpProps.put("mail.smtp." + propertyName,
-                    String.valueOf(TimeValue.parseTimeValue(Account.DEFAULT_SMTP_TIMEOUT_SETTINGS.get(name), name).millis()));
+            smtpProps.put(
+                "mail.smtp." + propertyName,
+                String.valueOf(TimeValue.parseTimeValue(Account.DEFAULT_SMTP_TIMEOUT_SETTINGS.get(name), name).millis())
+            );
         }
 
         Settings smtpSettings = smtpBuilder.build();
@@ -141,7 +145,7 @@ public class AccountTests extends ESTestCase {
 
         Settings settings = builder.build();
 
-        Account.Config config = new Account.Config(accountName, settings);
+        Account.Config config = new Account.Config(accountName, settings, null, logger);
 
         assertThat(config.profile, is(profile));
         assertThat(config.defaults, equalTo(emailDefaults));
@@ -160,28 +164,36 @@ public class AccountTests extends ESTestCase {
     public void testSend() throws Exception {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("smtp." + Account.SECURE_PASSWORD_SETTING.getKey(), EmailServer.PASSWORD);
-        Account account = new Account(new Account.Config("default", Settings.builder()
-                .put("smtp.host", "localhost")
-                .put("smtp.port", server.port())
-                .put("smtp.user", EmailServer.USERNAME)
-                .setSecureSettings(secureSettings)
-                .build()), null, logger);
+        Account account = new Account(
+            new Account.Config(
+                "default",
+                Settings.builder()
+                    .put("smtp.host", "localhost")
+                    .put("smtp.port", server.port())
+                    .put("smtp.user", EmailServer.USERNAME)
+                    .setSecureSettings(secureSettings)
+                    .build(),
+                null,
+                logger
+            ),
+            null,
+            logger
+        );
 
         Email email = Email.builder()
-                .id("_id")
-                .from(new Email.Address("from@domain.com"))
-                .to(Email.AddressList.parse("To<to@domain.com>"))
-                .subject("_subject")
-                .textBody("_text_body")
-                .build();
+            .id("_id")
+            .from(new Email.Address("from@domain.com"))
+            .to(Email.AddressList.parse("To<to@domain.com>"))
+            .subject("_subject")
+            .textBody("_text_body")
+            .build();
 
         final CountDownLatch latch = new CountDownLatch(1);
         server.addListener(message -> {
             assertThat(message.getFrom().length, is(1));
             assertThat(message.getFrom()[0], equalTo(new InternetAddress("from@domain.com")));
             assertThat(message.getRecipients(Message.RecipientType.TO).length, is(1));
-            assertThat(message.getRecipients(Message.RecipientType.TO)[0],
-                    equalTo(new InternetAddress("to@domain.com", "To")));
+            assertThat(message.getRecipients(Message.RecipientType.TO)[0], equalTo(new InternetAddress("to@domain.com", "To")));
             assertThat(message.getSubject(), equalTo("_subject"));
             assertThat(Profile.STANDARD.textBody(message), equalTo("_text_body"));
             latch.countDown();
@@ -189,7 +201,7 @@ public class AccountTests extends ESTestCase {
 
         account.send(email, null, Profile.STANDARD);
 
-        if (!latch.await(5, TimeUnit.SECONDS)) {
+        if (latch.await(5, TimeUnit.SECONDS) == false) {
             fail("waiting for email too long");
         }
     }
@@ -197,21 +209,30 @@ public class AccountTests extends ESTestCase {
     public void testSendCCAndBCC() throws Exception {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("smtp." + Account.SECURE_PASSWORD_SETTING.getKey(), EmailServer.PASSWORD);
-        Account account = new Account(new Account.Config("default", Settings.builder()
-                .put("smtp.host", "localhost")
-                .put("smtp.port", server.port())
-                .put("smtp.user", EmailServer.USERNAME)
-                .setSecureSettings(secureSettings)
-                .build()), null, logger);
+        Account account = new Account(
+            new Account.Config(
+                "default",
+                Settings.builder()
+                    .put("smtp.host", "localhost")
+                    .put("smtp.port", server.port())
+                    .put("smtp.user", EmailServer.USERNAME)
+                    .setSecureSettings(secureSettings)
+                    .build(),
+                null,
+                logger
+            ),
+            null,
+            logger
+        );
 
         Email email = Email.builder()
-                .id("_id")
-                .from(new Email.Address("from@domain.com"))
-                .to(Email.AddressList.parse("TO<to@domain.com>"))
-                .cc(Email.AddressList.parse("CC1<cc1@domain.com>,cc2@domain.com"))
-                .bcc(Email.AddressList.parse("BCC1<bcc1@domain.com>,bcc2@domain.com"))
-                .replyTo(Email.AddressList.parse("noreply@domain.com"))
-                .build();
+            .id("_id")
+            .from(new Email.Address("from@domain.com"))
+            .to(Email.AddressList.parse("TO<to@domain.com>"))
+            .cc(Email.AddressList.parse("CC1<cc1@domain.com>,cc2@domain.com"))
+            .bcc(Email.AddressList.parse("BCC1<bcc1@domain.com>,bcc2@domain.com"))
+            .replyTo(Email.AddressList.parse("noreply@domain.com"))
+            .build();
 
         final CountDownLatch latch = new CountDownLatch(5);
         server.addListener(message -> {
@@ -220,8 +241,10 @@ public class AccountTests extends ESTestCase {
             assertThat(message.getRecipients(Message.RecipientType.TO).length, is(1));
             assertThat(message.getRecipients(Message.RecipientType.TO)[0], equalTo(new InternetAddress("to@domain.com", "TO")));
             assertThat(message.getRecipients(Message.RecipientType.CC).length, is(2));
-            assertThat(message.getRecipients(Message.RecipientType.CC),
-                    hasItemInArray((Address) new InternetAddress("cc1@domain.com", "CC1")));
+            assertThat(
+                message.getRecipients(Message.RecipientType.CC),
+                hasItemInArray((Address) new InternetAddress("cc1@domain.com", "CC1"))
+            );
             assertThat(message.getRecipients(Message.RecipientType.CC), hasItemInArray((Address) new InternetAddress("cc2@domain.com")));
             assertThat(message.getReplyTo(), arrayWithSize(1));
             assertThat(message.getReplyTo(), hasItemInArray((Address) new InternetAddress("noreply@domain.com")));
@@ -231,40 +254,52 @@ public class AccountTests extends ESTestCase {
 
         account.send(email, null, Profile.STANDARD);
 
-        if (!latch.await(5, TimeUnit.SECONDS)) {
+        if (latch.await(5, TimeUnit.SECONDS) == false) {
             fail("waiting for email too long");
         }
     }
 
     public void testSendAuthentication() throws Exception {
-        Account account = new Account(new Account.Config("default", Settings.builder()
-                .put("smtp.host", "localhost")
-                .put("smtp.port", server.port())
-                .build()), null, logger);
+        Account account = new Account(
+            new Account.Config(
+                "default",
+                Settings.builder().put("smtp.host", "localhost").put("smtp.port", server.port()).build(),
+                null,
+                logger
+            ),
+            null,
+            logger
+        );
 
         Email email = Email.builder()
-                .id("_id")
-                .from(new Email.Address("from@domain.com"))
-                .to(Email.AddressList.parse("To<to@domain.com>"))
-                .subject("_subject")
-                .textBody("_text_body")
-                .build();
+            .id("_id")
+            .from(new Email.Address("from@domain.com"))
+            .to(Email.AddressList.parse("To<to@domain.com>"))
+            .subject("_subject")
+            .textBody("_text_body")
+            .build();
 
         final CountDownLatch latch = new CountDownLatch(1);
         server.addListener(message -> latch.countDown());
 
         account.send(email, new Authentication(EmailServer.USERNAME, new Secret(EmailServer.PASSWORD.toCharArray())), Profile.STANDARD);
 
-        if (!latch.await(5, TimeUnit.SECONDS)) {
+        if (latch.await(5, TimeUnit.SECONDS) == false) {
             fail("waiting for email too long");
         }
     }
 
     public void testDefaultAccountTimeout() {
-        Account account = new Account(new Account.Config("default", Settings.builder()
-                .put("smtp.host", "localhost")
-                .put("smtp.port", server.port())
-                .build()), null, logger);
+        Account account = new Account(
+            new Account.Config(
+                "default",
+                Settings.builder().put("smtp.host", "localhost").put("smtp.port", server.port()).build(),
+                null,
+                logger
+            ),
+            null,
+            logger
+        );
 
         Properties mailProperties = account.getConfig().smtp.properties;
         assertThat(mailProperties.get("mail.smtp.connectiontimeout"), is(String.valueOf(TimeValue.timeValueMinutes(2).millis())));
@@ -273,13 +308,22 @@ public class AccountTests extends ESTestCase {
     }
 
     public void testAccountTimeoutsCanBeConfigureAsTimeValue() {
-        Account account = new Account(new Account.Config("default", Settings.builder()
-                .put("smtp.host", "localhost")
-                .put("smtp.port", server.port())
-                .put("smtp.connection_timeout", TimeValue.timeValueMinutes(4))
-                .put("smtp.write_timeout", TimeValue.timeValueMinutes(6))
-                .put("smtp.timeout", TimeValue.timeValueMinutes(8))
-                .build()), null, logger);
+        Account account = new Account(
+            new Account.Config(
+                "default",
+                Settings.builder()
+                    .put("smtp.host", "localhost")
+                    .put("smtp.port", server.port())
+                    .put("smtp.connection_timeout", TimeValue.timeValueMinutes(4))
+                    .put("smtp.write_timeout", TimeValue.timeValueMinutes(6))
+                    .put("smtp.timeout", TimeValue.timeValueMinutes(8))
+                    .build(),
+                null,
+                logger
+            ),
+            null,
+            logger
+        );
 
         Properties mailProperties = account.getConfig().smtp.properties;
 
@@ -290,11 +334,20 @@ public class AccountTests extends ESTestCase {
 
     public void testAccountTimeoutsConfiguredAsNumberAreRejected() {
         expectThrows(IllegalArgumentException.class, () -> {
-            new Account(new Account.Config("default", Settings.builder()
-                    .put("smtp.host", "localhost")
-                    .put("smtp.port", server.port())
-                    .put("smtp.connection_timeout", 4000)
-                    .build()), null, logger);
+            new Account(
+                new Account.Config(
+                    "default",
+                    Settings.builder()
+                        .put("smtp.host", "localhost")
+                        .put("smtp.port", server.port())
+                        .put("smtp.connection_timeout", 4000)
+                        .build(),
+                    null,
+                    logger
+                ),
+                null,
+                logger
+            );
         });
     }
 

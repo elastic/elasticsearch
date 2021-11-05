@@ -1,46 +1,95 @@
 [[indices-get-settings]]
-== Get Settings
+=== Get index settings API
+++++
+<titleabbrev>Get index settings</titleabbrev>
+++++
 
-The get settings API allows to retrieve settings of index/indices:
+Returns setting information for one or more indices. For data streams, the API
+returns setting information for the stream's backing indices.
 
-[source,js]
+[source,console]
 --------------------------------------------------
-GET /twitter/_settings
+GET /my-index-000001/_settings
 --------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 
-[float]
-=== Multiple Indices and Types
 
-The get settings API can be used to get settings for more than one index
-with a single call. General usage of the API follows the
-following syntax: `host:port/{index}/_settings` where
-`{index}` can stand for comma-separated list of index names and aliases. To
-get settings for all indices you can use `_all` for `{index}`.
+[[get-index-settings-api-request]]
+==== {api-request-title}
+
+`GET /<target>/_settings`
+
+`GET /<target>/_settings/<setting>`
+
+[[get-index-settings-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`view_index_metadata`, `monitor`, or `manage` <<privileges-list-indices,index
+privilege>> for the target data stream, index, or alias.
+
+[[get-index-settings-api-path-params]]
+==== {api-path-parms-title}
+
+`<target>`::
+(Optional, string) Comma-separated list of data streams, indices, and aliases
+used to limit the request. Supports wildcards (`*`). To target all data streams
+and indices, omit this parameter or use `*` or `_all`.
+
+`<setting>`::
+(Optional, string) Comma-separated list or wildcard expression of setting names
+used to limit the request.
+
+
+[[get-index-settings-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `true`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
++
+Defaults to `all`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-defaults]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+
+[[get-index-settings-api-example]]
+==== {api-examples-title}
+
+===== Multiple data streams and indices
+
+The get settings API can be used to get settings for more than one data stream or index with a
+single call. To get settings for all indices in a cluster, you can use `_all` or `*` for `<target>`.
 Wildcard expressions are also supported. The following are some examples:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-GET /twitter,kimchy/_settings
+GET /my-index-000001,my-index-000002/_settings
 
 GET /_all/_settings
 
-GET /log_2013_*/_settings
+GET /log_2099_*/_settings
 --------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
-// TEST[s/^/PUT kimchy\nPUT log_2013_01_01\n/]
+// TEST[setup:my_index]
+// TEST[s/^/PUT my-index-000002\nPUT log_2099_01_01\n/]
 
-[float]
-=== Filtering settings by name
+===== Filtering settings by name
 
 The settings that are returned can be filtered with wildcard matching
 as follows:
 
-[source,js]
+[source,console]
 --------------------------------------------------
-GET /log_2013_-*/_settings/index.number_*
+GET /log_2099_-*/_settings/index.number_*
 --------------------------------------------------
-// CONSOLE
 // TEST[continued]

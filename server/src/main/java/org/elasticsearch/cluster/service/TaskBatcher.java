@@ -1,30 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.service;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -58,24 +48,35 @@ public abstract class TaskBatcher {
             return;
         }
         final BatchedTask firstTask = tasks.get(0);
-        assert tasks.stream().allMatch(t -> t.batchingKey == firstTask.batchingKey) :
-            "tasks submitted in a batch should share the same batching key: " + tasks;
+        assert tasks.stream().allMatch(t -> t.batchingKey == firstTask.batchingKey)
+            : "tasks submitted in a batch should share the same batching key: " + tasks;
         // convert to an identity map to check for dups based on task identity
-        final Map<Object, BatchedTask> tasksIdentity = tasks.stream().collect(Collectors.toMap(
-            BatchedTask::getTask,
-            Function.identity(),
-            (a, b) -> { throw new IllegalStateException("cannot add duplicate task: " + a); },
-            IdentityHashMap::new));
+        final Map<Object, BatchedTask> tasksIdentity = tasks.stream()
+            .collect(
+                Collectors.toMap(
+                    BatchedTask::getTask,
+                    Function.identity(),
+                    (a, b) -> { throw new IllegalStateException("cannot add duplicate task: " + a); },
+                    IdentityHashMap::new
+                )
+            );
 
         synchronized (tasksPerBatchingKey) {
-            LinkedHashSet<BatchedTask> existingTasks = tasksPerBatchingKey.computeIfAbsent(firstTask.batchingKey,
-                k -> new LinkedHashSet<>(tasks.size()));
+            LinkedHashSet<BatchedTask> existingTasks = tasksPerBatchingKey.computeIfAbsent(
+                firstTask.batchingKey,
+                k -> new LinkedHashSet<>(tasks.size())
+            );
             for (BatchedTask existing : existingTasks) {
                 // check that there won't be two tasks with the same identity for the same batching key
                 BatchedTask duplicateTask = tasksIdentity.get(existing.getTask());
                 if (duplicateTask != null) {
-                    throw new IllegalStateException("task [" + duplicateTask.describeTasks(
-                        Collections.singletonList(existing)) + "] with source [" + duplicateTask.source + "] is already queued");
+                    throw new IllegalStateException(
+                        "task ["
+                            + duplicateTask.describeTasks(Collections.singletonList(existing))
+                            + "] with source ["
+                            + duplicateTask.source
+                            + "] is already queued"
+                    );
                 }
             }
             existingTasks.addAll(tasks);
@@ -99,8 +100,8 @@ public abstract class TaskBatcher {
         if (toRemove.isEmpty() == false) {
             BatchedTask firstTask = toRemove.get(0);
             Object batchingKey = firstTask.batchingKey;
-            assert tasks.stream().allMatch(t -> t.batchingKey == batchingKey) :
-                "tasks submitted in a batch should share the same batching key: " + tasks;
+            assert tasks.stream().allMatch(t -> t.batchingKey == batchingKey)
+                : "tasks submitted in a batch should share the same batching key: " + tasks;
             synchronized (tasksPerBatchingKey) {
                 LinkedHashSet<BatchedTask> existingTasks = tasksPerBatchingKey.get(batchingKey);
                 if (existingTasks != null) {
@@ -142,14 +143,27 @@ public abstract class TaskBatcher {
             }
 
             if (toExecute.isEmpty() == false) {
-                final String tasksSummary = processTasksBySource.entrySet().stream().map(entry -> {
-                    String tasks = updateTask.describeTasks(entry.getValue());
-                    return tasks.isEmpty() ? entry.getKey() : entry.getKey() + "[" + tasks + "]";
-                }).reduce((s1, s2) -> s1 + ", " + s2).orElse("");
-
-                run(updateTask.batchingKey, toExecute, tasksSummary);
+                run(updateTask.batchingKey, toExecute, buildTasksDescription(updateTask, toExecute, processTasksBySource));
             }
         }
+    }
+
+    private static final int MAX_TASK_DESCRIPTION_CHARS = 8 * 1024;
+
+    private String buildTasksDescription(
+        BatchedTask updateTask,
+        List<BatchedTask> toExecute,
+        Map<String, List<BatchedTask>> processTasksBySource
+    ) {
+        final StringBuilder output = new StringBuilder();
+        Strings.collectionToDelimitedStringWithLimit((Iterable<String>) () -> processTasksBySource.entrySet().stream().map(entry -> {
+            String tasks = updateTask.describeTasks(entry.getValue());
+            return tasks.isEmpty() ? entry.getKey() : entry.getKey() + "[" + tasks + "]";
+        }).filter(s -> s.isEmpty() == false).iterator(), ", ", "", "", MAX_TASK_DESCRIPTION_CHARS, output);
+        if (output.length() > MAX_TASK_DESCRIPTION_CHARS) {
+            output.append(" (").append(toExecute.size()).append(" tasks in total)");
+        }
+        return output.toString();
     }
 
     /**

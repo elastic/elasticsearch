@@ -1,14 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.cli;
 
+import joptsimple.OptionException;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import joptsimple.OptionSpecBuilder;
+
 import org.bouncycastle.asn1.DERIA5String;
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
@@ -24,25 +27,22 @@ import org.elasticsearch.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.elasticsearch.xpack.core.ssl.PemUtils;
-
-import javax.security.auth.x500.X500Principal;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -79,6 +79,8 @@ import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+import javax.security.auth.x500.X500Principal;
+
 /**
  * CLI tool to make generation of certificates or certificate requests easier for users
  */
@@ -102,9 +104,15 @@ public class CertificateTool extends LoggingAwareMultiCommand {
     private static final int DEFAULT_DAYS = 3 * 365;
     private static final int FILE_EXTENSION_LENGTH = 4;
     static final int MAX_FILENAME_LENGTH = 255 - FILE_EXTENSION_LENGTH;
-    private static final Pattern ALLOWED_FILENAME_CHAR_PATTERN =
-        Pattern.compile("[a-zA-Z0-9!@#$%^&{}\\[\\]()_+\\-=,.~'` ]{1," + MAX_FILENAME_LENGTH + "}");
+    private static final Pattern ALLOWED_FILENAME_CHAR_PATTERN = Pattern.compile(
+        "[a-zA-Z0-9!@#$%^&{}\\[\\]()_+\\-=,.~'` ]{1," + MAX_FILENAME_LENGTH + "}"
+    );
     private static final int DEFAULT_KEY_SIZE = 2048;
+
+    // Older versions of OpenSSL had a max internal password length.
+    // We issue warnings when writing files with passwords that would not be usable in those versions of OpenSSL.
+    static final String OLD_OPENSSL_VERSION = "1.1.0";
+    static final int MAX_PASSWORD_OLD_OPENSSL = 50;
 
     /**
      * Wraps the certgen object parser.
@@ -116,12 +124,17 @@ public class CertificateTool extends LoggingAwareMultiCommand {
         // error messages from the class initializer for ParseField since it creates Logger instances; therefore, we bury the initialization
         // of the parser in this class so that we can defer initialization until after logging has been initialized
         static {
-            @SuppressWarnings("unchecked") final ConstructingObjectParser<CertificateInformation, Void> instanceParser =
-                new ConstructingObjectParser<>(
-                    "instances",
-                    a -> new CertificateInformation(
-                        (String) a[0], (String) (a[1] == null ? a[0] : a[1]),
-                        (List<String>) a[2], (List<String>) a[3], (List<String>) a[4]));
+            @SuppressWarnings("unchecked")
+            final ConstructingObjectParser<CertificateInformation, Void> instanceParser = new ConstructingObjectParser<>(
+                "instances",
+                a -> new CertificateInformation(
+                    (String) a[0],
+                    (String) (a[1] == null ? a[0] : a[1]),
+                    (List<String>) a[2],
+                    (List<String>) a[3],
+                    (List<String>) a[4]
+                )
+            );
             instanceParser.declareString(ConstructingObjectParser.constructorArg(), new ParseField("name"));
             instanceParser.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("filename"));
             instanceParser.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), new ParseField("ip"));
@@ -132,7 +145,6 @@ public class CertificateTool extends LoggingAwareMultiCommand {
         }
     }
 
-
     public static void main(String[] args) throws Exception {
         exit(new CertificateTool().main(args, Terminal.DEFAULT));
     }
@@ -142,33 +154,49 @@ public class CertificateTool extends LoggingAwareMultiCommand {
         subcommands.put("csr", new SigningRequestCommand());
         subcommands.put("cert", new GenerateCertificateCommand());
         subcommands.put("ca", new CertificateAuthorityCommand());
+        subcommands.put("http", new HttpCertificateCommand());
     }
 
+    @Override
+    protected void execute(Terminal terminal, OptionSet options) throws Exception {
+        try {
+            super.execute(terminal, options);
+        } catch (OptionException e) {
+            if (e.options().size() == 1 && e.options().contains("keep-ca-key")) {
+                throw new UserException(
+                    ExitCodes.USAGE,
+                    "Generating certificates without providing a CA is no longer supported.\n"
+                        + "Please first generate a CA with the 'ca' sub-command and provide the ca file \n"
+                        + "with either --ca or --ca-cert/--ca-key to generate certificates."
+                );
+            } else {
+                throw e;
+            }
+        }
+    }
 
-    static final String INTRO_TEXT = "This tool assists you in the generation of X.509 certificates and certificate\n" +
-        "signing requests for use with SSL/TLS in the Elastic stack.";
+    static final String INTRO_TEXT = "This tool assists you in the generation of X.509 certificates and certificate\n"
+        + "signing requests for use with SSL/TLS in the Elastic stack.";
 
-    static final String INSTANCE_EXPLANATION =
-        "    * An instance is any piece of the Elastic Stack that requires a SSL certificate.\n" +
-            "      Depending on your configuration, Elasticsearch, Logstash, Kibana, and Beats\n" +
-            "      may all require a certificate and private key.\n" +
-            "    * The minimum required value for each instance is a name. This can simply be the\n" +
-            "      hostname, which will be used as the Common Name of the certificate. A full\n" +
-            "      distinguished name may also be used.\n" +
-            "    * A filename value may be required for each instance. This is necessary when the\n" +
-            "      name would result in an invalid file or directory name. The name provided here\n" +
-            "      is used as the directory name (within the zip) and the prefix for the key and\n" +
-            "      certificate files. The filename is required if you are prompted and the name\n" +
-            "      is not displayed in the prompt.\n" +
-            "    * IP addresses and DNS names are optional. Multiple values can be specified as a\n" +
-            "      comma separated string. If no IP addresses or DNS names are provided, you may\n" +
-            "      disable hostname verification in your SSL configuration.";
+    static final String INSTANCE_EXPLANATION = "    * An instance is any piece of the Elastic Stack that requires an SSL certificate.\n"
+        + "      Depending on your configuration, Elasticsearch, Logstash, Kibana, and Beats\n"
+        + "      may all require a certificate and private key.\n"
+        + "    * The minimum required value for each instance is a name. This can simply be the\n"
+        + "      hostname, which will be used as the Common Name of the certificate. A full\n"
+        + "      distinguished name may also be used.\n"
+        + "    * A filename value may be required for each instance. This is necessary when the\n"
+        + "      name would result in an invalid file or directory name. The name provided here\n"
+        + "      is used as the directory name (within the zip) and the prefix for the key and\n"
+        + "      certificate files. The filename is required if you are prompted and the name\n"
+        + "      is not displayed in the prompt.\n"
+        + "    * IP addresses and DNS names are optional. Multiple values can be specified as a\n"
+        + "      comma separated string. If no IP addresses or DNS names are provided, you may\n"
+        + "      disable hostname verification in your SSL configuration.";
 
-    static final String CA_EXPLANATION =
-        "    * All certificates generated by this tool will be signed by a certificate authority (CA).\n" +
-            "    * The tool can automatically generate a new CA for you, or you can provide your own with the\n" +
-            "         -ca or -ca-cert command line options.";
-
+    static final String CA_EXPLANATION = "    * All certificates generated by this tool will be signed by a certificate authority (CA)\n"
+        + "      unless the --self-signed command line option is specified.\n"
+        + "      The tool can automatically generate a new CA for you, or you can provide your own with\n"
+        + "      the --ca or --ca-cert command line options.";
 
     abstract static class CertificateCommand extends EnvironmentAwareCommand {
         // Common option for multiple commands.
@@ -185,7 +213,6 @@ public class CertificateTool extends LoggingAwareMultiCommand {
         OptionSpec<String> caKeyPathSpec;
         OptionSpec<String> caPasswordSpec;
         OptionSpec<String> caDnSpec;
-        OptionSpec<Void> keepCaKeySpec;
 
         OptionSpec<Void> multipleNodesSpec;
         OptionSpec<String> nameSpec;
@@ -204,7 +231,8 @@ public class CertificateTool extends LoggingAwareMultiCommand {
         final void acceptCertificateGenerationOptions() {
             pemFormatSpec = parser.accepts("pem", "output certificates and keys in PEM format instead of PKCS#12");
             daysSpec = parser.accepts("days", "number of days that the generated certificates are valid")
-                .withRequiredArg().ofType(Integer.class);
+                .withRequiredArg()
+                .ofType(Integer.class);
         }
 
         final void acceptsCertificateAuthority() {
@@ -217,10 +245,6 @@ public class CertificateTool extends LoggingAwareMultiCommand {
                 .requiredIf(caCertPathSpec)
                 .withRequiredArg();
 
-            keepCaKeySpec = parser.accepts("keep-ca-key", "retain the CA private key for future use")
-                .availableUnless(caPkcs12PathSpec)
-                .availableUnless(caCertPathSpec);
-
             caPasswordSpec = parser.accepts("ca-pass", "password for an existing ca private key or the generated ca private key")
                 .withOptionalArg();
 
@@ -228,8 +252,10 @@ public class CertificateTool extends LoggingAwareMultiCommand {
         }
 
         void acceptsCertificateAuthorityName() {
-            OptionSpecBuilder builder = parser.accepts("ca-dn",
-                "distinguished name to use for the generated ca. defaults to " + AUTO_GEN_CA_DN);
+            OptionSpecBuilder builder = parser.accepts(
+                "ca-dn",
+                "distinguished name to use for the generated ca. defaults to " + AUTO_GEN_CA_DN
+            );
             if (caPkcs12PathSpec != null) {
                 builder = builder.availableUnless(caPkcs12PathSpec);
             }
@@ -293,10 +319,6 @@ public class CertificateTool extends LoggingAwareMultiCommand {
             }
         }
 
-        boolean keepCaKey(OptionSet options) {
-            return options.has(keepCaKeySpec);
-        }
-
         boolean usePemFormat(OptionSet options) {
             return options.has(pemFormatSpec);
         }
@@ -329,6 +351,9 @@ public class CertificateTool extends LoggingAwareMultiCommand {
             } else if (options.has(caCertPathSpec)) {
                 return loadPemCA(terminal, options, env);
             } else {
+                terminal.println("Note: Generating certificates without providing a CA certificate is deprecated.");
+                terminal.println("      A CA certificate will become mandatory in the next major release.");
+                terminal.println("");
                 return generateCA(terminal, options);
             }
         }
@@ -336,13 +361,18 @@ public class CertificateTool extends LoggingAwareMultiCommand {
         private CAInfo loadPkcs12CA(Terminal terminal, OptionSet options, Environment env) throws Exception {
             Path path = resolvePath(options, caPkcs12PathSpec);
             char[] passwordOption = getChars(caPasswordSpec.value(options));
-
-            Map<Certificate, Key> keys = withPassword("CA (" + path + ")", passwordOption,
-                terminal, password -> CertParsingUtils.readPkcs12KeyPairs(path, password, a -> password));
+            Map<Certificate, Key> keys = withPassword(
+                "CA (" + path + ")",
+                passwordOption,
+                terminal,
+                false,
+                password -> CertParsingUtils.readPkcs12KeyPairs(path, password, a -> password)
+            );
 
             if (keys.size() != 1) {
-                throw new IllegalArgumentException("expected a single key in file [" + path.toAbsolutePath() + "] but found [" +
-                    keys.size() + "]");
+                throw new IllegalArgumentException(
+                    "expected a single key in file [" + path.toAbsolutePath() + "] but found [" + keys.size() + "]"
+                );
             }
             final Map.Entry<Certificate, Key> pair = keys.entrySet().iterator().next();
             return new CAInfo((X509Certificate) pair.getKey(), (PrivateKey) pair.getValue());
@@ -356,13 +386,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
             Path key = resolvePath(options, caKeyPathSpec);
             String password = caPasswordSpec.value(options);
 
-            final String resolvedCaCertPath = cert.toAbsolutePath().toString();
-            Certificate[] certificates = CertParsingUtils.readCertificates(Collections.singletonList(resolvedCaCertPath), env);
-            if (certificates.length != 1) {
-                throw new IllegalArgumentException("expected a single certificate in file [" + resolvedCaCertPath + "] but found [" +
-                    certificates.length + "]");
-            }
-            X509Certificate caCert = (X509Certificate) certificates[0];
+            X509Certificate caCert = CertParsingUtils.readX509Certificate(cert);
             PrivateKey privateKey = readPrivateKey(key, getChars(password), terminal);
             return new CAInfo(caCert, privateKey);
         }
@@ -378,10 +402,11 @@ public class CertificateTool extends LoggingAwareMultiCommand {
 
             if (options.hasArgument(caPasswordSpec)) {
                 char[] password = getChars(caPasswordSpec.value(options));
+                checkAndConfirmPasswordLengthForOpenSSLCompatibility(password, terminal, false);
                 return new CAInfo(caCert, keyPair.getPrivate(), true, password);
             }
             if (options.has(caPasswordSpec)) {
-                return withPassword("CA Private key", null, terminal, p -> new CAInfo(caCert, keyPair.getPrivate(), true, p.clone()));
+                return withPassword("CA Private key", null, terminal, true, p -> new CAInfo(caCert, keyPair.getPrivate(), true, p.clone()));
             }
             return new CAInfo(caCert, keyPair.getPrivate(), true, null);
         }
@@ -392,8 +417,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
          *
          * @return a {@link Collection} of {@link CertificateInformation} that represents each instance
          */
-        Collection<CertificateInformation> getCertificateInformationList(Terminal terminal, OptionSet options)
-            throws Exception {
+        Collection<CertificateInformation> getCertificateInformationList(Terminal terminal, OptionSet options) throws Exception {
             final Path input = resolvePath(options, inputFileSpec);
             if (input != null) {
                 return parseAndValidateFile(terminal, input.toAbsolutePath());
@@ -417,7 +441,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
                 if (validationErrors.isEmpty()) {
                     return Collections.singleton(information);
                 } else {
-                    validationErrors.forEach(terminal::println);
+                    validationErrors.forEach(terminal::errorPrintln);
                     return Collections.emptyList();
                 }
             }
@@ -457,8 +481,9 @@ public class CertificateTool extends LoggingAwareMultiCommand {
                     terminal.println("A name must be provided");
                 }
 
-                String exit = terminal.readText("Would you like to specify another instance? Press 'y' to continue entering instance " +
-                    "information: ");
+                String exit = terminal.readText(
+                    "Would you like to specify another instance? Press 'y' to continue entering instance " + "information: "
+                );
                 if ("y".equals(exit) == false) {
                     done = true;
                 }
@@ -469,15 +494,16 @@ public class CertificateTool extends LoggingAwareMultiCommand {
         private static String requestFileName(Terminal terminal, String certName) {
             final boolean isNameValidFilename = Name.isValidFilename(certName);
             while (true) {
-                String filename = terminal.readText("Enter name for directories and files of " + certName +
-                    (isNameValidFilename ? " [" + certName + "]" : "") + ": ");
+                String filename = terminal.readText(
+                    "Enter name for directories and files of " + certName + (isNameValidFilename ? " [" + certName + "]" : "") + ": "
+                );
                 if (filename.isEmpty() && isNameValidFilename) {
                     return certName;
                 }
                 if (Name.isValidFilename(filename)) {
                     return filename;
                 } else {
-                    terminal.println(Terminal.Verbosity.SILENT, "'" + filename + "' is not a valid filename");
+                    terminal.errorPrintln(Terminal.Verbosity.SILENT, "'" + filename + "' is not a valid filename");
                     continue;
                 }
             }
@@ -491,8 +517,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
          * @param info         the certificate authority information
          * @param includeKey   if true, write the CA key in PEM format
          */
-        static void writeCAInfo(ZipOutputStream outputStream, JcaPEMWriter pemWriter, CAInfo info, boolean includeKey)
-            throws Exception {
+        static void writeCAInfo(ZipOutputStream outputStream, JcaPEMWriter pemWriter, CAInfo info, boolean includeKey) throws Exception {
             final String caDirName = createCaDirectory(outputStream);
             outputStream.putNextEntry(new ZipEntry(caDirName + "ca.crt"));
             pemWriter.writeObject(info.certAndKey.cert);
@@ -516,24 +541,6 @@ public class CertificateTool extends LoggingAwareMultiCommand {
             }
         }
 
-        /**
-         * This method handles writing out the certificate authority in PKCS#12 format to a zip file.
-         *
-         * @param outputStream the output stream to write to
-         * @param info         the certificate authority information
-         * @param terminal     used to prompt for a password (if not already supplied)
-         */
-        static void writeCAInfo(ZipOutputStream outputStream, CAInfo info, Terminal terminal) throws Exception {
-            final String dirName = createCaDirectory(outputStream);
-            final String fileName = dirName + "ca.p12";
-            outputStream.putNextEntry(new ZipEntry(fileName));
-            withPassword("Generated CA", info.password, terminal, caPassword -> {
-                writePkcs12(fileName, outputStream, "ca", info.certAndKey, null, caPassword, null);
-                return null;
-            });
-            outputStream.closeEntry();
-        }
-
         private static String createCaDirectory(ZipOutputStream outputStream) throws IOException {
             final String caDirName = "ca/";
             ZipEntry zipEntry = new ZipEntry(caDirName);
@@ -542,13 +549,20 @@ public class CertificateTool extends LoggingAwareMultiCommand {
             return caDirName;
         }
 
-        static void writePkcs12(String fileName, OutputStream output, String alias, CertificateAndKey pair, X509Certificate caCert,
-                                char[] password, Terminal terminal) throws Exception {
+        static void writePkcs12(
+            String fileName,
+            OutputStream output,
+            String alias,
+            CertificateAndKey pair,
+            X509Certificate caCert,
+            char[] password,
+            Terminal terminal
+        ) throws Exception {
             final KeyStore pkcs12 = KeyStore.getInstance("PKCS12");
             pkcs12.load(null);
-            withPassword(fileName, password, terminal, p12Password -> {
+            withPassword(fileName, password, terminal, true, p12Password -> {
                 if (isAscii(p12Password)) {
-                    pkcs12.setKeyEntry(alias, pair.key, p12Password, new Certificate[]{pair.cert});
+                    pkcs12.setKeyEntry(alias, pair.key, p12Password, new Certificate[] { pair.cert });
                     if (caCert != null) {
                         pkcs12.setCertificateEntry("ca", caCert);
                     }
@@ -617,8 +631,11 @@ public class CertificateTool extends LoggingAwareMultiCommand {
             fullyWriteZipFile(output, (outputStream, pemWriter) -> {
                 for (CertificateInformation certificateInformation : certInfo) {
                     KeyPair keyPair = CertGenUtils.generateKeyPair(keySize);
-                    GeneralNames sanList = getSubjectAlternativeNamesValue(certificateInformation.ipAddresses,
-                        certificateInformation.dnsNames, certificateInformation.commonNames);
+                    GeneralNames sanList = getSubjectAlternativeNamesValue(
+                        certificateInformation.ipAddresses,
+                        certificateInformation.dnsNames,
+                        certificateInformation.commonNames
+                    );
                     PKCS10CertificationRequest csr = CertGenUtils.generateCSR(keyPair, certificateInformation.name.x500Principal, sanList);
 
                     final String dirName = certificateInformation.name.filename + "/";
@@ -644,12 +661,16 @@ public class CertificateTool extends LoggingAwareMultiCommand {
 
     static class GenerateCertificateCommand extends CertificateCommand {
 
+        OptionSpec<Void> selfSigned;
+
         GenerateCertificateCommand() {
             super("generate X.509 certificates and keys");
             acceptCertificateGenerationOptions();
             acceptInstanceDetails();
             acceptsCertificateAuthority();
             acceptInputFile();
+            selfSigned = parser.accepts("self-signed", "generate self signed certificates")
+                .availableUnless(caPkcs12PathSpec, caCertPathSpec);
         }
 
         @Override
@@ -675,7 +696,6 @@ public class CertificateTool extends LoggingAwareMultiCommand {
             terminal.println("");
             terminal.println("If you specify any of the following options:");
             terminal.println("    * -pem (PEM formatted output)");
-            terminal.println("    * -keep-ca-key (retain generated CA key)");
             terminal.println("    * -multiple (generate multiple certificates)");
             terminal.println("    * -in (generate certificates from an input file)");
             terminal.println("then the output will be be a zip file containing individual certificate/key files");
@@ -683,9 +703,8 @@ public class CertificateTool extends LoggingAwareMultiCommand {
 
             CAInfo caInfo = getCAInfo(terminal, options, env);
             Collection<CertificateInformation> certInfo = getCertificateInformationList(terminal, options);
-            final boolean keepCaKey = keepCaKey(options);
             final boolean usePemFormat = usePemFormat(options);
-            final boolean writeZipFile = options.has(multipleNodesSpec) || options.has(inputFileSpec) || keepCaKey || usePemFormat;
+            final boolean writeZipFile = options.has(multipleNodesSpec) || options.has(inputFileSpec) || usePemFormat;
 
             final String outputName;
             if (writeZipFile) {
@@ -707,12 +726,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
                 terminal.print(Terminal.Verbosity.NORMAL, "all instances");
             } else {
                 terminal.println(Terminal.Verbosity.NORMAL, "This file should be properly secured as it contains the private key for ");
-                terminal.print(Terminal.Verbosity.NORMAL, "your instance");
-            }
-            if (caInfo.generated && keepCaKey) {
-                terminal.println(Terminal.Verbosity.NORMAL, " and for the certificate authority.");
-            } else {
-                terminal.println(Terminal.Verbosity.NORMAL, ".");
+                terminal.print(Terminal.Verbosity.NORMAL, "your instance.");
             }
             terminal.println("");
             final String filesDescription;
@@ -734,10 +748,18 @@ public class CertificateTool extends LoggingAwareMultiCommand {
             terminal.println(filesDescription + " to the relevant configuration directory");
             terminal.println("and then follow the SSL configuration instructions in the product guide.");
             terminal.println("");
-            if (usePemFormat || caInfo.generated == false) {
+            if (usePemFormat || (caInfo != null && caInfo.generated == false)) {
                 terminal.println("For client applications, you may only need to copy the CA certificate and");
                 terminal.println("configure the client to trust this certificate.");
             }
+        }
+
+        @Override
+        CAInfo getCAInfo(Terminal terminal, OptionSet options, Environment env) throws Exception {
+            if (false == options.has(selfSigned) && false == options.has(caPkcs12PathSpec) && false == options.has(caCertPathSpec)) {
+                throw new UserException(ExitCodes.USAGE, "Must specify either --ca or --ca-cert/--ca-key or --self-signed");
+            }
+            return options.has(selfSigned) ? null : super.getCAInfo(terminal, options, env);
         }
 
         /**
@@ -750,9 +772,14 @@ public class CertificateTool extends LoggingAwareMultiCommand {
          * @param caInfo       the CA information to sign the certificates with
          * @param terminal     the terminal to use if prompting for passwords
          */
-        void generateAndWriteSignedCertificates(Path output, boolean writeZipFile, OptionSet options,
-                                                Collection<CertificateInformation> certs, CAInfo caInfo, Terminal terminal)
-            throws Exception {
+        void generateAndWriteSignedCertificates(
+            Path output,
+            boolean writeZipFile,
+            OptionSet options,
+            Collection<CertificateInformation> certs,
+            CAInfo caInfo,
+            Terminal terminal
+        ) throws Exception {
 
             checkDirectory(output, terminal);
 
@@ -763,16 +790,6 @@ public class CertificateTool extends LoggingAwareMultiCommand {
                 final boolean usePem = usePemFormat(options);
                 final boolean usePassword = super.useOutputPassword(options);
                 fullyWriteZipFile(output, (outputStream, pemWriter) -> {
-                    // write out the CA info first if it was generated
-                    if (caInfo.generated) {
-                        final boolean writeCAKey = keepCaKey(options);
-                        if (usePem) {
-                            writeCAInfo(outputStream, pemWriter, caInfo, writeCAKey);
-                        } else if (writeCAKey) {
-                            writeCAInfo(outputStream, caInfo, terminal);
-                        }
-                    }
-
                     for (CertificateInformation certificateInformation : certs) {
                         CertificateAndKey pair = generateCertificateAndKey(certificateInformation, caInfo, keySize, days);
 
@@ -794,7 +811,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
                             final String keyFileName = entryBase + ".key";
                             outputStream.putNextEntry(new ZipEntry(keyFileName));
                             if (usePassword) {
-                                withPassword(keyFileName, outputPassword, terminal, password -> {
+                                withPassword(keyFileName, outputPassword, terminal, true, password -> {
                                     pemWriter.writeObject(pair.key, getEncrypter(password));
                                     return null;
                                 });
@@ -806,8 +823,15 @@ public class CertificateTool extends LoggingAwareMultiCommand {
                         } else {
                             final String fileName = entryBase + ".p12";
                             outputStream.putNextEntry(new ZipEntry(fileName));
-                            writePkcs12(fileName, outputStream, certificateInformation.name.originalName, pair, caInfo.certAndKey.cert,
-                                outputPassword, terminal);
+                            writePkcs12(
+                                fileName,
+                                outputStream,
+                                certificateInformation.name.originalName,
+                                pair,
+                                caInfo == null ? null : caInfo.certAndKey.cert,
+                                outputPassword,
+                                terminal
+                            );
                             outputStream.closeEntry();
                         }
                     }
@@ -816,18 +840,58 @@ public class CertificateTool extends LoggingAwareMultiCommand {
                 assert certs.size() == 1;
                 CertificateInformation certificateInformation = certs.iterator().next();
                 CertificateAndKey pair = generateCertificateAndKey(certificateInformation, caInfo, keySize, days);
-                fullyWriteFile(output, stream -> writePkcs12(output.getFileName().toString(), stream,
-                    certificateInformation.name.originalName, pair, caInfo.certAndKey.cert, outputPassword, terminal));
+                fullyWriteFile(
+                    output,
+                    stream -> writePkcs12(
+                        output.getFileName().toString(),
+                        stream,
+                        certificateInformation.name.originalName,
+                        pair,
+                        caInfo == null ? null : caInfo.certAndKey.cert,
+                        outputPassword,
+                        terminal
+                    )
+                );
             }
         }
 
-        private CertificateAndKey generateCertificateAndKey(CertificateInformation certificateInformation, CAInfo caInfo,
-                                                            int keySize, int days) throws Exception {
+        private CertificateAndKey generateCertificateAndKey(
+            CertificateInformation certificateInformation,
+            CAInfo caInfo,
+            int keySize,
+            int days
+        ) throws Exception {
             KeyPair keyPair = CertGenUtils.generateKeyPair(keySize);
-            Certificate certificate = CertGenUtils.generateSignedCertificate(certificateInformation.name.x500Principal,
-                getSubjectAlternativeNamesValue(certificateInformation.ipAddresses, certificateInformation.dnsNames,
-                    certificateInformation.commonNames),
-                keyPair, caInfo.certAndKey.cert, caInfo.certAndKey.key, days);
+            Certificate certificate;
+            if (caInfo != null) {
+                certificate = CertGenUtils.generateSignedCertificate(
+                    certificateInformation.name.x500Principal,
+                    getSubjectAlternativeNamesValue(
+                        certificateInformation.ipAddresses,
+                        certificateInformation.dnsNames,
+                        certificateInformation.commonNames
+                    ),
+                    keyPair,
+                    caInfo.certAndKey.cert,
+                    caInfo.certAndKey.key,
+                    days
+                );
+            } else {
+                certificate = CertGenUtils.generateSignedCertificate(
+                    certificateInformation.name.x500Principal,
+                    getSubjectAlternativeNamesValue(
+                        certificateInformation.ipAddresses,
+                        certificateInformation.dnsNames,
+                        certificateInformation.commonNames
+                    ),
+                    keyPair,
+                    null,
+                    null,
+                    false,
+                    days,
+                    null
+                );
+            }
             return new CertificateAndKey((X509Certificate) certificate, keyPair.getPrivate());
         }
 
@@ -873,8 +937,10 @@ public class CertificateTool extends LoggingAwareMultiCommand {
                 fullyWriteZipFile(output, (outputStream, pemWriter) -> writeCAInfo(outputStream, pemWriter, caInfo, true));
             } else {
                 final String fileName = output.getFileName().toString();
-                fullyWriteFile(output, outputStream ->
-                    writePkcs12(fileName, outputStream, "ca", caInfo.certAndKey, null, caInfo.password, terminal));
+                fullyWriteFile(
+                    output,
+                    outputStream -> writePkcs12(fileName, outputStream, "ca", caInfo.certAndKey, null, caInfo.password, terminal)
+                );
             }
         }
     }
@@ -891,11 +957,14 @@ public class CertificateTool extends LoggingAwareMultiCommand {
             final List<String> errors = certInfo.validate();
             if (errors.size() > 0) {
                 hasError = true;
-                terminal.println(Verbosity.SILENT, "Configuration for instance " + certInfo.name.originalName + " has invalid details");
+                terminal.errorPrintln(
+                    Verbosity.SILENT,
+                    "Configuration for instance " + certInfo.name.originalName + " has invalid details"
+                );
                 for (String message : errors) {
-                    terminal.println(Verbosity.SILENT, " * " + message);
+                    terminal.errorPrintln(Verbosity.SILENT, " * " + message);
                 }
-                terminal.println("");
+                terminal.errorPrintln("");
             }
         }
         if (hasError) {
@@ -912,27 +981,61 @@ public class CertificateTool extends LoggingAwareMultiCommand {
      */
     static Collection<CertificateInformation> parseFile(Path file) throws Exception {
         try (Reader reader = Files.newBufferedReader(file)) {
-            // EMPTY is safe here because we never use namedObject
-            XContentParser xContentParser = XContentType.YAML.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, reader);
+            XContentParser xContentParser = XContentType.YAML.xContent().createParser(XContentParserConfiguration.EMPTY, reader);
             return CertificateToolParser.PARSER.parse(xContentParser, new ArrayList<>(), null);
         }
     }
 
-    private static PEMEncryptor getEncrypter(char[] password) {
-        return new JcePEMEncryptorBuilder("DES-EDE3-CBC").setProvider(BC_PROV).build(password);
+    static PEMEncryptor getEncrypter(char[] password) {
+        return new JcePEMEncryptorBuilder("AES-128-CBC").setProvider(BC_PROV).build(password);
     }
 
-    private static <T, E extends Exception> T withPassword(String description, char[] password, Terminal terminal,
-                                                           CheckedFunction<char[], T, E> body) throws E {
+    /**
+     * Checks whether the supplied password exceeds the maximum length supported by older OpenSSL versions.
+     * A warning message is printed to the terminal if the password is too long. If {@code confirm} is true, then the user
+     * (via the terminal) is asked to confirm whether to continue with the potentially problematic password.
+     * @return {@code false} if the password is too long <em>and</em> the user elects to reject it, otherwise {@code true}.
+     */
+    static boolean checkAndConfirmPasswordLengthForOpenSSLCompatibility(char[] password, Terminal terminal, boolean confirm) {
+        if (password.length > MAX_PASSWORD_OLD_OPENSSL) {
+            terminal.println(
+                Verbosity.SILENT,
+                "Warning: Your password exceeds "
+                    + MAX_PASSWORD_OLD_OPENSSL
+                    + " characters. Versions of OpenSSL older than "
+                    + OLD_OPENSSL_VERSION
+                    + " may not be able to read this file."
+            );
+            if (confirm) {
+                return terminal.promptYesNo("Do you want to continue?", true);
+            }
+        }
+        return true;
+    }
+
+    private static <T, E extends Exception> T withPassword(
+        String description,
+        char[] password,
+        Terminal terminal,
+        boolean checkLength,
+        CheckedFunction<char[], T, E> body
+    ) throws E {
         if (password == null) {
-            char[] promptedValue = terminal.readSecret("Enter password for " + description + " : ");
-            try {
-                return body.apply(promptedValue);
-            } finally {
-                Arrays.fill(promptedValue, (char) 0);
+            while (true) {
+                char[] promptedValue = terminal.readSecret("Enter password for " + description + " : ");
+                if (checkLength && checkAndConfirmPasswordLengthForOpenSSLCompatibility(promptedValue, terminal, true) == false) {
+                    continue;
+                }
+                try {
+                    return body.apply(promptedValue);
+                } finally {
+                    Arrays.fill(promptedValue, (char) 0);
+                }
             }
         } else {
+            if (checkLength) {
+                checkAndConfirmPasswordLengthForOpenSSLCompatibility(password, terminal, false);
+            }
             return body.apply(password);
         }
     }
@@ -945,8 +1048,10 @@ public class CertificateTool extends LoggingAwareMultiCommand {
      */
     private static void fullyWriteZipFile(Path file, Writer writer) throws Exception {
         fullyWriteFile(file, outputStream -> {
-            try (ZipOutputStream zipOutputStream = new ZipOutputStream(outputStream, StandardCharsets.UTF_8);
-                 JcaPEMWriter pemWriter = new JcaPEMWriter(new OutputStreamWriter(zipOutputStream, StandardCharsets.UTF_8))) {
+            try (
+                ZipOutputStream zipOutputStream = new ZipOutputStream(outputStream, StandardCharsets.UTF_8);
+                JcaPEMWriter pemWriter = new JcaPEMWriter(new OutputStreamWriter(zipOutputStream, StandardCharsets.UTF_8))
+            ) {
                 writer.write(zipOutputStream, pemWriter);
             }
         });
@@ -961,7 +1066,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
             return;
         }
         if (Files.exists(parent)) {
-            terminal.println(Terminal.Verbosity.SILENT, "Path " + parent + " exists, but is not a directory. Cannot write to " + path);
+            terminal.errorPrintln(Terminal.Verbosity.SILENT, "Path " + parent + " exists, but is not a directory. Cannot write to " + path);
             throw new UserException(ExitCodes.CANT_CREATE, "Cannot write to " + path);
         }
         if (terminal.promptYesNo("Directory " + parent + " does not exist. Do you want to create it?", true)) {
@@ -1016,8 +1121,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
      * @param terminal the terminal to use for user interaction
      * @return the {@link PrivateKey} that was read from the file
      */
-    private static PrivateKey readPrivateKey(Path path, char[] password, Terminal terminal)
-        throws Exception {
+    private static PrivateKey readPrivateKey(Path path, char[] password, Terminal terminal) throws Exception {
         AtomicReference<char[]> passwordReference = new AtomicReference<>(password);
         try {
             return PemUtils.readPrivateKey(path, () -> {
@@ -1035,7 +1139,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
         }
     }
 
-    private static GeneralNames getSubjectAlternativeNamesValue(List<String> ipAddresses, List<String> dnsNames, List<String> commonNames) {
+    static GeneralNames getSubjectAlternativeNamesValue(List<String> ipAddresses, List<String> dnsNames, List<String> commonNames) {
         Set<GeneralName> generalNameList = new HashSet<>();
         for (String ip : ipAddresses) {
             generalNameList.add(new GeneralName(GeneralName.iPAddress, ip));
@@ -1055,14 +1159,13 @@ public class CertificateTool extends LoggingAwareMultiCommand {
         return new GeneralNames(generalNameList.toArray(new GeneralName[0]));
     }
 
-    private static boolean isAscii(char[] str) {
+    static boolean isAscii(char[] str) {
         return ASCII_ENCODER.canEncode(CharBuffer.wrap(str));
     }
 
     private static char[] getChars(String password) {
         return password == null ? null : password.toCharArray();
     }
-
 
     static class CertificateInformation {
         final Name name;
@@ -1126,7 +1229,11 @@ public class CertificateTool extends LoggingAwareMultiCommand {
                     principal = new X500Principal("CN=" + name);
                 }
             } catch (IllegalArgumentException e) {
-                String error = "[" + name + "] could not be converted to a valid DN\n" + e.getMessage() + "\n"
+                String error = "["
+                    + name
+                    + "] could not be converted to a valid DN\n"
+                    + e.getMessage()
+                    + "\n"
                     + ExceptionsHelper.stackTrace(e);
                 return new Name(name, null, null, error);
             }
@@ -1147,8 +1254,15 @@ public class CertificateTool extends LoggingAwareMultiCommand {
         @Override
         public String toString() {
             return getClass().getSimpleName()
-                + "{original=[" + originalName + "] principal=[" + x500Principal
-                + "] file=[" + filename + "] err=[" + error + "]}";
+                + "{original=["
+                + originalName
+                + "] principal=["
+                + x500Principal
+                + "] file=["
+                + filename
+                + "] err=["
+                + error
+                + "]}";
         }
     }
 

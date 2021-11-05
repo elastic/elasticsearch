@@ -1,40 +1,32 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class UpdateJobAction extends Action<PutJobAction.Response> {
+public class UpdateJobAction extends ActionType<PutJobAction.Response> {
     public static final UpdateJobAction INSTANCE = new UpdateJobAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/update";
 
     private UpdateJobAction() {
-        super(NAME);
-    }
-
-    @Override
-    public PutJobAction.Response newResponse() {
-        return new PutJobAction.Response();
+        super(NAME, PutJobAction.Response::new);
     }
 
     public static class Request extends AcknowledgedRequest<UpdateJobAction.Request> implements ToXContentObject {
@@ -58,12 +50,16 @@ public class UpdateJobAction extends Action<PutJobAction.Response> {
             this.jobId = jobId;
             this.update = update;
             this.isInternal = isInternal;
-            if (MetaData.ALL.equals(jobId)) {
+            if (Strings.isAllOrWildcard(jobId)) {
                 throw ExceptionsHelper.badRequestException("Cannot update more than 1 job at a time");
             }
         }
 
-        public Request() {
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            jobId = in.readString();
+            update = new JobUpdate(in);
+            isInternal = in.readBoolean();
         }
 
         public static Request internal(String jobId, JobUpdate update) {
@@ -88,31 +84,11 @@ public class UpdateJobAction extends Action<PutJobAction.Response> {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            jobId = in.readString();
-            update = new JobUpdate(in);
-            if (in.getVersion().onOrAfter(Version.V_6_2_2)) {
-                isInternal = in.readBoolean();
-            } else {
-                isInternal = false;
-            }
-            if (in.getVersion().onOrAfter(Version.V_6_3_0) && in.getVersion().before(Version.V_7_0_0)) {
-                in.readBoolean(); // was waitForAck
-            }
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(jobId);
             update.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_6_2_2)) {
-                out.writeBoolean(isInternal);
-            }
-            if (out.getVersion().onOrAfter(Version.V_6_3_0) && out.getVersion().before(Version.V_7_0_0)) {
-                out.writeBoolean(false); // was waitForAck
-            }
+            out.writeBoolean(isInternal);
         }
 
         @Override
@@ -127,9 +103,7 @@ public class UpdateJobAction extends Action<PutJobAction.Response> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             UpdateJobAction.Request that = (UpdateJobAction.Request) o;
-            return Objects.equals(jobId, that.jobId) &&
-                    Objects.equals(update, that.update) &&
-                    isInternal == that.isInternal;
+            return Objects.equals(jobId, that.jobId) && Objects.equals(update, that.update) && isInternal == that.isInternal;
         }
 
         @Override
@@ -142,12 +116,4 @@ public class UpdateJobAction extends Action<PutJobAction.Response> {
             return Strings.toString(this);
         }
     }
-
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, PutJobAction.Response, RequestBuilder> {
-
-        public RequestBuilder(ElasticsearchClient client, UpdateJobAction action) {
-            super(client, action, new Request());
-        }
-    }
-
 }

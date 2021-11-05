@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.test;
 
@@ -23,16 +24,16 @@ public class MockIngestPlugin extends Plugin implements IngestPlugin {
     @Override
     public Map<String, Processor.Factory> getProcessors(final Processor.Parameters parameters) {
         final Map<String, String[]> processorFields = MapBuilder.<String, String[]>newMapBuilder()
-                .put("gsub", new String[] { "field", "pattern", "replacement" })
-                .put("rename", new String[] { "field", "target_field" })
-                .put("set", new String[] { "field", "value" })
-                .put("script", new String[] { "source" })
-                .map();
+            .put("gsub", new String[] { "field", "pattern", "replacement" })
+            .put("rename", new String[] { "field", "target_field" })
+            .put("set", new String[] { "field", "value" })
+            .put("script", new String[] { "source" })
+            .map();
 
         return processorFields.entrySet()
-                              .stream()
-                              .map(MockProcessorFactory::new)
-                              .collect(Collectors.toMap(factory -> factory.type, factory -> factory));
+            .stream()
+            .map(MockProcessorFactory::new)
+            .collect(Collectors.toMap(factory -> factory.type, factory -> factory));
     }
 
     static class MockProcessorFactory implements Processor.Factory {
@@ -50,15 +51,18 @@ public class MockIngestPlugin extends Plugin implements IngestPlugin {
         }
 
         @Override
-        public Processor create(Map<String, Processor.Factory> processorFactories,
-                                String tag,
-                                Map<String, Object> config) throws Exception {
+        public Processor create(
+            Map<String, Processor.Factory> processorFactories,
+            String tag,
+            String description,
+            Map<String, Object> config
+        ) throws Exception {
             // read fields so the processor succeeds
             for (final String field : fields) {
                 ConfigurationUtils.readObject(type, tag, config, field);
             }
 
-            return new MockProcessor(type, tag);
+            return new MockProcessor(type, tag, description);
         }
 
     }
@@ -67,10 +71,12 @@ public class MockIngestPlugin extends Plugin implements IngestPlugin {
 
         private final String type;
         private final String tag;
+        private final String description;
 
-        MockProcessor(final String type, final String tag) {
+        MockProcessor(final String type, final String tag, final String description) {
             this.type = type;
             this.tag = tag;
+            this.description = description;
         }
 
         @Override
@@ -87,6 +93,11 @@ public class MockIngestPlugin extends Plugin implements IngestPlugin {
         @Override
         public String getTag() {
             return tag;
+        }
+
+        @Override
+        public String getDescription() {
+            return description;
         }
 
     }

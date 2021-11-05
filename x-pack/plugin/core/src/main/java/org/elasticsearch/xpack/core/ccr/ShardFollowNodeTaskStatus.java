@@ -1,24 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ccr;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.AbstractMap;
@@ -49,6 +52,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
     private static final ParseField WRITE_BUFFER_SIZE_IN_BYTES_FIELD = new ParseField("write_buffer_size_in_bytes");
     private static final ParseField FOLLOWER_MAPPING_VERSION_FIELD = new ParseField("follower_mapping_version");
     private static final ParseField FOLLOWER_SETTINGS_VERSION_FIELD = new ParseField("follower_settings_version");
+    private static final ParseField FOLLOWER_ALIASES_VERSION_FIELD = new ParseField("follower_aliases_version");
     private static final ParseField TOTAL_READ_TIME_MILLIS_FIELD = new ParseField("total_read_time_millis");
     private static final ParseField TOTAL_READ_REMOTE_EXEC_TIME_MILLIS_FIELD = new ParseField("total_read_remote_exec_time_millis");
     private static final ParseField SUCCESSFUL_READ_REQUESTS_FIELD = new ParseField("successful_read_requests");
@@ -64,48 +68,49 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
     private static final ParseField FATAL_EXCEPTION = new ParseField("fatal_exception");
 
     @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<ShardFollowNodeTaskStatus, Void> STATUS_PARSER =
-            new ConstructingObjectParser<>(
-                    STATUS_PARSER_NAME,
-                    args -> new ShardFollowNodeTaskStatus(
-                            (String) args[0],
-                            (String) args[1],
-                            (String) args[2],
-                            (int) args[3],
-                            (long) args[4],
-                            (long) args[5],
-                            (long) args[6],
-                            (long) args[7],
-                            (long) args[8],
-                            (int) args[9],
-                            (int) args[10],
-                            (int) args[11],
-                            (long) args[12],
-                            (long) args[13],
-                            (long) args[14],
-                            (long) args[15],
-                            (long) args[16],
-                            (long) args[17],
-                            (long) args[18],
-                            (long) args[19],
-                            (long) args[20],
-                            (long) args[21],
-                            (long) args[22],
-                            (long) args[23],
-                            (long) args[24],
-                            new TreeMap<>(
-                                    ((List<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>>) args[25])
-                                            .stream()
-                                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))),
-                            (long) args[26],
-                            (ElasticsearchException) args[27]));
+    static final ConstructingObjectParser<ShardFollowNodeTaskStatus, Void> STATUS_PARSER = new ConstructingObjectParser<>(
+        STATUS_PARSER_NAME,
+        args -> new ShardFollowNodeTaskStatus(
+            (String) args[0],
+            (String) args[1],
+            (String) args[2],
+            (int) args[3],
+            (long) args[4],
+            (long) args[5],
+            (long) args[6],
+            (long) args[7],
+            (long) args[8],
+            (int) args[9],
+            (int) args[10],
+            (int) args[11],
+            (long) args[12],
+            (long) args[13],
+            (long) args[14],
+            (long) args[15],
+            (long) args[16],
+            (long) args[17],
+            (long) args[18],
+            (long) args[19],
+            (long) args[20],
+            (long) args[21],
+            (long) args[22],
+            (long) args[23],
+            (long) args[24],
+            (long) args[25],
+            ((List<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>>) args[26]).stream()
+                .collect(Maps.toUnmodifiableSortedMap(Map.Entry::getKey, Map.Entry::getValue)),
+            (long) args[27],
+            (ElasticsearchException) args[28]
+        )
+    );
 
     public static final String READ_EXCEPTIONS_ENTRY_PARSER_NAME = "shard-follow-node-task-status-read-exceptions-entry";
 
     static final ConstructingObjectParser<Map.Entry<Long, Tuple<Integer, ElasticsearchException>>, Void> READ_EXCEPTIONS_ENTRY_PARSER =
-            new ConstructingObjectParser<>(
-                READ_EXCEPTIONS_ENTRY_PARSER_NAME,
-                    args -> new AbstractMap.SimpleEntry<>((long) args[0], Tuple.tuple((Integer)args[1], (ElasticsearchException)args[2])));
+        new ConstructingObjectParser<>(
+            READ_EXCEPTIONS_ENTRY_PARSER_NAME,
+            args -> new AbstractMap.SimpleEntry<>((long) args[0], Tuple.tuple((Integer) args[1], (ElasticsearchException) args[2]))
+        );
 
     static {
         STATUS_PARSER.declareString(ConstructingObjectParser.constructorArg(), LEADER_CLUSTER);
@@ -123,6 +128,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), WRITE_BUFFER_SIZE_IN_BYTES_FIELD);
         STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), FOLLOWER_MAPPING_VERSION_FIELD);
         STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), FOLLOWER_SETTINGS_VERSION_FIELD);
+        STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), FOLLOWER_ALIASES_VERSION_FIELD);
         STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_READ_TIME_MILLIS_FIELD);
         STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), TOTAL_READ_REMOTE_EXEC_TIME_MILLIS_FIELD);
         STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), SUCCESSFUL_READ_REQUESTS_FIELD);
@@ -135,9 +141,11 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), OPERATIONS_WRITTEN);
         STATUS_PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), READ_EXCEPTIONS_ENTRY_PARSER, READ_EXCEPTIONS);
         STATUS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), TIME_SINCE_LAST_READ_MILLIS_FIELD);
-        STATUS_PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> ElasticsearchException.fromXContent(p),
-                FATAL_EXCEPTION);
+        STATUS_PARSER.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> ElasticsearchException.fromXContent(p),
+            FATAL_EXCEPTION
+        );
     }
 
     static final ParseField READ_EXCEPTIONS_ENTRY_FROM_SEQ_NO = new ParseField("from_seq_no");
@@ -148,9 +156,10 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         READ_EXCEPTIONS_ENTRY_PARSER.declareLong(ConstructingObjectParser.constructorArg(), READ_EXCEPTIONS_ENTRY_FROM_SEQ_NO);
         READ_EXCEPTIONS_ENTRY_PARSER.declareInt(ConstructingObjectParser.constructorArg(), READ_EXCEPTIONS_RETRIES);
         READ_EXCEPTIONS_ENTRY_PARSER.declareObject(
-                ConstructingObjectParser.constructorArg(),
-                (p, c) -> ElasticsearchException.fromXContent(p),
-            READ_EXCEPTIONS_ENTRY_EXCEPTION);
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> ElasticsearchException.fromXContent(p),
+            READ_EXCEPTIONS_ENTRY_EXCEPTION
+        );
     }
 
     private final String remoteCluster;
@@ -243,6 +252,12 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         return followerSettingsVersion;
     }
 
+    private final long followerAliasesVersion;
+
+    public long followerAliasesVersion() {
+        return followerAliasesVersion;
+    }
+
     private final long totalReadTimeMillis;
 
     public long totalReadTimeMillis() {
@@ -322,34 +337,36 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
     }
 
     public ShardFollowNodeTaskStatus(
-            final String remoteCluster,
-            final String leaderIndex,
-            final String followerIndex,
-            final int shardId,
-            final long leaderGlobalCheckpoint,
-            final long leaderMaxSeqNo,
-            final long followerGlobalCheckpoint,
-            final long followerMaxSeqNo,
-            final long lastRequestedSeqNo,
-            final int outstandingReadRequests,
-            final int outstandingWriteRequests,
-            final int writeBufferOperationCount,
-            final long writeBufferSizeInBytes,
-            final long followerMappingVersion,
-            final long followerSettingsVersion,
-            final long totalReadTimeMillis,
-            final long totalReadRemoteExecTimeMillis,
-            final long successfulReadRequests,
-            final long failedReadRequests,
-            final long operationsReads,
-            final long bytesRead,
-            final long totalWriteTimeMillis,
-            final long successfulWriteRequests,
-            final long failedWriteRequests,
-            final long operationWritten,
-            final NavigableMap<Long, Tuple<Integer, ElasticsearchException>> readExceptions,
-            final long timeSinceLastReadMillis,
-            final ElasticsearchException fatalException) {
+        final String remoteCluster,
+        final String leaderIndex,
+        final String followerIndex,
+        final int shardId,
+        final long leaderGlobalCheckpoint,
+        final long leaderMaxSeqNo,
+        final long followerGlobalCheckpoint,
+        final long followerMaxSeqNo,
+        final long lastRequestedSeqNo,
+        final int outstandingReadRequests,
+        final int outstandingWriteRequests,
+        final int writeBufferOperationCount,
+        final long writeBufferSizeInBytes,
+        final long followerMappingVersion,
+        final long followerSettingsVersion,
+        final long followerAliasesVersion,
+        final long totalReadTimeMillis,
+        final long totalReadRemoteExecTimeMillis,
+        final long successfulReadRequests,
+        final long failedReadRequests,
+        final long operationsReads,
+        final long bytesRead,
+        final long totalWriteTimeMillis,
+        final long successfulWriteRequests,
+        final long failedWriteRequests,
+        final long operationWritten,
+        final NavigableMap<Long, Tuple<Integer, ElasticsearchException>> readExceptions,
+        final long timeSinceLastReadMillis,
+        final ElasticsearchException fatalException
+    ) {
         this.remoteCluster = remoteCluster;
         this.leaderIndex = leaderIndex;
         this.followerIndex = followerIndex;
@@ -365,6 +382,7 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         this.writeBufferSizeInBytes = writeBufferSizeInBytes;
         this.followerMappingVersion = followerMappingVersion;
         this.followerSettingsVersion = followerSettingsVersion;
+        this.followerAliasesVersion = followerAliasesVersion;
         this.totalReadTimeMillis = totalReadTimeMillis;
         this.totalReadRemoteExecTimeMillis = totalReadRemoteExecTimeMillis;
         this.successfulReadRequests = successfulReadRequests;
@@ -396,6 +414,11 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         this.writeBufferSizeInBytes = in.readVLong();
         this.followerMappingVersion = in.readVLong();
         this.followerSettingsVersion = in.readVLong();
+        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+            this.followerAliasesVersion = in.readVLong();
+        } else {
+            this.followerAliasesVersion = 0L;
+        }
         this.totalReadTimeMillis = in.readVLong();
         this.totalReadRemoteExecTimeMillis = in.readVLong();
         this.successfulReadRequests = in.readVLong();
@@ -406,8 +429,9 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         this.successfulWriteRequests = in.readVLong();
         this.failedWriteRequests = in.readVLong();
         this.operationWritten = in.readVLong();
-        this.readExceptions =
-                new TreeMap<>(in.readMap(StreamInput::readVLong, stream -> Tuple.tuple(stream.readVInt(), stream.readException())));
+        this.readExceptions = new TreeMap<>(
+            in.readMap(StreamInput::readVLong, stream -> Tuple.tuple(stream.readVInt(), stream.readException()))
+        );
         this.timeSinceLastReadMillis = in.readZLong();
         this.fatalException = in.readException();
     }
@@ -434,6 +458,9 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         out.writeVLong(writeBufferSizeInBytes);
         out.writeVLong(followerMappingVersion);
         out.writeVLong(followerSettingsVersion);
+        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+            out.writeVLong(followerAliasesVersion);
+        }
         out.writeVLong(totalReadTimeMillis);
         out.writeVLong(totalReadRemoteExecTimeMillis);
         out.writeVLong(successfulReadRequests);
@@ -444,13 +471,10 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         out.writeVLong(successfulWriteRequests);
         out.writeVLong(failedWriteRequests);
         out.writeVLong(operationWritten);
-        out.writeMap(
-            readExceptions,
-                StreamOutput::writeVLong,
-                (stream, value) -> {
-                    stream.writeVInt(value.v1());
-                    stream.writeException(value.v2());
-                });
+        out.writeMap(readExceptions, StreamOutput::writeVLong, (stream, value) -> {
+            stream.writeVInt(value.v1());
+            stream.writeException(value.v2());
+        });
         out.writeZLong(timeSinceLastReadMillis);
         out.writeException(fatalException);
     }
@@ -479,30 +503,32 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         builder.field(OUTSTANDING_WRITE_REQUESTS.getPreferredName(), outstandingWriteRequests);
         builder.field(WRITE_BUFFER_OPERATION_COUNT_FIELD.getPreferredName(), writeBufferOperationCount);
         builder.humanReadableField(
-                WRITE_BUFFER_SIZE_IN_BYTES_FIELD.getPreferredName(),
-                "write_buffer_size",
-                new ByteSizeValue(writeBufferSizeInBytes));
+            WRITE_BUFFER_SIZE_IN_BYTES_FIELD.getPreferredName(),
+            "write_buffer_size",
+            new ByteSizeValue(writeBufferSizeInBytes)
+        );
         builder.field(FOLLOWER_MAPPING_VERSION_FIELD.getPreferredName(), followerMappingVersion);
         builder.field(FOLLOWER_SETTINGS_VERSION_FIELD.getPreferredName(), followerSettingsVersion);
+        builder.field(FOLLOWER_ALIASES_VERSION_FIELD.getPreferredName(), followerAliasesVersion);
         builder.humanReadableField(
-                TOTAL_READ_TIME_MILLIS_FIELD.getPreferredName(),
-                "total_read_time",
-                new TimeValue(totalReadTimeMillis, TimeUnit.MILLISECONDS));
+            TOTAL_READ_TIME_MILLIS_FIELD.getPreferredName(),
+            "total_read_time",
+            new TimeValue(totalReadTimeMillis, TimeUnit.MILLISECONDS)
+        );
         builder.humanReadableField(
-                TOTAL_READ_REMOTE_EXEC_TIME_MILLIS_FIELD.getPreferredName(),
-                "total_read_remote_exec_time",
-                new TimeValue(totalReadRemoteExecTimeMillis, TimeUnit.MILLISECONDS));
+            TOTAL_READ_REMOTE_EXEC_TIME_MILLIS_FIELD.getPreferredName(),
+            "total_read_remote_exec_time",
+            new TimeValue(totalReadRemoteExecTimeMillis, TimeUnit.MILLISECONDS)
+        );
         builder.field(SUCCESSFUL_READ_REQUESTS_FIELD.getPreferredName(), successfulReadRequests);
         builder.field(FAILED_READ_REQUESTS_FIELD.getPreferredName(), failedReadRequests);
         builder.field(OPERATIONS_READ_FIELD.getPreferredName(), operationsReads);
+        builder.humanReadableField(BYTES_READ.getPreferredName(), "total_read", new ByteSizeValue(bytesRead, ByteSizeUnit.BYTES));
         builder.humanReadableField(
-                BYTES_READ.getPreferredName(),
-                "total_read",
-                new ByteSizeValue(bytesRead, ByteSizeUnit.BYTES));
-        builder.humanReadableField(
-                TOTAL_WRITE_TIME_MILLIS_FIELD.getPreferredName(),
-                "total_write_time",
-                new TimeValue(totalWriteTimeMillis, TimeUnit.MILLISECONDS));
+            TOTAL_WRITE_TIME_MILLIS_FIELD.getPreferredName(),
+            "total_write_time",
+            new TimeValue(totalWriteTimeMillis, TimeUnit.MILLISECONDS)
+        );
         builder.field(SUCCESSFUL_WRITE_REQUESTS_FIELD.getPreferredName(), successfulWriteRequests);
         builder.field(FAILED_WRITE_REQUEST_FIELD.getPreferredName(), failedWriteRequests);
         builder.field(OPERATIONS_WRITTEN.getPreferredName(), operationWritten);
@@ -525,9 +551,10 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         }
         builder.endArray();
         builder.humanReadableField(
-                TIME_SINCE_LAST_READ_MILLIS_FIELD.getPreferredName(),
-                "time_since_last_read",
-                new TimeValue(timeSinceLastReadMillis, TimeUnit.MILLISECONDS));
+            TIME_SINCE_LAST_READ_MILLIS_FIELD.getPreferredName(),
+            "time_since_last_read",
+            new TimeValue(timeSinceLastReadMillis, TimeUnit.MILLISECONDS)
+        );
         if (fatalException != null) {
             builder.field(FATAL_EXCEPTION.getPreferredName());
             builder.startObject();
@@ -550,77 +577,81 @@ public class ShardFollowNodeTaskStatus implements Task.Status {
         final ShardFollowNodeTaskStatus that = (ShardFollowNodeTaskStatus) o;
         String fatalExceptionMessage = fatalException != null ? fatalException.getMessage() : null;
         String otherFatalExceptionMessage = that.fatalException != null ? that.fatalException.getMessage() : null;
-        return remoteCluster.equals(that.remoteCluster) &&
-                leaderIndex.equals(that.leaderIndex) &&
-                followerIndex.equals(that.followerIndex) &&
-                shardId == that.shardId &&
-                leaderGlobalCheckpoint == that.leaderGlobalCheckpoint &&
-                leaderMaxSeqNo == that.leaderMaxSeqNo &&
-                followerGlobalCheckpoint == that.followerGlobalCheckpoint &&
-                followerMaxSeqNo == that.followerMaxSeqNo &&
-                lastRequestedSeqNo == that.lastRequestedSeqNo &&
-                outstandingReadRequests == that.outstandingReadRequests &&
-                outstandingWriteRequests == that.outstandingWriteRequests &&
-                writeBufferOperationCount == that.writeBufferOperationCount &&
-                writeBufferSizeInBytes == that.writeBufferSizeInBytes &&
-                followerMappingVersion == that.followerMappingVersion &&
-                followerSettingsVersion== that.followerSettingsVersion &&
-                totalReadTimeMillis == that.totalReadTimeMillis &&
-                totalReadRemoteExecTimeMillis == that.totalReadRemoteExecTimeMillis &&
-                successfulReadRequests == that.successfulReadRequests &&
-                failedReadRequests == that.failedReadRequests &&
-                operationsReads == that.operationsReads &&
-                bytesRead == that.bytesRead &&
-                successfulWriteRequests == that.successfulWriteRequests &&
-                failedWriteRequests == that.failedWriteRequests &&
-                operationWritten == that.operationWritten &&
-                /*
-                 * ElasticsearchException does not implement equals so we will assume the fetch exceptions are equal if they are equal
-                 * up to the key set and their messages.  Note that we are relying on the fact that the fetch exceptions are ordered by
-                 * keys.
-                 */
-                readExceptions.keySet().equals(that.readExceptions.keySet()) &&
-                getReadExceptionMessages(this).equals(getReadExceptionMessages(that)) &&
-                timeSinceLastReadMillis == that.timeSinceLastReadMillis &&
-                Objects.equals(fatalExceptionMessage, otherFatalExceptionMessage);
+        return remoteCluster.equals(that.remoteCluster)
+            && leaderIndex.equals(that.leaderIndex)
+            && followerIndex.equals(that.followerIndex)
+            && shardId == that.shardId
+            && leaderGlobalCheckpoint == that.leaderGlobalCheckpoint
+            && leaderMaxSeqNo == that.leaderMaxSeqNo
+            && followerGlobalCheckpoint == that.followerGlobalCheckpoint
+            && followerMaxSeqNo == that.followerMaxSeqNo
+            && lastRequestedSeqNo == that.lastRequestedSeqNo
+            && outstandingReadRequests == that.outstandingReadRequests
+            && outstandingWriteRequests == that.outstandingWriteRequests
+            && writeBufferOperationCount == that.writeBufferOperationCount
+            && writeBufferSizeInBytes == that.writeBufferSizeInBytes
+            && followerMappingVersion == that.followerMappingVersion
+            && followerSettingsVersion == that.followerSettingsVersion
+            && followerAliasesVersion == that.followerAliasesVersion
+            && totalReadTimeMillis == that.totalReadTimeMillis
+            && totalReadRemoteExecTimeMillis == that.totalReadRemoteExecTimeMillis
+            && successfulReadRequests == that.successfulReadRequests
+            && failedReadRequests == that.failedReadRequests
+            && operationsReads == that.operationsReads
+            && bytesRead == that.bytesRead
+            && successfulWriteRequests == that.successfulWriteRequests
+            && failedWriteRequests == that.failedWriteRequests
+            && operationWritten == that.operationWritten
+            &&
+            /*
+             * ElasticsearchException does not implement equals so we will assume the fetch exceptions are equal if they are equal
+             * up to the key set and their messages.  Note that we are relying on the fact that the fetch exceptions are ordered by
+             * keys.
+             */
+            readExceptions.keySet().equals(that.readExceptions.keySet())
+            && getReadExceptionMessages(this).equals(getReadExceptionMessages(that))
+            && timeSinceLastReadMillis == that.timeSinceLastReadMillis
+            && Objects.equals(fatalExceptionMessage, otherFatalExceptionMessage);
     }
 
     @Override
     public int hashCode() {
         String fatalExceptionMessage = fatalException != null ? fatalException.getMessage() : null;
         return Objects.hash(
-                remoteCluster,
-                leaderIndex,
-                followerIndex,
-                shardId,
-                leaderGlobalCheckpoint,
-                leaderMaxSeqNo,
-                followerGlobalCheckpoint,
-                followerMaxSeqNo,
-                lastRequestedSeqNo,
-                outstandingReadRequests,
-                outstandingWriteRequests,
-                writeBufferOperationCount,
-                writeBufferSizeInBytes,
-                followerMappingVersion,
-                followerSettingsVersion,
-                totalReadTimeMillis,
-                totalReadRemoteExecTimeMillis,
-                successfulReadRequests,
-                failedReadRequests,
-                operationsReads,
-                bytesRead,
-                successfulWriteRequests,
-                failedWriteRequests,
-                operationWritten,
-                /*
-                 * ElasticsearchException does not implement hash code so we will compute the hash code based on the key set and the
-                 * messages. Note that we are relying on the fact that the fetch exceptions are ordered by keys.
-                 */
-                readExceptions.keySet(),
-                getReadExceptionMessages(this),
-                timeSinceLastReadMillis,
-                fatalExceptionMessage);
+            remoteCluster,
+            leaderIndex,
+            followerIndex,
+            shardId,
+            leaderGlobalCheckpoint,
+            leaderMaxSeqNo,
+            followerGlobalCheckpoint,
+            followerMaxSeqNo,
+            lastRequestedSeqNo,
+            outstandingReadRequests,
+            outstandingWriteRequests,
+            writeBufferOperationCount,
+            writeBufferSizeInBytes,
+            followerMappingVersion,
+            followerSettingsVersion,
+            followerAliasesVersion,
+            totalReadTimeMillis,
+            totalReadRemoteExecTimeMillis,
+            successfulReadRequests,
+            failedReadRequests,
+            operationsReads,
+            bytesRead,
+            successfulWriteRequests,
+            failedWriteRequests,
+            operationWritten,
+            /*
+             * ElasticsearchException does not implement hash code so we will compute the hash code based on the key set and the
+             * messages. Note that we are relying on the fact that the fetch exceptions are ordered by keys.
+             */
+            readExceptions.keySet(),
+            getReadExceptionMessages(this),
+            timeSinceLastReadMillis,
+            fatalExceptionMessage
+        );
     }
 
     private static List<String> getReadExceptionMessages(final ShardFollowNodeTaskStatus status) {

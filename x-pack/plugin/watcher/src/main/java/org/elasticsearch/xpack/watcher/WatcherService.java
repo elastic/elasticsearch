@@ -1,10 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher;
-
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -18,23 +18,24 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.upgrade.UpgradeField;
+import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.execution.TriggeredWatchStoreField;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
@@ -83,8 +84,15 @@ public class WatcherService {
     private final AtomicLong processedClusterStateVersion = new AtomicLong(0);
     private final ExecutorService executor;
 
-    WatcherService(Settings settings, TriggerService triggerService, TriggeredWatchStore triggeredWatchStore,
-                   ExecutionService executionService, WatchParser parser, Client client, ExecutorService executor) {
+    WatcherService(
+        Settings settings,
+        TriggerService triggerService,
+        TriggeredWatchStore triggeredWatchStore,
+        ExecutionService executionService,
+        WatchParser parser,
+        Client client,
+        ExecutorService executor
+    ) {
         this.triggerService = triggerService;
         this.triggeredWatchStore = triggeredWatchStore;
         this.executionService = executionService;
@@ -96,11 +104,30 @@ public class WatcherService {
         this.executor = executor;
     }
 
-    WatcherService(Settings settings, TriggerService triggerService, TriggeredWatchStore triggeredWatchStore,
-                   ExecutionService executionService, WatchParser parser, Client client) {
-        this(settings, triggerService, triggeredWatchStore, executionService, parser, client,
-            EsExecutors.newFixed(LIFECYCLE_THREADPOOL_NAME, 1, 1000, daemonThreadFactory(settings, LIFECYCLE_THREADPOOL_NAME),
-                client.threadPool().getThreadContext()));
+    WatcherService(
+        Settings settings,
+        TriggerService triggerService,
+        TriggeredWatchStore triggeredWatchStore,
+        ExecutionService executionService,
+        WatchParser parser,
+        Client client
+    ) {
+        this(
+            settings,
+            triggerService,
+            triggeredWatchStore,
+            executionService,
+            parser,
+            client,
+            EsExecutors.newFixed(
+                LIFECYCLE_THREADPOOL_NAME,
+                1,
+                1000,
+                daemonThreadFactory(settings, LIFECYCLE_THREADPOOL_NAME),
+                client.threadPool().getThreadContext(),
+                false
+            )
+        );
     }
 
     /**
@@ -116,16 +143,21 @@ public class WatcherService {
             return false;
         }
 
-        IndexMetaData watcherIndexMetaData = WatchStoreUtils.getConcreteIndex(Watch.INDEX, state.metaData());
-        IndexMetaData triggeredWatchesIndexMetaData = WatchStoreUtils.getConcreteIndex(TriggeredWatchStoreField.INDEX_NAME,
-            state.metaData());
-        boolean isIndexInternalFormatWatchIndex = watcherIndexMetaData == null ||
-            UpgradeField.checkInternalIndexFormat(watcherIndexMetaData);
-        boolean isIndexInternalFormatTriggeredWatchIndex = triggeredWatchesIndexMetaData == null ||
-            UpgradeField.checkInternalIndexFormat(triggeredWatchesIndexMetaData);
+        IndexMetadata watcherIndexMetadata = WatchStoreUtils.getConcreteIndex(Watch.INDEX, state.metadata());
+        IndexMetadata triggeredWatchesIndexMetadata = WatchStoreUtils.getConcreteIndex(
+            TriggeredWatchStoreField.INDEX_NAME,
+            state.metadata()
+        );
+        boolean isIndexInternalFormatWatchIndex = watcherIndexMetadata == null
+            || UpgradeField.checkInternalIndexFormat(watcherIndexMetadata);
+        boolean isIndexInternalFormatTriggeredWatchIndex = triggeredWatchesIndexMetadata == null
+            || UpgradeField.checkInternalIndexFormat(triggeredWatchesIndexMetadata);
         if (isIndexInternalFormatTriggeredWatchIndex == false || isIndexInternalFormatWatchIndex == false) {
-            logger.warn("not starting watcher, upgrade API run required: .watches[{}], .triggered_watches[{}]",
-                isIndexInternalFormatWatchIndex, isIndexInternalFormatTriggeredWatchIndex);
+            logger.warn(
+                "not starting watcher, upgrade API run required: .watches[{}], .triggered_watches[{}]",
+                isIndexInternalFormatWatchIndex,
+                isIndexInternalFormatTriggeredWatchIndex
+            );
             return false;
         }
 
@@ -135,8 +167,9 @@ public class WatcherService {
                 return false;
             }
 
-            return watcherIndexMetaData == null || (watcherIndexMetaData.getState() == IndexMetaData.State.OPEN &&
-                state.routingTable().index(watcherIndexMetaData.getIndex()).allPrimaryShardsActive());
+            return watcherIndexMetadata == null
+                || (watcherIndexMetadata.getState() == IndexMetadata.State.OPEN
+                    && state.routingTable().index(watcherIndexMetadata.getIndex()).allPrimaryShardsActive());
         } catch (IllegalStateException e) {
             logger.debug("error validating to start watcher", e);
             return false;
@@ -144,24 +177,29 @@ public class WatcherService {
     }
 
     /**
-     * Stops the watcher service and marks its services as paused
+     * Stops the watcher service and marks its services as paused. Callers should set the Watcher state to {@link WatcherState#STOPPING}
+     * prior to calling this method.
+     *
+     * @param stoppedListener The listener that will set Watcher state to: {@link WatcherState#STOPPED}, may not be {@code null}
      */
-    public void stop(String reason) {
+    public void stop(String reason, Runnable stoppedListener) {
+        assert stoppedListener != null;
         logger.info("stopping watch service, reason [{}]", reason);
-        executionService.pause();
+        executionService.pause(stoppedListener);
         triggerService.pauseExecution();
     }
 
     /**
      * shuts down the trigger service as well to make sure there are no lingering threads
-     * also no need to check anything, as this is final, we just can go to status STOPPED
+     *
+     * @param stoppedListener The listener that will set Watcher state to: {@link WatcherState#STOPPED}, may not be {@code null}
      */
-    void shutDown() {
+    void shutDown(Runnable stoppedListener) {
+        assert stoppedListener != null;
         logger.info("stopping watch service, reason [shutdown initiated]");
-        executionService.pause();
+        executionService.pause(stoppedListener);
         triggerService.stop();
         stopExecutor();
-        logger.debug("watch service has stopped");
     }
 
     void stopExecutor() {
@@ -185,11 +223,10 @@ public class WatcherService {
         processedClusterStateVersion.set(state.getVersion());
 
         triggerService.pauseExecution();
-        int cancelledTaskCount = executionService.clearExecutionsAndQueue();
+        int cancelledTaskCount = executionService.clearExecutionsAndQueue(() -> {});
         logger.info("reloading watcher, reason [{}], cancelled [{}] queued tasks", reason, cancelledTaskCount);
 
-        executor.execute(wrapWatcherService(() -> reloadInner(state, reason, false),
-            e -> logger.error("error reloading watcher", e)));
+        executor.execute(wrapWatcherService(() -> reloadInner(state, reason, false), e -> logger.error("error reloading watcher", e)));
     }
 
     /**
@@ -202,11 +239,10 @@ public class WatcherService {
         executionService.unPause();
         processedClusterStateVersion.set(state.getVersion());
         executor.execute(wrapWatcherService(() -> {
-                if (reloadInner(state, "starting", true)) {
-                    postWatchesLoadedCallback.run();
-                }
-            },
-            e -> logger.error("error starting watcher", e)));
+            if (reloadInner(state, "starting", true)) {
+                postWatchesLoadedCallback.run();
+            }
+        }, e -> logger.error("error starting watcher", e)));
     }
 
     /**
@@ -220,8 +256,11 @@ public class WatcherService {
     private synchronized boolean reloadInner(ClusterState state, String reason, boolean loadTriggeredWatches) {
         // exit early if another thread has come in between
         if (processedClusterStateVersion.get() != state.getVersion()) {
-            logger.debug("watch service has not been reloaded for state [{}], another reload for state [{}] in progress",
-                state.getVersion(), processedClusterStateVersion.get());
+            logger.debug(
+                "watch service has not been reloaded for state [{}], another reload for state [{}] in progress",
+                state.getVersion(),
+                processedClusterStateVersion.get()
+            );
             return false;
         }
 
@@ -244,8 +283,11 @@ public class WatcherService {
             logger.debug("watch service has been reloaded, reason [{}]", reason);
             return true;
         } else {
-            logger.debug("watch service has not been reloaded for state [{}], another reload for state [{}] in progress",
-                state.getVersion(), processedClusterStateVersion.get());
+            logger.debug(
+                "watch service has not been reloaded for state [{}], another reload for state [{}] in progress",
+                state.getVersion(),
+                processedClusterStateVersion.get()
+            );
             return false;
         }
     }
@@ -256,7 +298,7 @@ public class WatcherService {
      */
     public void pauseExecution(String reason) {
         triggerService.pauseExecution();
-        int cancelledTaskCount = executionService.pause();
+        int cancelledTaskCount = executionService.pause(() -> {});
         logger.info("paused watch execution, reason [{}], cancelled [{}] queued tasks", reason, cancelledTaskCount);
     }
 
@@ -265,23 +307,25 @@ public class WatcherService {
      * before they are fed into the trigger service.
      */
     private Collection<Watch> loadWatches(ClusterState clusterState) {
-        IndexMetaData indexMetaData = WatchStoreUtils.getConcreteIndex(INDEX, clusterState.metaData());
+        IndexMetadata indexMetadata = WatchStoreUtils.getConcreteIndex(INDEX, clusterState.metadata());
         // no index exists, all good, we can start
-        if (indexMetaData == null) {
+        if (indexMetadata == null) {
             return Collections.emptyList();
         }
 
         SearchResponse response = null;
         List<Watch> watches = new ArrayList<>();
         try {
-            RefreshResponse refreshResponse = client.admin().indices().refresh(new RefreshRequest(INDEX))
+            RefreshResponse refreshResponse = client.admin()
+                .indices()
+                .refresh(new RefreshRequest(INDEX))
                 .actionGet(TimeValue.timeValueSeconds(5));
-            if (refreshResponse.getSuccessfulShards() < indexMetaData.getNumberOfShards()) {
+            if (refreshResponse.getSuccessfulShards() < indexMetadata.getNumberOfShards()) {
                 throw illegalState("not all required shards have been refreshed");
             }
 
             // find out local shards
-            String watchIndexName = indexMetaData.getIndex().getName();
+            String watchIndexName = indexMetadata.getIndex().getName();
             RoutingNode routingNode = clusterState.getRoutingNodes().node(clusterState.nodes().getLocalNodeId());
             // yes, this can happen, if the state is not recovered
             if (routingNode == null) {
@@ -292,13 +336,9 @@ public class WatcherService {
             // find out all allocation ids
             List<ShardRouting> watchIndexShardRoutings = clusterState.getRoutingTable().allShards(watchIndexName);
 
-            SearchRequest searchRequest = new SearchRequest(INDEX)
-                .scroll(scrollTimeout)
+            SearchRequest searchRequest = new SearchRequest(INDEX).scroll(scrollTimeout)
                 .preference(Preference.ONLY_LOCAL.toString())
-                .source(new SearchSourceBuilder()
-                    .size(scrollSize)
-                    .sort(SortBuilders.fieldSort("_doc"))
-                    .seqNoAndPrimaryTerm(true));
+                .source(new SearchSourceBuilder().size(scrollSize).sort(SortBuilders.fieldSort("_doc")).seqNoAndPrimaryTerm(true));
             response = client.search(searchRequest).actionGet(defaultSearchTimeout);
 
             if (response.getTotalShards() != response.getSuccessfulShards()) {
@@ -313,8 +353,10 @@ public class WatcherService {
             for (ShardRouting localShardRouting : localShards) {
                 List<String> sortedAllocationIds = watchIndexShardRoutings.stream()
                     .filter(sr -> localShardRouting.getId() == sr.getId())
-                    .map(ShardRouting::allocationId).filter(Objects::nonNull)
-                    .map(AllocationId::getId).filter(Objects::nonNull)
+                    .map(ShardRouting::allocationId)
+                    .filter(Objects::nonNull)
+                    .map(AllocationId::getId)
+                    .filter(Objects::nonNull)
                     .sorted()
                     .collect(Collectors.toList());
 
@@ -346,8 +388,13 @@ public class WatcherService {
                             watches.add(watch);
                         }
                     } catch (Exception e) {
-                        logger.error((org.apache.logging.log4j.util.Supplier<?>)
-                            () -> new ParameterizedMessage("couldn't load watch [{}], ignoring it...", id), e);
+                        logger.error(
+                            (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
+                                "couldn't load watch [{}], ignoring it...",
+                                id
+                            ),
+                            e
+                        );
                     }
                 }
                 SearchScrollRequest request = new SearchScrollRequest(response.getScrollId());

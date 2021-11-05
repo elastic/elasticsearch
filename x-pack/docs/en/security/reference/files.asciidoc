@@ -1,0 +1,39 @@
+[role="xpack"]
+[testenv="gold"]
+[[security-files]]
+=== Security files
+
+The {es} {security-features} use the following files:
+
+* `ES_PATH_CONF/roles.yml` defines the roles in use on the cluster. See
+<<defining-roles>>.
+
+* `ES_PATH_CONF/elasticsearch-users` defines the users and their hashed passwords for
+  the `file` realm. See <<file-realm>>.
+
+* `ES_PATH_CONF/elasticsearch-users_roles` defines the user roles assignment for the
+  `file` realm. See <<file-realm>>.
+
+* `ES_PATH_CONF/role_mapping.yml` defines the role assignments for a
+  Distinguished Name (DN) to a role. This allows for LDAP and Active Directory
+  groups and users and PKI users to be mapped to roles. See
+  <<mapping-roles>>.
+
+* `ES_PATH_CONF/log4j2.properties` contains audit information. See
+<<audit-log-output>>.
+
+[[security-files-location]]
+
+IMPORTANT:  Any files that the {security-features} use must be stored in the {es}
+            configuration directory. {es} runs with restricted permissions
+            and is only permitted to read from the locations configured in the
+            directory layout for enhanced security.
+
+Several of these files are in the YAML format. When you edit these files, be
+aware that YAML is indentation-level sensitive and indentation errors can lead
+to configuration errors. Avoid the tab character to set indentation levels, or
+use an editor that automatically expands tabs to spaces.
+
+Be careful to properly escape YAML constructs such as `:` or leading exclamation
+points within quoted strings. Using the `|` or `>` characters to define block
+literals instead of escaping the problematic characters can help avoid problems.

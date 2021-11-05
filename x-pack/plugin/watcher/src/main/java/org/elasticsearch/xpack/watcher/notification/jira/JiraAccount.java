@@ -1,11 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.jira;
 
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
@@ -13,18 +13,19 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.watcher.common.http.BasicAuth;
 import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.common.http.HttpMethod;
 import org.elasticsearch.xpack.watcher.common.http.HttpProxy;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
 import org.elasticsearch.xpack.watcher.common.http.Scheme;
-import org.elasticsearch.xpack.watcher.common.http.BasicAuth;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -61,6 +62,9 @@ public class JiraAccount {
         String url = getSetting(name, settings, SECURE_URL_SETTING);
         try {
             URI uri = new URI(url);
+            if (uri.getScheme() == null) {
+                throw new URISyntaxException("null", "No scheme defined in url");
+            }
             Scheme protocol = Scheme.parse(uri.getScheme());
             if ((protocol == Scheme.HTTP) && (Booleans.isTrue(settings.get(ALLOW_HTTP_SETTING)) == false)) {
                 throw new SettingsException("invalid jira [" + name + "] account settings. unsecure scheme [" + protocol + "]");
@@ -68,7 +72,9 @@ public class JiraAccount {
             this.url = uri;
         } catch (URISyntaxException | IllegalArgumentException e) {
             throw new SettingsException(
-                    "invalid jira [" + name + "] account settings. invalid [" + SECURE_URL_SETTING.getKey() + "] setting", e);
+                "invalid jira [" + name + "] account settings. invalid [" + SECURE_URL_SETTING.getKey() + "] setting",
+                e
+            );
         }
         this.user = getSetting(name, settings, SECURE_USER_SETTING);
         this.password = getSetting(name, settings, SECURE_PASSWORD_SETTING);
@@ -76,9 +82,11 @@ public class JiraAccount {
             builder.startObject();
             settings.getAsSettings(ISSUE_DEFAULTS_SETTING).toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            try (InputStream stream = BytesReference.bytes(builder).streamInput();
-                 XContentParser parser = XContentType.JSON.xContent()
-                         .createParser(new NamedXContentRegistry(Collections.emptyList()), LoggingDeprecationHandler.INSTANCE, stream)) {
+            try (
+                InputStream stream = BytesReference.bytes(builder).streamInput();
+                XContentParser parser = XContentType.JSON.xContent()
+                    .createParser(new NamedXContentRegistry(Collections.emptyList()), LoggingDeprecationHandler.INSTANCE, stream)
+            ) {
                 this.issueDefaults = Collections.unmodifiableMap(parser.map());
             }
         } catch (IOException ex) {
@@ -104,13 +112,13 @@ public class JiraAccount {
 
     public JiraIssue createIssue(final Map<String, Object> fields, final HttpProxy proxy) throws IOException {
         HttpRequest request = HttpRequest.builder(url.getHost(), url.getPort())
-                .scheme(Scheme.parse(url.getScheme()))
-                .method(HttpMethod.POST)
-                .path(url.getPath().isEmpty() || url.getPath().equals("/") ? DEFAULT_PATH : url.getPath())
-                .jsonBody((builder, params) -> builder.field("fields", fields))
-                .auth(new BasicAuth(user, password.toCharArray()))
-                .proxy(proxy)
-                .build();
+            .scheme(Scheme.parse(url.getScheme()))
+            .method(HttpMethod.POST)
+            .path(url.getPath().isEmpty() || url.getPath().equals("/") ? DEFAULT_PATH : url.getPath())
+            .jsonBody((builder, params) -> builder.field("fields", fields))
+            .auth(new BasicAuth(user, password.toCharArray()))
+            .proxy(proxy)
+            .build();
 
         HttpResponse response = httpClient.execute(request);
         return JiraIssue.responded(name, fields, request, response);

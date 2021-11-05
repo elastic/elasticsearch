@@ -1,23 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ValidateActions;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -29,17 +29,12 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Response> {
+public class GetCalendarEventsAction extends ActionType<GetCalendarEventsAction.Response> {
     public static final GetCalendarEventsAction INSTANCE = new GetCalendarEventsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/calendars/events/get";
 
     private GetCalendarEventsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, Response::new);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {
@@ -71,7 +66,15 @@ public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Resp
         private String jobId;
         private PageParams pageParams = PageParams.defaultParams();
 
-        public Request() {
+        public Request() {}
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            calendarId = in.readString();
+            start = in.readOptionalString();
+            end = in.readOptionalString();
+            jobId = in.readOptionalString();
+            pageParams = new PageParams(in);
         }
 
         public Request(String calendarId) {
@@ -89,6 +92,7 @@ public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Resp
         public String getStart() {
             return start;
         }
+
         public void setStart(String start) {
             this.start = start;
         }
@@ -121,22 +125,19 @@ public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Resp
         public ActionRequestValidationException validate() {
             ActionRequestValidationException e = null;
 
-            boolean calendarIdIsAll = GetCalendarsAction.Request.ALL.equals(calendarId);
-            if (jobId != null && calendarIdIsAll == false) {
-                e = ValidateActions.addValidationError("If " + Job.ID.getPreferredName() + " is used " +
-                        Calendar.ID.getPreferredName() + " must be '" + GetCalendarsAction.Request.ALL + "'", e);
+            if (jobId != null && Strings.isAllOrWildcard(calendarId) == false) {
+                e = ValidateActions.addValidationError(
+                    "If "
+                        + Job.ID.getPreferredName()
+                        + " is used "
+                        + Calendar.ID.getPreferredName()
+                        + " must be '"
+                        + GetCalendarsAction.Request.ALL
+                        + "' or '*'",
+                    e
+                );
             }
             return e;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            calendarId = in.readString();
-            start = in.readOptionalString();
-            end = in.readOptionalString();
-            jobId = in.readOptionalString();
-            pageParams = new PageParams(in);
         }
 
         @Override
@@ -163,9 +164,11 @@ public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Resp
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(calendarId, other.calendarId) && Objects.equals(start, other.start)
-                    && Objects.equals(end, other.end) && Objects.equals(pageParams, other.pageParams)
-                    && Objects.equals(jobId, other.jobId);
+            return Objects.equals(calendarId, other.calendarId)
+                && Objects.equals(start, other.start)
+                && Objects.equals(end, other.end)
+                && Objects.equals(pageParams, other.pageParams)
+                && Objects.equals(jobId, other.jobId);
         }
 
         @Override
@@ -187,16 +190,10 @@ public class GetCalendarEventsAction extends Action<GetCalendarEventsAction.Resp
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        public RequestBuilder(ElasticsearchClient client) {
-            super(client, INSTANCE, new Request());
-        }
-    }
-
     public static class Response extends AbstractGetResourcesResponse<ScheduledEvent> implements ToXContentObject {
 
-        public Response() {
+        public Response(StreamInput in) throws IOException {
+            super(in);
         }
 
         public Response(QueryPage<ScheduledEvent> scheduledEvents) {

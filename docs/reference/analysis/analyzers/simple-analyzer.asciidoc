@@ -1,26 +1,28 @@
 [[analysis-simple-analyzer]]
-=== Simple Analyzer
+=== Simple analyzer
+++++
+<titleabbrev>Simple</titleabbrev>
+++++
 
-The `simple` analyzer breaks text into terms whenever it encounters a
-character which is not a letter. All terms are lower cased.
+The `simple` analyzer breaks text into tokens at any non-letter character, such
+as numbers, spaces, hyphens and apostrophes, discards non-letter characters, 
+and changes uppercase to lowercase.
 
-[float]
-=== Example output
+[[analysis-simple-analyzer-ex]]
+==== Example
 
-[source,js]
----------------------------
+[source,console]
+----
 POST _analyze
 {
   "analyzer": "simple",
   "text": "The 2 QUICK Brown-Foxes jumped over the lazy dog's bone."
 }
----------------------------
-// CONSOLE
+----
 
-/////////////////////
-
-[source,js]
-----------------------------
+////
+[source,console-result]
+----
 {
   "tokens": [
     {
@@ -102,54 +104,47 @@ POST _analyze
     }
   ]
 }
-----------------------------
-// TESTRESPONSE
+----
+////
 
-/////////////////////
-
-
-The above sentence would produce the following terms:
+The `simple` analyzer parses the sentence and produces the following 
+tokens: 
 
 [source,text]
----------------------------
+----
 [ the, quick, brown, foxes, jumped, over, the, lazy, dog, s, bone ]
----------------------------
+----
 
-[float]
-=== Configuration
+[[analysis-simple-analyzer-definition]]
+==== Definition
 
-The `simple` analyzer is not configurable.
-
-[float]
-=== Definition
-
-The `simple` analzyer consists of:
+The `simple` analyzer is defined by one tokenizer:
 
 Tokenizer::
-* <<analysis-lowercase-tokenizer,Lower Case Tokenizer>>
+* <<analysis-lowercase-tokenizer, Lowercase Tokenizer>>
 
-If you need to customize the `simple` analyzer then you need to recreate
-it as a `custom` analyzer and modify it, usually by adding token filters.
-This would recreate the built-in `simple` analyzer and you can use it as
-a starting point for further customization:
+[[analysis-simple-analyzer-customize]]
+==== Customize
 
-[source,js]
-----------------------------------------------------
-PUT /simple_example
+To customize the `simple` analyzer, duplicate it to create the basis for 
+a custom analyzer. This custom analyzer can be modified as required, usually by 
+adding token filters.
+
+[source,console]
+----
+PUT /my-index-000001
 {
   "settings": {
     "analysis": {
       "analyzer": {
-        "rebuilt_simple": {
+        "my_custom_simple_analyzer": {
           "tokenizer": "lowercase",
-          "filter": [         <1>
+          "filter": [                          <1>
           ]
         }
       }
     }
   }
 }
-----------------------------------------------------
-// CONSOLE
-// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: simple_example, first: simple, second: rebuilt_simple}\nendyaml\n/]
-<1> You'd add any token filters here.
+----
+<1> Add token filters here.

@@ -1,28 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch;
 
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Booleans;
 
 import java.io.IOException;
 import java.net.URL;
@@ -124,7 +113,7 @@ public class Build {
     static {
         final Flavor flavor;
         final Type type;
-        final String shortHash;
+        final String hash;
         final String date;
         final boolean isSnapshot;
         final String version;
@@ -136,13 +125,11 @@ public class Build {
         final String esPrefix = "elasticsearch-" + Version.CURRENT;
         final URL url = getElasticsearchCodeSourceLocation();
         final String urlStr = url == null ? "" : url.toString();
-        if (urlStr.startsWith("file:/") && (
-            urlStr.endsWith(esPrefix + ".jar") ||
-            urlStr.matches("(.*)" + esPrefix + "(-)?((alpha|beta|rc)[0-9]+)?(-SNAPSHOT)?.jar")
-        )) {
+        if (urlStr.startsWith("file:/")
+            && (urlStr.endsWith(esPrefix + ".jar") || urlStr.matches("(.*)" + esPrefix + "(-)?((alpha|beta|rc)[0-9]+)?(-SNAPSHOT)?.jar"))) {
             try (JarInputStream jar = new JarInputStream(FileSystemUtils.openFileURLStream(url))) {
                 Manifest manifest = jar.getManifest();
-                shortHash = manifest.getMainAttributes().getValue("Change");
+                hash = manifest.getMainAttributes().getValue("Change");
                 date = manifest.getMainAttributes().getValue("Build-Date");
                 isSnapshot = "true".equals(manifest.getMainAttributes().getValue("X-Compile-Elasticsearch-Snapshot"));
                 version = manifest.getMainAttributes().getValue("X-Compile-Elasticsearch-Version");
@@ -151,8 +138,8 @@ public class Build {
             }
         } else {
             // not running from the official elasticsearch jar file (unit tests, IDE, uber client jar, shadiness)
-            shortHash = "Unknown";
-            date = "Unknown";
+            hash = "unknown";
+            date = "unknown";
             version = Version.CURRENT.toString();
             final String buildSnapshot = System.getProperty("build.snapshot");
             if (buildSnapshot != null) {
@@ -167,20 +154,26 @@ public class Build {
                 isSnapshot = true;
             }
         }
-        if (shortHash == null) {
-            throw new IllegalStateException("Error finding the build shortHash. " +
-                    "Stopping Elasticsearch now so it doesn't run in subtly broken ways. This is likely a build bug.");
+        if (hash == null) {
+            throw new IllegalStateException(
+                "Error finding the build hash. "
+                    + "Stopping Elasticsearch now so it doesn't run in subtly broken ways. This is likely a build bug."
+            );
         }
         if (date == null) {
-            throw new IllegalStateException("Error finding the build date. " +
-                    "Stopping Elasticsearch now so it doesn't run in subtly broken ways. This is likely a build bug.");
+            throw new IllegalStateException(
+                "Error finding the build date. "
+                    + "Stopping Elasticsearch now so it doesn't run in subtly broken ways. This is likely a build bug."
+            );
         }
         if (version == null) {
-            throw new IllegalStateException("Error finding the build version. " +
-                "Stopping Elasticsearch now so it doesn't run in subtly broken ways. This is likely a build bug.");
+            throw new IllegalStateException(
+                "Error finding the build version. "
+                    + "Stopping Elasticsearch now so it doesn't run in subtly broken ways. This is likely a build bug."
+            );
         }
 
-        CURRENT = new Build(flavor, type, shortHash, date, isSnapshot, version);
+        CURRENT = new Build(flavor, type, hash, date, isSnapshot, version);
     }
 
     private final boolean isSnapshot;
@@ -197,24 +190,21 @@ public class Build {
 
     private final Flavor flavor;
     private final Type type;
-    private final String shortHash;
+    private final String hash;
     private final String date;
     private final String version;
 
-    public Build(
-        final Flavor flavor, final Type type, final String shortHash, final String date, boolean isSnapshot,
-        String version
-    ) {
+    public Build(final Flavor flavor, final Type type, final String hash, final String date, boolean isSnapshot, String version) {
         this.flavor = flavor;
         this.type = type;
-        this.shortHash = shortHash;
+        this.hash = hash;
         this.date = date;
         this.isSnapshot = isSnapshot;
         this.version = version;
     }
 
-    public String shortHash() {
-        return shortHash;
+    public String hash() {
+        return hash;
     }
 
     public String date() {
@@ -224,50 +214,26 @@ public class Build {
     public static Build readBuild(StreamInput in) throws IOException {
         final Flavor flavor;
         final Type type;
-        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-            // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
-            flavor = Flavor.fromDisplayName(in.readString(), false);
-        } else {
-            flavor = Flavor.OSS;
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-            // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
-            type = Type.fromDisplayName(in.readString(), false);
-        } else {
-            type = Type.UNKNOWN;
-        }
+        // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
+        flavor = Flavor.fromDisplayName(in.readString(), false);
+        // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
+        type = Type.fromDisplayName(in.readString(), false);
         String hash = in.readString();
         String date = in.readString();
         boolean snapshot = in.readBoolean();
 
         final String version;
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            version = in.readString();
-        } else {
-            version = in.getVersion().toString();
-        }
+        version = in.readString();
         return new Build(flavor, type, hash, date, snapshot, version);
     }
 
     public static void writeBuild(Build build, StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            out.writeString(build.flavor().displayName());
-        }
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            final Type buildType;
-            if (out.getVersion().before(Version.V_6_7_0) && build.type() == Type.DOCKER) {
-                buildType = Type.TAR;
-            } else {
-                buildType = build.type();
-            }
-            out.writeString(buildType.displayName());
-        }
-        out.writeString(build.shortHash());
+        out.writeString(build.flavor().displayName());
+        out.writeString(build.type().displayName());
+        out.writeString(build.hash());
         out.writeString(build.date());
         out.writeBoolean(build.isSnapshot());
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeString(build.getQualifiedVersion());
-        }
+        out.writeString(build.getQualifiedVersion());
     }
 
     /**
@@ -306,7 +272,7 @@ public class Build {
 
     @Override
     public String toString() {
-        return "[" + flavor.displayName() + "][" + type.displayName + "][" + shortHash + "][" + date + "][" + version +"]";
+        return "[" + flavor.displayName() + "][" + type.displayName + "][" + hash + "][" + date + "][" + version + "]";
     }
 
     @Override
@@ -320,18 +286,18 @@ public class Build {
 
         Build build = (Build) o;
 
-        if (!flavor.equals(build.flavor)) {
+        if (flavor.equals(build.flavor) == false) {
             return false;
         }
 
-        if (!type.equals(build.type)) {
+        if (type.equals(build.type) == false) {
             return false;
         }
 
         if (isSnapshot != build.isSnapshot) {
             return false;
         }
-        if (!shortHash.equals(build.shortHash)) {
+        if (hash.equals(build.hash) == false) {
             return false;
         }
         if (version.equals(build.version) == false) {
@@ -342,7 +308,7 @@ public class Build {
 
     @Override
     public int hashCode() {
-        return Objects.hash(flavor, type, isSnapshot, shortHash, date, version);
+        return Objects.hash(flavor, type, isSnapshot, hash, date, version);
     }
 
 }

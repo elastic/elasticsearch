@@ -3,7 +3,7 @@
 :request: GetApiKeyRequest
 :response: GetApiKeyResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Get API Key information API
 
@@ -20,6 +20,10 @@ The +{request}+ supports retrieving API key information for
 . All API keys for a specific user
 
 . All API keys for a specific user in a specific realm
+
+. A specific key or all API keys owned by the current authenticated user
+
+. All API keys if the user is authorized to do so
 
 ===== Retrieve a specific API key by its id
 ["source","java",subs="attributes,callouts,macros"]
@@ -49,6 +53,18 @@ include-tagged::{doc-tests-file}[get-user-api-keys-request]
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[get-user-realm-api-keys-request]
+--------------------------------------------------
+
+===== Retrieve all API keys for the current authenticated user
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[get-api-keys-owned-by-authenticated-user-request]
+--------------------------------------------------
+
+===== Retrieve all API keys if the user is authorized to do so
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[get-all-api-keys-request]
 --------------------------------------------------
 
 include::../execution.asciidoc[]

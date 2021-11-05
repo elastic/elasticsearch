@@ -1,52 +1,84 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless;
 
+import java.text.MessageFormat.Field;
+import java.text.Normalizer;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 public class BasicAPITests extends ScriptTestCase {
 
     public void testListIterator() {
-        assertEquals(3, exec("List x = new ArrayList(); x.add(2); x.add(3); x.add(-2); Iterator y = x.iterator(); " +
-            "int total = 0; while (y.hasNext()) total += y.next(); return total;"));
-        assertEquals("abc", exec("List x = new ArrayList(); x.add(\"a\"); x.add(\"b\"); x.add(\"c\"); " +
-            "Iterator y = x.iterator(); String total = \"\"; while (y.hasNext()) total += y.next(); return total;"));
-        assertEquals(3, exec("def x = new ArrayList(); x.add(2); x.add(3); x.add(-2); def y = x.iterator(); " +
-            "def total = 0; while (y.hasNext()) total += y.next(); return total;"));
+        assertEquals(
+            3,
+            exec(
+                "List x = new ArrayList(); x.add(2); x.add(3); x.add(-2); Iterator y = x.iterator(); "
+                    + "int total = 0; while (y.hasNext()) total += y.next(); return total;"
+            )
+        );
+        assertEquals(
+            "abc",
+            exec(
+                "List x = new ArrayList(); x.add(\"a\"); x.add(\"b\"); x.add(\"c\"); "
+                    + "Iterator y = x.iterator(); String total = \"\"; while (y.hasNext()) total += y.next(); return total;"
+            )
+        );
+        assertEquals(
+            3,
+            exec(
+                "def x = new ArrayList(); x.add(2); x.add(3); x.add(-2); def y = x.iterator(); "
+                    + "def total = 0; while (y.hasNext()) total += y.next(); return total;"
+            )
+        );
     }
 
     public void testSetIterator() {
-        assertEquals(3, exec("Set x = new HashSet(); x.add(2); x.add(3); x.add(-2); Iterator y = x.iterator(); " +
-            "int total = 0; while (y.hasNext()) total += y.next(); return total;"));
-        assertEquals("abc", exec("Set x = new HashSet(); x.add(\"a\"); x.add(\"b\"); x.add(\"c\"); " +
-            "Iterator y = x.iterator(); String total = \"\"; while (y.hasNext()) total += y.next(); return total;"));
-        assertEquals(3, exec("def x = new HashSet(); x.add(2); x.add(3); x.add(-2); def y = x.iterator(); " +
-            "def total = 0; while (y.hasNext()) total += (int)y.next(); return total;"));
+        assertEquals(
+            3,
+            exec(
+                "Set x = new HashSet(); x.add(2); x.add(3); x.add(-2); Iterator y = x.iterator(); "
+                    + "int total = 0; while (y.hasNext()) total += y.next(); return total;"
+            )
+        );
+        assertEquals(
+            "abc",
+            exec(
+                "Set x = new HashSet(); x.add(\"a\"); x.add(\"b\"); x.add(\"c\"); "
+                    + "Iterator y = x.iterator(); String total = \"\"; while (y.hasNext()) total += y.next(); return total;"
+            )
+        );
+        assertEquals(
+            3,
+            exec(
+                "def x = new HashSet(); x.add(2); x.add(3); x.add(-2); def y = x.iterator(); "
+                    + "def total = 0; while (y.hasNext()) total += (int)y.next(); return total;"
+            )
+        );
     }
 
     public void testMapIterator() {
-        assertEquals(3, exec("Map x = new HashMap(); x.put(2, 2); x.put(3, 3); x.put(-2, -2); Iterator y = x.keySet().iterator(); " +
-            "int total = 0; while (y.hasNext()) total += (int)y.next(); return total;"));
-        assertEquals(3, exec("Map x = new HashMap(); x.put(2, 2); x.put(3, 3); x.put(-2, -2); Iterator y = x.values().iterator(); " +
-            "int total = 0; while (y.hasNext()) total += (int)y.next(); return total;"));
+        assertEquals(
+            3,
+            exec(
+                "Map x = new HashMap(); x.put(2, 2); x.put(3, 3); x.put(-2, -2); Iterator y = x.keySet().iterator(); "
+                    + "int total = 0; while (y.hasNext()) total += (int)y.next(); return total;"
+            )
+        );
+        assertEquals(
+            3,
+            exec(
+                "Map x = new HashMap(); x.put(2, 2); x.put(3, 3); x.put(-2, -2); Iterator y = x.values().iterator(); "
+                    + "int total = 0; while (y.hasNext()) total += (int)y.next(); return total;"
+            )
+        );
     }
 
     /** Test loads and stores with a map */
@@ -67,8 +99,7 @@ public class BasicAPITests extends ScriptTestCase {
         ctx.put("_source", _source);
         params.put("ctx", ctx);
 
-        assertEquals("testvalue", exec("params.ctx._source['load'].5 = params.ctx._source['load'].remove('load5')",
-            params, true));
+        assertEquals("testvalue", exec("params.ctx._source['load'].5 = params.ctx._source['load'].remove('load5')", params, true));
     }
 
     /** Test loads and stores with a list */
@@ -127,8 +158,13 @@ public class BasicAPITests extends ScriptTestCase {
     }
 
     public void testPublicMemberAccess() {
-        assertEquals(5, exec("org.elasticsearch.painless.FeatureTestObject ft = new org.elasticsearch.painless.FeatureTestObject();" +
-            "ft.z = 5; return ft.z;"));
+        assertEquals(
+            5,
+            exec(
+                "org.elasticsearch.painless.FeatureTestObject ft = new org.elasticsearch.painless.FeatureTestObject();"
+                    + "ft.z = 5; return ft.z;"
+            )
+        );
     }
 
     public void testNoSemicolon() {
@@ -138,5 +174,28 @@ public class BasicAPITests extends ScriptTestCase {
     public void testStatic() {
         assertEquals(10, exec("staticAddIntsTest(7, 3)"));
         assertEquals(15.5f, exec("staticAddFloatsTest(6.5f, 9.0f)"));
+    }
+
+    public void testRandomUUID() {
+        assertTrue(
+            Pattern.compile("\\p{XDigit}{8}(-\\p{XDigit}{4}){3}-\\p{XDigit}{12}")
+                .matcher(
+                    (String) exec(
+                        "UUID a = UUID.randomUUID();"
+                            + "String s = a.toString(); "
+                            + "UUID b = UUID.fromString(s);"
+                            + "if (a.equals(b) == false) {"
+                            + "   throw new RuntimeException('uuids did not match');"
+                            + "}"
+                            + "return s;"
+                    )
+                )
+                .matches()
+        );
+    }
+
+    public void testStaticInnerClassResolution() {
+        assertEquals(Field.ARGUMENT, exec("MessageFormat.Field.ARGUMENT"));
+        assertEquals(Normalizer.Form.NFD, exec("Normalizer.Form.NFD"));
     }
 }

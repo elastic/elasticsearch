@@ -1,0 +1,34 @@
+{
+  "ml.update_job":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-update-job.html",
+      "description":"Updates certain properties of an anomaly detection job."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/anomaly_detectors/{job_id}/_update",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "job_id":{
+              "type":"string",
+              "description":"The ID of the job to create"
+            }
+          }
+        }
+      ]
+    },
+    "body":{
+      "description":"The job update settings",
+      "required":true
+    }
+  }
+}

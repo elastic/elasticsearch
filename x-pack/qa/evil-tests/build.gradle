@@ -1,14 +1,20 @@
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
-    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-    if (isEclipse) {
-      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
-    }
-    testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
+  testImplementation(project(xpackModule('core')))
+  testImplementation("org.apache.kerby:kerb-admin:1.1.1")
+  testImplementation("org.apache.kerby:kerb-client:1.1.1")
+  testImplementation("org.apache.kerby:kerb-common:1.1.1")
+  testImplementation("org.apache.kerby:kerb-core:1.1.1")
+  testImplementation("org.apache.kerby:kerb-server:1.1.1")
+  testImplementation("org.apache.kerby:kerb-simplekdc:1.1.1")
+  testImplementation("org.apache.kerby:kerb-util:1.1.1")
+  testImplementation("org.apache.kerby:kerby-config:1.1.1")
+
+  testImplementation(testArtifact(project(xpackModule('security'))))
 }
 
-test {
-    systemProperty 'tests.security.manager', 'false'
-    include '**/*Tests.class'
+tasks.named("test").configure {
+  systemProperty 'tests.security.manager', 'false'
+  include '**/*Tests.class'
 }

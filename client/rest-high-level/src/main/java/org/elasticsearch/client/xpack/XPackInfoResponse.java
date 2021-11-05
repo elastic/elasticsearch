@@ -1,29 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.xpack;
 
 import org.elasticsearch.client.license.LicenseStatus;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -35,8 +24,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class XPackInfoResponse {
     /**
@@ -45,9 +34,12 @@ public class XPackInfoResponse {
     public static final long BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS = Long.MAX_VALUE - TimeUnit.HOURS.toMillis(24 * 365);
     // TODO move this constant to License.java once we move License.java to the protocol jar
 
-    @Nullable private BuildInfo buildInfo;
-    @Nullable private LicenseInfo licenseInfo;
-    @Nullable private FeatureSetsInfo featureSetsInfo;
+    @Nullable
+    private BuildInfo buildInfo;
+    @Nullable
+    private LicenseInfo licenseInfo;
+    @Nullable
+    private FeatureSetsInfo featureSetsInfo;
 
     public XPackInfoResponse() {}
 
@@ -85,8 +77,8 @@ public class XPackInfoResponse {
         if (this == other) return true;
         XPackInfoResponse rhs = (XPackInfoResponse) other;
         return Objects.equals(buildInfo, rhs.buildInfo)
-                && Objects.equals(licenseInfo, rhs.licenseInfo)
-                && Objects.equals(featureSetsInfo, rhs.featureSetsInfo);
+            && Objects.equals(licenseInfo, rhs.licenseInfo)
+            && Objects.equals(featureSetsInfo, rhs.featureSetsInfo);
     }
 
     @Override
@@ -96,22 +88,28 @@ public class XPackInfoResponse {
 
     @Override
     public String toString() {
-        return "XPackInfoResponse{" +
-            "buildInfo=" + buildInfo +
-            ", licenseInfo=" + licenseInfo +
-            ", featureSetsInfo=" + featureSetsInfo +
-            '}';
+        return "XPackInfoResponse{"
+            + "buildInfo="
+            + buildInfo
+            + ", licenseInfo="
+            + licenseInfo
+            + ", featureSetsInfo="
+            + featureSetsInfo
+            + '}';
     }
 
     private static final ConstructingObjectParser<XPackInfoResponse, Void> PARSER = new ConstructingObjectParser<>(
-            "xpack_info_response", true, (a, v) -> {
-                BuildInfo buildInfo = (BuildInfo) a[0];
-                LicenseInfo licenseInfo = (LicenseInfo) a[1];
-                @SuppressWarnings("unchecked") // This is how constructing object parser works
-                List<FeatureSetsInfo.FeatureSet> featureSets = (List<FeatureSetsInfo.FeatureSet>) a[2];
-                FeatureSetsInfo featureSetsInfo = featureSets == null ? null : new FeatureSetsInfo(new HashSet<>(featureSets));
-                return new XPackInfoResponse(buildInfo, licenseInfo, featureSetsInfo);
-            });
+        "xpack_info_response",
+        true,
+        (a, v) -> {
+            BuildInfo buildInfo = (BuildInfo) a[0];
+            LicenseInfo licenseInfo = (LicenseInfo) a[1];
+            @SuppressWarnings("unchecked") // This is how constructing object parser works
+            List<FeatureSetsInfo.FeatureSet> featureSets = (List<FeatureSetsInfo.FeatureSet>) a[2];
+            FeatureSetsInfo featureSetsInfo = featureSets == null ? null : new FeatureSetsInfo(new HashSet<>(featureSets));
+            return new XPackInfoResponse(buildInfo, licenseInfo, featureSetsInfo);
+        }
+    );
     static {
         PARSER.declareObject(optionalConstructorArg(), BuildInfo.PARSER, new ParseField("build"));
         /*
@@ -119,15 +117,16 @@ public class XPackInfoResponse {
          * optional but it can also be send as `null`.
          */
         PARSER.declareField(optionalConstructorArg(), (p, v) -> {
-                    if (p.currentToken() == XContentParser.Token.VALUE_NULL) {
-                        return null;
-                    }
-                    return LicenseInfo.PARSER.parse(p, v);
-                },
-                new ParseField("license"), ValueType.OBJECT_OR_NULL);
-        PARSER.declareNamedObjects(optionalConstructorArg(),
-                (p, c, name) -> FeatureSetsInfo.FeatureSet.PARSER.parse(p, name),
-                new ParseField("features"));
+            if (p.currentToken() == XContentParser.Token.VALUE_NULL) {
+                return null;
+            }
+            return LicenseInfo.PARSER.parse(p, v);
+        }, new ParseField("license"), ValueType.OBJECT_OR_NULL);
+        PARSER.declareNamedObjects(
+            optionalConstructorArg(),
+            (p, c, name) -> FeatureSetsInfo.FeatureSet.PARSER.parse(p, name),
+            new ParseField("features")
+        );
     }
 
     public static XPackInfoResponse fromXContent(XContentParser parser) throws IOException {
@@ -175,10 +174,10 @@ public class XPackInfoResponse {
             if (this == other) return true;
             LicenseInfo rhs = (LicenseInfo) other;
             return Objects.equals(uid, rhs.uid)
-                    && Objects.equals(type, rhs.type)
-                    && Objects.equals(mode, rhs.mode)
-                    && Objects.equals(status, rhs.status)
-                    && expiryDate == rhs.expiryDate;
+                && Objects.equals(type, rhs.type)
+                && Objects.equals(mode, rhs.mode)
+                && Objects.equals(status, rhs.status)
+                && expiryDate == rhs.expiryDate;
         }
 
         @Override
@@ -188,25 +187,36 @@ public class XPackInfoResponse {
 
         @Override
         public String toString() {
-            return "LicenseInfo{" +
-                "uid='" + uid + '\'' +
-                ", type='" + type + '\'' +
-                ", mode='" + mode + '\'' +
-                ", status=" + status +
-                ", expiryDate=" + expiryDate +
-                '}';
+            return "LicenseInfo{"
+                + "uid='"
+                + uid
+                + '\''
+                + ", type='"
+                + type
+                + '\''
+                + ", mode='"
+                + mode
+                + '\''
+                + ", status="
+                + status
+                + ", expiryDate="
+                + expiryDate
+                + '}';
         }
 
         private static final ConstructingObjectParser<LicenseInfo, Void> PARSER = new ConstructingObjectParser<>(
-                "license_info", true, (a, v) -> {
-                    String uid = (String) a[0];
-                    String type = (String) a[1];
-                    String mode = (String) a[2];
-                    LicenseStatus status = LicenseStatus.fromString((String) a[3]);
-                    Long expiryDate = (Long) a[4];
-                    long primitiveExpiryDate = expiryDate == null ? BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS : expiryDate;
-                    return new LicenseInfo(uid, type, mode, status, primitiveExpiryDate);
-                });
+            "license_info",
+            true,
+            (a, v) -> {
+                String uid = (String) a[0];
+                String type = (String) a[1];
+                String mode = (String) a[2];
+                LicenseStatus status = LicenseStatus.fromString((String) a[3]);
+                Long expiryDate = (Long) a[4];
+                long primitiveExpiryDate = expiryDate == null ? BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS : expiryDate;
+                return new LicenseInfo(uid, type, mode, status, primitiveExpiryDate);
+            }
+        );
         static {
             PARSER.declareString(constructorArg(), new ParseField("uid"));
             PARSER.declareString(constructorArg(), new ParseField("type"));
@@ -238,8 +248,7 @@ public class XPackInfoResponse {
             if (other == null || other.getClass() != getClass()) return false;
             if (this == other) return true;
             BuildInfo rhs = (BuildInfo) other;
-            return Objects.equals(hash, rhs.hash)
-                    && Objects.equals(timestamp, rhs.timestamp);
+            return Objects.equals(hash, rhs.hash) && Objects.equals(timestamp, rhs.timestamp);
         }
 
         @Override
@@ -249,14 +258,14 @@ public class XPackInfoResponse {
 
         @Override
         public String toString() {
-            return "BuildInfo{" +
-                "hash='" + hash + '\'' +
-                ", timestamp='" + timestamp + '\'' +
-                '}';
+            return "BuildInfo{" + "hash='" + hash + '\'' + ", timestamp='" + timestamp + '\'' + '}';
         }
 
         private static final ConstructingObjectParser<BuildInfo, Void> PARSER = new ConstructingObjectParser<>(
-                "build_info", true, (a, v) -> new BuildInfo((String) a[0], (String) a[1]));
+            "build_info",
+            true,
+            (a, v) -> new BuildInfo((String) a[0], (String) a[1])
+        );
         static {
             PARSER.declareString(constructorArg(), new ParseField("hash"));
             PARSER.declareString(constructorArg(), new ParseField("date"));
@@ -293,20 +302,25 @@ public class XPackInfoResponse {
 
         @Override
         public String toString() {
-            return "FeatureSetsInfo{" +
-                "featureSets=" + featureSets +
-                '}';
+            return "FeatureSetsInfo{" + "featureSets=" + featureSets + '}';
         }
 
         public static class FeatureSet {
             private final String name;
-            @Nullable private final String description;
+            @Nullable
+            private final String description;
             private final boolean available;
             private final boolean enabled;
-            @Nullable private final Map<String, Object> nativeCodeInfo;
+            @Nullable
+            private final Map<String, Object> nativeCodeInfo;
 
-            public FeatureSet(String name, @Nullable String description, boolean available, boolean enabled,
-                              @Nullable Map<String, Object> nativeCodeInfo) {
+            public FeatureSet(
+                String name,
+                @Nullable String description,
+                boolean available,
+                boolean enabled,
+                @Nullable Map<String, Object> nativeCodeInfo
+            ) {
                 this.name = name;
                 this.description = description;
                 this.available = available;
@@ -318,11 +332,6 @@ public class XPackInfoResponse {
                 return name;
             }
 
-            @Nullable
-            public String description() {
-                return description;
-            }
-
             public boolean available() {
                 return available;
             }
@@ -331,6 +340,11 @@ public class XPackInfoResponse {
                 return enabled;
             }
 
+            /**
+             * Return native code info
+             * @deprecated Use ML info api to find native code info
+             */
+            @Deprecated
             @Nullable
             public Map<String, Object> nativeCodeInfo() {
                 return nativeCodeInfo;
@@ -342,10 +356,10 @@ public class XPackInfoResponse {
                 if (this == other) return true;
                 FeatureSet rhs = (FeatureSet) other;
                 return Objects.equals(name, rhs.name)
-                        && Objects.equals(description, rhs.description)
-                        && available == rhs.available
-                        && enabled == rhs.enabled
-                        && Objects.equals(nativeCodeInfo, rhs.nativeCodeInfo);
+                    && Objects.equals(description, rhs.description)
+                    && available == rhs.available
+                    && enabled == rhs.enabled
+                    && Objects.equals(nativeCodeInfo, rhs.nativeCodeInfo);
             }
 
             @Override
@@ -355,24 +369,34 @@ public class XPackInfoResponse {
 
             @Override
             public String toString() {
-                return "FeatureSet{" +
-                    "name='" + name + '\'' +
-                    ", description='" + description + '\'' +
-                    ", available=" + available +
-                    ", enabled=" + enabled +
-                    ", nativeCodeInfo=" + nativeCodeInfo +
-                    '}';
+                return "FeatureSet{"
+                    + "name='"
+                    + name
+                    + '\''
+                    + ", description='"
+                    + description
+                    + '\''
+                    + ", available="
+                    + available
+                    + ", enabled="
+                    + enabled
+                    + ", nativeCodeInfo="
+                    + nativeCodeInfo
+                    + '}';
             }
 
             private static final ConstructingObjectParser<FeatureSet, String> PARSER = new ConstructingObjectParser<>(
-                    "feature_set", true, (a, name) -> {
-                        String description = (String) a[0];
-                        boolean available = (Boolean) a[1];
-                        boolean enabled = (Boolean) a[2];
-                        @SuppressWarnings("unchecked") // Matches up with declaration below
-                        Map<String, Object> nativeCodeInfo = (Map<String, Object>) a[3];
-                        return new FeatureSet(name, description, available, enabled, nativeCodeInfo);
-                    });
+                "feature_set",
+                true,
+                (a, name) -> {
+                    String description = (String) a[0];
+                    boolean available = (Boolean) a[1];
+                    boolean enabled = (Boolean) a[2];
+                    @SuppressWarnings("unchecked") // Matches up with declaration below
+                    Map<String, Object> nativeCodeInfo = (Map<String, Object>) a[3];
+                    return new FeatureSet(name, description, available, enabled, nativeCodeInfo);
+                }
+            );
             static {
                 PARSER.declareString(optionalConstructorArg(), new ParseField("description"));
                 PARSER.declareBoolean(constructorArg(), new ParseField("available"));

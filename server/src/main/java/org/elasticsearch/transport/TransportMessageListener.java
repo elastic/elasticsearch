@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.transport;
 
@@ -22,7 +11,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 
 public interface TransportMessageListener {
 
-    TransportMessageListener NOOP_LISTENER = new TransportMessageListener() {};
+    TransportMessageListener NOOP_LISTENER = new TransportMessageListener() {
+    };
 
     /**
      * Called once a request is received
@@ -56,13 +46,19 @@ public interface TransportMessageListener {
      * @param request the actual request
      * @param finalOptions the request options
      */
-    default void onRequestSent(DiscoveryNode node, long requestId, String action, TransportRequest request,
-                               TransportRequestOptions finalOptions) {}
+    default void onRequestSent(
+        DiscoveryNode node,
+        long requestId,
+        String action,
+        TransportRequest request,
+        TransportRequestOptions finalOptions
+    ) {}
 
     /**
      * Called for every response received
-     * @param requestId the request id for this reponse
+     * @param requestId the request id for this response
      * @param context the response context or null if the context was already processed ie. due to a timeout.
      */
+    @SuppressWarnings("rawtypes")
     default void onResponseReceived(long requestId, Transport.ResponseContext context) {}
 }

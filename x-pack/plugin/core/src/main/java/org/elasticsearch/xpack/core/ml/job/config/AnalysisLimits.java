@@ -1,22 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -52,9 +52,15 @@ public class AnalysisLimits implements ToXContentObject, Writeable {
 
     private static ConstructingObjectParser<AnalysisLimits, Void> createParser(boolean ignoreUnknownFields) {
         ConstructingObjectParser<AnalysisLimits, Void> parser = new ConstructingObjectParser<>(
-            "analysis_limits", ignoreUnknownFields, a -> ignoreUnknownFields ? new AnalysisLimits(
-                a[0] == null ? PRE_6_1_DEFAULT_MODEL_MEMORY_LIMIT_MB : (Long) a[0],
-                a[1] == null ? DEFAULT_CATEGORIZATION_EXAMPLES_LIMIT : (Long) a[1]) : new AnalysisLimits((Long) a[0], (Long) a[1]));
+            "analysis_limits",
+            ignoreUnknownFields,
+            a -> ignoreUnknownFields
+                ? new AnalysisLimits(
+                    a[0] == null ? PRE_6_1_DEFAULT_MODEL_MEMORY_LIMIT_MB : (Long) a[0],
+                    a[1] == null ? DEFAULT_CATEGORIZATION_EXAMPLES_LIMIT : (Long) a[1]
+                )
+                : new AnalysisLimits((Long) a[0], (Long) a[1])
+        );
 
         parser.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> {
             if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
@@ -88,17 +94,21 @@ public class AnalysisLimits implements ToXContentObject, Writeable {
         this(DEFAULT_MODEL_MEMORY_LIMIT_MB, categorizationExamplesLimit);
     }
 
-    public AnalysisLimits(Long modelMemoryLimit, Long categorizationExamplesLimit) {
-        if (modelMemoryLimit != null && modelMemoryLimit < 1) {
-            String msg = Messages.getMessage(Messages.JOB_CONFIG_MODEL_MEMORY_LIMIT_TOO_LOW, modelMemoryLimit);
+    public AnalysisLimits(Long modelMemoryLimitMb, Long categorizationExamplesLimit) {
+        if (modelMemoryLimitMb != null && modelMemoryLimitMb < 1) {
+            String msg = Messages.getMessage(Messages.JOB_CONFIG_MODEL_MEMORY_LIMIT_TOO_LOW, modelMemoryLimitMb, "1 MiB");
             throw ExceptionsHelper.badRequestException(msg);
         }
         if (categorizationExamplesLimit != null && categorizationExamplesLimit < 0) {
-            String msg = Messages.getMessage(Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW, CATEGORIZATION_EXAMPLES_LIMIT, 0,
-                    categorizationExamplesLimit);
+            String msg = Messages.getMessage(
+                Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW,
+                CATEGORIZATION_EXAMPLES_LIMIT,
+                0,
+                categorizationExamplesLimit
+            );
             throw ExceptionsHelper.badRequestException(msg);
         }
-        this.modelMemoryLimit = modelMemoryLimit;
+        this.modelMemoryLimit = modelMemoryLimitMb;
         this.categorizationExamplesLimit = categorizationExamplesLimit;
     }
 
@@ -119,8 +129,11 @@ public class AnalysisLimits implements ToXContentObject, Writeable {
      * @param defaultModelMemoryLimit the default model memory limit to be used if an explicit value is missing
      * @return a new {@code AnalysisLimits} that is validated and has no missing values
      */
-    public static AnalysisLimits validateAndSetDefaults(@Nullable AnalysisLimits source, @Nullable ByteSizeValue maxModelMemoryLimit,
-                                                        long defaultModelMemoryLimit) {
+    public static AnalysisLimits validateAndSetDefaults(
+        @Nullable AnalysisLimits source,
+        @Nullable ByteSizeValue maxModelMemoryLimit,
+        long defaultModelMemoryLimit
+    ) {
 
         boolean maxModelMemoryIsSet = maxModelMemoryLimit != null && maxModelMemoryLimit.getMb() > 0;
 
@@ -141,9 +154,13 @@ public class AnalysisLimits implements ToXContentObject, Writeable {
         }
 
         if (maxModelMemoryIsSet && modelMemoryLimit > maxModelMemoryLimit.getMb()) {
-            throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_MODEL_MEMORY_LIMIT_GREATER_THAN_MAX,
-                    new ByteSizeValue(modelMemoryLimit, ByteSizeUnit.MB),
-                    maxModelMemoryLimit));
+            throw ExceptionsHelper.badRequestException(
+                Messages.getMessage(
+                    Messages.JOB_CONFIG_MODEL_MEMORY_LIMIT_GREATER_THAN_MAX,
+                    ByteSizeValue.ofMb(modelMemoryLimit),
+                    maxModelMemoryLimit
+                )
+            );
         }
 
         return new AnalysisLimits(modelMemoryLimit, categorizationExamplesLimit);
@@ -204,8 +221,8 @@ public class AnalysisLimits implements ToXContentObject, Writeable {
         }
 
         AnalysisLimits that = (AnalysisLimits) other;
-        return Objects.equals(this.modelMemoryLimit, that.modelMemoryLimit) &&
-                Objects.equals(this.categorizationExamplesLimit, that.categorizationExamplesLimit);
+        return Objects.equals(this.modelMemoryLimit, that.modelMemoryLimit)
+            && Objects.equals(this.categorizationExamplesLimit, that.categorizationExamplesLimit);
     }
 
     @Override

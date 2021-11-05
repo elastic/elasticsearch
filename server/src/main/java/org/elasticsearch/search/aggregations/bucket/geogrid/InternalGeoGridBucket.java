@@ -1,43 +1,33 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 
-public abstract class InternalGeoGridBucket<B extends InternalGeoGridBucket>
-        extends InternalMultiBucketAggregation.InternalBucket implements GeoGrid.Bucket, Comparable<InternalGeoGridBucket> {
+public abstract class InternalGeoGridBucket extends InternalMultiBucketAggregation.InternalBucket
+    implements
+        GeoGrid.Bucket,
+        Comparable<InternalGeoGridBucket> {
 
     protected long hashAsLong;
     protected long docCount;
     protected InternalAggregations aggregations;
+
+    long bucketOrd;
 
     public InternalGeoGridBucket(long hashAsLong, long docCount, InternalAggregations aggregations) {
         this.docCount = docCount;
@@ -51,7 +41,7 @@ public abstract class InternalGeoGridBucket<B extends InternalGeoGridBucket>
     public InternalGeoGridBucket(StreamInput in) throws IOException {
         hashAsLong = in.readLong();
         docCount = in.readVLong();
-        aggregations = new InternalAggregations(in);
+        aggregations = InternalAggregations.readFrom(in);
     }
 
     @Override
@@ -60,9 +50,6 @@ public abstract class InternalGeoGridBucket<B extends InternalGeoGridBucket>
         out.writeVLong(docCount);
         aggregations.writeTo(out);
     }
-
-    abstract B buildBucket(InternalGeoGridBucket bucket, long hashAsLong, long docCount, InternalAggregations aggregations);
-
 
     long hashAsLong() {
         return hashAsLong;
@@ -89,17 +76,6 @@ public abstract class InternalGeoGridBucket<B extends InternalGeoGridBucket>
         return 0;
     }
 
-    public B reduce(List<B> buckets, InternalAggregation.ReduceContext context) {
-        List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
-        long docCount = 0;
-        for (B bucket : buckets) {
-            docCount += bucket.docCount;
-            aggregationsList.add(bucket.aggregations);
-        }
-        final InternalAggregations aggs = InternalAggregations.reduce(aggregationsList, context);
-        return buildBucket(this, hashAsLong, docCount, aggs);
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -115,9 +91,7 @@ public abstract class InternalGeoGridBucket<B extends InternalGeoGridBucket>
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         InternalGeoGridBucket bucket = (InternalGeoGridBucket) o;
-        return hashAsLong == bucket.hashAsLong &&
-            docCount == bucket.docCount &&
-            Objects.equals(aggregations, bucket.aggregations);
+        return hashAsLong == bucket.hashAsLong && docCount == bucket.docCount && Objects.equals(aggregations, bucket.aggregations);
     }
 
     @Override

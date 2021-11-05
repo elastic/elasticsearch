@@ -1,33 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesUsageAction;
 
@@ -53,26 +41,20 @@ import java.util.stream.Collectors;
  */
 public abstract class BaseRestHandler implements RestHandler {
 
-    public static final Setting<Boolean> MULTI_ALLOW_EXPLICIT_INDEX =
-        Setting.boolSetting("rest.action.multi.allow_explicit_index", true, Property.NodeScope);
-
-    private final LongAdder usageCount = new LongAdder();
-    /**
-     * @deprecated declare your own logger.
-     */
-    @Deprecated
-    protected Logger logger = LogManager.getLogger(getClass());
-
     /**
      * Parameter that controls whether certain REST apis should include type names in their requests or responses.
-     * Note: Support for this parameter will be removed after the transition period to typeless APIs.
+     * Note: This parameter is only available through compatible rest api for {@link RestApiVersion#V_7}.
      */
     public static final String INCLUDE_TYPE_NAME_PARAMETER = "include_type_name";
     public static final boolean DEFAULT_INCLUDE_TYPE_NAME_POLICY = false;
 
-    protected BaseRestHandler(Settings settings) {
-        // TODO drop settings from ctor
-    }
+    public static final Setting<Boolean> MULTI_ALLOW_EXPLICIT_INDEX = Setting.boolSetting(
+        "rest.action.multi.allow_explicit_index",
+        true,
+        Property.NodeScope
+    );
+
+    private final LongAdder usageCount = new LongAdder();
 
     public final long getUsageCount() {
         return usageCount.sum();
@@ -86,6 +68,12 @@ public abstract class BaseRestHandler implements RestHandler {
      */
     public abstract String getName();
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public abstract List<Route> routes();
+
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         // prepare the request for execution; has the side effect of touching the request parameters
@@ -93,14 +81,16 @@ public abstract class BaseRestHandler implements RestHandler {
 
         // validate unconsumed params, but we must exclude params used to format the response
         // use a sorted set so the unconsumed parameters appear in a reliable sorted order
-        final SortedSet<String> unconsumedParams =
-            request.unconsumedParams().stream().filter(p -> !responseParams().contains(p)).collect(Collectors.toCollection(TreeSet::new));
+        final SortedSet<String> unconsumedParams = request.unconsumedParams()
+            .stream()
+            .filter(p -> responseParams(request.getRestApiVersion()).contains(p) == false)
+            .collect(Collectors.toCollection(TreeSet::new));
 
         // validate the non-response params
-        if (!unconsumedParams.isEmpty()) {
+        if (unconsumedParams.isEmpty() == false) {
             final Set<String> candidateParams = new HashSet<>();
             candidateParams.addAll(request.consumedParams());
-            candidateParams.addAll(responseParams());
+            candidateParams.addAll(responseParams(request.getRestApiVersion()));
             throw new IllegalArgumentException(unrecognized(request, unconsumedParams, candidateParams, "parameter"));
         }
 
@@ -117,13 +107,11 @@ public abstract class BaseRestHandler implements RestHandler {
         final RestRequest request,
         final Set<String> invalids,
         final Set<String> candidates,
-        final String detail) {
-        StringBuilder message = new StringBuilder(String.format(
-            Locale.ROOT,
-            "request [%s] contains unrecognized %s%s: ",
-            request.path(),
-            detail,
-            invalids.size() > 1 ? "s" : ""));
+        final String detail
+    ) {
+        StringBuilder message = new StringBuilder(
+            String.format(Locale.ROOT, "request [%s] contains unrecognized %s%s: ", request.path(), detail, invalids.size() > 1 ? "s" : "")
+        );
         boolean first = true;
         for (final String invalid : invalids) {
             final LevenshteinDistance ld = new LevenshteinDistance();
@@ -165,8 +153,7 @@ public abstract class BaseRestHandler implements RestHandler {
      * the request against a channel.
      */
     @FunctionalInterface
-    protected interface RestChannelConsumer extends CheckedConsumer<RestChannel, Exception> {
-    }
+    protected interface RestChannelConsumer extends CheckedConsumer<RestChannel, Exception> {}
 
     /**
      * Prepare the request for execution. Implementations should consume all request params before
@@ -195,4 +182,64 @@ public abstract class BaseRestHandler implements RestHandler {
         return Collections.emptySet();
     }
 
+    /**
+     * Parameters used for controlling the response and thus might not be consumed during
+     * preparation of the request execution. The value depends on the RestApiVersion provided
+     * by a user on a request.
+     * Used in RestHandlers with Compatible Rest Api
+     * @param restApiVersion - a version provided by a user on a request
+     * @return a set of parameters used to control the response, depending on a restApiVersion
+     */
+    protected Set<String> responseParams(RestApiVersion restApiVersion) {
+        return responseParams();
+    }
+
+    public static class Wrapper extends BaseRestHandler {
+
+        protected final BaseRestHandler delegate;
+
+        public Wrapper(BaseRestHandler delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public String getName() {
+            return delegate.getName();
+        }
+
+        @Override
+        public List<Route> routes() {
+            return delegate.routes();
+        }
+
+        @Override
+        protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+            return delegate.prepareRequest(request, client);
+        }
+
+        @Override
+        protected Set<String> responseParams() {
+            return delegate.responseParams();
+        }
+
+        @Override
+        protected Set<String> responseParams(RestApiVersion restApiVersion) {
+            return delegate.responseParams(restApiVersion);
+        }
+
+        @Override
+        public boolean canTripCircuitBreaker() {
+            return delegate.canTripCircuitBreaker();
+        }
+
+        @Override
+        public boolean supportsContentStream() {
+            return delegate.supportsContentStream();
+        }
+
+        @Override
+        public boolean allowsUnsafeBuffers() {
+            return delegate.allowsUnsafeBuffers();
+        }
+    }
 }

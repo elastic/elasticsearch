@@ -1,10 +1,10 @@
 [role="xpack"]
 [testenv="platinum"]
 [[graph-explore-api]]
-== Explore API
+== Graph explore API
 
-The Graph explore API enables you to extract and summarize information about
-the documents and terms in your Elasticsearch index.
+The graph explore API enables you to extract and summarize information about
+the documents and terms in an {es} data stream or index.
 
 The easiest way to understand the behaviour of this API is to use the
 Graph UI to explore connections. You can view the most recent request submitted
@@ -15,12 +15,16 @@ For additional information about working with the explore API, see the Graph
 {kibana-ref}/graph-troubleshooting.html[Troubleshooting] and
 {kibana-ref}/graph-limitations.html[Limitations] topics.
 
-[float]
+NOTE: The graph explore API is enabled by default. To disable access to the
+graph explore API and the Kibana {kibana-ref}/graph-getting-started.html[Graph
+UI], add `xpack.graph.enabled: false` to `elasticsearch.yml`.
+
+[discrete]
 === Request
 
-`POST <index>/_graph/explore`
+`POST <target>/_graph/explore`
 
-[float]
+[discrete]
 === Description
 
 An initial request to the `_explore` API contains a seed query that identifies
@@ -29,8 +33,11 @@ and connections you want to include in the graph. Subsequent `_explore` requests
 enable you to _spider out_ from one more vertices of interest. You can exclude
 vertices that have already been returned.
 
-[float]
+[discrete]
 === Request Body
+
+[role="child_attributes"]
+====
 
 query::
 A seed query that identifies the documents of interest. Can be any valid
@@ -71,7 +78,10 @@ graph as vertices. For example:
     }
 ]
 --------------------------------------------------
-
++
+.Properties for `vertices`
+[%collapsible%open]
+======
 field::: Identifies a field in the documents of interest.
 include::: Identifies the terms of interest that form the starting points
 from which you want to spider out. You do not have to specify a seed query
@@ -93,6 +103,7 @@ shard_min_doc_count:::
 This advanced setting controls how many documents on a particular shard have
 to contain a pair of terms before the connection is returned for global
 consideration. Defaults to 2.
+======
 
 connections::
 Specifies or more fields from which you want to extract terms that are
@@ -113,7 +124,10 @@ NOTE: Connections can be nested inside the `connections` object to
 explore additional relationships in the data. Each level of nesting is
 considered a _hop_, and proximity within the graph is often described in
 terms of _hop depth_.
-
++
+.Properties for `connections`
+[%collapsible%open]
+======
 query:::
 An optional _guiding query_ that constrains the Graph API as it
 explores connected terms. For example, you might want to direct the Graph
@@ -133,9 +147,13 @@ Contains the fields you are interested in. For example:
   }
 ]
 --------------------------------------------------
+======
 
 controls:: Direct the Graph API how to build the graph.
-
++
+.Properties for `controls`
+[%collapsible%open]
+======
 use_significance:::
 The `use_significance` flag filters associated terms so only those that are
 significantly associated with your query are included. For information about
@@ -168,43 +186,45 @@ a maximum number of documents per value for that field. For example:
   "max_docs_per_value": 500
 }
 --------------------------------------------------
+======
+====
 
-// [float]
+// [discrete]
 // === Authorization
 
-[float]
+[discrete]
 === Examples
 
-[float]
+[discrete]
 [[basic-search]]
 ==== Basic exploration
 
 An initial search typically begins with a query to identify strongly related terms.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST clicklogs/_graph/explore
 {
-    "query": { <1>
-        "match": {
-            "query.raw": "midi"
-        }
-    },
-    "vertices": [ <2>
-        {
-            "field": "product"
-        }
-    ],
-    "connections": {  <3>
-        "vertices": [
-            {
-                "field": "query.raw"
-            }
-        ]
+  "query": {                  <1>
+    "match": {
+      "query.raw": "midi"
     }
+  },
+  "vertices": [               <2>
+    {
+      "field": "product"
+    }
+  ],
+  "connections": {            <3>
+    "vertices": [
+      {
+        "field": "query.raw"
+      }
+    ]
+  }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> Seed the exploration with a query. This example is searching
 clicklogs for people who searched for the term "midi".
 <2> Identify the vertices to include in the graph. This example is looking for
@@ -271,73 +291,73 @@ the term was first encountered.
 properties are indexed into the vertices array and indicate which vertex term led
 to the other as part of exploration. The `doc_count` value indicates how many
 documents in the sample set contain this pairing of terms (this is
-not a global count for all documents in the index).
+not a global count for all documents in the data stream or index).
 
-[float]
+[discrete]
 [[optional-controls]]
 ==== Optional controls
 
 The default settings are configured to remove noisy data and
 get the "big picture" from your data. This example shows how to specify
-additional parameters to influence how the graph is built. 
+additional parameters to influence how the graph is built.
 
 For tips on tuning the settings for more detailed forensic evaluation where
 every document could be of interest, see the
 {kibana-ref}/graph-troubleshooting.html[Troubleshooting] guide.
 
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST clicklogs/_graph/explore
 {
-    "query": {
-        "match": {
-            "query.raw": "midi"
-        }
+  "query": {
+    "match": {
+      "query.raw": "midi"
+    }
+  },
+  "controls": {
+    "use_significance": false,        <1>
+    "sample_size": 2000,              <2>
+    "timeout": 2000,                  <3>
+    "sample_diversity": {             <4>
+      "field": "category.raw",
+      "max_docs_per_value": 500
+    }
+  },
+  "vertices": [
+    {
+      "field": "product",
+      "size": 5,                      <5>
+      "min_doc_count": 10,            <6>
+      "shard_min_doc_count": 3        <7>
+    }
+  ],
+  "connections": {
+    "query": {                        <8>
+      "bool": {
+        "filter": [
+          {
+            "range": {
+              "query_time": {
+                "gte": "2015-10-01 00:00:00"
+              }
+            }
+          }
+        ]
+      }
     },
-   "controls": {
-      "use_significance": false,<1>
-      "sample_size": 2000,<2>
-      "timeout": 2000,<3>
-      "sample_diversity": {<4>
-         "field": "category.raw",
-         "max_docs_per_value": 500
-      }
-   },
-   "vertices": [
+    "vertices": [
       {
-         "field": "product",
-         "size": 5,<5>
-         "min_doc_count": 10,<6>
-         "shard_min_doc_count": 3<7>
+        "field": "query.raw",
+        "size": 5,
+        "min_doc_count": 10,
+        "shard_min_doc_count": 3
       }
-   ],
-   "connections": {
-      "query": {<8>
-         "bool": {
-            "filter": [
-               {
-                  "range": {
-                     "query_time": {
-                        "gte": "2015-10-01 00:00:00"
-                     }
-                  }
-               }
-            ]
-         }
-      },
-      "vertices": [
-         {
-            "field": "query.raw",
-            "size": 5,
-            "min_doc_count": 10,
-            "shard_min_doc_count": 3
-         }
-      ]
-   }
+    ]
+  }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> Disable `use_significance` to include all associated terms, not just the
 ones that are significantly associated with the query.
 <2> Increase the sample size to consider a larger set of documents on
@@ -353,7 +373,7 @@ the connection is returned for global consideration.
 <8> Restrict which document are considered as you explore connected terms.
 
 
-[float]
+[discrete]
 [[spider-search]]
 ==== Spidering operations
 
@@ -373,7 +393,7 @@ the following request starts with the product `1854873` and spiders
 out to find additional search terms associated with that product. The terms
 "midi", "midi keyboard", and "synth" are excluded from the results.
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST clicklogs/_graph/explore
 {
@@ -397,7 +417,7 @@ POST clicklogs/_graph/explore
    }
 }
 --------------------------------------------------
-// CONSOLE
+
 <1> The vertices you want to start from are specified
 as an array of terms in an `include` clause.
 <2> The `exclude` clause prevents terms you already know about from being

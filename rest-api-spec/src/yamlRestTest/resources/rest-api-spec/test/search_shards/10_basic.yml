@@ -1,0 +1,100 @@
+---
+"Basic /_search_shards test":
+  - do:
+      indices.create:
+        index: test_1
+
+  - do:
+      search_shards:
+        index:  test_1
+        routing: foo
+
+  - match: { shards.0.0.index: test_1 }
+
+---
+"Search shards aliases with and without filters":
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              field:
+                type: text
+          aliases:
+            test_alias_no_filter: {}
+            test_alias_filter_1:
+              filter:
+                term:
+                  field : value1
+            test_alias_filter_2:
+              filter:
+                term:
+                  field : value2
+
+  - do:
+      search_shards:
+        index:  test_alias_no_filter
+
+  - length: { shards: 1 }
+  - match: { shards.0.0.index: test_index }
+  - is_true: indices.test_index
+  - is_false: indices.test_index.filter
+  - match: { indices.test_index.aliases: [test_alias_no_filter]}
+
+  - do:
+      search_shards:
+        index:  test_alias_filter_1
+
+  - length: { shards: 1 }
+  - match: { shards.0.0.index: test_index }
+  - match: { indices.test_index.aliases: [test_alias_filter_1] }
+  - match: { indices.test_index.filter.term.field.value: value1 }
+  - lte: { indices.test_index.filter.term.field.boost: 1.0 }
+  - gte: { indices.test_index.filter.term.field.boost: 1.0 }
+
+  - do:
+      search_shards:
+        index:  ["test_alias_filter_1","test_alias_filter_2"]
+
+  - length: { shards: 1 }
+  - match: { shards.0.0.index: test_index }
+  - match: { indices.test_index.aliases: [test_alias_filter_1, test_alias_filter_2]}
+  - length: { indices.test_index.filter.bool.should: 2 }
+  - lte: { indices.test_index.filter.bool.should.0.term.field.boost: 1.0 }
+  - gte: { indices.test_index.filter.bool.should.0.term.field.boost: 1.0 }
+  - lte: { indices.test_index.filter.bool.should.1.term.field.boost: 1.0 }
+  - gte: { indices.test_index.filter.bool.should.1.term.field.boost: 1.0 }
+  - lte: { indices.test_index.filter.bool.boost: 1.0 }
+  - gte: { indices.test_index.filter.bool.boost: 1.0 }
+
+  - do:
+      search_shards:
+        index:  "test*"
+
+  - length: { shards: 1 }
+  - match: { shards.0.0.index: test_index }
+  - match: { indices.test_index.aliases: [test_alias_filter_1, test_alias_filter_2, test_alias_no_filter]}
+  - is_false: indices.test_index.filter
+
+  - do:
+      search_shards:
+        index:  ["test_alias_filter_1","test_alias_no_filter"]
+
+  - length: { shards: 1 }
+  - match: { shards.0.0.index: test_index }
+  - match: { indices.test_index.aliases: [test_alias_filter_1, test_alias_no_filter]}
+  - is_false: indices.test_index.filter
+
+  - do:
+      search_shards:
+        index:  ["test_alias_no_filter"]
+
+  - length: { shards: 1 }
+  - match: { shards.0.0.index: test_index }
+  - match: { indices.test_index.aliases: [test_alias_no_filter]}
+  - is_false: indices.test_index.filter

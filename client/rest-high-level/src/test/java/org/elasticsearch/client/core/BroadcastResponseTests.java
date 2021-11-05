@@ -1,28 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.core;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.client.AbstractResponseTestCase;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,9 +23,10 @@ import java.util.Set;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.isIn;
+import static org.hamcrest.Matchers.in;
 
-public class BroadcastResponseTests extends AbstractResponseTestCase<org.elasticsearch.action.support.broadcast.BroadcastResponse,
+public class BroadcastResponseTests extends AbstractResponseTestCase<
+    org.elasticsearch.action.support.broadcast.BroadcastResponse,
     BroadcastResponse> {
 
     private String index;
@@ -43,7 +34,7 @@ public class BroadcastResponseTests extends AbstractResponseTestCase<org.elastic
     private Set<Integer> shardIds;
 
     @Override
-    protected org.elasticsearch.action.support.broadcast.BroadcastResponse createServerTestInstance() {
+    protected org.elasticsearch.action.support.broadcast.BroadcastResponse createServerTestInstance(XContentType xContentType) {
         index = randomAlphaOfLength(8);
         id = randomAlphaOfLength(8);
         final int total = randomIntBetween(1, 16);
@@ -55,7 +46,8 @@ public class BroadcastResponseTests extends AbstractResponseTestCase<org.elastic
             final DefaultShardOperationFailedException failure = new DefaultShardOperationFailedException(
                 index,
                 randomValueOtherThanMany(shardIds::contains, () -> randomIntBetween(0, total - 1)),
-                new RetentionLeaseNotFoundException(id));
+                new RetentionLeaseNotFoundException(id)
+            );
             failures.add(failure);
             shardIds.add(failure.shardId());
         }
@@ -69,8 +61,10 @@ public class BroadcastResponseTests extends AbstractResponseTestCase<org.elastic
     }
 
     @Override
-    protected void assertInstances(org.elasticsearch.action.support.broadcast.BroadcastResponse serverTestInstance,
-                                   BroadcastResponse clientInstance) {
+    protected void assertInstances(
+        org.elasticsearch.action.support.broadcast.BroadcastResponse serverTestInstance,
+        BroadcastResponse clientInstance
+    ) {
         assertThat(clientInstance.shards().total(), equalTo(serverTestInstance.getTotalShards()));
         assertThat(clientInstance.shards().successful(), equalTo(serverTestInstance.getSuccessfulShards()));
         assertThat(clientInstance.shards().skipped(), equalTo(0));
@@ -79,7 +73,7 @@ public class BroadcastResponseTests extends AbstractResponseTestCase<org.elastic
         if (clientInstance.shards().failed() > 0) {
             final DefaultShardOperationFailedException groupedFailure = clientInstance.shards().failures().iterator().next();
             assertThat(groupedFailure.index(), equalTo(index));
-            assertThat(groupedFailure.shardId(), isIn(shardIds));
+            assertThat(groupedFailure.shardId(), in(shardIds));
             assertThat(groupedFailure.reason(), containsString("reason=retention lease with ID [" + id + "] not found"));
         }
     }

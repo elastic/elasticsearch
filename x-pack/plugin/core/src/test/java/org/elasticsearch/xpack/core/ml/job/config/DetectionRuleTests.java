@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,9 +30,7 @@ public class DetectionRuleTests extends AbstractSerializingTestCase<DetectionRul
     }
 
     public void testExtractReferencedLists() {
-        DetectionRule rule = new DetectionRule.Builder(RuleScope.builder()
-                .exclude("foo", "filter1").include("bar", "filter2"))
-                .build();
+        DetectionRule rule = new DetectionRule.Builder(RuleScope.builder().exclude("foo", "filter1").include("bar", "filter2")).build();
 
         assertEquals(new HashSet<>(Arrays.asList("filter1", "filter2")), rule.extractReferencedFilters());
     }
@@ -52,7 +51,7 @@ public class DetectionRuleTests extends AbstractSerializingTestCase<DetectionRul
         boolean hasScope = randomBoolean();
         boolean hasConditions = randomBoolean();
 
-        if (!hasScope && !hasConditions) {
+        if (hasScope == false && hasConditions == false) {
             // at least one of the two should be present
             if (randomBoolean()) {
                 hasScope = true;
@@ -100,22 +99,22 @@ public class DetectionRuleTests extends AbstractSerializingTestCase<DetectionRul
         EnumSet<RuleAction> actions = instance.getActions();
 
         switch (between(0, 2)) {
-        case 0:
-            if (actions.size() == RuleAction.values().length) {
-                actions = EnumSet.of(randomFrom(RuleAction.values()));
-            } else {
-                actions = EnumSet.allOf(RuleAction.class);
-            }
-            break;
-        case 1:
-            conditions = new ArrayList<>(conditions);
-            conditions.addAll(createCondition(randomDouble()));
-            break;
-        case 2:
-            scope = new RuleScope.Builder(scope).include("another_field", "another_filter").build();
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 0:
+                if (actions.size() == RuleAction.values().length) {
+                    actions = EnumSet.of(randomFrom(RuleAction.values()));
+                } else {
+                    actions = EnumSet.allOf(RuleAction.class);
+                }
+                break;
+            case 1:
+                conditions = new ArrayList<>(conditions);
+                conditions.addAll(createCondition(randomDouble()));
+                break;
+            case 2:
+                scope = new RuleScope.Builder(scope).include("another_field", "another_filter").build();
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
 
         return new DetectionRule.Builder(conditions).setActions(actions).setScope(scope).build();

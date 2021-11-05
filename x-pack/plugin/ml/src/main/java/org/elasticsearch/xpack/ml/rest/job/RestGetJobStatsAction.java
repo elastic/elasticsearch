@@ -1,42 +1,43 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.rest.job;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction.Request;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.DEPRECATED_ALLOW_NO_JOBS_PARAM;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
+import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
+import static org.elasticsearch.xpack.ml.rest.RestCompatibilityChecker.checkAndSetDeprecatedParam;
 
 public class RestGetJobStatsAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(RestGetJobStatsAction.class));
-
-    public RestGetJobStatsAction(Settings settings, RestController controller) {
-        super(settings);
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            GET, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_stats", this,
-            GET, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_stats", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            GET, MachineLearning.BASE_PATH + "anomaly_detectors/_stats", this,
-            GET, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/_stats", deprecationLogger);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            Route.builder(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_stats")
+                .replaces(GET, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_stats", RestApiVersion.V_7)
+                .build(),
+            Route.builder(GET, BASE_PATH + "anomaly_detectors/_stats")
+                .replaces(GET, PRE_V7_BASE_PATH + "anomaly_detectors/_stats", RestApiVersion.V_7)
+                .build()
+        );
     }
 
     @Override
@@ -48,11 +49,17 @@ public class RestGetJobStatsAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String jobId = restRequest.param(Job.ID.getPreferredName());
         if (Strings.isNullOrEmpty(jobId)) {
-            jobId = MetaData.ALL;
+            jobId = Metadata.ALL;
         }
-        GetJobsStatsAction.Request request = new GetJobsStatsAction.Request(jobId);
-        request.setAllowNoJobs(restRequest.paramAsBoolean(GetJobsStatsAction.Request.ALLOW_NO_JOBS.getPreferredName(),
-                request.allowNoJobs()));
+        Request request = new Request(jobId);
+        checkAndSetDeprecatedParam(
+            DEPRECATED_ALLOW_NO_JOBS_PARAM,
+            Request.ALLOW_NO_MATCH,
+            RestApiVersion.V_7,
+            restRequest,
+            (r, s) -> r.paramAsBoolean(s, request.allowNoMatch()),
+            request::setAllowNoMatch
+        );
         return channel -> client.execute(GetJobsStatsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

@@ -3,16 +3,16 @@
 :request: PostDataRequest
 :response: PostDataResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
-=== Post Data API
+=== Post data API
 
-The Post Data API provides the ability to post data to an open
- {ml} job in the cluster.
+Posts data to an open {ml} job in the cluster.
 It accepts a +{request}+ object and responds
 with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Post Data Request
+==== Post data request
 
 A +{request}+ object gets created with an existing non-null `jobId`
 and the `XContentType` being sent. Individual docs can be added
@@ -33,7 +33,7 @@ include-tagged::{doc-tests-file}[{api}-request]
 <3> Add a new document as a serialized JSON formatted String.
 <4> Constructing a new request referencing an opened `jobId`, and a JsonBuilder
 
-==== Optional Arguments
+==== Optional arguments
 
 The following arguments are optional.
 
@@ -47,7 +47,7 @@ include-tagged::{doc-tests-file}[{api}-request-options]
 include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]
-==== Post Data Response
+==== Post data response
 
 A +{response}+ contains current data processing statistics.
 

@@ -1,22 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -27,19 +26,13 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class GetInfluencersAction
-extends Action<GetInfluencersAction.Response> {
+public class GetInfluencersAction extends ActionType<GetInfluencersAction.Response> {
 
     public static final GetInfluencersAction INSTANCE = new GetInfluencersAction();
     public static final String NAME = "cluster:monitor/xpack/ml/job/results/influencers/get";
 
     private GetInfluencersAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        return new Response();
+        super(NAME, Response::new);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {
@@ -81,7 +74,18 @@ extends Action<GetInfluencersAction.Response> {
         private String sort = Influencer.INFLUENCER_SCORE.getPreferredName();
         private boolean descending = true;
 
-        public Request() {
+        public Request() {}
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            jobId = in.readString();
+            excludeInterim = in.readBoolean();
+            pageParams = new PageParams(in);
+            start = in.readOptionalString();
+            end = in.readOptionalString();
+            sort = in.readOptionalString();
+            descending = in.readBoolean();
+            influencerScore = in.readDouble();
         }
 
         public Request(String jobId) {
@@ -154,19 +158,6 @@ extends Action<GetInfluencersAction.Response> {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            jobId = in.readString();
-            excludeInterim = in.readBoolean();
-            pageParams = new PageParams(in);
-            start = in.readOptionalString();
-            end = in.readOptionalString();
-            sort = in.readOptionalString();
-            descending = in.readBoolean();
-            influencerScore = in.readDouble();
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(jobId);
@@ -208,26 +199,23 @@ extends Action<GetInfluencersAction.Response> {
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(jobId, other.jobId) && Objects.equals(start, other.start)
-                    && Objects.equals(end, other.end)
-                    && Objects.equals(excludeInterim, other.excludeInterim)
-                    && Objects.equals(pageParams, other.pageParams)
-                    && Objects.equals(influencerScore, other.influencerScore)
-                    && Objects.equals(descending, other.descending)
-                    && Objects.equals(sort, other.sort);
-        }
-    }
-
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        RequestBuilder(ElasticsearchClient client) {
-            super(client, INSTANCE, new Request());
+            return Objects.equals(jobId, other.jobId)
+                && Objects.equals(start, other.start)
+                && Objects.equals(end, other.end)
+                && Objects.equals(excludeInterim, other.excludeInterim)
+                && Objects.equals(pageParams, other.pageParams)
+                && Objects.equals(influencerScore, other.influencerScore)
+                && Objects.equals(descending, other.descending)
+                && Objects.equals(sort, other.sort);
         }
     }
 
     public static class Response extends AbstractGetResourcesResponse<Influencer> implements ToXContentObject {
 
-        public Response() {
+        public Response() {}
+
+        public Response(StreamInput in) throws IOException {
+            super(in);
         }
 
         public Response(QueryPage<Influencer> influencers) {

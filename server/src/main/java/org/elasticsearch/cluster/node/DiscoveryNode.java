@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.node;
@@ -26,18 +15,19 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
-import java.util.function.Predicate;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
+import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 
 /**
  * A discovery node represents a node that is part of the cluster.
@@ -46,28 +36,64 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     static final String COORDINATING_ONLY = "coordinating_only";
 
-    public static boolean nodeRequiresLocalStorage(Settings settings) {
-        boolean localStorageEnable = Node.NODE_LOCAL_STORAGE_SETTING.get(settings);
-        if (localStorageEnable == false &&
-            (Node.NODE_DATA_SETTING.get(settings) ||
-                Node.NODE_MASTER_SETTING.get(settings))
-            ) {
-            // TODO: make this a proper setting validation logic, requiring multi-settings validation
-            throw new IllegalArgumentException("storage can not be disabled for master and data nodes");
+    public static boolean hasRole(final Settings settings, final DiscoveryNodeRole role) {
+        // this method can be called before the o.e.n.NodeRoleSettings.NODE_ROLES_SETTING is initialized
+        if (settings.hasValue("node.roles")) {
+            return settings.getAsList("node.roles").contains(role.roleName());
+        } else {
+            return role.isEnabledByDefault(settings);
         }
-        return localStorageEnable;
     }
 
-    public static boolean isMasterNode(Settings settings) {
-        return Node.NODE_MASTER_SETTING.get(settings);
+    public static boolean isMasterNode(final Settings settings) {
+        return hasRole(settings, DiscoveryNodeRole.MASTER_ROLE);
     }
 
-    public static boolean isDataNode(Settings settings) {
-        return Node.NODE_DATA_SETTING.get(settings);
+    /**
+     * Check if the given settings are indicative of having the top-level data role.
+     *
+     * Note that if you want to test for whether or not the given settings are indicative of any role that can contain data, you should use
+     * {@link #canContainData(Settings)}.
+     *
+     * @param settings the settings
+     * @return true if the given settings are indicative of having the top-level data role, otherwise false
+     */
+    public static boolean hasDataRole(final Settings settings) {
+        return hasRole(settings, DiscoveryNodeRole.DATA_ROLE);
     }
 
-    public static boolean isIngestNode(Settings settings) {
-        return Node.NODE_INGEST_SETTING.get(settings);
+    /**
+     * Check if the given settings are indicative of any role that can contain data.
+     *
+     * Note that if you want to test for exactly the data role, you should use {@link #hasDataRole(Settings)}.
+     *
+     * @param settings the settings
+     * @return true if the given settings are indicative of having any role that can contain data, otherwise false
+     */
+    public static boolean canContainData(final Settings settings) {
+        return getRolesFromSettings(settings).stream().anyMatch(DiscoveryNodeRole::canContainData);
+    }
+
+    public static boolean isIngestNode(final Settings settings) {
+        return hasRole(settings, DiscoveryNodeRole.INGEST_ROLE);
+    }
+
+    public static boolean isRemoteClusterClient(final Settings settings) {
+        return hasRole(settings, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE);
+    }
+
+    private static boolean isDedicatedFrozenRoles(Set<DiscoveryNodeRole> roles) {
+        return roles.contains(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)
+            && roles.stream()
+                .filter(DiscoveryNodeRole::canContainData)
+                .anyMatch(r -> r != DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE) == false;
+    }
+
+    /**
+     * Check if the settings are for a dedicated frozen node, i.e. has frozen role and no other data roles.
+     */
+    public static boolean isDedicatedFrozenNode(final Settings settings) {
+        return isDedicatedFrozenRoles(getRolesFromSettings(settings));
     }
 
     private final String nodeName;
@@ -78,8 +104,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     private final TransportAddress address;
     private final Map<String, String> attributes;
     private final Version version;
-    private final Set<Role> roles;
-
+    private final SortedSet<DiscoveryNodeRole> roles;
 
     /**
      * Creates a new {@link DiscoveryNode}
@@ -95,7 +120,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * @param version          the version of the node
      */
     public DiscoveryNode(final String id, TransportAddress address, Version version) {
-        this(id, address, Collections.emptyMap(), EnumSet.allOf(Role.class), version);
+        this(id, address, Collections.emptyMap(), DiscoveryNodeRole.roles(), version);
     }
 
     /**
@@ -113,8 +138,13 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * @param roles            node roles
      * @param version          the version of the node
      */
-    public DiscoveryNode(String id, TransportAddress address, Map<String, String> attributes, Set<Role> roles,
-                         Version version) {
+    public DiscoveryNode(
+        String id,
+        TransportAddress address,
+        Map<String, String> attributes,
+        Set<DiscoveryNodeRole> roles,
+        Version version
+    ) {
         this("", id, address, attributes, roles, version);
     }
 
@@ -134,10 +164,25 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * @param roles            node roles
      * @param version          the version of the node
      */
-    public DiscoveryNode(String nodeName, String nodeId, TransportAddress address,
-                         Map<String, String> attributes, Set<Role> roles, Version version) {
-        this(nodeName, nodeId, UUIDs.randomBase64UUID(), address.address().getHostString(), address.getAddress(), address, attributes,
-            roles, version);
+    public DiscoveryNode(
+        String nodeName,
+        String nodeId,
+        TransportAddress address,
+        Map<String, String> attributes,
+        Set<DiscoveryNodeRole> roles,
+        Version version
+    ) {
+        this(
+            nodeName,
+            nodeId,
+            UUIDs.randomBase64UUID(),
+            address.address().getHostString(),
+            address.getAddress(),
+            address,
+            attributes,
+            roles,
+            version
+        );
     }
 
     /**
@@ -158,8 +203,17 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * @param roles            node roles
      * @param version          the version of the node
      */
-    public DiscoveryNode(String nodeName, String nodeId, String ephemeralId, String hostName, String hostAddress,
-                         TransportAddress address, Map<String, String> attributes, Set<Role> roles, Version version) {
+    public DiscoveryNode(
+        String nodeName,
+        String nodeId,
+        String ephemeralId,
+        String hostName,
+        String hostAddress,
+        TransportAddress address,
+        Map<String, String> attributes,
+        Set<DiscoveryNodeRole> roles,
+        Version version
+    ) {
         if (nodeName != null) {
             this.nodeName = nodeName.intern();
         } else {
@@ -176,39 +230,21 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             this.version = version;
         }
         this.attributes = Collections.unmodifiableMap(attributes);
-        //verify that no node roles are being provided as attributes
-        Predicate<Map<String, String>> predicate =  (attrs) -> {
-            for (Role role : Role.values()) {
-                assert attrs.containsKey(role.getRoleName()) == false;
-            }
-            return true;
-        };
-        assert predicate.test(attributes);
-        Set<Role> rolesSet = EnumSet.noneOf(Role.class);
-        rolesSet.addAll(roles);
-        this.roles = Collections.unmodifiableSet(rolesSet);
+        assert DiscoveryNodeRole.roleNames().stream().noneMatch(attributes::containsKey)
+            : "Node roles must not be provided as attributes but saw attributes " + attributes;
+        this.roles = Collections.unmodifiableSortedSet(new TreeSet<>(roles));
     }
 
     /** Creates a DiscoveryNode representing the local node. */
     public static DiscoveryNode createLocal(Settings settings, TransportAddress publishAddress, String nodeId) {
         Map<String, String> attributes = Node.NODE_ATTRIBUTES.getAsMap(settings);
-        Set<Role> roles = getRolesFromSettings(settings);
+        Set<DiscoveryNodeRole> roles = getRolesFromSettings(settings);
         return new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), nodeId, publishAddress, attributes, roles, Version.CURRENT);
     }
 
     /** extract node roles from the given settings */
-    public static Set<Role> getRolesFromSettings(Settings settings) {
-        Set<Role> roles = EnumSet.noneOf(Role.class);
-        if (Node.NODE_INGEST_SETTING.get(settings)) {
-            roles.add(Role.INGEST);
-        }
-        if (Node.NODE_MASTER_SETTING.get(settings)) {
-            roles.add(Role.MASTER);
-        }
-        if (Node.NODE_DATA_SETTING.get(settings)) {
-            roles.add(Role.DATA);
-        }
-        return roles;
+    public static Set<DiscoveryNodeRole> getRolesFromSettings(final Settings settings) {
+        return Set.copyOf(NODE_ROLES_SETTING.get(settings));
     }
 
     /**
@@ -223,16 +259,25 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         this.hostName = in.readString().intern();
         this.hostAddress = in.readString().intern();
         this.address = new TransportAddress(in);
-        int size = in.readVInt();
-        this.attributes = new HashMap<>(size);
-        for (int i = 0; i < size; i++) {
-            this.attributes.put(in.readString(), in.readString());
-        }
+        this.attributes = in.readMap(StreamInput::readString, StreamInput::readString);
         int rolesSize = in.readVInt();
-        this.roles = EnumSet.noneOf(Role.class);
+        final SortedSet<DiscoveryNodeRole> roles = new TreeSet<>();
         for (int i = 0; i < rolesSize; i++) {
-            this.roles.add(in.readEnum(Role.class));
+            final String roleName = in.readString();
+            final String roleNameAbbreviation = in.readString();
+            final boolean canContainData = in.readBoolean();
+            final Optional<DiscoveryNodeRole> maybeRole = DiscoveryNodeRole.maybeGetRoleFromRoleName(roleName);
+            if (maybeRole.isEmpty()) {
+                roles.add(new DiscoveryNodeRole.UnknownRole(roleName, roleNameAbbreviation, canContainData));
+            } else {
+                final DiscoveryNodeRole role = maybeRole.get();
+                assert roleName.equals(role.roleName()) : "role name [" + roleName + "] does not match role [" + role.roleName() + "]";
+                assert roleNameAbbreviation.equals(role.roleNameAbbreviation())
+                    : "role name abbreviation [" + roleName + "] does not match role [" + role.roleNameAbbreviation() + "]";
+                roles.add(role);
+            }
         }
+        this.roles = Collections.unmodifiableSortedSet(roles);
         this.version = Version.readVersion(in);
     }
 
@@ -244,14 +289,12 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         out.writeString(hostName);
         out.writeString(hostAddress);
         address.writeTo(out);
-        out.writeVInt(attributes.size());
-        for (Map.Entry<String, String> entry : attributes.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeString(entry.getValue());
-        }
+        out.writeMap(attributes, StreamOutput::writeString, StreamOutput::writeString);
         out.writeVInt(roles.size());
-        for (Role role : roles) {
-            out.writeEnum(role);
+        for (final DiscoveryNodeRole role : roles) {
+            out.writeString(role.roleName());
+            out.writeString(role.roleNameAbbreviation());
+            out.writeBoolean(role.canContainData());
         }
         Version.writeVersion(version, out);
     }
@@ -298,29 +341,49 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     /**
      * Should this node hold data (shards) or not.
      */
-    public boolean isDataNode() {
-        return roles.contains(Role.DATA);
+    public boolean canContainData() {
+        return roles.stream().anyMatch(DiscoveryNodeRole::canContainData);
     }
 
     /**
      * Can this node become master or not.
      */
     public boolean isMasterNode() {
-        return roles.contains(Role.MASTER);
+        return roles.contains(DiscoveryNodeRole.MASTER_ROLE);
     }
 
     /**
      * Returns a boolean that tells whether this an ingest node or not
      */
     public boolean isIngestNode() {
-        return roles.contains(Role.INGEST);
+        return roles.contains(DiscoveryNodeRole.INGEST_ROLE);
     }
 
     /**
-     * Returns a set of all the roles that the node fulfills.
-     * If the node doesn't have any specific role, the set is returned empty, which means that the node is a coordinating only node.
+     * Returns whether or not the node can be a remote cluster client.
+     *
+     * @return true if the node can be a remote cluster client, false otherwise
      */
-    public Set<Role> getRoles() {
+    public boolean isRemoteClusterClient() {
+        return roles.contains(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE);
+    }
+
+    /**
+     * Returns whether or not the node is a frozen only node, i.e., has data frozen role and no other data roles.
+     * @return
+     */
+    public boolean isDedicatedFrozenNode() {
+        return isDedicatedFrozenRoles(getRoles());
+    }
+
+    /**
+     * Returns a set of all the roles that the node has. The roles are returned in sorted order by the role name.
+     * <p>
+     * If a node does not have any specific role, the returned set is empty, which means that the node is a coordinating-only node.
+     *
+     * @return the sorted set of roles
+     */
+    public Set<DiscoveryNodeRole> getRoles() {
         return roles;
     }
 
@@ -361,17 +424,32 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        if (nodeName.length() > 0) {
-            sb.append('{').append(nodeName).append('}');
-        }
-        sb.append('{').append(nodeId).append('}');
-        sb.append('{').append(ephemeralId).append('}');
-        sb.append('{').append(hostName).append('}');
-        sb.append('{').append(address).append('}');
-        if (!attributes.isEmpty()) {
+        appendDescriptionWithoutAttributes(sb);
+        if (attributes.isEmpty() == false) {
             sb.append(attributes);
         }
         return sb.toString();
+    }
+
+    public void appendDescriptionWithoutAttributes(StringBuilder stringBuilder) {
+        if (nodeName.length() > 0) {
+            stringBuilder.append('{').append(nodeName).append('}');
+        }
+        stringBuilder.append('{').append(nodeId).append('}');
+        stringBuilder.append('{').append(ephemeralId).append('}');
+        stringBuilder.append('{').append(hostName).append('}');
+        stringBuilder.append('{').append(address).append('}');
+        if (roles.isEmpty() == false) {
+            stringBuilder.append('{');
+            roles.stream().map(DiscoveryNodeRole::roleNameAbbreviation).sorted().forEach(stringBuilder::append);
+            stringBuilder.append('}');
+        }
+    }
+
+    public String descriptionWithoutAttributes() {
+        final StringBuilder stringBuilder = new StringBuilder();
+        appendDescriptionWithoutAttributes(stringBuilder);
+        return stringBuilder.toString();
     }
 
     @Override
@@ -387,33 +465,14 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         }
         builder.endObject();
 
+        builder.startArray("roles");
+        for (DiscoveryNodeRole role : roles) {
+            builder.value(role.roleName());
+        }
+        builder.endArray();
+
         builder.endObject();
         return builder;
     }
 
-    /**
-     * Enum that holds all the possible roles that that a node can fulfill in a cluster.
-     * Each role has its name and a corresponding abbreviation used by cat apis.
-     */
-    public enum Role {
-        MASTER("master", "m"),
-        DATA("data", "d"),
-        INGEST("ingest", "i");
-
-        private final String roleName;
-        private final String abbreviation;
-
-        Role(String roleName, String abbreviation) {
-            this.roleName = roleName;
-            this.abbreviation = abbreviation;
-        }
-
-        public String getRoleName() {
-            return roleName;
-        }
-
-        public String getAbbreviation() {
-            return abbreviation;
-        }
-    }
 }

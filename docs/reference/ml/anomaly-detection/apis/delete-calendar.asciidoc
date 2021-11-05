@@ -1,0 +1,51 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-delete-calendar]]
+= Delete calendars API
+++++
+<titleabbrev>Delete calendars</titleabbrev>
+++++
+
+Deletes a calendar.
+
+[[ml-delete-calendar-request]]
+== {api-request-title}
+
+`DELETE _ml/calendars/<calendar_id>`
+
+[[ml-delete-calendar-prereqs]]
+== {api-prereq-title}
+
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
+
+[[ml-delete-calendar-desc]]
+== {api-description-title}
+
+This API removes all scheduled events from the calendar then deletes the
+calendar.
+
+[[ml-delete-calendar-path-parms]]
+== {api-path-parms-title}
+
+`<calendar_id>`::
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=calendar-id]
+
+[[ml-delete-calendar-example]]
+== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+DELETE _ml/calendars/planned-outages
+--------------------------------------------------
+// TEST[skip:setup:calendar_outages]
+
+When the calendar is deleted, you receive the following results:
+
+[source,console-result]
+----
+{
+  "acknowledged": true
+}
+----

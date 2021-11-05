@@ -1,29 +1,29 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.rollup.action;
 
-
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.job.RollupIndexerJobStats;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
@@ -34,7 +34,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
+public class GetRollupJobsAction extends ActionType<GetRollupJobsAction.Response> {
 
     public static final GetRollupJobsAction INSTANCE = new GetRollupJobsAction();
     public static final String NAME = "cluster:monitor/xpack/rollup/get";
@@ -44,17 +44,7 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
     public static final ParseField STATS = new ParseField("stats");
 
     private GetRollupJobsAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, GetRollupJobsAction.Response::new);
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
@@ -62,7 +52,7 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
 
         public Request(String id) {
             if (Strings.isNullOrEmpty(id) || id.equals("*")) {
-                this.id = MetaData.ALL;
+                this.id = Metadata.ALL;
             } else {
                 this.id = id;
             }
@@ -74,7 +64,7 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
             super(in);
             id = in.readString();
             if (Strings.isNullOrEmpty(id) || id.equals("*")) {
-                this.id = MetaData.ALL;
+                this.id = Metadata.ALL;
             }
         }
 
@@ -88,7 +78,7 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
         public boolean match(Task task) {
             // If we are retrieving all the jobs, the task description just needs to start
             // with `rollup_`
-            if (id.equals(MetaData.ALL)) {
+            if (id.equals(Metadata.ALL)) {
                 return task.getDescription().startsWith(RollupField.NAME + "_");
             }
             // Otherwise find the task by ID
@@ -209,9 +199,10 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
         private final RollupIndexerJobStats stats;
         private final RollupJobStatus status;
 
-        public static final ConstructingObjectParser<JobWrapper, Void> PARSER
-                = new ConstructingObjectParser<>(NAME, a -> new JobWrapper((RollupJobConfig) a[0],
-                (RollupIndexerJobStats) a[1], (RollupJobStatus)a[2]));
+        public static final ConstructingObjectParser<JobWrapper, Void> PARSER = new ConstructingObjectParser<>(
+            NAME,
+            a -> new JobWrapper((RollupJobConfig) a[0], (RollupIndexerJobStats) a[1], (RollupJobStatus) a[2])
+        );
 
         static {
             PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> RollupJobConfig.fromXContent(p, null), CONFIG);
@@ -275,9 +266,7 @@ public class GetRollupJobsAction extends Action<GetRollupJobsAction.Response> {
                 return false;
             }
             JobWrapper other = (JobWrapper) obj;
-            return Objects.equals(job, other.job)
-                    && Objects.equals(stats, other.stats)
-                    && Objects.equals(status, other.status);
+            return Objects.equals(job, other.job) && Objects.equals(stats, other.stats) && Objects.equals(status, other.status);
         }
 
         @Override

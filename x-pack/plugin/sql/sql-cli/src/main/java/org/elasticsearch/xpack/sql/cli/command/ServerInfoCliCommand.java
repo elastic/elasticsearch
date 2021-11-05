@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.cli.command;
 
@@ -13,8 +14,7 @@ import java.util.Locale;
 
 public class ServerInfoCliCommand extends AbstractServerCliCommand {
 
-    public ServerInfoCliCommand() {
-    }
+    public ServerInfoCliCommand() {}
 
     @Override
     public boolean doHandle(CliTerminal terminal, CliSession cliSession, String line) {
@@ -29,10 +29,13 @@ public class ServerInfoCliCommand extends AbstractServerCliCommand {
             return true;
         }
         terminal.line()
-                .text("Node:").em(info.getNodeName())
-                .text(" Cluster:").em(info.getClusterName())
-                .text(" Version:").em(info.getVersion())
-                .ln();
+            .text("Node:")
+            .em(info.getNodeName())
+            .text(" Cluster:")
+            .em(info.getClusterName())
+            .text(" Version:")
+            .em(info.getVersion())
+            .ln();
         return true;
     }
 }

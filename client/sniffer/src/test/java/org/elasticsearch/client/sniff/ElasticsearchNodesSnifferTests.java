@@ -1,13 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
+ * Licensed to Elasticsearch B.V. under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
+ * ownership. Elasticsearch B.V. licenses this file to you under
  * the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -27,6 +27,7 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
+
 import org.apache.http.Consts;
 import org.apache.http.HttpHost;
 import org.apache.http.client.methods.HttpGet;
@@ -52,6 +53,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -89,7 +91,7 @@ public class ElasticsearchNodesSnifferTests extends RestClientTestCase {
         try {
             new ElasticsearchNodesSniffer(null, 1, ElasticsearchNodesSniffer.Scheme.HTTP);
             fail("should have failed");
-        } catch(NullPointerException e) {
+        } catch (NullPointerException e) {
             assertEquals("restClient cannot be null", e.getMessage());
         }
         HttpHost httpHost = new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort());
@@ -101,8 +103,11 @@ public class ElasticsearchNodesSnifferTests extends RestClientTestCase {
                 assertEquals(e.getMessage(), "scheme cannot be null");
             }
             try {
-                new ElasticsearchNodesSniffer(restClient, RandomNumbers.randomIntBetween(getRandom(), Integer.MIN_VALUE, 0),
-                        ElasticsearchNodesSniffer.Scheme.HTTP);
+                new ElasticsearchNodesSniffer(
+                    restClient,
+                    RandomNumbers.randomIntBetween(getRandom(), Integer.MIN_VALUE, 0),
+                    ElasticsearchNodesSniffer.Scheme.HTTP
+                );
                 fail("should have failed");
             } catch (IllegalArgumentException e) {
                 assertEquals(e.getMessage(), "sniffRequestTimeoutMillis must be greater than 0");
@@ -120,17 +125,22 @@ public class ElasticsearchNodesSnifferTests extends RestClientTestCase {
                     fail("sniffNodes should have failed");
                 }
                 assertEquals(sniffResponse.result, sniffedNodes);
-            } catch(ResponseException e) {
+            } catch (ResponseException e) {
                 Response response = e.getResponse();
                 if (sniffResponse.isFailure) {
-                    final String errorPrefix = "method [GET], host [" + httpHost + "], URI [/_nodes/http?timeout=" + sniffRequestTimeout
+                    final String errorPrefix = "method [GET], host ["
+                        + httpHost
+                        + "], URI [/_nodes/http?timeout="
+                        + sniffRequestTimeout
                         + "ms], status line [HTTP/1.1";
                     assertThat(e.getMessage(), startsWith(errorPrefix));
                     assertThat(e.getMessage(), containsString(Integer.toString(sniffResponse.nodesInfoResponseCode)));
                     assertThat(response.getHost(), equalTo(httpHost));
                     assertThat(response.getStatusLine().getStatusCode(), equalTo(sniffResponse.nodesInfoResponseCode));
-                    assertThat(response.getRequestLine().toString(),
-                            equalTo("GET /_nodes/http?timeout=" + sniffRequestTimeout + "ms HTTP/1.1"));
+                    assertThat(
+                        response.getRequestLine().toString(),
+                        equalTo("GET /_nodes/http?timeout=" + sniffRequestTimeout + "ms HTTP/1.1")
+                    );
                 } else {
                     fail("sniffNodes should have succeeded: " + response.getStatusLine());
                 }
@@ -211,10 +221,40 @@ public class ElasticsearchNodesSnifferTests extends RestClientTestCase {
                 attributes.put("attr" + j, values);
             }
 
-            Node node = new Node(publishHost, boundHosts, randomAsciiAlphanumOfLength(5),
-                    randomAsciiAlphanumOfLength(5),
-                    new Node.Roles(randomBoolean(), randomBoolean(), randomBoolean()),
-                    attributes);
+            final Set<String> nodeRoles = new TreeSet<>();
+            if (randomBoolean()) {
+                nodeRoles.add("master");
+            }
+            if (randomBoolean()) {
+                nodeRoles.add("data");
+            }
+            if (randomBoolean()) {
+                nodeRoles.add("data_content");
+            }
+            if (randomBoolean()) {
+                nodeRoles.add("data_hot");
+            }
+            if (randomBoolean()) {
+                nodeRoles.add("data_warm");
+            }
+            if (randomBoolean()) {
+                nodeRoles.add("data_cold");
+            }
+            if (randomBoolean()) {
+                nodeRoles.add("data_frozen");
+            }
+            if (randomBoolean()) {
+                nodeRoles.add("ingest");
+            }
+
+            Node node = new Node(
+                publishHost,
+                boundHosts,
+                randomAsciiAlphanumOfLength(5),
+                randomAsciiAlphanumOfLength(5),
+                new Node.Roles(nodeRoles),
+                attributes
+            );
 
             generator.writeObjectFieldStart(nodeId);
             if (getRandom().nextBoolean()) {
@@ -247,15 +287,32 @@ public class ElasticsearchNodesSnifferTests extends RestClientTestCase {
                 generator.writeEndObject();
             }
 
-            List<String> roles = Arrays.asList(new String[] {"master", "data", "ingest"});
+            List<String> roles = Arrays.asList(
+                new String[] { "master", "data", "ingest", "data_content", "data_hot", "data_warm", "data_cold", "data_frozen" }
+            );
             Collections.shuffle(roles, getRandom());
             generator.writeArrayFieldStart("roles");
             for (String role : roles) {
                 if ("master".equals(role) && node.getRoles().isMasterEligible()) {
                     generator.writeString("master");
                 }
-                if ("data".equals(role) && node.getRoles().isData()) {
+                if ("data".equals(role) && node.getRoles().hasDataRole()) {
                     generator.writeString("data");
+                }
+                if ("data_content".equals(role) && node.getRoles().hasDataContentRole()) {
+                    generator.writeString("data_content");
+                }
+                if ("data_hot".equals(role) && node.getRoles().hasDataHotRole()) {
+                    generator.writeString("data_hot");
+                }
+                if ("data_warm".equals(role) && node.getRoles().hasDataWarmRole()) {
+                    generator.writeString("data_warm");
+                }
+                if ("data_cold".equals(role) && node.getRoles().hasDataColdRole()) {
+                    generator.writeString("data_cold");
+                }
+                if ("data_frozen".equals(role) && node.getRoles().hasDataFrozenRole()) {
+                    generator.writeString("data_frozen");
                 }
                 if ("ingest".equals(role) && node.getRoles().isIngest()) {
                     generator.writeString("ingest");

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.rollup;
@@ -22,10 +11,10 @@ package org.elasticsearch.client.rollup;
 import org.elasticsearch.client.core.IndexerJobStats;
 import org.elasticsearch.client.core.IndexerState;
 import org.elasticsearch.client.rollup.job.config.RollupJobConfig;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,8 +23,8 @@ import java.util.Objects;
 
 import static java.util.Collections.unmodifiableList;
 import static java.util.stream.Collectors.joining;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Response from rollup's get jobs api.
@@ -81,13 +70,14 @@ public class GetRollupJobResponse {
     }
 
     private static final ConstructingObjectParser<GetRollupJobResponse, Void> PARSER = new ConstructingObjectParser<>(
-            "get_rollup_job_response",
-            true,
-            args -> {
-                @SuppressWarnings("unchecked") // We're careful about the type in the list
-                List<JobWrapper> jobs = (List<JobWrapper>) args[0];
-                return new GetRollupJobResponse(unmodifiableList(jobs));
-            });
+        "get_rollup_job_response",
+        true,
+        args -> {
+            @SuppressWarnings("unchecked") // We're careful about the type in the list
+            List<JobWrapper> jobs = (List<JobWrapper>) args[0];
+            return new GetRollupJobResponse(unmodifiableList(jobs));
+        }
+    );
     static {
         PARSER.declareObjectArray(constructorArg(), JobWrapper.PARSER::apply, JOBS);
     }
@@ -134,9 +124,10 @@ public class GetRollupJobResponse {
         }
 
         private static final ConstructingObjectParser<JobWrapper, Void> PARSER = new ConstructingObjectParser<>(
-                "job",
-                true,
-                a -> new JobWrapper((RollupJobConfig) a[0], (RollupIndexerJobStats) a[1], (RollupJobStatus) a[2]));
+            "job",
+            true,
+            a -> new JobWrapper((RollupJobConfig) a[0], (RollupIndexerJobStats) a[1], (RollupJobStatus) a[2])
+        );
         static {
             PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> RollupJobConfig.fromXContent(p, null), CONFIG);
             PARSER.declareObject(ConstructingObjectParser.constructorArg(), RollupIndexerJobStats.PARSER::apply, STATS);
@@ -152,9 +143,7 @@ public class GetRollupJobResponse {
                 return false;
             }
             JobWrapper other = (JobWrapper) obj;
-            return Objects.equals(job, other.job)
-                    && Objects.equals(stats, other.stats)
-                    && Objects.equals(status, other.status);
+            return Objects.equals(job, other.job) && Objects.equals(stats, other.stats) && Objects.equals(status, other.status);
         }
 
         @Override
@@ -164,9 +153,7 @@ public class GetRollupJobResponse {
 
         @Override
         public final String toString() {
-            return "{job=" + job
-                    + ", stats=" + stats
-                    + ", status=" + status + "}";
+            return "{job=" + job + ", stats=" + stats + ", status=" + status + "}";
         }
     }
 
@@ -176,17 +163,54 @@ public class GetRollupJobResponse {
      */
     public static class RollupIndexerJobStats extends IndexerJobStats {
 
-        RollupIndexerJobStats(long numPages, long numInputDocuments, long numOuputDocuments, long numInvocations,
-                              long indexTime, long indexTotal, long searchTime, long searchTotal, long indexFailures, long searchFailures) {
-            super(numPages, numInputDocuments, numOuputDocuments, numInvocations,
-                    indexTime, searchTime, indexTotal, searchTotal, indexFailures, searchFailures);
+        RollupIndexerJobStats(
+            long numPages,
+            long numInputDocuments,
+            long numOuputDocuments,
+            long numInvocations,
+            long indexTime,
+            long indexTotal,
+            long searchTime,
+            long searchTotal,
+            long processingTime,
+            long processingTotal,
+            long indexFailures,
+            long searchFailures
+        ) {
+            super(
+                numPages,
+                numInputDocuments,
+                numOuputDocuments,
+                numInvocations,
+                indexTime,
+                searchTime,
+                processingTime,
+                indexTotal,
+                searchTotal,
+                processingTotal,
+                indexFailures,
+                searchFailures
+            );
         }
 
         private static final ConstructingObjectParser<RollupIndexerJobStats, Void> PARSER = new ConstructingObjectParser<>(
-                STATS.getPreferredName(),
-                true,
-                args -> new RollupIndexerJobStats((long) args[0], (long) args[1], (long) args[2], (long) args[3],
-                    (long) args[4], (long) args[5], (long) args[6], (long) args[7], (long) args[8], (long) args[9]));
+            STATS.getPreferredName(),
+            true,
+            args -> new RollupIndexerJobStats(
+                (long) args[0],
+                (long) args[1],
+                (long) args[2],
+                (long) args[3],
+                (long) args[4],
+                (long) args[5],
+                (long) args[6],
+                (long) args[7],
+                (long) args[8],
+                (long) args[9],
+                (long) args[10],
+                (long) args[11]
+            )
+        );
         static {
             PARSER.declareLong(constructorArg(), NUM_PAGES);
             PARSER.declareLong(constructorArg(), NUM_INPUT_DOCUMENTS);
@@ -196,6 +220,8 @@ public class GetRollupJobResponse {
             PARSER.declareLong(constructorArg(), INDEX_TOTAL);
             PARSER.declareLong(constructorArg(), SEARCH_TIME_IN_MS);
             PARSER.declareLong(constructorArg(), SEARCH_TOTAL);
+            PARSER.declareLong(constructorArg(), PROCESSING_TIME_IN_MS);
+            PARSER.declareLong(constructorArg(), PROCESSING_TOTAL);
             PARSER.declareLong(constructorArg(), INDEX_FAILURES);
             PARSER.declareLong(constructorArg(), SEARCH_FAILURES);
         }
@@ -219,6 +245,7 @@ public class GetRollupJobResponse {
         public IndexerState getState() {
             return state;
         }
+
         /**
          * The current position of the writer.
          */
@@ -227,14 +254,15 @@ public class GetRollupJobResponse {
         }
 
         private static final ConstructingObjectParser<RollupJobStatus, Void> PARSER = new ConstructingObjectParser<>(
-                STATUS.getPreferredName(),
-                true,
-                args -> {
-                    IndexerState state = (IndexerState) args[0];
-                    @SuppressWarnings("unchecked") // We're careful of the contents
-                    Map<String, Object> currentPosition = (Map<String, Object>) args[1];
-                    return new RollupJobStatus(state, currentPosition);
-                });
+            STATUS.getPreferredName(),
+            true,
+            args -> {
+                IndexerState state = (IndexerState) args[0];
+                @SuppressWarnings("unchecked") // We're careful of the contents
+                Map<String, Object> currentPosition = (Map<String, Object>) args[1];
+                return new RollupJobStatus(state, currentPosition);
+            }
+        );
         static {
             PARSER.declareField(constructorArg(), p -> IndexerState.fromString(p.text()), STATE, ObjectParser.ValueType.STRING);
             PARSER.declareField(optionalConstructorArg(), p -> {
@@ -256,8 +284,7 @@ public class GetRollupJobResponse {
             if (this == other) return true;
             if (other == null || getClass() != other.getClass()) return false;
             RollupJobStatus that = (RollupJobStatus) other;
-            return Objects.equals(state, that.state)
-                    && Objects.equals(currentPosition, that.currentPosition);
+            return Objects.equals(state, that.state) && Objects.equals(currentPosition, that.currentPosition);
         }
 
         @Override
@@ -267,8 +294,7 @@ public class GetRollupJobResponse {
 
         @Override
         public final String toString() {
-            return "{stats=" + state
-                    + ", currentPosition=" + currentPosition + "}";
+            return "{stats=" + state + ", currentPosition=" + currentPosition + "}";
         }
     }
 }

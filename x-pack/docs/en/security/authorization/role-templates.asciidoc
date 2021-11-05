@@ -12,13 +12,13 @@ authenticated user through the `_user` parameter.
 For example, the following role query uses a template to insert the username
 of the current authenticated user:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/role/example1
 {
   "indices" : [
     {
-      "names" : [ "my_index" ],
+      "names" : [ "my-index-000001" ],
       "privileges" : [ "read" ],
       "query" : {
         "template" : {
@@ -31,7 +31,6 @@ POST /_security/role/example1
   ]
 }
 --------------------------------------------------
-// CONSOLE
 
 You can access the following information through the `_user` variable:
 
@@ -49,13 +48,13 @@ You can also access custom user metadata. For example, if you maintain a
 `group_id` in your user metadata, you can apply document level security
 based on the `group.id` field in your documents:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /_security/role/example2
 {
   "indices" : [
     {
-      "names" : [ "my_index" ],
+      "names" : [ "my-index-000001" ],
       "privileges" : [ "read" ],
       "query" : {
         "template" : {
@@ -68,4 +67,24 @@ POST /_security/role/example2
   ]
 }
 --------------------------------------------------
-// CONSOLE
+
+If your metadata field contains an object or array, you can access it using the
+`{{#toJson}}parameter{{/toJson}}` function.
+
+[source,console]
+----
+POST /_security/role/example3
+{
+  "indices" : [
+    {
+      "names" : [ "my-index-000001" ],
+      "privileges" : [ "read" ],
+      "query" : {
+        "template" : {
+          "source" : "{ \"terms\": { \"group.statuses\": {{#toJson}}_user.metadata.statuses{{/toJson}} }}"
+        }
+      }
+    }
+  ]
+}
+----

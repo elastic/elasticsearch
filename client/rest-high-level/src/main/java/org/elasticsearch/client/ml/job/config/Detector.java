@@ -1,28 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml.job.config;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,9 +22,9 @@ import java.util.Objects;
 /**
  * Defines the fields and functions used in the analysis. A combination of <code>field_name</code>,
  * <code>by_field_name</code> and <code>over_field_name</code> can be used depending on the specific
- * function chosen. For more information see
- * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-job-resource.html#ml-detectorconfig">configuring
- * detectors</a> and <a href="https://www.elastic.co/guide/en/elastic-stack-overview/current/ml-functions.html">detector functions</a>.
+ * function chosen. For more information see the
+ * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-job.html">create anomaly detection
+ * jobs API</a> and <a href="https://www.elastic.co/guide/en/elastic-stack-overview/current/ml-functions.html">detector functions</a>.
  */
 public class Detector implements ToXContentObject {
 
@@ -84,12 +72,7 @@ public class Detector implements ToXContentObject {
         PARSER.declareString(Builder::setOverFieldName, OVER_FIELD_NAME_FIELD);
         PARSER.declareString(Builder::setPartitionFieldName, PARTITION_FIELD_NAME_FIELD);
         PARSER.declareBoolean(Builder::setUseNull, USE_NULL_FIELD);
-        PARSER.declareField(Builder::setExcludeFrequent, p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return ExcludeFrequent.forString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, EXCLUDE_FREQUENT_FIELD, ObjectParser.ValueType.STRING);
+        PARSER.declareString(Builder::setExcludeFrequent, ExcludeFrequent::forString, EXCLUDE_FREQUENT_FIELD);
         PARSER.declareObjectArray(Builder::setRules, (p, c) -> DetectionRule.PARSER.apply(p, c).build(), CUSTOM_RULES_FIELD);
         PARSER.declareInt(Builder::setDetectorIndex, DETECTOR_INDEX);
     }
@@ -139,9 +122,18 @@ public class Detector implements ToXContentObject {
         return builder;
     }
 
-    private Detector(String detectorDescription, DetectorFunction function, String fieldName, String byFieldName, String overFieldName,
-                     String partitionFieldName, boolean useNull, ExcludeFrequent excludeFrequent, List<DetectionRule> rules,
-                     int detectorIndex) {
+    private Detector(
+        String detectorDescription,
+        DetectorFunction function,
+        String fieldName,
+        String byFieldName,
+        String overFieldName,
+        String partitionFieldName,
+        boolean useNull,
+        ExcludeFrequent excludeFrequent,
+        List<DetectionRule> rules,
+        int detectorIndex
+    ) {
         this.function = function;
         this.fieldName = fieldName;
         this.byFieldName = byFieldName;
@@ -247,22 +239,32 @@ public class Detector implements ToXContentObject {
 
         Detector that = (Detector) other;
 
-        return Objects.equals(this.detectorDescription, that.detectorDescription) &&
-                Objects.equals(this.function, that.function) &&
-                Objects.equals(this.fieldName, that.fieldName) &&
-                Objects.equals(this.byFieldName, that.byFieldName) &&
-                Objects.equals(this.overFieldName, that.overFieldName) &&
-                Objects.equals(this.partitionFieldName, that.partitionFieldName) &&
-                Objects.equals(this.useNull, that.useNull) &&
-                Objects.equals(this.excludeFrequent, that.excludeFrequent) &&
-                Objects.equals(this.rules, that.rules) &&
-                this.detectorIndex == that.detectorIndex;
+        return Objects.equals(this.detectorDescription, that.detectorDescription)
+            && Objects.equals(this.function, that.function)
+            && Objects.equals(this.fieldName, that.fieldName)
+            && Objects.equals(this.byFieldName, that.byFieldName)
+            && Objects.equals(this.overFieldName, that.overFieldName)
+            && Objects.equals(this.partitionFieldName, that.partitionFieldName)
+            && Objects.equals(this.useNull, that.useNull)
+            && Objects.equals(this.excludeFrequent, that.excludeFrequent)
+            && Objects.equals(this.rules, that.rules)
+            && this.detectorIndex == that.detectorIndex;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(detectorDescription, function, fieldName, byFieldName, overFieldName, partitionFieldName, useNull,
-                excludeFrequent, rules, detectorIndex);
+        return Objects.hash(
+            detectorDescription,
+            function,
+            fieldName,
+            byFieldName,
+            overFieldName,
+            partitionFieldName,
+            useNull,
+            excludeFrequent,
+            rules,
+            detectorIndex
+        );
     }
 
     public static Builder builder() {
@@ -283,8 +285,7 @@ public class Detector implements ToXContentObject {
         // negative means unknown
         private int detectorIndex = -1;
 
-        public Builder() {
-        }
+        public Builder() {}
 
         public Builder(Detector detector) {
             detectorDescription = detector.detectorDescription;
@@ -359,8 +360,18 @@ public class Detector implements ToXContentObject {
         }
 
         public Detector build() {
-            return new Detector(detectorDescription, function, fieldName, byFieldName, overFieldName, partitionFieldName,
-                useNull, excludeFrequent, rules, detectorIndex);
+            return new Detector(
+                detectorDescription,
+                function,
+                fieldName,
+                byFieldName,
+                overFieldName,
+                partitionFieldName,
+                useNull,
+                excludeFrequent,
+                rules,
+                detectorIndex
+            );
         }
     }
 }

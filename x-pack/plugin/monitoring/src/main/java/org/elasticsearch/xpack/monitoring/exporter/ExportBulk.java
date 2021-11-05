@@ -1,11 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
 /**
@@ -88,7 +89,7 @@ public abstract class ExportBulk {
                     bulk.add(docs);
                 } catch (ExportException e) {
                     if (exception == null) {
-                        exception = new ExportException("failed to add documents to export bulks");
+                        exception = new ExportException("failed to add documents to export bulks", e);
                     }
                     exception.addExportException(e);
                 }
@@ -117,14 +118,19 @@ public abstract class ExportBulk {
                     iteratingListener.onResponse(null);
                 }));
             };
-            IteratingActionListener<Void, ExportBulk> iteratingActionListener =
-                    new IteratingActionListener<>(newExceptionHandlingListener(exceptionRef, listener), bulkBiConsumer, bulks,
-                            threadContext);
+            IteratingActionListener<Void, ExportBulk> iteratingActionListener = new IteratingActionListener<>(
+                newExceptionHandlingListener(exceptionRef, listener),
+                bulkBiConsumer,
+                bulks,
+                threadContext
+            );
             iteratingActionListener.run();
         }
 
-        private static ActionListener<Void> newExceptionHandlingListener(SetOnce<ExportException> exceptionRef,
-                                                                         ActionListener<Void> listener) {
+        private static ActionListener<Void> newExceptionHandlingListener(
+            SetOnce<ExportException> exceptionRef,
+            ActionListener<Void> listener
+        ) {
             return ActionListener.wrap(r -> {
                 if (exceptionRef.get() == null) {
                     listener.onResponse(null);

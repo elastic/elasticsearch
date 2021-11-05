@@ -2,18 +2,20 @@
 == Painless contexts
 
 A Painless script is evaluated within a context. Each context has values that
-are available as local variables, a whitelist that controls the available
+are available as local variables, an allowlist that controls the available
 classes, and the methods and fields within those classes (API), and
 if and what type of value is returned.
 
-A Painless script is typically executed within one of the contexts in the table
-below. Note this is not necessarily a comprehensive list as custom plugins and
-specialized code may define new ways to use a Painless script.
+Painless scripts typically run within one of the contexts in the following
+table. Before using a Painless context, <<painless-context-examples,configure the example data>>. Each context example is configured to operate on this data.
 
 [options="header",cols="<1,<1,<1"]
 |====
 | Name                              | Painless Documentation
                                     | Elasticsearch Documentation
+| Runtime field                     | <<painless-runtime-fields-context,Painless Documentation>>
+                                    | {ref}/runtime.html[Elasticsearch Documentation]
+
 | Ingest processor                  | <<painless-ingest-processor-context, Painless Documentation>>
                                     | {ref}/script-processor.html[Elasticsearch Documentation]
 | Update                            | <<painless-update-context, Painless Documentation>>
@@ -23,7 +25,7 @@ specialized code may define new ways to use a Painless script.
 | Reindex                           | <<painless-reindex-context, Painless Documentation>>
                                     | {ref}/docs-reindex.html[Elasticsearch Documentation]
 | Sort                              | <<painless-sort-context, Painless Documentation>>
-                                    | {ref}/search-request-sort.html[Elasticsearch Documentation]
+                                    | {ref}/sort-search-results.html[Elasticsearch Documentation]
 | Similarity                        | <<painless-similarity-context, Painless Documentation>>
                                     | {ref}/index-modules-similarity.html[Elasticsearch Documentation]
 | Weight                            | <<painless-weight-context, Painless Documentation>>
@@ -31,7 +33,7 @@ specialized code may define new ways to use a Painless script.
 | Score                             | <<painless-score-context, Painless Documentation>>
                                     | {ref}/query-dsl-function-score-query.html[Elasticsearch Documentation]
 | Field                             | <<painless-field-context, Painless Documentation>>
-                                    | {ref}/search-request-script-fields.html[Elasticsearch Documentation]
+                                    | {ref}/search-fields.html#script-fields[Elasticsearch Documentation]
 | Filter                            | <<painless-filter-context, Painless Documentation>>
                                     | {ref}/query-dsl-script-query.html[Elasticsearch Documentation]
 | Minimum should match              | <<painless-min-should-match-context, Painless Documentation>>
@@ -49,11 +51,9 @@ specialized code may define new ways to use a Painless script.
 | Bucket selector aggregation       | <<painless-bucket-selector-agg-context, Painless Documentation>>
                                     | {ref}/search-aggregations-pipeline-bucket-selector-aggregation.html[Elasticsearch Documentation]
 | Watcher condition                 | <<painless-watcher-condition-context, Painless Documentation>>
-                                    | {xpack-ref}/condition-script.html[Elasticsearch Documentation]
+                                    | {ref}/condition-script.html[Elasticsearch Documentation]
 | Watcher transform                 | <<painless-watcher-transform-context, Painless Documentation>>
-                                    | {xpack-ref}/transform-script.html[Elasticsearch Documentation]
+                                    | {ref}/transform-script.html[Elasticsearch Documentation]
 |====
-
-include::painless-contexts/painless-context-examples.asciidoc[]
 
 include::painless-contexts/index.asciidoc[]

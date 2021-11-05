@@ -1,22 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.support.search;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.Watcher;
@@ -49,25 +50,29 @@ public class WatcherSearchTemplateService {
             watcherContextParams.putAll(source.getParams());
         }
         // Templates are always of lang mustache:
-        Script template = new Script(source.getType(), source.getType() == ScriptType.STORED ? null : "mustache",
-                source.getIdOrCode(), source.getOptions(), watcherContextParams);
+        Script template = new Script(
+            source.getType(),
+            source.getType() == ScriptType.STORED ? null : "mustache",
+            source.getIdOrCode(),
+            source.getOptions(),
+            watcherContextParams
+        );
         TemplateScript.Factory compiledTemplate = scriptService.compile(template, Watcher.SCRIPT_TEMPLATE_CONTEXT);
         return compiledTemplate.newInstance(template.getParams()).execute();
     }
 
     public SearchRequest toSearchRequest(WatcherSearchTemplateRequest request) throws IOException {
         SearchRequest searchRequest = new SearchRequest(request.getIndices());
-        if (request.getTypes() != null) {
-            searchRequest.types(request.getTypes());
-        }
         searchRequest.searchType(request.getSearchType());
         searchRequest.indicesOptions(request.getIndicesOptions());
         SearchSourceBuilder sourceBuilder = SearchSourceBuilder.searchSource();
         BytesReference source = request.getSearchSource();
         if (source != null && source.length() > 0) {
-            try (InputStream stream = source.streamInput();
-                 XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(source))
-                         .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
+            try (
+                InputStream stream = source.streamInput();
+                XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(source))
+                    .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
+            ) {
                 sourceBuilder.parseXContent(parser);
                 searchRequest.source(sourceBuilder);
             }

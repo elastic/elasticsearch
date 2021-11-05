@@ -19,7 +19,7 @@ full metric aggregation.
 *Side Effects*
 
 `state` (`Map`)::
-        Add values to this `Map` to for use in a map.  Additional values must
+        Add values to this `Map` to for use in a map. Additional values must
         be of the type `Map`, `List`, `String` or primitive.
 
 *Return*

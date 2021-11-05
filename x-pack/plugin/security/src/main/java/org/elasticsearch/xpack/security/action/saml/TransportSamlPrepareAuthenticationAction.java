@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action.saml;
 
@@ -28,40 +29,39 @@ import static org.elasticsearch.xpack.security.authc.saml.SamlRealm.findSamlReal
 /**
  * Transport action responsible for generating a SAML {@code &lt;AuthnRequest&gt;} as a redirect binding URL.
  */
-public final class TransportSamlPrepareAuthenticationAction
-        extends HandledTransportAction<SamlPrepareAuthenticationRequest, SamlPrepareAuthenticationResponse> {
+public final class TransportSamlPrepareAuthenticationAction extends HandledTransportAction<
+    SamlPrepareAuthenticationRequest,
+    SamlPrepareAuthenticationResponse> {
 
     private final Realms realms;
 
     @Inject
     public TransportSamlPrepareAuthenticationAction(TransportService transportService, ActionFilters actionFilters, Realms realms) {
-        super(SamlPrepareAuthenticationAction.NAME, transportService, actionFilters,
-            SamlPrepareAuthenticationRequest::new);
+        super(SamlPrepareAuthenticationAction.NAME, transportService, actionFilters, SamlPrepareAuthenticationRequest::new);
         this.realms = realms;
     }
 
     @Override
-    protected void doExecute(Task task, SamlPrepareAuthenticationRequest request,
-                             ActionListener<SamlPrepareAuthenticationResponse> listener) {
+    protected void doExecute(
+        Task task,
+        SamlPrepareAuthenticationRequest request,
+        ActionListener<SamlPrepareAuthenticationResponse> listener
+    ) {
         List<SamlRealm> realms = findSamlRealms(this.realms, request.getRealmName(), request.getAssertionConsumerServiceURL());
         if (realms.isEmpty()) {
             listener.onFailure(SamlUtils.samlException("Cannot find any matching realm for [{}]", request));
         } else if (realms.size() > 1) {
             listener.onFailure(SamlUtils.samlException("Found multiple matching realms [{}] for [{}]", realms, request));
         } else {
-            prepareAuthentication(realms.get(0), listener);
+            prepareAuthentication(realms.get(0), request.getRelayState(), listener);
         }
     }
 
-    private void prepareAuthentication(SamlRealm realm, ActionListener<SamlPrepareAuthenticationResponse> listener) {
+    private void prepareAuthentication(SamlRealm realm, String relayState, ActionListener<SamlPrepareAuthenticationResponse> listener) {
         final AuthnRequest authnRequest = realm.buildAuthenticationRequest();
         try {
-            String redirectUrl = new SamlRedirect(authnRequest, realm.getSigningConfiguration()).getRedirectUrl();
-            listener.onResponse(new SamlPrepareAuthenticationResponse(
-                    realm.name(),
-                    authnRequest.getID(),
-                    redirectUrl
-            ));
+            String redirectUrl = new SamlRedirect(authnRequest, realm.getSigningConfiguration()).getRedirectUrl(relayState);
+            listener.onResponse(new SamlPrepareAuthenticationResponse(realm.name(), authnRequest.getID(), redirectUrl));
         } catch (ElasticsearchException e) {
             listener.onFailure(e);
         }

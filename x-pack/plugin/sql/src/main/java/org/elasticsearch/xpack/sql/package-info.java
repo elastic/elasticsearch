@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 /**
@@ -13,14 +14,14 @@
  * if possible, to one (at the moment) query DSL. Of course, this means
  * not all SQL queries are supported.<br>
  *
- * <h3>Premise</h3>
+ * <h2>Premise</h2>
  * Since Elasticsearch is not a database nor does it supports arbitrary
  * {@code JOIN}s (a cornerstone of SQL), SQL module is built from the
  * ground-up with Elasticsearch in mind first and SQL second. In fact,
  * even the grammar introduces Elasticsearch specific components that
  * have no concept in ANSI SQL.
  *
- * <h3>Architecture</h3>
+ * <h2>Architecture</h2>
  * SQL module is roughly based on the Volcano project (by Graefe
  * {@code &} co)
  * <a href="http://ieeexplore.ieee.org/document/344061">[1]</a>
@@ -53,12 +54,12 @@
  * (to different degrees) by the majority of SQL engines out there such
  * as Apache Calcite, Apache Impala, Apache Spark and Facebook Presto.
  *
- * <h3>Concepts</h3>
+ * <h2>Concepts</h2>
  *
  * The building operation of the SQL engine is defined by an action,
- * namely a rule (defined in {@link org.elasticsearch.xpack.sql.rule rule}
+ * namely a rule (defined in {@link org.elasticsearch.xpack.ql.rule rule}
  * package that accepts one <i>immutable</i> tree (defined in
- * {@link org.elasticsearch.xpack.sql.tree tree} package) and transforms
+ * {@link org.elasticsearch.xpack.ql.tree tree} package) and transforms
  * it to another <i>immutable</i> tree.
  * Each rules looks for a certain <i>pattern</i> that it can identify and
  * then transform.
@@ -112,15 +113,15 @@
  *  <li>The Elasticsearch query gets executed</li>
  * </ol>
  *
- * <h4>Digression - Visitors, pattern matching, {@code instanceof} and
- * Java 10/11/12</h4>
+ * <h3>Digression - Visitors, pattern matching, {@code instanceof} and
+ * Java 10/11/12</h3>
  *
  * To implement the above concepts, several choices have been made in the
  * engine (which are not common in the rest of the XPack code base). In
  * particular the conventions/signatures of
- * {@link org.elasticsearch.xpack.sql.tree.Node tree}s and usage of
+ * {@link org.elasticsearch.xpack.ql.tree.Node tree}s and usage of
  * {@code instanceof} inside
- * {@link org.elasticsearch.xpack.sql.rule.Rule rule}s).
+ * {@link org.elasticsearch.xpack.ql.rule.Rule rule}s).
  * Java doesn't provide any utilities for tree abstractions or pattern
  * matching for that matter. Typically for tree traversal one would employ
  * the <a href="https://en.wikipedia.org/wiki/Visitor_pattern">Visitor</a>
@@ -143,10 +144,10 @@
  * {@code instanceof} checks. Which is how many rules are implemented in
  * the SQL engine as well. Where possible though, one can use <i>typed</i>
  * traversal by passing a {@code Class} token to the lambdas (i.e.
- * {@link org.elasticsearch.xpack.sql.tree.Node#transformDown(java.util.function.Function, Class)
+ * {@link org.elasticsearch.xpack.ql.tree.Node#transformDown(Class, java.util.function.Function)
  * pre-order transformation}).
  *
- * <h3>Components</h3>
+ * <h2>Components</h2>
  *
  * The SQL engine is made up of the following components:
  * <dl>

@@ -1,9 +1,0 @@
-evaluationDependsOn ':subproj'
-
-String fakeJdkVersion = Objects.requireNonNull(System.getProperty('tests.jdk_version'))
-jdks {
-    linux_jdk {
-        version = fakeJdkVersion
-        platform = "linux"
-    }
-}

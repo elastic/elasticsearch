@@ -1,51 +1,34 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.time;
-
-import org.joda.time.DateTimeZone;
 
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.function.LongSupplier;
 
 /**
- * An abstraction over date math parsing to allow different implementation for joda and java time.
+ * An abstraction over date math parsing.
+ *
+ * Note: This can now be collapsed together with {@link JavaDateMathParser} since Joda is removed.
  */
 public interface DateMathParser {
 
     /**
-     * Parse a date math expression without timzeone info and rounding down.
+     * Parse a date math expression without timezone info and rounding down.
      */
     default Instant parse(String text, LongSupplier now) {
-        return parse(text, now, false, (ZoneId) null);
+        return parse(text, now, false, null);
     }
 
     // Note: we take a callable here for the timestamp in order to be able to figure out
     // if it has been used. For instance, the request cache does not cache requests that make
     // use of `now`.
-
-    // exists for backcompat, do not use!
-    @Deprecated
-    default Instant parse(String text, LongSupplier now, boolean roundUp, DateTimeZone tz) {
-        return parse(text, now, roundUp, tz == null ? null : ZoneId.of(tz.getID()));
-    }
 
     /**
      * Parse text, that potentially contains date math into the milliseconds since the epoch
@@ -65,11 +48,11 @@ public interface DateMathParser {
      * s    second
      *
      *
-     * @param text      the input
-     * @param now       a supplier to retrieve the current date in milliseconds, if needed for additions
-     * @param roundUp   should the result be rounded up
-     * @param tz        an optional timezone that should be applied before returning the milliseconds since the epoch
-     * @return          the parsed date as an Instant since the epoch
+     * @param text              the input
+     * @param now               a supplier to retrieve the current date in milliseconds, if needed for additions
+     * @param roundUpProperty   should the result be rounded up with the granularity of the rounding (e.g. <code>now/M</code>)
+     * @param tz                an optional timezone that should be applied before returning the milliseconds since the epoch
+     * @return                  the parsed date as an Instant since the epoch
      */
-    Instant parse(String text, LongSupplier now, boolean roundUp, ZoneId tz);
+    Instant parse(String text, LongSupplier now, boolean roundUpProperty, ZoneId tz);
 }

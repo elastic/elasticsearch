@@ -1,26 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.repositories;
 
-import com.carrotsearch.hppc.ObjectContainer;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -42,6 +29,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -58,24 +46,32 @@ public class VerifyNodeRepositoryAction {
 
     private final RepositoriesService repositoriesService;
 
-    public VerifyNodeRepositoryAction(TransportService transportService, ClusterService clusterService,
-                                      RepositoriesService repositoriesService) {
+    public VerifyNodeRepositoryAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        RepositoriesService repositoriesService
+    ) {
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
-        transportService.registerRequestHandler(ACTION_NAME, VerifyNodeRepositoryRequest::new, ThreadPool.Names.SNAPSHOT,
-            new VerifyNodeRepositoryRequestHandler());
+        transportService.registerRequestHandler(
+            ACTION_NAME,
+            ThreadPool.Names.SNAPSHOT,
+            VerifyNodeRepositoryRequest::new,
+            new VerifyNodeRepositoryRequestHandler()
+        );
     }
 
     public void verify(String repository, String verificationToken, final ActionListener<List<DiscoveryNode>> listener) {
         final DiscoveryNodes discoNodes = clusterService.state().nodes();
         final DiscoveryNode localNode = discoNodes.getLocalNode();
 
-        final ObjectContainer<DiscoveryNode> masterAndDataNodes = discoNodes.getMasterAndDataNodes().values();
+        final Collection<DiscoveryNode> masterAndDataNodes = discoNodes.getMasterAndDataNodes().values();
         final List<DiscoveryNode> nodes = new ArrayList<>();
-        for (ObjectCursor<DiscoveryNode> cursor : masterAndDataNodes) {
-            DiscoveryNode node = cursor.value;
-            nodes.add(node);
+        for (DiscoveryNode node : masterAndDataNodes) {
+            if (RepositoriesService.isDedicatedVotingOnlyNode(node.getRoles()) == false) {
+                nodes.add(node);
+            }
         }
         final CopyOnWriteArrayList<VerificationFailure> errors = new CopyOnWriteArrayList<>();
         final AtomicInteger counter = new AtomicInteger(nodes.size());
@@ -91,7 +87,10 @@ public class VerifyNodeRepositoryAction {
                     finishVerification(repository, listener, nodes, errors);
                 }
             } else {
-                transportService.sendRequest(node, ACTION_NAME, new VerifyNodeRepositoryRequest(repository, verificationToken),
+                transportService.sendRequest(
+                    node,
+                    ACTION_NAME,
+                    new VerifyNodeRepositoryRequest(repository, verificationToken),
                     new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                         @Override
                         public void handleResponse(TransportResponse.Empty response) {
@@ -107,15 +106,24 @@ public class VerifyNodeRepositoryAction {
                                 finishVerification(repository, listener, nodes, errors);
                             }
                         }
-                    });
+                    }
+                );
             }
         }
     }
 
-    private static void finishVerification(String repositoryName, ActionListener<List<DiscoveryNode>> listener, List<DiscoveryNode> nodes,
-                                   CopyOnWriteArrayList<VerificationFailure> errors) {
+    private static void finishVerification(
+        String repositoryName,
+        ActionListener<List<DiscoveryNode>> listener,
+        List<DiscoveryNode> nodes,
+        CopyOnWriteArrayList<VerificationFailure> errors
+    ) {
         if (errors.isEmpty() == false) {
-            listener.onFailure(new RepositoryVerificationException(repositoryName, errors.toString()));
+            RepositoryVerificationException e = new RepositoryVerificationException(repositoryName, errors.toString());
+            for (VerificationFailure error : errors) {
+                e.addSuppressed(error.getCause());
+            }
+            listener.onFailure(e);
         } else {
             listener.onResponse(nodes);
         }
@@ -131,19 +139,15 @@ public class VerifyNodeRepositoryAction {
         private String repository;
         private String verificationToken;
 
-        public VerifyNodeRepositoryRequest() {
+        public VerifyNodeRepositoryRequest(StreamInput in) throws IOException {
+            super(in);
+            repository = in.readString();
+            verificationToken = in.readString();
         }
 
         VerifyNodeRepositoryRequest(String repository, String verificationToken) {
             this.repository = repository;
             this.verificationToken = verificationToken;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            repository = in.readString();
-            verificationToken = in.readString();
         }
 
         @Override

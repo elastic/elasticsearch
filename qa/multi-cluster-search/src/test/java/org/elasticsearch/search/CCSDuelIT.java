@@ -1,26 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.action.ActionListener;
@@ -44,7 +34,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -85,7 +74,9 @@ import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.test.NotEqualMessageBuilder;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.AfterClass;
 import org.junit.Before;
 
@@ -106,10 +97,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static java.util.stream.Collectors.toList;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 /**
  * This test class executes twice, first against the remote cluster, and then against another cluster that has the remote cluster
@@ -120,11 +115,12 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * such parameter, hence we want to verify that results are the same in both scenarios.
  */
 @TimeoutSuite(millis = 5 * TimeUnits.MINUTE) // to account for slow as hell VMs
+@SuppressWarnings("removal")
 public class CCSDuelIT extends ESRestTestCase {
 
     private static final String INDEX_NAME = "ccs_duel_index";
     private static final String REMOTE_INDEX_NAME = "my_remote_cluster:" + INDEX_NAME;
-    private static final String[] TAGS = new String[]{"java", "xml", "sql", "html", "php", "ruby", "python", "perl"};
+    private static final String[] TAGS = new String[] { "java", "xml", "sql", "html", "php", "ruby", "python", "perl" };
 
     private static RestHighLevelClient restHighLevelClient;
 
@@ -134,10 +130,10 @@ public class CCSDuelIT extends ESRestTestCase {
         if (restHighLevelClient == null) {
             restHighLevelClient = new HighLevelClient(client());
             String destinationCluster = System.getProperty("tests.rest.suite");
-            //we index docs with private randomness otherwise the two clusters end up with exactly the same documents
-            //given that this test class is run twice with same seed.
-            RandomizedContext.current().runWithPrivateRandomness(random().nextLong() + destinationCluster.hashCode(),
-                (Callable<Void>) () -> {
+            // we index docs with private randomness otherwise the two clusters end up with exactly the same documents
+            // given that this test class is run twice with same seed.
+            RandomizedContext.current()
+                .runWithPrivateRandomness(random().nextLong() + destinationCluster.hashCode(), (Callable<Void>) () -> {
                     indexDocuments(destinationCluster + "-");
                     return null;
                 });
@@ -161,11 +157,16 @@ public class CCSDuelIT extends ESRestTestCase {
         return true;
     }
 
+    @Override
+    protected boolean preserveDataStreamsUponCompletion() {
+        return true;
+    }
+
     private static void indexDocuments(String idPrefix) throws IOException, InterruptedException {
-        //this index with a single document is used to test partial failures
+        // this index with a single document is used to test partial failures
         IndexRequest indexRequest = new IndexRequest(INDEX_NAME + "_err");
         indexRequest.id("id");
-        indexRequest.source("creationDate", "err");
+        indexRequest.source("id", "id", "creationDate", "err");
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
         IndexResponse indexResponse = restHighLevelClient.index(indexRequest, RequestOptions.DEFAULT);
         assertEquals(201, indexResponse.status().getStatus());
@@ -177,17 +178,21 @@ public class CCSDuelIT extends ESRestTestCase {
         int numShards = randomIntBetween(1, 5);
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(INDEX_NAME);
         createIndexRequest.settings(Settings.builder().put("index.number_of_shards", numShards).put("index.number_of_replicas", 0));
-        createIndexRequest.mapping("{\"properties\":{" +
-                "\"suggest\":{\"type\":\"completion\"}," +
-                "\"join\":{\"type\":\"join\", \"relations\": {\"question\":\"answer\"}}}}", XContentType.JSON);
+        createIndexRequest.mapping(
+            "{\"properties\":{"
+                + "\"id\":{\"type\":\"keyword\"},"
+                + "\"suggest\":{\"type\":\"completion\"},"
+                + "\"join\":{\"type\":\"join\", \"relations\": {\"question\":\"answer\"}}}}",
+            XContentType.JSON
+        );
         CreateIndexResponse createIndexResponse = restHighLevelClient.indices().create(createIndexRequest, RequestOptions.DEFAULT);
         assertTrue(createIndexResponse.isAcknowledged());
 
-        BulkProcessor bulkProcessor = BulkProcessor.builder((r, l) -> restHighLevelClient.bulkAsync(r, RequestOptions.DEFAULT, l),
+        BulkProcessor bulkProcessor = BulkProcessor.builder(
+            (r, l) -> restHighLevelClient.bulkAsync(r, RequestOptions.DEFAULT, l),
             new BulkProcessor.Listener() {
                 @Override
-                public void beforeBulk(long executionId, BulkRequest request) {
-                }
+                public void beforeBulk(long executionId, BulkRequest request) {}
 
                 @Override
                 public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
@@ -198,7 +203,9 @@ public class CCSDuelIT extends ESRestTestCase {
                 public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
                     throw new AssertionError("Failed to execute bulk", failure);
                 }
-            }).build();
+            },
+            "CCSDuelIT"
+        ).build();
 
         int numQuestions = randomIntBetween(50, 100);
         for (int i = 0; i < numQuestions; i++) {
@@ -211,8 +218,7 @@ public class CCSDuelIT extends ESRestTestCase {
         assertTrue(bulkProcessor.awaitClose(30, TimeUnit.SECONDS));
 
         RefreshResponse refreshResponse = restHighLevelClient.indices().refresh(new RefreshRequest(INDEX_NAME), RequestOptions.DEFAULT);
-        assertEquals(0, refreshResponse.getFailedShards());
-        assertEquals(numShards, refreshResponse.getSuccessfulShards());
+        ElasticsearchAssertions.assertNoFailures(refreshResponse);
     }
 
     private static IndexRequest buildIndexRequest(String id, String type, String questionId) {
@@ -236,26 +242,38 @@ public class CCSDuelIT extends ESRestTestCase {
         if (questionId != null) {
             joinField.put("parent", questionId);
         }
-        indexRequest.source(XContentType.JSON,
-            "type", type,
-            "votes", randomIntBetween(0, 30),
-            "questionId", questionId,
-            "tags", tagsArray,
-            "user", "user" + randomIntBetween(1, 10),
-            "suggest", Collections.singletonMap("input", tagsArray),
-            "creationDate", date,
-            "join", joinField);
+        indexRequest.source(
+            XContentType.JSON,
+            "id",
+            id,
+            "type",
+            type,
+            "votes",
+            randomIntBetween(0, 30),
+            "questionId",
+            questionId,
+            "tags",
+            tagsArray,
+            "user",
+            "user" + randomIntBetween(1, 10),
+            "suggest",
+            Collections.singletonMap("input", tagsArray),
+            "creationDate",
+            date,
+            "join",
+            joinField
+        );
         return indexRequest;
     }
 
     public void testMatchAll() throws Exception {
         assumeMultiClusterSetup();
-        //verify that the order in which documents are returned when they all have the same score is the same
+        // verify that the order in which documents are returned when they all have the same score is the same
         SearchRequest searchRequest = initSearchRequest();
         duelSearch(searchRequest, CCSDuelIT::assertHits);
     }
 
-    public void testMatchQuery() throws Exception  {
+    public void testMatchQuery() throws Exception {
         assumeMultiClusterSetup();
         SearchRequest searchRequest = initSearchRequest();
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
@@ -285,7 +303,7 @@ public class CCSDuelIT extends ESRestTestCase {
         duelSearch(searchRequest, CCSDuelIT::assertHits);
     }
 
-    public void testPagination() throws Exception  {
+    public void testPagination() throws Exception {
         assumeMultiClusterSetup();
         SearchRequest searchRequest = initSearchRequest();
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
@@ -296,7 +314,7 @@ public class CCSDuelIT extends ESRestTestCase {
         duelSearch(searchRequest, response -> assertHits(response, 10));
     }
 
-    public void testHighlighting() throws Exception  {
+    public void testHighlighting() throws Exception {
         assumeMultiClusterSetup();
         SearchRequest searchRequest = initSearchRequest();
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
@@ -309,11 +327,11 @@ public class CCSDuelIT extends ESRestTestCase {
         });
     }
 
-    public void testFetchSource() throws Exception  {
+    public void testFetchSource() throws Exception {
         assumeMultiClusterSetup();
         SearchRequest searchRequest = initSearchRequest();
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
-        sourceBuilder.fetchSource(new String[]{"tags"}, Strings.EMPTY_ARRAY);
+        sourceBuilder.fetchSource(new String[] { "tags" }, Strings.EMPTY_ARRAY);
         sourceBuilder.query(QueryBuilders.matchQuery("tags", "ruby"));
         searchRequest.source(sourceBuilder);
         duelSearch(searchRequest, response -> {
@@ -322,7 +340,7 @@ public class CCSDuelIT extends ESRestTestCase {
         });
     }
 
-    public void testDocValueFields() throws Exception  {
+    public void testDocValueFields() throws Exception {
         assumeMultiClusterSetup();
         SearchRequest searchRequest = initSearchRequest();
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
@@ -336,7 +354,7 @@ public class CCSDuelIT extends ESRestTestCase {
         });
     }
 
-    public void testScriptFields() throws Exception  {
+    public void testScriptFields() throws Exception {
         assumeMultiClusterSetup();
         SearchRequest searchRequest = initSearchRequest();
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
@@ -349,7 +367,7 @@ public class CCSDuelIT extends ESRestTestCase {
         });
     }
 
-    public void testExplain() throws Exception  {
+    public void testExplain() throws Exception {
         assumeMultiClusterSetup();
         SearchRequest searchRequest = initSearchRequest();
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
@@ -398,7 +416,7 @@ public class CCSDuelIT extends ESRestTestCase {
         duelSearch(searchRequest, CCSDuelIT::assertHits);
     }
 
-    public void testProfile() throws Exception  {
+    public void testProfile() throws Exception {
         assumeMultiClusterSetup();
         SearchRequest searchRequest = initSearchRequest();
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
@@ -408,10 +426,14 @@ public class CCSDuelIT extends ESRestTestCase {
         duelSearch(searchRequest, response -> {
             assertHits(response);
             assertFalse(response.getProfileResults().isEmpty());
+            assertThat(
+                response.getProfileResults().values().stream().filter(sr -> sr.getFetchPhase() != null).collect(toList()),
+                not(empty())
+            );
         });
     }
 
-    public void testSortByField() throws Exception  {
+    public void testSortByField() throws Exception {
         assumeMultiClusterSetup();
         SearchRequest searchRequest = initSearchRequest();
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
@@ -433,6 +455,7 @@ public class CCSDuelIT extends ESRestTestCase {
     public void testSortByFieldOneClusterHasNoResults() throws Exception {
         assumeMultiClusterSetup();
         SearchRequest searchRequest = initSearchRequest();
+        // set to a value greater than the number of shards to avoid differences due to the skipping of shards
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         boolean onlyRemote = randomBoolean();
         sourceBuilder.query(new TermQueryBuilder("_index", onlyRemote ? REMOTE_INDEX_NAME : INDEX_NAME));
@@ -520,31 +543,31 @@ public class CCSDuelIT extends ESRestTestCase {
     private static SearchSourceBuilder buildTermsAggsSource() {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         sourceBuilder.size(0);
-        TermsAggregationBuilder cluster = new TermsAggregationBuilder("cluster123", ValueType.STRING);
+        TermsAggregationBuilder cluster = new TermsAggregationBuilder("cluster123").userValueTypeHint(ValueType.STRING);
         cluster.field("_index");
-        TermsAggregationBuilder type = new TermsAggregationBuilder("type", ValueType.STRING);
+        TermsAggregationBuilder type = new TermsAggregationBuilder("type").userValueTypeHint(ValueType.STRING);
         type.field("type.keyword");
         type.showTermDocCountError(true);
         type.order(BucketOrder.key(true));
         cluster.subAggregation(type);
         sourceBuilder.aggregation(cluster);
 
-        TermsAggregationBuilder tags = new TermsAggregationBuilder("tags", ValueType.STRING);
+        TermsAggregationBuilder tags = new TermsAggregationBuilder("tags").userValueTypeHint(ValueType.STRING);
         tags.field("tags.keyword");
         tags.showTermDocCountError(true);
         tags.size(100);
         sourceBuilder.aggregation(tags);
 
-        TermsAggregationBuilder tags2 = new TermsAggregationBuilder("tags", ValueType.STRING);
+        TermsAggregationBuilder tags2 = new TermsAggregationBuilder("tags").userValueTypeHint(ValueType.STRING);
         tags2.field("tags.keyword");
         tags.subAggregation(tags2);
 
         FilterAggregationBuilder answers = new FilterAggregationBuilder("answers", new TermQueryBuilder("type", "answer"));
-        TermsAggregationBuilder answerPerQuestion = new TermsAggregationBuilder("answer_per_question", ValueType.STRING);
+        TermsAggregationBuilder answerPerQuestion = new TermsAggregationBuilder("answer_per_question").userValueTypeHint(ValueType.STRING);
         answerPerQuestion.showTermDocCountError(true);
         answerPerQuestion.field("questionId.keyword");
         answers.subAggregation(answerPerQuestion);
-        TermsAggregationBuilder answerPerUser = new TermsAggregationBuilder("answer_per_user", ValueType.STRING);
+        TermsAggregationBuilder answerPerUser = new TermsAggregationBuilder("answer_per_user").userValueTypeHint(ValueType.STRING);
         answerPerUser.field("user.keyword");
         answerPerUser.size(30);
         answerPerUser.showTermDocCountError(true);
@@ -559,7 +582,7 @@ public class CCSDuelIT extends ESRestTestCase {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         sourceBuilder.size(0);
         searchRequest.source(sourceBuilder);
-        TermsAggregationBuilder tags = new TermsAggregationBuilder("tags", ValueType.STRING);
+        TermsAggregationBuilder tags = new TermsAggregationBuilder("tags").userValueTypeHint(ValueType.STRING);
         tags.field("tags.keyword");
         tags.showTermDocCountError(true);
         DateHistogramAggregationBuilder creation = new DateHistogramAggregationBuilder("creation");
@@ -576,7 +599,7 @@ public class CCSDuelIT extends ESRestTestCase {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         sourceBuilder.size(0);
         searchRequest.source(sourceBuilder);
-        CardinalityAggregationBuilder tags = new CardinalityAggregationBuilder("tags", ValueType.STRING);
+        CardinalityAggregationBuilder tags = new CardinalityAggregationBuilder("tags").userValueTypeHint(ValueType.STRING);
         tags.field("tags.keyword");
         sourceBuilder.aggregation(tags);
         duelSearch(searchRequest, CCSDuelIT::assertAggs);
@@ -614,8 +637,8 @@ public class CCSDuelIT extends ESRestTestCase {
         topHits.from(10);
         topHits.size(10);
         topHits.sort("creationDate", SortOrder.DESC);
-        topHits.sort("_id", SortOrder.ASC);
-        TermsAggregationBuilder tags = new TermsAggregationBuilder("tags", ValueType.STRING);
+        topHits.sort("id", SortOrder.ASC);
+        TermsAggregationBuilder tags = new TermsAggregationBuilder("tags").userValueTypeHint(ValueType.STRING);
         tags.field("tags.keyword");
         tags.size(10);
         tags.subAggregation(topHits);
@@ -627,7 +650,7 @@ public class CCSDuelIT extends ESRestTestCase {
         assumeMultiClusterSetup();
         IndexRequest indexRequest = new IndexRequest("lookup_index");
         indexRequest.id("id");
-        indexRequest.source("tags", new String[]{"java", "sql", "html", "jax-ws"});
+        indexRequest.source("tags", new String[] { "java", "sql", "html", "jax-ws" });
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
         IndexResponse indexResponse = restHighLevelClient.index(indexRequest, RequestOptions.DEFAULT);
         assertEquals(201, indexResponse.status().getStatus());
@@ -662,8 +685,7 @@ public class CCSDuelIT extends ESRestTestCase {
         searchRequest.source(sourceBuilder);
         SuggestBuilder suggestBuilder = new SuggestBuilder();
         suggestBuilder.setGlobalText("jva hml");
-        suggestBuilder.addSuggestion("tags", new TermSuggestionBuilder("tags")
-            .suggestMode(TermSuggestionBuilder.SuggestMode.POPULAR));
+        suggestBuilder.addSuggestion("tags", new TermSuggestionBuilder("tags").suggestMode(TermSuggestionBuilder.SuggestMode.POPULAR));
         sourceBuilder.suggest(suggestBuilder);
         duelSearch(searchRequest, response -> {
             assertMultiClusterSearchResponse(response);
@@ -680,8 +702,11 @@ public class CCSDuelIT extends ESRestTestCase {
         searchRequest.source(sourceBuilder);
         SuggestBuilder suggestBuilder = new SuggestBuilder();
         suggestBuilder.setGlobalText("jva and hml");
-        suggestBuilder.addSuggestion("tags", new PhraseSuggestionBuilder("tags").addCandidateGenerator(
-            new DirectCandidateGeneratorBuilder("tags").suggestMode("always")).highlight("<em>", "</em>"));
+        suggestBuilder.addSuggestion(
+            "tags",
+            new PhraseSuggestionBuilder("tags").addCandidateGenerator(new DirectCandidateGeneratorBuilder("tags").suggestMode("always"))
+                .highlight("<em>", "</em>")
+        );
         sourceBuilder.suggest(suggestBuilder);
         duelSearch(searchRequest, response -> {
             assertMultiClusterSearchResponse(response);
@@ -717,7 +742,11 @@ public class CCSDuelIT extends ESRestTestCase {
     private static SearchRequest initSearchRequest() {
         List<String> indices = Arrays.asList(INDEX_NAME, "my_remote_cluster:" + INDEX_NAME);
         Collections.shuffle(indices, random());
-        return new SearchRequest(indices.toArray(new String[0]));
+        final SearchRequest request = new SearchRequest(indices.toArray(new String[0]));
+        if (randomBoolean()) {
+            request.setPreFilterShardSize(between(1, 20));
+        }
+        return request;
     }
 
     private static void duelSearch(SearchRequest searchRequest, Consumer<SearchResponse> responseChecker) throws Exception {
@@ -725,14 +754,20 @@ public class CCSDuelIT extends ESRestTestCase {
         AtomicReference<Exception> exception1 = new AtomicReference<>();
         AtomicReference<SearchResponse> minimizeRoundtripsResponse = new AtomicReference<>();
         searchRequest.setCcsMinimizeRoundtrips(true);
-        restHighLevelClient.searchAsync(searchRequest, RequestOptions.DEFAULT,
-            new LatchedActionListener<>(ActionListener.wrap(minimizeRoundtripsResponse::set, exception1::set), latch));
+        restHighLevelClient.searchAsync(
+            searchRequest,
+            RequestOptions.DEFAULT,
+            new LatchedActionListener<>(ActionListener.wrap(minimizeRoundtripsResponse::set, exception1::set), latch)
+        );
 
         AtomicReference<Exception> exception2 = new AtomicReference<>();
         AtomicReference<SearchResponse> fanOutResponse = new AtomicReference<>();
         searchRequest.setCcsMinimizeRoundtrips(false);
-        restHighLevelClient.searchAsync(searchRequest, RequestOptions.DEFAULT,
-            new LatchedActionListener<>(ActionListener.wrap(fanOutResponse::set, exception2::set), latch));
+        restHighLevelClient.searchAsync(
+            searchRequest,
+            RequestOptions.DEFAULT,
+            new LatchedActionListener<>(ActionListener.wrap(fanOutResponse::set, exception2::set), latch)
+        );
 
         latch.await();
 
@@ -759,6 +794,7 @@ public class CCSDuelIT extends ESRestTestCase {
                 message.compareMaps(minimizeRoundtripsResponseMap, fanOutResponseMap);
                 throw new AssertionError("Didn't match expected value:\n" + message);
             }
+            assertThat(minimizeRoundtripsSearchResponse.getSkippedShards(), lessThanOrEqualTo(fanOutSearchResponse.getSkippedShards()));
         }
     }
 
@@ -796,8 +832,11 @@ public class CCSDuelIT extends ESRestTestCase {
         for (Aggregation aggregation : aggregations) {
             if (aggregation instanceof MultiBucketsAggregation) {
                 MultiBucketsAggregation multiBucketsAggregation = (MultiBucketsAggregation) aggregation;
-                assertThat("agg " + multiBucketsAggregation.getName() + " has 0 buckets",
-                    multiBucketsAggregation.getBuckets().size(), greaterThan(0));
+                assertThat(
+                    "agg " + multiBucketsAggregation.getName() + " has 0 buckets",
+                    multiBucketsAggregation.getBuckets().size(),
+                    greaterThan(0)
+                );
             }
         }
     }
@@ -808,12 +847,24 @@ public class CCSDuelIT extends ESRestTestCase {
         Map<String, Object> responseMap = XContentHelper.convertToMap(bytesReference, false, XContentType.JSON).v2();
         assertNotNull(responseMap.put("took", -1));
         responseMap.remove("num_reduce_phases");
-        Map<String, Object> profile = (Map<String, Object>)responseMap.get("profile");
+        Map<String, Object> profile = (Map<String, Object>) responseMap.get("profile");
         if (profile != null) {
-            List<Map<String, Object>> shards = (List <Map<String, Object>>)profile.get("shards");
+            List<Map<String, Object>> shards = (List<Map<String, Object>>) profile.get("shards");
             for (Map<String, Object> shard : shards) {
                 replaceProfileTime(shard);
+                /*
+                 * The way we try to reduce round trips is by fetching all
+                 * of the results we could possibly need from the remote
+                 * cluster and then merging *those* together locally. This
+                 * will end up fetching more documents total. So we can't
+                 * really compare the fetch profiles here.
+                 */
+                shard.remove("fetch");
             }
+        }
+        Map<String, Object> shards = (Map<String, Object>) responseMap.get("_shards");
+        if (shards != null) {
+            shards.remove("skipped");
         }
         return responseMap;
     }

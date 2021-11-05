@@ -1,0 +1,69 @@
+# whitelist for tests
+
+# for unit tests only
+class org.elasticsearch.painless.api.Json {
+  def load(String)
+  String dump(def)
+  String dump(def,boolean)
+}
+
+class org.elasticsearch.painless.BindingsTests$BindingsTestScript {
+}
+
+# Runtime-field-like test objects
+class org.elasticsearch.painless.TestFieldScript @no_import {
+}
+class org.elasticsearch.painless.TestFieldScript$Factory @no_import {
+}
+
+class java.lang.Integer {
+    List STRINGS @augmented[augmented_canonical_class_name="org.elasticsearch.painless.FeatureTestObject"]
+}
+
+class java.util.Map {
+    Map STRINGS @augmented[augmented_canonical_class_name="org.elasticsearch.painless.FeatureTestObject3"]
+}
+
+class org.elasticsearch.painless.FeatureTestObject @no_import {
+  int MAX_VALUE @augmented[augmented_canonical_class_name="java.lang.Integer"]
+  int z
+  ()
+  (int,int)
+  int getX()
+  int getY()
+  Integer getI()
+  void setX(int)
+  void setY(int)
+  void setI(Integer)
+  boolean overloadedStatic()
+  boolean overloadedStatic(boolean)
+  int staticNumberTest(Number)
+  int staticNumberArgument(int, int) @inject_constant[1="testInject0"]
+  Double mixedAdd(int, Byte, char, Float)
+  Object twoFunctionsOfX(Function,Function)
+  void listInput(List)
+  int injectTimesX(int, short) @inject_constant[1="testInject0"]
+  int timesSupplier(Function, short, int)
+  int injectWithLambda(int, Function, short) @inject_constant[1="testInject0"]
+  int org.elasticsearch.painless.FeatureTestAugmentationObject augmentInjectTimesX(int, short) @inject_constant[1="testInject0"]
+  int org.elasticsearch.painless.FeatureTestAugmentationObject augmentTimesSupplier(Function, short, int)
+  int org.elasticsearch.painless.FeatureTestAugmentationObject augmentInjectWithLambda(int, Function, short) @inject_constant[1="testInject0"]
+  int injectMultiTimesX(int, int, int, short) @inject_constant[1="testInject0", 2="testInject1", 3="testInject2"]
+  int injectMultiWithLambda(int, int, int, Function, short) @inject_constant[1="testInject0", 2="testInject1", 3="testInject0"]
+  int org.elasticsearch.painless.FeatureTestAugmentationObject augmentInjectMultiTimesX(int, int, short) @inject_constant[1="testInject1", 2="testInject2"]
+  int org.elasticsearch.painless.FeatureTestAugmentationObject augmentInjectMultiWithLambda(int, int, int, int, Function, short) @inject_constant[1="testInject2", 2="testInject1", 3="testInject1", 4="testInject2"]
+  int org.elasticsearch.painless.FeatureTestAugmentationObject getTotal()
+  int org.elasticsearch.painless.FeatureTestAugmentationObject addToTotal(int)
+}
+
+static_import {
+  int staticAddIntsTest(int, int) from_class org.elasticsearch.painless.StaticTestObject
+  float staticAddFloatsTest(float, float) from_class org.elasticsearch.painless.FeatureTestObject
+  int addWithState(int, int, int, double) bound_to org.elasticsearch.painless.BindingsTests$BindingTestClass
+  int addThisWithState(BindingsTests.BindingsTestScript, int, int, int, double) bound_to org.elasticsearch.painless.BindingsTests$ThisBindingTestClass
+  int addEmptyThisWithState(BindingsTests.BindingsTestScript, int) bound_to org.elasticsearch.painless.BindingsTests$EmptyThisBindingTestClass
+  int classMul(int, int) from_class org.elasticsearch.painless.BindingsTests @compile_time_only
+  int compileTimeBlowUp(int, int) from_class org.elasticsearch.painless.BindingsTests @compile_time_only
+  List fancyConstant(String, String) from_class org.elasticsearch.painless.BindingsTests @compile_time_only
+  void emit(org.elasticsearch.painless.TestFieldScript, long) bound_to org.elasticsearch.painless.TestFieldScript$Emit
+}

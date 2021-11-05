@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.test.integration;
 
@@ -14,15 +15,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.script.MockMustacheScriptEngine;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
@@ -32,6 +26,13 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.input.Input;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
@@ -50,12 +51,11 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
-import static org.elasticsearch.mock.orig.Mockito.when;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.getRandomSupportedSearchType;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -64,6 +64,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SearchInputTests extends ESTestCase {
 
@@ -77,7 +78,7 @@ public class SearchInputTests extends ESTestCase {
         Map<String, ScriptContext<?>> contexts = new HashMap<>();
         contexts.put(Watcher.SCRIPT_TEMPLATE_CONTEXT.name, Watcher.SCRIPT_TEMPLATE_CONTEXT);
         contexts.put(WatcherTransformScript.CONTEXT.name, WatcherTransformScript.CONTEXT);
-        scriptService = new ScriptService(Settings.EMPTY, engines, contexts);
+        scriptService = new ScriptService(Settings.EMPTY, engines, contexts, () -> 1L);
 
         ThreadPool threadPool = mock(ThreadPool.class);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -86,22 +87,36 @@ public class SearchInputTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
     }
 
+    @SuppressWarnings("unchecked")
     public void testExecute() throws Exception {
         ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
-        SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(), "", 1, 1, 0, 1234,
-                ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+        SearchResponse searchResponse = new SearchResponse(
+            InternalSearchResponse.empty(),
+            "",
+            1,
+            1,
+            0,
+            1234,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY
+        );
         searchFuture.onResponse(searchResponse);
         when(client.search(requestCaptor.capture())).thenReturn(searchFuture);
 
+        @SuppressWarnings("rawtypes")
         ArgumentCaptor<Map> headersCaptor = ArgumentCaptor.forClass(Map.class);
         when(client.filterWithHeader(headersCaptor.capture())).thenReturn(client);
 
         SearchSourceBuilder searchSourceBuilder = searchSource().query(boolQuery().must(matchQuery("event_type", "a")));
 
         WatcherSearchTemplateRequest request = WatcherTestUtils.templateRequest(searchSourceBuilder);
-        ExecutableSearchInput searchInput = new ExecutableSearchInput(new SearchInput(request, null, null, null),
-                client, watcherSearchTemplateService(), TimeValue.timeValueMinutes(1));
+        ExecutableSearchInput searchInput = new ExecutableSearchInput(
+            new SearchInput(request, null, null, null),
+            client,
+            watcherSearchTemplateService(),
+            TimeValue.timeValueMinutes(1)
+        );
         WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
 
         SearchInput.Result result = searchInput.execute(ctx, new Payload.Simple());
@@ -117,8 +132,16 @@ public class SearchInputTests extends ESTestCase {
     public void testDifferentSearchType() throws Exception {
         ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
-        SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(), "", 1, 1, 0, 1234,
-                ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+        SearchResponse searchResponse = new SearchResponse(
+            InternalSearchResponse.empty(),
+            "",
+            1,
+            1,
+            0,
+            1234,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY
+        );
         searchFuture.onResponse(searchResponse);
         when(client.search(requestCaptor.capture())).thenReturn(searchFuture);
 
@@ -126,8 +149,12 @@ public class SearchInputTests extends ESTestCase {
         SearchType searchType = getRandomSupportedSearchType();
         WatcherSearchTemplateRequest request = WatcherTestUtils.templateRequest(searchSourceBuilder, searchType);
 
-        ExecutableSearchInput searchInput = new ExecutableSearchInput(new SearchInput(request, null, null, null),
-                client, watcherSearchTemplateService(), TimeValue.timeValueMinutes(1));
+        ExecutableSearchInput searchInput = new ExecutableSearchInput(
+            new SearchInput(request, null, null, null),
+            client,
+            watcherSearchTemplateService(),
+            TimeValue.timeValueMinutes(1)
+        );
         WatchExecutionContext ctx = WatcherTestUtils.createWatchExecutionContext();
         SearchInput.Result result = searchInput.execute(ctx, new Payload.Simple());
 
@@ -139,9 +166,10 @@ public class SearchInputTests extends ESTestCase {
     }
 
     public void testParserValid() throws Exception {
-        SearchSourceBuilder source = searchSource()
-                        .query(boolQuery().must(matchQuery("event_type", "a")).must(rangeQuery("_timestamp")
-                                .from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}")));
+        SearchSourceBuilder source = searchSource().query(
+            boolQuery().must(matchQuery("event_type", "a"))
+                .must(rangeQuery("_timestamp").from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}"))
+        );
 
         TimeValue timeout = randomBoolean() ? TimeValue.timeValueSeconds(randomInt(10)) : null;
         XContentBuilder builder = jsonBuilder().value(new SearchInput(WatcherTestUtils.templateRequest(source), null, timeout, null));
@@ -159,16 +187,34 @@ public class SearchInputTests extends ESTestCase {
     public void testThatEmptyRequestBodyWorks() throws Exception {
         ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
         PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
-        SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(), "", 1, 1, 0, 1234,
-                ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+        SearchResponse searchResponse = new SearchResponse(
+            InternalSearchResponse.empty(),
+            "",
+            1,
+            1,
+            0,
+            1234,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY
+        );
         searchFuture.onResponse(searchResponse);
         when(client.search(requestCaptor.capture())).thenReturn(searchFuture);
 
-        try (XContentBuilder builder = jsonBuilder().startObject().startObject("request")
-                .startArray("indices").value("foo").endArray().endObject().endObject();
-             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                     .createParser(NamedXContentRegistry.EMPTY,
-                             DeprecationHandler.THROW_UNSUPPORTED_OPERATION, BytesReference.bytes(builder).streamInput())) {
+        try (
+            XContentBuilder builder = jsonBuilder().startObject()
+                .startObject("request")
+                .startArray("indices")
+                .value("foo")
+                .endArray()
+                .endObject()
+                .endObject();
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    BytesReference.bytes(builder).streamInput()
+                )
+        ) {
 
             parser.nextToken(); // advance past the first starting object
 
@@ -188,7 +234,7 @@ public class SearchInputTests extends ESTestCase {
     }
 
     private WatcherSearchTemplateService watcherSearchTemplateService() {
-        SearchModule module = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        SearchModule module = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new WatcherSearchTemplateService(scriptService, new NamedXContentRegistry(module.getNamedXContents()));
     }
 }

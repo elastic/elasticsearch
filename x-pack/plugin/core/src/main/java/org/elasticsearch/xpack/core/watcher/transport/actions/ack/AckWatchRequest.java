@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.transport.actions.ack;
 
@@ -70,7 +71,7 @@ public class AckWatchRequest extends ActionRequest {
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (watchId == null){
+        if (watchId == null) {
             validationException = ValidateActions.addValidationError("watch id is missing", validationException);
         } else if (WatcherUtils.isValidId(watchId) == false) {
             validationException = ValidateActions.addValidationError("watch id contains whitespace", validationException);
@@ -79,19 +80,18 @@ public class AckWatchRequest extends ActionRequest {
             for (String actionId : actionIds) {
                 if (actionId == null) {
                     validationException = ValidateActions.addValidationError(
-                            String.format(Locale.ROOT, "action id may not be null"), validationException);
+                        String.format(Locale.ROOT, "action id may not be null"),
+                        validationException
+                    );
                 } else if (WatcherUtils.isValidId(actionId) == false) {
                     validationException = ValidateActions.addValidationError(
-                            String.format(Locale.ROOT, "action id [%s] contains whitespace", actionId), validationException);
+                        String.format(Locale.ROOT, "action id [%s] contains whitespace", actionId),
+                        validationException
+                    );
                 }
             }
         }
         return validationException;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

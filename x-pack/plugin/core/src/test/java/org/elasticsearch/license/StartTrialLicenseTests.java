@@ -1,124 +1,97 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.core.XPackClientPlugin;
 
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Set;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
+import static org.elasticsearch.test.NodeRoles.addRoles;
+import static org.hamcrest.Matchers.containsString;
 
 @ESIntegTestCase.ClusterScope(scope = SUITE)
 public class StartTrialLicenseTests extends AbstractLicensesIntegrationTestCase {
 
     @Override
-    protected boolean addMockHttpTransport() {
-        return false; // enable http
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("node.data", true)
-                .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "basic").build();
+            .put(addRoles(super.nodeSettings(nodeOrdinal, otherSettings), Set.of(DiscoveryNodeRole.DATA_ROLE)))
+            .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "basic")
+            .build();
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateCompositeXPackPlugin.class, Netty4Plugin.class);
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Arrays.asList(XPackClientPlugin.class, Netty4Plugin.class);
+        return Arrays.asList(LocalStateCompositeXPackPlugin.class);
     }
 
     public void testStartTrial() throws Exception {
         LicensingClient licensingClient = new LicensingClient(client());
         ensureStartingWithBasic();
 
-        RestClient restClient = getRestClient();
-        Response response = restClient.performRequest(new Request("GET", "/_license/trial_status"));
-        String body = Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8));
-        assertEquals(200, response.getStatusLine().getStatusCode());
-        assertEquals("{\"eligible_to_start_trial\":true}", body);
+        GetTrialStatusResponse response = licensingClient.prepareGetStartTrial().get();
+        assertTrue(response.isEligibleToStartTrial());
 
         // Test that starting will fail without acknowledgement
-        Response response2 = restClient.performRequest(new Request("POST", "/_license/start_trial"));
-        String body2 = Streams.copyToString(new InputStreamReader(response2.getEntity().getContent(), StandardCharsets.UTF_8));
-        assertEquals(200, response2.getStatusLine().getStatusCode());
-        assertTrue(body2.contains("\"trial_was_started\":false"));
-        assertTrue(body2.contains("\"error_message\":\"Operation failed: Needs acknowledgement.\""));
-        assertTrue(body2.contains("\"acknowledged\":false"));
+        PostStartTrialRequestBuilder builder = licensingClient.preparePostStartTrial();
+        builder.request().setType(randomFrom(LicenseService.VALID_TRIAL_TYPES).getTypeName());
+        PostStartTrialResponse response2 = builder.get();
+        assertEquals(200, response2.getStatus().getRestStatus().getStatus());
+        assertFalse(response2.getStatus().isTrialStarted());
+        assertEquals("Operation failed: Needs acknowledgement.", response2.getStatus().getErrorMessage());
 
         assertBusy(() -> {
             GetLicenseResponse getLicenseResponse = licensingClient.prepareGetLicense().get();
             assertEquals("basic", getLicenseResponse.license().type());
         });
 
-        String type = randomFrom(LicenseService.VALID_TRIAL_TYPES);
+        License.LicenseType type = randomFrom(LicenseService.VALID_TRIAL_TYPES);
 
-        Request ackRequest = new Request("POST", "/_license/start_trial");
-        ackRequest.addParameter("acknowledge", "true");
-        ackRequest.addParameter("type", type);
-        Response response3 = restClient.performRequest(ackRequest);
-        String body3 = Streams.copyToString(new InputStreamReader(response3.getEntity().getContent(), StandardCharsets.UTF_8));
-        assertEquals(200, response3.getStatusLine().getStatusCode());
-        assertTrue(body3.contains("\"trial_was_started\":true"));
-        assertTrue(body3.contains("\"type\":\"" + type + "\""));
-        assertTrue(body3.contains("\"acknowledged\":true"));
+        PostStartTrialRequestBuilder builder2 = licensingClient.preparePostStartTrial();
+        builder2.setAcknowledge(true);
+        builder2.request().setType(type.getTypeName());
+        PostStartTrialResponse response3 = builder2.get();
+        assertEquals(200, response3.getStatus().getRestStatus().getStatus());
+        assertTrue(response3.getStatus().isTrialStarted());
 
         assertBusy(() -> {
             GetLicenseResponse postTrialLicenseResponse = licensingClient.prepareGetLicense().get();
-            assertEquals(type, postTrialLicenseResponse.license().type());
+            assertEquals(type.getTypeName(), postTrialLicenseResponse.license().type());
         });
 
-        Response response4 = restClient.performRequest(new Request("GET", "/_license/trial_status"));
-        String body4 = Streams.copyToString(new InputStreamReader(response4.getEntity().getContent(), StandardCharsets.UTF_8));
-        assertEquals(200, response4.getStatusLine().getStatusCode());
-        assertEquals("{\"eligible_to_start_trial\":false}", body4);
+        GetTrialStatusResponse response4 = licensingClient.prepareGetStartTrial().get();
+        assertFalse(response4.isEligibleToStartTrial());
 
-        String secondAttemptType = randomFrom(LicenseService.VALID_TRIAL_TYPES);
+        License.LicenseType secondAttemptType = randomFrom(LicenseService.VALID_TRIAL_TYPES);
 
-        Request startTrialWhenStartedRequest = new Request("POST", "/_license/start_trial");
-        startTrialWhenStartedRequest.addParameter("acknowledge", "true");
-        startTrialWhenStartedRequest.addParameter("type", secondAttemptType);
-        ResponseException ex = expectThrows(ResponseException.class, () -> restClient.performRequest(startTrialWhenStartedRequest));
-        Response response5 = ex.getResponse();
-        String body5 = Streams.copyToString(new InputStreamReader(response5.getEntity().getContent(), StandardCharsets.UTF_8));
-        assertEquals(403, response5.getStatusLine().getStatusCode());
-        assertTrue(body5.contains("\"trial_was_started\":false"));
-        assertTrue(body5.contains("\"error_message\":\"Operation failed: Trial was already activated.\""));
+        PostStartTrialRequestBuilder builder3 = licensingClient.preparePostStartTrial();
+        builder3.setAcknowledge(true);
+        builder3.request().setType(secondAttemptType.getTypeName());
+        PostStartTrialResponse response5 = builder3.get();
+        assertEquals(403, response5.getStatus().getRestStatus().getStatus());
+        assertFalse(response5.getStatus().isTrialStarted());
+        assertEquals("Operation failed: Trial was already activated.", response5.getStatus().getErrorMessage());
     }
 
     public void testInvalidType() throws Exception {
+        LicensingClient licensingClient = new LicensingClient(client());
         ensureStartingWithBasic();
 
-        Request request = new Request("POST", "/_license/start_trial");
-        request.addParameter("type", "basic");
-        ResponseException ex = expectThrows(ResponseException.class, () -> getRestClient().performRequest(request));
-        Response response = ex.getResponse();
-        String body = Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8));
-        assertEquals(400, response.getStatusLine().getStatusCode());
-        assertTrue(body.contains("\"type\":\"illegal_argument_exception\""));
-        assertTrue(body.contains("\"reason\":\"Cannot start trial of type [basic]. Valid trial types are ["));
+        PostStartTrialRequestBuilder builder = licensingClient.preparePostStartTrial();
+        builder.request().setType("basic");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::get);
+        assertThat(e.getMessage(), containsString("Cannot start trial of type [basic]. Valid trial types are ["));
     }
 
     private void ensureStartingWithBasic() throws Exception {

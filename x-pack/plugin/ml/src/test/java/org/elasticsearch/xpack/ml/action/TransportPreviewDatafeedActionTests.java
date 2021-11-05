@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
@@ -30,7 +31,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -45,13 +46,14 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
     private Exception capturedFailure;
 
     @Before
+    @SuppressWarnings("unchecked")
     public void setUpTests() {
         dataExtractor = mock(DataExtractor.class);
         actionListener = mock(ActionListener.class);
 
         doAnswer(new Answer<Void>() {
             @Override
-            public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
+            public Void answer(InvocationOnMock invocationOnMock) {
                 PreviewDatafeedAction.Response response = (PreviewDatafeedAction.Response) invocationOnMock.getArguments()[0];
                 capturedResponse = response.toString();
                 return null;
@@ -60,7 +62,7 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
 
         doAnswer(new Answer<Void>() {
             @Override
-            public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
+            public Void answer(InvocationOnMock invocationOnMock) {
                 capturedFailure = (Exception) invocationOnMock.getArguments()[0];
                 return null;
             }
@@ -81,8 +83,10 @@ public class TransportPreviewDatafeedActionTests extends ESTestCase {
         DatafeedConfig.Builder datafeed = new DatafeedConfig.Builder("no_aggs_feed", "job_foo");
         datafeed.setIndices(Collections.singletonList("my_index"));
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
-        datafeed.setParsedAggregations(AggregatorFactories.builder().addAggregator(
-                AggregationBuilders.histogram("time").interval(300000).subAggregation(maxTime).field("time")));
+        datafeed.setParsedAggregations(
+            AggregatorFactories.builder()
+                .addAggregator(AggregationBuilders.histogram("time").interval(300000).subAggregation(maxTime).field("time"))
+        );
         datafeed.setChunkingConfig(ChunkingConfig.newManual(TimeValue.timeValueHours(1)));
 
         DatafeedConfig previewDatafeed = TransportPreviewDatafeedAction.buildPreviewDatafeed(datafeed.build()).build();

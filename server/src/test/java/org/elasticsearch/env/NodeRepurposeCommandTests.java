@@ -1,37 +1,31 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.env;
 
 import joptsimple.OptionSet;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.Manifest;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 import org.junit.Before;
@@ -40,16 +34,18 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.Collections;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.env.NodeRepurposeCommand.NO_CLEANUP;
 import static org.elasticsearch.env.NodeRepurposeCommand.NO_DATA_TO_CLEAN_UP_FOUND;
 import static org.elasticsearch.env.NodeRepurposeCommand.NO_SHARD_DATA_TO_CLEAN_UP_FOUND;
-import static org.elasticsearch.env.NodeRepurposeCommand.PRE_V7_MESSAGE;
+import static org.elasticsearch.test.NodeRoles.masterNode;
+import static org.elasticsearch.test.NodeRoles.nonDataNode;
+import static org.elasticsearch.test.NodeRoles.nonMasterNode;
+import static org.elasticsearch.test.NodeRoles.removeRoles;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
 public class NodeRepurposeCommandTests extends ESTestCase {
@@ -68,84 +64,80 @@ public class NodeRepurposeCommandTests extends ESTestCase {
         environment = TestEnvironment.newEnvironment(dataMasterSettings);
         try (NodeEnvironment nodeEnvironment = new NodeEnvironment(dataMasterSettings, environment)) {
             nodePaths = nodeEnvironment.nodeDataPaths();
+            final String nodeId = randomAlphaOfLength(10);
+            try (
+                PersistedClusterStateService.Writer writer = new PersistedClusterStateService(
+                    nodePaths,
+                    nodeId,
+                    xContentRegistry(),
+                    BigArrays.NON_RECYCLING_INSTANCE,
+                    new ClusterSettings(dataMasterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                    () -> 0L
+                ).createWriter()
+            ) {
+                writer.writeFullStateAndCommit(1L, ClusterState.EMPTY_STATE);
+            }
         }
-        dataNoMasterSettings = Settings.builder()
-            .put(dataMasterSettings)
-            .put(Node.NODE_MASTER_SETTING.getKey(), false)
-            .build();
-        noDataNoMasterSettings = Settings.builder()
-            .put(dataMasterSettings)
-            .put(Node.NODE_DATA_SETTING.getKey(), false)
-            .put(Node.NODE_MASTER_SETTING.getKey(), false)
-            .build();
-        noDataMasterSettings = Settings.builder()
-            .put(dataMasterSettings)
-            .put(Node.NODE_DATA_SETTING.getKey(), false)
-            .put(Node.NODE_MASTER_SETTING.getKey(), true)
-            .build();
+        dataNoMasterSettings = nonMasterNode(dataMasterSettings);
+        noDataNoMasterSettings = removeRoles(nonDataNode(dataMasterSettings), Set.of(DiscoveryNodeRole.MASTER_ROLE));
+        noDataMasterSettings = masterNode(nonDataNode(dataMasterSettings));
     }
 
     public void testEarlyExitNoCleanup() throws Exception {
-        createIndexDataFiles(dataMasterSettings, randomInt(10));
+        createIndexDataFiles(dataMasterSettings, randomInt(10), randomBoolean());
 
         verifyNoQuestions(dataMasterSettings, containsString(NO_CLEANUP));
         verifyNoQuestions(dataNoMasterSettings, containsString(NO_CLEANUP));
     }
 
     public void testNothingToCleanup() throws Exception {
-        verifyNoQuestions(noDataNoMasterSettings, allOf(containsString(NO_DATA_TO_CLEAN_UP_FOUND), not(containsString(PRE_V7_MESSAGE))));
-        verifyNoQuestions(noDataMasterSettings,
-            allOf(containsString(NO_SHARD_DATA_TO_CLEAN_UP_FOUND), not(containsString(PRE_V7_MESSAGE))));
+        verifyNoQuestions(noDataNoMasterSettings, containsString(NO_DATA_TO_CLEAN_UP_FOUND));
+        verifyNoQuestions(noDataMasterSettings, containsString(NO_SHARD_DATA_TO_CLEAN_UP_FOUND));
 
-        createManifest(null);
+        Environment environment = TestEnvironment.newEnvironment(noDataMasterSettings);
+        if (randomBoolean()) {
+            try (NodeEnvironment env = new NodeEnvironment(noDataMasterSettings, environment)) {
+                try (
+                    PersistedClusterStateService.Writer writer = ElasticsearchNodeCommand.createPersistedClusterStateService(
+                        Settings.EMPTY,
+                        env.nodeDataPaths()
+                    ).createWriter()
+                ) {
+                    writer.writeFullStateAndCommit(1L, ClusterState.EMPTY_STATE);
+                }
+            }
+        }
 
-        verifyNoQuestions(noDataNoMasterSettings, allOf(containsString(NO_DATA_TO_CLEAN_UP_FOUND), not(containsString(PRE_V7_MESSAGE))));
-        verifyNoQuestions(noDataMasterSettings,
-            allOf(containsString(NO_SHARD_DATA_TO_CLEAN_UP_FOUND), not(containsString(PRE_V7_MESSAGE))));
+        verifyNoQuestions(noDataNoMasterSettings, containsString(NO_DATA_TO_CLEAN_UP_FOUND));
+        verifyNoQuestions(noDataMasterSettings, containsString(NO_SHARD_DATA_TO_CLEAN_UP_FOUND));
 
-        createIndexDataFiles(dataMasterSettings, 0);
+        createIndexDataFiles(dataMasterSettings, 0, randomBoolean());
 
-        verifyNoQuestions(noDataMasterSettings,
-            allOf(containsString(NO_SHARD_DATA_TO_CLEAN_UP_FOUND), not(containsString(PRE_V7_MESSAGE))));
+        verifyNoQuestions(noDataMasterSettings, containsString(NO_SHARD_DATA_TO_CLEAN_UP_FOUND));
 
     }
 
     public void testLocked() throws IOException {
         try (NodeEnvironment env = new NodeEnvironment(dataMasterSettings, TestEnvironment.newEnvironment(dataMasterSettings))) {
-            assertThat(expectThrows(ElasticsearchException.class,
-                () -> verifyNoQuestions(noDataNoMasterSettings, null)).getMessage(),
-                containsString(NodeRepurposeCommand.FAILED_TO_OBTAIN_NODE_LOCK_MSG));
+            assertThat(
+                expectThrows(ElasticsearchException.class, () -> verifyNoQuestions(noDataNoMasterSettings, null)).getMessage(),
+                containsString(NodeRepurposeCommand.FAILED_TO_OBTAIN_NODE_LOCK_MSG)
+            );
         }
     }
 
     public void testCleanupAll() throws Exception {
-        Manifest oldManifest = createManifest(INDEX);
-        checkCleanupAll(not(containsString(PRE_V7_MESSAGE)));
-
-        Manifest newManifest = loadManifest();
-        assertThat(newManifest.getIndexGenerations().entrySet(), hasSize(0));
-        assertManifestIdenticalExceptIndices(oldManifest, newManifest);
-    }
-
-    public void testCleanupAllPreV7() throws Exception {
-        checkCleanupAll(containsString(PRE_V7_MESSAGE));
-    }
-
-    private void checkCleanupAll(Matcher<String> additionalOutputMatcher) throws Exception {
-        int shardCount = randomInt(10);
+        int shardCount = randomIntBetween(1, 10);
         boolean verbose = randomBoolean();
-        createIndexDataFiles(dataMasterSettings, shardCount);
+        boolean hasClusterState = randomBoolean();
+        createIndexDataFiles(dataMasterSettings, shardCount, hasClusterState);
 
-        String messageText = NodeRepurposeCommand.noMasterMessage(
-            1,
-            environment.dataFiles().length*shardCount,
-            environment.dataFiles().length);
+        String messageText = NodeRepurposeCommand.noMasterMessage(1, environment.dataFiles().length * shardCount, 0);
 
         Matcher<String> outputMatcher = allOf(
             containsString(messageText),
-            additionalOutputMatcher,
-            conditionalNot(containsString("testUUID"), verbose == false),
-            conditionalNot(containsString("testIndex"), verbose == false)
+            conditionalNot(containsString("testIndex"), verbose == false || hasClusterState == false),
+            conditionalNot(containsString("no name for uuid: testUUID"), verbose == false || hasClusterState)
         );
 
         verifyUnchangedOnAbort(noDataNoMasterSettings, outputMatcher, verbose);
@@ -155,49 +147,38 @@ public class NodeRepurposeCommandTests extends ESTestCase {
 
         verifySuccess(noDataNoMasterSettings, outputMatcher, verbose);
 
-        //verify cleaned.
+        // verify cleaned.
         new NodeEnvironment(noDataNoMasterSettings, environment).close();
     }
 
     public void testCleanupShardData() throws Exception {
         int shardCount = randomIntBetween(1, 10);
         boolean verbose = randomBoolean();
-        Manifest manifest = randomBoolean() ? createManifest(INDEX) : null;
-
-        createIndexDataFiles(dataMasterSettings, shardCount);
+        boolean hasClusterState = randomBoolean();
+        createIndexDataFiles(dataMasterSettings, shardCount, hasClusterState);
 
         Matcher<String> matcher = allOf(
             containsString(NodeRepurposeCommand.shardMessage(environment.dataFiles().length * shardCount, 1)),
             conditionalNot(containsString("testUUID"), verbose == false),
-            conditionalNot(containsString("testIndex"), verbose == false)
+            conditionalNot(containsString("testIndex"), verbose == false || hasClusterState == false),
+            conditionalNot(containsString("no name for uuid: testUUID"), verbose == false || hasClusterState)
         );
 
-        verifyUnchangedOnAbort(noDataMasterSettings,
-            matcher, verbose);
+        verifyUnchangedOnAbort(noDataMasterSettings, matcher, verbose);
 
         // verify test setup
         expectThrows(IllegalStateException.class, () -> new NodeEnvironment(noDataMasterSettings, environment).close());
 
         verifySuccess(noDataMasterSettings, matcher, verbose);
 
-        //verify clean.
+        // verify clean.
         new NodeEnvironment(noDataMasterSettings, environment).close();
-
-        if (manifest != null) {
-            Manifest newManifest = loadManifest();
-            assertThat(newManifest.getIndexGenerations().entrySet(), hasSize(1));
-            assertManifestIdenticalExceptIndices(manifest, newManifest);
-        }
     }
 
-    private static void verifySuccess(Settings settings, Matcher<String> outputMatcher, boolean verbose) throws Exception {
-        verifySuccess(settings, outputMatcher, verbose, 0);
-    }
-
-    static void verifySuccess(Settings settings, Matcher<String> outputMatcher, boolean verbose, int ordinal) throws Exception {
+    static void verifySuccess(Settings settings, Matcher<String> outputMatcher, boolean verbose) throws Exception {
         withTerminal(verbose, outputMatcher, terminal -> {
             terminal.addTextInput(randomFrom("y", "Y"));
-            executeRepurposeCommand(terminal, settings, ordinal);
+            executeRepurposeCommand(terminal, settings, 0);
             assertThat(terminal.getOutput(), containsString("Node successfully repurposed"));
         });
     }
@@ -206,21 +187,21 @@ public class NodeRepurposeCommandTests extends ESTestCase {
         withTerminal(verbose, outputMatcher, terminal -> {
             terminal.addTextInput(randomFrom("yy", "Yy", "n", "yes", "true", "N", "no"));
             verifyUnchangedDataFiles(() -> {
-                ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-                    () -> executeRepurposeCommand(terminal, settings, 0));
+                ElasticsearchException exception = expectThrows(
+                    ElasticsearchException.class,
+                    () -> executeRepurposeCommand(terminal, settings, 0)
+                );
                 assertThat(exception.getMessage(), containsString(NodeRepurposeCommand.ABORTED_BY_USER_MSG));
             });
         });
     }
 
     private void verifyNoQuestions(Settings settings, Matcher<String> outputMatcher) throws Exception {
-        withTerminal(false, outputMatcher, terminal -> {
-            executeRepurposeCommand(terminal, settings, 0);
-        });
+        withTerminal(false, outputMatcher, terminal -> { executeRepurposeCommand(terminal, settings, 0); });
     }
 
-    private static void withTerminal(boolean verbose, Matcher<String> outputMatcher,
-                                     CheckedConsumer<MockTerminal, Exception> consumer) throws Exception {
+    private static void withTerminal(boolean verbose, Matcher<String> outputMatcher, CheckedConsumer<MockTerminal, Exception> consumer)
+        throws Exception {
         MockTerminal terminal = new MockTerminal();
         if (verbose) {
             terminal.setVerbosity(Terminal.Verbosity.VERBOSE);
@@ -236,40 +217,47 @@ public class NodeRepurposeCommandTests extends ESTestCase {
     private static void executeRepurposeCommand(MockTerminal terminal, Settings settings, int ordinal) throws Exception {
         NodeRepurposeCommand nodeRepurposeCommand = new NodeRepurposeCommand();
         OptionSet options = nodeRepurposeCommand.getParser()
-            .parse(ordinal != 0 ? new String[]{"--ordinal", Integer.toString(ordinal)} : new String[0]);
+            .parse(ordinal != 0 ? new String[] { "--ordinal", Integer.toString(ordinal) } : new String[0]);
         Environment env = TestEnvironment.newEnvironment(settings);
         nodeRepurposeCommand.testExecute(terminal, options, env);
     }
 
-    private Manifest createManifest(Index index) throws org.elasticsearch.gateway.WriteStateException {
-        Manifest manifest = new Manifest(randomIntBetween(1,100), randomIntBetween(1,100), randomIntBetween(1,100),
-            index != null ? Collections.singletonMap(index, randomLongBetween(1,100)) : Collections.emptyMap());
-        Manifest.FORMAT.writeAndCleanup(manifest, nodePaths);
-        return manifest;
-    }
-
-    private Manifest loadManifest() throws IOException {
-        return Manifest.FORMAT.loadLatestState(logger, new NamedXContentRegistry(ClusterModule.getNamedXWriteables()), nodePaths);
-    }
-
-    private void assertManifestIdenticalExceptIndices(Manifest oldManifest, Manifest newManifest) {
-        assertEquals(oldManifest.getGlobalGeneration(), newManifest.getGlobalGeneration());
-        assertEquals(oldManifest.getClusterStateVersion(), newManifest.getClusterStateVersion());
-        assertEquals(oldManifest.getCurrentTerm(), newManifest.getCurrentTerm());
-    }
-
-    private void createIndexDataFiles(Settings settings, int shardCount) throws IOException {
+    private void createIndexDataFiles(Settings settings, int shardCount, boolean writeClusterState) throws IOException {
         int shardDataDirNumber = randomInt(10);
-        try (NodeEnvironment env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings))) {
-            IndexMetaData.FORMAT.write(IndexMetaData.builder(INDEX.getName())
-                .settings(Settings.builder().put("index.version.created", Version.CURRENT))
-                .numberOfShards(1)
-                .numberOfReplicas(1)
-                .build(), env.indexPaths(INDEX));
+        Environment environment = TestEnvironment.newEnvironment(settings);
+        try (NodeEnvironment env = new NodeEnvironment(settings, environment)) {
+            if (writeClusterState) {
+                try (
+                    PersistedClusterStateService.Writer writer = ElasticsearchNodeCommand.createPersistedClusterStateService(
+                        Settings.EMPTY,
+                        env.nodeDataPaths()
+                    ).createWriter()
+                ) {
+                    writer.writeFullStateAndCommit(
+                        1L,
+                        ClusterState.builder(ClusterName.DEFAULT)
+                            .metadata(
+                                Metadata.builder()
+                                    .put(
+                                        IndexMetadata.builder(INDEX.getName())
+                                            .settings(
+                                                Settings.builder()
+                                                    .put("index.version.created", Version.CURRENT)
+                                                    .put(IndexMetadata.SETTING_INDEX_UUID, INDEX.getUUID())
+                                            )
+                                            .numberOfShards(1)
+                                            .numberOfReplicas(1)
+                                    )
+                                    .build()
+                            )
+                            .build()
+                    );
+                }
+            }
             for (Path path : env.indexPaths(INDEX)) {
                 for (int i = 0; i < shardCount; ++i) {
                     Files.createDirectories(path.resolve(Integer.toString(shardDataDirNumber)));
-                    shardDataDirNumber += randomIntBetween(1,10);
+                    shardDataDirNumber += randomIntBetween(1, 10);
                 }
             }
         }
@@ -296,10 +284,8 @@ public class NodeRepurposeCommandTests extends ESTestCase {
     }
 
     private long digestSinglePath(Path path) {
-        if (Files.isDirectory(path))
-            return path.toString().hashCode();
-        else
-            return path.toString().hashCode() + digest(readAllBytes(path));
+        if (Files.isDirectory(path)) return path.toString().hashCode();
+        else return path.toString().hashCode() + digest(readAllBytes(path));
 
     }
 

@@ -1,38 +1,24 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.transport;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.RefCounted;
 
-import java.io.IOException;
-
-public abstract class TransportMessage implements Streamable, Writeable {
+public abstract class TransportMessage implements Writeable, RefCounted {
 
     private TransportAddress remoteAddress;
 
-    public void remoteAddress(TransportAddress remoteAddress) {
-        this.remoteAddress = remoteAddress;
+    public void remoteAddress(TransportAddress address) {
+        this.remoteAddress = address;
     }
 
     public TransportAddress remoteAddress() {
@@ -42,23 +28,34 @@ public abstract class TransportMessage implements Streamable, Writeable {
     /**
      * Constructs a new empty transport message
      */
-    public TransportMessage() {
-    }
+    public TransportMessage() {}
 
     /**
      * Constructs a new transport message with the data from the {@link StreamInput}. This is
      * currently a no-op
      */
-    public TransportMessage(StreamInput in) throws IOException {
+    public TransportMessage(StreamInput in) {}
+
+    @Override
+    public void incRef() {
+        // noop, override to manage the life-cycle of resources held by a transport message
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-
+    public boolean tryIncRef() {
+        // noop, override to manage the life-cycle of resources held by a transport message
+        return true;
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    public boolean decRef() {
+        // noop, override to manage the life-cycle of resources held by a transport message
+        return false;
+    }
 
+    @Override
+    public boolean hasReferences() {
+        // noop, override to manage the life-cycle of resources held by a transport message
+        return true;
     }
 }

@@ -1,15 +1,24 @@
 {
-  "ping": {
-    "documentation": "http://www.elastic.co/guide/",
-    "methods": ["HEAD"],
-    "url": {
-      "path": "/",
-      "paths": ["/"],
-      "parts": {
-      },
-      "params": {
-      }
+  "ping":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html",
+      "description":"Returns whether the cluster is running."
     },
-    "body": null
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/",
+          "methods":[
+            "HEAD"
+          ]
+        }
+      ]
+    },
+    "params":{}
   }
 }

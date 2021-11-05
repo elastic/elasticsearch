@@ -1,28 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.core;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -45,18 +34,19 @@ public class BroadcastResponse {
         return shards;
     }
 
-    BroadcastResponse(final Shards shards) {
+    protected BroadcastResponse(final Shards shards) {
         this.shards = Objects.requireNonNull(shards);
     }
 
     private static final ParseField SHARDS_FIELD = new ParseField("_shards");
 
     static final ConstructingObjectParser<BroadcastResponse, Void> PARSER = new ConstructingObjectParser<>(
-            "broadcast_response",
-            a -> new BroadcastResponse((Shards) a[0]));
+        "broadcast_response",
+        a -> new BroadcastResponse((Shards) a[0])
+    );
 
     static {
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), Shards.SHARDS_PARSER, SHARDS_FIELD);
+        declareShardsField(PARSER);
     }
 
     /**
@@ -68,6 +58,10 @@ public class BroadcastResponse {
      */
     public static BroadcastResponse fromXContent(final XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
+    }
+
+    protected static <T extends BroadcastResponse> void declareShardsField(ConstructingObjectParser<T, Void> PARSER) {
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), Shards.SHARDS_PARSER, SHARDS_FIELD);
     }
 
     /**
@@ -132,11 +126,12 @@ public class BroadcastResponse {
         }
 
         Shards(
-                final int total,
-                final int successful,
-                final int skipped,
-                final int failed,
-                final Collection<DefaultShardOperationFailedException> failures) {
+            final int total,
+            final int successful,
+            final int skipped,
+            final int failed,
+            final Collection<DefaultShardOperationFailedException> failures
+        ) {
             this.total = total;
             this.successful = successful;
             this.skipped = skipped;
@@ -152,13 +147,15 @@ public class BroadcastResponse {
 
         @SuppressWarnings("unchecked")
         static final ConstructingObjectParser<Shards, Void> SHARDS_PARSER = new ConstructingObjectParser<>(
-                "shards",
-                a -> new Shards(
-                        (int) a[0], // total
-                        (int) a[1], // successful
-                        a[2] == null ? 0 : (int) a[2], // skipped
-                        (int) a[3], // failed
-                        a[4] == null ? Collections.emptyList() : (Collection<DefaultShardOperationFailedException>) a[4])); // failures
+            "shards",
+            a -> new Shards(
+                (int) a[0], // total
+                (int) a[1], // successful
+                a[2] == null ? 0 : (int) a[2], // skipped
+                (int) a[3], // failed
+                a[4] == null ? Collections.emptyList() : (Collection<DefaultShardOperationFailedException>) a[4]
+            )
+        ); // failures
 
         static {
             SHARDS_PARSER.declareInt(ConstructingObjectParser.constructorArg(), TOTAL_FIELD);
@@ -166,8 +163,10 @@ public class BroadcastResponse {
             SHARDS_PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), SKIPPED_FIELD);
             SHARDS_PARSER.declareInt(ConstructingObjectParser.constructorArg(), FAILED_FIELD);
             SHARDS_PARSER.declareObjectArray(
-                    ConstructingObjectParser.optionalConstructorArg(),
-                    DefaultShardOperationFailedException.PARSER, FAILURES_FIELD);
+                ConstructingObjectParser.optionalConstructorArg(),
+                DefaultShardOperationFailedException.PARSER,
+                FAILURES_FIELD
+            );
         }
 
     }

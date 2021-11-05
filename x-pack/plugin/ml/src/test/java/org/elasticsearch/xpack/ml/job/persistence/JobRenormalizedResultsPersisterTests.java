@@ -1,21 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.job.process.normalizer.BucketNormalizable;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.BucketInfluencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
+import org.elasticsearch.xpack.ml.job.process.normalizer.BucketNormalizable;
 
 import java.util.Date;
 
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -47,7 +48,7 @@ public class JobRenormalizedResultsPersisterTests extends ESTestCase {
         JobRenormalizedResultsPersister persister = new JobRenormalizedResultsPersister("foo", client);
 
         ModelPlot modelPlot = new ModelPlot("foo", new Date(), 123456, 0);
-        for (int i=0; i<=JobRenormalizedResultsPersister.BULK_LIMIT; i++) {
+        for (int i = 0; i <= JobRenormalizedResultsPersister.BULK_LIMIT; i++) {
             persister.updateResult("bar", "index-foo", modelPlot);
         }
 

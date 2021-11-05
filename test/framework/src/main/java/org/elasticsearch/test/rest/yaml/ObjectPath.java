@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.test.rest.yaml;
 
@@ -22,12 +11,12 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,13 +33,18 @@ public class ObjectPath {
     public static ObjectPath createFromResponse(Response response) throws IOException {
         byte[] bytes = EntityUtils.toByteArray(response.getEntity());
         String contentType = response.getHeader("Content-Type");
-        XContentType xContentType = XContentType.fromMediaTypeOrFormat(contentType);
+        XContentType xContentType = XContentType.fromMediaType(contentType);
         return ObjectPath.createFromXContent(xContentType.xContent(), new BytesArray(bytes));
     }
 
     public static ObjectPath createFromXContent(XContent xContent, BytesReference input) throws IOException {
-        try (XContentParser parser = xContent
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, input.streamInput())) {
+        try (
+            XContentParser parser = xContent.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                input.streamInput()
+            )
+        ) {
             if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
                 return new ObjectPath(parser.listOrderedMap());
             }
@@ -62,7 +56,6 @@ public class ObjectPath {
         this.object = object;
     }
 
-
     /**
      * A utility method that creates an {@link ObjectPath} via {@link #ObjectPath(Object)} returns
      * the result of calling {@link #evaluate(String)} on it.
@@ -70,7 +63,6 @@ public class ObjectPath {
     public static <T> T evaluate(Object object, String path) throws IOException {
         return new ObjectPath(object).evaluate(path, Stash.EMPTY);
     }
-
 
     /**
      * Returns the object corresponding to the provided path if present, null otherwise
@@ -92,7 +84,7 @@ public class ObjectPath {
                 return null;
             }
         }
-        return (T)object;
+        return (T) object;
     }
 
     @SuppressWarnings("unchecked")
@@ -121,8 +113,10 @@ public class ObjectPath {
             } catch (NumberFormatException e) {
                 throw new IllegalArgumentException("element was a list, but [" + key + "] was not numeric", e);
             } catch (IndexOutOfBoundsException e) {
-                throw new IllegalArgumentException("element was a list with " + list.size() +
-                        " elements, but [" + key + "] was out of bounds", e);
+                throw new IllegalArgumentException(
+                    "element was a list with " + list.size() + " elements, but [" + key + "] was out of bounds",
+                    e
+                );
             }
         }
 

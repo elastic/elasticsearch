@@ -1,32 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.suggest.completion.context;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -92,11 +81,10 @@ public final class GeoQueryContext implements ToXContentObject {
 
         GeoQueryContext that = (GeoQueryContext) o;
 
-        if (boost != that.boost) return false;
-        if (precision != that.precision) return false;
-        if (geoPoint != null ? !geoPoint.equals(that.geoPoint) : that.geoPoint != null) return false;
-        return neighbours != null ? neighbours.equals(that.neighbours) : that.neighbours == null;
-
+        return Objects.equals(boost, that.boost)
+            && Objects.equals(precision, that.precision)
+            && Objects.equals(geoPoint, that.geoPoint)
+            && Objects.equals(neighbours, that.neighbours);
     }
 
     @Override
@@ -112,16 +100,25 @@ public final class GeoQueryContext implements ToXContentObject {
         return new Builder();
     }
 
-    private static ObjectParser<GeoQueryContext.Builder, Void> GEO_CONTEXT_PARSER = new ObjectParser<>(NAME, null);
+    private static final ObjectParser<GeoQueryContext.Builder, Void> GEO_CONTEXT_PARSER = new ObjectParser<>(NAME);
     static {
-        GEO_CONTEXT_PARSER.declareField((parser, geoQueryContext,
-                geoContextMapping) -> geoQueryContext.setGeoPoint(GeoUtils.parseGeoPoint(parser)),
-                new ParseField(CONTEXT_VALUE), ObjectParser.ValueType.OBJECT);
+        GEO_CONTEXT_PARSER.declareField(
+            (parser, geoQueryContext, geoContextMapping) -> geoQueryContext.setGeoPoint(GeoUtils.parseGeoPoint(parser)),
+            new ParseField(CONTEXT_VALUE),
+            ObjectParser.ValueType.OBJECT
+        );
         GEO_CONTEXT_PARSER.declareInt(GeoQueryContext.Builder::setBoost, new ParseField(CONTEXT_BOOST));
-        GEO_CONTEXT_PARSER.declareField((parser, builder, context) -> builder.setPrecision(parsePrecision(parser)),
-            new ParseField(CONTEXT_PRECISION), ObjectParser.ValueType.INT);
-        GEO_CONTEXT_PARSER.declareFieldArray(GeoQueryContext.Builder::setNeighbours, (parser, builder) -> parsePrecision(parser),
-            new ParseField(CONTEXT_NEIGHBOURS), ObjectParser.ValueType.INT_ARRAY);
+        GEO_CONTEXT_PARSER.declareField(
+            (parser, builder, context) -> builder.setPrecision(parsePrecision(parser)),
+            new ParseField(CONTEXT_PRECISION),
+            ObjectParser.ValueType.INT
+        );
+        GEO_CONTEXT_PARSER.declareFieldArray(
+            GeoQueryContext.Builder::setNeighbours,
+            (parser, builder) -> parsePrecision(parser),
+            new ParseField(CONTEXT_NEIGHBOURS),
+            ObjectParser.ValueType.INT_ARRAY
+        );
         GEO_CONTEXT_PARSER.declareDouble(GeoQueryContext.Builder::setLat, new ParseField("lat"));
         GEO_CONTEXT_PARSER.declareDouble(GeoQueryContext.Builder::setLon, new ParseField("lon"));
     }
@@ -159,8 +156,7 @@ public final class GeoQueryContext implements ToXContentObject {
         private int precision = 12;
         private List<Integer> neighbours = Collections.emptyList();
 
-        public Builder() {
-        }
+        public Builder() {}
 
         /**
          * Sets the query-time boost for the context
@@ -211,11 +207,13 @@ public final class GeoQueryContext implements ToXContentObject {
         }
 
         private double lat = Double.NaN;
+
         void setLat(double lat) {
             this.lat = lat;
         }
 
         private double lon = Double.NaN;
+
         void setLon(double lon) {
             this.lon = lon;
         }

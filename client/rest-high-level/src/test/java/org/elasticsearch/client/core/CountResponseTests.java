@@ -1,34 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.core;
 
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -40,15 +29,9 @@ public class CountResponseTests extends ESTestCase {
     // ElasticSearchException. Best effort: try to check that the original message appears somewhere in the rendered xContent
     // For more see ShardSearchFailureTests.
     public void testFromXContent() throws IOException {
-        xContentTester(
-            this::createParser,
-            this::createTestInstance,
-            this::toXContent,
-            CountResponse::fromXContent)
-            .supportsUnknownFields(false)
-            .assertEqualsConsumer(this::assertEqualInstances)
-            .assertToXContentEquivalence(false)
-            .test();
+        xContentTester(this::createParser, this::createTestInstance, this::toXContent, CountResponse::fromXContent).supportsUnknownFields(
+            false
+        ).assertEqualsConsumer(this::assertEqualInstances).assertToXContentEquivalence(false).test();
     }
 
     private CountResponse createTestInstance() {
@@ -62,8 +45,12 @@ public class CountResponseTests extends ESTestCase {
         for (int i = 0; i < failures.length; i++) {
             failures[i] = createShardFailureTestItem();
         }
-        CountResponse.ShardStats shardStats = new CountResponse.ShardStats(successfulShards, totalShards, skippedShards,
-            randomBoolean() ? ShardSearchFailure.EMPTY_ARRAY : failures);
+        CountResponse.ShardStats shardStats = new CountResponse.ShardStats(
+            successfulShards,
+            totalShards,
+            skippedShards,
+            randomBoolean() ? ShardSearchFailure.EMPTY_ARRAY : failures
+        );
         return new CountResponse(count, terminatedEarly, shardStats);
     }
 
@@ -78,8 +65,15 @@ public class CountResponseTests extends ESTestCase {
     }
 
     private void toXContent(CountResponse.ShardStats stats, XContentBuilder builder, ToXContent.Params params) throws IOException {
-        RestActions.buildBroadcastShardsHeader(builder, params, stats.getTotalShards(), stats.getSuccessfulShards(), stats
-            .getSkippedShards(), stats.getShardFailures().length, stats.getShardFailures());
+        RestActions.buildBroadcastShardsHeader(
+            builder,
+            params,
+            stats.getTotalShards(),
+            stats.getSuccessfulShards(),
+            stats.getSkippedShards(),
+            stats.getShardFailures().length,
+            stats.getShardFailures()
+        );
     }
 
     @SuppressWarnings("Duplicates")
@@ -90,8 +84,11 @@ public class CountResponseTests extends ESTestCase {
         if (randomBoolean()) {
             String nodeId = randomAlphaOfLengthBetween(5, 10);
             String indexName = randomAlphaOfLengthBetween(5, 10);
-            searchShardTarget = new SearchShardTarget(nodeId,
-                new ShardId(new Index(indexName, IndexMetaData.INDEX_UUID_NA_VALUE), randomInt()), null, null);
+            searchShardTarget = new SearchShardTarget(
+                nodeId,
+                new ShardId(new Index(indexName, IndexMetadata.INDEX_UUID_NA_VALUE), randomInt()),
+                null
+            );
         }
         return new ShardSearchFailure(ex, searchShardTarget);
     }
@@ -116,11 +113,15 @@ public class CountResponseTests extends ESTestCase {
             assertEquals(originalFailure.shard(), parsedFailure.shard());
             assertEquals(originalFailure.shardId(), parsedFailure.shardId());
             String originalMsg = originalFailure.getCause().getMessage();
-            assertEquals(parsedFailure.getCause().getMessage(), "Elasticsearch exception [type=parsing_exception, reason=" +
-                originalMsg + "]");
+            assertEquals(
+                parsedFailure.getCause().getMessage(),
+                "Elasticsearch exception [type=parsing_exception, reason=" + originalMsg + "]"
+            );
             String nestedMsg = originalFailure.getCause().getCause().getMessage();
-            assertEquals(parsedFailure.getCause().getCause().getMessage(),
-                "Elasticsearch exception [type=illegal_argument_exception, reason=" + nestedMsg + "]");
+            assertEquals(
+                parsedFailure.getCause().getCause().getMessage(),
+                "Elasticsearch exception [type=illegal_argument_exception, reason=" + nestedMsg + "]"
+            );
         }
     }
 }

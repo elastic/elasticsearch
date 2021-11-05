@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.documentation;
 
@@ -59,11 +48,11 @@ import org.elasticsearch.client.rollup.job.config.MetricConfig;
 import org.elasticsearch.client.rollup.job.config.RollupJobConfig;
 import org.elasticsearch.client.rollup.job.config.TermsGroupConfig;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.junit.Before;
 
@@ -76,12 +65,13 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.isOneOf;
+import static org.hamcrest.Matchers.oneOf;
 
+@SuppressWarnings("removal")
 public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
 
     @Before
@@ -90,20 +80,21 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < 50; i++) {
             final IndexRequest indexRequest = new IndexRequest("docs");
-            indexRequest.source(jsonBuilder()
-                .startObject()
-                .field("timestamp", String.format(Locale.ROOT, "2018-01-01T00:%02d:00Z", i))
-                .field("hostname", 0)
-                .field("datacenter", 0)
-                .field("temperature", i)
-                .field("voltage", 0)
-                .field("load", 0)
-                .field("net_in", 0)
-                .field("net_out", 0)
-                .endObject());
+            indexRequest.source(
+                jsonBuilder().startObject()
+                    .field("timestamp", String.format(Locale.ROOT, "2018-01-01T00:%02d:00Z", i))
+                    .field("hostname", 0)
+                    .field("datacenter", 0)
+                    .field("temperature", i)
+                    .field("voltage", 0)
+                    .field("load", 0)
+                    .field("net_in", 0)
+                    .field("net_out", 0)
+                    .endObject()
+            );
             bulkRequest.add(indexRequest);
         }
-        BulkResponse bulkResponse = highLevelClient().bulk(bulkRequest,  RequestOptions.DEFAULT);
+        BulkResponse bulkResponse = highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT);
         assertEquals(RestStatus.OK, bulkResponse.status());
         assertFalse(bulkResponse.hasFailures());
 
@@ -195,7 +186,6 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testGetRollupJob() throws Exception {
         testCreateRollupJob();
         RestHighLevelClient client = highLevelClient();
-
 
         // tag::x-pack-rollup-get-rollup-job-request
         GetRollupJobRequest getAll = new GetRollupJobRequest();        // <1>
@@ -306,7 +296,6 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         request.timeout(TimeValue.timeValueSeconds(10));             // <3>
         // end::rollup-stop-job-request
 
-
         try {
             // tag::rollup-stop-job-execute
             RollupClient rc = client.rollup();
@@ -400,7 +389,11 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         DateHistogramGroupConfig dateHistogram = new DateHistogramGroupConfig.FixedInterval(
-            "timestamp", DateHistogramInterval.HOUR, new DateHistogramInterval("7d"), "UTC"); // <1>
+            "timestamp",
+            DateHistogramInterval.HOUR,
+            new DateHistogramInterval("7d"),
+            "UTC"
+        ); // <1>
         TermsGroupConfig terms = new TermsGroupConfig("hostname", "datacenter");
         HistogramGroupConfig histogram = new HistogramGroupConfig(5L, "load", "net_in", "net_out");
         GroupConfig groups = new GroupConfig(dateHistogram, histogram, terms);
@@ -429,7 +422,7 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         ClusterHealthRequest healthRequest = new ClusterHealthRequest(config.getRollupIndex()).waitForYellowStatus();
         ClusterHealthResponse healthResponse = client.cluster().health(healthRequest, RequestOptions.DEFAULT);
         assertFalse(healthResponse.isTimedOut());
-        assertThat(healthResponse.getStatus(), isOneOf(ClusterHealthStatus.YELLOW, ClusterHealthStatus.GREEN));
+        assertThat(healthResponse.getStatus(), oneOf(ClusterHealthStatus.YELLOW, ClusterHealthStatus.GREEN));
 
         // Now that the job is created, we should have a rollup index with metadata.
         // We can test out the caps API now.
@@ -517,7 +510,11 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         DateHistogramGroupConfig dateHistogram = new DateHistogramGroupConfig.FixedInterval(
-            "timestamp", DateHistogramInterval.HOUR, new DateHistogramInterval("7d"), "UTC"); // <1>
+            "timestamp",
+            DateHistogramInterval.HOUR,
+            new DateHistogramInterval("7d"),
+            "UTC"
+        ); // <1>
         TermsGroupConfig terms = new TermsGroupConfig("hostname", "datacenter");
         HistogramGroupConfig histogram = new HistogramGroupConfig(5L, "load", "net_in", "net_out");
         GroupConfig groups = new GroupConfig(dateHistogram, histogram, terms);
@@ -546,7 +543,7 @@ public class RollupDocumentationIT extends ESRestHighLevelClientTestCase {
         ClusterHealthRequest healthRequest = new ClusterHealthRequest(config.getRollupIndex()).waitForYellowStatus();
         ClusterHealthResponse healthResponse = client.cluster().health(healthRequest, RequestOptions.DEFAULT);
         assertFalse(healthResponse.isTimedOut());
-        assertThat(healthResponse.getStatus(), isOneOf(ClusterHealthStatus.YELLOW, ClusterHealthStatus.GREEN));
+        assertThat(healthResponse.getStatus(), oneOf(ClusterHealthStatus.YELLOW, ClusterHealthStatus.GREEN));
 
         // Now that the job is created, we should have a rollup index with metadata.
         // We can test out the caps API now.

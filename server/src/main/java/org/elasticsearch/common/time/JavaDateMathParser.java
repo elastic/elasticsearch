@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.time;
@@ -28,14 +17,12 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalAdjusters;
 import java.time.temporal.TemporalQueries;
 import java.util.Objects;
-import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 /**
@@ -48,18 +35,18 @@ import java.util.function.LongSupplier;
 public class JavaDateMathParser implements DateMathParser {
 
     private final JavaDateFormatter formatter;
-    private final DateTimeFormatter roundUpFormatter;
     private final String format;
+    private final JavaDateFormatter roundupParser;
 
-    JavaDateMathParser(String format, JavaDateFormatter formatter, DateTimeFormatter roundUpFormatter) {
+    JavaDateMathParser(String format, JavaDateFormatter formatter, JavaDateFormatter roundupParser) {
         this.format = format;
+        this.roundupParser = roundupParser;
         Objects.requireNonNull(formatter);
         this.formatter = formatter;
-        this.roundUpFormatter = roundUpFormatter;
     }
 
     @Override
-    public Instant parse(String text, LongSupplier now, boolean roundUp, ZoneId timeZone) {
+    public Instant parse(String text, LongSupplier now, boolean roundUpProperty, ZoneId timeZone) {
         Instant time;
         String mathString;
         if (text.startsWith("now")) {
@@ -73,22 +60,22 @@ public class JavaDateMathParser implements DateMathParser {
         } else {
             int index = text.indexOf("||");
             if (index == -1) {
-                return parseDateTime(text, timeZone, roundUp);
+                return parseDateTime(text, timeZone, roundUpProperty);
             }
             time = parseDateTime(text.substring(0, index), timeZone, false);
             mathString = text.substring(index + 2);
         }
 
-        return parseMath(mathString, time, roundUp, timeZone);
+        return parseMath(mathString, time, roundUpProperty, timeZone);
     }
 
-    private Instant parseMath(final String mathString, final Instant time, final boolean roundUp,
-                           ZoneId timeZone) throws ElasticsearchParseException {
+    private Instant parseMath(final String mathString, final Instant time, final boolean roundUpProperty, ZoneId timeZone)
+        throws ElasticsearchParseException {
         if (timeZone == null) {
             timeZone = ZoneOffset.UTC;
         }
         ZonedDateTime dateTime = ZonedDateTime.ofInstant(time, timeZone);
-        for (int i = 0; i < mathString.length(); ) {
+        for (int i = 0; i < mathString.length();) {
             char c = mathString.charAt(i++);
             final boolean round;
             final int sign;
@@ -111,7 +98,7 @@ public class JavaDateMathParser implements DateMathParser {
             }
 
             final int num;
-            if (!Character.isDigit(mathString.charAt(i))) {
+            if (Character.isDigit(mathString.charAt(i)) == false) {
                 num = 1;
             } else {
                 int numFrom = i;
@@ -133,78 +120,79 @@ public class JavaDateMathParser implements DateMathParser {
                 case 'y':
                     if (round) {
                         dateTime = dateTime.withDayOfYear(1).with(LocalTime.MIN);
+                        if (roundUpProperty) {
+                            dateTime = dateTime.plusYears(1);
+                        }
                     } else {
                         dateTime = dateTime.plusYears(sign * num);
-                    }
-                    if (roundUp) {
-                        dateTime = dateTime.plusYears(1);
                     }
                     break;
                 case 'M':
                     if (round) {
                         dateTime = dateTime.withDayOfMonth(1).with(LocalTime.MIN);
+                        if (roundUpProperty) {
+                            dateTime = dateTime.plusMonths(1);
+                        }
                     } else {
                         dateTime = dateTime.plusMonths(sign * num);
-                    }
-                    if (roundUp) {
-                        dateTime = dateTime.plusMonths(1);
                     }
                     break;
                 case 'w':
                     if (round) {
                         dateTime = dateTime.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).with(LocalTime.MIN);
+                        if (roundUpProperty) {
+                            dateTime = dateTime.plusWeeks(1);
+                        }
                     } else {
                         dateTime = dateTime.plusWeeks(sign * num);
-                    }
-                    if (roundUp) {
-                        dateTime = dateTime.plusWeeks(1);
                     }
                     break;
                 case 'd':
                     if (round) {
                         dateTime = dateTime.with(LocalTime.MIN);
+                        if (roundUpProperty) {
+                            dateTime = dateTime.plusDays(1);
+                        }
                     } else {
                         dateTime = dateTime.plusDays(sign * num);
-                    }
-                    if (roundUp) {
-                        dateTime = dateTime.plusDays(1);
                     }
                     break;
                 case 'h':
                 case 'H':
                     if (round) {
                         dateTime = dateTime.withMinute(0).withSecond(0).withNano(0);
+                        if (roundUpProperty) {
+                            dateTime = dateTime.plusHours(1);
+                        }
                     } else {
                         dateTime = dateTime.plusHours(sign * num);
-                    }
-                    if (roundUp) {
-                        dateTime = dateTime.plusHours(1);
                     }
                     break;
                 case 'm':
                     if (round) {
                         dateTime = dateTime.withSecond(0).withNano(0);
+                        if (roundUpProperty) {
+                            dateTime = dateTime.plusMinutes(1);
+                        }
                     } else {
                         dateTime = dateTime.plusMinutes(sign * num);
-                    }
-                    if (roundUp) {
-                        dateTime = dateTime.plusMinutes(1);
                     }
                     break;
                 case 's':
                     if (round) {
                         dateTime = dateTime.withNano(0);
+                        if (roundUpProperty) {
+                            dateTime = dateTime.plusSeconds(1);
+                        }
                     } else {
                         dateTime = dateTime.plusSeconds(sign * num);
-                    }
-                    if (roundUp) {
-                        dateTime = dateTime.plusSeconds(1);
                     }
                     break;
                 default:
                     throw new ElasticsearchParseException("unit [{}] not supported for date math [{}]", unit, mathString);
             }
-            if (roundUp) {
+            if (round && roundUpProperty) {
+                // subtract 1 millisecond to get the largest inclusive value
                 dateTime = dateTime.minus(1, ChronoField.MILLI_OF_SECOND.getBaseUnit());
             }
         }
@@ -216,13 +204,15 @@ public class JavaDateMathParser implements DateMathParser {
             throw new ElasticsearchParseException("cannot parse empty date");
         }
 
-        Function<String,TemporalAccessor> formatter = roundUpIfNoTime ? this.roundUpFormatter::parse : this.formatter::parse;
+        DateFormatter formatter = roundUpIfNoTime ? this.roundupParser : this.formatter;
         try {
             if (timeZone == null) {
-                return DateFormatters.from(formatter.apply(value)).toInstant();
+                return DateFormatters.from(formatter.parse(value)).toInstant();
             } else {
-                TemporalAccessor accessor = formatter.apply(value);
-                ZoneId zoneId = TemporalQueries.zone().queryFrom(accessor);
+                TemporalAccessor accessor = formatter.parse(value);
+                // Use the offset if provided, otherwise fall back to the zone, or null.
+                ZoneOffset offset = TemporalQueries.offset().queryFrom(accessor);
+                ZoneId zoneId = offset == null ? TemporalQueries.zoneId().queryFrom(accessor) : ZoneId.ofOffset("", offset);
                 if (zoneId != null) {
                     timeZone = zoneId;
                 }
@@ -230,8 +220,13 @@ public class JavaDateMathParser implements DateMathParser {
                 return DateFormatters.from(accessor).withZoneSameLocal(timeZone).toInstant();
             }
         } catch (IllegalArgumentException | DateTimeParseException e) {
-            throw new ElasticsearchParseException("failed to parse date field [{}] with format [{}]: [{}]",
-                e, value, format, e.getMessage());
+            throw new ElasticsearchParseException(
+                "failed to parse date field [{}] with format [{}]: [{}]",
+                e,
+                value,
+                format,
+                e.getMessage()
+            );
         }
     }
 }

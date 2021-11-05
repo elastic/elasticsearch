@@ -1,15 +1,82 @@
 [[cat-health]]
-== cat health
+=== cat health API
+++++
+<titleabbrev>cat health</titleabbrev>
+++++
 
-`health` is a terse, one-line representation of the same information
-from `/_cluster/health`.
+Returns the health status of a cluster, similar to the <<cluster-health,cluster
+health>> API.
 
-[source,js]
+
+[[cat-health-api-request]]
+==== {api-request-title}
+
+`GET /_cat/health`
+
+[[cat-health-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
+
+[[cat-health-api-desc]]
+==== {api-description-title}
+
+You can use the cat health API to get the health status of a cluster.
+
+[[timestamp]]
+This API is often used to check malfunctioning clusters. To help you
+track cluster health alongside log files and alerting systems, the API returns
+timestamps in two formats:
+
+* `HH:MM:SS`, which is human-readable but includes no date information.
+* {wikipedia}/Unix_time[Unix `epoch` time], which is
+machine-sortable and includes date information. This is useful for cluster
+recoveries that take multiple days.
+
+You can use the cat health API to verify cluster health across multiple nodes.
+See <<cat-health-api-example-across-nodes>>.
+
+You also can use the API to track the recovery of a large cluster
+over a longer period of time. See <<cat-health-api-example-large-cluster>>.
+
+
+[[cat-health-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=time]
+
+`ts` (timestamps)::
+(Optional, Boolean) If `true`, returns `HH:MM:SS` and
+{wikipedia}/Unix_time[Unix `epoch`] timestamps. Defaults to
+`true`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
+
+
+[[cat-health-api-example]]
+==== {api-examples-title}
+
+[[cat-health-api-example-timestamp]]
+===== Example with a timestamp
+By default, the cat health API returns `HH:MM:SS` and
+{wikipedia}/Unix_time[Unix `epoch`] timestamps. For example:
+
+[source,console,id=cat-health-example]
 --------------------------------------------------
-GET /_cat/health?v
+GET /_cat/health?v=true
 --------------------------------------------------
-// CONSOLE
-// TEST[s/^/PUT twitter\n{"settings":{"number_of_replicas": 0}}\n/]
+// TEST[s/^/PUT my-index-000001\n{"settings":{"number_of_replicas": 0}}\n/]
+
+The API returns the following response:
 
 [source,txt]
 --------------------------------------------------
@@ -17,28 +84,31 @@ epoch      timestamp cluster       status node.total node.data shards pri relo i
 1475871424 16:17:04  elasticsearch green           1         1      1   1    0    0        0             0                  -                100.0%
 --------------------------------------------------
 // TESTRESPONSE[s/1475871424 16:17:04/\\d+ \\d+:\\d+:\\d+/]
-// TESTRESPONSE[s/elasticsearch/[^ ]+/ s/0                  -/\\d+ (-|\\d+(\\.\\d+)?[ms]+)/ _cat]
+// TESTRESPONSE[s/elasticsearch/[^ ]+/ s/0                  -/\\d+ (-|\\d+(\\.\\d+)?[ms]+)/ non_json]
 
-It has one option `ts` to disable the timestamping:
+[[cat-health-api-example-no-timestamp]]
+===== Example without a timestamp
+You can use the `ts` (timestamps) parameter to disable timestamps. For example:
 
-[source,js]
+[source,console,id=cat-health-no-timestamp-example]
 --------------------------------------------------
-GET /_cat/health?v&ts=false
+GET /_cat/health?v=true&ts=false
 --------------------------------------------------
-// CONSOLE
-// TEST[s/^/PUT twitter\n{"settings":{"number_of_replicas": 0}}\n/]
+// TEST[s/^/PUT my-index-000001\n{"settings":{"number_of_replicas": 0}}\n/]
 
-which looks like:
+The API returns the following response:
 
 [source,txt]
 --------------------------------------------------
 cluster       status node.total node.data shards pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
 elasticsearch green           1         1      1   1    0    0        0             0                  -                100.0%
 --------------------------------------------------
-// TESTRESPONSE[s/elasticsearch/[^ ]+/ s/0                  -/\\d+ (-|\\d+(\\.\\d+)?[ms]+)/ _cat]
+// TESTRESPONSE[s/elasticsearch/[^ ]+/ s/0                  -/\\d+ (-|\\d+(\\.\\d+)?[ms]+)/ non_json]
 
-A common use of this command is to verify the health is consistent
-across nodes:
+[[cat-health-api-example-across-nodes]]
+===== Example across nodes
+You can use the cat health API to verify the health of a cluster across nodes.
+For example:
 
 [source,sh]
 --------------------------------------------------
@@ -52,10 +122,11 @@ across nodes:
 --------------------------------------------------
 // NOTCONSOLE
 
-A less obvious use is to track recovery of a large cluster over
-time. With enough shards, starting a cluster, or even recovering after
-losing a node, can take time (depending on your network & disk). A way
-to track its progress is by using this command in a delayed loop:
+[[cat-health-api-example-large-cluster]]
+===== Example with a large cluster
+You can use the cat health API to track the recovery of a large cluster over a
+longer period of time. You can do this by including the cat health API request
+in a delayed loop. For example:
 
 [source,sh]
 --------------------------------------------------
@@ -68,19 +139,7 @@ to track its progress is by using this command in a delayed loop:
 --------------------------------------------------
 // NOTCONSOLE
 
-In this scenario, we can tell that recovery took roughly four minutes.
-If this were going on for hours, we would be able to watch the
-`UNASSIGNED` shards drop precipitously.  If that number remained
-static, we would have an idea that there is a problem.
-
-[float]
-[[timestamp]]
-=== Why the timestamp?
-
-You typically are using the `health` command when a cluster is
-malfunctioning.  During this period, it's extremely important to
-correlate activities across log files, alerting systems, etc.
-
-There are two outputs.  The `HH:MM:SS` output is simply for quick
-human consumption.  The epoch time retains more information, including
-date, and is machine sortable if your recovery spans days.
+In this example, the recovery took roughly six minutes, from `18:24:06` to
+`18:30:06`. If this recovery took hours, you could continue to monitor the
+number of `UNASSIGNED` shards, which should drop. If the number of `UNASSIGNED`
+shards remains static, it would indicate an issue with the cluster recovery.

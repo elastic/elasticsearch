@@ -1,5 +1,9 @@
+[role="xpack"]
 [[trigger]]
-== Triggers
+== {watcher} triggers
+++++
+<titleabbrev>Triggers</titleabbrev>
+++++
 
 Every watch must have a `trigger` that defines when the watch execution process
 should start. When you create a watch, its trigger is registered with the
@@ -7,7 +11,6 @@ appropriate _Trigger Engine_. The trigger engine is responsible for evaluating
 the trigger and triggering the watch when needed.
 
 {watcher} is designed to support different types of triggers, but only time-based
-<<trigger-schedule, `schedule`>> triggers are currently available.
+<<trigger-schedule,`schedule`>> triggers are currently available.
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/trigger/schedule.asciidoc
 include::trigger/schedule.asciidoc[]

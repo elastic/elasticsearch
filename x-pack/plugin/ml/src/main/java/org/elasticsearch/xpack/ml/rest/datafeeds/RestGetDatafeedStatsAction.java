@@ -1,41 +1,42 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.rest.datafeeds;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction.Request;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.DEPRECATED_ALLOW_NO_DATAFEEDS_PARAM;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
+import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
+import static org.elasticsearch.xpack.ml.rest.RestCompatibilityChecker.checkAndSetDeprecatedParam;
 
 public class RestGetDatafeedStatsAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(RestGetDatafeedStatsAction.class));
-
-    public RestGetDatafeedStatsAction(Settings settings, RestController controller) {
-        super(settings);
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            GET, MachineLearning.BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}/_stats", this,
-            GET, MachineLearning.PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}/_stats", deprecationLogger);
-        controller.registerWithDeprecatedHandler(
-            GET, MachineLearning.BASE_PATH + "datafeeds/_stats", this,
-            GET, MachineLearning.PRE_V7_BASE_PATH + "datafeeds/_stats", deprecationLogger);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            Route.builder(GET, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_stats")
+                .replaces(GET, PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_stats", RestApiVersion.V_7)
+                .build(),
+            Route.builder(GET, BASE_PATH + "datafeeds/_stats")
+                .replaces(GET, PRE_V7_BASE_PATH + "datafeeds/_stats", RestApiVersion.V_7)
+                .build()
+        );
     }
 
     @Override
@@ -49,9 +50,15 @@ public class RestGetDatafeedStatsAction extends BaseRestHandler {
         if (Strings.isNullOrEmpty(datafeedId)) {
             datafeedId = GetDatafeedsStatsAction.ALL;
         }
-        GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedId);
-        request.setAllowNoDatafeeds(restRequest.paramAsBoolean(GetDatafeedsStatsAction.Request.ALLOW_NO_DATAFEEDS.getPreferredName(),
-                request.allowNoDatafeeds()));
+        Request request = new Request(datafeedId);
+        checkAndSetDeprecatedParam(
+            DEPRECATED_ALLOW_NO_DATAFEEDS_PARAM,
+            Request.ALLOW_NO_MATCH,
+            RestApiVersion.V_7,
+            restRequest,
+            (r, s) -> r.paramAsBoolean(s, request.allowNoMatch()),
+            request::setAllowNoMatch
+        );
         return channel -> client.execute(GetDatafeedsStatsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

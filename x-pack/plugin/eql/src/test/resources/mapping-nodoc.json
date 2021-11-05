@@ -1,0 +1,18 @@
+{
+    "properties" : {
+        "event" : {
+            "properties" : {
+                "category" : {
+                    "type" : "keyword"
+                }
+            }
+        },
+        "@timestamp" : {
+            "type" : "date"
+        },
+        "description_nodoc" : {
+            "type" : "integer",
+            "doc_values" : false
+        }
+    }
+}

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -17,8 +18,6 @@ import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.RecordsQueryBuilder;
 
-import java.util.function.Supplier;
-
 public class TransportGetRecordsAction extends HandledTransportAction<GetRecordsAction.Request, GetRecordsAction.Response> {
 
     private final JobResultsProvider jobResultsProvider;
@@ -26,9 +25,14 @@ public class TransportGetRecordsAction extends HandledTransportAction<GetRecords
     private final Client client;
 
     @Inject
-    public TransportGetRecordsAction(TransportService transportService, ActionFilters actionFilters, JobResultsProvider jobResultsProvider,
-                                     JobManager jobManager, Client client) {
-        super(GetRecordsAction.NAME, transportService, actionFilters, (Supplier<GetRecordsAction.Request>) GetRecordsAction.Request::new);
+    public TransportGetRecordsAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        JobResultsProvider jobResultsProvider,
+        JobManager jobManager,
+        Client client
+    ) {
+        super(GetRecordsAction.NAME, transportService, actionFilters, GetRecordsAction.Request::new);
         this.jobResultsProvider = jobResultsProvider;
         this.jobManager = jobManager;
         this.client = client;
@@ -37,21 +41,22 @@ public class TransportGetRecordsAction extends HandledTransportAction<GetRecords
     @Override
     protected void doExecute(Task task, GetRecordsAction.Request request, ActionListener<GetRecordsAction.Response> listener) {
 
-        jobManager.jobExists(request.getJobId(), ActionListener.wrap(
-                jobExists -> {
-                    RecordsQueryBuilder query = new RecordsQueryBuilder()
-                            .includeInterim(request.isExcludeInterim() == false)
-                            .epochStart(request.getStart())
-                            .epochEnd(request.getEnd())
-                            .from(request.getPageParams().getFrom())
-                            .size(request.getPageParams().getSize())
-                            .recordScore(request.getRecordScoreFilter())
-                            .sortField(request.getSort())
-                            .sortDescending(request.isDescending());
-                    jobResultsProvider.records(request.getJobId(), query, page ->
-                            listener.onResponse(new GetRecordsAction.Response(page)), listener::onFailure, client);
-                },
-                listener::onFailure
-        ));
+        jobManager.jobExists(request.getJobId(), ActionListener.wrap(jobExists -> {
+            RecordsQueryBuilder query = new RecordsQueryBuilder().includeInterim(request.isExcludeInterim() == false)
+                .epochStart(request.getStart())
+                .epochEnd(request.getEnd())
+                .from(request.getPageParams().getFrom())
+                .size(request.getPageParams().getSize())
+                .recordScore(request.getRecordScoreFilter())
+                .sortField(request.getSort())
+                .sortDescending(request.isDescending());
+            jobResultsProvider.records(
+                request.getJobId(),
+                query,
+                page -> listener.onResponse(new GetRecordsAction.Response(page)),
+                listener::onFailure,
+                client
+            );
+        }, listener::onFailure));
     }
 }

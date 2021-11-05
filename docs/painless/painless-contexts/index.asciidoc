@@ -1,3 +1,7 @@
+include::painless-context-examples.asciidoc[]
+
+include::painless-runtime-fields-context.asciidoc[]
+
 include::painless-ingest-processor-context.asciidoc[]
 
 include::painless-update-context.asciidoc[]

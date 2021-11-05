@@ -1,0 +1,58 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
+
+dependencies {
+  yamlRestTestImplementation project(path: ':x-pack:plugin:watcher:qa:common')
+  javaRestTestImplementation project(path: ':x-pack:plugin:watcher:qa:common')
+  javaRestTestImplementation project(':x-pack:qa')
+}
+
+artifacts {
+  restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+}
+
+restResources {
+  restApi {
+    include '_common', 'cluster', 'nodes', 'search', 'get', 'indices',
+                'index', 'put_script', 'ingest', 'count', 'watcher', 'xpack'
+  }
+}
+
+testClusters.configureEach {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.security.enabled', 'false'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
+}
+
+if (BuildParams.inFipsJvm){
+  // Test clusters run with security disabled
+  tasks.named("javaRestTest").configure{enabled = false }
+  tasks.named("yamlRestTest").configure{enabled = false }
+}
+
+
+tasks.named("yamlRestTestV7CompatTransform").configure{ task ->
+  task.skipTest("mustache/30_search_input/Test search input mustache integration (using request body and rest_total_hits_as_int)", "remove JodaCompatibleDateTime -- ZonedDateTime doesn't output millis/nanos if they're 0 (#78417)")
+  task.skipTest("mustache/30_search_input/Test search input mustache integration (using request body)", "remove JodaCompatibleDateTime -- ZonedDateTime doesn't output millis/nanos if they're 0 (#78417)")
+  task.skipTest("mustache/40_search_transform/Test search transform mustache integration (using request body)", "remove JodaCompatibleDateTime -- ZonedDateTime doesn't output millis/nanos if they're 0 (#78417)")
+  task.replaceKeyInDo("watcher.ack_watch", "xpack-watcher.ack_watch")
+  task.replaceKeyInDo("watcher.activate_watch", "xpack-watcher.activate_watch")
+  task.replaceKeyInDo("watcher.deactivate_watch", "xpack-watcher.deactivate_watch")
+  task.replaceKeyInDo("watcher.delete_watch", "xpack-watcher.delete_watch")
+  task.replaceKeyInDo("watcher.execute_watch", "xpack-watcher.execute_watch")
+  task.replaceKeyInDo("watcher.get_watch", "xpack-watcher.get_watch")
+  task.replaceKeyInDo("watcher.put_watch", "xpack-watcher.put_watch")
+  task.replaceKeyInDo("watcher.start", "xpack-watcher.start")
+  task.replaceKeyInDo("watcher.stats", "xpack-watcher.stats")
+  task.replaceKeyInDo("watcher.stop", "xpack-watcher.stop")
+
+  task.addAllowedWarningRegex(".*_xpack/watcher/.* is deprecated.*")
+  task.addAllowedWarningRegex("\\[types removal\\].*")
+  task.replaceValueTextByKeyValue("path", "/my_index/my_type/{{ctx.watch_id}}", "/my_index/_doc/{{ctx.watch_id}}",
+    "Test webhook action with mustache integration")
+}

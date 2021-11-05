@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
@@ -23,21 +24,26 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ccr.action.ShardChangesAction;
-import org.elasticsearch.xpack.ccr.action.ShardFollowTask;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ccr.CcrConstants;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
@@ -45,6 +51,7 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -56,12 +63,11 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 /**
  * Encapsulates licensing checking for CCR.
  */
-public final class CcrLicenseChecker {
+public class CcrLicenseChecker {
 
     private final BooleanSupplier isCcrAllowed;
     private final BooleanSupplier isAuthAllowed;
@@ -69,8 +75,8 @@ public final class CcrLicenseChecker {
     /**
      * Constructs a CCR license checker with the default rule based on the license state for checking if CCR is allowed.
      */
-    CcrLicenseChecker() {
-        this(XPackPlugin.getSharedLicenseState()::isCcrAllowed, XPackPlugin.getSharedLicenseState()::isAuthAllowed);
+    CcrLicenseChecker(Settings settings) {
+        this(() -> CcrConstants.CCR_FEATURE.check(XPackPlugin.getSharedLicenseState()), () -> XPackSettings.SECURITY_ENABLED.get(settings));
     }
 
     /**
@@ -106,42 +112,69 @@ public final class CcrLicenseChecker {
      * @param consumer      the consumer for supplying the leader index metadata and historyUUIDs of all leader shards
      */
     public void checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
-            final Client client,
-            final String clusterAlias,
-            final String leaderIndex,
-            final Consumer<Exception> onFailure,
-            final BiConsumer<String[], IndexMetaData> consumer) {
+        final Client client,
+        final String clusterAlias,
+        final String leaderIndex,
+        final Consumer<Exception> onFailure,
+        final BiConsumer<String[], Tuple<IndexMetadata, DataStream>> consumer
+    ) {
 
         final ClusterStateRequest request = new ClusterStateRequest();
         request.clear();
-        request.metaData(true);
+        request.metadata(true);
         request.indices(leaderIndex);
         checkRemoteClusterLicenseAndFetchClusterState(
-                client,
-                clusterAlias,
-                client.getRemoteClusterClient(clusterAlias),
-                request,
-                onFailure,
-                remoteClusterStateResponse -> {
-                    ClusterState remoteClusterState = remoteClusterStateResponse.getState();
-                    IndexMetaData leaderIndexMetaData = remoteClusterState.getMetaData().index(leaderIndex);
-                    if (leaderIndexMetaData == null) {
-                        onFailure.accept(new IndexNotFoundException(leaderIndex));
-                        return;
+            client,
+            clusterAlias,
+            client.getRemoteClusterClient(clusterAlias),
+            request,
+            onFailure,
+            remoteClusterStateResponse -> {
+                ClusterState remoteClusterState = remoteClusterStateResponse.getState();
+                final IndexMetadata leaderIndexMetadata = remoteClusterState.getMetadata().index(leaderIndex);
+                if (leaderIndexMetadata == null) {
+                    final IndexAbstraction indexAbstraction = remoteClusterState.getMetadata().getIndicesLookup().get(leaderIndex);
+                    final Exception failure;
+                    if (indexAbstraction == null) {
+                        failure = new IndexNotFoundException(leaderIndex);
+                    } else {
+                        // provided name may be an alias or data stream and in that case throw a specific error:
+                        String message = String.format(
+                            Locale.ROOT,
+                            "cannot follow [%s], because it is a %s",
+                            leaderIndex,
+                            indexAbstraction.getType()
+                        );
+                        failure = new IllegalArgumentException(message);
                     }
-
-                    final Client remoteClient = client.getRemoteClusterClient(clusterAlias);
-                    hasPrivilegesToFollowIndices(remoteClient, new String[] {leaderIndex}, e -> {
-                        if (e == null) {
-                            fetchLeaderHistoryUUIDs(remoteClient, leaderIndexMetaData, onFailure, historyUUIDs ->
-                                    consumer.accept(historyUUIDs, leaderIndexMetaData));
-                        } else {
-                            onFailure.accept(e);
-                        }
-                    });
-                },
-                licenseCheck -> indexMetadataNonCompliantRemoteLicense(leaderIndex, licenseCheck),
-                e -> indexMetadataUnknownRemoteLicense(leaderIndex, clusterAlias, e));
+                    onFailure.accept(failure);
+                    return;
+                }
+                if (leaderIndexMetadata.getState() == IndexMetadata.State.CLOSE) {
+                    onFailure.accept(new IndexClosedException(leaderIndexMetadata.getIndex()));
+                    return;
+                }
+                IndexAbstraction indexAbstraction = remoteClusterState.getMetadata().getIndicesLookup().get(leaderIndex);
+                final DataStream remoteDataStream = indexAbstraction.getParentDataStream() != null
+                    ? indexAbstraction.getParentDataStream().getDataStream()
+                    : null;
+                final Client remoteClient = client.getRemoteClusterClient(clusterAlias);
+                hasPrivilegesToFollowIndices(remoteClient, new String[] { leaderIndex }, e -> {
+                    if (e == null) {
+                        fetchLeaderHistoryUUIDs(
+                            remoteClient,
+                            leaderIndexMetadata,
+                            onFailure,
+                            historyUUIDs -> consumer.accept(historyUUIDs, Tuple.tuple(leaderIndexMetadata, remoteDataStream))
+                        );
+                    } else {
+                        onFailure.accept(e);
+                    }
+                });
+            },
+            licenseCheck -> indexMetadataNonCompliantRemoteLicense(leaderIndex, licenseCheck),
+            e -> indexMetadataUnknownRemoteLicense(leaderIndex, clusterAlias, e)
+        );
     }
 
     /**
@@ -157,11 +190,12 @@ public final class CcrLicenseChecker {
      * @param leaderClusterStateConsumer the leader cluster state consumer
      */
     public void checkRemoteClusterLicenseAndFetchClusterState(
-            final Client client,
-            final String clusterAlias,
-            final ClusterStateRequest request,
-            final Consumer<Exception> onFailure,
-            final Consumer<ClusterStateResponse> leaderClusterStateConsumer) {
+        final Client client,
+        final String clusterAlias,
+        final ClusterStateRequest request,
+        final Consumer<Exception> onFailure,
+        final Consumer<ClusterStateResponse> leaderClusterStateConsumer
+    ) {
         try {
             Client remoteClient = systemClient(client.getRemoteClusterClient(clusterAlias));
             checkRemoteClusterLicenseAndFetchClusterState(
@@ -172,7 +206,8 @@ public final class CcrLicenseChecker {
                 onFailure,
                 leaderClusterStateConsumer,
                 CcrLicenseChecker::clusterStateNonCompliantRemoteLicense,
-                e -> clusterStateUnknownRemoteLicense(clusterAlias, e));
+                e -> clusterStateUnknownRemoteLicense(clusterAlias, e)
+            );
         } catch (Exception e) {
             // client.getRemoteClusterClient(...) can fail with a IllegalArgumentException if remote
             // connection is unknown
@@ -196,44 +231,48 @@ public final class CcrLicenseChecker {
      * @param unknownLicense             the supplier for when the license state of the remote cluster is unknown due to failure
      */
     private void checkRemoteClusterLicenseAndFetchClusterState(
-            final Client client,
-            final String clusterAlias,
-            final Client remoteClient,
-            final ClusterStateRequest request,
-            final Consumer<Exception> onFailure,
-            final Consumer<ClusterStateResponse> leaderClusterStateConsumer,
-            final Function<RemoteClusterLicenseChecker.LicenseCheck, ElasticsearchStatusException> nonCompliantLicense,
-            final Function<Exception, ElasticsearchStatusException> unknownLicense) {
+        final Client client,
+        final String clusterAlias,
+        final Client remoteClient,
+        final ClusterStateRequest request,
+        final Consumer<Exception> onFailure,
+        final Consumer<ClusterStateResponse> leaderClusterStateConsumer,
+        final Function<RemoteClusterLicenseChecker.LicenseCheck, ElasticsearchStatusException> nonCompliantLicense,
+        final Function<Exception, ElasticsearchStatusException> unknownLicense
+    ) {
         // we have to check the license on the remote cluster
-        new RemoteClusterLicenseChecker(client, XPackLicenseState::isCcrAllowedForOperationMode).checkRemoteClusterLicenses(
-                Collections.singletonList(clusterAlias),
-                new ActionListener<RemoteClusterLicenseChecker.LicenseCheck>() {
+        new RemoteClusterLicenseChecker(client, CcrConstants.CCR_FEATURE).checkRemoteClusterLicenses(
+            Collections.singletonList(clusterAlias),
+            new ActionListener<RemoteClusterLicenseChecker.LicenseCheck>() {
 
-                    @Override
-                    public void onResponse(final RemoteClusterLicenseChecker.LicenseCheck licenseCheck) {
-                        if (licenseCheck.isSuccess()) {
-                            final ActionListener<ClusterStateResponse> clusterStateListener =
-                                ActionListener.wrap(leaderClusterStateConsumer::accept, onFailure);
-                            // following an index in remote cluster, so use remote client to fetch leader index metadata
-                            remoteClient.admin().cluster().state(request, clusterStateListener);
-                        } else {
-                            onFailure.accept(nonCompliantLicense.apply(licenseCheck));
-                        }
+                @Override
+                public void onResponse(final RemoteClusterLicenseChecker.LicenseCheck licenseCheck) {
+                    if (licenseCheck.isSuccess()) {
+                        final ActionListener<ClusterStateResponse> clusterStateListener = ActionListener.wrap(
+                            leaderClusterStateConsumer::accept,
+                            onFailure
+                        );
+                        // following an index in remote cluster, so use remote client to fetch leader index metadata
+                        remoteClient.admin().cluster().state(request, clusterStateListener);
+                    } else {
+                        onFailure.accept(nonCompliantLicense.apply(licenseCheck));
                     }
+                }
 
-                    @Override
-                    public void onFailure(final Exception e) {
-                        onFailure.accept(unknownLicense.apply(e));
-                    }
+                @Override
+                public void onFailure(final Exception e) {
+                    onFailure.accept(unknownLicense.apply(e));
+                }
 
-                });
+            }
+        );
     }
 
     /**
      * Fetches the history UUIDs for leader index on per shard basis using the specified remoteClient.
      *
      * @param remoteClient                              the remote client
-     * @param leaderIndexMetaData                       the leader index metadata
+     * @param leaderIndexMetadata                       the leader index metadata
      * @param onFailure                                 the failure consumer
      * @param historyUUIDConsumer                       the leader index history uuid and consumer
      */
@@ -241,11 +280,12 @@ public final class CcrLicenseChecker {
     // in case of following a local or a remote cluster.
     public void fetchLeaderHistoryUUIDs(
         final Client remoteClient,
-        final IndexMetaData leaderIndexMetaData,
+        final IndexMetadata leaderIndexMetadata,
         final Consumer<Exception> onFailure,
-        final Consumer<String[]> historyUUIDConsumer) {
+        final Consumer<String[]> historyUUIDConsumer
+    ) {
 
-        String leaderIndex = leaderIndexMetaData.getIndex().getName();
+        String leaderIndex = leaderIndexMetadata.getIndex().getName();
         CheckedConsumer<IndicesStatsResponse, Exception> indicesStatsHandler = indicesStatsResponse -> {
             IndexStats indexStats = indicesStatsResponse.getIndices().get(leaderIndex);
             if (indexStats == null) {
@@ -253,7 +293,7 @@ public final class CcrLicenseChecker {
                 return;
             }
 
-            String[] historyUUIDs = new String[leaderIndexMetaData.getNumberOfShards()];
+            String[] historyUUIDs = new String[leaderIndexMetadata.getNumberOfShards()];
             for (IndexShardStats indexShardStats : indexStats) {
                 for (ShardStats shardStats : indexShardStats) {
                     // Ignore replica shards as they may not have yet started and
@@ -307,9 +347,12 @@ public final class CcrLicenseChecker {
             return;
         }
 
-        ThreadContext threadContext = remoteClient.threadPool().getThreadContext();
-        SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
-        String username = securityContext.getUser().principal();
+        final User user = getUser(remoteClient);
+        if (user == null) {
+            handler.accept(new IllegalStateException("missing or unable to read authentication info on request"));
+            return;
+        }
+        String username = user.principal();
 
         RoleDescriptor.IndicesPrivileges privileges = RoleDescriptor.IndicesPrivileges.builder()
             .indices(indices)
@@ -344,22 +387,28 @@ public final class CcrLicenseChecker {
         remoteClient.execute(HasPrivilegesAction.INSTANCE, request, ActionListener.wrap(responseHandler, handler));
     }
 
+    User getUser(final Client remoteClient) {
+        final ThreadContext threadContext = remoteClient.threadPool().getThreadContext();
+        final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
+        return securityContext.getUser();
+    }
+
     public static Client wrapClient(Client client, Map<String, String> headers) {
         if (headers.isEmpty()) {
             return client;
         } else {
-            final ThreadContext threadContext = client.threadPool().getThreadContext();
-            Map<String, String> filteredHeaders = headers.entrySet().stream()
-                .filter(e -> ShardFollowTask.HEADER_FILTERS.contains(e.getKey()))
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(headers);
+            if (filteredHeaders.isEmpty()) {
+                return client;
+            }
             return new FilterClient(client) {
                 @Override
-                protected <Request extends ActionRequest, Response extends ActionResponse>
-                void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
-                    final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
-                    try (ThreadContext.StoredContext ignore = stashWithHeaders(threadContext, filteredHeaders)) {
-                        super.doExecute(action, request, new ContextPreservingActionListener<>(supplier, listener));
-                    }
+                protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                    ActionType<Response> action,
+                    Request request,
+                    ActionListener<Response> listener
+                ) {
+                    ClientHelper.executeWithHeadersAsync(filteredHeaders, null, client, action, request, listener);
                 }
             };
         }
@@ -369,8 +418,11 @@ public final class CcrLicenseChecker {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
         return new FilterClient(client) {
             @Override
-            protected <Request extends ActionRequest, Response extends ActionResponse>
-            void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
                 final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
                 try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
                     threadContext.markAsSystemContext();
@@ -387,50 +439,55 @@ public final class CcrLicenseChecker {
     }
 
     private static ElasticsearchStatusException indexMetadataNonCompliantRemoteLicense(
-            final String leaderIndex, final RemoteClusterLicenseChecker.LicenseCheck licenseCheck) {
+        final String leaderIndex,
+        final RemoteClusterLicenseChecker.LicenseCheck licenseCheck
+    ) {
         final String clusterAlias = licenseCheck.remoteClusterLicenseInfo().clusterAlias();
         final String message = String.format(
-                Locale.ROOT,
-                "can not fetch remote index [%s:%s] metadata as the remote cluster [%s] is not licensed for [ccr]; %s",
-                clusterAlias,
-                leaderIndex,
-                clusterAlias,
-                RemoteClusterLicenseChecker.buildErrorMessage(
-                        "ccr",
-                        licenseCheck.remoteClusterLicenseInfo(),
-                        RemoteClusterLicenseChecker::isLicensePlatinumOrTrial));
+            Locale.ROOT,
+            "can not fetch remote index [%s:%s] metadata as the remote cluster [%s] is not licensed for [ccr]; %s",
+            clusterAlias,
+            leaderIndex,
+            clusterAlias,
+            RemoteClusterLicenseChecker.buildErrorMessage(CcrConstants.CCR_FEATURE, licenseCheck.remoteClusterLicenseInfo())
+        );
         return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
     }
 
     private static ElasticsearchStatusException clusterStateNonCompliantRemoteLicense(
-            final RemoteClusterLicenseChecker.LicenseCheck licenseCheck) {
+        final RemoteClusterLicenseChecker.LicenseCheck licenseCheck
+    ) {
         final String clusterAlias = licenseCheck.remoteClusterLicenseInfo().clusterAlias();
         final String message = String.format(
-                Locale.ROOT,
-                "can not fetch remote cluster state as the remote cluster [%s] is not licensed for [ccr]; %s",
-                clusterAlias,
-                RemoteClusterLicenseChecker.buildErrorMessage(
-                        "ccr",
-                        licenseCheck.remoteClusterLicenseInfo(),
-                        RemoteClusterLicenseChecker::isLicensePlatinumOrTrial));
+            Locale.ROOT,
+            "can not fetch remote cluster state as the remote cluster [%s] is not licensed for [ccr]; %s",
+            clusterAlias,
+            RemoteClusterLicenseChecker.buildErrorMessage(CcrConstants.CCR_FEATURE, licenseCheck.remoteClusterLicenseInfo())
+        );
         return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST);
     }
 
     private static ElasticsearchStatusException indexMetadataUnknownRemoteLicense(
-            final String leaderIndex, final String clusterAlias, final Exception cause) {
+        final String leaderIndex,
+        final String clusterAlias,
+        final Exception cause
+    ) {
         final String message = String.format(
-                Locale.ROOT,
-                "can not fetch remote index [%s:%s] metadata as the license state of the remote cluster [%s] could not be determined",
-                clusterAlias,
-                leaderIndex,
-                clusterAlias);
+            Locale.ROOT,
+            "can not fetch remote index [%s:%s] metadata as the license state of the remote cluster [%s] could not be determined",
+            clusterAlias,
+            leaderIndex,
+            clusterAlias
+        );
         return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST, cause);
     }
 
     private static ElasticsearchStatusException clusterStateUnknownRemoteLicense(final String clusterAlias, final Exception cause) {
         final String message = String.format(
-                Locale.ROOT,
-                "can not fetch remote cluster state as the license state of the remote cluster [%s] could not be determined", clusterAlias);
+            Locale.ROOT,
+            "can not fetch remote cluster state as the license state of the remote cluster [%s] could not be determined",
+            clusterAlias
+        );
         return new ElasticsearchStatusException(message, RestStatus.BAD_REQUEST, cause);
     }
 

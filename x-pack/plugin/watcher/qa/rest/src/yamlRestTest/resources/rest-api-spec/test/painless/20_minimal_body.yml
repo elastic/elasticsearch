@@ -1,0 +1,52 @@
+---
+"Test execute watch api with minimal body":
+
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      watcher.put_watch:
+        id: "my_logging_watch"
+        body:  >
+          {
+            "trigger" : {
+              "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+            },
+            "input" : {
+              "simple" : {
+                "count" : 1
+              }
+            },
+            "condition" : {
+              "script" : {
+                "source" : "ctx.payload.count == 1",
+                "lang" : "painless"
+              }
+            },
+            "actions" : {
+              "logging" : {
+                "logging" : {
+                  "text" : "foobar"
+                }
+              }
+            }
+          }
+  - match: { _id: "my_logging_watch" }
+
+  - do:
+      watcher.execute_watch:
+        id: "my_logging_watch"
+
+  - match: { "watch_record.watch_id": "my_logging_watch" }
+  - match: { "watch_record.state": "executed" }
+  - match: { "watch_record.result.input.type": "simple" }
+  - match: { "watch_record.result.input.status": "success" }
+  - match: { "watch_record.result.input.payload.count": 1 }
+  - match: { "watch_record.result.condition.type": "script" }
+  - match: { "watch_record.result.condition.status": "success" }
+  - match: { "watch_record.result.condition.met": true }
+  - match: { "watch_record.result.actions.0.id" : "logging" }
+  - match: { "watch_record.result.actions.0.type" : "logging" }
+  - match: { "watch_record.result.actions.0.status" : "success" }
+  - match: { "watch_record.result.actions.0.logging.logged_text" : "foobar" }

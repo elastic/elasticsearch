@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
@@ -15,6 +15,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.LazyInitializable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -45,8 +47,13 @@ public abstract class NotificationService<Account> {
     // using the new updated cluster settings
     private volatile SecureSettings cachedSecureSettings;
 
-    public NotificationService(String type, Settings settings, ClusterSettings clusterSettings, List<Setting<?>> pluginDynamicSettings,
-            List<Setting<?>> pluginSecureSettings) {
+    public NotificationService(
+        String type,
+        Settings settings,
+        ClusterSettings clusterSettings,
+        List<Setting<?>> pluginDynamicSettings,
+        List<Setting<?>> pluginSecureSettings
+    ) {
         this(type, settings, pluginSecureSettings);
         // register a grand updater for the whole group, as settings are usable together
         clusterSettings.addSettingsUpdateConsumer(this::clusterSettingsConsumer, pluginDynamicSettings);
@@ -94,7 +101,7 @@ public abstract class NotificationService<Account> {
         final Settings completeSettings = completeSettingsBuilder.build();
         // obtain account names and create accounts
         final Set<String> accountNames = getAccountNames(completeSettings);
-        this.accounts = createAccounts(completeSettings, accountNames, this::createAccount);
+        this.accounts = createAccounts(completeSettings, accountNames, (name, accountSettings) -> createAccount(name, accountSettings));
         this.defaultAccount = findDefaultAccountOrNull(completeSettings, this.accounts);
     }
 
@@ -111,8 +118,14 @@ public abstract class NotificationService<Account> {
         }
         LazyInitializable<Account, SettingsException> theAccount = accounts.getOrDefault(name, defaultAccount);
         if (theAccount == null && name == null) {
-            throw new IllegalArgumentException("no accounts of type [" + type + "] configured. " +
-                    "Please set up an account using the [xpack.notification." + type +"] settings");
+            throw new IllegalArgumentException(
+                "no accounts of type ["
+                    + type
+                    + "] configured. "
+                    + "Please set up an account using the [xpack.notification."
+                    + type
+                    + "] settings"
+            );
         }
         if (theAccount == null) {
             throw new IllegalArgumentException("no account found for name: [" + name + "]");
@@ -132,20 +145,23 @@ public abstract class NotificationService<Account> {
         return settings.get("xpack.notification." + type + ".default_account");
     }
 
-    private Map<String, LazyInitializable<Account, SettingsException>> createAccounts(Settings settings, Set<String> accountNames,
-            BiFunction<String, Settings, Account> accountFactory) {
+    private Map<String, LazyInitializable<Account, SettingsException>> createAccounts(
+        Settings settings,
+        Set<String> accountNames,
+        BiFunction<String, Settings, Account> accountFactory
+    ) {
         final Map<String, LazyInitializable<Account, SettingsException>> accounts = new HashMap<>();
         for (final String accountName : accountNames) {
             final Settings accountSettings = settings.getAsSettings(getNotificationsAccountPrefix() + accountName);
-            accounts.put(accountName, new LazyInitializable<>(() -> {
-                return accountFactory.apply(accountName, accountSettings);
-            }));
+            accounts.put(accountName, new LazyInitializable<>(() -> { return accountFactory.apply(accountName, accountSettings); }));
         }
         return Collections.unmodifiableMap(accounts);
     }
 
-    private @Nullable LazyInitializable<Account, SettingsException> findDefaultAccountOrNull(Settings settings,
-            Map<String, LazyInitializable<Account, SettingsException>> accounts) {
+    private @Nullable LazyInitializable<Account, SettingsException> findDefaultAccountOrNull(
+        Settings settings,
+        Map<String, LazyInitializable<Account, SettingsException>> accounts
+    ) {
         final String defaultAccountName = getDefaultAccountName(settings);
         if (defaultAccountName == null) {
             if (accounts.isEmpty()) {
@@ -167,7 +183,7 @@ public abstract class NotificationService<Account> {
      * {@code SecureSettings} open/available. Normally {@code SecureSettings} are available only under specific callstacks (eg. during node
      * initialization or during a `reload` call). The returned copy can be reused freely as it will never be closed (this is a bit of
      * cheating, but it is necessary in this specific circumstance). Only works for secure settings of type string (not file).
-     * 
+     *
      * @param source
      *            A {@code Settings} object with its {@code SecureSettings} open/available.
      * @param securePluginSettings
@@ -175,16 +191,19 @@ public abstract class NotificationService<Account> {
      * @return A copy of the {@code SecureSettings} of the passed in {@code Settings} argument.
      */
     private static SecureSettings extractSecureSettings(Settings source, List<Setting<?>> securePluginSettings)
-            throws GeneralSecurityException {
+        throws GeneralSecurityException {
         // get the secure settings out
         final SecureSettings sourceSecureSettings = Settings.builder().put(source, true).getSecureSettings();
         // filter and cache them...
-        final Map<String, SecureString> cache = new HashMap<>();
+        final Map<String, Tuple<SecureString, byte[]>> cache = new HashMap<>();
         if (sourceSecureSettings != null && securePluginSettings != null) {
             for (final String settingKey : sourceSecureSettings.getSettingNames()) {
                 for (final Setting<?> secureSetting : securePluginSettings) {
                     if (secureSetting.match(settingKey)) {
-                        cache.put(settingKey, sourceSecureSettings.getString(settingKey));
+                        cache.put(
+                            settingKey,
+                            new Tuple<>(sourceSecureSettings.getString(settingKey), sourceSecureSettings.getSHA256Digest(settingKey))
+                        );
                     }
                 }
             }
@@ -197,8 +216,8 @@ public abstract class NotificationService<Account> {
             }
 
             @Override
-            public SecureString getString(String setting) throws GeneralSecurityException {
-                return cache.get(setting);
+            public SecureString getString(String setting) {
+                return cache.get(setting).v1();
             }
 
             @Override
@@ -207,13 +226,17 @@ public abstract class NotificationService<Account> {
             }
 
             @Override
-            public InputStream getFile(String setting) throws GeneralSecurityException {
+            public InputStream getFile(String setting) {
                 throw new IllegalStateException("A NotificationService setting cannot be File.");
             }
 
             @Override
-            public void close() throws IOException {
+            public byte[] getSHA256Digest(String setting) {
+                return cache.get(setting).v2();
             }
+
+            @Override
+            public void close() throws IOException {}
         };
     }
 }

@@ -1,35 +1,24 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.rescore;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -38,7 +27,10 @@ import java.util.Objects;
  * The abstract base builder for instances of {@link RescorerBuilder}.
  */
 public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
-        implements NamedWriteable, ToXContentObject, Rewriteable<RescorerBuilder<RB>> {
+    implements
+        NamedWriteable,
+        ToXContentObject,
+        Rewriteable<RescorerBuilder<RB>> {
     public static final int DEFAULT_WINDOW_SIZE = 10;
 
     protected Integer windowSize;
@@ -48,8 +40,7 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
     /**
      * Construct an empty RescoreBuilder.
      */
-    public RescorerBuilder() {
-    }
+    public RescorerBuilder() {}
 
     /**
      * Read from a stream.
@@ -122,7 +113,7 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
      * Build the {@linkplain RescoreContext} that will be used to actually
      * execute the rescore against a particular shard.
      */
-    public final RescoreContext buildContext(QueryShardContext context) throws IOException {
+    public final RescoreContext buildContext(SearchExecutionContext context) throws IOException {
         int finalWindowSize = windowSize == null ? DEFAULT_WINDOW_SIZE : windowSize;
         RescoreContext rescoreContext = innerBuildContext(finalWindowSize, context);
         return rescoreContext;
@@ -131,7 +122,7 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
     /**
      * Extensions override this to build the context that they need for rescoring.
      */
-    protected abstract RescoreContext innerBuildContext(int windowSize, QueryShardContext context) throws IOException;
+    protected abstract RescoreContext innerBuildContext(int windowSize, SearchExecutionContext context) throws IOException;
 
     @Override
     public int hashCode() {

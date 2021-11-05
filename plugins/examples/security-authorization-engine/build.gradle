@@ -1,40 +1,56 @@
-apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.java-rest-test'
 
 esplugin {
   name 'security-authorization-engine'
   description 'An example spi extension plugin for security that implements an Authorization Engine'
   classname 'org.elasticsearch.example.AuthorizationEnginePlugin'
   extendedPlugins = ['x-pack-security']
-  licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
+  licenseFile rootProject.file('SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
   noticeFile rootProject.file('NOTICE.txt')
 }
 
-dependencies {
-  compileOnly "org.elasticsearch.plugin:x-pack-core:${versions.elasticsearch}"
-  testCompile "org.elasticsearch.client:x-pack-transport:${versions.elasticsearch}"
-}
-
-integTest {
-  dependsOn buildZip
-  runner {
-    systemProperty 'tests.security.manager', 'false'
+sourceSets {
+  javaRestTest {
+    // let the javaRestTest see the classpath of main
+    compileClasspath += sourceSets.main.output
+    runtimeClasspath += sourceSets.main.output
   }
 }
 
-testClusters.integTest {
+if (!gradle.includedBuilds) {
+  configurations.all {
+    resolutionStrategy.dependencySubstitution {
+      // Temporary workaround for https://github.com/elastic/elasticsearch/issues/77602
+      substitute module('org.elasticsearch:server') using module("org.elasticsearch:elasticsearch:${elasticsearchVersion}")
+      substitute module('org.elasticsearch.client:rest') using module("org.elasticsearch.client:elasticsearch-rest-client:${elasticsearchVersion}")
+    }
+  }
+}
+
+dependencies {
+  compileOnly "org.elasticsearch.plugin:x-pack-core:${elasticsearchVersion}"
+  javaRestTestImplementation "org.elasticsearch.plugin:x-pack-core:${elasticsearchVersion}"
+  javaRestTestImplementation "org.elasticsearch.client:elasticsearch-rest-high-level-client:${elasticsearchVersion}"
+  javaRestTestImplementation "org.elasticsearch.client:elasticsearch-rest-client:${elasticsearchVersion}"
+  javaRestTestImplementation "org.elasticsearch:elasticsearch:${elasticsearchVersion}"
+  javaRestTestImplementation "org.elasticsearch.test:framework:${elasticsearchVersion}"
+}
+
+tasks.named("javaRestTest").configure {
+  systemProperty 'tests.security.manager', 'false'
+}
+
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
   setting 'xpack.security.enabled', 'true'
-  setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
-  setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
 
   // This is important, so that all the modules are available too.
   // There are index templates that use token filters that are in analysis-module and
   // processors are being used that are in ingest-common module.
-  distribution = 'default'
+  testDistribution = 'DEFAULT'
 
   user role: 'custom_superuser'
 }
 
-check.dependsOn integTest

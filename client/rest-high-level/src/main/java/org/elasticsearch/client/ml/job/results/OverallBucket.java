@@ -1,30 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml.job.results;
 
+import org.elasticsearch.client.common.TimeUtil;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.client.ml.job.util.TimeUtil;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -49,14 +38,19 @@ public class OverallBucket implements ToXContentObject {
      */
     public static final String RESULT_TYPE_VALUE = "overall_bucket";
 
-    public static final ConstructingObjectParser<OverallBucket, Void> PARSER =
-        new ConstructingObjectParser<>(RESULT_TYPE_VALUE, true,
-            a -> new OverallBucket((Date) a[0], (long) a[1], (double) a[2], (boolean) a[3]));
+    public static final ConstructingObjectParser<OverallBucket, Void> PARSER = new ConstructingObjectParser<>(
+        RESULT_TYPE_VALUE,
+        true,
+        a -> new OverallBucket((Date) a[0], (long) a[1], (double) a[2], (boolean) a[3])
+    );
 
     static {
-        PARSER.declareField(ConstructingObjectParser.constructorArg(),
-                (p) -> TimeUtil.parseTimeField(p, Result.TIMESTAMP.getPreferredName()),
-                Result.TIMESTAMP, ObjectParser.ValueType.VALUE);
+        PARSER.declareField(
+            ConstructingObjectParser.constructorArg(),
+            (p) -> TimeUtil.parseTimeField(p, Result.TIMESTAMP.getPreferredName()),
+            Result.TIMESTAMP,
+            ObjectParser.ValueType.VALUE
+        );
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
         PARSER.declareDouble(ConstructingObjectParser.constructorArg(), OVERALL_SCORE);
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), Result.IS_INTERIM);
@@ -137,18 +131,21 @@ public class OverallBucket implements ToXContentObject {
         OverallBucket that = (OverallBucket) other;
 
         return Objects.equals(this.timestamp, that.timestamp)
-                && this.bucketSpan == that.bucketSpan
-                && this.overallScore == that.overallScore
-                && Objects.equals(this.jobs, that.jobs)
-                && this.isInterim == that.isInterim;
+            && this.bucketSpan == that.bucketSpan
+            && this.overallScore == that.overallScore
+            && Objects.equals(this.jobs, that.jobs)
+            && this.isInterim == that.isInterim;
     }
 
     public static class JobInfo implements ToXContentObject, Comparable<JobInfo> {
 
         private static final ParseField MAX_ANOMALY_SCORE = new ParseField("max_anomaly_score");
 
-        public static final ConstructingObjectParser<JobInfo, Void> PARSER =
-            new ConstructingObjectParser<>("job_info", true, a -> new JobInfo((String) a[0], (double) a[1]));
+        public static final ConstructingObjectParser<JobInfo, Void> PARSER = new ConstructingObjectParser<>(
+            "job_info",
+            true,
+            a -> new JobInfo((String) a[0], (double) a[1])
+        );
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);

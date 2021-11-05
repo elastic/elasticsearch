@@ -65,6 +65,7 @@ import static java.util.Collections.unmodifiableList;
  *
  * @author jessewilson@google.com (Jesse Wilson)
  */
+@SuppressWarnings("rawtypes")
 public final class Errors {
 
     /**
@@ -109,9 +110,7 @@ public final class Errors {
      * Returns an instance that uses {@code source} as a reference point for newly added errors.
      */
     public Errors withSource(Object source) {
-        return source == SourceProvider.UNKNOWN_SOURCE
-                ? this
-                : new Errors(this, source);
+        return source == SourceProvider.UNKNOWN_SOURCE ? this : new Errors(this, source);
     }
 
     /**
@@ -131,44 +130,76 @@ public final class Errors {
         return addMessage("No implementation for %s was bound.", key);
     }
 
-    public Errors converterReturnedNull(String stringValue, Object source,
-                                        TypeLiteral<?> type, MatcherAndConverter matchingConverter) {
-        return addMessage("Received null converting '%s' (bound at %s) to %s%n"
-                + " using %s.",
-                stringValue, convert(source), type, matchingConverter);
+    public Errors converterReturnedNull(String stringValue, Object source, TypeLiteral<?> type, MatcherAndConverter matchingConverter) {
+        return addMessage(
+            "Received null converting '%s' (bound at %s) to %s%n" + " using %s.",
+            stringValue,
+            convert(source),
+            type,
+            matchingConverter
+        );
     }
 
-    public Errors conversionTypeError(String stringValue, Object source, TypeLiteral<?> type,
-                                      MatcherAndConverter matchingConverter, Object converted) {
-        return addMessage("Type mismatch converting '%s' (bound at %s) to %s%n"
-                + " using %s.%n"
-                + " Converter returned %s.",
-                stringValue, convert(source), type, matchingConverter, converted);
+    public Errors conversionTypeError(
+        String stringValue,
+        Object source,
+        TypeLiteral<?> type,
+        MatcherAndConverter matchingConverter,
+        Object converted
+    ) {
+        return addMessage(
+            "Type mismatch converting '%s' (bound at %s) to %s%n" + " using %s.%n" + " Converter returned %s.",
+            stringValue,
+            convert(source),
+            type,
+            matchingConverter,
+            converted
+        );
     }
 
-    public Errors conversionError(String stringValue, Object source,
-                                  TypeLiteral<?> type, MatcherAndConverter matchingConverter, RuntimeException cause) {
-        return errorInUserCode(cause, "Error converting '%s' (bound at %s) to %s%n"
-                + " using %s.%n"
-                + " Reason: %s",
-                stringValue, convert(source), type, matchingConverter, cause);
+    public Errors conversionError(
+        String stringValue,
+        Object source,
+        TypeLiteral<?> type,
+        MatcherAndConverter matchingConverter,
+        RuntimeException cause
+    ) {
+        return errorInUserCode(
+            cause,
+            "Error converting '%s' (bound at %s) to %s%n" + " using %s.%n" + " Reason: %s",
+            stringValue,
+            convert(source),
+            type,
+            matchingConverter,
+            cause
+        );
     }
 
-    public Errors ambiguousTypeConversion(String stringValue, Object source, TypeLiteral<?> type,
-                                          MatcherAndConverter a, MatcherAndConverter b) {
-        return addMessage("Multiple converters can convert '%s' (bound at %s) to %s:%n"
+    public Errors ambiguousTypeConversion(
+        String stringValue,
+        Object source,
+        TypeLiteral<?> type,
+        MatcherAndConverter a,
+        MatcherAndConverter b
+    ) {
+        return addMessage(
+            "Multiple converters can convert '%s' (bound at %s) to %s:%n"
                 + " %s and%n"
                 + " %s.%n"
                 + " Please adjust your type converter configuration to avoid overlapping matches.",
-                stringValue, convert(source), type, a, b);
+            stringValue,
+            convert(source),
+            type,
+            a,
+            b
+        );
     }
 
     public Errors bindingToProvider() {
         return addMessage("Binding to Provider is not allowed.");
     }
 
-    public Errors subtypeNotProvided(Class<? extends Provider<?>> providerType,
-                                     Class<?> type) {
+    public Errors subtypeNotProvided(Class<? extends Provider<?>> providerType, Class<?> type) {
         return addMessage("%s doesn't provide instances of %s.", providerType, type);
     }
 
@@ -185,8 +216,7 @@ public final class Errors {
     }
 
     public Errors missingRuntimeRetention(Object source) {
-        return addMessage("Please annotate with @Retention(RUNTIME).%n"
-                + " Bound at %s.", convert(source));
+        return addMessage("Please annotate with @Retention(RUNTIME).%n" + " Bound at %s.", convert(source));
     }
 
     public Errors missingScopeAnnotation() {
@@ -194,8 +224,7 @@ public final class Errors {
     }
 
     public Errors optionalConstructor(Constructor constructor) {
-        return addMessage("%s is annotated @Inject(optional=true), "
-                + "but constructors cannot be optional.", constructor);
+        return addMessage("%s is annotated @Inject(optional=true), " + "but constructors cannot be optional.", constructor);
     }
 
     public Errors cannotBindToGuiceType(String simpleName) {
@@ -206,35 +235,36 @@ public final class Errors {
         return addMessage("No scope is bound to %s.", scopeAnnotation);
     }
 
-    public Errors scopeAnnotationOnAbstractType(
-            Class<? extends Annotation> scopeAnnotation, Class<?> type, Object source) {
-        return addMessage("%s is annotated with %s, but scope annotations are not supported "
-                + "for abstract types.%n Bound at %s.", type, scopeAnnotation, convert(source));
+    public Errors scopeAnnotationOnAbstractType(Class<? extends Annotation> scopeAnnotation, Class<?> type, Object source) {
+        return addMessage(
+            "%s is annotated with %s, but scope annotations are not supported " + "for abstract types.%n Bound at %s.",
+            type,
+            scopeAnnotation,
+            convert(source)
+        );
     }
 
     public Errors misplacedBindingAnnotation(Member member, Annotation bindingAnnotation) {
-        return addMessage("%s is annotated with %s, but binding annotations should be applied "
-                + "to its parameters instead.", member, bindingAnnotation);
+        return addMessage(
+            "%s is annotated with %s, but binding annotations should be applied " + "to its parameters instead.",
+            member,
+            bindingAnnotation
+        );
     }
 
-    private static final String CONSTRUCTOR_RULES =
-            "Classes must have either one (and only one) constructor "
-                    + "annotated with @Inject or a zero-argument constructor that is not private.";
+    private static final String CONSTRUCTOR_RULES = "Classes must have either one (and only one) constructor "
+        + "annotated with @Inject or a zero-argument constructor that is not private.";
 
     public Errors missingConstructor(Class<?> implementation) {
-        return addMessage("Could not find a suitable constructor in %s. " + CONSTRUCTOR_RULES,
-                implementation);
+        return addMessage("Could not find a suitable constructor in %s. " + CONSTRUCTOR_RULES, implementation);
     }
 
     public Errors tooManyConstructors(Class<?> implementation) {
-        return addMessage("%s has more than one constructor annotated with @Inject. "
-                + CONSTRUCTOR_RULES, implementation);
+        return addMessage("%s has more than one constructor annotated with @Inject. " + CONSTRUCTOR_RULES, implementation);
     }
 
-    public Errors duplicateScopes(Scope existing,
-                                  Class<? extends Annotation> annotationType, Scope scope) {
-        return addMessage("Scope %s is already bound to %s. Cannot bind %s.", existing,
-                annotationType, scope);
+    public Errors duplicateScopes(Scope existing, Class<? extends Annotation> annotationType, Scope scope) {
+        return addMessage("Scope %s is already bound to %s. Cannot bind %s.", existing, annotationType, scope);
     }
 
     public Errors voidProviderMethod() {
@@ -246,18 +276,17 @@ public final class Errors {
     }
 
     public Errors cannotInjectInnerClass(Class<?> type) {
-        return addMessage("Injecting into inner classes is not supported.  "
-                + "Please use a 'static' class (top-level or nested) instead of %s.", type);
+        return addMessage(
+            "Injecting into inner classes is not supported.  " + "Please use a 'static' class (top-level or nested) instead of %s.",
+            type
+        );
     }
 
-    public Errors duplicateBindingAnnotations(Member member,
-                                              Class<? extends Annotation> a, Class<? extends Annotation> b) {
-        return addMessage("%s has more than one annotation annotated with @BindingAnnotation: "
-                + "%s and %s", member, a, b);
+    public Errors duplicateBindingAnnotations(Member member, Class<? extends Annotation> a, Class<? extends Annotation> b) {
+        return addMessage("%s has more than one annotation annotated with @BindingAnnotation: " + "%s and %s", member, a, b);
     }
 
-    public Errors duplicateScopeAnnotations(
-            Class<? extends Annotation> a, Class<? extends Annotation> b) {
+    public Errors duplicateScopeAnnotations(Class<? extends Annotation> a, Class<? extends Annotation> b) {
         return addMessage("More than one scope annotation was found: %s and %s.", a, b);
     }
 
@@ -277,12 +306,15 @@ public final class Errors {
         return errorInUserCode(cause, "Error injecting method, %s", cause);
     }
 
-    public Errors errorNotifyingTypeListener(TypeListenerBinding listener,
-                                             TypeLiteral<?> type, Throwable cause) {
-        return errorInUserCode(cause,
-                "Error notifying TypeListener %s (bound at %s) of %s.%n"
-                        + " Reason: %s",
-                listener.getListener(), convert(listener.getSource()), type, cause);
+    public Errors errorNotifyingTypeListener(TypeListenerBinding listener, TypeLiteral<?> type, Throwable cause) {
+        return errorInUserCode(
+            cause,
+            "Error notifying TypeListener %s (bound at %s) of %s.%n" + " Reason: %s",
+            listener.getListener(),
+            convert(listener.getSource()),
+            type,
+            cause
+        );
     }
 
     public Errors errorInjectingConstructor(Throwable cause) {
@@ -293,16 +325,12 @@ public final class Errors {
         return errorInUserCode(runtimeException, "Error in custom provider, %s", runtimeException);
     }
 
-    public Errors errorInUserInjector(
-            MembersInjector<?> listener, TypeLiteral<?> type, RuntimeException cause) {
-        return errorInUserCode(cause, "Error injecting %s using %s.%n"
-                + " Reason: %s", type, listener, cause);
+    public Errors errorInUserInjector(MembersInjector<?> listener, TypeLiteral<?> type, RuntimeException cause) {
+        return errorInUserCode(cause, "Error injecting %s using %s.%n" + " Reason: %s", type, listener, cause);
     }
 
-    public Errors errorNotifyingInjectionListener(
-            InjectionListener<?> listener, TypeLiteral<?> type, RuntimeException cause) {
-        return errorInUserCode(cause, "Error notifying InjectionListener %s of %s.%n"
-                + " Reason: %s", listener, type, cause);
+    public Errors errorNotifyingInjectionListener(InjectionListener<?> listener, TypeLiteral<?> type, RuntimeException cause) {
+        return errorInUserCode(cause, "Error notifying InjectionListener %s of %s.%n" + " Reason: %s", listener, type, cause);
     }
 
     public void exposedButNotBound(Key<?> key) {
@@ -324,7 +352,7 @@ public final class Errors {
     public Errors errorInUserCode(Throwable cause, String messageFormat, Object... arguments) {
         Collection<Message> messages = getMessagesFromThrowable(cause);
 
-        if (!messages.isEmpty()) {
+        if (messages.isEmpty() == false) {
             return merge(messages);
         } else {
             return addMessage(cause, messageFormat, arguments);
@@ -348,13 +376,11 @@ public final class Errors {
     }
 
     public Errors cannotSatisfyCircularDependency(Class<?> expectedType) {
-        return addMessage(
-                "Tried proxying %s to support a circular dependency, but it is not an interface.",
-                expectedType);
+        return addMessage("Tried proxying %s to support a circular dependency, but it is not an interface.", expectedType);
     }
 
     public void throwCreationExceptionIfErrorsExist() {
-        if (!hasErrors()) {
+        if (hasErrors() == false) {
             return;
         }
 
@@ -362,7 +388,7 @@ public final class Errors {
     }
 
     public void throwConfigurationExceptionIfErrorsExist() {
-        if (!hasErrors()) {
+        if (hasErrors() == false) {
             return;
         }
 
@@ -370,7 +396,7 @@ public final class Errors {
     }
 
     public void throwProvisionExceptionIfErrorsExist() {
-        if (!hasErrors()) {
+        if (hasErrors() == false) {
             return;
         }
 
@@ -509,18 +535,19 @@ public final class Errors {
      * Returns {@code value} if it is non-null allowed to be null. Otherwise a message is added and
      * an {@code ErrorsException} is thrown.
      */
-    public <T> T checkForNull(T value, Object source, Dependency<?> dependency)
-            throws ErrorsException {
+    public <T> T checkForNull(T value, Object source, Dependency<?> dependency) throws ErrorsException {
         if (value != null || dependency.isNullable()) {
             return value;
         }
 
         int parameterIndex = dependency.getParameterIndex();
-        String parameterName = (parameterIndex != -1)
-                ? "parameter " + parameterIndex + " of "
-                : "";
-        addMessage("null returned by binding at %s%n but %s%s is not @Nullable",
-                source, parameterName, dependency.getInjectionPoint().getMember());
+        String parameterName = (parameterIndex != -1) ? "parameter " + parameterIndex + " of " : "";
+        addMessage(
+            "null returned by binding at %s%n but %s%s is not @Nullable",
+            source,
+            parameterName,
+            dependency.getInjectionPoint().getMember()
+        );
 
         throw toException();
     }
@@ -570,31 +597,28 @@ public final class Errors {
         abstract String toString(T t);
     }
 
-    private static final Collection<Converter<?>> converters = Arrays.asList(
-            new Converter<Class>(Class.class) {
-                @Override
-                public String toString(Class c) {
-                    return c.getName();
-                }
-            },
-            new Converter<Member>(Member.class) {
-                @Override
-                public String toString(Member member) {
-                    return MoreTypes.toString(member);
-                }
-            },
-            new Converter<Key>(Key.class) {
-                @Override
-                public String toString(Key key) {
-                    if (key.getAnnotationType() != null) {
-                        return key.getTypeLiteral() + " annotated with "
-                                + (key.getAnnotation() != null ? key.getAnnotation() : key.getAnnotationType());
-                    } else {
-                        return key.getTypeLiteral().toString();
-                    }
-                }
+    private static final Collection<Converter<?>> converters = Arrays.asList(new Converter<Class>(Class.class) {
+        @Override
+        public String toString(Class c) {
+            return c.getName();
+        }
+    }, new Converter<Member>(Member.class) {
+        @Override
+        public String toString(Member member) {
+            return MoreTypes.toString(member);
+        }
+    }, new Converter<Key>(Key.class) {
+        @Override
+        public String toString(Key key) {
+            if (key.getAnnotationType() != null) {
+                return key.getTypeLiteral()
+                    + " annotated with "
+                    + (key.getAnnotation() != null ? key.getAnnotation() : key.getAnnotationType());
+            } else {
+                return key.getTypeLiteral().toString();
             }
-    );
+        }
+    });
 
     public static Object convert(Object o) {
         for (Converter<?> converter : converters) {
@@ -636,8 +660,7 @@ public final class Errors {
         }
     }
 
-    public static void formatInjectionPoint(Formatter formatter, Dependency<?> dependency,
-                                            InjectionPoint injectionPoint) {
+    public static void formatInjectionPoint(Formatter formatter, Dependency<?> dependency, InjectionPoint injectionPoint) {
         Member member = injectionPoint.getMember();
         Class<? extends Member> memberType = MoreTypes.memberType(member);
 
@@ -648,8 +671,7 @@ public final class Errors {
 
         } else if (dependency != null) {
             formatter.format("  while locating %s%n", convert(dependency.getKey()));
-            formatter.format("    for parameter %s at %s%n",
-                    dependency.getParameterIndex(), StackTraceElements.forMember(member));
+            formatter.format("    for parameter %s at %s%n", dependency.getParameterIndex(), StackTraceElements.forMember(member));
 
         } else {
             formatSource(formatter, injectionPoint.getMember());

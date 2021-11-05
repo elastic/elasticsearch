@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.node.tasks.get;
@@ -23,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -32,12 +22,9 @@ import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -45,10 +32,10 @@ import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -56,7 +43,7 @@ import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskActio
 import static org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction.waitForCompletionTimeout;
 
 /**
- * Action to get a single task. If the task isn't running then it'll try to request the status from request index.
+ * ActionType to get a single task. If the task isn't running then it'll try to request the status from request index.
  *
  * The general flow is:
  * <ul>
@@ -73,8 +60,14 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
     private final NamedXContentRegistry xContentRegistry;
 
     @Inject
-    public TransportGetTaskAction(ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
-            ClusterService clusterService, Client client, NamedXContentRegistry xContentRegistry) {
+    public TransportGetTaskAction(
+        ThreadPool threadPool,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ClusterService clusterService,
+        Client client,
+        NamedXContentRegistry xContentRegistry
+    ) {
         super(GetTaskAction.NAME, transportService, actionFilters, GetTaskRequest::new);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -98,49 +91,32 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
      * {@link #getFinishedTaskFromIndex(Task, GetTaskRequest, ActionListener)} on this node.
      */
     private void runOnNodeWithTaskIfPossible(Task thisTask, GetTaskRequest request, ActionListener<GetTaskResponse> listener) {
-        TransportRequestOptions.Builder builder = TransportRequestOptions.builder();
-        if (request.getTimeout() != null) {
-            builder.withTimeout(request.getTimeout());
-        }
         DiscoveryNode node = clusterService.state().nodes().get(request.getTaskId().getNodeId());
         if (node == null) {
             // Node is no longer part of the cluster! Try and look the task up from the results index.
             getFinishedTaskFromIndex(thisTask, request, ActionListener.wrap(listener::onResponse, e -> {
                 if (e instanceof ResourceNotFoundException) {
                     e = new ResourceNotFoundException(
-                            "task [" + request.getTaskId() + "] belongs to the node [" + request.getTaskId().getNodeId()
-                                    + "] which isn't part of the cluster and there is no record of the task",
-                            e);
+                        "task ["
+                            + request.getTaskId()
+                            + "] belongs to the node ["
+                            + request.getTaskId().getNodeId()
+                            + "] which isn't part of the cluster and there is no record of the task",
+                        e
+                    );
                 }
                 listener.onFailure(e);
             }));
             return;
         }
         GetTaskRequest nodeRequest = request.nodeRequest(clusterService.localNode().getId(), thisTask.getId());
-        transportService.sendRequest(node, GetTaskAction.NAME, nodeRequest, builder.build(),
-                new TransportResponseHandler<GetTaskResponse>() {
-                    @Override
-                    public GetTaskResponse read(StreamInput in) throws IOException {
-                        GetTaskResponse response = new GetTaskResponse();
-                        response.readFrom(in);
-                        return response;
-                    }
-
-                    @Override
-                    public void handleResponse(GetTaskResponse response) {
-                        listener.onResponse(response);
-                    }
-
-                    @Override
-                    public void handleException(TransportException exp) {
-                        listener.onFailure(exp);
-                    }
-
-                    @Override
-                    public String executor() {
-                        return ThreadPool.Names.SAME;
-                    }
-                });
+        transportService.sendRequest(
+            node,
+            GetTaskAction.NAME,
+            nodeRequest,
+            TransportRequestOptions.timeout(request.getTimeout()),
+            new ActionListenerResponseHandler<>(listener, GetTaskResponse::new, ThreadPool.Names.SAME)
+        );
     }
 
     /**
@@ -178,18 +154,22 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
      * Called after waiting for the task to complete. Attempts to load the results of the task from the tasks index. If it isn't in the
      * index then returns a snapshot of the task taken shortly after completion.
      */
-    void waitedForCompletion(Task thisTask, GetTaskRequest request, TaskInfo snapshotOfRunningTask,
-            ActionListener<GetTaskResponse> listener) {
-        getFinishedTaskFromIndex(thisTask, request, ActionListener.delegateResponse(listener, (delegatedListener, e) -> {
-                /*
-                 * We couldn't load the task from the task index. Instead of 404 we should use the snapshot we took after it finished. If
-                 * the error isn't a 404 then we'll just throw it back to the user.
-                 */
-                if (ExceptionsHelper.unwrap(e, ResourceNotFoundException.class) != null) {
-                    delegatedListener.onResponse(new GetTaskResponse(new TaskResult(true, snapshotOfRunningTask)));
-                } else {
-                    delegatedListener.onFailure(e);
-                }
+    void waitedForCompletion(
+        Task thisTask,
+        GetTaskRequest request,
+        TaskInfo snapshotOfRunningTask,
+        ActionListener<GetTaskResponse> listener
+    ) {
+        getFinishedTaskFromIndex(thisTask, request, listener.delegateResponse((delegatedListener, e) -> {
+            /*
+             * We couldn't load the task from the task index. Instead of 404 we should use the snapshot we took after it finished. If
+             * the error isn't a 404 then we'll just throw it back to the user.
+             */
+            if (ExceptionsHelper.unwrap(e, ResourceNotFoundException.class) != null) {
+                delegatedListener.onResponse(new GetTaskResponse(new TaskResult(true, snapshotOfRunningTask)));
+            } else {
+                delegatedListener.onFailure(e);
+            }
         }));
     }
 
@@ -199,15 +179,15 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
      * coordinating node if the node is no longer part of the cluster.
      */
     void getFinishedTaskFromIndex(Task thisTask, GetTaskRequest request, ActionListener<GetTaskResponse> listener) {
-        GetRequest get = new GetRequest(TaskResultsService.TASK_INDEX, TaskResultsService.TASK_TYPE,
-                request.getTaskId().toString());
+        GetRequest get = new GetRequest(TaskResultsService.TASK_INDEX, request.getTaskId().toString());
         get.setParentTask(clusterService.localNode().getId(), thisTask.getId());
 
         client.get(get, ActionListener.wrap(r -> onGetFinishedTaskFromIndex(r, listener), e -> {
             if (ExceptionsHelper.unwrap(e, IndexNotFoundException.class) != null) {
                 // We haven't yet created the index for the task results so it can't be found.
-                listener.onFailure(new ResourceNotFoundException("task [{}] isn't running and hasn't stored its results", e,
-                    request.getTaskId()));
+                listener.onFailure(
+                    new ResourceNotFoundException("task [{}] isn't running and hasn't stored its results", e, request.getTaskId())
+                );
             } else {
                 listener.onFailure(e);
             }
@@ -227,8 +207,13 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
             listener.onFailure(new ElasticsearchException("Stored task status for [{}] didn't contain any source!", response.getId()));
             return;
         }
-        try (XContentParser parser = XContentHelper
-                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, response.getSourceAsBytesRef())) {
+        try (
+            XContentParser parser = XContentHelper.createParser(
+                xContentRegistry,
+                LoggingDeprecationHandler.INSTANCE,
+                response.getSourceAsBytesRef()
+            )
+        ) {
             TaskResult result = TaskResult.PARSER.apply(parser, null);
             listener.onResponse(new GetTaskResponse(result));
         }

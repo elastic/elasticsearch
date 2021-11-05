@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.transport;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelException;
 import io.netty.handler.ssl.SslHandler;
+
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
@@ -22,10 +24,11 @@ import org.elasticsearch.transport.nio.NioTcpChannel;
 import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
 import org.elasticsearch.xpack.security.transport.nio.SSLChannelContext;
 
-import javax.net.ssl.SSLEngine;
-import javax.net.ssl.SSLPeerUnverifiedException;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
+
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLPeerUnverifiedException;
 
 public class SSLEngineUtils {
 
@@ -90,8 +93,9 @@ public class SSLEngineUtils {
             assert sslEngine.getWantClientAuth();
             if (logger.isTraceEnabled()) {
                 logger.trace(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                        "SSL Peer did not present a certificate on channel [{}]", channel), e);
+                    (Supplier<?>) () -> new ParameterizedMessage("SSL Peer did not present a certificate on channel [{}]", channel),
+                    e
+                );
             } else if (logger.isDebugEnabled()) {
                 logger.debug("SSL Peer did not present a certificate on channel [{}]", channel);
             }

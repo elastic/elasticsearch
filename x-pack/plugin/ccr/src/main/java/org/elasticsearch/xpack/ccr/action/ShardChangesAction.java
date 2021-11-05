@@ -1,21 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr.action;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -24,12 +26,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.MissingHistoryOperationsException;
+import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.shard.GlobalCheckpointListeners;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -37,45 +41,38 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
-public class ShardChangesAction extends Action<ShardChangesAction.Response> {
+public class ShardChangesAction extends ActionType<ShardChangesAction.Response> {
 
     public static final ShardChangesAction INSTANCE = new ShardChangesAction();
     public static final String NAME = "indices:data/read/xpack/ccr/shard_changes";
 
     private ShardChangesAction() {
-        super(NAME);
+        super(NAME, ShardChangesAction.Response::new);
     }
 
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
-    }
-
-    public static class Request extends SingleShardRequest<Request> {
+    public static class Request extends SingleShardRequest<Request> implements RawIndexingDataTransportRequest {
 
         private long fromSeqNo;
         private int maxOperationCount;
-        private ShardId shardId;
-        private String expectedHistoryUUID;
+        private final ShardId shardId;
+        private final String expectedHistoryUUID;
         private TimeValue pollTimeout = TransportResumeFollowAction.DEFAULT_READ_POLL_TIMEOUT;
         private ByteSizeValue maxBatchSize = TransportResumeFollowAction.DEFAULT_MAX_READ_REQUEST_SIZE;
 
@@ -87,7 +84,17 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             this.expectedHistoryUUID = expectedHistoryUUID;
         }
 
-        Request() {
+        Request(StreamInput in) throws IOException {
+            super(in);
+            fromSeqNo = in.readVLong();
+            maxOperationCount = in.readVInt();
+            shardId = new ShardId(in);
+            expectedHistoryUUID = in.readString();
+            pollTimeout = in.readTimeValue();
+            maxBatchSize = new ByteSizeValue(in);
+
+            // Starting the clock in order to know how much time is spent on fetching operations:
+            relativeStartNanos = System.nanoTime();
         }
 
         public ShardId getShard() {
@@ -137,28 +144,18 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
                 validationException = addValidationError("fromSeqNo [" + fromSeqNo + "] cannot be lower than 0", validationException);
             }
             if (maxOperationCount < 0) {
-                validationException = addValidationError("maxOperationCount [" + maxOperationCount +
-                    "] cannot be lower than 0", validationException);
+                validationException = addValidationError(
+                    "maxOperationCount [" + maxOperationCount + "] cannot be lower than 0",
+                    validationException
+                );
             }
             if (maxBatchSize.compareTo(ByteSizeValue.ZERO) <= 0) {
-                validationException =
-                        addValidationError("maxBatchSize [" + maxBatchSize.getStringRep() + "] must be larger than 0", validationException);
+                validationException = addValidationError(
+                    "maxBatchSize [" + maxBatchSize.getStringRep() + "] must be larger than 0",
+                    validationException
+                );
             }
             return validationException;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            fromSeqNo = in.readVLong();
-            maxOperationCount = in.readVInt();
-            shardId = new ShardId(in);
-            expectedHistoryUUID = in.readString();
-            pollTimeout = in.readTimeValue();
-            maxBatchSize = new ByteSizeValue(in);
-
-            // Starting the clock in order to know how much time is spent on fetching operations:
-            relativeStartNanos = System.nanoTime();
         }
 
         @Override
@@ -172,18 +169,22 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             maxBatchSize.writeTo(out);
         }
 
+        @Override
+        public String getDescription() {
+            return "shardId[" + shardId + "]";
+        }
 
         @Override
         public boolean equals(final Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             final Request request = (Request) o;
-            return fromSeqNo == request.fromSeqNo &&
-                    maxOperationCount == request.maxOperationCount &&
-                    Objects.equals(shardId, request.shardId) &&
-                    Objects.equals(expectedHistoryUUID, request.expectedHistoryUUID) &&
-                    Objects.equals(pollTimeout, request.pollTimeout) &&
-                    maxBatchSize.equals(request.maxBatchSize);
+            return fromSeqNo == request.fromSeqNo
+                && maxOperationCount == request.maxOperationCount
+                && Objects.equals(shardId, request.shardId)
+                && Objects.equals(expectedHistoryUUID, request.expectedHistoryUUID)
+                && Objects.equals(pollTimeout, request.pollTimeout)
+                && maxBatchSize.equals(request.maxBatchSize);
         }
 
         @Override
@@ -193,14 +194,20 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
 
         @Override
         public String toString() {
-            return "Request{" +
-                    "fromSeqNo=" + fromSeqNo +
-                    ", maxOperationCount=" + maxOperationCount +
-                    ", shardId=" + shardId +
-                    ", expectedHistoryUUID=" + expectedHistoryUUID +
-                    ", pollTimeout=" + pollTimeout +
-                    ", maxBatchSize=" + maxBatchSize.getStringRep() +
-                    '}';
+            return "Request{"
+                + "fromSeqNo="
+                + fromSeqNo
+                + ", maxOperationCount="
+                + maxOperationCount
+                + ", shardId="
+                + shardId
+                + ", expectedHistoryUUID="
+                + expectedHistoryUUID
+                + ", pollTimeout="
+                + pollTimeout
+                + ", maxBatchSize="
+                + maxBatchSize.getStringRep()
+                + '}';
         }
 
     }
@@ -217,6 +224,12 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
 
         public long getSettingsVersion() {
             return settingsVersion;
+        }
+
+        private long aliasesVersion;
+
+        public long getAliasesVersion() {
+            return aliasesVersion;
         }
 
         private long globalCheckpoint;
@@ -249,13 +262,17 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             return tookInMillis;
         }
 
-        Response() {
-        }
+        Response() {}
 
         Response(StreamInput in) throws IOException {
             super(in);
             mappingVersion = in.readVLong();
             settingsVersion = in.readVLong();
+            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
+                aliasesVersion = in.readVLong();
+            } else {
+                aliasesVersion = 0;
+            }
             globalCheckpoint = in.readZLong();
             maxSeqNo = in.readZLong();
             maxSeqNoOfUpdatesOrDeletes = in.readZLong();
@@ -266,14 +283,16 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         Response(
             final long mappingVersion,
             final long settingsVersion,
+            final long aliasesVersion,
             final long globalCheckpoint,
             final long maxSeqNo,
             final long maxSeqNoOfUpdatesOrDeletes,
             final Translog.Operation[] operations,
-            final long tookInMillis) {
-
+            final long tookInMillis
+        ) {
             this.mappingVersion = mappingVersion;
             this.settingsVersion = settingsVersion;
+            this.aliasesVersion = aliasesVersion;
             this.globalCheckpoint = globalCheckpoint;
             this.maxSeqNo = maxSeqNo;
             this.maxSeqNoOfUpdatesOrDeletes = maxSeqNoOfUpdatesOrDeletes;
@@ -282,15 +301,12 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         }
 
         @Override
-        public void readFrom(final StreamInput in) {
-            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-        }
-
-        @Override
         public void writeTo(final StreamOutput out) throws IOException {
-            super.writeTo(out);
             out.writeVLong(mappingVersion);
             out.writeVLong(settingsVersion);
+            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
+                out.writeVLong(aliasesVersion);
+            }
             out.writeZLong(globalCheckpoint);
             out.writeZLong(maxSeqNo);
             out.writeZLong(maxSeqNoOfUpdatesOrDeletes);
@@ -303,25 +319,28 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             final Response that = (Response) o;
-            return mappingVersion == that.mappingVersion &&
-                    settingsVersion == that.settingsVersion &&
-                    globalCheckpoint == that.globalCheckpoint &&
-                    maxSeqNo == that.maxSeqNo &&
-                    maxSeqNoOfUpdatesOrDeletes == that.maxSeqNoOfUpdatesOrDeletes &&
-                    Arrays.equals(operations, that.operations) &&
-                    tookInMillis == that.tookInMillis;
+            return mappingVersion == that.mappingVersion
+                && settingsVersion == that.settingsVersion
+                && aliasesVersion == that.aliasesVersion
+                && globalCheckpoint == that.globalCheckpoint
+                && maxSeqNo == that.maxSeqNo
+                && maxSeqNoOfUpdatesOrDeletes == that.maxSeqNoOfUpdatesOrDeletes
+                && Arrays.equals(operations, that.operations)
+                && tookInMillis == that.tookInMillis;
         }
 
         @Override
         public int hashCode() {
             return Objects.hash(
-                    mappingVersion,
-                    settingsVersion,
-                    globalCheckpoint,
-                    maxSeqNo,
-                    maxSeqNoOfUpdatesOrDeletes,
-                    Arrays.hashCode(operations),
-                    tookInMillis);
+                mappingVersion,
+                settingsVersion,
+                aliasesVersion,
+                globalCheckpoint,
+                maxSeqNo,
+                maxSeqNoOfUpdatesOrDeletes,
+                Arrays.hashCode(operations),
+                tookInMillis
+            );
         }
     }
 
@@ -330,14 +349,24 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         private final IndicesService indicesService;
 
         @Inject
-        public TransportAction(ThreadPool threadPool,
-                               ClusterService clusterService,
-                               TransportService transportService,
-                               ActionFilters actionFilters,
-                               IndexNameExpressionResolver indexNameExpressionResolver,
-                               IndicesService indicesService) {
-            super(NAME, threadPool, clusterService, transportService, actionFilters,
-                indexNameExpressionResolver, Request::new, ThreadPool.Names.SEARCH);
+        public TransportAction(
+            ThreadPool threadPool,
+            ClusterService clusterService,
+            TransportService transportService,
+            ActionFilters actionFilters,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            IndicesService indicesService
+        ) {
+            super(
+                NAME,
+                threadPool,
+                clusterService,
+                transportService,
+                actionFilters,
+                indexNameExpressionResolver,
+                Request::new,
+                ThreadPool.Names.SEARCH
+            );
             this.indicesService = indicesService;
         }
 
@@ -347,67 +376,78 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             final IndexShard indexShard = indexService.getShard(request.getShard().id());
             final SeqNoStats seqNoStats = indexShard.seqNoStats();
             final Translog.Operation[] operations = getOperations(
-                    indexShard,
-                    seqNoStats.getGlobalCheckpoint(),
-                    request.getFromSeqNo(),
-                    request.getMaxOperationCount(),
-                    request.getExpectedHistoryUUID(),
-                    request.getMaxBatchSize());
+                indexShard,
+                seqNoStats.getGlobalCheckpoint(),
+                request.getFromSeqNo(),
+                request.getMaxOperationCount(),
+                request.getExpectedHistoryUUID(),
+                request.getMaxBatchSize()
+            );
             // must capture after snapshotting operations to ensure this MUS is at least the highest MUS of any of these operations.
             final long maxSeqNoOfUpdatesOrDeletes = indexShard.getMaxSeqNoOfUpdatesOrDeletes();
-            // must capture IndexMetaData after snapshotting operations to ensure the returned mapping version is at least as up-to-date
-            // as the mapping version that these operations used. Here we must not use IndexMetaData from ClusterService for we expose
+            // must capture IndexMetadata after snapshotting operations to ensure the returned mapping version is at least as up-to-date
+            // as the mapping version that these operations used. Here we must not use IndexMetadata from ClusterService for we expose
             // a new cluster state to ClusterApplier(s) before exposing it in the ClusterService.
-            final IndexMetaData indexMetaData = indexService.getMetaData();
-            final long mappingVersion = indexMetaData.getMappingVersion();
-            final long settingsVersion = indexMetaData.getSettingsVersion();
+            final IndexMetadata indexMetadata = indexService.getMetadata();
+            final long mappingVersion = indexMetadata.getMappingVersion();
+            final long settingsVersion = indexMetadata.getSettingsVersion();
+            final long aliasesVersion = indexMetadata.getAliasesVersion();
             return getResponse(
-                    mappingVersion,
-                    settingsVersion,
-                    seqNoStats,
-                    maxSeqNoOfUpdatesOrDeletes,
-                    operations,
-                    request.relativeStartNanos);
+                mappingVersion,
+                settingsVersion,
+                aliasesVersion,
+                seqNoStats,
+                maxSeqNoOfUpdatesOrDeletes,
+                operations,
+                request.relativeStartNanos
+            );
         }
 
         @Override
-        protected void asyncShardOperation(
-                final Request request,
-                final ShardId shardId,
-                final ActionListener<Response> listener) throws IOException {
+        protected void asyncShardOperation(final Request request, final ShardId shardId, final ActionListener<Response> listener)
+            throws IOException {
             final IndexService indexService = indicesService.indexServiceSafe(request.getShard().getIndex());
             final IndexShard indexShard = indexService.getShard(request.getShard().id());
             final SeqNoStats seqNoStats = indexShard.seqNoStats();
 
             if (request.getFromSeqNo() > seqNoStats.getGlobalCheckpoint()) {
                 logger.trace(
-                        "{} waiting for global checkpoint advancement from [{}] to [{}]",
-                        shardId,
-                        seqNoStats.getGlobalCheckpoint(),
-                        request.getFromSeqNo());
-                indexShard.addGlobalCheckpointListener(
-                        request.getFromSeqNo(),
-                        (g, e) -> {
-                            if (g != UNASSIGNED_SEQ_NO) {
-                                assert request.getFromSeqNo() <= g
-                                        : shardId + " only advanced to [" + g + "] while waiting for [" + request.getFromSeqNo() + "]";
-                                globalCheckpointAdvanced(shardId, g, request, listener);
-                            } else {
-                                assert e != null;
-                                globalCheckpointAdvancementFailure(shardId, e, request, listener, indexShard);
-                            }
-                        },
-                        request.getPollTimeout());
+                    "{} waiting for global checkpoint advancement from [{}] to [{}]",
+                    shardId,
+                    seqNoStats.getGlobalCheckpoint(),
+                    request.getFromSeqNo()
+                );
+                indexShard.addGlobalCheckpointListener(request.getFromSeqNo(), new GlobalCheckpointListeners.GlobalCheckpointListener() {
+
+                    @Override
+                    public Executor executor() {
+                        return threadPool.executor(Ccr.CCR_THREAD_POOL_NAME);
+                    }
+
+                    @Override
+                    public void accept(final long g, final Exception e) {
+                        if (g != UNASSIGNED_SEQ_NO) {
+                            assert request.getFromSeqNo() <= g
+                                : shardId + " only advanced to [" + g + "] while waiting for [" + request.getFromSeqNo() + "]";
+                            globalCheckpointAdvanced(shardId, g, request, listener);
+                        } else {
+                            assert e != null;
+                            globalCheckpointAdvancementFailure(shardId, e, request, listener, indexShard);
+                        }
+                    }
+
+                }, request.getPollTimeout());
             } else {
                 super.asyncShardOperation(request, shardId, listener);
             }
         }
 
         private void globalCheckpointAdvanced(
-                final ShardId shardId,
-                final long globalCheckpoint,
-                final Request request,
-                final ActionListener<Response> listener) {
+            final ShardId shardId,
+            final long globalCheckpoint,
+            final Request request,
+            final ActionListener<Response> listener
+        ) {
             logger.trace("{} global checkpoint advanced to [{}] after waiting for [{}]", shardId, globalCheckpoint, request.getFromSeqNo());
             try {
                 super.asyncShardOperation(request, shardId, listener);
@@ -417,35 +457,44 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         }
 
         private void globalCheckpointAdvancementFailure(
-                final ShardId shardId,
-                final Exception e,
-                final Request request,
-                final ActionListener<Response> listener,
-                final IndexShard indexShard) {
+            final ShardId shardId,
+            final Exception e,
+            final Request request,
+            final ActionListener<Response> listener,
+            final IndexShard indexShard
+        ) {
             logger.trace(
-                    () -> new ParameterizedMessage(
-                            "{} exception waiting for global checkpoint advancement to [{}]", shardId, request.getFromSeqNo()),
-                    e);
+                () -> new ParameterizedMessage(
+                    "{} exception waiting for global checkpoint advancement to [{}]",
+                    shardId,
+                    request.getFromSeqNo()
+                ),
+                e
+            );
             if (e instanceof TimeoutException) {
                 try {
-                    final IndexMetaData indexMetaData = clusterService.state().metaData().index(shardId.getIndex());
-                    if (indexMetaData == null) {
+                    final IndexMetadata indexMetadata = clusterService.state().metadata().index(shardId.getIndex());
+                    if (indexMetadata == null) {
                         listener.onFailure(new IndexNotFoundException(shardId.getIndex()));
                         return;
                     }
-
-                    final long mappingVersion = indexMetaData.getMappingVersion();
-                    final long settingsVersion = indexMetaData.getSettingsVersion();
+                    checkHistoryUUID(indexShard, request.expectedHistoryUUID);
+                    final long mappingVersion = indexMetadata.getMappingVersion();
+                    final long settingsVersion = indexMetadata.getSettingsVersion();
+                    final long aliasesVersion = indexMetadata.getAliasesVersion();
                     final SeqNoStats latestSeqNoStats = indexShard.seqNoStats();
                     final long maxSeqNoOfUpdatesOrDeletes = indexShard.getMaxSeqNoOfUpdatesOrDeletes();
                     listener.onResponse(
-                            getResponse(
-                                    mappingVersion,
-                                    settingsVersion,
-                                    latestSeqNoStats,
-                                    maxSeqNoOfUpdatesOrDeletes,
-                                    EMPTY_OPERATIONS_ARRAY,
-                                    request.relativeStartNanos));
+                        getResponse(
+                            mappingVersion,
+                            settingsVersion,
+                            aliasesVersion,
+                            latestSeqNoStats,
+                            maxSeqNoOfUpdatesOrDeletes,
+                            EMPTY_OPERATIONS_ARRAY,
+                            request.relativeStartNanos
+                        )
+                    );
                 } catch (final Exception caught) {
                     caught.addSuppressed(e);
                     listener.onFailure(caught);
@@ -462,10 +511,9 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
 
         @Override
         protected ShardsIterator shards(ClusterState state, InternalRequest request) {
-            return state
-                    .routingTable()
-                    .shardRoutingTable(request.concreteIndex(), request.request().getShard().id())
-                    .activeInitializingShardsRandomIt();
+            return state.routingTable()
+                .shardRoutingTable(request.concreteIndex(), request.request().getShard().id())
+                .activeInitializingShardsRandomIt();
         }
 
         @Override
@@ -476,6 +524,15 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
     }
 
     static final Translog.Operation[] EMPTY_OPERATIONS_ARRAY = new Translog.Operation[0];
+
+    private static void checkHistoryUUID(IndexShard indexShard, String expectedHistoryUUID) {
+        final String historyUUID = indexShard.getHistoryUUID();
+        if (historyUUID.equals(expectedHistoryUUID) == false) {
+            throw new IllegalStateException(
+                "unexpected history uuid, expected [" + expectedHistoryUUID + "], actual [" + historyUUID + "]"
+            );
+        }
+    }
 
     /**
      * Returns at most the specified maximum number of operations from the specified from sequence number. This method will never return
@@ -494,30 +551,28 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
      * @throws IOException if an I/O exception occurs reading the operations
      */
     static Translog.Operation[] getOperations(
-            final IndexShard indexShard,
-            final long globalCheckpoint,
-            final long fromSeqNo,
-            final int maxOperationCount,
-            final String expectedHistoryUUID,
-            final ByteSizeValue maxBatchSize) throws IOException {
+        final IndexShard indexShard,
+        final long globalCheckpoint,
+        final long fromSeqNo,
+        final int maxOperationCount,
+        final String expectedHistoryUUID,
+        final ByteSizeValue maxBatchSize
+    ) throws IOException {
         if (indexShard.state() != IndexShardState.STARTED) {
             throw new IndexShardNotStartedException(indexShard.shardId(), indexShard.state());
         }
-        final String historyUUID = indexShard.getHistoryUUID();
-        if (historyUUID.equals(expectedHistoryUUID) == false) {
-            throw new IllegalStateException("unexpected history uuid, expected [" + expectedHistoryUUID + "], actual [" +
-                historyUUID + "]");
-        }
+        checkHistoryUUID(indexShard, expectedHistoryUUID);
         if (fromSeqNo > globalCheckpoint) {
             throw new IllegalStateException(
-                    "not exposing operations from [" + fromSeqNo + "] greater than the global checkpoint [" + globalCheckpoint + "]");
+                "not exposing operations from [" + fromSeqNo + "] greater than the global checkpoint [" + globalCheckpoint + "]"
+            );
         }
         int seenBytes = 0;
         // - 1 is needed, because toSeqNo is inclusive
         long toSeqNo = Math.min(globalCheckpoint, (fromSeqNo + maxOperationCount) - 1);
         assert fromSeqNo <= toSeqNo : "invalid range from_seqno[" + fromSeqNo + "] > to_seqno[" + toSeqNo + "]";
         final List<Translog.Operation> operations = new ArrayList<>();
-        try (Translog.Snapshot snapshot = indexShard.newChangesSnapshot("ccr", fromSeqNo, toSeqNo, true)) {
+        try (Translog.Snapshot snapshot = indexShard.newChangesSnapshot("ccr", fromSeqNo, toSeqNo, true, true, false)) {
             Translog.Operation op;
             while ((op = snapshot.next()) != null) {
                 operations.add(op);
@@ -527,8 +582,14 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
                 }
             }
         } catch (MissingHistoryOperationsException e) {
-            String message = "Operations are no longer available for replicating. Maybe increase the retention setting [" +
-                IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey() + "]?";
+            final Collection<RetentionLease> retentionLeases = indexShard.getRetentionLeases().leases();
+            final String message = "Operations are no longer available for replicating. "
+                + "Existing retention leases ["
+                + retentionLeases
+                + "]; maybe increase the retention lease period setting "
+                + "["
+                + IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING.getKey()
+                + "]?";
             // Make it easy to detect this error in ShardFollowNodeTask:
             // (adding a metadata header instead of introducing a new exception that extends ElasticsearchException)
             ResourceNotFoundException wrapper = new ResourceNotFoundException(message, e);
@@ -539,22 +600,26 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
     }
 
     static Response getResponse(
-            final long mappingVersion,
-            final long settingsVersion,
-            final SeqNoStats seqNoStats,
-            final long maxSeqNoOfUpdates,
-            final Translog.Operation[] operations,
-            long relativeStartNanos) {
+        final long mappingVersion,
+        final long settingsVersion,
+        final long aliasesVersion,
+        final SeqNoStats seqNoStats,
+        final long maxSeqNoOfUpdates,
+        final Translog.Operation[] operations,
+        long relativeStartNanos
+    ) {
         long tookInNanos = System.nanoTime() - relativeStartNanos;
         long tookInMillis = TimeUnit.NANOSECONDS.toMillis(tookInNanos);
         return new Response(
-                mappingVersion,
-                settingsVersion,
-                seqNoStats.getGlobalCheckpoint(),
-                seqNoStats.getMaxSeqNo(),
-                maxSeqNoOfUpdates,
-                operations,
-                tookInMillis);
+            mappingVersion,
+            settingsVersion,
+            aliasesVersion,
+            seqNoStats.getGlobalCheckpoint(),
+            seqNoStats.getMaxSeqNo(),
+            maxSeqNoOfUpdates,
+            operations,
+            tookInMillis
+        );
     }
 
 }

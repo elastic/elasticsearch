@@ -1,20 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.transport.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchRequest;
-import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRequest;
 
@@ -25,7 +26,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class WatchRequestValidationTests extends ESTestCase {
 
-    public void testAcknowledgeWatchInvalidWatchId()  {
+    public void testAcknowledgeWatchInvalidWatchId() {
         ActionRequestValidationException e = new AckWatchRequest("id with whitespaces").validate();
         assertThat(e, is(notNullValue()));
         assertThat(e.validationErrors(), hasItem("watch id contains whitespace"));
@@ -39,13 +40,13 @@ public class WatchRequestValidationTests extends ESTestCase {
 
     public void testAcknowledgeWatchNullActionArray() {
         // need this to prevent some compilation errors, i.e. in 1.8.0_91
-        String [] nullArray = null;
+        String[] nullArray = null;
         ActionRequestValidationException e = new AckWatchRequest("_id", nullArray).validate();
         assertThat(e, is(nullValue()));
     }
 
     public void testAcknowledgeWatchNullActionId() {
-        ActionRequestValidationException e = new AckWatchRequest("_id", new String[] {null}).validate();
+        ActionRequestValidationException e = new AckWatchRequest("_id", new String[] { null }).validate();
         assertThat(e, is(notNullValue()));
         assertThat(e.validationErrors(), hasItem("action id may not be null"));
     }
@@ -63,7 +64,7 @@ public class WatchRequestValidationTests extends ESTestCase {
     }
 
     public void testDeleteWatchNullId() {
-        ActionRequestValidationException e = new DeleteWatchRequest(null).validate();
+        ActionRequestValidationException e = new DeleteWatchRequest().validate();
         assertThat(e, is(notNullValue()));
         assertThat(e.validationErrors(), hasItem("watch id is missing"));
     }
@@ -113,8 +114,10 @@ public class WatchRequestValidationTests extends ESTestCase {
     public void testExecuteWatchMissingWatchIdNoSource() {
         ActionRequestValidationException e = new ExecuteWatchRequest((String) null).validate();
         assertThat(e, is(notNullValue()));
-        assertThat(e.validationErrors(),
-                hasItem("a watch execution request must either have a watch id or an inline watch source, but both are missing"));
+        assertThat(
+            e.validationErrors(),
+            hasItem("a watch execution request must either have a watch id or an inline watch source, but both are missing")
+        );
     }
 
     public void testExecuteWatchInvalidActionId() {
@@ -130,8 +133,10 @@ public class WatchRequestValidationTests extends ESTestCase {
         request.setWatchSource(BytesArray.EMPTY, XContentType.JSON);
         ActionRequestValidationException e = request.validate();
         assertThat(e, is(notNullValue()));
-        assertThat(e.validationErrors(),
-                hasItem("a watch execution request must either have a watch id or an inline watch source but not both"));
+        assertThat(
+            e.validationErrors(),
+            hasItem("a watch execution request must either have a watch id or an inline watch source but not both")
+        );
     }
 
     public void testExecuteWatchSourceAndRecordExecution() {

@@ -1,0 +1,18 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+esplugin {
+  name 'x-pack-data-streams'
+  description 'Elasticsearch Expanded Pack Plugin - Data Streams'
+  classname 'org.elasticsearch.xpack.datastreams.DataStreamsPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+archivesBaseName = 'x-pack-data-streams'
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(path: ':modules:transport-netty4') // for http in SystemDataStreamIT
+  testImplementation project(path: ':plugins:transport-nio') // for http in SystemDataStreamIT
+}
+
+addQaCheckDependencies()

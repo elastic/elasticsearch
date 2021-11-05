@@ -1,31 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.ml.calendars;
 
-import org.elasticsearch.client.ml.job.util.TimeUtil;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-
+import org.elasticsearch.client.common.TimeUtil;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Date;
@@ -39,16 +27,26 @@ public class ScheduledEvent implements ToXContentObject {
     public static final ParseField EVENT_ID = new ParseField("event_id");
     public static final String SCHEDULED_EVENT_TYPE = "scheduled_event";
 
-    public static final ConstructingObjectParser<ScheduledEvent, Void> PARSER =
-            new ConstructingObjectParser<>(SCHEDULED_EVENT_TYPE, true, a ->
-                    new ScheduledEvent((String) a[0], (Date) a[1], (Date) a[2], (String) a[3], (String) a[4]));
+    public static final ConstructingObjectParser<ScheduledEvent, Void> PARSER = new ConstructingObjectParser<>(
+        SCHEDULED_EVENT_TYPE,
+        true,
+        a -> new ScheduledEvent((String) a[0], (Date) a[1], (Date) a[2], (String) a[3], (String) a[4])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), DESCRIPTION);
-        PARSER.declareField(ConstructingObjectParser.constructorArg(),(p) -> TimeUtil.parseTimeField(p, START_TIME.getPreferredName()),
-                START_TIME, ObjectParser.ValueType.VALUE);
-        PARSER.declareField(ConstructingObjectParser.constructorArg(),(p) -> TimeUtil.parseTimeField(p, END_TIME.getPreferredName()),
-                END_TIME, ObjectParser.ValueType.VALUE);
+        PARSER.declareField(
+            ConstructingObjectParser.constructorArg(),
+            (p) -> TimeUtil.parseTimeField(p, START_TIME.getPreferredName()),
+            START_TIME,
+            ObjectParser.ValueType.VALUE
+        );
+        PARSER.declareField(
+            ConstructingObjectParser.constructorArg(),
+            (p) -> TimeUtil.parseTimeField(p, END_TIME.getPreferredName()),
+            END_TIME,
+            ObjectParser.ValueType.VALUE
+        );
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Calendar.ID);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), EVENT_ID);
     }
@@ -113,9 +111,9 @@ public class ScheduledEvent implements ToXContentObject {
 
         ScheduledEvent other = (ScheduledEvent) obj;
         return Objects.equals(this.description, other.description)
-                && Objects.equals(this.startTime, other.startTime)
-                && Objects.equals(this.endTime, other.endTime)
-                && Objects.equals(this.calendarId, other.calendarId);
+            && Objects.equals(this.startTime, other.startTime)
+            && Objects.equals(this.endTime, other.endTime)
+            && Objects.equals(this.calendarId, other.calendarId);
     }
 
     @Override

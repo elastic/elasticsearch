@@ -1,28 +1,11 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
-/*
- * Copyright 2004-2005 The Apache Software Foundation.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * @notice
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
@@ -31,7 +14,10 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
+ * Modifications copyright (C) 2020 Elasticsearch B.V.
  */
+
 package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.analysis.Analyzer;
@@ -57,7 +43,7 @@ import org.apache.lucene.search.similarities.TFIDFSimilarity;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -68,7 +54,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-
 
 /**
  * Generate "more like this" similarity queries.
@@ -97,7 +82,7 @@ import java.util.Set;
  * above.  The frequency and length thresholds could be parameters, etc.
  * Doug
  * </pre>
- * <h3>Initial Usage</h3>
+ * <h2>Initial Usage</h2>
  * <p>
  * This class has lots of options to try to make it efficient and flexible.
  * The simplest possible usage is as follows. The bold
@@ -156,10 +141,10 @@ import java.util.Set;
  */
 public final class XMoreLikeThis {
 
-//    static {
-//        assert Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_4_9:
-//                   "Remove this class once we upgrade to Lucene 5.0";
-//    }
+    // static {
+    // assert Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_4_9:
+    // "Remove this class once we upgrade to Lucene 5.0";
+    // }
 
     /**
      * Default maximum number of tokens to parse in each example doc field that is not stored with TermVector support.
@@ -205,7 +190,7 @@ public final class XMoreLikeThis {
      * Default field names. Null is used to specify that the field names should be looked
      * up at runtime from the provided reader.
      */
-    public static final String[] DEFAULT_FIELD_NAMES = new String[]{"contents"};
+    public static final String[] DEFAULT_FIELD_NAMES = new String[] { "contents" };
 
     /**
      * Ignore words less than this length or if 0 then this has no effect.
@@ -275,7 +260,6 @@ public final class XMoreLikeThis {
      * Current set of skip terms.
      */
     private Set<Term> skipTerms = null;
-
 
     /**
      * Field name we'll analyze.
@@ -354,7 +338,6 @@ public final class XMoreLikeThis {
         this.ir = ir;
         this.similarity = sim;
     }
-
 
     public TFIDFSimilarity getSimilarity() {
         return similarity;
@@ -459,7 +442,6 @@ public final class XMoreLikeThis {
         this.maxDocFreq = maxPercentage * ir.numDocs() / 100;
     }
 
-
     /**
      * Returns whether to boost terms in query based on "score" or not. The default is
      * {@link #DEFAULT_BOOST}.
@@ -563,7 +545,6 @@ public final class XMoreLikeThis {
         return stopWords;
     }
 
-
     /**
      * Returns the maximum number of query terms that will be included in any generated query.
      * The default is {@link #DEFAULT_MAX_QUERY_TERMS}.
@@ -598,7 +579,6 @@ public final class XMoreLikeThis {
     public void setMaxNumTokensParsed(int i) {
         maxNumTokensParsed = i;
     }
-
 
     /**
      * Return a query that will return docs like the passed lucene document ID.
@@ -700,8 +680,7 @@ public final class XMoreLikeThis {
 
             try {
                 query.add(tq, BooleanClause.Occur.SHOULD);
-            }
-            catch (BooleanQuery.TooManyClauses ignore) {
+            } catch (BooleanQuery.TooManyClauses ignore) {
                 break;
             }
         }
@@ -848,7 +827,7 @@ public final class XMoreLikeThis {
         final TermsEnum termsEnum = vector.iterator();
         final CharsRefBuilder spare = new CharsRefBuilder();
         BytesRef text;
-        while((text = termsEnum.next()) != null) {
+        while ((text = termsEnum.next()) != null) {
             spare.copyUTF8Bytes(text);
             final String term = spare.toString();
             if (isNoiseWord(term)) {
@@ -860,7 +839,7 @@ public final class XMoreLikeThis {
 
             final PostingsEnum docs = termsEnum.postings(null);
             int freq = 0;
-            while(docs != null && docs.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+            while (docs != null && docs.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                 freq += docs.freq();
             }
 
@@ -883,11 +862,9 @@ public final class XMoreLikeThis {
      * @param termFreqMap a Map of terms and their frequencies
      * @param fieldName Used by analyzer for any special per-field analysis
      */
-    private void addTermFrequencies(Reader r, Map<String, Int> termFreqMap, String fieldName)
-            throws IOException {
+    private void addTermFrequencies(Reader r, Map<String, Int> termFreqMap, String fieldName) throws IOException {
         if (analyzer == null) {
-            throw new UnsupportedOperationException("To use MoreLikeThis without " +
-                    "term vectors, you must provide an Analyzer");
+            throw new UnsupportedOperationException("To use MoreLikeThis without " + "term vectors, you must provide an Analyzer");
         }
         try (TokenStream ts = analyzer.tokenStream(fieldName, r)) {
             int tokenCount = 0;
@@ -919,7 +896,6 @@ public final class XMoreLikeThis {
         }
     }
 
-
     /**
      * determines if the passed term is likely to be of interest in "more like" comparisons
      *
@@ -943,7 +919,6 @@ public final class XMoreLikeThis {
     private boolean isSkipTerm(@Nullable String field, String value) {
         return field != null && skipTerms != null && skipTerms.contains(new Term(field, value));
     }
-
 
     /**
      * Find words for a more-like-this query former.

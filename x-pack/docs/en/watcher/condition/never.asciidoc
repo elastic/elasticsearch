@@ -1,12 +1,16 @@
+[role="xpack"]
 [[condition-never]]
-=== Never Condition
+=== {watcher} never condition
+++++
+<titleabbrev>Never condition</titleabbrev>
+++++
 
 Use the `never` condition to set the condition to `false`. This means the
 watch actions are never executed when the watch is triggered. The watch input is
 executed, a record is added to the watch history, and the watch execution ends.
 This condition is generally used for testing.
 
-==== Using the Never Condition
+==== Using the never condition
 
 There are no attributes to specify for the `never` condition. To use the it,
 you specify the condition type and associate it with an empty object:

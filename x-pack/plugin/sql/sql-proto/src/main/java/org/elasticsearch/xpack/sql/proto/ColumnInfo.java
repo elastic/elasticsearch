@@ -1,21 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.proto;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Information about a column returned with first query response.
@@ -24,13 +25,16 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  */
 public class ColumnInfo implements ToXContentObject {
 
-    private static final ConstructingObjectParser<ColumnInfo, Void> PARSER =
-        new ConstructingObjectParser<>("column_info", true, objects ->
-            new ColumnInfo(
-                objects[0] == null ? "" : (String) objects[0],
-                (String) objects[1],
-                (String) objects[2],
-                (Integer) objects[3]));
+    private static final ConstructingObjectParser<ColumnInfo, Void> PARSER = new ConstructingObjectParser<>(
+        "column_info",
+        true,
+        objects -> new ColumnInfo(
+            objects[0] == null ? "" : (String) objects[0],
+            (String) objects[1],
+            (String) objects[2],
+            (Integer) objects[3]
+        )
+    );
 
     private static final ParseField TABLE = new ParseField("table");
     private static final ParseField NAME = new ParseField("name");
@@ -77,7 +81,6 @@ public class ColumnInfo implements ToXContentObject {
         return builder.endObject();
     }
 
-
     public static ColumnInfo fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
@@ -106,7 +109,7 @@ public class ColumnInfo implements ToXContentObject {
     /**
      * Used by JDBC
      */
-    public int displaySize() {
+    public Integer displaySize() {
         return displaySize;
     }
 
@@ -119,10 +122,10 @@ public class ColumnInfo implements ToXContentObject {
             return false;
         }
         ColumnInfo that = (ColumnInfo) o;
-        return Objects.equals(displaySize, that.displaySize) &&
-            Objects.equals(table, that.table) &&
-            Objects.equals(name, that.name) &&
-            Objects.equals(esType, that.esType);
+        return Objects.equals(displaySize, that.displaySize)
+            && Objects.equals(table, that.table)
+            && Objects.equals(name, that.name)
+            && Objects.equals(esType, that.esType);
     }
 
     @Override

@@ -1,15 +1,24 @@
 {
-  "info": {
-    "documentation": "http://www.elastic.co/guide/",
-    "methods": ["GET"],
-    "url": {
-      "path": "/",
-      "paths": ["/"],
-      "parts": {
-      },
-      "params": {
-      }
+  "info":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html",
+      "description":"Returns basic information about the cluster."
     },
-    "body": null
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params":{}
   }
 }

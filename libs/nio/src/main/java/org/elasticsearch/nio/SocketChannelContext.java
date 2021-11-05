@@ -1,38 +1,34 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.nio;
 
-import org.elasticsearch.common.concurrent.CompletableContext;
+import org.elasticsearch.core.CompletableContext;
+import org.elasticsearch.core.internal.net.NetUtils;
 import org.elasticsearch.nio.utils.ByteBufferUtils;
 import org.elasticsearch.nio.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.net.SocketOption;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.LinkedList;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 
 /**
  * This context should implement the specific logic for a channel. When a channel receives a notification
@@ -45,28 +41,32 @@ import java.util.function.Predicate;
  */
 public abstract class SocketChannelContext extends ChannelContext<SocketChannel> {
 
-    protected static final Predicate<NioSocketChannel> ALWAYS_ALLOW_CHANNEL = (c) -> true;
-
     protected final NioSocketChannel channel;
     protected final InboundChannelBuffer channelBuffer;
     protected final AtomicBoolean isClosing = new AtomicBoolean(false);
-    private final ReadWriteHandler readWriteHandler;
-    private final Predicate<NioSocketChannel> allowChannelPredicate;
+    private final NioChannelHandler channelHandler;
     private final NioSelector selector;
+    private final Config.Socket socketConfig;
     private final CompletableContext<Void> connectContext = new CompletableContext<>();
     private final LinkedList<FlushOperation> pendingFlushes = new LinkedList<>();
     private boolean closeNow;
+    private boolean socketOptionsSet;
     private Exception connectException;
 
-    protected SocketChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler,
-                                   ReadWriteHandler readWriteHandler, InboundChannelBuffer channelBuffer,
-                                   Predicate<NioSocketChannel> allowChannelPredicate) {
+    protected SocketChannelContext(
+        NioSocketChannel channel,
+        NioSelector selector,
+        Config.Socket socketConfig,
+        Consumer<Exception> exceptionHandler,
+        NioChannelHandler channelHandler,
+        InboundChannelBuffer channelBuffer
+    ) {
         super(channel.getRawChannel(), exceptionHandler);
         this.selector = selector;
         this.channel = channel;
-        this.readWriteHandler = readWriteHandler;
+        this.socketConfig = socketConfig;
+        this.channelHandler = channelHandler;
         this.channelBuffer = channelBuffer;
-        this.allowChannelPredicate = allowChannelPredicate;
     }
 
     @Override
@@ -77,6 +77,22 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     @Override
     public NioSocketChannel getChannel() {
         return channel;
+    }
+
+    @Override
+    protected void register() throws IOException {
+        super.register();
+
+        configureSocket(rawChannel.socket(), false);
+
+        if (socketConfig.isAccepted() == false) {
+            InetSocketAddress remoteAddress = socketConfig.getRemoteAddress();
+            try {
+                connect(rawChannel, remoteAddress);
+            } catch (IOException e) {
+                throw new IOException("Failed to initiate socket channel connection {remoteAddress=" + remoteAddress + "}.", e);
+            }
+        }
     }
 
     public void addConnectListener(BiConsumer<Void, Exception> listener) {
@@ -123,6 +139,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
         }
         if (isConnected) {
             connectContext.complete(null);
+            configureSocket(rawChannel.socket(), true);
         }
         return isConnected;
     }
@@ -133,20 +150,14 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
             return;
         }
 
-        WriteOperation writeOperation = readWriteHandler.createWriteOperation(this, message, listener);
+        WriteOperation writeOperation = channelHandler.createWriteOperation(this, message, listener);
 
-        NioSelector selector = getSelector();
-        if (selector.isOnCurrentThread() == false) {
-            selector.queueWrite(writeOperation);
-            return;
-        }
-
-        selector.writeToChannel(writeOperation);
+        getSelector().queueWrite(writeOperation);
     }
 
     public void queueWriteOperation(WriteOperation writeOperation) {
         getSelector().assertOnSelectorThread();
-        pendingFlushes.addAll(readWriteHandler.writeToBytes(writeOperation));
+        pendingFlushes.addAll(channelHandler.writeToBytes(writeOperation));
     }
 
     public abstract int read() throws IOException;
@@ -168,12 +179,8 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     }
 
     @Override
-    protected void register() throws IOException {
-        super.register();
-        readWriteHandler.channelRegistered();
-        if (allowChannelPredicate.test(channel) == false) {
-            closeNow = true;
-        }
+    protected void channelActive() throws IOException {
+        channelHandler.channelActive();
     }
 
     @Override
@@ -190,14 +197,14 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
             isClosing.set(true);
 
             // Poll for new flush operations to close
-            pendingFlushes.addAll(readWriteHandler.pollFlushOperations());
+            pendingFlushes.addAll(channelHandler.pollFlushOperations());
             FlushOperation flushOperation;
             while ((flushOperation = pendingFlushes.pollFirst()) != null) {
                 selector.executeFailedListener(flushOperation.getListener(), new ClosedChannelException());
             }
 
             try {
-                readWriteHandler.close();
+                channelHandler.close();
             } catch (IOException e) {
                 closingExceptions.add(e);
             }
@@ -212,12 +219,12 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     protected void handleReadBytes() throws IOException {
         int bytesConsumed = Integer.MAX_VALUE;
         while (isOpen() && bytesConsumed > 0 && channelBuffer.getIndex() > 0) {
-            bytesConsumed = readWriteHandler.consumeReads(channelBuffer);
+            bytesConsumed = channelHandler.consumeReads(channelBuffer);
             channelBuffer.release(bytesConsumed);
         }
 
         // Some protocols might produce messages to flush during a read operation.
-        pendingFlushes.addAll(readWriteHandler.pollFlushOperations());
+        pendingFlushes.addAll(channelHandler.pollFlushOperations());
     }
 
     public boolean readyForFlush() {
@@ -233,7 +240,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     public abstract boolean selectorShouldClose();
 
     protected boolean closeNow() {
-        return closeNow;
+        return closeNow || channelHandler.closeNow();
     }
 
     protected void setCloseNow() {
@@ -250,7 +257,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     // data that is copied to the buffer for a write, but not successfully flushed immediately, must be
     // copied again on the next call.
 
-    protected int readFromChannel(InboundChannelBuffer channelBuffer) throws IOException {
+    protected int readFromChannel(InboundChannelBuffer inboundChannelBuffer) throws IOException {
         ByteBuffer ioBuffer = getSelector().getIoBuffer();
         int bytesRead;
         try {
@@ -264,21 +271,21 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
             return 0;
         } else {
             ioBuffer.flip();
-            channelBuffer.ensureCapacity(channelBuffer.getIndex() + ioBuffer.remaining());
-            ByteBuffer[] buffers = channelBuffer.sliceBuffersFrom(channelBuffer.getIndex());
+            inboundChannelBuffer.ensureCapacity(inboundChannelBuffer.getIndex() + ioBuffer.remaining());
+            ByteBuffer[] buffers = inboundChannelBuffer.sliceBuffersFrom(inboundChannelBuffer.getIndex());
             int j = 0;
             while (j < buffers.length && ioBuffer.remaining() > 0) {
                 ByteBuffer buffer = buffers[j++];
                 ByteBufferUtils.copyBytes(ioBuffer, buffer);
             }
-            channelBuffer.incrementIndex(bytesRead);
+            inboundChannelBuffer.incrementIndex(bytesRead);
             return bytesRead;
         }
     }
 
     // Currently we limit to 64KB. This is a trade-off which means more syscalls, in exchange for less
     // copying.
-    private final int WRITE_LIMIT = 1 << 16;
+    private static final int WRITE_LIMIT = 1 << 16;
 
     protected int flushToChannel(FlushOperation flushOperation) throws IOException {
         ByteBuffer ioBuffer = getSelector().getIoBuffer();
@@ -303,5 +310,65 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
             continueFlush = ioBuffer.hasRemaining() == false && flushOperation.isFullyFlushed() == false;
         }
         return totalBytesFlushed;
+    }
+
+    private void configureSocket(Socket socket, boolean isConnectComplete) throws IOException {
+        if (socketOptionsSet) {
+            return;
+        }
+
+        try {
+            // Set reuse address first as it must be set before a bind call. Some implementations throw
+            // exceptions on other socket options if the channel is not connected. But setting reuse first,
+            // we ensure that it is properly set before any bind attempt.
+            socket.setReuseAddress(socketConfig.tcpReuseAddress());
+            socket.setKeepAlive(socketConfig.tcpKeepAlive());
+            if (socketConfig.tcpKeepAlive()) {
+                final Set<SocketOption<?>> supportedOptions = socket.supportedOptions();
+                if (socketConfig.tcpKeepIdle() >= 0) {
+                    final SocketOption<Integer> keepIdleOption = NetUtils.getTcpKeepIdleSocketOptionOrNull();
+                    if (keepIdleOption != null && supportedOptions.contains(keepIdleOption)) {
+                        socket.setOption(keepIdleOption, socketConfig.tcpKeepIdle());
+                    }
+                }
+                if (socketConfig.tcpKeepInterval() >= 0) {
+                    final SocketOption<Integer> keepIntervalOption = NetUtils.getTcpKeepIntervalSocketOptionOrNull();
+                    if (keepIntervalOption != null && supportedOptions.contains(keepIntervalOption)) {
+                        socket.setOption(keepIntervalOption, socketConfig.tcpKeepInterval());
+                    }
+                }
+                if (socketConfig.tcpKeepCount() >= 0) {
+                    final SocketOption<Integer> keepCountOption = NetUtils.getTcpKeepCountSocketOptionOrNull();
+                    if (keepCountOption != null && supportedOptions.contains(keepCountOption)) {
+                        socket.setOption(keepCountOption, socketConfig.tcpKeepCount());
+                    }
+                }
+            }
+            NetUtils.tryEnsureReasonableKeepAliveConfig(socket.getChannel());
+            socket.setTcpNoDelay(socketConfig.tcpNoDelay());
+            int tcpSendBufferSize = socketConfig.tcpSendBufferSize();
+            if (tcpSendBufferSize > 0) {
+                socket.setSendBufferSize(tcpSendBufferSize);
+            }
+            int tcpReceiveBufferSize = socketConfig.tcpReceiveBufferSize();
+            if (tcpReceiveBufferSize > 0) {
+                socket.setReceiveBufferSize(tcpReceiveBufferSize);
+            }
+            socketOptionsSet = true;
+        } catch (IOException e) {
+            if (isConnectComplete) {
+                throw e;
+            }
+            // Ignore if not connect complete. Some implementations fail on setting socket options if the
+            // socket is not connected. We will try again after connection.
+        }
+    }
+
+    private static void connect(SocketChannel socketChannel, InetSocketAddress remoteAddress) throws IOException {
+        try {
+            AccessController.doPrivileged((PrivilegedExceptionAction<Boolean>) () -> socketChannel.connect(remoteAddress));
+        } catch (PrivilegedActionException e) {
+            throw (IOException) e.getCause();
+        }
     }
 }

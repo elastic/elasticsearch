@@ -1,0 +1,101 @@
+---
+setup:
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+---
+"Test Basic Policy CRUD":
+  - do:
+      catch: missing
+      slm.get_lifecycle:
+        policy_id: "daily-snapshots"
+
+  - do:
+      catch: missing
+      slm.delete_lifecycle:
+        policy_id: "daily-snapshots"
+
+  - do:
+      snapshot.create_repository:
+        repository: repo
+        body:
+          type: fs
+          settings:
+            location: "my-snaps"
+
+  - do:
+      catch: /invalid schedule \[0 \* \* \* \* \?\][:] schedule would be too frequent, executing more than every \[15m\]/
+      slm.put_lifecycle:
+        policy_id: "daily-snapshots"
+        body: |
+          {
+            "schedule": "0 * * * * ?",
+            "name": "<production-snap-{now/d}>",
+            "repository": "repo",
+            "config": {
+              "indices": ["*"]
+            }
+          }
+
+  - do:
+      slm.put_lifecycle:
+        policy_id: "daily-snapshots"
+        body: |
+          {
+            "schedule": "0 1 2 3 4 ?",
+            "name": "<production-snap-{now/d}>",
+            "repository": "repo",
+            "config": {
+              "indices": ["foo-*", "important"],
+              "ignore_unavailable": false,
+              "include_global_state": false
+            },
+            "retention": {
+              "expire_after": "30d",
+              "min_count": 1,
+              "max_count": 50
+            }
+          }
+
+  - do:
+      slm.get_lifecycle:
+        policy_id: "daily-snapshots"
+  - match: { daily-snapshots.version: 1 }
+  - match: { daily-snapshots.policy.name: "<production-snap-{now/d}>" }
+  - is_true: daily-snapshots.next_execution_millis
+  - is_true: daily-snapshots.stats
+  - match: { daily-snapshots.policy.schedule: "0 1 2 3 4 ?" }
+
+  - do:
+      slm.put_lifecycle:
+        policy_id: "daily-snapshots"
+        body: |
+          {
+            "schedule": "1 1 1 1 1 ?",
+            "name": "<production-snap-{now/d}>",
+            "repository": "repo",
+            "config": {
+              "indices": ["foo-*", "important"],
+              "ignore_unavailable": false,
+              "include_global_state": false
+            },
+            "retention": {
+              "expire_after": "30d",
+              "min_count": 1,
+              "max_count": 50
+            }
+          }
+
+  - do:
+      catch: missing
+      slm.get_lifecycle:
+        policy_id: "doesnt-exist"
+
+  - do:
+      slm.get_lifecycle:
+        policy_id: "daily-snapshots"
+  - match: { daily-snapshots.version: 2 }
+  - match: { daily-snapshots.policy.schedule: "1 1 1 1 1 ?" }
+  - is_true: daily-snapshots.next_execution_millis
+  - is_true: daily-snapshots.stats

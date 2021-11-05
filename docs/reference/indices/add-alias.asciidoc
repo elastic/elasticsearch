@@ -1,0 +1,54 @@
+[[indices-add-alias]]
+=== Create or update alias API
+++++
+<titleabbrev>Create or update alias</titleabbrev>
+++++
+
+Adds a data stream or index to an <<aliases,alias>>.
+
+[source,console]
+----
+PUT my-data-stream/_alias/my-alias
+----
+// TEST[setup:my_data_stream]
+// TEST[teardown:data_stream_cleanup]
+
+[[add-alias-api-request]]
+==== {api-request-title}
+
+`POST <target>/_alias/<alias>`
+
+`POST <target>/_aliases/<alias>`
+
+`PUT <target>/_alias/<alias>`
+
+`PUT <target>/_aliases/<alias>`
+
+[[add-alias-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the alias and its data streams
+or indices.
+
+[[add-alias-api-path-params]]
+==== {api-path-parms-title}
+
+`<alias>`::
+(Required, string) Alias to update. If the alias doesn't exist, the request
+creates it. Index alias names support <<date-math-index-names,date math>>.
+
+`<target>`::
+(Required, string) Comma-separated list of data streams or indices to add.
+Supports wildcards (`*`). Wildcard patterns that match both data streams and
+indices return an error.
+
+[[add-alias-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+[[add-alias-api-request-body]]
+==== {api-request-body-title}
+
+include::aliases.asciidoc[tag=alias-options]

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.cli.command;
 
@@ -9,8 +10,7 @@ import org.elasticsearch.xpack.sql.cli.CliTerminal;
 
 public abstract class AbstractServerCliCommand implements CliCommand {
 
-    public AbstractServerCliCommand() {
-    }
+    public AbstractServerCliCommand() {}
 
     @Override
     public final boolean handle(CliTerminal terminal, CliSession cliSession, String line) {
@@ -29,12 +29,14 @@ public abstract class AbstractServerCliCommand implements CliCommand {
      * into a method so that tests can bubble the failure.
      */
     protected void handleExceptionWhileCommunicatingWithServer(CliTerminal terminal, CliSession cliSession, RuntimeException e) {
-        terminal.line().error("Communication error [").param(e.getMessage() == null ? e.getClass().getName() : e.getMessage()).error("]")
-                .ln();
+        terminal.line()
+            .error("Communication error [")
+            .param(e.getMessage() == null ? e.getClass().getName() : e.getMessage())
+            .error("]")
+            .ln();
         if (cliSession.isDebug()) {
             terminal.printStackTrace(e);
         }
     }
-
 
 }

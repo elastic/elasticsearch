@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.transport;
@@ -59,8 +48,10 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
 
     public void testSearchShards() throws Exception {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes);
-             MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes)) {
+        try (
+            MockTransportService seedTransport = startTransport("seed_node", knownNodes);
+            MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes)
+        ) {
             knownNodes.add(seedTransport.getLocalDiscoNode());
             knownNodes.add(discoverableTransport.getLocalDiscoNode());
             Collections.shuffle(knownNodes, random());
@@ -74,11 +65,18 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
                     SearchRequest request = new SearchRequest("test-index");
                     CountDownLatch responseLatch = new CountDownLatch(1);
                     AtomicReference<ClusterSearchShardsResponse> reference = new AtomicReference<>();
-                    ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest("test-index")
-                        .indicesOptions(request.indicesOptions()).local(true).preference(request.preference())
-                        .routing(request.routing());
-                    client.admin().cluster().searchShards(searchShardsRequest,
-                        new LatchedActionListener<>(ActionListener.wrap(reference::set, e -> fail("no failures expected")), responseLatch));
+                    ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest("test-index").indicesOptions(
+                        request.indicesOptions()
+                    ).local(true).preference(request.preference()).routing(request.routing());
+                    client.admin()
+                        .cluster()
+                        .searchShards(
+                            searchShardsRequest,
+                            new LatchedActionListener<>(
+                                ActionListener.wrap(reference::set, e -> fail("no failures expected")),
+                                responseLatch
+                            )
+                        );
                     responseLatch.await();
                     assertNotNull(reference.get());
                     ClusterSearchShardsResponse clusterSearchShardsResponse = reference.get();
@@ -90,8 +88,10 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
 
     public void testSearchShardsThreadContextHeader() {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes);
-             MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes)) {
+        try (
+            MockTransportService seedTransport = startTransport("seed_node", knownNodes);
+            MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes)
+        ) {
             knownNodes.add(seedTransport.getLocalDiscoNode());
             knownNodes.add(discoverableTransport.getLocalDiscoNode());
             Collections.shuffle(knownNodes, random());
@@ -112,16 +112,17 @@ public class RemoteClusterAwareClientTests extends ESTestCase {
                             threadContext.putHeader("threadId", threadId);
                             AtomicReference<ClusterSearchShardsResponse> reference = new AtomicReference<>();
                             final ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest("test-index")
-                                .indicesOptions(request.indicesOptions()).local(true).preference(request.preference())
+                                .indicesOptions(request.indicesOptions())
+                                .local(true)
+                                .preference(request.preference())
                                 .routing(request.routing());
                             CountDownLatch responseLatch = new CountDownLatch(1);
-                            client.admin().cluster().searchShards(searchShardsRequest,
-                                new LatchedActionListener<>(ActionListener.wrap(
-                                    resp -> {
-                                        reference.set(resp);
-                                        assertEquals(threadId, seedTransport.threadPool.getThreadContext().getHeader("threadId"));
-                                    },
-                                    e -> fail("no failures expected")), responseLatch));
+                            client.admin()
+                                .cluster()
+                                .searchShards(searchShardsRequest, new LatchedActionListener<>(ActionListener.wrap(resp -> {
+                                    reference.set(resp);
+                                    assertEquals(threadId, seedTransport.threadPool.getThreadContext().getHeader("threadId"));
+                                }, e -> fail("no failures expected")), responseLatch));
                             try {
                                 responseLatch.await();
                             } catch (InterruptedException e) {

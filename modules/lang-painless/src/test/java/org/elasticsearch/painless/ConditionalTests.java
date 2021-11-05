@@ -1,26 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Map;
+import java.util.stream.IntStream;
+
+import static java.util.stream.Collectors.joining;
 
 public class ConditionalTests extends ScriptTestCase {
     public void testBasic() {
@@ -52,38 +45,54 @@ public class ConditionalTests extends ScriptTestCase {
 
     public void testAssignment() {
         assertEquals(4D, exec("boolean x = false; double z = x ? 2 : 4.0F; return z;"));
-        assertEquals((byte)7, exec("boolean x = false; int y = 2; byte z = x ? (byte)y : 7; return z;"));
-        assertEquals((byte)7, exec("boolean x = false; int y = 2; byte z = (byte)(x ? y : 7); return z;"));
+        assertEquals((byte) 7, exec("boolean x = false; int y = 2; byte z = x ? (byte)y : 7; return z;"));
+        assertEquals((byte) 7, exec("boolean x = false; int y = 2; byte z = (byte)(x ? y : 7); return z;"));
         assertEquals(ArrayList.class, exec("boolean x = false; Object z = x ? new HashMap() : new ArrayList(); return z;").getClass());
     }
 
     public void testNullArguments() {
         assertEquals(null, exec("boolean b = false, c = true; Object x; Map y; return b && c ? x : y;"));
-        assertEquals(HashMap.class,
-                exec("boolean b = false, c = true; Object x; Map y = new HashMap(); return b && c ? x : y;").getClass());
+        assertEquals(
+            HashMap.class,
+            exec("boolean b = false, c = true; Object x; Map y = new HashMap(); return b && c ? x : y;").getClass()
+        );
     }
 
     public void testPromotion() {
         assertEquals(false, exec("boolean x = false; boolean y = true; return (x ? 2 : 4.0F) == (y ? 2 : 4.0F);"));
-        assertEquals(false, exec("boolean x = false; boolean y = true; " +
-            "return (x ? new HashMap() : new ArrayList()) == (y ? new HashMap() : new ArrayList());"));
+        assertEquals(
+            false,
+            exec(
+                "boolean x = false; boolean y = true; "
+                    + "return (x ? new HashMap() : new ArrayList()) == (y ? new HashMap() : new ArrayList());"
+            )
+        );
     }
 
     public void testIncompatibleAssignment() {
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("boolean x = false; byte z = x ? 2 : 4.0F; return z;");
-        });
+        expectScriptThrows(ClassCastException.class, () -> { exec("boolean x = false; byte z = x ? 2 : 4.0F; return z;"); });
 
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("boolean x = false; Map z = x ? 4 : (byte)7; return z;");
-        });
+        expectScriptThrows(ClassCastException.class, () -> { exec("boolean x = false; Map z = x ? 4 : (byte)7; return z;"); });
 
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("boolean x = false; Map z = x ? new HashMap() : new ArrayList(); return z;");
-        });
+        expectScriptThrows(
+            ClassCastException.class,
+            () -> { exec("boolean x = false; Map z = x ? new HashMap() : new ArrayList(); return z;"); }
+        );
 
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("boolean x = false; int y = 2; byte z = x ? y : 7; return z;");
-        });
+        expectScriptThrows(ClassCastException.class, () -> { exec("boolean x = false; int y = 2; byte z = x ? y : 7; return z;"); });
+    }
+
+    public void testNested() {
+        for (int i = 0; i < 100; i++) {
+            String scriptPart = IntStream.range(0, i).mapToObj(j -> "field == '" + j + "' ? '" + j + "' :").collect(joining("\n"));
+            assertEquals(
+                "z",
+                exec(
+                    "def field = params.a;\n" + "\n" + "return (\n" + scriptPart + "field == '' ? 'unknown' :\n" + "field);",
+                    Map.of("a", "z"),
+                    true
+                )
+            );
+        }
     }
 }

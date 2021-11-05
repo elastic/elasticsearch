@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.trigger;
 
@@ -19,8 +20,15 @@ public class TriggerWatchStats {
     public final String transformType;
     public final ActionStats[] actions;
 
-    private TriggerWatchStats(boolean metadata, String triggerType, String scheduleType, String inputType,
-                              String conditionType, String transformType, ActionStats[] actions) {
+    private TriggerWatchStats(
+        boolean metadata,
+        String triggerType,
+        String scheduleType,
+        String inputType,
+        String conditionType,
+        String transformType,
+        ActionStats[] actions
+    ) {
         this.metadata = metadata;
         this.triggerType = triggerType;
         this.scheduleType = scheduleType;
@@ -63,7 +71,6 @@ public class TriggerWatchStats {
             actionStats[i++] = new ActionStats(type, transform, condition);
         }
 
-        return new TriggerWatchStats(metadata, triggerType, scheduleTriggerType, inputType,
-                                     conditionType, transformType, actionStats);
+        return new TriggerWatchStats(metadata, triggerType, scheduleTriggerType, inputType, conditionType, transformType, actionStats);
     }
 }

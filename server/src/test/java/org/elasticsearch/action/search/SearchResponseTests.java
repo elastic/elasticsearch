@@ -1,37 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -40,12 +24,17 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationsTests;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.profile.SearchProfileShardResults;
-import org.elasticsearch.search.profile.SearchProfileShardResultsTests;
+import org.elasticsearch.search.profile.SearchProfileResults;
+import org.elasticsearch.search.profile.SearchProfileResultsTests;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.Before;
 
@@ -69,7 +58,8 @@ public class SearchResponseTests extends ESTestCase {
     }
 
     private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
-            new SearchModule(Settings.EMPTY, false, emptyList()).getNamedWriteables());
+        new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables()
+    );
     private AggregationsTests aggregationsTests = new AggregationsTests();
 
     @Before
@@ -115,15 +105,30 @@ public class SearchResponseTests extends ESTestCase {
             SearchHits hits = SearchHitsTests.createTestItem(true, true);
             InternalAggregations aggregations = aggregationsTests.createTestInstance();
             Suggest suggest = SuggestTests.createTestItem();
-            SearchProfileShardResults profileShardResults = SearchProfileShardResultsTests.createTestItem();
-            internalSearchResponse = new InternalSearchResponse(hits, aggregations, suggest, profileShardResults,
-                timedOut, terminatedEarly, numReducePhases);
+            SearchProfileResults profileResults = SearchProfileResultsTests.createTestItem();
+            internalSearchResponse = new InternalSearchResponse(
+                hits,
+                aggregations,
+                suggest,
+                profileResults,
+                timedOut,
+                terminatedEarly,
+                numReducePhases
+            );
         } else {
             internalSearchResponse = InternalSearchResponse.empty();
         }
 
-        return new SearchResponse(internalSearchResponse, null, totalShards, successfulShards, skippedShards, tookInMillis,
-            shardSearchFailures, randomBoolean() ? randomClusters() : SearchResponse.Clusters.EMPTY);
+        return new SearchResponse(
+            internalSearchResponse,
+            null,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            shardSearchFailures,
+            randomBoolean() ? randomClusters() : SearchResponse.Clusters.EMPTY
+        );
     }
 
     static SearchResponse.Clusters randomClusters() {
@@ -180,7 +185,7 @@ public class SearchResponseTests extends ESTestCase {
         int numFailures = randomIntBetween(1, 5);
         ShardSearchFailure[] failures = new ShardSearchFailure[numFailures];
         for (int i = 0; i < failures.length; i++) {
-            failures[i] = ShardSearchFailureTests.createTestItem(IndexMetaData.INDEX_UUID_NA_VALUE);
+            failures[i] = ShardSearchFailureTests.createTestItem(IndexMetadata.INDEX_UUID_NA_VALUE);
         }
         SearchResponse response = createTestItem(failures);
         XContentType xcontentType = randomFrom(XContentType.values());
@@ -195,11 +200,15 @@ public class SearchResponseTests extends ESTestCase {
                 assertEquals(originalFailure.shard(), parsedFailure.shard());
                 assertEquals(originalFailure.shardId(), parsedFailure.shardId());
                 String originalMsg = originalFailure.getCause().getMessage();
-                assertEquals(parsedFailure.getCause().getMessage(), "Elasticsearch exception [type=parsing_exception, reason=" +
-                        originalMsg + "]");
+                assertEquals(
+                    parsedFailure.getCause().getMessage(),
+                    "Elasticsearch exception [type=parsing_exception, reason=" + originalMsg + "]"
+                );
                 String nestedMsg = originalFailure.getCause().getCause().getMessage();
-                assertEquals(parsedFailure.getCause().getCause().getMessage(),
-                        "Elasticsearch exception [type=illegal_argument_exception, reason=" + nestedMsg + "]");
+                assertEquals(
+                    parsedFailure.getCause().getCause().getMessage(),
+                    "Elasticsearch exception [type=illegal_argument_exception, reason=" + nestedMsg + "]"
+                );
             }
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
@@ -207,16 +216,28 @@ public class SearchResponseTests extends ESTestCase {
     }
 
     public void testToXContent() {
-        SearchHit hit = new SearchHit(1, "id1", new Text("type"), Collections.emptyMap());
+        SearchHit hit = new SearchHit(1, "id1", Collections.emptyMap(), Collections.emptyMap());
         hit.score(2.0f);
         SearchHit[] hits = new SearchHit[] { hit };
         {
             SearchResponse response = new SearchResponse(
-                    new InternalSearchResponse(new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f), null, null,
-                        null, false, null, 1),
-                        null, 0
-            , 0, 0, 0,
-                    ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
+                new InternalSearchResponse(
+                    new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f),
+                    null,
+                    null,
+                    null,
+                    false,
+                    null,
+                    1
+                ),
+                null,
+                0,
+                0,
+                0,
+                0,
+                ShardSearchFailure.EMPTY_ARRAY,
+                SearchResponse.Clusters.EMPTY
+            );
             StringBuilder expectedString = new StringBuilder();
             expectedString.append("{");
             {
@@ -233,7 +254,7 @@ public class SearchResponseTests extends ESTestCase {
                 {
                     expectedString.append("{\"total\":{\"value\":100,\"relation\":\"eq\"},");
                     expectedString.append("\"max_score\":1.5,");
-                    expectedString.append("\"hits\":[{\"_type\":\"type\",\"_id\":\"id1\",\"_score\":2.0}]}");
+                    expectedString.append("\"hits\":[{\"_id\":\"id1\",\"_score\":2.0}]}");
                 }
             }
             expectedString.append("}");
@@ -241,11 +262,23 @@ public class SearchResponseTests extends ESTestCase {
         }
         {
             SearchResponse response = new SearchResponse(
-                    new InternalSearchResponse(
-                        new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f), null, null, null, false, null, 1
-                    ),
-                null, 0, 0, 0, 0, ShardSearchFailure.EMPTY_ARRAY,
-                new SearchResponse.Clusters(5, 3, 2));
+                new InternalSearchResponse(
+                    new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f),
+                    null,
+                    null,
+                    null,
+                    false,
+                    null,
+                    1
+                ),
+                null,
+                0,
+                0,
+                0,
+                0,
+                ShardSearchFailure.EMPTY_ARRAY,
+                new SearchResponse.Clusters(5, 3, 2)
+            );
             StringBuilder expectedString = new StringBuilder();
             expectedString.append("{");
             {
@@ -268,7 +301,7 @@ public class SearchResponseTests extends ESTestCase {
                 {
                     expectedString.append("{\"total\":{\"value\":100,\"relation\":\"eq\"},");
                     expectedString.append("\"max_score\":1.5,");
-                    expectedString.append("\"hits\":[{\"_type\":\"type\",\"_id\":\"id1\",\"_score\":2.0}]}");
+                    expectedString.append("\"hits\":[{\"_id\":\"id1\",\"_score\":2.0}]}");
                 }
             }
             expectedString.append("}");
@@ -291,5 +324,22 @@ public class SearchResponseTests extends ESTestCase {
         assertEquals(searchResponse.getTotalShards(), deserialized.getTotalShards());
         assertEquals(searchResponse.getSkippedShards(), deserialized.getSkippedShards());
         assertEquals(searchResponse.getClusters(), deserialized.getClusters());
+    }
+
+    public void testToXContentEmptyClusters() throws IOException {
+        SearchResponse searchResponse = new SearchResponse(
+            InternalSearchResponse.empty(),
+            null,
+            1,
+            1,
+            0,
+            1,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY
+        );
+        SearchResponse deserialized = copyWriteable(searchResponse, namedWriteableRegistry, SearchResponse::new, Version.CURRENT);
+        XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
+        deserialized.getClusters().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertEquals(0, Strings.toString(builder).length());
     }
 }

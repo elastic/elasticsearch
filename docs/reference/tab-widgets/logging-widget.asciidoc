@@ -1,0 +1,147 @@
+++++
+<div class="tabs" data-tab-group="os">
+  <div role="tablist" aria-label="logs">
+    <button role="tab"
+            aria-selected="true"
+            aria-controls="docker-tab-logs"
+            id="docker-logs">
+      Docker
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="deb-tab-logs"
+            id="deb-logs">
+      Debian (APT)
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="rpm-tab-logs"
+            id="rpm-logs"
+            tabindex="-1">
+      RPM
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="mac-tab-logs"
+            id="mac-logs"
+            tabindex="-1">
+      macOS
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="brew-tab-logs"
+            id="brew-logs"
+            tabindex="-1">
+      Brew
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="linux-tab-logs"
+            id="linux-logs"
+            tabindex="-1">
+      Linux
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="win-zip-tab-logs"
+            id="win-zip-logs"
+            tabindex="-1">
+      Windows .zip
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="win-msi-tab-logs"
+            id="win--msilogs"
+            tabindex="-1">
+      Windows .msi
+    </button>
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="docker-tab-logs"
+       aria-labelledby="docker-logs">
+++++
+
+include::logging.asciidoc[tag=docker]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="deb-tab-logs"
+       aria-labelledby="deb-logs"
+       hidden="">
+++++
+
+include::logging.asciidoc[tag=deb]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="rpm-tab-logs"
+       aria-labelledby="rpm-logs"
+       hidden="">
+++++
+
+include::logging.asciidoc[tag=rpm]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="mac-tab-logs"
+       aria-labelledby="mac-logs"
+       hidden="">
+++++
+
+include::logging.asciidoc[tag=mac]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="brew-tab-logs"
+       aria-labelledby="brew-logs"
+       hidden="">
+++++
+
+include::logging.asciidoc[tag=brew]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="linux-tab-logs"
+       aria-labelledby="linux-logs"
+       hidden="">
+++++
+
+include::logging.asciidoc[tag=linux]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="win-zip-tab-logs"
+       aria-labelledby="win-zip-logs"
+       hidden="">
+++++
+
+include::logging.asciidoc[tag=win-zip]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="win-msi-tab-logs"
+       aria-labelledby="win-msi-logs"
+       hidden="">
+++++
+
+include::logging.asciidoc[tag=win-msi]
+
+++++
+  </div>
+</div>
+++++

@@ -1,66 +1,65 @@
-import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
-apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.internal-testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
 
 dependencies {
-    testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-    if (isEclipse) {
-      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(xpackModule('ccr'))
+  testImplementation project(':x-pack:plugin:ccr:qa')
+}
+
+def leaderCluster = testClusters.register("leader-cluster") {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.enabled', 'true'
+  user username: 'admin', password: 'admin-password', role: 'superuser'
+}
+
+def followCluster = testClusters.register("follow-cluster") {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.monitoring.collection.enabled', 'true'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.enabled', 'true'
+  user username: 'admin', password: 'admin-password', role: 'superuser'
+  setting 'cluster.remote.leader_cluster.seeds', { "\"${leaderCluster.get().getAllTransportPortURI().join(",")}\""
+  }
+}
+
+tasks.register("leader-cluster", RestIntegTestTask) {
+  mustRunAfter("precommit")
+  systemProperty 'tests.target_cluster', 'leader'
+}
+
+File policyFile = file("${buildDir}/tmp/java.policy")
+tasks.register("writeJavaPolicy") {
+  doLast {
+    if (policyFile.parentFile.exists() == false && policyFile.parentFile.mkdirs() == false) {
+      throw new GradleException("failed to create temporary directory [${tmp}]")
     }
-    testCompile project(path: xpackModule('ccr'), configuration: 'runtime')
-    testCompile project(':x-pack:plugin:ccr:qa')
+    policyFile.write(
+      [
+        "grant {",
+        "  permission java.io.FilePermission \"${-> testClusters."follow-cluster".getFirstNode().getServerLog()}\", \"read\";",
+        "};"
+      ].join("\n")
+    )
+  }
 }
 
-task leaderClusterTest(type: RestIntegTestTask) {
-    mustRunAfter(precommit)
-}
-
-leaderClusterTestCluster {
-    numNodes = 1
-    clusterName = 'leader-cluster'
-    setting 'xpack.license.self_generated.type', 'trial'
-}
-
-leaderClusterTestRunner {
-    systemProperty 'tests.target_cluster', 'leader'
-}
-
-task writeJavaPolicy {
-    doLast {
-        final File tmp = file("${buildDir}/tmp")
-        if (tmp.exists() == false && tmp.mkdirs() == false) {
-            throw new GradleException("failed to create temporary directory [${tmp}]")
-        }
-        final File javaPolicy = file("${tmp}/java.policy")
-        javaPolicy.write(
-                [
-                        "grant {",
-                        "  permission java.io.FilePermission \"${-> followClusterTest.getNodes().get(0).homeDir}/logs/${-> followClusterTest.getNodes().get(0).clusterName}_server.json\", \"read\";",
-                        "};"
-                ].join("\n"))
-    }
-}
-
-task followClusterTest(type: RestIntegTestTask) {}
-followClusterTest.dependsOn writeJavaPolicy
-
-followClusterTestCluster {
-    dependsOn leaderClusterTestRunner
-    numNodes = 1
-    clusterName = 'follow-cluster'
-    setting 'xpack.monitoring.collection.enabled', 'true'
-    setting 'xpack.license.self_generated.type', 'trial'
-    setting 'cluster.remote.leader_cluster.seeds', "\"${-> leaderClusterTest.nodes.get(0).transportUri()}\""
-}
-
-followClusterTestRunner {
-    systemProperty 'java.security.policy', "file://${buildDir}/tmp/java.policy"
+tasks.register("follow-cluster", RestIntegTestTask) {
+  dependsOn 'writeJavaPolicy', "leader-cluster"
+    useCluster leaderCluster
+    systemProperty 'java.security.policy', "file://${policyFile}"
     systemProperty 'tests.target_cluster', 'follow'
-    nonInputProperties.systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
-    nonInputProperties.systemProperty 'log', "${-> followClusterTest.getNodes().get(0).homeDir}/logs/" +
-            "${-> followClusterTest.getNodes().get(0).clusterName}_server.json"
-    finalizedBy 'leaderClusterTestCluster#stop'
+    nonInputProperties.systemProperty 'tests.leader_host', leaderCluster.map(c -> c.allHttpSocketURI.get(0))
+    nonInputProperties.systemProperty 'log', followCluster.map(c -> c.getFirstNode().getServerLog())
 }
 
-check.dependsOn followClusterTest
-test.enabled = false // no unit tests for multi-cluster-search, only the rest integration test
+tasks.named("check").configure { dependsOn "follow-cluster" }
+
+// We can't run in FIPS mode with a basic license
+tasks.withType(Test).configureEach {
+  onlyIf { BuildParams.inFipsJvm == false}
+}

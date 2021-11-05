@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.admin.cluster.reroute;
 
@@ -23,8 +12,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -40,7 +29,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.io.IOException;
@@ -66,10 +56,8 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
         req.writeTo(out);
         BytesReference bytes = out.bytes();
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(NetworkModule.getNamedWriteables());
-        StreamInput wrap = new NamedWriteableAwareStreamInput(bytes.streamInput(),
-            namedWriteableRegistry);
-        ClusterRerouteRequest deserializedReq = new ClusterRerouteRequest();
-        deserializedReq.readFrom(wrap);
+        StreamInput wrap = new NamedWriteableAwareStreamInput(bytes.streamInput(), namedWriteableRegistry);
+        ClusterRerouteRequest deserializedReq = new ClusterRerouteRequest(wrap);
 
         assertEquals(req.isRetryFailed(), deserializedReq.isRetryFailed());
         assertEquals(req.dryRun(), deserializedReq.dryRun());
@@ -82,7 +70,11 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
     public void testClusterStateUpdateTask() {
         AllocationService allocationService = new AllocationService(
             new AllocationDeciders(Collections.singleton(new MaxRetryAllocationDecider())),
-            new TestGatewayAllocator(), new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
+            new TestGatewayAllocator(),
+            new BalancedShardsAllocator(Settings.EMPTY),
+            EmptyClusterInfoService.INSTANCE,
+            EmptySnapshotsInfoService.INSTANCE
+        );
         ClusterState clusterState = createInitialClusterState(allocationService);
         ClusterRerouteRequest req = new ClusterRerouteRequest();
         req.dryRun(true);
@@ -99,8 +91,12 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
             }
         };
         TransportClusterRerouteAction.ClusterRerouteResponseAckedClusterStateUpdateTask task =
-            new TransportClusterRerouteAction.ClusterRerouteResponseAckedClusterStateUpdateTask(logger, allocationService, req,
-                responseActionListener );
+            new TransportClusterRerouteAction.ClusterRerouteResponseAckedClusterStateUpdateTask(
+                logger,
+                allocationService,
+                req,
+                responseActionListener
+            );
         ClusterState execute = task.execute(clusterState);
         assertSame(execute, clusterState); // dry-run
         task.onAllNodesAcked(null);
@@ -119,21 +115,25 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
             assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), INITIALIZING);
             assertEquals(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getNumFailedAllocations(), i);
             List<FailedShard> failedShards = Collections.singletonList(
-                new FailedShard(routingTable.index("idx").shard(0).shards().get(0), "boom" + i,
-                    new UnsupportedOperationException(), randomBoolean()));
+                new FailedShard(
+                    routingTable.index("idx").shard(0).shards().get(0),
+                    "boom" + i,
+                    new UnsupportedOperationException(),
+                    randomBoolean()
+                )
+            );
             newState = allocationService.applyFailedShards(clusterState, failedShards);
             assertThat(newState, not(equalTo(clusterState)));
             clusterState = newState;
             routingTable = clusterState.routingTable();
             assertEquals(routingTable.index("idx").shards().size(), 1);
-            if (i == retries-1) {
+            if (i == retries - 1) {
                 assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), UNASSIGNED);
             } else {
                 assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), INITIALIZING);
             }
-            assertEquals(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getNumFailedAllocations(), i+1);
+            assertEquals(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getNumFailedAllocations(), i + 1);
         }
-
 
         // without retry_failed we won't allocate that shard
         ClusterState newState = task.execute(clusterState);
@@ -156,17 +156,18 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
     }
 
     private ClusterState createInitialClusterState(AllocationService service) {
-        MetaData.Builder metaBuilder = MetaData.builder();
-        metaBuilder.put(IndexMetaData.builder("idx").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0));
-        MetaData metaData = metaBuilder.build();
+        Metadata.Builder metaBuilder = Metadata.builder();
+        metaBuilder.put(IndexMetadata.builder("idx").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0));
+        Metadata metadata = metaBuilder.build();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
-        routingTableBuilder.addAsNew(metaData.index("idx"));
+        routingTableBuilder.addAsNew(metadata.index("idx"));
 
         RoutingTable routingTable = routingTableBuilder.build();
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY))
-            .metaData(metaData).routingTable(routingTable).build();
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
+        ClusterState clusterState = ClusterState.builder(
+            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
+        ).metadata(metadata).routingTable(routingTable).build();
+        clusterState = ClusterState.builder(clusterState)
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
         RoutingTable prevRoutingTable = routingTable;
         routingTable = service.reroute(clusterState, "reroute").routingTable();

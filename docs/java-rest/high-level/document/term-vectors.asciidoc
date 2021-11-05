@@ -15,7 +15,7 @@ artificially provided by the user.
 [id="{upid}-{api}-request"]
 ==== Term Vectors Request
 
-A +{request}+ expects an `index`, a `type` and an `id` to specify
+A +{request}+ expects an `index` and an `id` to specify
 a certain document, and fields for which the information is retrieved.
 
 ["source","java",subs="attributes,callouts,macros"]
@@ -51,7 +51,7 @@ offsets.
 payloads.
 <6> Set `filterSettings` to filter the terms that can be returned based
 on their tf-idf scores.
-<7> Set `perFieldAnalyzer` to specify  a different analyzer than
+<7> Set `perFieldAnalyzer` to specify a different analyzer than
 the one that the field has.
 <8> Set `realtime` to `false` (default is `true`) to retrieve term vectors
 near realtime.
@@ -71,9 +71,8 @@ include::../execution.asciidoc[]
 include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> The index name of the document.
-<2> The type name of the document.
-<3> The id of the document.
-<4> Indicates whether or not the document found.
+<2> The id of the document.
+<3> Indicates whether or not the document found.
 
 
 ===== Inspecting Term Vectors

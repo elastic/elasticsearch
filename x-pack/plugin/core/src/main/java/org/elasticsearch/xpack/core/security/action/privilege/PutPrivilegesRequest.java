@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.privilege;
 
@@ -31,6 +32,12 @@ public final class PutPrivilegesRequest extends ActionRequest implements Applica
     private List<ApplicationPrivilegeDescriptor> privileges;
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
 
+    public PutPrivilegesRequest(StreamInput in) throws IOException {
+        super(in);
+        privileges = Collections.unmodifiableList(in.readList(ApplicationPrivilegeDescriptor::new));
+        refreshPolicy = RefreshPolicy.readFrom(in);
+    }
+
     public PutPrivilegesRequest() {
         privileges = Collections.emptyList();
     }
@@ -57,8 +64,10 @@ public final class PutPrivilegesRequest extends ActionRequest implements Applica
                 }
                 for (String action : privilege.getActions()) {
                     if (action.indexOf('/') == -1 && action.indexOf('*') == -1 && action.indexOf(':') == -1) {
-                        validationException = addValidationError("action [" + action + "] must contain one of [ '/' , '*' , ':' ]",
-                            validationException);
+                        validationException = addValidationError(
+                            "action [" + action + "] must contain one of [ '/' , '*' , ':' ]",
+                            validationException
+                        );
                     }
                     try {
                         ApplicationPrivilege.validatePrivilegeOrActionName(action);
@@ -67,8 +76,16 @@ public final class PutPrivilegesRequest extends ActionRequest implements Applica
                     }
                 }
                 if (MetadataUtils.containsReservedMetadata(privilege.getMetadata())) {
-                    validationException = addValidationError("metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX
-                        + "] (in privilege " + privilege.getApplication() + ' ' + privilege.getName() + ")", validationException);
+                    validationException = addValidationError(
+                        "metadata keys may not start with ["
+                            + MetadataUtils.RESERVED_PREFIX
+                            + "] (in privilege "
+                            + privilege.getApplication()
+                            + ' '
+                            + privilege.getName()
+                            + ")",
+                        validationException
+                    );
                 }
             }
         }
@@ -100,22 +117,19 @@ public final class PutPrivilegesRequest extends ActionRequest implements Applica
 
     @Override
     public Collection<String> getApplicationNames() {
-        return Collections.unmodifiableSet(privileges.stream()
-            .map(ApplicationPrivilegeDescriptor::getApplication)
-            .collect(Collectors.toSet()));
+        return Collections.unmodifiableSet(
+            privileges.stream().map(ApplicationPrivilegeDescriptor::getApplication).collect(Collectors.toSet())
+        );
     }
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "{[" + privileges.stream().map(Strings::toString).collect(Collectors.joining(","))
-            + "];" + refreshPolicy + "}";
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        privileges = Collections.unmodifiableList(in.readList(ApplicationPrivilegeDescriptor::new));
-        refreshPolicy = RefreshPolicy.readFrom(in);
+        return getClass().getSimpleName()
+            + "{["
+            + privileges.stream().map(Strings::toString).collect(Collectors.joining(","))
+            + "];"
+            + refreshPolicy
+            + "}";
     }
 
     @Override

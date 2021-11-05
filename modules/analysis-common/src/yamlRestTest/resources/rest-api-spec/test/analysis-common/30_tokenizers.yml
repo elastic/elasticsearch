@@ -1,0 +1,437 @@
+## Smoke tests for tokenizers included in the analysis-common module
+
+"keyword":
+    - do:
+        indices.analyze:
+          body:
+            text:      Foo Bar!
+            explain: true
+            tokenizer: keyword
+    - length:    { detail.tokenizer.tokens: 1 }
+    - match:     { detail.tokenizer.name: keyword }
+    - match:     { detail.tokenizer.tokens.0.token: Foo Bar! }
+
+    - do:
+        indices.analyze:
+          body:
+            text: Foo Bar!
+            explain: true
+            tokenizer:
+              type: keyword
+    - length: { detail.tokenizer.tokens: 1 }
+    - match:  { detail.tokenizer.name: __anonymous__keyword }
+    - match:  { detail.tokenizer.tokens.0.token: Foo Bar! }
+
+---
+"simple_pattern":
+    - do:
+        indices.analyze:
+          body:
+            text: "a6bf fooo ff61"
+            explain: true
+            tokenizer:
+              type: simple_pattern
+              pattern: "[abcdef0123456789]{4}"
+    - length: { detail.tokenizer.tokens: 2 }
+    - match:  { detail.tokenizer.name: __anonymous__simple_pattern }
+    - match:  { detail.tokenizer.tokens.0.token: a6bf }
+    - match:  { detail.tokenizer.tokens.1.token: ff61 }
+
+---
+"simple_pattern_split":
+    - do:
+        indices.analyze:
+          body:
+            text: "foo==bar"
+            explain: true
+            tokenizer:
+              type: simple_pattern_split
+              pattern: ==
+    - length: { detail.tokenizer.tokens: 2 }
+    - match:  { detail.tokenizer.name: __anonymous__simple_pattern_split }
+    - match:  { detail.tokenizer.tokens.0.token: foo }
+    - match:  { detail.tokenizer.tokens.1.token: bar }
+
+---
+"thai_tokenizer":
+    - do:
+        indices.analyze:
+          body:
+            text: "ภาษาไทย"
+            explain: true
+            tokenizer:
+              type: thai
+    - length: { detail.tokenizer.tokens: 2 }
+    - match:  { detail.tokenizer.name: __anonymous__thai }
+    - match:  { detail.tokenizer.tokens.0.token: ภาษา }
+    - match:  { detail.tokenizer.tokens.1.token: ไทย }
+
+    - do:
+        indices.analyze:
+          body:
+            text: "ภาษาไทย"
+            explain: true
+            tokenizer: thai
+    - length: { detail.tokenizer.tokens: 2 }
+    - match:  { detail.tokenizer.name: thai }
+    - match:  { detail.tokenizer.tokens.0.token: ภาษา }
+    - match:  { detail.tokenizer.tokens.1.token: ไทย }
+
+---
+"ngram":
+    - do:
+        indices.analyze:
+          body:
+            text: "foobar"
+            explain: true
+            tokenizer:
+              type: ngram
+              min_gram: 3
+              max_gram: 3
+    - length: { detail.tokenizer.tokens: 4 }
+    - match:  { detail.tokenizer.name: __anonymous__ngram }
+    - match:  { detail.tokenizer.tokens.0.token: foo }
+    - match:  { detail.tokenizer.tokens.1.token: oob }
+    - match:  { detail.tokenizer.tokens.2.token: oba }
+    - match:  { detail.tokenizer.tokens.3.token: bar }
+
+    - do:
+        indices.analyze:
+          body:
+            text: "foobar"
+            explain: true
+            tokenizer:
+              type: ngram
+              min_gram: 3
+              max_gram: 3
+    - length: { detail.tokenizer.tokens: 4 }
+    - match:  { detail.tokenizer.name: __anonymous__ngram }
+    - match:  { detail.tokenizer.tokens.0.token: foo }
+    - match:  { detail.tokenizer.tokens.1.token: oob }
+    - match:  { detail.tokenizer.tokens.2.token: oba }
+    - match:  { detail.tokenizer.tokens.3.token: bar }
+
+    - do:
+        indices.analyze:
+          body:
+            text: "foo"
+            explain: true
+            tokenizer: ngram
+    - length: { detail.tokenizer.tokens: 5 }
+    - match:  { detail.tokenizer.name: ngram }
+    - match:  { detail.tokenizer.tokens.0.token: f }
+    - match:  { detail.tokenizer.tokens.1.token: fo }
+    - match:  { detail.tokenizer.tokens.2.token: o }
+    - match:  { detail.tokenizer.tokens.3.token: oo }
+    - match:  { detail.tokenizer.tokens.4.token: o }
+
+    - do:
+        indices.analyze:
+          body:
+            text: "foo"
+            explain: true
+            tokenizer: ngram
+    - length: { detail.tokenizer.tokens: 5 }
+    - match:  { detail.tokenizer.name: ngram }
+    - match:  { detail.tokenizer.tokens.0.token: f }
+    - match:  { detail.tokenizer.tokens.1.token: fo }
+    - match:  { detail.tokenizer.tokens.2.token: o }
+    - match:  { detail.tokenizer.tokens.3.token: oo }
+    - match:  { detail.tokenizer.tokens.4.token: o }
+
+---
+"ngram_exception":
+    - do:
+        catch: /The difference between max_gram and min_gram in NGram Tokenizer must be less than or equal to[:] \[1\] but was \[2\]\. This limit can be set by changing the \[index.max_ngram_diff\] index level setting\./
+        indices.analyze:
+          body:
+            text: good
+            explain: true
+            tokenizer:
+              type: ngram
+              min_gram: 2
+              max_gram: 4
+
+---
+"edge_ngram":
+    - do:
+        indices.analyze:
+          body:
+            text: "foo"
+            explain: true
+            tokenizer:
+              type: edge_ngram
+              min_gram: 1
+              max_gram: 3
+    - length: { detail.tokenizer.tokens: 3 }
+    - match:  { detail.tokenizer.name: __anonymous__edge_ngram }
+    - match:  { detail.tokenizer.tokens.0.token: f }
+    - match:  { detail.tokenizer.tokens.1.token: fo }
+    - match:  { detail.tokenizer.tokens.2.token: foo }
+
+    - do:
+        indices.analyze:
+          body:
+            text: "foo"
+            explain: true
+            tokenizer:
+              type: edge_ngram
+              min_gram: 1
+              max_gram: 3
+    - length: { detail.tokenizer.tokens: 3 }
+    - match:  { detail.tokenizer.name: __anonymous__edge_ngram }
+    - match:  { detail.tokenizer.tokens.0.token: f }
+    - match:  { detail.tokenizer.tokens.1.token: fo }
+    - match:  { detail.tokenizer.tokens.2.token: foo }
+
+    - do:
+        indices.analyze:
+          body:
+            text: "foo"
+            explain: true
+            tokenizer: edge_ngram
+    - length: { detail.tokenizer.tokens: 2 }
+    - match:  { detail.tokenizer.name: edge_ngram }
+    - match:  { detail.tokenizer.tokens.0.token: f }
+    - match:  { detail.tokenizer.tokens.1.token: fo }
+
+    - do:
+        indices.analyze:
+          body:
+            text: "foo"
+            explain: true
+            tokenizer: edge_ngram
+    - length: { detail.tokenizer.tokens: 2 }
+    - match:  { detail.tokenizer.name: edge_ngram }
+    - match:  { detail.tokenizer.tokens.0.token: f }
+    - match:  { detail.tokenizer.tokens.1.token: fo }
+
+---
+"classic":
+    - do:
+        indices.analyze:
+          body:
+            text: "Brown-Foxes don't jump."
+            explain: true
+            tokenizer:
+              type: classic
+    - length: { detail.tokenizer.tokens: 4 }
+    - match:  { detail.tokenizer.name: __anonymous__classic }
+    - match:  { detail.tokenizer.tokens.0.token: Brown }
+    - match:  { detail.tokenizer.tokens.1.token: Foxes }
+    - match:  { detail.tokenizer.tokens.2.token: don't }
+    - match:  { detail.tokenizer.tokens.3.token: jump }
+
+    - do:
+        indices.analyze:
+          body:
+            text: "Brown-Foxes don't jump."
+            explain: true
+            tokenizer: classic
+    - length: { detail.tokenizer.tokens: 4 }
+    - match:  { detail.tokenizer.name: classic }
+    - match:  { detail.tokenizer.tokens.0.token: Brown }
+    - match:  { detail.tokenizer.tokens.1.token: Foxes }
+    - match:  { detail.tokenizer.tokens.2.token: don't }
+    - match:  { detail.tokenizer.tokens.3.token: jump }
+
+---
+"letter":
+    - do:
+        indices.analyze:
+          body:
+            text: "Brown-Foxes don't jump."
+            explain: true
+            tokenizer:
+              type: letter
+    - length: { detail.tokenizer.tokens: 5 }
+    - match:  { detail.tokenizer.name: __anonymous__letter }
+    - match:  { detail.tokenizer.tokens.0.token: Brown }
+    - match:  { detail.tokenizer.tokens.1.token: Foxes }
+    - match:  { detail.tokenizer.tokens.2.token: don }
+    - match:  { detail.tokenizer.tokens.3.token: t }
+    - match:  { detail.tokenizer.tokens.4.token: jump }
+
+    - do:
+        indices.analyze:
+          body:
+            text: "Brown-Foxes don't jump."
+            explain: true
+            tokenizer: letter
+    - length: { detail.tokenizer.tokens: 5 }
+    - match:  { detail.tokenizer.name: letter }
+    - match:  { detail.tokenizer.tokens.0.token: Brown }
+    - match:  { detail.tokenizer.tokens.1.token: Foxes }
+    - match:  { detail.tokenizer.tokens.2.token: don }
+    - match:  { detail.tokenizer.tokens.3.token: t }
+    - match:  { detail.tokenizer.tokens.4.token: jump }
+
+---
+"lowercase":
+    - do:
+        indices.analyze:
+          body:
+            text: "Brown-Foxes don't jump."
+            explain: true
+            tokenizer:
+              type: lowercase
+    - length: { detail.tokenizer.tokens: 5 }
+    - match:  { detail.tokenizer.name: __anonymous__lowercase }
+    - match:  { detail.tokenizer.tokens.0.token: brown }
+    - match:  { detail.tokenizer.tokens.1.token: foxes }
+    - match:  { detail.tokenizer.tokens.2.token: don }
+    - match:  { detail.tokenizer.tokens.3.token: t }
+    - match:  { detail.tokenizer.tokens.4.token: jump }
+
+    - do:
+        indices.analyze:
+          body:
+            text: "Brown-Foxes don't jump."
+            explain: true
+            tokenizer: lowercase
+    - length: { detail.tokenizer.tokens: 5 }
+    - match:  { detail.tokenizer.name: lowercase }
+    - match:  { detail.tokenizer.tokens.0.token: brown }
+    - match:  { detail.tokenizer.tokens.1.token: foxes }
+    - match:  { detail.tokenizer.tokens.2.token: don }
+    - match:  { detail.tokenizer.tokens.3.token: t }
+    - match:  { detail.tokenizer.tokens.4.token: jump }
+
+---
+"path_hierarchy":
+    - do:
+        indices.analyze:
+          body:
+            text: "a/b/c"
+            explain: true
+            tokenizer:
+              type: path_hierarchy
+    - length: { detail.tokenizer.tokens: 3 }
+    - match:  { detail.tokenizer.name: __anonymous__path_hierarchy }
+    - match:  { detail.tokenizer.tokens.0.token: a }
+    - match:  { detail.tokenizer.tokens.1.token: a/b }
+    - match:  { detail.tokenizer.tokens.2.token: a/b/c }
+
+    - do:
+        indices.analyze:
+          body:
+            text: "a/b/c"
+            explain: true
+            tokenizer:
+              type: PathHierarchy
+    - length: { detail.tokenizer.tokens: 3 }
+    - match:  { detail.tokenizer.name: __anonymous__PathHierarchy }
+    - match:  { detail.tokenizer.tokens.0.token: a }
+    - match:  { detail.tokenizer.tokens.1.token: a/b }
+    - match:  { detail.tokenizer.tokens.2.token: a/b/c }
+
+    - do:
+        indices.analyze:
+          body:
+            text: "a/b/c"
+            explain: true
+            tokenizer: path_hierarchy
+    - length: { detail.tokenizer.tokens: 3 }
+    - match:  { detail.tokenizer.name: path_hierarchy }
+    - match:  { detail.tokenizer.tokens.0.token: a }
+    - match:  { detail.tokenizer.tokens.1.token: a/b }
+    - match:  { detail.tokenizer.tokens.2.token: a/b/c }
+
+    - do:
+        indices.analyze:
+          body:
+            text: "a/b/c"
+            explain: true
+            tokenizer:  PathHierarchy
+    - length: { detail.tokenizer.tokens: 3 }
+    - match:  { detail.tokenizer.name: PathHierarchy }
+    - match:  { detail.tokenizer.tokens.0.token: a }
+    - match:  { detail.tokenizer.tokens.1.token: a/b }
+    - match:  { detail.tokenizer.tokens.2.token: a/b/c }
+
+---
+"pattern":
+    - do:
+        indices.analyze:
+          body:
+            text: "split by whitespace by default"
+            explain: true
+            tokenizer:
+              type: pattern
+    - length: { detail.tokenizer.tokens: 5 }
+    - match:  { detail.tokenizer.name: __anonymous__pattern }
+    - match:  { detail.tokenizer.tokens.0.token: split }
+    - match:  { detail.tokenizer.tokens.1.token: by }
+    - match:  { detail.tokenizer.tokens.2.token: whitespace }
+    - match:  { detail.tokenizer.tokens.3.token: by }
+    - match:  { detail.tokenizer.tokens.4.token: default }
+
+    - do:
+        indices.analyze:
+          body:
+            text: "split by whitespace by default"
+            explain: true
+            tokenizer: pattern
+    - length: { detail.tokenizer.tokens: 5 }
+    - match:  { detail.tokenizer.name: pattern }
+    - match:  { detail.tokenizer.tokens.0.token: split }
+    - match:  { detail.tokenizer.tokens.1.token: by }
+    - match:  { detail.tokenizer.tokens.2.token: whitespace }
+    - match:  { detail.tokenizer.tokens.3.token: by }
+    - match:  { detail.tokenizer.tokens.4.token: default }
+
+---
+"uax_url_email":
+    - do:
+        indices.analyze:
+          body:
+            text: "Email me at john.smith@global-international.com"
+            explain: true
+            tokenizer:
+              type: uax_url_email
+    - length: { detail.tokenizer.tokens: 4 }
+    - match:  { detail.tokenizer.name: __anonymous__uax_url_email }
+    - match:  { detail.tokenizer.tokens.0.token: Email }
+    - match:  { detail.tokenizer.tokens.1.token: me }
+    - match:  { detail.tokenizer.tokens.2.token: at }
+    - match:  { detail.tokenizer.tokens.3.token: john.smith@global-international.com }
+
+    - do:
+        indices.analyze:
+          body:
+            text: "Email me at john.smith@global-international.com"
+            explain: true
+            tokenizer: uax_url_email
+    - length: { detail.tokenizer.tokens: 4 }
+    - match:  { detail.tokenizer.name: uax_url_email }
+    - match:  { detail.tokenizer.tokens.0.token: Email }
+    - match:  { detail.tokenizer.tokens.1.token: me }
+    - match:  { detail.tokenizer.tokens.2.token: at }
+    - match:  { detail.tokenizer.tokens.3.token: john.smith@global-international.com }
+
+---
+"whitespace":
+    - do:
+        indices.analyze:
+          body:
+            text: "split by whitespace"
+            explain: true
+            tokenizer:
+              type: whitespace
+    - length: { detail.tokenizer.tokens: 3 }
+    - match:  { detail.tokenizer.name: __anonymous__whitespace }
+    - match:  { detail.tokenizer.tokens.0.token: split }
+    - match:  { detail.tokenizer.tokens.1.token: by }
+    - match:  { detail.tokenizer.tokens.2.token: whitespace }
+
+    - do:
+        indices.analyze:
+          body:
+            text: "split by whitespace"
+            explain: true
+            tokenizer: whitespace
+    - length: { detail.tokenizer.tokens: 3 }
+    - match:  { detail.tokenizer.name: whitespace }
+    - match:  { detail.tokenizer.tokens.0.token: split }
+    - match:  { detail.tokenizer.tokens.1.token: by }
+    - match:  { detail.tokenizer.tokens.2.token: whitespace }

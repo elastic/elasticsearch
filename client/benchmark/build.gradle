@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 apply plugin: 'elasticsearch.build'
@@ -23,29 +12,23 @@ apply plugin: 'application'
 group = 'org.elasticsearch.client'
 
 // Not published so no need to assemble
-assemble.enabled = true
+tasks.named("assemble").configure {  enabled = true }
 
 archivesBaseName = 'client-benchmarks'
 mainClassName = 'org.elasticsearch.client.benchmark.BenchmarkMain'
 
 // never try to invoke tests on the benchmark project - there aren't any
-test.enabled = false
+tasks.named("test").configure {enabled = false }
 
 dependencies {
-  compile 'org.apache.commons:commons-math3:3.2'
+  api 'org.apache.commons:commons-math3:3.2'
 
-  compile("org.elasticsearch.client:elasticsearch-rest-client:${version}")
+  api project(':server')
+  api project(':client:rest')
   // bottleneck should be the client, not Elasticsearch
-  compile project(path: ':client:client-benchmark-noop-api-plugin')
-  // for transport client
-  compile("org.elasticsearch:elasticsearch:${version}")
-  compile("org.elasticsearch.client:transport:${version}")
-  compile project(path: ':modules:transport-netty4', configuration: 'runtime')
-  compile project(path: ':modules:reindex', configuration: 'runtime')
-  compile project(path: ':modules:lang-mustache', configuration: 'runtime')
-  compile project(path: ':modules:percolator', configuration: 'runtime')
+  api project(path: ':client:client-benchmark-noop-api-plugin')
 }
 
 // No licenses for our benchmark deps (we don't ship benchmarks)
-dependencyLicenses.enabled = false
-dependenciesInfo.enabled = false
+tasks.named("dependencyLicenses").configure { enabled = false }
+tasks.named("dependenciesInfo").configure{enabled = false }

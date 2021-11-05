@@ -1,9 +1,49 @@
-// Subprojects aren't published so do not assemble
-gradle.projectsEvaluated {
-  subprojects {
-    Task assemble = project.tasks.findByName('assemble')
-    if (assemble) {
-      assemble.enabled = false
+import org.elasticsearch.gradle.VersionProperties
+
+buildscript {
+  repositories {
+    maven {
+      url = 'https://snapshots.elastic.co/maven/'
     }
+    mavenCentral()
   }
+  dependencies {
+    classpath "org.elasticsearch.gradle:build-tools:${elasticsearchVersion}"
+  }
+}
+
+subprojects {
+  apply plugin: 'java'
+
+  sourceCompatibility = 11
+  targetCompatibility = 11
+
+  repositories {
+    if (gradle.includedBuilds == false) {
+      // Only necessary when building plugins against SNAPSHOT versions of Elasticsearch
+      maven {
+        url = 'https://snapshots.elastic.co/maven/'
+      }
+    }
+
+    // Same for Lucene, add the snapshot repo based on the currently used Lucene version
+    def luceneVersion = VersionProperties.getLucene()
+    if (luceneVersion.contains('-snapshot')) {
+      def matcher = luceneVersion =~ /[0-9\.]+-snapshot-([a-z0-9]+)/
+      assert matcher.matches(): "Invalid Lucene snapshot version '${luceneVersion}'"
+      maven {
+        url = "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${matcher.group(1)}"
+      }
+    }
+
+    mavenCentral()
+  }
+}
+
+tasks.register('check') {
+  dependsOn subprojects.collect { it.tasks.named('check') }
+}
+
+tasks.register('precommit') {
+  dependsOn subprojects.collect { it.tasks.named('classes') }
 }

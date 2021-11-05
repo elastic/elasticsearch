@@ -1,0 +1,15 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+
+esplugin {
+  name 'wildcard'
+  description 'A plugin for a keyword field type with efficient wildcard search'
+  classname 'org.elasticsearch.xpack.wildcard.Wildcard'
+  extendedPlugins = ['x-pack-core']
+}
+archivesBaseName = 'x-pack-wildcard'
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+}
+

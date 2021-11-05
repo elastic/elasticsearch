@@ -1,24 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.update;
 
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -26,27 +17,29 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequest;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -57,7 +50,13 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_T
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
-        implements DocWriteRequest<UpdateRequest>, WriteRequest<UpdateRequest>, ToXContentObject {
+    implements
+        DocWriteRequest<UpdateRequest>,
+        WriteRequest<UpdateRequest>,
+        ToXContentObject {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(UpdateRequest.class);
+
     private static ObjectParser<UpdateRequest, Void> PARSER;
 
     private static final ParseField SCRIPT_FIELD = new ParseField("script");
@@ -72,32 +71,35 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     static {
         PARSER = new ObjectParser<>(UpdateRequest.class.getSimpleName());
-        PARSER.declareField((request, script) -> request.script = script,
-            (parser, context) -> Script.parse(parser), SCRIPT_FIELD, ObjectParser.ValueType.OBJECT_OR_STRING);
+        PARSER.declareField(
+            (request, script) -> request.script = script,
+            (parser, context) -> Script.parse(parser),
+            SCRIPT_FIELD,
+            ObjectParser.ValueType.OBJECT_OR_STRING
+        );
         PARSER.declareBoolean(UpdateRequest::scriptedUpsert, SCRIPTED_UPSERT_FIELD);
-        PARSER.declareObject((request, builder) -> request.safeUpsertRequest().source(builder),
-            (parser, context) -> {
-                XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
-                builder.copyCurrentStructure(parser);
-                return builder;
-            }, UPSERT_FIELD);
-        PARSER.declareObject((request, builder) -> request.safeDoc().source(builder),
-            (parser, context) -> {
-                XContentBuilder docBuilder = XContentFactory.contentBuilder(parser.contentType());
-                docBuilder.copyCurrentStructure(parser);
-                return docBuilder;
-            }, DOC_FIELD);
+        PARSER.declareObject((request, builder) -> request.safeUpsertRequest().source(builder), (parser, context) -> {
+            XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
+            builder.copyCurrentStructure(parser);
+            return builder;
+        }, UPSERT_FIELD);
+        PARSER.declareObject((request, builder) -> request.safeDoc().source(builder), (parser, context) -> {
+            XContentBuilder docBuilder = XContentFactory.contentBuilder(parser.contentType());
+            docBuilder.copyCurrentStructure(parser);
+            return docBuilder;
+        }, DOC_FIELD);
         PARSER.declareBoolean(UpdateRequest::docAsUpsert, DOC_AS_UPSERT_FIELD);
         PARSER.declareBoolean(UpdateRequest::detectNoop, DETECT_NOOP_FIELD);
-        PARSER.declareField(UpdateRequest::fetchSource,
-            (parser, context) -> FetchSourceContext.fromXContent(parser), SOURCE_FIELD,
-            ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING);
+        PARSER.declareField(
+            UpdateRequest::fetchSource,
+            (parser, context) -> FetchSourceContext.fromXContent(parser),
+            SOURCE_FIELD,
+            ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING
+        );
         PARSER.declareLong(UpdateRequest::setIfSeqNo, IF_SEQ_NO);
         PARSER.declareLong(UpdateRequest::setIfPrimaryTerm, IF_PRIMARY_TERM);
     }
 
-    // Set to null initially so we can know to override in bulk requests that have a default type.
-    private String type;
     private String id;
     @Nullable
     private String routing;
@@ -111,7 +113,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     private long ifSeqNo = UNASSIGNED_SEQ_NO;
     private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
-
     private RefreshPolicy refreshPolicy = RefreshPolicy.NONE;
 
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
@@ -121,12 +122,48 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     private boolean scriptedUpsert = false;
     private boolean docAsUpsert = false;
     private boolean detectNoop = true;
+    private boolean requireAlias = false;
 
     @Nullable
     private IndexRequest doc;
 
-    public UpdateRequest() {
+    public UpdateRequest() {}
 
+    public UpdateRequest(StreamInput in) throws IOException {
+        this(null, in);
+    }
+
+    public UpdateRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
+        super(shardId, in);
+        waitForActiveShards = ActiveShardCount.readFrom(in);
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            String type = in.readString();
+            assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but received [" + type + "]";
+        }
+        id = in.readString();
+        routing = in.readOptionalString();
+        if (in.readBoolean()) {
+            script = new Script(in);
+        }
+        retryOnConflict = in.readVInt();
+        refreshPolicy = RefreshPolicy.readFrom(in);
+        if (in.readBoolean()) {
+            doc = new IndexRequest(shardId, in);
+        }
+        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
+        if (in.readBoolean()) {
+            upsertRequest = new IndexRequest(shardId, in);
+        }
+        docAsUpsert = in.readBoolean();
+        ifSeqNo = in.readZLong();
+        ifPrimaryTerm = in.readVLong();
+        detectNoop = in.readBoolean();
+        scriptedUpsert = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+            requireAlias = in.readBoolean();
+        } else {
+            requireAlias = false;
+        }
     }
 
     public UpdateRequest(String index, String id) {
@@ -134,24 +171,11 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         this.id = id;
     }
 
-    /**
-     * @deprecated Types are in the process of being removed. Use {@link #UpdateRequest(String, String)} instead.
-     */
-    @Deprecated
-    public UpdateRequest(String index, String type, String id) {
-        super(index);
-        this.type = type;
-        this.id = id;
-    }
-
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
-        if(upsertRequest != null && upsertRequest.version() != Versions.MATCH_ANY) {
+        if (upsertRequest != null && upsertRequest.version() != Versions.MATCH_ANY) {
             validationException = addValidationError("can't provide version in upsert request", validationException);
-        }
-        if (Strings.isEmpty(type())) {
-            validationException = addValidationError("type is missing", validationException);
         }
         if (Strings.isEmpty(id)) {
             validationException = addValidationError("id is missing", validationException);
@@ -168,8 +192,10 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
                 validationException = addValidationError("compare and write operations can not be used with upsert", validationException);
             }
             if (upsertRequest != null) {
-                validationException =
-                    addValidationError("upsert requests don't support `if_seq_no` and `if_primary_term`", validationException);
+                validationException = addValidationError(
+                    "upsert requests don't support `if_seq_no` and `if_primary_term`",
+                    validationException
+                );
             }
         }
 
@@ -185,46 +211,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         return validationException;
     }
 
-    /**
-     * The type of the indexed document.
-     *
-     * @deprecated Types are in the process of being removed.
-     */
-    @Deprecated
-    @Override
-    public String type() {
-        if (type == null) {
-            return MapperService.SINGLE_MAPPING_NAME;                    
-        }
-        return type;
-    }
-
-    /**
-     * Sets the type of the indexed document.
-     *
-     * @deprecated Types are in the process of being removed.
-     */
-    @Deprecated
-    public UpdateRequest type(String type) {
-        this.type = type;
-        return this;
-    }
-
-    /**
-     * Set the default type supplied to a bulk
-     * request if this individual request's type is null
-     * or empty
-     * @deprecated Types are in the process of being removed.
-     */
-    @Deprecated
-    @Override
-    public UpdateRequest defaultTypeIfNull(String defaultType) {
-        if (Strings.isNullOrEmpty(type)) {
-            type = defaultType;
-        }
-        return this;
-    }  
-    
     /**
      * The id of the indexed document.
      */
@@ -430,8 +416,12 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      * @deprecated Use {@link #script(Script)} instead
      */
     @Deprecated
-    public UpdateRequest script(String script, @Nullable String scriptLang, ScriptType scriptType,
-            @Nullable Map<String, Object> scriptParams) {
+    public UpdateRequest script(
+        String script,
+        @Nullable String scriptLang,
+        ScriptType scriptType,
+        @Nullable Map<String, Object> scriptParams
+    ) {
         this.script = new Script(scriptType, scriptLang, script, scriptParams);
         return this;
     }
@@ -450,8 +440,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      */
     public UpdateRequest fetchSource(@Nullable String include, @Nullable String exclude) {
         FetchSourceContext context = this.fetchSourceContext == null ? FetchSourceContext.FETCH_SOURCE : this.fetchSourceContext;
-        String[] includes = include == null ? Strings.EMPTY_ARRAY : new String[]{include};
-        String[] excludes = exclude == null ? Strings.EMPTY_ARRAY : new String[]{exclude};
+        String[] includes = include == null ? Strings.EMPTY_ARRAY : new String[] { include };
+        String[] excludes = exclude == null ? Strings.EMPTY_ARRAY : new String[] { exclude };
         this.fetchSourceContext = new FetchSourceContext(context.fetchSource(), includes, excludes);
         return this;
     }
@@ -541,7 +531,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
      */
     public UpdateRequest setIfSeqNo(long seqNo) {
         if (seqNo < 0 && seqNo != UNASSIGNED_SEQ_NO) {
-            throw new IllegalArgumentException("sequence numbers must be non negative. got [" +  seqNo + "].");
+            throw new IllegalArgumentException("sequence numbers must be non negative. got [" + seqNo + "].");
         }
         ifSeqNo = seqNo;
         return this;
@@ -685,6 +675,14 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     /**
+     * Sets the doc to use for updates when a script is not specified. The doc is provided in a bytes form.
+     */
+    public UpdateRequest doc(BytesReference source, XContentType contentType) {
+        safeDoc().source(source, contentType);
+        return this;
+    }
+
+    /**
      * Sets the doc to use for updates when a script is not specified, the doc provided
      * is a field and value pairs.
      */
@@ -819,7 +817,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         return this;
     }
 
-    public boolean scriptedUpsert(){
+    public boolean scriptedUpsert() {
         return this.scriptedUpsert;
     }
 
@@ -829,38 +827,37 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        waitForActiveShards = ActiveShardCount.readFrom(in);
-        type = in.readString();
-        id = in.readString();
-        routing = in.readOptionalString();
-        if (in.readBoolean()) {
-            script = new Script(in);
-        }
-        retryOnConflict = in.readVInt();
-        refreshPolicy = RefreshPolicy.readFrom(in);
-        if (in.readBoolean()) {
-            doc = new IndexRequest(in);
-        }
-        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
-        if (in.readBoolean()) {
-            upsertRequest = new IndexRequest(in);
-        }
-        docAsUpsert = in.readBoolean();
-        ifSeqNo = in.readZLong();
-        ifPrimaryTerm = in.readVLong();
-        detectNoop = in.readBoolean();
-        scriptedUpsert = in.readBoolean();
+    public boolean isRequireAlias() {
+        return requireAlias;
+    }
+
+    @Override
+    public int route(IndexRouting indexRouting) {
+        return indexRouting.updateShard(id, routing);
+    }
+
+    public UpdateRequest setRequireAlias(boolean requireAlias) {
+        this.requireAlias = requireAlias;
+        return this;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        doWrite(out, false);
+    }
+
+    @Override
+    public void writeThin(StreamOutput out) throws IOException {
+        super.writeThin(out);
+        doWrite(out, true);
+    }
+
+    private void doWrite(StreamOutput out, boolean thin) throws IOException {
         waitForActiveShards.writeTo(out);
-        // A 7.x request allows null types but if deserialized in a 6.x node will cause nullpointer exceptions. 
-        // So we use the type accessor method here to make the type non-null (will default it to "_doc"). 
-        out.writeString(type());
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeString(MapperService.SINGLE_MAPPING_NAME);
+        }
         out.writeString(id);
         out.writeOptionalString(routing);
 
@@ -877,9 +874,12 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             out.writeBoolean(true);
             // make sure the basics are set
             doc.index(index);
-            doc.type(type);
             doc.id(id);
-            doc.writeTo(out);
+            if (thin) {
+                doc.writeThin(out);
+            } else {
+                doc.writeTo(out);
+            }
         }
         out.writeOptionalWriteable(fetchSourceContext);
         if (upsertRequest == null) {
@@ -888,15 +888,21 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             out.writeBoolean(true);
             // make sure the basics are set
             upsertRequest.index(index);
-            upsertRequest.type(type);
             upsertRequest.id(id);
-            upsertRequest.writeTo(out);
+            if (thin) {
+                upsertRequest.writeThin(out);
+            } else {
+                upsertRequest.writeTo(out);
+            }
         }
         out.writeBoolean(docAsUpsert);
         out.writeZLong(ifSeqNo);
         out.writeVLong(ifPrimaryTerm);
         out.writeBoolean(detectNoop);
         out.writeBoolean(scriptedUpsert);
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+            out.writeBoolean(requireAlias);
+        }
     }
 
     @Override
@@ -907,8 +913,14 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         }
         if (doc != null) {
             XContentType xContentType = doc.getContentType();
-            try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
-                LoggingDeprecationHandler.INSTANCE, doc.source(), xContentType)) {
+            try (
+                XContentParser parser = XContentHelper.createParser(
+                    NamedXContentRegistry.EMPTY,
+                    LoggingDeprecationHandler.INSTANCE,
+                    doc.source(),
+                    xContentType
+                )
+            ) {
                 builder.field("doc");
                 builder.copyCurrentStructure(parser);
             }
@@ -924,8 +936,14 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         }
         if (upsertRequest != null) {
             XContentType xContentType = upsertRequest.getContentType();
-            try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
-                LoggingDeprecationHandler.INSTANCE, upsertRequest.source(), xContentType)) {
+            try (
+                XContentParser parser = XContentHelper.createParser(
+                    NamedXContentRegistry.EMPTY,
+                    LoggingDeprecationHandler.INSTANCE,
+                    upsertRequest.source(),
+                    xContentType
+                )
+            ) {
                 builder.field("upsert");
                 builder.copyCurrentStructure(parser);
             }
@@ -945,10 +963,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     @Override
     public String toString() {
-        StringBuilder res = new StringBuilder()
-            .append("update {[").append(index)
-            .append("][").append(type())
-            .append("][").append(id).append("]");
+        StringBuilder res = new StringBuilder().append("update {[").append(index).append("][").append(id).append("]");
         res.append(", doc_as_upsert[").append(docAsUpsert).append("]");
         if (doc != null) {
             res.append(", doc[").append(doc).append("]");
@@ -962,5 +977,17 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         res.append(", scripted_upsert[").append(scriptedUpsert).append("]");
         res.append(", detect_noop[").append(detectNoop).append("]");
         return res.append("}").toString();
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        long childRequestBytes = 0;
+        if (doc != null) {
+            childRequestBytes += doc.ramBytesUsed();
+        }
+        if (upsertRequest != null) {
+            childRequestBytes += upsertRequest.ramBytesUsed();
+        }
+        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(id) + childRequestBytes;
     }
 }

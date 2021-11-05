@@ -4,17 +4,17 @@
 :request: PutRoleRequest
 :response: PutRoleResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
-=== Put Role API
+=== Create or update role API
 
 [id="{upid}-{api}-request"]
-==== Put Role Request
+==== Request
 
 The +{request}+ class is used to create or update a role in the Native Roles
 Store. The request contains a single role, which encapsulates privileges over
 resources. A role can be assigned to an user using the
-<<{upid}-put-role-mapping, Put Role Mapping API>>.
+<<{upid}-put-role-mapping,Create or update role mapping API>>.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -24,7 +24,7 @@ include-tagged::{doc-tests-file}[{api}-request]
 include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]
-==== Put Role Response
+==== Response
 
 The returned +{response}+ contains a single field, `created`. This field
 serves as an indication if the role was created or if an existing entry was

@@ -24,12 +24,24 @@ If you want to run a specific benchmark class like, say,
 `MemoryStatsBenchmark`, you can use `--args`:
 
 ```
-gradlew -p benchmarks run --args ' MemoryStatsBenchmark'
+gradlew -p benchmarks run --args 'MemoryStatsBenchmark'
 ```
 
-Everything in the `'` gets sent on the command line to JMH. The leading ` `
-inside the `'`s is important. Without it parameters are sometimes sent to
-gradle.
+Everything in the `'` gets sent on the command line to JMH.
+
+You can set benchmark parameters with `-p`:
+```
+gradlew -p benchmarks/ run --args 'RoundingBenchmark.round -prounder=es -prange="2000-10-01 to 2000-11-01" -pzone=America/New_York -pinterval=10d -pcount=1000000'
+```
+
+The benchmark code defines default values for the parameters so if
+you leave out any out JMH will run with each default value, one after
+the other. This will run with `interval` set to `calendar year` then
+`calendar hour` then `10d` then `5d` then `1h`:
+```
+gradlew -p benchmarks/ run --args 'RoundingBenchmark.round -prounder=es -prange="2000-10-01 to 2000-11-01" -pzone=America/New_York -pcount=1000000'
+```
+
 
 ## Adding Microbenchmarks
 
@@ -53,9 +65,10 @@ To get realistic results, you should exercise care when running benchmarks. Here
   `performance` CPU governor.
 * Vary the problem input size with `@Param`.
 * Use the integrated profilers in JMH to dig deeper if benchmark results to not match your hypotheses:
-    * Run the generated uberjar directly and use `-prof gc` to check whether the garbage collector runs during a microbenchmarks and skews
+    * Add `-prof gc` to the options to check whether the garbage collector runs during a microbenchmarks and skews
    your results. If so, try to force a GC between runs (`-gc true`) but watch out for the caveats.
-    * Use `-prof perf` or `-prof perfasm` (both only available on Linux) to see hotspots.
+    * Add `-prof perf` or `-prof perfasm` (both only available on Linux, see Disassembling below) to see hotspots.
+    * Add `-prof async` to see hotspots.
 * Have your benchmarks peer-reviewed.
 
 ### Don't
@@ -63,3 +76,60 @@ To get realistic results, you should exercise care when running benchmarks. Here
 * Blindly believe the numbers that your microbenchmark produces but verify them by measuring e.g. with `-prof perfasm`.
 * Run more threads than your number of CPU cores (in case you run multi-threaded microbenchmarks).
 * Look only at the `Score` column and ignore `Error`. Instead take countermeasures to keep `Error` low / variance explainable.
+
+## Disassembling
+
+NOTE: Linux only. Sorry Mac and Windows.
+
+Disassembling is fun! Maybe not always useful, but always fun! Generally, you'll want to install `perf` and FCML's `hsdis`.
+`perf` is generally available via `apg-get install perf` or `pacman -S perf`. FCML is a little more involved. This worked
+on 2020-08-01:
+
+```
+wget https://github.com/swojtasiak/fcml-lib/releases/download/v1.2.2/fcml-1.2.2.tar.gz
+tar xf fcml*
+cd fcml*
+./configure
+make
+cd example/hsdis
+make
+sudo cp .libs/libhsdis.so.0.0.0 /usr/lib/jvm/java-14-adoptopenjdk/lib/hsdis-amd64.so
+```
+
+If you want to disassemble a single method do something like this:
+
+```
+gradlew -p benchmarks run --args ' MemoryStatsBenchmark -jvmArgs "-XX:+UnlockDiagnosticVMOptions -XX:CompileCommand=print,*.yourMethodName -XX:PrintAssemblyOptions=intel"
+```
+
+If you want `perf` to find the hot methods for you then do add `-prof perfasm`.
+
+## Async Profiler
+
+Note: Linux and Mac only. Sorry Windows.
+
+IMPORTANT: The 2.0 version of the profiler doesn't seem to be with compatible
+with JMH as of 2021-04-30.
+
+The async profiler is neat because it does not suffer from the safepoint
+bias problem. And because it makes pretty flame graphs!
+
+Let user processes read performance stuff:
+```
+sudo bash
+echo 0 > /proc/sys/kernel/kptr_restrict
+echo 1 > /proc/sys/kernel/perf_event_paranoid
+exit
+```
+
+Grab the async profiler from https://github.com/jvm-profiling-tools/async-profiler
+and run `prof async` like so:
+```
+gradlew -p benchmarks/ run --args 'LongKeyedBucketOrdsBenchmark.multiBucket -prof "async:libPath=/home/nik9000/Downloads/tmp/async-profiler-1.8.3-linux-x64/build/libasyncProfiler.so;dir=/tmp/prof;output=flamegraph"'
+```
+
+If you are on mac this'll warn you that you downloaded the shared library from
+the internet. You'll need to go to settings and allow it to run.
+
+The profiler tells you it'll be more accurate if you install debug symbols
+with the JVM. I didn't and the results looked pretty good to me. (2021-02-01)

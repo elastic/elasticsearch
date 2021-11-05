@@ -1,48 +1,47 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
+import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
-import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
+import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 
 import java.util.Objects;
-
 
 public class MlAssignmentNotifier implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(MlAssignmentNotifier.class);
 
-    private final Auditor auditor;
-    private final MlConfigMigrator mlConfigMigrator;
+    private final AnomalyDetectionAuditor anomalyDetectionAuditor;
+    private final DataFrameAnalyticsAuditor dataFrameAnalyticsAuditor;
     private final ThreadPool threadPool;
 
-    MlAssignmentNotifier(Settings settings, Auditor auditor, ThreadPool threadPool, Client client, ClusterService clusterService) {
-        this.auditor = auditor;
-        this.mlConfigMigrator = new MlConfigMigrator(settings, client, clusterService);
-        this.threadPool = threadPool;
-        clusterService.addListener(this);
-    }
-
-    MlAssignmentNotifier(Auditor auditor, ThreadPool threadPool, MlConfigMigrator mlConfigMigrator, ClusterService clusterService) {
-        this.auditor = auditor;
-        this.mlConfigMigrator = mlConfigMigrator;
+    MlAssignmentNotifier(
+        AnomalyDetectionAuditor anomalyDetectionAuditor,
+        DataFrameAnalyticsAuditor dataFrameAnalyticsAuditor,
+        ThreadPool threadPool,
+        ClusterService clusterService
+    ) {
+        this.anomalyDetectionAuditor = anomalyDetectionAuditor;
+        this.dataFrameAnalyticsAuditor = dataFrameAnalyticsAuditor;
         this.threadPool = threadPool;
         clusterService.addListener(this);
     }
@@ -58,60 +57,129 @@ public class MlAssignmentNotifier implements ClusterStateListener {
             return;
         }
 
-        mlConfigMigrator.migrateConfigs(event.state(), ActionListener.wrap(
-                response -> threadPool.executor(executorName()).execute(() -> auditChangesToMlTasks(event)),
-                e -> {
-                    logger.error("error migrating ml configurations", e);
-                    threadPool.executor(executorName()).execute(() -> auditChangesToMlTasks(event));
-                }
-        ));
+        if (event.metadataChanged() == false) {
+            return;
+        }
+
+        threadPool.executor(executorName()).execute(() -> auditChangesToMlTasks(event));
     }
 
     private void auditChangesToMlTasks(ClusterChangedEvent event) {
 
-        if (event.metaDataChanged() == false) {
+        PersistentTasksCustomMetadata previousTasks = event.previousState().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata currentTasks = event.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+
+        if (Objects.equals(previousTasks, currentTasks)) {
             return;
         }
 
-        PersistentTasksCustomMetaData previous = event.previousState().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
-        PersistentTasksCustomMetaData current = event.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+        auditMlTasks(event.previousState().nodes(), event.state().nodes(), previousTasks, currentTasks, false);
+    }
 
-        if (Objects.equals(previous, current)) {
-            return;
-        }
+    /**
+     * Creates an audit warning for all currently unassigned ML
+     * tasks, even if a previous audit warning has been created.
+     * Care must be taken not to call this method frequently.
+     */
+    public void auditUnassignedMlTasks(DiscoveryNodes nodes, PersistentTasksCustomMetadata tasks) {
+        auditMlTasks(nodes, nodes, tasks, tasks, true);
+    }
 
-        for (PersistentTask<?> currentTask : current.tasks()) {
+    private void auditMlTasks(
+        DiscoveryNodes previousNodes,
+        DiscoveryNodes currentNodes,
+        PersistentTasksCustomMetadata previousTasks,
+        PersistentTasksCustomMetadata currentTasks,
+        boolean alwaysAuditUnassigned
+    ) {
+
+        for (PersistentTask<?> currentTask : currentTasks.tasks()) {
             Assignment currentAssignment = currentTask.getAssignment();
-            PersistentTask<?> previousTask = previous != null ? previous.getTask(currentTask.getId()) : null;
+            PersistentTask<?> previousTask = previousTasks != null ? previousTasks.getTask(currentTask.getId()) : null;
             Assignment previousAssignment = previousTask != null ? previousTask.getAssignment() : null;
-            if (Objects.equals(currentAssignment, previousAssignment)) {
+
+            boolean isTaskAssigned = (currentAssignment.getExecutorNode() != null);
+            if (Objects.equals(currentAssignment, previousAssignment) && (isTaskAssigned || alwaysAuditUnassigned == false)) {
                 continue;
             }
+            boolean wasTaskAssigned = (previousAssignment != null) && (previousAssignment.getExecutorNode() != null);
+
             if (MlTasks.JOB_TASK_NAME.equals(currentTask.getTaskName())) {
                 String jobId = ((OpenJobAction.JobParams) currentTask.getParams()).getJobId();
-                if (currentAssignment.getExecutorNode() == null) {
-                    auditor.warning(jobId, "No node found to open job. Reasons [" + currentAssignment.getExplanation() + "]");
-                } else {
-                    DiscoveryNode node = event.state().nodes().get(currentAssignment.getExecutorNode());
-                    auditor.info(jobId, "Opening job on node [" + node.toString() + "]");
+                if (isTaskAssigned) {
+                    String nodeName = nodeName(currentNodes, currentAssignment.getExecutorNode());
+                    anomalyDetectionAuditor.info(jobId, "Opening job on node [" + nodeName + "]");
+                } else if (alwaysAuditUnassigned) {
+                    anomalyDetectionAuditor.warning(
+                        jobId,
+                        "No node found to open job. Reasons [" + currentAssignment.getExplanation() + "]"
+                    );
+                } else if (wasTaskAssigned) {
+                    String nodeName = nodeName(previousNodes, previousAssignment.getExecutorNode());
+                    anomalyDetectionAuditor.info(jobId, "Job unassigned from node [" + nodeName + "]");
                 }
             } else if (MlTasks.DATAFEED_TASK_NAME.equals(currentTask.getTaskName())) {
                 StartDatafeedAction.DatafeedParams datafeedParams = (StartDatafeedAction.DatafeedParams) currentTask.getParams();
                 String jobId = datafeedParams.getJobId();
-                if (currentAssignment.getExecutorNode() == null) {
-                    String msg = "No node found to start datafeed [" + datafeedParams.getDatafeedId() +"]. Reasons [" +
-                            currentAssignment.getExplanation() + "]";
-                    logger.warn("[{}] {}", jobId, msg);
-                    if (jobId != null) {
-                        auditor.warning(jobId, msg);
+                if (jobId != null) {
+                    if (isTaskAssigned) {
+                        String nodeName = nodeName(currentNodes, currentAssignment.getExecutorNode());
+                        anomalyDetectionAuditor.info(
+                            jobId,
+                            "Starting datafeed [" + datafeedParams.getDatafeedId() + "] on node [" + nodeName + "]"
+                        );
+                    } else if (alwaysAuditUnassigned) {
+                        anomalyDetectionAuditor.warning(
+                            jobId,
+                            "No node found to start datafeed ["
+                                + datafeedParams.getDatafeedId()
+                                + "]. Reasons ["
+                                + currentAssignment.getExplanation()
+                                + "]"
+                        );
+                    } else if (wasTaskAssigned) {
+                        String nodeName = nodeName(previousNodes, previousAssignment.getExecutorNode());
+                        anomalyDetectionAuditor.info(
+                            jobId,
+                            "Datafeed [" + datafeedParams.getDatafeedId() + "] unassigned from node [" + nodeName + "]"
+                        );
+                    } else {
+                        logger.warn(
+                            "[{}] No node found to start datafeed [{}]. Reasons [{}]",
+                            jobId,
+                            datafeedParams.getDatafeedId(),
+                            currentAssignment.getExplanation()
+                        );
                     }
-                } else {
-                    DiscoveryNode node = event.state().nodes().get(currentAssignment.getExecutorNode());
-                    if (jobId != null) {
-                        auditor.info(jobId, "Starting datafeed [" + datafeedParams.getDatafeedId() + "] on node [" + node + "]");
-                    }
+                }
+            } else if (MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME.equals(currentTask.getTaskName())) {
+                String id = ((StartDataFrameAnalyticsAction.TaskParams) currentTask.getParams()).getId();
+                if (isTaskAssigned) {
+                    String nodeName = nodeName(currentNodes, currentAssignment.getExecutorNode());
+                    dataFrameAnalyticsAuditor.info(id, "Starting analytics on node [" + nodeName + "]");
+                } else if (alwaysAuditUnassigned) {
+                    dataFrameAnalyticsAuditor.warning(
+                        id,
+                        "No node found to start analytics. Reasons [" + currentAssignment.getExplanation() + "]"
+                    );
+                } else if (wasTaskAssigned) {
+                    String nodeName = nodeName(previousNodes, previousAssignment.getExecutorNode());
+                    anomalyDetectionAuditor.info(id, "Analytics unassigned from node [" + nodeName + "]");
                 }
             }
         }
+    }
+
+    static String nodeName(DiscoveryNodes nodes, String nodeId) {
+        // It's possible that we're reporting on a node that left the
+        // cluster in an earlier cluster state update, in which case
+        // the cluster state we've got doesn't record its friendly
+        // name. In this case we have no choice but to use the ID. (We
+        // also use the ID in tests that don't bother to name nodes.)
+        DiscoveryNode node = nodes.get(nodeId);
+        if (node != null && Strings.hasLength(node.getName())) {
+            return node.getName();
+        }
+        return nodeId;
     }
 }

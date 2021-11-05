@@ -1,0 +1,186 @@
+[role="xpack"]
+[testenv="basic"]
+[[indices-reload-analyzers]]
+== Reload search analyzers API
+
+Reloads an index's <<search-analyzer,search analyzers>> and their resources.
+For data streams, the API reloads search analyzers and resources for the
+stream's backing indices.
+
+[source,console]
+--------------------------------------------------
+POST /my-index-000001/_reload_search_analyzers
+POST /my-index-000001/_cache/clear?request=true
+--------------------------------------------------
+// TEST[setup:my_index]
+
+IMPORTANT: After reloading the search analyzers you should clear the request
+           cache to make sure it doesn't contain responses derived from the
+           previous versions of the analyzer.
+// the need for this is tracked in https://github.com/elastic/elasticsearch/issues/66722
+
+
+
+[discrete]
+[[indices-reload-analyzers-api-request]]
+=== {api-request-title}
+
+`POST /<target>/_reload_search_analyzers`
+
+`GET /<target>/_reload_search_analyzers`
+
+[discrete]
+[[indices-reload-analyzers-api-prereqs]]
+=== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the target data stream, index,
+or alias.
+
+[discrete]
+[[indices-reload-analyzers-api-desc]]
+=== {api-description-title}
+
+You can use the reload search analyzers API
+to pick up changes to synonym files
+used in the <<analysis-synonym-graph-tokenfilter,`synonym_graph`>>
+or <<analysis-synonym-tokenfilter,`synonym`>> token filter
+of a <<search-analyzer,search analyzer>>.
+To be eligible,
+the token filter must have an `updateable` flag of `true`
+and only be used in search analyzers.
+
+[NOTE]
+====
+This API does not perform a reload
+for each shard of an index.
+Instead,
+it performs a reload for each node
+containing index shards.
+As a result,
+the total shard count returned by the API
+can differ from the number of index shards.
+
+Because reloading affects every node with an index shard,
+its important to update the synonym file
+on every data node in the cluster,
+including nodes that don't contain a shard replica,
+before using this API.
+This ensures the synonym file is updated
+everywhere in the cluster
+in case shards are relocated
+in the future.
+====
+
+
+[discrete]
+[[indices-reload-analyzers-api-path-params]]
+=== {api-path-parms-title}
+
+`<target>`::
+(Required, string) Comma-separated list of data streams, indices, and aliases
+used to limit the request. Supports wildcards (`*`). To target all data streams
+and indices, use `*` or `_all`.
+
+[discrete]
+[[indices-reload-analyzers-api-query-params]]
+=== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `true`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
++
+Defaults to `open`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+
+
+[discrete]
+[[indices-reload-analyzers-api-example]]
+=== {api-examples-title}
+
+Use the <<indices-create-index, create index API>>
+to create an index with a search analyzer
+that contains an updateable synonym filter.
+
+NOTE: Using the following analyzer as an index analyzer results in an error.
+
+[source,console]
+--------------------------------------------------
+PUT /my-index-000001
+{
+  "settings": {
+    "index": {
+      "analysis": {
+        "analyzer": {
+          "my_synonyms": {
+            "tokenizer": "whitespace",
+            "filter": [ "synonym" ]
+          }
+        },
+        "filter": {
+          "synonym": {
+            "type": "synonym_graph",
+            "synonyms_path": "analysis/synonym.txt",  <1>
+            "updateable": true                        <2>
+          }
+        }
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "text": {
+        "type": "text",
+        "analyzer": "standard",
+        "search_analyzer": "my_synonyms"              <3>
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+<1> Includes a synonym file.
+<2> Marks the token filter as updateable.
+<3> Marks the analyzer as a search analyzer.
+
+After updating the synonym file,
+use the <<indices-reload-analyzers,analyzer reload API>>
+to reload the search analyzer
+and pick up the file changes.
+
+[source,console]
+--------------------------------------------------
+POST /my-index-000001/_reload_search_analyzers
+--------------------------------------------------
+// TEST[continued]
+
+The API returns the following response.
+
+[source,console-result]
+--------------------------------------------------
+{
+  "_shards": {
+    "total": 2,
+    "successful": 2,
+    "failed": 0
+  },
+  "reload_details": [
+    {
+      "index": "my-index-000001",
+      "reloaded_analyzers": [
+        "my_synonyms"
+      ],
+      "reloaded_node_ids": [
+        "mfdqTXn_T7SGr2Ho2KT8uw"
+      ]
+    }
+  ]
+}
+--------------------------------------------------
+// TEST[continued]
+// TESTRESPONSE[s/"total": 2/"total": $body._shards.total/]
+// TESTRESPONSE[s/"successful": 2/"successful": $body._shards.successful/]
+// TESTRESPONSE[s/mfdqTXn_T7SGr2Ho2KT8uw/$body.reload_details.0.reloaded_node_ids.0/]

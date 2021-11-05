@@ -1,27 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -47,14 +36,15 @@ public class VersionUtils {
      */
     static Tuple<List<Version>, List<Version>> resolveReleasedVersions(Version current, Class<?> versionClass) {
         // group versions into major version
-        Map<Integer, List<Version>> majorVersions = Version.getDeclaredVersions(versionClass).stream()
-            .collect(Collectors.groupingBy(v -> (int)v.major));
+        Map<Integer, List<Version>> majorVersions = Version.getDeclaredVersions(versionClass)
+            .stream()
+            .collect(Collectors.groupingBy(v -> (int) v.major));
         // this breaks b/c 5.x is still in version list but master doesn't care about it!
-        //assert majorVersions.size() == 2;
+        // assert majorVersions.size() == 2;
         // TODO: remove oldVersions, we should only ever have 2 majors in Version
-        List<List<Version>> oldVersions = splitByMinor(majorVersions.getOrDefault((int)current.major - 2, Collections.emptyList()));
-        List<List<Version>> previousMajor = splitByMinor(majorVersions.get((int)current.major - 1));
-        List<List<Version>> currentMajor = splitByMinor(majorVersions.get((int)current.major));
+        List<List<Version>> oldVersions = splitByMinor(majorVersions.getOrDefault((int) current.major - 2, Collections.emptyList()));
+        List<List<Version>> previousMajor = splitByMinor(majorVersions.get((int) current.major - 1));
+        List<List<Version>> currentMajor = splitByMinor(majorVersions.get((int) current.major));
 
         List<Version> unreleasedVersions = new ArrayList<>();
         final List<List<Version>> stableVersions;
@@ -92,14 +82,16 @@ public class VersionUtils {
             moveLastToUnreleased(oldVersions, unreleasedVersions);
         }
         List<Version> releasedVersions = Stream.of(oldVersions, previousMajor, currentMajor)
-            .flatMap(List::stream).flatMap(List::stream).collect(Collectors.toList());
+            .flatMap(List::stream)
+            .flatMap(List::stream)
+            .collect(Collectors.toList());
         Collections.sort(unreleasedVersions); // we add unreleased out of order, so need to sort here
         return new Tuple<>(Collections.unmodifiableList(releasedVersions), Collections.unmodifiableList(unreleasedVersions));
     }
 
     // split the given versions into sub lists grouped by minor version
     private static List<List<Version>> splitByMinor(List<Version> versions) {
-        Map<Integer, List<Version>> byMinor = versions.stream().collect(Collectors.groupingBy(v -> (int)v.minor));
+        Map<Integer, List<Version>> byMinor = versions.stream().collect(Collectors.groupingBy(v -> (int) v.minor));
         return byMinor.entrySet().stream().sorted(Map.Entry.comparingByKey()).map(Map.Entry::getValue).collect(Collectors.toList());
     }
 
@@ -227,13 +219,6 @@ public class VersionUtils {
         }
     }
 
-    /** returns the first future incompatible version */
-    public static Version incompatibleFutureVersion(Version version) {
-        final Optional<Version> opt = ALL_VERSIONS.stream().filter(version::before).filter(v -> v.isCompatible(version) == false).findAny();
-        assert opt.isPresent() : "no future incompatible version for " + version;
-        return opt.get();
-    }
-
     /** returns the first future compatible version */
     public static Version compatibleFutureVersion(Version version) {
         final Optional<Version> opt = ALL_VERSIONS.stream().filter(version::before).filter(v -> v.isCompatible(version)).findAny();
@@ -243,7 +228,9 @@ public class VersionUtils {
 
     /** Returns the maximum {@link Version} that is compatible with the given version. */
     public static Version maxCompatibleVersion(Version version) {
-        final List<Version> compatible = ALL_VERSIONS.stream().filter(version::isCompatible).filter(version::onOrBefore)
+        final List<Version> compatible = ALL_VERSIONS.stream()
+            .filter(version::isCompatible)
+            .filter(version::onOrBefore)
             .collect(Collectors.toList());
         assert compatible.size() > 0;
         return compatible.get(compatible.size() - 1);

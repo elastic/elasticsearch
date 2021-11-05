@@ -1,53 +1,36 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class PostDataAction extends Action<PostDataAction.Response> {
+public class PostDataAction extends ActionType<PostDataAction.Response> {
 
     public static final PostDataAction INSTANCE = new PostDataAction();
     public static final String NAME = "cluster:admin/xpack/ml/job/data/post";
 
     private PostDataAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
-    }
-
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        RequestBuilder(ElasticsearchClient client, PostDataAction action) {
-            super(client, action, new Request());
-        }
+        super(NAME, PostDataAction.Response::new);
     }
 
     public static class Response extends BaseTasksResponse implements StatusToXContentObject, Writeable {
@@ -123,9 +106,6 @@ public class PostDataAction extends Action<PostDataAction.Response> {
         private XContentType xContentType;
         private BytesReference content;
 
-        public Request() {
-        }
-
         public Request(StreamInput in) throws IOException {
             super(in);
             resetStart = in.readOptionalString();
@@ -147,7 +127,7 @@ public class PostDataAction extends Action<PostDataAction.Response> {
             boolean hasXContentType = xContentType != null;
             out.writeBoolean(hasXContentType);
             if (hasXContentType) {
-                out.writeEnum(xContentType);
+                XContentHelper.writeTo(out, xContentType);
             }
         }
 
@@ -179,7 +159,9 @@ public class PostDataAction extends Action<PostDataAction.Response> {
             this.dataDescription = dataDescription;
         }
 
-        public BytesReference getContent() { return content; }
+        public BytesReference getContent() {
+            return content;
+        }
 
         public XContentType getXContentType() {
             return xContentType;
@@ -207,13 +189,12 @@ public class PostDataAction extends Action<PostDataAction.Response> {
             Request other = (Request) obj;
 
             // content stream not included
-            return Objects.equals(jobId, other.jobId) &&
-                    Objects.equals(resetStart, other.resetStart) &&
-                    Objects.equals(resetEnd, other.resetEnd) &&
-                    Objects.equals(dataDescription, other.dataDescription) &&
-                    Objects.equals(xContentType, other.xContentType);
+            return Objects.equals(jobId, other.jobId)
+                && Objects.equals(resetStart, other.resetStart)
+                && Objects.equals(resetEnd, other.resetEnd)
+                && Objects.equals(dataDescription, other.dataDescription)
+                && Objects.equals(xContentType, other.xContentType);
         }
     }
-
 
 }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.xcontent;
@@ -22,12 +11,17 @@ package org.elasticsearch.common.xcontent;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentLocation;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 /**
  * A set of static methods to get {@link Token} from {@link XContentParser}
@@ -35,15 +29,14 @@ import java.util.function.Supplier;
  */
 public final class XContentParserUtils {
 
-    private XContentParserUtils() {
-    }
+    private XContentParserUtils() {}
 
     /**
      * Makes sure that current token is of type {@link Token#FIELD_NAME} and the field name is equal to the provided one
      * @throws ParsingException if the token is not of type {@link Token#FIELD_NAME} or is not equal to the given field name
      */
     public static void ensureFieldName(XContentParser parser, Token token, String fieldName) throws IOException {
-        ensureExpectedToken(Token.FIELD_NAME, token, parser::getTokenLocation);
+        ensureExpectedToken(Token.FIELD_NAME, token, parser);
         String currentName = parser.currentName();
         if (currentName.equals(fieldName) == false) {
             String message = "Failed to parse object: expecting field with name [%s] but found [%s]";
@@ -72,11 +65,17 @@ public final class XContentParserUtils {
      *
      * @throws ParsingException if the token is not equal to the expected type
      */
-    public static void ensureExpectedToken(Token expected, Token actual, Supplier<XContentLocation> location) {
+    public static void ensureExpectedToken(Token expected, Token actual, XContentParser parser) {
         if (actual != expected) {
-            String message = "Failed to parse object: expecting token of type [%s] but found [%s]";
-            throw new ParsingException(location.get(), String.format(Locale.ROOT, message, expected, actual));
+            throw parsingException(parser, expected, actual);
         }
+    }
+
+    private static ParsingException parsingException(XContentParser parser, Token expected, Token actual) {
+        return new ParsingException(
+            parser.getTokenLocation(),
+            String.format(Locale.ROOT, "Failed to parse object: expecting token of type [%s] but found [%s]", expected, actual)
+        );
     }
 
     /**
@@ -98,14 +97,14 @@ public final class XContentParserUtils {
         Token token = parser.currentToken();
         Object value = null;
         if (token == Token.VALUE_STRING) {
-            //binary values will be parsed back and returned as base64 strings when reading from json and yaml
+            // binary values will be parsed back and returned as base64 strings when reading from json and yaml
             value = parser.text();
         } else if (token == Token.VALUE_NUMBER) {
             value = parser.numberValue();
         } else if (token == Token.VALUE_BOOLEAN) {
             value = parser.booleanValue();
         } else if (token == Token.VALUE_EMBEDDED_OBJECT) {
-            //binary values will be parsed back and returned as BytesArray when reading from cbor and smile
+            // binary values will be parsed back and returned as BytesArray when reading from cbor and smile
             value = new BytesArray(parser.binaryValue());
         } else if (token == Token.VALUE_NULL) {
             value = null;
@@ -140,7 +139,7 @@ public final class XContentParserUtils {
      * @throws ParsingException if the parser isn't positioned on either START_OBJECT or START_ARRAY at the beginning
      */
     public static <T> void parseTypedKeysObject(XContentParser parser, String delimiter, Class<T> objectClass, Consumer<T> consumer)
-            throws IOException {
+        throws IOException {
         if (parser.currentToken() != Token.START_OBJECT && parser.currentToken() != Token.START_ARRAY) {
             throwUnknownToken(parser.currentToken(), parser.getTokenLocation());
         }
@@ -158,5 +157,26 @@ public final class XContentParserUtils {
         } else {
             throw new ParsingException(parser.getTokenLocation(), "Failed to parse object: empty key");
         }
+    }
+
+    /**
+     * Parses a list of a given type from the given {@code parser}. Assumes that the parser is currently positioned on a
+     * {@link Token#START_ARRAY} token and will fail if it is not. The returned list may or may not be mutable.
+     *
+     * @param parser      x-content parser
+     * @param valueParser parser for expected list value type
+     * @return list parsed from parser
+     */
+    public static <T> List<T> parseList(XContentParser parser, CheckedFunction<XContentParser, T, IOException> valueParser)
+        throws IOException {
+        XContentParserUtils.ensureExpectedToken(Token.START_ARRAY, parser.currentToken(), parser);
+        if (parser.nextToken() == Token.END_ARRAY) {
+            return List.of();
+        }
+        final ArrayList<T> list = new ArrayList<>();
+        do {
+            list.add(valueParser.apply(parser));
+        } while (parser.nextToken() != Token.END_ARRAY);
+        return list;
     }
 }

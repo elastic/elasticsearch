@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.user;
 
@@ -21,11 +22,14 @@ public class InternalUserSerializationHelper {
                 return XPackUser.INSTANCE;
             } else if (XPackSecurityUser.is(username)) {
                 return XPackSecurityUser.INSTANCE;
+            } else if (AsyncSearchUser.is(username)) {
+                return AsyncSearchUser.INSTANCE;
             }
             throw new IllegalStateException("user [" + username + "] is not an internal user");
         }
         return User.partialReadFrom(username, input);
     }
+
     public static void writeTo(User user, StreamOutput output) throws IOException {
         if (SystemUser.is(user)) {
             output.writeBoolean(true);
@@ -36,6 +40,9 @@ public class InternalUserSerializationHelper {
         } else if (XPackSecurityUser.is(user)) {
             output.writeBoolean(true);
             output.writeString(XPackSecurityUser.NAME);
+        } else if (AsyncSearchUser.is(user)) {
+            output.writeBoolean(true);
+            output.writeString(AsyncSearchUser.NAME);
         } else {
             User.writeTo(user, output);
         }

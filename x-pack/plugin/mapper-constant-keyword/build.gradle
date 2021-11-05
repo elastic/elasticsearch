@@ -1,0 +1,16 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+
+esplugin {
+  name 'constant-keyword'
+  description 'Module for the constant-keyword field type, which is a specialization of keyword for the case when all documents have the same value.'
+  classname 'org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+archivesBaseName = 'x-pack-constant-keyword'
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
+}
+

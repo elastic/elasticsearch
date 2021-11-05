@@ -1,47 +1,37 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.bootstrap;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.Appender;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.PidFile;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.IfConfig;
-import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.jdk.JarHell;
+import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.process.ProcessProbe;
@@ -94,8 +84,15 @@ final class Bootstrap {
         });
     }
 
-    /** initialize native resources */
-    public static void initializeNatives(Path tmpFile, boolean mlockAll, boolean systemCallFilter, boolean ctrlHandler) {
+    /**
+     * Initialize native resources.
+     *
+     * @param tmpFile          the temp directory
+     * @param mlockAll         whether or not to lock memory
+     * @param systemCallFilter whether or not to install system call filters
+     * @param ctrlHandler      whether or not to install the ctrl-c handler (applies to Windows only)
+     */
+    static void initializeNatives(final Path tmpFile, final boolean mlockAll, final boolean systemCallFilter, final boolean ctrlHandler) {
         final Logger logger = LogManager.getLogger(Bootstrap.class);
 
         // check if the user is running as root, and bail
@@ -103,17 +100,21 @@ final class Bootstrap {
             throw new RuntimeException("can not run elasticsearch as root");
         }
 
-        // enable system call filter
         if (systemCallFilter) {
+            /*
+             * Try to install system call filters; if they fail to install; a bootstrap check will fail startup in production mode.
+             *
+             * TODO: should we fail hard here if system call filters fail to install, or remain lenient in non-production environments?
+             */
             Natives.tryInstallSystemCallFilter(tmpFile);
         }
 
         // mlockall if requested
         if (mlockAll) {
             if (Constants.WINDOWS) {
-               Natives.tryVirtualLock();
+                Natives.tryVirtualLock();
             } else {
-               Natives.tryMlockall();
+                Natives.tryMlockall();
             }
         }
 
@@ -156,22 +157,24 @@ final class Bootstrap {
         ProcessProbe.getInstance();
         OsProbe.getInstance();
         JvmInfo.jvmInfo();
+        HotThreads.initializeRuntimeMonitoring();
     }
 
     private void setup(boolean addShutdownHook, Environment environment) throws BootstrapException {
         Settings settings = environment.settings();
 
         try {
-            spawner.spawnNativeControllers(environment);
+            spawner.spawnNativeControllers(environment, true);
         } catch (IOException e) {
             throw new BootstrapException(e);
         }
 
         initializeNatives(
-                environment.tmpFile(),
-                BootstrapSettings.MEMORY_LOCK_SETTING.get(settings),
-                BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.get(settings),
-                BootstrapSettings.CTRLHANDLER_SETTING.get(settings));
+            environment.tmpFile(),
+            BootstrapSettings.MEMORY_LOCK_SETTING.get(settings),
+            true, // always install system call filters, not user-configurable since 8.0.0
+            BootstrapSettings.CTRLHANDLER_SETTING.get(settings)
+        );
 
         // initialize probes before the security manager is installed
         initializeProbes();
@@ -185,8 +188,9 @@ final class Bootstrap {
                         LoggerContext context = (LoggerContext) LogManager.getContext(false);
                         Configurator.shutdown(context);
                         if (node != null && node.awaitClose(10, TimeUnit.SECONDS) == false) {
-                            throw new IllegalStateException("Node didn't stop within 10 seconds. " +
-                                    "Any outstanding requests or tasks might get killed.");
+                            throw new IllegalStateException(
+                                "Node didn't stop within 10 seconds. " + "Any outstanding requests or tasks might get killed."
+                            );
                         }
                     } catch (IOException ex) {
                         throw new ElasticsearchException("failed to stop node", ex);
@@ -220,51 +224,37 @@ final class Bootstrap {
             @Override
             protected void validateNodeBeforeAcceptingRequests(
                 final BootstrapContext context,
-                final BoundTransportAddress boundTransportAddress, List<BootstrapCheck> checks) throws NodeValidationException {
+                final BoundTransportAddress boundTransportAddress,
+                List<BootstrapCheck> checks
+            ) throws NodeValidationException {
                 BootstrapChecks.check(context, boundTransportAddress, checks);
             }
         };
     }
 
-    static SecureSettings loadSecureSettings(Environment initialEnv) throws BootstrapException {
-        final KeyStoreWrapper keystore;
-        try {
-            keystore = KeyStoreWrapper.load(initialEnv.configFile());
-        } catch (IOException e) {
-            throw new BootstrapException(e);
-        }
-
-        try {
-            if (keystore == null) {
-                final KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create();
-                keyStoreWrapper.save(initialEnv.configFile(), new char[0]);
-                return keyStoreWrapper;
-            } else {
-                keystore.decrypt(new char[0] /* TODO: read password from stdin */);
-                KeyStoreWrapper.upgrade(keystore, initialEnv.configFile(), new char[0]);
-            }
-        } catch (Exception e) {
-            throw new BootstrapException(e);
-        }
-        return keystore;
-    }
+    // visible for tests
 
     private static Environment createEnvironment(
-            final Path pidFile,
-            final SecureSettings secureSettings,
-            final Settings initialSettings,
-            final Path configPath) {
+        final Path pidFile,
+        final SecureSettings secureSettings,
+        final Settings initialSettings,
+        final Path configPath
+    ) {
         Settings.Builder builder = Settings.builder();
         if (pidFile != null) {
-            builder.put(Environment.PIDFILE_SETTING.getKey(), pidFile);
+            builder.put(Environment.NODE_PIDFILE_SETTING.getKey(), pidFile);
         }
         builder.put(initialSettings);
         if (secureSettings != null) {
             builder.setSecureSettings(secureSettings);
         }
-        return InternalSettingsPreparer.prepareEnvironment(builder.build(), Collections.emptyMap(), configPath,
-                // HOSTNAME is set by elasticsearch-env and elasticsearch-env.bat so it is always available
-                () -> System.getenv("HOSTNAME"));
+        return InternalSettingsPreparer.prepareEnvironment(
+            builder.build(),
+            Collections.emptyMap(),
+            configPath,
+            // HOSTNAME is set by elasticsearch-env and elasticsearch-env.bat so it is always available
+            () -> System.getenv("HOSTNAME")
+        );
     }
 
     private void start() throws NodeValidationException {
@@ -289,19 +279,23 @@ final class Bootstrap {
     /**
      * This method is invoked by {@link Elasticsearch#main(String[])} to startup elasticsearch.
      */
-    static void init(
-            final boolean foreground,
-            final Path pidFile,
-            final boolean quiet,
-            final Environment initialEnv) throws BootstrapException, NodeValidationException, UserException {
+    static void init(final boolean foreground, final Path pidFile, final boolean quiet, final Environment initialEnv)
+        throws BootstrapException, NodeValidationException, UserException {
         // force the class initializer for BootstrapInfo to run before
         // the security manager is installed
         BootstrapInfo.init();
 
         INSTANCE = new Bootstrap();
 
-        final SecureSettings keystore = loadSecureSettings(initialEnv);
+        final SecureSettings keystore = BootstrapUtil.loadSecureSettings(initialEnv);
         final Environment environment = createEnvironment(pidFile, keystore, initialEnv.settings(), initialEnv.configFile());
+
+        BootstrapInfo.setConsoleOutput(getConsole(environment));
+
+        // the LogConfigurator will replace System.out and System.err with redirects to our logfile, so we need to capture
+        // the stream objects before calling LogConfigurator to be able to close them when appropriate
+        final Runnable sysOutCloser = getSysOutCloser();
+        final Runnable sysErrorCloser = getSysErrorCloser();
 
         LogConfigurator.setNodeName(Node.NODE_NAME_SETTING.get(environment.settings()));
         try {
@@ -317,15 +311,15 @@ final class Bootstrap {
             }
         }
 
-        final boolean closeStandardStreams = (foreground == false) || quiet;
         try {
+            final boolean closeStandardStreams = (foreground == false) || quiet;
             if (closeStandardStreams) {
                 final Logger rootLogger = LogManager.getRootLogger();
                 final Appender maybeConsoleAppender = Loggers.findAppender(rootLogger, ConsoleAppender.class);
                 if (maybeConsoleAppender != null) {
                     Loggers.removeAppender(rootLogger, maybeConsoleAppender);
                 }
-                closeSystOut();
+                sysOutCloser.run();
             }
 
             // fail if somebody replaced the lucene jars
@@ -347,9 +341,15 @@ final class Bootstrap {
 
             INSTANCE.start();
 
-            if (closeStandardStreams) {
-                closeSysError();
+            // We don't close stderr if `--quiet` is passed, because that
+            // hides fatal startup errors. For example, if Elasticsearch is
+            // running via systemd, the init script only specifies
+            // `--quiet`, not `-d`, so we want users to be able to see
+            // startup errors via journalctl.
+            if (foreground == false) {
+                sysErrorCloser.run();
             }
+
         } catch (NodeValidationException | RuntimeException e) {
             // disable console logging, so user does not see the exception twice (jvm will show it already)
             final Logger rootLogger = LogManager.getRootLogger();
@@ -392,20 +392,29 @@ final class Bootstrap {
         }
     }
 
+    private static PrintStream getConsole(Environment environment) {
+        return ConsoleLoader.loadConsole(environment);
+    }
+
     @SuppressForbidden(reason = "System#out")
-    private static void closeSystOut() {
-        System.out.close();
+    private static Runnable getSysOutCloser() {
+        return System.out::close;
     }
 
     @SuppressForbidden(reason = "System#err")
-    private static void closeSysError() {
-        System.err.close();
+    private static Runnable getSysErrorCloser() {
+        return System.err::close;
     }
 
     private static void checkLucene() {
         if (Version.CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST) == false) {
-            throw new AssertionError("Lucene version mismatch this version of Elasticsearch requires lucene version ["
-                + Version.CURRENT.luceneVersion + "]  but the current lucene version is [" + org.apache.lucene.util.Version.LATEST + "]");
+            throw new AssertionError(
+                "Lucene version mismatch this version of Elasticsearch requires lucene version ["
+                    + Version.CURRENT.luceneVersion
+                    + "]  but the current lucene version is ["
+                    + org.apache.lucene.util.Version.LATEST
+                    + "]"
+            );
         }
     }
 

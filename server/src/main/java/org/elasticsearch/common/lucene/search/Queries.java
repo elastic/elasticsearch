@@ -1,39 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.lucene.search;
 
-import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
-import org.elasticsearch.index.mapper.TypeFieldMapper;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -51,7 +35,6 @@ public class Queries {
         return new MatchNoDocsQuery(reason);
     }
 
-
     public static Query newUnmappedFieldQuery(String field) {
         return newUnmappedFieldsQuery(Collections.singletonList(field));
     }
@@ -66,7 +49,7 @@ public class Queries {
     }
 
     public static Query newNestedFilter() {
-        return new PrefixQuery(new Term(TypeFieldMapper.NAME, new BytesRef("__")));
+        return not(newNonNestedFilter());
     }
 
     /**
@@ -89,19 +72,15 @@ public class Queries {
 
     /** Return a query that matches all documents but those that match the given query. */
     public static Query not(Query q) {
-        return new BooleanQuery.Builder()
-            .add(new MatchAllDocsQuery(), Occur.MUST)
-            .add(q, Occur.MUST_NOT)
-            .build();
+        return new BooleanQuery.Builder().add(new MatchAllDocsQuery(), Occur.MUST).add(q, Occur.MUST_NOT).build();
     }
 
     static boolean isNegativeQuery(Query q) {
-        if (!(q instanceof BooleanQuery)) {
+        if ((q instanceof BooleanQuery) == false) {
             return false;
         }
         List<BooleanClause> clauses = ((BooleanQuery) q).clauses();
-        return clauses.isEmpty() == false &&
-                clauses.stream().allMatch(BooleanClause::isProhibited);
+        return clauses.isEmpty() == false && clauses.stream().allMatch(BooleanClause::isProhibited);
     }
 
     public static Query fixNegativeQueryIfNeeded(Query q) {
@@ -148,8 +127,6 @@ public class Queries {
     public static Query maybeApplyMinimumShouldMatch(Query query, @Nullable String minimumShouldMatch) {
         if (query instanceof BooleanQuery) {
             return applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
-        } else if (query instanceof ExtendedCommonTermsQuery) {
-            ((ExtendedCommonTermsQuery)query).setLowFreqMinimumNumberShouldMatch(minimumShouldMatch);
         }
         return query;
     }
@@ -171,8 +148,7 @@ public class Queries {
                 if (optionalClauseCount <= upperBound) {
                     return result;
                 } else {
-                    result = calculateMinShouldMatch
-                            (optionalClauseCount, parts[1]);
+                    result = calculateMinShouldMatch(optionalClauseCount, parts[1]);
                 }
             }
             return result;

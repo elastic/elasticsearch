@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 
@@ -57,13 +58,17 @@ public abstract class BaseFilteredMonitoringDocTestCase<F extends FilteredMonito
     }
 
     public void testConstructorFiltersMustNotBeNull() {
-        expectThrows(NullPointerException.class,
-                () -> new TestFilteredMonitoringDoc(cluster, timestamp, interval, node, system, type, id, null));
+        expectThrows(
+            NullPointerException.class,
+            () -> new TestFilteredMonitoringDoc(cluster, timestamp, interval, node, system, type, id, null)
+        );
     }
 
     public void testConstructorFiltersMustNotBeEmpty() {
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> new TestFilteredMonitoringDoc(cluster, timestamp, interval, node, system, type, id, emptySet()));
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new TestFilteredMonitoringDoc(cluster, timestamp, interval, node, system, type, id, emptySet())
+        );
 
         assertThat(e.getMessage(), equalTo("xContentFilters must not be empty"));
     }
@@ -74,47 +79,59 @@ public abstract class BaseFilteredMonitoringDocTestCase<F extends FilteredMonito
         filters.add("_type.field_3");
         filters.add("_type.field_5.sub_*");
 
-        final MonitoringDoc.Node node =
-                new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
-        final TestFilteredMonitoringDoc document = new TestFilteredMonitoringDoc("_cluster", 1502266739402L, 1506593717631L,
-                node, MonitoredSystem.ES, "_type", "_id", filters);
+        final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
+        final TestFilteredMonitoringDoc document = new TestFilteredMonitoringDoc(
+            "_cluster",
+            1502266739402L,
+            1506593717631L,
+            node,
+            MonitoredSystem.ES,
+            "_type",
+            "_id",
+            filters
+        );
 
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
-        assertEquals("{"
-                     + "\"cluster_uuid\":\"_cluster\","
-                     + "\"timestamp\":\"2017-08-09T08:18:59.402Z\","
-                     + "\"interval_ms\":1506593717631,"
-                     + "\"type\":\"_type\","
-                     + "\"source_node\":{"
-                       + "\"uuid\":\"_uuid\","
-                       + "\"host\":\"_host\","
-                       + "\"transport_address\":\"_addr\","
-                       + "\"ip\":\"_ip\","
-                       + "\"name\":\"_name\","
-                       + "\"timestamp\":\"2017-08-31T08:46:30.855Z\""
-                     + "},"
-                     + "\"_type\":{"
-                       + "\"field_1\":1,"
-                         + "\"field_3\":{"
-                           + "\"sub_field_3\":3"
-                         + "},"
-                         + "\"field_5\":["
-                           + "{\"sub_field_5\":5}"
-                         + "]"
-                      + "}"
-                    + "}", xContent.utf8ToString());
+        final String expected = "{"
+            + "  \"cluster_uuid\": \"_cluster\","
+            + "  \"timestamp\": \"2017-08-09T08:18:59.402Z\","
+            + "  \"interval_ms\": 1506593717631,"
+            + "  \"type\": \"_type\","
+            + "  \"source_node\": {"
+            + "    \"uuid\": \"_uuid\","
+            + "    \"host\": \"_host\","
+            + "    \"transport_address\": \"_addr\","
+            + "    \"ip\": \"_ip\","
+            + "    \"name\": \"_name\","
+            + "    \"timestamp\": \"2017-08-31T08:46:30.855Z\""
+            + "  },"
+            + "  \"_type\": {"
+            + "    \"field_1\": 1,"
+            + "    \"field_3\": {"
+            + "      \"sub_field_3\": 3"
+            + "    },"
+            + "    \"field_5\": ["
+            + "      {"
+            + "        \"sub_field_5\": 5"
+            + "      }"
+            + "    ]"
+            + "  }"
+            + "}";
+        assertEquals(XContentHelper.stripWhitespace(expected), xContent.utf8ToString());
     }
 
     class TestFilteredMonitoringDoc extends FilteredMonitoringDoc {
 
-        TestFilteredMonitoringDoc(final String cluster,
-                                  final long timestamp,
-                                  final long intervalMillis,
-                                  final Node node,
-                                  final MonitoredSystem system,
-                                  final String type,
-                                  final String id,
-                                  final Set<String> xContentFilters) {
+        TestFilteredMonitoringDoc(
+            final String cluster,
+            final long timestamp,
+            final long intervalMillis,
+            final Node node,
+            final MonitoredSystem system,
+            final String type,
+            final String id,
+            final Set<String> xContentFilters
+        ) {
             super(cluster, timestamp, intervalMillis, node, system, type, id, xContentFilters);
         }
 

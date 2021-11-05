@@ -1,17 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.authz.support;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.support.MustacheTemplateEvaluator;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -26,8 +28,7 @@ import java.util.Map;
  */
 public final class SecurityQueryTemplateEvaluator {
 
-    private SecurityQueryTemplateEvaluator() {
-    }
+    private SecurityQueryTemplateEvaluator() {}
 
     /**
      * If the query source is a template, then parses the script, compiles the
@@ -44,13 +45,13 @@ public final class SecurityQueryTemplateEvaluator {
      * @return resultant query string after compiling and executing the script.
      * If the source does not contain template then it will return the query
      * source without any modifications.
-     * @throws IOException thrown when there is any error parsing the query
-     * string.
      */
-    public static String evaluateTemplate(final String querySource, final ScriptService scriptService, final User user) throws IOException {
+    public static String evaluateTemplate(final String querySource, final ScriptService scriptService, final User user) {
         // EMPTY is safe here because we never use namedObject
-        try (XContentParser parser = XContentFactory.xContent(querySource).createParser(NamedXContentRegistry.EMPTY,
-                LoggingDeprecationHandler.INSTANCE, querySource)) {
+        try (
+            XContentParser parser = XContentFactory.xContent(querySource)
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, querySource)
+        ) {
             XContentParser.Token token = parser.nextToken();
             if (token != XContentParser.Token.START_OBJECT) {
                 throw new ElasticsearchParseException("Unexpected token [" + token + "]");
@@ -76,7 +77,18 @@ public final class SecurityQueryTemplateEvaluator {
             } else {
                 return querySource;
             }
+        } catch (IOException ioe) {
+            throw new ElasticsearchParseException("failed to parse query", ioe);
         }
+    }
+
+    public static DlsQueryEvaluationContext wrap(User user, ScriptService scriptService) {
+        return q -> SecurityQueryTemplateEvaluator.evaluateTemplate(q.utf8ToString(), scriptService, user);
+    }
+
+    @FunctionalInterface
+    public interface DlsQueryEvaluationContext {
+        String evaluate(BytesReference query);
     }
 
 }

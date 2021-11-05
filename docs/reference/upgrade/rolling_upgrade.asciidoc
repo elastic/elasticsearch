@@ -7,17 +7,51 @@ a time so upgrading does not interrupt service. Running multiple versions of
 not supported, as shards cannot be replicated from upgraded nodes to nodes
 running the older version.
 
+We strongly recommend that when you upgrade you divide your cluster's nodes
+into the following two groups and upgrade the groups in this order:
+
+. Nodes that are not <<master-node,master-eligible>>. You can retrieve a list
+of these nodes with `GET /_nodes/_all,master:false` or by finding all the nodes
+configured with `node.master: false`.
+.. If you are using data tiers, you should
+upgrade the nodes by tier, completing one tier at a time, in this order: frozen, cold, warm and finally hot tier.
+This is to ensure ILM can continue to move between the phases and ensure version
+compatibility.
+.. If you are not using data tiers, you may upgrade the nodes within the group in any order.
+
+
+. Master-eligible nodes, which are the remaining nodes. You can retrieve a list
+of these nodes with `GET /_nodes/master:true`.
+
+Upgrading the nodes in this order ensures that the master-ineligible nodes are
+always running a version at least as new as the master-eligible nodes. Newer
+nodes can always join a cluster with an older master, but older nodes cannot
+always join a cluster with a newer master. By upgrading the master-eligible
+nodes last you ensure that all the master-ineligible nodes will be able to join
+the cluster whether the master-eligible nodes have been upgraded or not. If you
+upgrade any master-eligible nodes before the master-ineligible nodes then there
+is a risk that the older nodes will leave the cluster and will not be able to
+rejoin until they have been upgraded.
+
 Rolling upgrades are supported:
 
 * Between minor versions
-* {stack-ref-67}/upgrading-elastic-stack.html[From 5.6 to 6.7]
-* {stack-ref-70}/upgrading-elastic-stack.html[From 6.7 to 7.0]
+* {stack-ref-68}/upgrading-elastic-stack.html[From 5.6 to 6.8]
+* {stack-ref-70}/upgrading-elastic-stack.html[From 6.8 to 7.0]
 * From {prev-major-version} to {version}
+ifeval::[ "{bare_version}" != "{minor-version}.0" ]
+* From any version since {minor-version}.0 to {version}
+endif::[]
 
 Upgrading directly to {version} from 6.6 or earlier requires a
 <<restart-upgrade, full cluster restart>>.
 
-To perform a rolling upgrade from {prev-major-version} to {version}:
+include::preparing_to_upgrade.asciidoc[]
+
+[discrete]
+=== Upgrading your cluster
+
+To perform a rolling upgrade to {version}:
 
 . *Disable shard allocation*.
 +
@@ -25,15 +59,17 @@ To perform a rolling upgrade from {prev-major-version} to {version}:
 include::disable-shard-alloc.asciidoc[]
 --
 
-. *Stop non-essential indexing and perform a synced flush.* (Optional)
+. *Stop non-essential indexing and perform a flush.* (Optional)
 +
 --
 While you can continue indexing during the upgrade, shard recovery
 is much faster if you temporarily stop non-essential indexing and perform a
-<<indices-synced-flush, synced-flush>>.
+<<indices-flush, flush>>.
 
-include::synced-flush.asciidoc[]
-
+[source,console]
+--------------------------------------------------
+POST /_flush
+--------------------------------------------------
 --
 
 . *Temporarily stop the tasks associated with active {ml} jobs and {dfeeds}.* (Optional)
@@ -53,6 +89,13 @@ include::shut-down-node.asciidoc[]
 --
 include::upgrade-node.asciidoc[]
 include::set-paths-tip.asciidoc[]
+
+[[rolling-upgrades-bootstrapping]]
+NOTE: You should leave `cluster.initial_master_nodes` unset while performing a
+rolling upgrade. Each upgraded node is joining an existing cluster so there is
+no need for <<modules-discovery-bootstrap-cluster,cluster bootstrapping>>. You
+must configure <<built-in-hosts-providers,either `discovery.seed_hosts` or
+`discovery.seed_providers`>> on every node.
 --
 
 . *Upgrade any plugins.*
@@ -64,7 +107,7 @@ a node.
 . If you use {es} {security-features} to define realms, verify that your realm
 settings are up-to-date. The format of realm settings changed in version 7.0, in
 particular, the placement of the realm type changed. See
-<<realm-settings,Realm settings>>. 
+<<realm-settings,Realm settings>>.
 
 . *Start the upgraded node.*
 +
@@ -73,21 +116,21 @@ particular, the placement of the realm type changed. See
 Start the newly-upgraded node and confirm that it joins the cluster by checking
 the log file or by submitting a `_cat/nodes` request:
 
-[source,sh]
+[source,console]
 --------------------------------------------------
 GET _cat/nodes
 --------------------------------------------------
-// CONSOLE
 --
 
 . *Reenable shard allocation.*
 +
 --
 
-Once the node has joined the cluster, remove the `cluster.routing.allocation.enable`
-setting to enable shard allocation and start using the node:
+For data nodes, once the node has joined the cluster, remove the
+`cluster.routing.allocation.enable` setting to enable shard allocation and start
+using the node:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT _cluster/settings
 {
@@ -96,7 +139,6 @@ PUT _cluster/settings
   }
 }
 --------------------------------------------------
-// CONSOLE
 --
 
 . *Wait for the node to recover.*
@@ -106,14 +148,13 @@ PUT _cluster/settings
 Before upgrading the next node, wait for the cluster to finish shard allocation.
 You can check progress by submitting a <<cat-health,`_cat/health`>> request:
 
-[source,sh]
+[source,console]
 --------------------------------------------------
-GET _cat/health?v
+GET _cat/health?v=true
 --------------------------------------------------
-// CONSOLE
 
-Wait for the `status` column to switch from `yellow` to `green`. Once the
-node is `green`, all primary and replica shards have been allocated.
+Wait for the `status` column to switch to `green`. Once the node is `green`, all
+primary and replica shards have been allocated.
 
 [IMPORTANT]
 ====================================================
@@ -133,15 +174,14 @@ As soon as another node is upgraded, the replicas can be assigned and the
 status will change to `green`.
 ====================================================
 
-Shards that were not <<indices-synced-flush,sync-flushed>> might take longer to
-recover.  You can monitor the recovery status of individual shards by
+Shards that were not <<indices-flush,flushed>> might take longer to
+recover. You can monitor the recovery status of individual shards by
 submitting a <<cat-recovery,`_cat/recovery`>> request:
 
-[source,sh]
+[source,console]
 --------------------------------------------------
 GET _cat/recovery
 --------------------------------------------------
-// CONSOLE
 
 If you stopped indexing, it is safe to resume indexing as soon as
 recovery completes.
@@ -151,8 +191,21 @@ recovery completes.
 +
 --
 
-When  the node has recovered and the cluster is stable, repeat these steps
-for each node that needs to be updated.
+When the node has recovered and the cluster is stable, repeat these steps
+for each node that needs to be updated. You can monitor the health of the cluster
+with a <<cat-health,`_cat/health`>> request:
+
+[source,console]
+--------------------------------------------------
+GET /_cat/health?v=true
+--------------------------------------------------
+
+And check which nodes have been upgraded with a <<cat-nodes,`_cat/nodes`>> request:
+
+[source,console]
+--------------------------------------------------
+GET /_cat/nodes?h=ip,name,version&v=true
+--------------------------------------------------
 
 --
 
@@ -171,7 +224,7 @@ any new functionality is disabled or operates in a backward compatible mode
 until all nodes in the cluster are upgraded. New functionality becomes
 operational once the upgrade is complete and all nodes are running the new
 version. Once that has happened, there's no way to return to operating in a
-backward compatible mode. Nodes running the previous major version will not be
+backward compatible mode. Nodes running the previous version will not be
 allowed to join the fully-updated cluster.
 
 In the unlikely case of a network malfunction during the upgrade process that

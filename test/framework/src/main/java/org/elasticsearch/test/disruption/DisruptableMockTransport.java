@@ -1,38 +1,30 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.test.disruption;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.CloseableConnection;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.NodeNotConnectedException;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -43,20 +35,26 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.test.ESTestCase.copyWriteable;
-import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
 
 public abstract class DisruptableMockTransport extends MockTransport {
     private final DiscoveryNode localNode;
     private final Logger logger;
+    private final DeterministicTaskQueue deterministicTaskQueue;
+    private final List<Runnable> blackholedRequests = new ArrayList<>();
+    private final Set<String> blockedActions = new HashSet<>();
 
-    public DisruptableMockTransport(DiscoveryNode localNode, Logger logger) {
+    public DisruptableMockTransport(DiscoveryNode localNode, Logger logger, DeterministicTaskQueue deterministicTaskQueue) {
         this.localNode = localNode;
         this.logger = logger;
+        this.deterministicTaskQueue = deterministicTaskQueue;
     }
 
     protected abstract ConnectionStatus getConnectionStatus(DiscoveryNode destination);
@@ -65,79 +63,147 @@ public abstract class DisruptableMockTransport extends MockTransport {
 
     protected abstract void execute(Runnable runnable);
 
-    protected final void execute(String action, Runnable runnable) {
-        // handshake needs to run inline as the caller blockingly waits on the result
-        if (action.equals(HANDSHAKE_ACTION_NAME)) {
-            runnable.run();
-        } else {
-            execute(runnable);
-        }
-    }
-
     public DiscoveryNode getLocalNode() {
         return localNode;
     }
 
     @Override
-    public TransportService createTransportService(Settings settings, ThreadPool threadPool, TransportInterceptor interceptor,
-                                                   Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
-                                                   @Nullable ClusterSettings clusterSettings, Set<String> taskHeaders) {
+    public TransportService createTransportService(
+        Settings settings,
+        ThreadPool threadPool,
+        TransportInterceptor interceptor,
+        Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
+        @Nullable ClusterSettings clusterSettings,
+        Set<String> taskHeaders
+    ) {
         return new TransportService(settings, this, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders);
     }
 
     @Override
-    public Releasable openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
-        final Optional<DisruptableMockTransport> matchingTransport = getDisruptableMockTransport(node.getAddress());
-        if (matchingTransport.isPresent()) {
-            listener.onResponse(new CloseableConnection() {
-                @Override
-                public DiscoveryNode getNode() {
-                    return node;
-                }
+    public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
+        final Optional<DisruptableMockTransport> optionalMatchingTransport = getDisruptableMockTransport(node.getAddress());
+        if (optionalMatchingTransport.isPresent()) {
+            final DisruptableMockTransport matchingTransport = optionalMatchingTransport.get();
+            final ConnectionStatus connectionStatus = getConnectionStatus(matchingTransport.getLocalNode());
+            if (connectionStatus != ConnectionStatus.CONNECTED) {
+                listener.onFailure(
+                    new ConnectTransportException(node, "node [" + node + "] is [" + connectionStatus + "] not [CONNECTED]")
+                );
+            } else {
+                listener.onResponse(new CloseableConnection() {
+                    @Override
+                    public DiscoveryNode getNode() {
+                        return node;
+                    }
 
-                @Override
-                public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
-                    throws TransportException {
-                    onSendRequest(requestId, action, request, matchingTransport.get());
-                }
-            });
-            return () -> {};
+                    @Override
+                    public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+                        throws TransportException {
+                        if (blockedActions.contains(action)) {
+                            execute(new Runnable() {
+                                @Override
+                                public void run() {
+                                    handleError(
+                                        requestId,
+                                        new RemoteTransportException(
+                                            node.getName(),
+                                            node.getAddress(),
+                                            action,
+                                            new ElasticsearchException("action [" + action + "] is blocked")
+                                        )
+                                    );
+                                }
+
+                                @Override
+                                public String toString() {
+                                    return "error response delivery for action [" + action + "] on node [" + node + "]";
+                                }
+                            });
+                        } else {
+                            onSendRequest(requestId, action, request, options, matchingTransport);
+                        }
+                    }
+                });
+            }
         } else {
-            throw new ConnectTransportException(node, "node " + node + " does not exist");
+            listener.onFailure(new ConnectTransportException(node, "node " + node + " does not exist"));
         }
     }
 
-    protected void onSendRequest(long requestId, String action, TransportRequest request,
-                                 DisruptableMockTransport destinationTransport) {
+    protected void onSendRequest(
+        long requestId,
+        String action,
+        TransportRequest request,
+        TransportRequestOptions options,
+        DisruptableMockTransport destinationTransport
+    ) {
+        assert destinationTransport.getLocalNode().equals(getLocalNode()) == false
+            : "non-local message from " + getLocalNode() + " to itself";
 
-        assert destinationTransport.getLocalNode().equals(getLocalNode()) == false :
-            "non-local message from " + getLocalNode() + " to itself";
+        request.incRef();
 
-        destinationTransport.execute(action, new Runnable() {
+        destinationTransport.execute(new RebootSensitiveRunnable() {
             @Override
             public void run() {
-                final ConnectionStatus connectionStatus = getConnectionStatus(destinationTransport.getLocalNode());
-                switch (connectionStatus) {
-                    case BLACK_HOLE:
-                    case BLACK_HOLE_REQUESTS_ONLY:
-                        onBlackholedDuringSend(requestId, action, destinationTransport);
-                        break;
+                try {
+                    final ConnectionStatus connectionStatus = getConnectionStatus(destinationTransport.getLocalNode());
+                    switch (connectionStatus) {
+                        case BLACK_HOLE:
+                        case BLACK_HOLE_REQUESTS_ONLY:
+                            onBlackholedDuringSend(requestId, action, destinationTransport);
+                            break;
 
-                    case DISCONNECTED:
-                        onDisconnectedDuringSend(requestId, action, destinationTransport);
-                        break;
+                        case DISCONNECTED:
+                            onDisconnectedDuringSend(requestId, action, destinationTransport);
+                            break;
 
-                    case CONNECTED:
-                        onConnectedDuringSend(requestId, action, request, destinationTransport);
-                        break;
+                        case CONNECTED:
+                            onConnectedDuringSend(requestId, action, request, destinationTransport);
+                            break;
 
-                    default:
-                        throw new AssertionError("unexpected status: " + connectionStatus);
+                        default:
+                            throw new AssertionError("unexpected status: " + connectionStatus);
+                    }
+                } finally {
+                    request.decRef();
                 }
             }
 
             @Override
+            public void ifRebooted() {
+                request.decRef();
+                deterministicTaskQueue.scheduleNow(new Runnable() {
+                    @Override
+                    public void run() {
+                        execute(new Runnable() {
+                            @Override
+                            public void run() {
+                                handleRemoteError(
+                                    requestId,
+                                    new NodeNotConnectedException(destinationTransport.getLocalNode(), "node rebooted")
+                                );
+                            }
+
+                            @Override
+                            public String toString() {
+                                return "error response (reboot) to " + internalToString();
+                            }
+                        });
+                    }
+
+                    @Override
+                    public String toString() {
+                        return "scheduling of error response (reboot) to " + internalToString();
+                    }
+                });
+            }
+
+            @Override
             public String toString() {
+                return internalToString();
+            }
+
+            private String internalToString() {
                 return getRequestDescription(requestId, action, destinationTransport.getLocalNode());
             }
         });
@@ -158,29 +224,36 @@ public abstract class DisruptableMockTransport extends MockTransport {
     }
 
     protected String getRequestDescription(long requestId, String action, DiscoveryNode destination) {
-        return new ParameterizedMessage("[{}][{}] from {} to {}",
-            requestId, action, getLocalNode(), destination).getFormattedMessage();
+        return new ParameterizedMessage("[{}][{}] from {} to {}", requestId, action, getLocalNode(), destination).getFormattedMessage();
     }
 
     protected void onBlackholedDuringSend(long requestId, String action, DisruptableMockTransport destinationTransport) {
-        if (action.equals(HANDSHAKE_ACTION_NAME)) {
-            logger.trace("ignoring blackhole and delivering {}",
-                getRequestDescription(requestId, action, destinationTransport.getLocalNode()));
-            // handshakes always have a timeout, and are sent in a blocking fashion, so we must respond with an exception.
-            destinationTransport.execute(action, getDisconnectException(requestId, action, destinationTransport.getLocalNode()));
-        } else {
-            logger.trace("dropping {}", getRequestDescription(requestId, action, destinationTransport.getLocalNode()));
-        }
+        logger.trace("dropping {}", getRequestDescription(requestId, action, destinationTransport.getLocalNode()));
+        // Delaying the response until explicitly instructed, to simulate a very long delay
+        blackholedRequests.add(new Runnable() {
+            @Override
+            public void run() {
+                onDisconnectedDuringSend(requestId, action, destinationTransport);
+            }
+
+            @Override
+            public String toString() {
+                return "deferred handling of dropped " + getRequestDescription(requestId, action, destinationTransport.getLocalNode());
+            }
+        });
     }
 
     protected void onDisconnectedDuringSend(long requestId, String action, DisruptableMockTransport destinationTransport) {
-        destinationTransport.execute(action, getDisconnectException(requestId, action, destinationTransport.getLocalNode()));
+        destinationTransport.execute(getDisconnectException(requestId, action, destinationTransport.getLocalNode()));
     }
 
-    protected void onConnectedDuringSend(long requestId, String action, TransportRequest request,
-                                         DisruptableMockTransport destinationTransport) {
-        final RequestHandlerRegistry<TransportRequest> requestHandler =
-            destinationTransport.getRequestHandler(action);
+    protected void onConnectedDuringSend(
+        long requestId,
+        String action,
+        TransportRequest request,
+        DisruptableMockTransport destinationTransport
+    ) {
+        final RequestHandlerRegistry<TransportRequest> requestHandler = destinationTransport.getRequestHandlers().getHandler(action);
 
         final DiscoveryNode destination = destinationTransport.getLocalNode();
 
@@ -199,7 +272,7 @@ public abstract class DisruptableMockTransport extends MockTransport {
 
             @Override
             public void sendResponse(final TransportResponse response) {
-                execute(action, new Runnable() {
+                execute(new Runnable() {
                     @Override
                     public void run() {
                         final ConnectionStatus connectionStatus = destinationTransport.getConnectionStatus(getLocalNode());
@@ -211,7 +284,8 @@ public abstract class DisruptableMockTransport extends MockTransport {
 
                             case BLACK_HOLE:
                             case DISCONNECTED:
-                                logger.trace("dropping response to {}: channel is {}", requestDescription, connectionStatus);
+                                logger.trace("delaying response to {}: channel is {}", requestDescription, connectionStatus);
+                                onBlackholedDuringSend(requestId, action, destinationTransport);
                                 break;
 
                             default:
@@ -228,7 +302,8 @@ public abstract class DisruptableMockTransport extends MockTransport {
 
             @Override
             public void sendResponse(Exception exception) {
-                execute(action, new Runnable() {
+
+                execute(new Runnable() {
                     @Override
                     public void run() {
                         final ConnectionStatus connectionStatus = destinationTransport.getConnectionStatus(getLocalNode());
@@ -240,7 +315,8 @@ public abstract class DisruptableMockTransport extends MockTransport {
 
                             case BLACK_HOLE:
                             case DISCONNECTED:
-                                logger.trace("dropping exception response to {}: channel is {}", requestDescription, connectionStatus);
+                                logger.trace("delaying exception response to {}: channel is {}", requestDescription, connectionStatus);
+                                onBlackholedDuringSend(requestId, action, destinationTransport);
                                 break;
 
                             default:
@@ -274,6 +350,24 @@ public abstract class DisruptableMockTransport extends MockTransport {
         }
     }
 
+    public boolean deliverBlackholedRequests() {
+        if (blackholedRequests.isEmpty()) {
+            return false;
+        } else {
+            blackholedRequests.forEach(deterministicTaskQueue::scheduleNow);
+            blackholedRequests.clear();
+            return true;
+        }
+    }
+
+    public void addActionBlock(String action) {
+        blockedActions.add(action);
+    }
+
+    public void clearActionBlocks() {
+        blockedActions.clear();
+    }
+
     /**
      * Response type from {@link DisruptableMockTransport#getConnectionStatus(DiscoveryNode)} indicating whether, and how, messages should
      * be disrupted on this transport.
@@ -298,5 +392,16 @@ public abstract class DisruptableMockTransport extends MockTransport {
          * Simulate an asymmetric partition: outbound messages are silently discarded, but inbound messages are delivered normally.
          */
         BLACK_HOLE_REQUESTS_ONLY
+    }
+
+    /**
+     * When simulating sending requests to another node which might have rebooted, it's not realistic just to drop the action if the node
+     * reboots; instead we need to simulate the error response that comes back.
+     */
+    public interface RebootSensitiveRunnable extends Runnable {
+        /**
+         * Cleanup action to run if the destination node reboots.
+         */
+        void ifRebooted();
     }
 }

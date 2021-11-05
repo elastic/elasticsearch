@@ -1,0 +1,32 @@
+--
+:api: preview-transform
+:request: PreviewTransformRequest
+:response: PreviewTransformResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Preview {transform} API
+
+Previews the results of a {transform}.
+
+The API accepts a +{request}+ object as a request and returns a +{response}+.
+
+[id="{upid}-{api}-request"]
+==== Preview {transform} request
+
+A +{request}+ takes a single argument: a valid {transform} config.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The source config from which the data should be gathered
+<2> The pivot config used to transform the data
+<3> The configuration of the {transform} to preview
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ contains the preview documents

@@ -1,39 +1,39 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.rest.job;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction.Request;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.DEPRECATED_ALLOW_NO_JOBS_PARAM;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
+import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
+import static org.elasticsearch.xpack.ml.rest.RestCompatibilityChecker.checkAndSetDeprecatedParam;
 
 public class RestCloseJobAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(RestCloseJobAction.class));
-
-    public RestCloseJobAction(Settings settings, RestController controller) {
-        super(settings);
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_close", this,
-            POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_close", deprecationLogger);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            Route.builder(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_close")
+                .replaces(POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_close", RestApiVersion.V_7)
+                .build()
+        );
     }
 
     @Override
@@ -49,15 +49,21 @@ public class RestCloseJobAction extends BaseRestHandler {
         } else {
             request = new Request(restRequest.param(Job.ID.getPreferredName()));
             if (restRequest.hasParam(Request.TIMEOUT.getPreferredName())) {
-                request.setCloseTimeout(TimeValue.parseTimeValue(
-                    restRequest.param(Request.TIMEOUT.getPreferredName()), Request.TIMEOUT.getPreferredName()));
+                request.setCloseTimeout(
+                    TimeValue.parseTimeValue(restRequest.param(Request.TIMEOUT.getPreferredName()), Request.TIMEOUT.getPreferredName())
+                );
             }
             if (restRequest.hasParam(Request.FORCE.getPreferredName())) {
                 request.setForce(restRequest.paramAsBoolean(Request.FORCE.getPreferredName(), request.isForce()));
             }
-            if (restRequest.hasParam(Request.ALLOW_NO_JOBS.getPreferredName())) {
-                request.setAllowNoJobs(restRequest.paramAsBoolean(Request.ALLOW_NO_JOBS.getPreferredName(), request.allowNoJobs()));
-            }
+            checkAndSetDeprecatedParam(
+                DEPRECATED_ALLOW_NO_JOBS_PARAM,
+                Request.ALLOW_NO_MATCH.getPreferredName(),
+                RestApiVersion.V_7,
+                restRequest,
+                (r, s) -> r.paramAsBoolean(s, request.allowNoMatch()),
+                request::setAllowNoMatch
+            );
         }
         return channel -> client.execute(CloseJobAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

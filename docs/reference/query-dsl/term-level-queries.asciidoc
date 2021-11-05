@@ -1,73 +1,72 @@
 [[term-level-queries]]
-== Term level queries
+== Term-level queries
 
-While the <<full-text-queries,full text queries>> will analyze the query
-string before executing, the _term-level queries_ operate on the exact terms
-that are stored in the inverted index, and will normalize terms before executing 
-only for <<keyword,`keyword`>> fields with <<normalizer,`normalizer`>> property.
+You can use **term-level queries** to find documents based on precise values in
+structured data. Examples of structured data include date ranges, IP addresses,
+prices, or product IDs.
 
-These queries are usually used for structured data like numbers, dates, and
-enums, rather than full text fields.  Alternatively, they allow you to craft
-low-level queries, foregoing the analysis process.
+Unlike <<full-text-queries, full-text queries>>, term-level queries do not
+analyze search terms. Instead, term-level queries match the exact terms stored
+in a field.
 
-The queries in this group are:
 
-<<query-dsl-term-query,`term` query>>::
+[NOTE]
+====
+Term-level queries still normalize search terms for `keyword` fields with the
+`normalizer` property. For more details, see <<normalizer, `normalizer`>>.
+====
 
-    Find documents which contain the exact term specified in the field
-    specified.
-
-<<query-dsl-terms-query,`terms` query>>::
-
-    Find documents which contain any of the exact terms specified in the field
-    specified.
-
-<<query-dsl-terms-set-query,`terms_set` query>>::
-
-    Find documents which match with one or more of the specified terms. The
-    number of terms that must match depend on the specified minimum should
-    match field or script.
-
-<<query-dsl-range-query,`range` query>>::
-
-    Find documents where the field specified contains values (dates, numbers,
-    or strings) in the range specified.
+[discrete]
+[[term-level-query-types]]
+=== Types of term-level queries
 
 <<query-dsl-exists-query,`exists` query>>::
-
-    Find documents where the field specified contains any non-null value.
-
-<<query-dsl-prefix-query,`prefix` query>>::
-
-    Find documents where the field specified contains terms which begin with
-    the exact prefix specified.
-
-<<query-dsl-wildcard-query,`wildcard` query>>::
-
-    Find documents where the field specified contains terms which match the
-    pattern specified, where the pattern supports single character wildcards
-    (`?`) and multi-character wildcards (`*`)
-
-<<query-dsl-regexp-query,`regexp` query>>::
-
-    Find documents where the field specified contains terms which match the
-    <<regexp-syntax,regular expression>> specified.
+Returns documents that contain any indexed value for a field.
 
 <<query-dsl-fuzzy-query,`fuzzy` query>>::
-
-    Find documents where the field specified contains terms which are fuzzily
-    similar to the specified term.  Fuzziness is measured as a
-    http://en.wikipedia.org/wiki/Damerau%E2%80%93Levenshtein_distance[Levenshtein edit distance]
-    of 1 or 2.
-
-<<query-dsl-type-query,`type` query>>::
-
-    Find documents of the specified type.
+Returns documents that contain terms similar to the search term. {es} measures
+similarity, or fuzziness, using a
+{wikipedia}/Levenshtein_distance[Levenshtein edit distance].
 
 <<query-dsl-ids-query,`ids` query>>::
+Returns documents based on their <<mapping-id-field, document IDs>>. 
 
-    Find documents with the specified type and IDs.
+<<query-dsl-prefix-query,`prefix` query>>::
+Returns documents that contain a specific prefix in a provided field.
 
+<<query-dsl-range-query,`range` query>>::
+Returns documents that contain terms within a provided range.
+
+<<query-dsl-regexp-query,`regexp` query>>::
+Returns documents that contain terms matching a
+{wikipedia}/Regular_expression[regular expression].
+
+<<query-dsl-term-query,`term` query>>::
+Returns documents that contain an exact term in a provided field.
+
+<<query-dsl-terms-query,`terms` query>>::
+Returns documents that contain one or more exact terms in a provided field.
+
+<<query-dsl-terms-set-query,`terms_set` query>>::
+Returns documents that contain a minimum number of exact terms in a provided
+field. You can define the minimum number of matching terms using a field or
+script.
+
+<<query-dsl-wildcard-query,`wildcard` query>>::
+Returns documents that contain terms matching a wildcard pattern.
+
+
+include::exists-query.asciidoc[]
+
+include::fuzzy-query.asciidoc[]
+
+include::ids-query.asciidoc[]
+
+include::prefix-query.asciidoc[]
+
+include::range-query.asciidoc[]
+
+include::regexp-query.asciidoc[]
 
 include::term-query.asciidoc[]
 
@@ -75,18 +74,4 @@ include::terms-query.asciidoc[]
 
 include::terms-set-query.asciidoc[]
 
-include::range-query.asciidoc[]
-
-include::exists-query.asciidoc[]
-
-include::prefix-query.asciidoc[]
-
 include::wildcard-query.asciidoc[]
-
-include::regexp-query.asciidoc[]
-
-include::fuzzy-query.asciidoc[]
-
-include::type-query.asciidoc[]
-
-include::ids-query.asciidoc[]

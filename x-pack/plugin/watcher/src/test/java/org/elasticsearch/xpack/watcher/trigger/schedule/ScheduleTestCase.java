@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.scheduler.Cron;
 import org.elasticsearch.xpack.watcher.trigger.schedule.support.DayOfWeek;
 import org.elasticsearch.xpack.watcher.trigger.schedule.support.DayTimes;
@@ -44,45 +45,64 @@ public abstract class ScheduleTestCase extends ESTestCase {
 
     protected static MonthlySchedule randomMonthlySchedule() {
         switch (randomIntBetween(1, 4)) {
-            case 1: return monthly().build();
-            case 2: return monthly().time(MonthTimes.builder().atMidnight()).build();
-            case 3: return monthly().time(MonthTimes.builder().on(randomIntBetween(1, 31)).atMidnight()).build();
-            default: return new MonthlySchedule(validMonthTimes());
+            case 1:
+                return monthly().build();
+            case 2:
+                return monthly().time(MonthTimes.builder().atMidnight()).build();
+            case 3:
+                return monthly().time(MonthTimes.builder().on(randomIntBetween(1, 31)).atMidnight()).build();
+            default:
+                return new MonthlySchedule(validMonthTimes());
         }
     }
 
     protected static WeeklySchedule randomWeeklySchedule() {
         switch (randomIntBetween(1, 4)) {
-            case 1: return weekly().build();
-            case 2: return weekly().time(WeekTimes.builder().atMidnight()).build();
-            case 3: return weekly().time(WeekTimes.builder().on(DayOfWeek.THURSDAY).atMidnight()).build();
-            default: return new WeeklySchedule(validWeekTimes());
+            case 1:
+                return weekly().build();
+            case 2:
+                return weekly().time(WeekTimes.builder().atMidnight()).build();
+            case 3:
+                return weekly().time(WeekTimes.builder().on(DayOfWeek.THURSDAY).atMidnight()).build();
+            default:
+                return new WeeklySchedule(validWeekTimes());
         }
     }
 
     protected static DailySchedule randomDailySchedule() {
         switch (randomIntBetween(1, 4)) {
-            case 1: return daily().build();
-            case 2: return daily().atMidnight().build();
-            case 3: return daily().atNoon().build();
-            default: return new DailySchedule(validDayTimes());
+            case 1:
+                return daily().build();
+            case 2:
+                return daily().atMidnight().build();
+            case 3:
+                return daily().atNoon().build();
+            default:
+                return new DailySchedule(validDayTimes());
         }
     }
 
     protected static HourlySchedule randomHourlySchedule() {
         switch (randomIntBetween(1, 4)) {
-            case 1: return hourly().build();
-            case 2: return hourly().minutes(randomIntBetween(0, 59)).build();
-            case 3: return hourly(randomIntBetween(0, 59));
-            default: return hourly().minutes(validMinutes()).build();
+            case 1:
+                return hourly().build();
+            case 2:
+                return hourly().minutes(randomIntBetween(0, 59)).build();
+            case 3:
+                return hourly(randomIntBetween(0, 59));
+            default:
+                return hourly().minutes(validMinutes()).build();
         }
     }
 
     protected static IntervalSchedule randomIntervalSchedule() {
         switch (randomIntBetween(1, 3)) {
-            case 1: return interval(randomInterval().toString());
-            case 2: return interval(randomIntBetween(1, 100), randomIntervalUnit());
-            default: return new IntervalSchedule(randomInterval());
+            case 1:
+                return interval(randomInterval().toString());
+            case 2:
+                return interval(randomIntBetween(1, 100), randomIntervalUnit());
+            default:
+                return new IntervalSchedule(randomInterval());
         }
     }
 
@@ -122,7 +142,7 @@ public abstract class ScheduleTestCase extends ESTestCase {
                     intersectsExistingMonthTimes = true;
                 }
             }
-            if (!intersectsExistingMonthTimes) {
+            if (intersectsExistingMonthTimes == false) {
                 times.add(testMonthTimes);
             }
         }
@@ -143,7 +163,7 @@ public abstract class ScheduleTestCase extends ESTestCase {
     }
 
     protected static EnumSet<DayOfWeek> randomDaysOfWeek() {
-        int count = randomIntBetween(1, DayOfWeek.values().length-1);
+        int count = randomIntBetween(1, DayOfWeek.values().length - 1);
         Set<DayOfWeek> days = new HashSet<>();
         for (int i = 0; i < count; i++) {
             days.add(DayOfWeek.values()[randomIntBetween(0, count)]);
@@ -209,9 +229,7 @@ public abstract class ScheduleTestCase extends ESTestCase {
     }
 
     protected static Object invalidDayOfMonth() {
-        return randomBoolean() ?
-                randomAlphaOfLength(5) :
-                randomBoolean() ? randomIntBetween(-30, -1) : randomIntBetween(33, 45);
+        return randomBoolean() ? randomAlphaOfLength(5) : randomBoolean() ? randomIntBetween(-30, -1) : randomIntBetween(33, 45);
     }
 
     protected static DayTimes validDayTime() {
@@ -233,11 +251,9 @@ public abstract class ScheduleTestCase extends ESTestCase {
     }
 
     protected static HourAndMinute invalidDayTime() {
-        return randomBoolean() ?
-                new HourAndMinute(invalidHour(), invalidMinute()) :
-                randomBoolean() ?
-                        new HourAndMinute(validHour(), invalidMinute()) :
-                        new HourAndMinute(invalidHour(), validMinute());
+        return randomBoolean() ? new HourAndMinute(invalidHour(), invalidMinute())
+            : randomBoolean() ? new HourAndMinute(validHour(), invalidMinute())
+            : new HourAndMinute(invalidHour(), validMinute());
     }
 
     protected static String invalidDayTimeStr() {
@@ -371,9 +387,9 @@ public abstract class ScheduleTestCase extends ESTestCase {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.startObject()
-                    .field(DayTimes.HOUR_FIELD.getPreferredName(), hour)
-                    .field(DayTimes.MINUTE_FIELD.getPreferredName(), minute)
-                    .endObject();
+                .field(DayTimes.HOUR_FIELD.getPreferredName(), hour)
+                .field(DayTimes.MINUTE_FIELD.getPreferredName(), minute)
+                .endObject();
         }
 
         @Override

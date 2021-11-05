@@ -1,55 +1,42 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.document;
 
-import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestUpdateAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(RestUpdateAction.class));
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in " +
-        "document update requests is deprecated, use the endpoint /{index}/_update/{id} instead.";
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in "
+        + "document update requests is deprecated, use the endpoint /{index}/_update/{id} instead.";
 
-    public RestUpdateAction(Settings settings, RestController controller) {
-        super(settings);
-        controller.registerHandler(POST, "/{index}/_update/{id}", this);
-
-        // Deprecated typed endpoint.
-        controller.registerHandler(POST, "/{index}/{type}/{id}/_update", this);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            new Route(POST, "/{index}/_update/{id}"),
+            Route.builder(POST, "/{index}/{type}/{id}/_update").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+        );
     }
 
     @Override
@@ -59,16 +46,10 @@ public class RestUpdateAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        UpdateRequest updateRequest;
-        if (request.hasParam("type")) {
-            deprecationLogger.deprecatedAndMaybeLog("update_with_types", TYPES_DEPRECATION_MESSAGE);
-            updateRequest = new UpdateRequest(request.param("index"),
-                request.param("type"),
-                request.param("id"));
-        } else {
-            updateRequest = new UpdateRequest(request.param("index"), request.param("id"));
+        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
+            request.param("type");
         }
-
+        UpdateRequest updateRequest = new UpdateRequest(request.param("index"), request.param("id"));
         updateRequest.routing(request.param("routing"));
         updateRequest.timeout(request.paramAsTime("timeout", updateRequest.timeout()));
         updateRequest.setRefreshPolicy(request.param("refresh"));
@@ -83,9 +64,18 @@ public class RestUpdateAction extends BaseRestHandler {
         }
 
         updateRequest.retryOnConflict(request.paramAsInt("retry_on_conflict", updateRequest.retryOnConflict()));
+        if (request.hasParam("version") || request.hasParam("version_type")) {
+            final ActionRequestValidationException versioningError = new ActionRequestValidationException();
+            versioningError.addValidationError(
+                "internal versioning can not be used for optimistic concurrency control. "
+                    + "Please use `if_seq_no` and `if_primary_term` instead"
+            );
+            throw versioningError;
+        }
 
         updateRequest.setIfSeqNo(request.paramAsLong("if_seq_no", updateRequest.ifSeqNo()));
         updateRequest.setIfPrimaryTerm(request.paramAsLong("if_primary_term", updateRequest.ifPrimaryTerm()));
+        updateRequest.setRequireAlias(request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, updateRequest.isRequireAlias()));
 
         request.applyContentParser(parser -> {
             updateRequest.fromXContent(parser);
@@ -103,8 +93,10 @@ public class RestUpdateAction extends BaseRestHandler {
             }
         });
 
-        return channel ->
-                client.update(updateRequest, new RestStatusToXContentListener<>(channel, r -> r.getLocation(updateRequest.routing())));
+        return channel -> client.update(
+            updateRequest,
+            new RestStatusToXContentListener<>(channel, r -> r.getLocation(updateRequest.routing()))
+        );
     }
 
 }

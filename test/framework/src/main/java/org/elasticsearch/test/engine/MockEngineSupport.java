@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.test.engine;
 
@@ -24,14 +13,6 @@ import org.apache.lucene.index.AssertingDirectoryReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.AssertingIndexSearcher;
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.QueryCache;
-import org.apache.lucene.search.QueryCachingPolicy;
-import org.apache.lucene.search.Weight;
-import org.apache.lucene.search.XIndexSearcher;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Setting;
@@ -47,7 +28,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.util.IdentityHashMap;
-import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -62,20 +42,24 @@ public final class MockEngineSupport {
      * is disabled by default ie. {@code 0.0d} since reader wrapping is insanely
      * slow if {@link AssertingDirectoryReader} is used.
      */
-    public static final Setting<Double> WRAP_READER_RATIO =
-        Setting.doubleSetting("index.engine.mock.random.wrap_reader_ratio", 0.0d, 0.0d, Property.IndexScope);
+    public static final Setting<Double> WRAP_READER_RATIO = Setting.doubleSetting(
+        "index.engine.mock.random.wrap_reader_ratio",
+        0.0d,
+        0.0d,
+        Property.IndexScope
+    );
     /**
      * Allows tests to prevent an engine from being flushed on close ie. to test translog recovery...
      */
-    public static final Setting<Boolean> DISABLE_FLUSH_ON_CLOSE =
-        Setting.boolSetting("index.mock.disable_flush_on_close", false, Property.IndexScope);
-
+    public static final Setting<Boolean> DISABLE_FLUSH_ON_CLOSE = Setting.boolSetting(
+        "index.mock.disable_flush_on_close",
+        false,
+        Property.IndexScope
+    );
 
     private final AtomicBoolean closing = new AtomicBoolean(false);
     private final Logger logger = LogManager.getLogger(Engine.class);
     private final ShardId shardId;
-    private final QueryCache filterCache;
-    private final QueryCachingPolicy filterCachingPolicy;
     private final InFlightSearchers inFlightSearchers;
     private final MockContext mockContext;
     private final boolean disableFlushOnClose;
@@ -83,7 +67,6 @@ public final class MockEngineSupport {
     public boolean isFlushOnCloseDisabled() {
         return disableFlushOnClose;
     }
-
 
     public static class MockContext {
         private final Random random;
@@ -102,9 +85,7 @@ public final class MockEngineSupport {
     public MockEngineSupport(EngineConfig config, Class<? extends FilterDirectoryReader> wrapper) {
         Settings settings = config.getIndexSettings().getSettings();
         shardId = config.getShardId();
-        filterCache = config.getQueryCache();
-        filterCachingPolicy = config.getQueryCachingPolicy();
-        final long seed =  config.getIndexSettings().getValue(ESIntegTestCase.INDEX_TEST_SEED_SETTING);
+        final long seed = config.getIndexSettings().getValue(ESIntegTestCase.INDEX_TEST_SEED_SETTING);
         Random random = new Random(seed);
         final double ratio = WRAP_READER_RATIO.get(settings);
         boolean wrapReader = random.nextDouble() < ratio;
@@ -121,7 +102,6 @@ public final class MockEngineSupport {
         FLUSH_AND_CLOSE,
         CLOSE;
     }
-
 
     /**
      * Returns the CloseAction to execute on the actual engine. Note this method changes the state on
@@ -144,30 +124,13 @@ public final class MockEngineSupport {
         }
     }
 
-    public AssertingIndexSearcher newSearcher(Engine.Searcher searcher) throws EngineException {
-        IndexReader reader = searcher.reader();
+    public IndexReader newReader(IndexReader reader) throws EngineException {
         IndexReader wrappedReader = reader;
         assert reader != null;
         if (reader instanceof DirectoryReader && mockContext.wrapReader) {
             wrappedReader = wrapReader((DirectoryReader) reader);
         }
-        final IndexSearcher delegate = new IndexSearcher(wrappedReader);
-        delegate.setSimilarity(searcher.searcher().getSimilarity());
-        delegate.setQueryCache(filterCache);
-        delegate.setQueryCachingPolicy(filterCachingPolicy);
-        final XIndexSearcher wrappedSearcher = new XIndexSearcher(delegate);
-        // this executes basic query checks and asserts that weights are normalized only once etc.
-        final AssertingIndexSearcher assertingIndexSearcher = new AssertingIndexSearcher(mockContext.random, wrappedReader) {
-            @Override
-            protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-                // we cannot use the asserting searcher because the weight is created by the ContextIndexSearcher
-                wrappedSearcher.search(leaves, weight, collector);
-            }
-        };
-        assertingIndexSearcher.setSimilarity(searcher.searcher().getSimilarity());
-        assertingIndexSearcher.setQueryCache(filterCache);
-        assertingIndexSearcher.setQueryCachingPolicy(filterCachingPolicy);
-        return assertingIndexSearcher;
+        return wrappedReader;
     }
 
     private DirectoryReader wrapReader(DirectoryReader reader) {
@@ -204,9 +167,9 @@ public final class MockEngineSupport {
 
     }
 
-    public Engine.Searcher wrapSearcher(Engine.Searcher engineSearcher) {
-        final AssertingIndexSearcher assertingIndexSearcher = newSearcher(engineSearcher);
-        assertingIndexSearcher.setSimilarity(engineSearcher.searcher().getSimilarity());
+    public Engine.Searcher wrapSearcher(Engine.Searcher searcher) {
+        final IndexReader reader = newReader(searcher.getIndexReader());
+
         /*
          * pass the original searcher to the super.newSearcher() method to
          * make sure this is the searcher that will be released later on.
@@ -215,8 +178,15 @@ public final class MockEngineSupport {
          * early. - good news, stuff will fail all over the place if we don't
          * get this right here
          */
-        SearcherCloseable closeable = new SearcherCloseable(engineSearcher, logger, inFlightSearchers);
-        return new Engine.Searcher(engineSearcher.source(), assertingIndexSearcher, closeable);
+        SearcherCloseable closeable = new SearcherCloseable(searcher, logger, inFlightSearchers);
+        return new Engine.Searcher(
+            searcher.source(),
+            reader,
+            searcher.getSimilarity(),
+            searcher.getQueryCache(),
+            searcher.getQueryCachingPolicy(),
+            closeable
+        );
     }
 
     private static final class InFlightSearchers implements Closeable {
@@ -235,7 +205,7 @@ public final class MockEngineSupport {
         }
 
         void add(Object key, String source) {
-            final RuntimeException ex = new RuntimeException("Unreleased Searcher, source [" + source+ "]");
+            final RuntimeException ex = new RuntimeException("Unreleased Searcher, source [" + source + "]");
             synchronized (this) {
                 openSearchers.put(key, ex);
             }
@@ -247,7 +217,7 @@ public final class MockEngineSupport {
     }
 
     private static final class SearcherCloseable implements Closeable {
-        private final Engine.Searcher wrappedSearcher;
+        private final Engine.Searcher searcher;
         private final InFlightSearchers inFlightSearchers;
         private RuntimeException firstReleaseStack;
         private final Object lock = new Object();
@@ -255,16 +225,14 @@ public final class MockEngineSupport {
         private final Logger logger;
         private final AtomicBoolean closed = new AtomicBoolean(false);
 
-        SearcherCloseable(final Engine.Searcher wrappedSearcher, Logger logger, InFlightSearchers inFlightSearchers) {
-            // we only use the given index searcher here instead of the IS of the wrapped searcher. the IS might be a wrapped searcher
-            // with a wrapped reader.
-            this.wrappedSearcher = wrappedSearcher;
+        SearcherCloseable(final Engine.Searcher searcher, Logger logger, InFlightSearchers inFlightSearchers) {
+            this.searcher = searcher;
             this.logger = logger;
-            initialRefCount = wrappedSearcher.reader().getRefCount();
+            initialRefCount = searcher.getIndexReader().getRefCount();
             this.inFlightSearchers = inFlightSearchers;
-            assert initialRefCount > 0 :
-                "IndexReader#getRefCount() was [" + initialRefCount + "] expected a value > [0] - reader is already closed";
-            inFlightSearchers.add(this, wrappedSearcher.source());
+            assert initialRefCount > 0
+                : "IndexReader#getRefCount() was [" + initialRefCount + "] expected a value > [0] - reader is already closed";
+            inFlightSearchers.add(this, searcher.source());
         }
 
         @Override
@@ -273,23 +241,27 @@ public final class MockEngineSupport {
                 if (closed.compareAndSet(false, true)) {
                     inFlightSearchers.remove(this);
                     firstReleaseStack = new RuntimeException();
-                    final int refCount = wrappedSearcher.reader().getRefCount();
+                    final int refCount = searcher.getIndexReader().getRefCount();
                     /*
                      * this assert seems to be paranoid but given LUCENE-5362 we
                      * better add some assertions here to make sure we catch any
                      * potential problems.
                      */
-                    assert refCount > 0 : "IndexReader#getRefCount() was [" + refCount + "] expected a value > [0] - reader is already "
-                        + " closed. Initial refCount was: [" + initialRefCount + "]";
+                    assert refCount > 0
+                        : "IndexReader#getRefCount() was ["
+                            + refCount
+                            + "] expected a value > [0] - reader is already "
+                            + " closed. Initial refCount was: ["
+                            + initialRefCount
+                            + "]";
                     try {
-                        wrappedSearcher.close();
+                        searcher.close();
                     } catch (RuntimeException ex) {
                         logger.debug("Failed to release searcher", ex);
                         throw ex;
                     }
                 } else {
-                    AssertionError error = new AssertionError("Released Searcher more than once, source [" + wrappedSearcher.source()
-                        + "]");
+                    AssertionError error = new AssertionError("Released Searcher more than once, source [" + searcher.source() + "]");
                     error.initCause(firstReleaseStack);
                     throw error;
                 }

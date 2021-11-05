@@ -1,22 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -33,11 +35,15 @@ public class JobUpdate implements Writeable, ToXContentObject {
 
     // For internal updates
     static final ConstructingObjectParser<Builder, Void> INTERNAL_PARSER = new ConstructingObjectParser<>(
-            "job_update", args -> new Builder((String) args[0]));
+        "job_update",
+        args -> new Builder((String) args[0])
+    );
 
     // For parsing REST requests
     public static final ConstructingObjectParser<Builder, Void> EXTERNAL_PARSER = new ConstructingObjectParser<>(
-            "job_update", args -> new Builder((String) args[0]));
+        "job_update",
+        args -> new Builder((String) args[0])
+    );
 
     static {
         for (ConstructingObjectParser<Builder, Void> parser : Arrays.asList(INTERNAL_PARSER, EXTERNAL_PARSER)) {
@@ -47,19 +53,37 @@ public class JobUpdate implements Writeable, ToXContentObject {
             parser.declareObjectArray(Builder::setDetectorUpdates, DetectorUpdate.PARSER, DETECTORS);
             parser.declareObject(Builder::setModelPlotConfig, ModelPlotConfig.STRICT_PARSER, Job.MODEL_PLOT_CONFIG);
             parser.declareObject(Builder::setAnalysisLimits, AnalysisLimits.STRICT_PARSER, Job.ANALYSIS_LIMITS);
-            parser.declareString((builder, val) -> builder.setBackgroundPersistInterval(
-                    TimeValue.parseTimeValue(val, Job.BACKGROUND_PERSIST_INTERVAL.getPreferredName())), Job.BACKGROUND_PERSIST_INTERVAL);
+            parser.declareString(
+                (builder, val) -> builder.setBackgroundPersistInterval(
+                    TimeValue.parseTimeValue(val, Job.BACKGROUND_PERSIST_INTERVAL.getPreferredName())
+                ),
+                Job.BACKGROUND_PERSIST_INTERVAL
+            );
             parser.declareLong(Builder::setRenormalizationWindowDays, Job.RENORMALIZATION_WINDOW_DAYS);
             parser.declareLong(Builder::setResultsRetentionDays, Job.RESULTS_RETENTION_DAYS);
             parser.declareLong(Builder::setModelSnapshotRetentionDays, Job.MODEL_SNAPSHOT_RETENTION_DAYS);
+            parser.declareLong(Builder::setDailyModelSnapshotRetentionAfterDays, Job.DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS);
             parser.declareStringArray(Builder::setCategorizationFilters, AnalysisConfig.CATEGORIZATION_FILTERS);
+            parser.declareObject(
+                Builder::setPerPartitionCategorizationConfig,
+                PerPartitionCategorizationConfig.STRICT_PARSER,
+                AnalysisConfig.PER_PARTITION_CATEGORIZATION
+            );
             parser.declareField(Builder::setCustomSettings, (p, c) -> p.map(), Job.CUSTOM_SETTINGS, ObjectParser.ValueType.OBJECT);
+            parser.declareBoolean(Builder::setAllowLazyOpen, Job.ALLOW_LAZY_OPEN);
+            parser.declareString(
+                (builder, val) -> builder.setModelPruneWindow(
+                    TimeValue.parseTimeValue(val, AnalysisConfig.MODEL_PRUNE_WINDOW.getPreferredName())
+                ),
+                AnalysisConfig.MODEL_PRUNE_WINDOW
+            );
         }
         // These fields should not be set by a REST request
         INTERNAL_PARSER.declareString(Builder::setModelSnapshotId, Job.MODEL_SNAPSHOT_ID);
         INTERNAL_PARSER.declareString(Builder::setModelSnapshotMinVersion, Job.MODEL_SNAPSHOT_MIN_VERSION);
         INTERNAL_PARSER.declareString(Builder::setJobVersion, Job.JOB_VERSION);
         INTERNAL_PARSER.declareBoolean(Builder::setClearFinishTime, CLEAR_JOB_FINISH_TIME);
+        INTERNAL_PARSER.declareObject(Builder::setBlocked, Blocked.STRICT_PARSER, Job.BLOCKED);
     }
 
     private final String jobId;
@@ -71,21 +95,42 @@ public class JobUpdate implements Writeable, ToXContentObject {
     private final Long renormalizationWindowDays;
     private final TimeValue backgroundPersistInterval;
     private final Long modelSnapshotRetentionDays;
+    private final Long dailyModelSnapshotRetentionAfterDays;
     private final Long resultsRetentionDays;
     private final List<String> categorizationFilters;
+    private final PerPartitionCategorizationConfig perPartitionCategorizationConfig;
     private final Map<String, Object> customSettings;
     private final String modelSnapshotId;
     private final Version modelSnapshotMinVersion;
     private final Version jobVersion;
     private final Boolean clearJobFinishTime;
+    private final Boolean allowLazyOpen;
+    private final Blocked blocked;
+    private final TimeValue modelPruneWindow;
 
-    private JobUpdate(String jobId, @Nullable List<String> groups, @Nullable String description,
-                      @Nullable List<DetectorUpdate> detectorUpdates, @Nullable ModelPlotConfig modelPlotConfig,
-                      @Nullable AnalysisLimits analysisLimits, @Nullable TimeValue backgroundPersistInterval,
-                      @Nullable Long renormalizationWindowDays, @Nullable Long resultsRetentionDays,
-                      @Nullable Long modelSnapshotRetentionDays, @Nullable List<String> categorisationFilters,
-                      @Nullable Map<String, Object> customSettings, @Nullable String modelSnapshotId,
-                      @Nullable Version modelSnapshotMinVersion, @Nullable Version jobVersion, @Nullable Boolean clearJobFinishTime) {
+    private JobUpdate(
+        String jobId,
+        @Nullable List<String> groups,
+        @Nullable String description,
+        @Nullable List<DetectorUpdate> detectorUpdates,
+        @Nullable ModelPlotConfig modelPlotConfig,
+        @Nullable AnalysisLimits analysisLimits,
+        @Nullable TimeValue backgroundPersistInterval,
+        @Nullable Long renormalizationWindowDays,
+        @Nullable Long resultsRetentionDays,
+        @Nullable Long modelSnapshotRetentionDays,
+        @Nullable Long dailyModelSnapshotRetentionAfterDays,
+        @Nullable List<String> categorizationFilters,
+        @Nullable PerPartitionCategorizationConfig perPartitionCategorizationConfig,
+        @Nullable Map<String, Object> customSettings,
+        @Nullable String modelSnapshotId,
+        @Nullable Version modelSnapshotMinVersion,
+        @Nullable Version jobVersion,
+        @Nullable Boolean clearJobFinishTime,
+        @Nullable Boolean allowLazyOpen,
+        @Nullable Blocked blocked,
+        @Nullable TimeValue modelPruneWindow
+    ) {
         this.jobId = jobId;
         this.groups = groups;
         this.description = description;
@@ -95,13 +140,18 @@ public class JobUpdate implements Writeable, ToXContentObject {
         this.renormalizationWindowDays = renormalizationWindowDays;
         this.backgroundPersistInterval = backgroundPersistInterval;
         this.modelSnapshotRetentionDays = modelSnapshotRetentionDays;
+        this.dailyModelSnapshotRetentionAfterDays = dailyModelSnapshotRetentionAfterDays;
         this.resultsRetentionDays = resultsRetentionDays;
-        this.categorizationFilters = categorisationFilters;
+        this.categorizationFilters = categorizationFilters;
+        this.perPartitionCategorizationConfig = perPartitionCategorizationConfig;
         this.customSettings = customSettings;
         this.modelSnapshotId = modelSnapshotId;
         this.modelSnapshotMinVersion = modelSnapshotMinVersion;
         this.jobVersion = jobVersion;
         this.clearJobFinishTime = clearJobFinishTime;
+        this.allowLazyOpen = allowLazyOpen;
+        this.blocked = blocked;
+        this.modelPruneWindow = modelPruneWindow;
     }
 
     public JobUpdate(StreamInput in) throws IOException {
@@ -119,35 +169,37 @@ public class JobUpdate implements Writeable, ToXContentObject {
         renormalizationWindowDays = in.readOptionalLong();
         backgroundPersistInterval = in.readOptionalTimeValue();
         modelSnapshotRetentionDays = in.readOptionalLong();
+        dailyModelSnapshotRetentionAfterDays = in.readOptionalLong();
         resultsRetentionDays = in.readOptionalLong();
         if (in.readBoolean()) {
             categorizationFilters = in.readStringList();
         } else {
             categorizationFilters = null;
         }
+        perPartitionCategorizationConfig = in.readOptionalWriteable(PerPartitionCategorizationConfig::new);
         customSettings = in.readMap();
         modelSnapshotId = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_6_3_0) && in.readBoolean()) {
+        if (in.readBoolean()) {
             jobVersion = Version.readVersion(in);
         } else {
             jobVersion = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
-            clearJobFinishTime = in.readOptionalBoolean();
-        } else {
-            clearJobFinishTime = null;
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_0_0) && in.readBoolean()) {
+        clearJobFinishTime = in.readOptionalBoolean();
+        if (in.readBoolean()) {
             modelSnapshotMinVersion = Version.readVersion(in);
         } else {
             modelSnapshotMinVersion = null;
         }
+        allowLazyOpen = in.readOptionalBoolean();
+        blocked = in.readOptionalWriteable(Blocked::new);
+
+        modelPruneWindow = in.readOptionalTimeValue();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
-        String[] groupsArray = groups == null ? null : groups.toArray(new String[groups.size()]);
+        String[] groupsArray = groups == null ? null : groups.toArray(new String[0]);
         out.writeOptionalStringArray(groupsArray);
         out.writeOptionalString(description);
         out.writeBoolean(detectorUpdates != null);
@@ -159,32 +211,32 @@ public class JobUpdate implements Writeable, ToXContentObject {
         out.writeOptionalLong(renormalizationWindowDays);
         out.writeOptionalTimeValue(backgroundPersistInterval);
         out.writeOptionalLong(modelSnapshotRetentionDays);
+        out.writeOptionalLong(dailyModelSnapshotRetentionAfterDays);
         out.writeOptionalLong(resultsRetentionDays);
         out.writeBoolean(categorizationFilters != null);
         if (categorizationFilters != null) {
             out.writeStringCollection(categorizationFilters);
         }
+        out.writeOptionalWriteable(perPartitionCategorizationConfig);
         out.writeMap(customSettings);
         out.writeOptionalString(modelSnapshotId);
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            if (jobVersion != null) {
-                out.writeBoolean(true);
-                Version.writeVersion(jobVersion, out);
-            } else {
-                out.writeBoolean(false);
-            }
+        if (jobVersion != null) {
+            out.writeBoolean(true);
+            Version.writeVersion(jobVersion, out);
+        } else {
+            out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
-            out.writeOptionalBoolean(clearJobFinishTime);
+        out.writeOptionalBoolean(clearJobFinishTime);
+        if (modelSnapshotMinVersion != null) {
+            out.writeBoolean(true);
+            Version.writeVersion(modelSnapshotMinVersion, out);
+        } else {
+            out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            if (modelSnapshotMinVersion != null) {
-                out.writeBoolean(true);
-                Version.writeVersion(modelSnapshotMinVersion, out);
-            } else {
-                out.writeBoolean(false);
-            }
-        }
+        out.writeOptionalBoolean(allowLazyOpen);
+        out.writeOptionalWriteable(blocked);
+
+        out.writeOptionalTimeValue(modelPruneWindow);
     }
 
     public String getJobId() {
@@ -223,12 +275,20 @@ public class JobUpdate implements Writeable, ToXContentObject {
         return modelSnapshotRetentionDays;
     }
 
+    public Long getDailyModelSnapshotRetentionAfterDays() {
+        return dailyModelSnapshotRetentionAfterDays;
+    }
+
     public Long getResultsRetentionDays() {
         return resultsRetentionDays;
     }
 
     public List<String> getCategorizationFilters() {
         return categorizationFilters;
+    }
+
+    public PerPartitionCategorizationConfig getPerPartitionCategorizationConfig() {
+        return perPartitionCategorizationConfig;
     }
 
     public Map<String, Object> getCustomSettings() {
@@ -251,8 +311,20 @@ public class JobUpdate implements Writeable, ToXContentObject {
         return clearJobFinishTime;
     }
 
+    public Boolean getAllowLazyOpen() {
+        return allowLazyOpen;
+    }
+
     public boolean isAutodetectProcessUpdate() {
-        return modelPlotConfig != null || detectorUpdates != null || groups != null;
+        return modelPlotConfig != null || perPartitionCategorizationConfig != null || detectorUpdates != null || groups != null;
+    }
+
+    public Blocked getBlocked() {
+        return blocked;
+    }
+
+    public TimeValue getModelPruneWindow() {
+        return modelPruneWindow;
     }
 
     @Override
@@ -283,11 +355,17 @@ public class JobUpdate implements Writeable, ToXContentObject {
         if (modelSnapshotRetentionDays != null) {
             builder.field(Job.MODEL_SNAPSHOT_RETENTION_DAYS.getPreferredName(), modelSnapshotRetentionDays);
         }
+        if (dailyModelSnapshotRetentionAfterDays != null) {
+            builder.field(Job.DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS.getPreferredName(), dailyModelSnapshotRetentionAfterDays);
+        }
         if (resultsRetentionDays != null) {
             builder.field(Job.RESULTS_RETENTION_DAYS.getPreferredName(), resultsRetentionDays);
         }
         if (categorizationFilters != null) {
             builder.field(AnalysisConfig.CATEGORIZATION_FILTERS.getPreferredName(), categorizationFilters);
+        }
+        if (perPartitionCategorizationConfig != null) {
+            builder.field(AnalysisConfig.PER_PARTITION_CATEGORIZATION.getPreferredName(), perPartitionCategorizationConfig);
         }
         if (customSettings != null) {
             builder.field(Job.CUSTOM_SETTINGS.getPreferredName(), customSettings);
@@ -303,6 +381,15 @@ public class JobUpdate implements Writeable, ToXContentObject {
         }
         if (clearJobFinishTime != null) {
             builder.field(CLEAR_JOB_FINISH_TIME.getPreferredName(), clearJobFinishTime);
+        }
+        if (allowLazyOpen != null) {
+            builder.field(Job.ALLOW_LAZY_OPEN.getPreferredName(), allowLazyOpen);
+        }
+        if (blocked != null) {
+            builder.field(Job.BLOCKED.getPreferredName(), blocked);
+        }
+        if (modelPruneWindow != null) {
+            builder.field(AnalysisConfig.MODEL_PRUNE_WINDOW.getPreferredName(), modelPruneWindow);
         }
         builder.endObject();
         return builder;
@@ -334,11 +421,17 @@ public class JobUpdate implements Writeable, ToXContentObject {
         if (modelSnapshotRetentionDays != null) {
             updateFields.add(Job.MODEL_SNAPSHOT_RETENTION_DAYS.getPreferredName());
         }
+        if (dailyModelSnapshotRetentionAfterDays != null) {
+            updateFields.add(Job.DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS.getPreferredName());
+        }
         if (resultsRetentionDays != null) {
             updateFields.add(Job.RESULTS_RETENTION_DAYS.getPreferredName());
         }
         if (categorizationFilters != null) {
             updateFields.add(AnalysisConfig.CATEGORIZATION_FILTERS.getPreferredName());
+        }
+        if (perPartitionCategorizationConfig != null) {
+            updateFields.add(AnalysisConfig.PER_PARTITION_CATEGORIZATION.getPreferredName());
         }
         if (customSettings != null) {
             updateFields.add(Job.CUSTOM_SETTINGS.getPreferredName());
@@ -351,6 +444,12 @@ public class JobUpdate implements Writeable, ToXContentObject {
         }
         if (jobVersion != null) {
             updateFields.add(Job.JOB_VERSION.getPreferredName());
+        }
+        if (allowLazyOpen != null) {
+            updateFields.add(Job.ALLOW_LAZY_OPEN.getPreferredName());
+        }
+        if (modelPruneWindow != null) {
+            updateFields.add(AnalysisConfig.MODEL_PRUNE_WINDOW.getPreferredName());
         }
         return updateFields;
     }
@@ -377,8 +476,11 @@ public class JobUpdate implements Writeable, ToXContentObject {
             int numDetectors = currentAnalysisConfig.getDetectors().size();
             for (DetectorUpdate dd : detectorUpdates) {
                 if (dd.getDetectorIndex() >= numDetectors) {
-                    throw ExceptionsHelper.badRequestException("Supplied detector_index [{}] is >= the number of detectors [{}]",
-                            dd.getDetectorIndex(), numDetectors);
+                    throw ExceptionsHelper.badRequestException(
+                        "Supplied detector_index [{}] is >= the number of detectors [{}]",
+                        dd.getDetectorIndex(),
+                        numDetectors
+                    );
                 }
 
                 Detector.Builder detectorBuilder = new Detector.Builder(currentAnalysisConfig.getDetectors().get(dd.getDetectorIndex()));
@@ -396,8 +498,11 @@ public class JobUpdate implements Writeable, ToXContentObject {
             builder.setModelPlotConfig(modelPlotConfig);
         }
         if (analysisLimits != null) {
-            AnalysisLimits validatedLimits = AnalysisLimits.validateAndSetDefaults(analysisLimits, maxModelMemoryLimit,
-                    AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB);
+            AnalysisLimits validatedLimits = AnalysisLimits.validateAndSetDefaults(
+                analysisLimits,
+                maxModelMemoryLimit,
+                AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB
+            );
             builder.setAnalysisLimits(validatedLimits);
         }
         if (renormalizationWindowDays != null) {
@@ -409,17 +514,27 @@ public class JobUpdate implements Writeable, ToXContentObject {
         if (modelSnapshotRetentionDays != null) {
             builder.setModelSnapshotRetentionDays(modelSnapshotRetentionDays);
         }
+        if (dailyModelSnapshotRetentionAfterDays != null) {
+            builder.setDailyModelSnapshotRetentionAfterDays(dailyModelSnapshotRetentionAfterDays);
+        }
         if (resultsRetentionDays != null) {
             builder.setResultsRetentionDays(resultsRetentionDays);
         }
         if (categorizationFilters != null) {
             newAnalysisConfig.setCategorizationFilters(categorizationFilters);
         }
+        if (perPartitionCategorizationConfig != null) {
+            // Whether per-partition categorization is enabled cannot be changed, only the lower level details
+            if (perPartitionCategorizationConfig.isEnabled() != currentAnalysisConfig.getPerPartitionCategorizationConfig().isEnabled()) {
+                throw ExceptionsHelper.badRequestException("analysis_config.per_partition_categorization.enabled cannot be updated");
+            }
+            newAnalysisConfig.setPerPartitionCategorizationConfig(perPartitionCategorizationConfig);
+        }
         if (customSettings != null) {
             builder.setCustomSettings(customSettings);
         }
         if (modelSnapshotId != null) {
-            builder.setModelSnapshotId(modelSnapshotId);
+            builder.setModelSnapshotId(ModelSnapshot.isTheEmptySnapshot(modelSnapshotId) ? null : modelSnapshotId);
         }
         if (modelSnapshotMinVersion != null) {
             builder.setModelSnapshotMinVersion(modelSnapshotMinVersion);
@@ -427,9 +542,17 @@ public class JobUpdate implements Writeable, ToXContentObject {
         if (jobVersion != null) {
             builder.setJobVersion(jobVersion);
         }
-
         if (clearJobFinishTime != null && clearJobFinishTime) {
             builder.setFinishedTime(null);
+        }
+        if (allowLazyOpen != null) {
+            builder.setAllowLazyOpen(allowLazyOpen);
+        }
+        if (blocked != null) {
+            builder.setBlocked(blocked);
+        }
+        if (modelPruneWindow != null) {
+            newAnalysisConfig.setModelPruneWindow(modelPruneWindow);
         }
 
         builder.setAnalysisConfig(newAnalysisConfig);
@@ -438,21 +561,27 @@ public class JobUpdate implements Writeable, ToXContentObject {
 
     boolean isNoop(Job job) {
         return (groups == null || Objects.equals(groups, job.getGroups()))
-                && (description == null || Objects.equals(description, job.getDescription()))
-                && (modelPlotConfig == null || Objects.equals(modelPlotConfig, job.getModelPlotConfig()))
-                && (analysisLimits == null || Objects.equals(analysisLimits, job.getAnalysisLimits()))
-                && updatesDetectors(job) == false
-                && (renormalizationWindowDays == null || Objects.equals(renormalizationWindowDays, job.getRenormalizationWindowDays()))
-                && (backgroundPersistInterval == null || Objects.equals(backgroundPersistInterval, job.getBackgroundPersistInterval()))
-                && (modelSnapshotRetentionDays == null || Objects.equals(modelSnapshotRetentionDays, job.getModelSnapshotRetentionDays()))
-                && (resultsRetentionDays == null || Objects.equals(resultsRetentionDays, job.getResultsRetentionDays()))
-                && (categorizationFilters == null
-                        || Objects.equals(categorizationFilters, job.getAnalysisConfig().getCategorizationFilters()))
-                && (customSettings == null || Objects.equals(customSettings, job.getCustomSettings()))
-                && (modelSnapshotId == null || Objects.equals(modelSnapshotId, job.getModelSnapshotId()))
-                && (modelSnapshotMinVersion == null || Objects.equals(modelSnapshotMinVersion, job.getModelSnapshotMinVersion()))
-                && (jobVersion == null || Objects.equals(jobVersion, job.getJobVersion()))
-                && ((clearJobFinishTime == null || clearJobFinishTime == false) || job.getFinishedTime() == null);
+            && (description == null || Objects.equals(description, job.getDescription()))
+            && (modelPlotConfig == null || Objects.equals(modelPlotConfig, job.getModelPlotConfig()))
+            && (analysisLimits == null || Objects.equals(analysisLimits, job.getAnalysisLimits()))
+            && updatesDetectors(job) == false
+            && (renormalizationWindowDays == null || Objects.equals(renormalizationWindowDays, job.getRenormalizationWindowDays()))
+            && (backgroundPersistInterval == null || Objects.equals(backgroundPersistInterval, job.getBackgroundPersistInterval()))
+            && (modelSnapshotRetentionDays == null || Objects.equals(modelSnapshotRetentionDays, job.getModelSnapshotRetentionDays()))
+            && (dailyModelSnapshotRetentionAfterDays == null
+                || Objects.equals(dailyModelSnapshotRetentionAfterDays, job.getDailyModelSnapshotRetentionAfterDays()))
+            && (resultsRetentionDays == null || Objects.equals(resultsRetentionDays, job.getResultsRetentionDays()))
+            && (categorizationFilters == null || Objects.equals(categorizationFilters, job.getAnalysisConfig().getCategorizationFilters()))
+            && (perPartitionCategorizationConfig == null
+                || Objects.equals(perPartitionCategorizationConfig, job.getAnalysisConfig().getPerPartitionCategorizationConfig()))
+            && (customSettings == null || Objects.equals(customSettings, job.getCustomSettings()))
+            && (modelSnapshotId == null || Objects.equals(modelSnapshotId, job.getModelSnapshotId()))
+            && (modelSnapshotMinVersion == null || Objects.equals(modelSnapshotMinVersion, job.getModelSnapshotMinVersion()))
+            && (jobVersion == null || Objects.equals(jobVersion, job.getJobVersion()))
+            && (clearJobFinishTime == null || clearJobFinishTime == false || job.getFinishedTime() == null)
+            && (allowLazyOpen == null || Objects.equals(allowLazyOpen, job.allowLazyOpen()))
+            && (blocked == null || Objects.equals(blocked, job.getBlocked()))
+            && (modelPruneWindow == null || Objects.equals(modelPruneWindow, job.getAnalysisConfig().getModelPruneWindow()));
     }
 
     boolean updatesDetectors(Job job) {
@@ -466,7 +595,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
             }
             Detector detector = analysisConfig.getDetectors().get(detectorUpdate.detectorIndex);
             if (Objects.equals(detectorUpdate.description, detector.getDetectorDescription()) == false
-                    || Objects.equals(detectorUpdate.rules, detector.getRules()) == false) {
+                || Objects.equals(detectorUpdate.rules, detector.getRules()) == false) {
                 return true;
             }
         }
@@ -486,46 +615,75 @@ public class JobUpdate implements Writeable, ToXContentObject {
         JobUpdate that = (JobUpdate) other;
 
         return Objects.equals(this.jobId, that.jobId)
-                && Objects.equals(this.groups, that.groups)
-                && Objects.equals(this.description, that.description)
-                && Objects.equals(this.detectorUpdates, that.detectorUpdates)
-                && Objects.equals(this.modelPlotConfig, that.modelPlotConfig)
-                && Objects.equals(this.analysisLimits, that.analysisLimits)
-                && Objects.equals(this.renormalizationWindowDays, that.renormalizationWindowDays)
-                && Objects.equals(this.backgroundPersistInterval, that.backgroundPersistInterval)
-                && Objects.equals(this.modelSnapshotRetentionDays, that.modelSnapshotRetentionDays)
-                && Objects.equals(this.resultsRetentionDays, that.resultsRetentionDays)
-                && Objects.equals(this.categorizationFilters, that.categorizationFilters)
-                && Objects.equals(this.customSettings, that.customSettings)
-                && Objects.equals(this.modelSnapshotId, that.modelSnapshotId)
-                && Objects.equals(this.modelSnapshotMinVersion, that.modelSnapshotMinVersion)
-                && Objects.equals(this.jobVersion, that.jobVersion)
-                && Objects.equals(this.clearJobFinishTime, that.clearJobFinishTime);
+            && Objects.equals(this.groups, that.groups)
+            && Objects.equals(this.description, that.description)
+            && Objects.equals(this.detectorUpdates, that.detectorUpdates)
+            && Objects.equals(this.modelPlotConfig, that.modelPlotConfig)
+            && Objects.equals(this.analysisLimits, that.analysisLimits)
+            && Objects.equals(this.renormalizationWindowDays, that.renormalizationWindowDays)
+            && Objects.equals(this.backgroundPersistInterval, that.backgroundPersistInterval)
+            && Objects.equals(this.modelSnapshotRetentionDays, that.modelSnapshotRetentionDays)
+            && Objects.equals(this.dailyModelSnapshotRetentionAfterDays, that.dailyModelSnapshotRetentionAfterDays)
+            && Objects.equals(this.resultsRetentionDays, that.resultsRetentionDays)
+            && Objects.equals(this.categorizationFilters, that.categorizationFilters)
+            && Objects.equals(this.perPartitionCategorizationConfig, that.perPartitionCategorizationConfig)
+            && Objects.equals(this.customSettings, that.customSettings)
+            && Objects.equals(this.modelSnapshotId, that.modelSnapshotId)
+            && Objects.equals(this.modelSnapshotMinVersion, that.modelSnapshotMinVersion)
+            && Objects.equals(this.jobVersion, that.jobVersion)
+            && Objects.equals(this.clearJobFinishTime, that.clearJobFinishTime)
+            && Objects.equals(this.allowLazyOpen, that.allowLazyOpen)
+            && Objects.equals(this.blocked, that.blocked)
+            && Objects.equals(this.modelPruneWindow, that.modelPruneWindow);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, groups, description, detectorUpdates, modelPlotConfig, analysisLimits, renormalizationWindowDays,
-                backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, categorizationFilters, customSettings,
-                modelSnapshotId, modelSnapshotMinVersion, jobVersion, clearJobFinishTime);
+        return Objects.hash(
+            jobId,
+            groups,
+            description,
+            detectorUpdates,
+            modelPlotConfig,
+            analysisLimits,
+            renormalizationWindowDays,
+            backgroundPersistInterval,
+            modelSnapshotRetentionDays,
+            dailyModelSnapshotRetentionAfterDays,
+            resultsRetentionDays,
+            categorizationFilters,
+            perPartitionCategorizationConfig,
+            customSettings,
+            modelSnapshotId,
+            modelSnapshotMinVersion,
+            jobVersion,
+            clearJobFinishTime,
+            allowLazyOpen,
+            blocked,
+            modelPruneWindow
+        );
     }
 
     public static class DetectorUpdate implements Writeable, ToXContentObject {
         @SuppressWarnings("unchecked")
-        public static final ConstructingObjectParser<DetectorUpdate, Void> PARSER =
-                new ConstructingObjectParser<>("detector_update", a -> new DetectorUpdate((int) a[0], (String) a[1],
-                        (List<DetectionRule>) a[2]));
+        public static final ConstructingObjectParser<DetectorUpdate, Void> PARSER = new ConstructingObjectParser<>(
+            "detector_update",
+            a -> new DetectorUpdate((int) a[0], (String) a[1], (List<DetectionRule>) a[2])
+        );
 
         static {
             PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), Detector.DETECTOR_INDEX);
             PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), Job.DESCRIPTION);
-            PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), (parser, parseFieldMatcher) ->
-                    DetectionRule.STRICT_PARSER.apply(parser, parseFieldMatcher).build(), Detector.CUSTOM_RULES_FIELD);
+            PARSER.declareObjectArray(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (parser, parseFieldMatcher) -> DetectionRule.STRICT_PARSER.apply(parser, parseFieldMatcher).build(),
+                Detector.CUSTOM_RULES_FIELD
+            );
         }
 
-        private int detectorIndex;
-        private String description;
-        private List<DetectionRule> rules;
+        private final int detectorIndex;
+        private final String description;
+        private final List<DetectionRule> rules;
 
         public DetectorUpdate(int detectorIndex, String description, List<DetectionRule> rules) {
             this.detectorIndex = detectorIndex;
@@ -596,8 +754,9 @@ public class JobUpdate implements Writeable, ToXContentObject {
             }
 
             DetectorUpdate that = (DetectorUpdate) other;
-            return this.detectorIndex == that.detectorIndex && Objects.equals(this.description, that.description)
-                    && Objects.equals(this.rules, that.rules);
+            return this.detectorIndex == that.detectorIndex
+                && Objects.equals(this.description, that.description)
+                && Objects.equals(this.rules, that.rules);
         }
     }
 
@@ -612,13 +771,18 @@ public class JobUpdate implements Writeable, ToXContentObject {
         private Long renormalizationWindowDays;
         private TimeValue backgroundPersistInterval;
         private Long modelSnapshotRetentionDays;
+        private Long dailyModelSnapshotRetentionAfterDays;
         private Long resultsRetentionDays;
         private List<String> categorizationFilters;
+        private PerPartitionCategorizationConfig perPartitionCategorizationConfig;
         private Map<String, Object> customSettings;
         private String modelSnapshotId;
         private Version modelSnapshotMinVersion;
         private Version jobVersion;
         private Boolean clearJobFinishTime;
+        private Boolean allowLazyOpen;
+        private Blocked blocked;
+        private TimeValue modelPruneWindow;
 
         public Builder(String jobId) {
             this.jobId = jobId;
@@ -669,6 +833,11 @@ public class JobUpdate implements Writeable, ToXContentObject {
             return this;
         }
 
+        public Builder setDailyModelSnapshotRetentionAfterDays(Long dailyModelSnapshotRetentionAfterDays) {
+            this.dailyModelSnapshotRetentionAfterDays = dailyModelSnapshotRetentionAfterDays;
+            return this;
+        }
+
         public Builder setResultsRetentionDays(Long resultsRetentionDays) {
             this.resultsRetentionDays = resultsRetentionDays;
             return this;
@@ -676,6 +845,11 @@ public class JobUpdate implements Writeable, ToXContentObject {
 
         public Builder setCategorizationFilters(List<String> categorizationFilters) {
             this.categorizationFilters = categorizationFilters;
+            return this;
+        }
+
+        public Builder setPerPartitionCategorizationConfig(PerPartitionCategorizationConfig perPartitionCategorizationConfig) {
+            this.perPartitionCategorizationConfig = perPartitionCategorizationConfig;
             return this;
         }
 
@@ -709,15 +883,50 @@ public class JobUpdate implements Writeable, ToXContentObject {
             return this;
         }
 
+        public Builder setAllowLazyOpen(boolean allowLazyOpen) {
+            this.allowLazyOpen = allowLazyOpen;
+            return this;
+        }
+
         public Builder setClearFinishTime(boolean clearJobFinishTime) {
             this.clearJobFinishTime = clearJobFinishTime;
             return this;
         }
 
+        public Builder setBlocked(Blocked blocked) {
+            this.blocked = blocked;
+            return this;
+        }
+
+        public Builder setModelPruneWindow(TimeValue modelPruneWindow) {
+            this.modelPruneWindow = modelPruneWindow;
+            return this;
+        }
+
         public JobUpdate build() {
-            return new JobUpdate(jobId, groups, description, detectorUpdates, modelPlotConfig, analysisLimits, backgroundPersistInterval,
-                    renormalizationWindowDays, resultsRetentionDays, modelSnapshotRetentionDays, categorizationFilters, customSettings,
-                    modelSnapshotId, modelSnapshotMinVersion, jobVersion, clearJobFinishTime);
+            return new JobUpdate(
+                jobId,
+                groups,
+                description,
+                detectorUpdates,
+                modelPlotConfig,
+                analysisLimits,
+                backgroundPersistInterval,
+                renormalizationWindowDays,
+                resultsRetentionDays,
+                modelSnapshotRetentionDays,
+                dailyModelSnapshotRetentionAfterDays,
+                categorizationFilters,
+                perPartitionCategorizationConfig,
+                customSettings,
+                modelSnapshotId,
+                modelSnapshotMinVersion,
+                jobVersion,
+                clearJobFinishTime,
+                allowLazyOpen,
+                blocked,
+                modelPruneWindow
+            );
         }
     }
 }

@@ -1,0 +1,8 @@
+grant {
+  // needed to waste paper
+  permission java.lang.RuntimePermission "queuePrintJob";
+};
+
+grant codeBase "${jarUrl}" {
+  permission java.lang.RuntimePermission "getClassLoader";
+};

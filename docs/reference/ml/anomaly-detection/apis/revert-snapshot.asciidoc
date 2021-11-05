@@ -1,0 +1,122 @@
+[role="xpack"]
+[testenv="platinum"]
+[[ml-revert-snapshot]]
+= Revert model snapshots API
+++++
+<titleabbrev>Revert model snapshots</titleabbrev>
+++++
+
+Reverts to a specific snapshot.
+
+[[ml-revert-snapshot-request]]
+== {api-request-title}
+
+`POST _ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>/_revert`
+
+[[ml-revert-snapshot-prereqs]]
+== {api-prereq-title}
+
+* Before you revert to a saved snapshot, you must close the job.
+* Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
+
+[[ml-revert-snapshot-desc]]
+== {api-description-title}
+
+The {ml-features} react quickly to anomalous input, learning new
+behaviors in data. Highly anomalous input increases the variance in the models
+whilst the system learns whether this is a new step-change in behavior or a
+one-off event. In the case where this anomalous input is known to be a one-off,
+then it might be appropriate to reset the model state to a time before this
+event. For example, you might consider reverting to a saved snapshot after Black
+Friday or a critical system failure.
+
+NOTE: Reverting to a snapshot does not change the `data_counts` values of the 
+{anomaly-job}, these values are not reverted to the earlier state.
+
+
+[[ml-revert-snapshot-path-parms]]
+== {api-path-parms-title}
+
+`<job_id>`::
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+
+`<snapshot_id>`::
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=snapshot-id]
++
+--
+You can specify `empty` as the <snapshot_id>. Reverting to the `empty` snapshot 
+means the {anomaly-job} starts learning a new model from scratch when it is 
+started.
+--
+
+
+[[ml-revert-snapshot-request-body]]
+== {api-request-body-title}
+
+`delete_intervening_results`::
+  (Optional, Boolean) If true, deletes the results in the time period between
+  the latest results and the time of the reverted snapshot. It also resets the
+  model to accept records for this time period. The default value is false.
+
+NOTE: If you choose not to delete intervening results when reverting a snapshot,
+the job will not accept input data that is older than the current time.
+If you want to resend data, then delete the intervening results.
+
+
+[[ml-revert-snapshot-example]]
+== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+POST _ml/anomaly_detectors/high_sum_total_sales/model_snapshots/1575402237/_revert
+{
+  "delete_intervening_results": true
+}
+--------------------------------------------------
+// TEST[skip:todo]
+
+
+When the operation is complete, you receive the following results:
+[source,js]
+----
+{
+  "model" : {
+    "job_id" : "high_sum_total_sales",
+    "min_version" : "6.4.0",
+    "timestamp" : 1575402237000,
+    "description" : "State persisted due to job close at 2019-12-03T19:43:57+0000",
+    "snapshot_id" : "1575402237",
+    "snapshot_doc_count" : 1,
+    "model_size_stats" : {
+      "job_id" : "high_sum_total_sales",
+      "result_type" : "model_size_stats",
+      "model_bytes" : 1638816,
+      "model_bytes_exceeded" : 0,
+      "model_bytes_memory_limit" : 10485760,
+      "total_by_field_count" : 3,
+      "total_over_field_count" : 3320,
+      "total_partition_field_count" : 2,
+      "bucket_allocation_failures_count" : 0,
+      "memory_status" : "ok",
+      "categorized_doc_count" : 0,
+      "total_category_count" : 0,
+      "frequent_category_count" : 0,
+      "rare_category_count" : 0,
+      "dead_category_count" : 0,
+      "failed_category_count" : 0,
+      "categorization_status" : "ok",
+      "log_time" : 1575402237000,
+      "timestamp" : 1576965600000
+    },
+    "latest_record_time_stamp" : 1576971072000,
+    "latest_result_time_stamp" : 1576965600000,
+    "retain" : false
+  }
+}
+----
+
+For a description of these properties, see the 
+<<ml-get-snapshot-results,get model snapshots API>>.

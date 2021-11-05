@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.monitor.jvm;
@@ -26,10 +15,10 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.JvmStats.GarbageCollector;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.util.HashMap;
@@ -52,21 +41,38 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
 
     private volatile Cancellable scheduledFuture;
 
-    public static final Setting<Boolean> ENABLED_SETTING =
-        Setting.boolSetting("monitor.jvm.gc.enabled", true, Property.NodeScope);
-    public static final Setting<TimeValue> REFRESH_INTERVAL_SETTING =
-        Setting.timeSetting("monitor.jvm.gc.refresh_interval", TimeValue.timeValueSeconds(1), TimeValue.timeValueSeconds(1),
-            Property.NodeScope);
+    public static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting("monitor.jvm.gc.enabled", true, Property.NodeScope);
+    public static final Setting<TimeValue> REFRESH_INTERVAL_SETTING = Setting.timeSetting(
+        "monitor.jvm.gc.refresh_interval",
+        TimeValue.timeValueSeconds(1),
+        TimeValue.timeValueSeconds(1),
+        Property.NodeScope
+    );
 
     private static String GC_COLLECTOR_PREFIX = "monitor.jvm.gc.collector.";
     public static final Setting<Settings> GC_SETTING = Setting.groupSetting(GC_COLLECTOR_PREFIX, Property.NodeScope);
 
-    public static final Setting<Integer> GC_OVERHEAD_WARN_SETTING =
-        Setting.intSetting("monitor.jvm.gc.overhead.warn", 50, 0, 100, Property.NodeScope);
-    public static final Setting<Integer> GC_OVERHEAD_INFO_SETTING =
-        Setting.intSetting("monitor.jvm.gc.overhead.info", 25, 0, 100, Property.NodeScope);
-    public static final Setting<Integer> GC_OVERHEAD_DEBUG_SETTING =
-        Setting.intSetting("monitor.jvm.gc.overhead.debug", 10, 0, 100, Property.NodeScope);
+    public static final Setting<Integer> GC_OVERHEAD_WARN_SETTING = Setting.intSetting(
+        "monitor.jvm.gc.overhead.warn",
+        50,
+        0,
+        100,
+        Property.NodeScope
+    );
+    public static final Setting<Integer> GC_OVERHEAD_INFO_SETTING = Setting.intSetting(
+        "monitor.jvm.gc.overhead.info",
+        25,
+        0,
+        100,
+        Property.NodeScope
+    );
+    public static final Setting<Integer> GC_OVERHEAD_DEBUG_SETTING = Setting.intSetting(
+        "monitor.jvm.gc.overhead.debug",
+        10,
+        0,
+        100,
+        Property.NodeScope
+    );
 
     static class GcOverheadThreshold {
         final int warnThreshold;
@@ -79,8 +85,6 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
             this.debugThreshold = debugThreshold;
         }
     }
-
-
 
     static class GcThreshold {
         public final String name;
@@ -97,12 +101,17 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
 
         @Override
         public String toString() {
-            return "GcThreshold{" +
-                    "name='" + name + '\'' +
-                    ", warnThreshold=" + warnThreshold +
-                    ", infoThreshold=" + infoThreshold +
-                    ", debugThreshold=" + debugThreshold +
-                    '}';
+            return "GcThreshold{"
+                + "name='"
+                + name
+                + '\''
+                + ", warnThreshold="
+                + warnThreshold
+                + ", infoThreshold="
+                + infoThreshold
+                + ", debugThreshold="
+                + debugThreshold
+                + '}';
         }
     }
 
@@ -127,32 +136,33 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
         this.gcThresholds = unmodifiableMap(gcThresholds);
 
         if (GC_OVERHEAD_WARN_SETTING.get(settings) <= GC_OVERHEAD_INFO_SETTING.get(settings)) {
-            final String message =
-                String.format(
-                    Locale.ROOT,
-                    "[%s] must be greater than [%s] [%d] but was [%d]",
-                    GC_OVERHEAD_WARN_SETTING.getKey(),
-                    GC_OVERHEAD_INFO_SETTING.getKey(),
-                    GC_OVERHEAD_INFO_SETTING.get(settings),
-                    GC_OVERHEAD_WARN_SETTING.get(settings));
+            final String message = String.format(
+                Locale.ROOT,
+                "[%s] must be greater than [%s] [%d] but was [%d]",
+                GC_OVERHEAD_WARN_SETTING.getKey(),
+                GC_OVERHEAD_INFO_SETTING.getKey(),
+                GC_OVERHEAD_INFO_SETTING.get(settings),
+                GC_OVERHEAD_WARN_SETTING.get(settings)
+            );
             throw new IllegalArgumentException(message);
         }
         if (GC_OVERHEAD_INFO_SETTING.get(settings) <= GC_OVERHEAD_DEBUG_SETTING.get(settings)) {
-            final String message =
-                String.format(
-                    Locale.ROOT,
-                    "[%s] must be greater than [%s] [%d] but was [%d]",
-                    GC_OVERHEAD_INFO_SETTING.getKey(),
-                    GC_OVERHEAD_DEBUG_SETTING.getKey(),
-                    GC_OVERHEAD_DEBUG_SETTING.get(settings),
-                    GC_OVERHEAD_INFO_SETTING.get(settings));
+            final String message = String.format(
+                Locale.ROOT,
+                "[%s] must be greater than [%s] [%d] but was [%d]",
+                GC_OVERHEAD_INFO_SETTING.getKey(),
+                GC_OVERHEAD_DEBUG_SETTING.getKey(),
+                GC_OVERHEAD_DEBUG_SETTING.get(settings),
+                GC_OVERHEAD_INFO_SETTING.get(settings)
+            );
             throw new IllegalArgumentException(message);
         }
 
         this.gcOverheadThreshold = new GcOverheadThreshold(
             GC_OVERHEAD_WARN_SETTING.get(settings),
             GC_OVERHEAD_INFO_SETTING.get(settings),
-            GC_OVERHEAD_DEBUG_SETTING.get(settings));
+            GC_OVERHEAD_DEBUG_SETTING.get(settings)
+        );
 
         logger.debug(
             "enabled [{}], interval [{}], gc_threshold [{}], overhead [{}, {}, {}]",
@@ -161,17 +171,32 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
             this.gcThresholds,
             this.gcOverheadThreshold.warnThreshold,
             this.gcOverheadThreshold.infoThreshold,
-            this.gcOverheadThreshold.debugThreshold);
+            this.gcOverheadThreshold.debugThreshold
+        );
     }
 
     private static TimeValue getValidThreshold(Settings settings, String key, String level) {
-        TimeValue threshold = settings.getAsTime(level, null);
+        final TimeValue threshold;
+
+        try {
+            threshold = settings.getAsTime(level, null);
+        } catch (RuntimeException ex) {
+            final String settingValue = settings.get(level);
+            throw new IllegalArgumentException(
+                "failed to parse setting [" + getThresholdName(key, level) + "] with value [" + settingValue + "] as a time value",
+                ex
+            );
+        }
+
         if (threshold == null) {
             throw new IllegalArgumentException("missing gc_threshold for [" + getThresholdName(key, level) + "]");
+        } else if (threshold.nanos() < 0) {
+            final String settingValue = settings.get(level);
+            throw new IllegalArgumentException(
+                "invalid gc_threshold [" + getThresholdName(key, level) + "] value [" + settingValue + "]: value cannot be negative"
+            );
         }
-        if (threshold.nanos() <= 0) {
-            throw new IllegalArgumentException("invalid gc_threshold [" + threshold + "] for [" + getThresholdName(key, level) + "]");
-        }
+
         return threshold;
     }
 
@@ -181,7 +206,7 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
-        if (!enabled) {
+        if (enabled == false) {
             return;
         }
         scheduledFuture = threadPool.scheduleWithFixedDelay(new JvmMonitor(gcThresholds, gcOverheadThreshold) {
@@ -210,7 +235,8 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
         final JvmMonitor.Threshold threshold,
         final long seq,
         final JvmMonitor.SlowGcEvent slowGcEvent,
-        BiFunction<JvmStats, JvmStats, String> pools) {
+        BiFunction<JvmStats, JvmStats, String> pools
+    ) {
 
         final String name = slowGcEvent.currentGc.getName();
         final long elapsed = slowGcEvent.elapsed;
@@ -238,7 +264,8 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
                         lastJvmStats.getMem().getHeapUsed(),
                         currentJvmStats.getMem().getHeapUsed(),
                         maxHeapUsed,
-                        pools.apply(lastJvmStats, currentJvmStats));
+                        pools.apply(lastJvmStats, currentJvmStats)
+                    );
                 }
                 break;
             case INFO:
@@ -256,7 +283,8 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
                         lastJvmStats.getMem().getHeapUsed(),
                         currentJvmStats.getMem().getHeapUsed(),
                         maxHeapUsed,
-                        pools.apply(lastJvmStats, currentJvmStats));
+                        pools.apply(lastJvmStats, currentJvmStats)
+                    );
                 }
                 break;
             case DEBUG:
@@ -274,7 +302,8 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
                         lastJvmStats.getMem().getHeapUsed(),
                         currentJvmStats.getMem().getHeapUsed(),
                         maxHeapUsed,
-                        pools.apply(lastJvmStats, currentJvmStats));
+                        pools.apply(lastJvmStats, currentJvmStats)
+                    );
                 }
                 break;
         }
@@ -310,7 +339,8 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
         final JvmMonitor.Threshold threshold,
         final long current,
         final long elapsed,
-        final long seq) {
+        final long seq
+    ) {
         switch (threshold) {
             case WARN:
                 if (logger.isWarnEnabled()) {
@@ -332,19 +362,22 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
 
     @Override
     protected void doStop() {
-        if (!enabled) {
+        if (enabled == false) {
             return;
         }
         scheduledFuture.cancel();
     }
 
     @Override
-    protected void doClose() {
-    }
+    protected void doClose() {}
 
     abstract static class JvmMonitor implements Runnable {
 
-        enum Threshold { DEBUG, INFO, WARN }
+        enum Threshold {
+            DEBUG,
+            INFO,
+            WARN
+        }
 
         static class SlowGcEvent {
 
@@ -363,7 +396,8 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
                 final long elapsed,
                 final JvmStats lastJvmStats,
                 final JvmStats currentJvmStats,
-                final ByteSizeValue maxHeapUsed) {
+                final ByteSizeValue maxHeapUsed
+            ) {
                 this.currentGc = currentGc;
                 this.collectionCount = collectionCount;
                 this.collectionTime = collectionTime;
@@ -442,14 +476,19 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
                     threshold = Threshold.DEBUG;
                 }
                 if (threshold != null) {
-                    onSlowGc(threshold, seq, new SlowGcEvent(
-                        gc,
-                        collections,
-                        TimeValue.timeValueMillis(collectionTime),
-                        elapsed,
-                        lastJvmStats,
-                        currentJvmStats,
-                        JvmInfo.jvmInfo().getMem().getHeapMax()));
+                    onSlowGc(
+                        threshold,
+                        seq,
+                        new SlowGcEvent(
+                            gc,
+                            collections,
+                            TimeValue.timeValueMillis(collectionTime),
+                            elapsed,
+                            lastJvmStats,
+                            currentJvmStats,
+                            JvmInfo.jvmInfo().getMem().getHeapMax()
+                        )
+                    );
                 }
             }
         }

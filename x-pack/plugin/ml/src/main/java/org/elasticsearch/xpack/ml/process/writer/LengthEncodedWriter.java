@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.process.writer;
 
@@ -38,7 +39,6 @@ public class LengthEncodedWriter implements RecordWriter {
         lengthBuffer = ByteBuffer.allocate(4); // 4 == sizeof(int)
     }
 
-
     /**
      * Convert each String in the record array to a length/value encoded pair
      * and write to the outputstream.
@@ -65,7 +65,6 @@ public class LengthEncodedWriter implements RecordWriter {
         }
     }
 
-
     /**
      * Lower level functions to write records individually.
      * After this function is called {@link #writeField(String)}
@@ -77,7 +76,6 @@ public class LengthEncodedWriter implements RecordWriter {
         lengthBuffer.putInt(numFields);
         outputStream.write(lengthBuffer.array());
     }
-
 
     /**
      * Lower level functions to write record fields individually.

@@ -1,13 +1,7 @@
-Source code in this repository is variously licensed under the Apache License
-Version 2.0, an Apache compatible license, or the Elastic License. Outside of
-the "x-pack" folder, source code in a given file is licensed under the Apache
-License Version 2.0, unless otherwise noted at the beginning of the file or a
-LICENSE file present in the directory subtree declares a separate license.
-Within the "x-pack" folder, source code in a given file is licensed under the
-Elastic License, unless otherwise noted at the beginning of the file or a
-LICENSE file present in the directory subtree declares a separate license.
-
-The build produces two sets of binaries - one set that falls under the Elastic
-License and another set that falls under Apache License Version 2.0. The
-binaries that contain `-oss` in the artifact name are licensed under the Apache
-License Version 2.0.
+Source code in this repository is covered by (i) a dual license under the Server
+Side Public License, v 1 and the Elastic License 2.0 or (ii) an Apache License
+2.0 compatible license or (iii) solely under the Elastic License 2.0, in each
+case, as noted in the applicable header. The default throughout the repository
+is a dual license under the Server Side Public License, v 1 and the Elastic
+License 2.0, unless the header specifies another license. Code that is licensed
+solely under the Elastic License 2.0 is found only in the x-pack folder.

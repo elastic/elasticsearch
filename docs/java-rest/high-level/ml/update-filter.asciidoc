@@ -3,15 +3,15 @@
 :request: UpdateFilterRequest
 :response: PutFilterResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
-=== Update Filter API
+=== Update filters API
 
-The Update Filter API can be used to update an existing {ml} filter
-in the cluster. The API accepts a +{request}+ object
-as a request and returns a +{response}+.
+Updates an existing {ml} filter in the cluster. The API accepts a +{request}+
+object as a request and returns a +{response}+.
 
 [id="{upid}-{api}-request"]
-==== Update Filter Request
+==== Update filters request
 
 A +{request}+ requires the following argument:
 
@@ -19,28 +19,28 @@ A +{request}+ requires the following argument:
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
-<1> The id of the existing {ml} filter
+<1> The id of the existing {ml} filter.
 
-==== Optional Arguments
+==== Optional arguments
 The following arguments are optional:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-description]
 --------------------------------------------------
-<1> The updated description of the {ml} filter
+<1> The updated description of the {ml} filter.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-add-items]
 --------------------------------------------------
-<1> The list of items to add to the {ml} filter
+<1> The list of items to add to the {ml} filter.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-remove-items]
 --------------------------------------------------
-<1> The list of items to remove from the {ml} filter
+<1> The list of items to remove from the {ml} filter. 
 
 include::../execution.asciidoc[]
 
@@ -54,4 +54,4 @@ the updated {ml} filter if it has been successfully updated.
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
-<1> The updated `MlFilter`
+<1> The updated `MlFilter`.

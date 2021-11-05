@@ -3,17 +3,13 @@
 [[sql-client-apps-microstrat]]
 === MicroStrategy Desktop
 
-[quote, https://www.microstrategy.com/us/resources/library/videos/new-microstrategy-desktop]
-____
-https://www.microstrategy.com/us/get-started/desktop[MicroStrategy Desktop] is a free data discovery tool that helps people bring data to
-life using powerful self-service analytics.
-____
+You can use the {es} ODBC driver to access {es} data from MicroStrategy Desktop.
 
 IMPORTANT: Elastic does not endorse, promote or provide support for this application; for native Elasticsearch integration in this product, please reach out to its vendor.
 
 ==== Prerequisites
 
-* MicroStrategy Desktop 11 or higher
+* https://www.microstrategy.com/us/get-started/desktop[MicroStrategy Desktop] 11 or higher
 * {es-sql} <<sql-odbc, ODBC driver>>
 * A preconfigured User or System DSN (see <<dsn-configuration,Configuration>> section on how to configure a DSN).
 

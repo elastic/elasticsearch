@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.security.support.expressiondsl.parser;
@@ -26,9 +15,9 @@ import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRo
 import org.elasticsearch.client.security.support.expressiondsl.expressions.CompositeType;
 import org.elasticsearch.client.security.support.expressiondsl.expressions.ExceptRoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,7 +28,7 @@ import java.util.List;
  * Parses the JSON (XContent) based boolean expression DSL into a tree of
  * {@link RoleMapperExpression} objects.
  * Note: As this is client side parser, it mostly validates the structure of
- * DSL being parsed it does not enforce rules 
+ * DSL being parsed it does not enforce rules
  * like allowing "except" within "except" or "any" expressions.
  */
 public final class RoleMapperExpressionParser {
@@ -51,7 +40,7 @@ public final class RoleMapperExpressionParser {
 
     /**
      * This function exists to be compatible with
-     * {@link org.elasticsearch.common.xcontent.ContextParser#parse(XContentParser, Object)}
+     * {@link org.elasticsearch.xcontent.ContextParser#parse(XContentParser, Object)}
      */
     public static RoleMapperExpression parseObject(XContentParser parser, String id) throws IOException {
         return new RoleMapperExpressionParser().parse(id, parser);
@@ -67,8 +56,7 @@ public final class RoleMapperExpressionParser {
         return parseRulesObject(name, parser);
     }
 
-    private RoleMapperExpression parseRulesObject(final String objectName, final XContentParser parser)
-            throws IOException {
+    private RoleMapperExpression parseRulesObject(final String objectName, final XContentParser parser) throws IOException {
         // find the start of the DSL object
         final XContentParser.Token token;
         if (parser.currentToken() == null) {
@@ -77,8 +65,11 @@ public final class RoleMapperExpressionParser {
             token = parser.currentToken();
         }
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException("failed to parse rules expression. expected [{}] to be an object but found [{}] instead",
-                    objectName, token);
+            throw new ElasticsearchParseException(
+                "failed to parse rules expression. expected [{}] to be an object but found [{}] instead",
+                objectName,
+                token
+            );
         }
 
         final String fieldName = fieldName(objectName, parser);
@@ -89,8 +80,7 @@ public final class RoleMapperExpressionParser {
         return expr;
     }
 
-    private RoleMapperExpression parseExpression(XContentParser parser, String field, String objectName)
-            throws IOException {
+    private RoleMapperExpression parseExpression(XContentParser parser, String field, String objectName) throws IOException {
 
         if (CompositeType.ANY.getParseField().match(field, parser.getDeprecationHandler())) {
             final AnyRoleMapperExpression.Builder builder = AnyRoleMapperExpression.builder();
@@ -105,8 +95,11 @@ public final class RoleMapperExpressionParser {
         } else if (CompositeType.EXCEPT.getParseField().match(field, parser.getDeprecationHandler())) {
             return parseExceptExpression(parser);
         } else {
-            throw new ElasticsearchParseException("failed to parse rules expression. field [{}] is not recognised in object [{}]", field,
-                    objectName);
+            throw new ElasticsearchParseException(
+                "failed to parse rules expression. field [{}] is not recognised in object [{}]",
+                field,
+                objectName
+            );
         }
     }
 
@@ -121,8 +114,10 @@ public final class RoleMapperExpressionParser {
             values = Collections.singletonList(parseFieldValue(parser));
         }
         if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-            throw new ElasticsearchParseException("failed to parse rules expression. object [{}] contains multiple fields",
-                    FIELD.getPreferredName());
+            throw new ElasticsearchParseException(
+                "failed to parse rules expression. object [{}] contains multiple fields",
+                FIELD.getPreferredName()
+            );
         }
 
         return FieldRoleMapperExpression.ofKeyValues(fieldName, values.toArray());
@@ -148,15 +143,14 @@ public final class RoleMapperExpressionParser {
         return parsedFieldName;
     }
 
-    private List<RoleMapperExpression> parseExpressionArray(ParseField field, XContentParser parser)
-            throws IOException {
+    private List<RoleMapperExpression> parseExpressionArray(ParseField field, XContentParser parser) throws IOException {
         parser.nextToken(); // parseArray requires that the parser is positioned
                             // at the START_ARRAY token
         return parseArray(field, parser, p -> parseRulesObject(field.getPreferredName(), p));
     }
 
     private <T> List<T> parseArray(ParseField field, XContentParser parser, CheckedFunction<XContentParser, T, IOException> elementParser)
-            throws IOException {
+        throws IOException {
         final XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.START_ARRAY) {
             List<T> list = new ArrayList<>();
@@ -171,21 +165,23 @@ public final class RoleMapperExpressionParser {
 
     private Object parseFieldValue(XContentParser parser) throws IOException {
         switch (parser.currentToken()) {
-        case VALUE_STRING:
-            return parser.text();
+            case VALUE_STRING:
+                return parser.text();
 
-        case VALUE_BOOLEAN:
-            return parser.booleanValue();
+            case VALUE_BOOLEAN:
+                return parser.booleanValue();
 
-        case VALUE_NUMBER:
-            return parser.longValue();
+            case VALUE_NUMBER:
+                return parser.longValue();
 
-        case VALUE_NULL:
-            return null;
+            case VALUE_NULL:
+                return null;
 
-        default:
-            throw new ElasticsearchParseException("failed to parse rules expression. expected a field value but found [{}] instead", parser
-                    .currentToken());
+            default:
+                throw new ElasticsearchParseException(
+                    "failed to parse rules expression. expected a field value but found [{}] instead",
+                    parser.currentToken()
+                );
         }
     }
 

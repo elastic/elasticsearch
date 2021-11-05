@@ -1,70 +1,59 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gateway;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 
 import java.util.Comparator;
 
 /**
- * A comparator that compares ShardRouting based on it's indexes priority (index.priority),
- * it's creation date (index.creation_date), or eventually by it's index name in reverse order.
- * We try to recover first shards from an index with the highest priority, if that's the same
- * we try to compare the timestamp the index is created and pick the newer first (time-based indices,
- * here the newer indices matter more). If even that is the same, we compare the index name which is useful
- * if the date is baked into the index name. ie logstash-2015.05.03.
+ * A comparator that compares {@link ShardRouting} instances based on various properties. Instances
+ * are ordered as follows.
+ * <ol>
+ *     <li>First, system indices are ordered before non-system indices</li>
+ *     <li>Then indices are ordered by their priority, in descending order (index.priority)</li>
+ *     <li>Then newer indices are ordered before older indices, based on their creation date. This benefits
+ *         time-series indices, where newer indices are considered more urgent (index.creation_date)</li>
+ *     <li>Lastly the index names are compared, which is useful when a date is baked into the index
+ *         name, e.g. <code>logstash-2015.05.03</code></li>
+ * </ol>
  */
 public abstract class PriorityComparator implements Comparator<ShardRouting> {
 
     @Override
     public final int compare(ShardRouting o1, ShardRouting o2) {
-        final String o1Index = o1.getIndexName();
-        final String o2Index = o2.getIndexName();
+        final Index o1Index = o1.index();
+        final Index o2Index = o2.index();
         int cmp = 0;
         if (o1Index.equals(o2Index) == false) {
-            final Settings settingsO1 = getIndexSettings(o1.index());
-            final Settings settingsO2 = getIndexSettings(o2.index());
-            cmp = Long.compare(priority(settingsO2), priority(settingsO1));
+            final IndexMetadata metadata01 = getMetadata(o1Index);
+            final IndexMetadata metadata02 = getMetadata(o2Index);
+            cmp = Boolean.compare(metadata02.isSystem(), metadata01.isSystem());
+
             if (cmp == 0) {
-                cmp = Long.compare(timeCreated(settingsO2), timeCreated(settingsO1));
+                cmp = Long.compare(metadata02.priority(), metadata01.priority());
+
                 if (cmp == 0) {
-                    cmp = o2Index.compareTo(o1Index);
+                    cmp = Long.compare(metadata02.getCreationDate(), metadata01.getCreationDate());
+                    if (cmp == 0) {
+                        cmp = o2Index.getName().compareTo(o1Index.getName());
+                    }
                 }
             }
         }
         return cmp;
     }
 
-    private static int priority(Settings settings) {
-        return IndexMetaData.INDEX_PRIORITY_SETTING.get(settings);
-    }
-
-    private static long timeCreated(Settings settings) {
-        return settings.getAsLong(IndexMetaData.SETTING_CREATION_DATE, -1L);
-    }
-
-    protected abstract Settings getIndexSettings(Index index);
+    protected abstract IndexMetadata getMetadata(Index index);
 
     /**
      * Returns a PriorityComparator that uses the RoutingAllocation index metadata to access the index setting per index.
@@ -72,9 +61,8 @@ public abstract class PriorityComparator implements Comparator<ShardRouting> {
     public static PriorityComparator getAllocationComparator(final RoutingAllocation allocation) {
         return new PriorityComparator() {
             @Override
-            protected Settings getIndexSettings(Index index) {
-                IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(index);
-                return indexMetaData.getSettings();
+            protected IndexMetadata getMetadata(Index index) {
+                return allocation.metadata().getIndexSafe(index);
             }
         };
     }

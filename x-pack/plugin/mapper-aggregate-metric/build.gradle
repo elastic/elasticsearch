@@ -1,0 +1,25 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+evaluationDependsOn(xpackModule('core'))
+
+apply plugin: 'elasticsearch.internal-es-plugin'
+
+esplugin {
+  name 'x-pack-aggregate-metric'
+  description 'Module for the aggregate_metric field type, which allows pre-aggregated fields to be stored a single field.'
+  classname 'org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+archivesBaseName = 'x-pack-aggregate-metric'
+
+dependencies {
+  compileOnly project(":server")
+
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+}

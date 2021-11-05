@@ -12,9 +12,6 @@ to modify documents upon insertion.
 {ref}/mapping-index-field.html[`ctx['_index']`] (`String`)::
         The name of the index.
 
-{ref}/mapping-type-field.html[`ctx['_type']`] (`String`)::
-        The type of document within an index.
-
 `ctx` (`Map`)::
         Contains extracted JSON in a `Map` and `List` structure for the fields
         that are part of the document.
@@ -23,9 +20,6 @@ to modify documents upon insertion.
 
 {ref}/mapping-index-field.html[`ctx['_index']`]::
         Modify this to change the destination index for the current document.
-
-{ref}/mapping-type-field.html[`ctx['_type']`]::
-        Modify this to change the type for the current document.
 
 `ctx` (`Map`)::
         Modify the values in the `Map/List` structure to add, modify, or delete
@@ -58,119 +52,68 @@ result in a `datetime` field.
 
 [source,Painless]
 ----
-String[] split(String s, char d) {                                   <1>
-    int count = 0;
-
-    for (char c : s.toCharArray()) {                                 <2>
-        if (c == d) {
-            ++count;
-        }
-    }
-
-    if (count == 0) {
-        return new String[] {s};                                     <3>
-    }
-
-    String[] r = new String[count + 1];                              <4>
-    int i0 = 0, i1 = 0;
-    count = 0;
-
-    for (char c : s.toCharArray()) {                                 <5>
-        if (c == d) {
-            r[count++] = s.substring(i0, i1);
-            i0 = i1 + 1;
-        }
-
-        ++i1;
-    }
-
-    r[count] = s.substring(i0, i1);                                  <6>
-
-    return r;
-}
-
-String[] dateSplit = split(ctx.date, (char)"-");                     <7>
+String[] dateSplit = ctx.date.splitOnToken("-");                     <1>
 String year = dateSplit[0].trim();
 String month = dateSplit[1].trim();
 
-if (month.length() == 1) {                                           <8>
+if (month.length() == 1) {                                           <2>
     month = "0" + month;
 }
 
 String day = dateSplit[2].trim();
 
-if (day.length() == 1) {                                             <9>
+if (day.length() == 1) {                                             <3>
     day = "0" + day;
 }
 
-boolean pm = ctx.time.substring(ctx.time.length() - 2).equals("PM"); <10>
-String[] timeSplit = split(
-        ctx.time.substring(0, ctx.time.length() - 2), (char)":");    <11>
+boolean pm = ctx.time.substring(ctx.time.length() - 2).equals("PM"); <4>
+String[] timeSplit = ctx.time.substring(0,
+        ctx.time.length() - 2).splitOnToken(":");                    <5>
 int hours = Integer.parseInt(timeSplit[0].trim());
 int minutes = Integer.parseInt(timeSplit[1].trim());
 
-if (pm) {                                                            <12>
+if (pm) {                                                            <6>
     hours += 12;
 }
 
 String dts = year + "-" + month + "-" + day + "T" +
         (hours < 10 ? "0" + hours : "" + hours) + ":" +
         (minutes < 10 ? "0" + minutes : "" + minutes) +
-        ":00+08:00";                                                 <13>
+        ":00+08:00";                                                 <7>
 
 ZonedDateTime dt = ZonedDateTime.parse(
-         dts, DateTimeFormatter.ISO_OFFSET_DATE_TIME);               <14>
-ctx.datetime = dt.getLong(ChronoField.INSTANT_SECONDS)*1000L;        <15>
+         dts, DateTimeFormatter.ISO_OFFSET_DATE_TIME);               <8>
+ctx.datetime = dt.getLong(ChronoField.INSTANT_SECONDS)*1000L;        <9>
 ----
-<1> Creates a `split` <<painless-functions, function>> to split a
-    <<string-type, `String`>> type value using a <<primitive-types, `char`>>
-    type value as the delimiter. This is useful for handling the necessity of
-    pulling out the individual pieces of the date and time `Strings` from the
-    original seat data.
-<2> The first pass through each `char` in the `String` collects how many new
-    `Strings` the original is split into.
-<3> Returns the original `String` if there are no instances of the delimiting
-    `char`.
-<4> Creates an <<array-type, array type>> value to collect the split `Strings`
-    into based on the number of `char` delimiters found in the first pass.
-<5> The second pass through each `char` in the `String` collects each split
-    substring into an array type value of `Strings`.
-<6> Collects the last substring into the array type value of `Strings`.
-<7> Uses the `split` function to separate the date `String` from the seat data
-    into year, month, and day `Strings`.
+<1> Uses the `splitOnToken` function to separate the date `String` from the
+    seat data into year, month, and day `Strings`.
     Note::
-    * The use of a `String` type value to `char` type value
-      <<string-character-casting, cast>> as part of the second argument since
-      character literals do not exist.
     * The use of the `ctx` ingest processor context variable to retrieve the
       data from the `date` field.
-<8> Appends the <<string-literals, string literal>> `"0"` value to a single
+<2> Appends the <<string-literals, string literal>> `"0"` value to a single
     digit month since the format of the seat data allows for this case.
-<9> Appends the <<string-literals, string literal>> `"0"` value to a single
+<3> Appends the <<string-literals, string literal>> `"0"` value to a single
     digit day since the format of the seat data allows for this case.
-<10> Sets the <<primitive-types, `boolean type`>>
+<4> Sets the <<primitive-types, `boolean type`>>
      <<painless-variables, variable>> to `true` if the time `String` is a time
      in the afternoon or evening.
      Note::
      * The use of the `ctx` ingest processor context variable to retrieve the
        data from the `time` field.
-<11> Uses the `split` function to separate the time `String` from the seat data
-     into hours and minutes `Strings`.
+<5> Uses the `splitOnToken` function to separate the time `String` from the
+     seat data into hours and minutes `Strings`.
      Note::
      * The use of the `substring` method to remove the `AM` or `PM` portion of
        the time `String`.
-     * The use of a `String` type value to `char` type value
-       <<string-character-casting, cast>> as part of the second argument since
-       character literals do not exist.
      * The use of the `ctx` ingest processor context variable to retrieve the
        data from the `date` field.
-<12> If the time `String` is an afternoon or evening value adds the
+<6> If the time `String` is an afternoon or evening value adds the
      <<integer-literals, integer literal>> `12` to the existing hours to move to
      a 24-hour based time.
-<13> Builds a new time `String` that is parsable using existing API methods.
-<14> Creates a `ZonedDateTime` <<reference-types, reference type>> value by using
+<7> Builds a new time `String` that is parsable using existing API methods.
+<8> Creates a `ZonedDateTime` <<reference-types, reference type>> value by using
      the API method `parse` to parse the new time `String`.
-<15> Sets the datetime field `datetime` to the number of milliseconds retrieved
+<9> Sets the datetime field `datetime` to the number of milliseconds retrieved
      from the API method `getLong`.
      Note::
      * The use of the `ctx` ingest processor context variable to set the field
@@ -179,18 +122,17 @@ ctx.datetime = dt.getLong(ChronoField.INSTANT_SECONDS)*1000L;        <15>
 
 Submit the following request:
 
-[source,js]
+[source,console]
 ----
 PUT /_ingest/pipeline/seats
 {
-    "description": "update datetime for seats",
-    "processors": [
-      {
-        "script": {
-          "source": "String[] split(String s, char d) { int count = 0; for (char c : s.toCharArray()) { if (c == d) { ++count; } } if (count == 0) { return new String[] {s}; } String[] r = new String[count + 1]; int i0 = 0, i1 = 0; count = 0; for (char c : s.toCharArray()) { if (c == d) { r[count++] = s.substring(i0, i1); i0 = i1 + 1; } ++i1; } r[count] = s.substring(i0, i1); return r; } String[] dateSplit = split(ctx.date, (char)\"-\"); String year = dateSplit[0].trim(); String month = dateSplit[1].trim(); if (month.length() == 1) { month = \"0\" + month; } String day = dateSplit[2].trim(); if (day.length() == 1) { day = \"0\" + day; } boolean pm = ctx.time.substring(ctx.time.length() - 2).equals(\"PM\"); String[] timeSplit = split(ctx.time.substring(0, ctx.time.length() - 2), (char)\":\"); int hours = Integer.parseInt(timeSplit[0].trim()); int minutes = Integer.parseInt(timeSplit[1].trim()); if (pm) { hours += 12; } String dts = year + \"-\" + month + \"-\" + day + \"T\" + (hours < 10 ? \"0\" + hours : \"\" + hours) + \":\" + (minutes < 10 ? \"0\" + minutes : \"\" + minutes) + \":00+08:00\"; ZonedDateTime dt = ZonedDateTime.parse(dts, DateTimeFormatter.ISO_OFFSET_DATE_TIME); ctx.datetime = dt.getLong(ChronoField.INSTANT_SECONDS)*1000L;"
-        }
+  "description": "update datetime for seats",
+  "processors": [
+    {
+      "script": {
+        "source": "String[] dateSplit = ctx.date.splitOnToken('-'); String year = dateSplit[0].trim(); String month = dateSplit[1].trim(); if (month.length() == 1) { month = '0' + month; } String day = dateSplit[2].trim(); if (day.length() == 1) { day = '0' + day; } boolean pm = ctx.time.substring(ctx.time.length() - 2).equals('PM'); String[] timeSplit = ctx.time.substring(0, ctx.time.length() - 2).splitOnToken(':'); int hours = Integer.parseInt(timeSplit[0].trim()); int minutes = Integer.parseInt(timeSplit[1].trim()); if (pm) { hours += 12; } String dts = year + '-' + month + '-' + day + 'T' + (hours < 10 ? '0' + hours : '' + hours) + ':' + (minutes < 10 ? '0' + minutes : '' + minutes) + ':00+08:00'; ZonedDateTime dt = ZonedDateTime.parse(dts, DateTimeFormatter.ISO_OFFSET_DATE_TIME); ctx.datetime = dt.getLong(ChronoField.INSTANT_SECONDS)*1000L;"
       }
-    ]
+    }
+  ]
 }
 ----
-// CONSOLE

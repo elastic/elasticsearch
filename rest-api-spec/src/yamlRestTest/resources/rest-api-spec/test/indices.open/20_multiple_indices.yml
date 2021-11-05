@@ -1,0 +1,119 @@
+setup:
+  - do:
+      indices.create:
+        index: test_index1
+        body:
+          settings:
+            number_of_replicas: 0
+  - do:
+      indices.create:
+        index: test_index2
+        body:
+          settings:
+            number_of_replicas: 0
+  - do:
+      indices.create:
+        index: test_index3
+        body:
+          settings:
+            number_of_replicas: 0
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+---
+"All indices":
+  - skip:
+      features: ["allowed_warnings"]
+
+  - do:
+      indices.close:
+        index: _all
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
+  - is_true: acknowledged
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        index: test_index2
+
+  - do:
+      indices.open:
+        index: _all
+  - is_true: acknowledged
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_index2
+
+---
+"Trailing wildcard":
+  - skip:
+      features: ["allowed_warnings"]
+
+  - do:
+      indices.close:
+        index: test_*
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
+  - is_true: acknowledged
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        index: test_index2
+
+  - do:
+      indices.open:
+        index: test_*
+  - is_true: acknowledged
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_index2
+
+---
+"Only wildcard":
+  - skip:
+      features: ["allowed_warnings"]
+
+  - do:
+      indices.close:
+        index: '*'
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
+  - is_true: acknowledged
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        index: test_index3
+
+  - do:
+      indices.open:
+        index: '*'
+  - is_true: acknowledged
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_index3
+

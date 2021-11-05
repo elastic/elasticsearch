@@ -1,30 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.client.core.MainResponse;
+import org.elasticsearch.client.license.LicenseStatus;
 import org.elasticsearch.client.xpack.XPackInfoRequest;
 import org.elasticsearch.client.xpack.XPackInfoResponse;
 import org.elasticsearch.client.xpack.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
-import org.elasticsearch.client.license.LicenseStatus;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -56,7 +45,8 @@ public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
         assertEquals(versionMap.get("lucene_version"), info.getVersion().getLuceneVersion());
     }
 
-    public void testXPackInfo() throws IOException {
+    public void testXPackInfo() throws Exception {
+        waitForActiveLicense(client());
         XPackInfoRequest request = new XPackInfoRequest();
         request.setCategories(EnumSet.allOf(XPackInfoRequest.Category.class));
         request.setVerbose(true);
@@ -71,31 +61,20 @@ public class PingAndInfoIT extends ESRestHighLevelClientTestCase {
         assertEquals(LicenseStatus.ACTIVE, info.getLicenseInfo().getStatus());
 
         FeatureSet graph = info.getFeatureSetsInfo().getFeatureSets().get("graph");
-        assertNotNull(graph.description());
         assertTrue(graph.available());
         assertTrue(graph.enabled());
-        assertNull(graph.nativeCodeInfo());
         FeatureSet monitoring = info.getFeatureSetsInfo().getFeatureSets().get("monitoring");
-        assertNotNull(monitoring.description());
         assertTrue(monitoring.available());
         assertTrue(monitoring.enabled());
-        assertNull(monitoring.nativeCodeInfo());
         FeatureSet ml = info.getFeatureSetsInfo().getFeatureSets().get("ml");
-        assertNotNull(ml.description());
         assertTrue(ml.available());
         assertTrue(ml.enabled());
-        assertEquals(mainResponse.getVersion().getNumber(), ml.nativeCodeInfo().get("version").toString());
     }
 
     public void testXPackInfoEmptyRequest() throws IOException {
         XPackInfoResponse info = highLevelClient().xpack().info(new XPackInfoRequest(), RequestOptions.DEFAULT);
 
-        /*
-         * The default in the transport client is non-verbose and returning
-         * no categories which is the opposite of the default when you use
-         * the API over REST. We don't want to break the transport client
-         * even though it doesn't feel like a good default.
-         */
+        // TODO: reconsider this leniency now that the transport client is gone
         assertNull(info.getBuildInfo());
         assertNull(info.getLicenseInfo());
         assertNull(info.getFeatureSetsInfo());

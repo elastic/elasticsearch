@@ -1,0 +1,64 @@
+[[indices-alias-exists]]
+=== Alias exists API
+++++
+<titleabbrev>Alias exists</titleabbrev>
+++++
+
+Checks if an <<aliases,alias>> exists.
+
+[source,console]
+----
+HEAD _alias/my-alias
+----
+// TEST[setup:my_data_stream]
+// TEST[s/^/PUT my-data-stream\/_alias\/my-alias\n/]
+// TEST[teardown:data_stream_cleanup]
+
+[[alias-exists-api-request]]
+==== {api-request-title}
+
+`HEAD _alias/<alias>`
+
+`HEAD <target>/_alias/<alias>`
+
+[[alias-exists-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`view_index_metadata` or `manage` <<privileges-list-indices,index privilege>>
+for the alias. If you specify a target, you must also have the
+`view_index_metadata` or `manage` index privilege for the target.
+
+[[alias-exists-api-path-params]]
+==== {api-path-parms-title}
+
+`<alias>`::
+(Optional, string) Comma-separated list of aliases to check. Supports wildcards
+(`*`).
+
+`<target>`::
+(Optional, string) Comma-separated list of data streams or indices used to limit
+the request. Supports wildcards (`*`). To target all data streams and indices,
+omit this parameter or use `*` or `_all`.
+
+[[alias-exists-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
++
+Defaults to `all`.
+
+`ignore_unavailable`::
+(Optional, Boolean) If `false`, requests that include a missing data stream or
+index in the `<target>` return an error. Defaults to `false`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
+
+[[alias-exists-api-response-codes]]
+==== {api-response-codes-title}
+
+`200`::
+All specified aliases exist.
+
+`404`::
+One or more of the specified aliases don't exist.

@@ -1,0 +1,75 @@
+import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.rest-resources'
+
+final Project fixture = project(':test:fixtures:s3-fixture')
+final Project repositoryPlugin = project(':plugins:repository-s3')
+
+dependencies {
+  testImplementation(testArtifact(project(xpackModule('repositories-metering-api'))))
+  testImplementation repositoryPlugin
+}
+
+restResources {
+  restApi {
+    include 'indices', 'bulk', 'snapshot', 'nodes', '_common', 'repositories-metering-api'
+  }
+}
+
+boolean useFixture = false
+String s3AccessKey = System.getenv("amazon_s3_access_key")
+String s3SecretKey = System.getenv("amazon_s3_secret_key")
+String s3Bucket = System.getenv("amazon_s3_bucket")
+String s3BasePath = System.getenv("amazon_s3_base_path")
+
+if (!s3AccessKey && !s3SecretKey && !s3Bucket && !s3BasePath) {
+  s3AccessKey = 's3_test_access_key'
+  s3SecretKey = 's3_test_secret_key'
+  s3Bucket = 'bucket'
+  s3BasePath = null
+  useFixture = true
+
+} else if (!s3AccessKey || !s3SecretKey || !s3Bucket || !s3BasePath) {
+  throw new IllegalArgumentException("not all options specified to run against external S3 service are present")
+}
+
+if (useFixture) {
+  apply plugin: 'elasticsearch.test.fixtures'
+  testFixtures.useFixture(fixture.path, 's3-fixture-repositories-metering')
+}
+
+tasks.named("integTest").configure {
+  dependsOn ':plugins:repository-s3:bundlePlugin'
+  systemProperty 'test.s3.bucket', s3Bucket
+  nonInputProperties.systemProperty 'test.s3.base_path', s3BasePath ? s3BasePath + "_repositories_metering" + BuildParams.testSeed : 'base_path'
+}
+
+testClusters.matching { it.name == "integTest" }.configureEach {
+  testDistribution = 'DEFAULT'
+  plugin ':plugins:repository-s3'
+
+  keystore 's3.client.repositories_metering.access_key', s3AccessKey
+  keystore 's3.client.repositories_metering.secret_key', s3SecretKey
+
+  if (useFixture) {
+    def fixtureAddress = { fixtureName ->
+      assert useFixture: 'closure should not be used without a fixture'
+      int ephemeralPort =  fixture.postProcessFixture.ext."test.fixtures.${fixtureName}.tcp.80"
+      assert ephemeralPort > 0
+      '127.0.0.1:' + ephemeralPort
+    }
+    setting 's3.client.repositories_metering.protocol', 'http'
+    setting 's3.client.repositories_metering.endpoint', { "${-> fixtureAddress('s3-fixture-repositories-metering')}" }, IGNORE_VALUE
+
+  } else {
+    println "Using an external service to test " + project.name
+  }
+  setting 'xpack.security.enabled', 'false'
+}
+
+tasks.register("s3ThirdPartyTest").configure {
+  dependsOn "integTest"
+}

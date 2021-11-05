@@ -1,27 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.geo;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.geo.geometry.Rectangle;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -36,7 +24,7 @@ import static org.hamcrest.Matchers.lessThan;
  */
 public class GeoDistanceTests extends ESTestCase {
 
-    public void testGeoDistanceSerialization() throws IOException  {
+    public void testGeoDistanceSerialization() throws IOException {
         // make sure that ordinals don't change, because we rely on then in serialization
         assertThat(GeoDistance.PLANE.ordinal(), equalTo(0));
         assertThat(GeoDistance.ARC.ordinal(), equalTo(1));
@@ -67,22 +55,6 @@ public class GeoDistanceTests extends ESTestCase {
         }
     }
 
-    public void testDistanceCheck() {
-        // Note, is within is an approximation, so, even though 0.52 is outside 50mi, we still get "true"
-        double radius = DistanceUnit.convert(50, DistanceUnit.MILES, DistanceUnit.METERS);
-        org.apache.lucene.geo.Rectangle r = org.apache.lucene.geo.Rectangle.fromPointDistance(0, 0, radius);
-        Rectangle box = new Rectangle(r.minLat, r.maxLat, r.minLon, r.maxLon);
-        assertThat(box.containsPoint(0.5, 0.5), equalTo(true));
-        assertThat(box.containsPoint(0.52, 0.52), equalTo(true));
-        assertThat(box.containsPoint(1, 1), equalTo(false));
-
-        radius = DistanceUnit.convert(200, DistanceUnit.MILES, DistanceUnit.METERS);
-        r = org.apache.lucene.geo.Rectangle.fromPointDistance(0, 179, radius);
-        box = new Rectangle(r.minLat, r.maxLat, r.minLon, r.maxLon);
-        assertThat(box.containsPoint(0, -179), equalTo(true));
-        assertThat(box.containsPoint(0, -178), equalTo(false));
-    }
-
     private static double arcDistance(GeoPoint p1, GeoPoint p2) {
         return GeoDistance.ARC.calculate(p1.lat(), p1.lon(), p2.lat(), p2.lon(), DistanceUnit.METERS);
     }
@@ -107,11 +79,17 @@ public class GeoDistanceTests extends ESTestCase {
         // constant longitude but takes a longer route if there is east/west
         // movement.
 
-        assertThat("Arc and plane should agree on sameLongitude",
-            Math.abs(sameLongitudeArcDistance - sameLongitudePlaneDistance), lessThan(0.001));
+        assertThat(
+            "Arc and plane should agree on sameLongitude",
+            Math.abs(sameLongitudeArcDistance - sameLongitudePlaneDistance),
+            lessThan(0.001)
+        );
 
-        assertThat("Arc and plane should disagree on sameLatitude (by >4000km)",
-            sameLatitudePlaneDistance - sameLatitudeArcDistance, greaterThan(4.0e6));
+        assertThat(
+            "Arc and plane should disagree on sameLatitude (by >4000km)",
+            sameLatitudePlaneDistance - sameLatitudeArcDistance,
+            greaterThan(4.0e6)
+        );
 
         // GeoDistance.ARC calculates the great circle distance (on a sphere) so these should agree as they're both 90 degrees
         assertThat("Arc distances should agree", Math.abs(sameLongitudeArcDistance - sameLatitudeArcDistance), lessThan(0.001));
@@ -132,13 +110,22 @@ public class GeoDistanceTests extends ESTestCase {
         double sameLongitudePlaneDistance = planeDistance(basePoint, sameLongitude);
         double sameLatitudePlaneDistance = planeDistance(basePoint, sameLatitude);
 
-        assertThat("Arc and plane should agree [" + basePoint + "] to [" + sameLongitude + "] (within 1cm)",
-            Math.abs(sameLongitudeArcDistance - sameLongitudePlaneDistance), lessThan(0.01));
+        assertThat(
+            "Arc and plane should agree [" + basePoint + "] to [" + sameLongitude + "] (within 1cm)",
+            Math.abs(sameLongitudeArcDistance - sameLongitudePlaneDistance),
+            lessThan(0.01)
+        );
 
-        assertThat("Arc and plane should very roughly agree [" + basePoint + "] to [" + sameLatitude + "]",
-            sameLatitudePlaneDistance - sameLatitudeArcDistance, lessThan(600.0));
+        assertThat(
+            "Arc and plane should very roughly agree [" + basePoint + "] to [" + sameLatitude + "]",
+            sameLatitudePlaneDistance - sameLatitudeArcDistance,
+            lessThan(600.0)
+        );
 
-        assertThat("Arc and plane should disagree by some margin [" + basePoint + "] to [" + sameLatitude + "]",
-            sameLatitudePlaneDistance - sameLatitudeArcDistance, greaterThan(15.0));
+        assertThat(
+            "Arc and plane should disagree by some margin [" + basePoint + "] to [" + sameLatitude + "]",
+            sameLatitudePlaneDistance - sameLatitudeArcDistance,
+            greaterThan(15.0)
+        );
     }
 }

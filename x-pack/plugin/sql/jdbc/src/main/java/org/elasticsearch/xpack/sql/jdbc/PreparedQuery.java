@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
@@ -69,9 +70,9 @@ class PreparedQuery {
      * Returns the parameters if the SQL statement is parametrized
      */
     List<SqlTypedParamValue> params() {
-        return Arrays.stream(this.params).map(
-                paramInfo -> new SqlTypedParamValue(paramInfo.type.name(), paramInfo.value)
-        ).collect(Collectors.toList());
+        return Arrays.stream(this.params)
+            .map(paramInfo -> new SqlTypedParamValue(paramInfo.type.name(), paramInfo.value))
+            .collect(Collectors.toList());
     }
 
     @Override

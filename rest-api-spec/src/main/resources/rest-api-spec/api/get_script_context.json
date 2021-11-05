@@ -1,0 +1,24 @@
+{
+  "get_script_context":{
+    "documentation":{
+      "url": "https://www.elastic.co/guide/en/elasticsearch/painless/master/painless-contexts.html",
+      "description":"Returns all script contexts."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_script_context",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params":{}
+  }
+}

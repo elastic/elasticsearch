@@ -1,47 +1,35 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingUpgrader;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.shard.IndexSettingProvider;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -49,7 +37,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 /**
@@ -72,32 +60,6 @@ import java.util.function.UnaryOperator;
 public abstract class Plugin implements Closeable {
 
     /**
-     * A feature exposed by the plugin. This should be used if a plugin exposes {@link ClusterState.Custom} or {@link MetaData.Custom}; see
-     * also {@link ClusterState.FeatureAware}.
-     *
-     * @return a feature set represented by this plugin, or the empty optional if the plugin does not expose cluster state or metadata
-     * customs
-     */
-    protected Optional<String> getFeature() {
-        return Optional.empty();
-    }
-
-    /**
-     * Node level guice modules.
-     */
-    public Collection<Module> createGuiceModules() {
-        return Collections.emptyList();
-    }
-
-    /**
-     * Node level services that will be automatically started/stopped/closed. This classes must be constructed
-     * by injection with guice.
-     */
-    public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
-        return Collections.emptyList();
-    }
-
-    /**
      * Returns components added by this plugin.
      *
      * Any components returned that implement {@link LifecycleComponent} will have their lifecycle managed.
@@ -113,11 +75,23 @@ public abstract class Plugin implements Closeable {
      * @param environment the environment for path and setting configurations
      * @param nodeEnvironment the node environment used coordinate access to the data paths
      * @param namedWriteableRegistry the registry for {@link NamedWriteable} object parsing
+     * @param indexNameExpressionResolver A service that resolves expression to index and alias names
+     * @param repositoriesServiceSupplier A supplier for the service that manages snapshot repositories; will return null when this method
+     *                                   is called, but will return the repositories service once the node is initialized.
      */
-    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-                                               ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                               NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
+    ) {
         return Collections.emptyList();
     }
 
@@ -126,7 +100,7 @@ public abstract class Plugin implements Closeable {
      * overwritten with the additional settings. These settings added if they don't exist.
      */
     public Settings additionalSettings() {
-        return Settings.Builder.EMPTY_SETTINGS;
+        return Settings.EMPTY;
     }
 
     /**
@@ -154,12 +128,16 @@ public abstract class Plugin implements Closeable {
     /**
      * Returns a list of additional {@link Setting} definitions for this plugin.
      */
-    public List<Setting<?>> getSettings() { return Collections.emptyList(); }
+    public List<Setting<?>> getSettings() {
+        return Collections.emptyList();
+    }
 
     /**
      * Returns a list of additional settings filter for this plugin
      */
-    public List<String> getSettingsFilter() { return Collections.emptyList(); }
+    public List<String> getSettingsFilter() {
+        return Collections.emptyList();
+    }
 
     /**
      * Get the setting upgraders provided by this plugin.
@@ -171,49 +149,18 @@ public abstract class Plugin implements Closeable {
     }
 
     /**
-     * Provides a function to modify global custom meta data on startup.
-     * <p>
-     * Plugins should return the input custom map via {@link UnaryOperator#identity()} if no upgrade is required.
-     * <p>
-     * The order of custom meta data upgraders calls is undefined and can change between runs so, it is expected that
-     * plugins will modify only data owned by them to avoid conflicts.
-     * <p>
-     * @return Never {@code null}. The same or upgraded {@code MetaData.Custom} map.
-     * @throws IllegalStateException if the node should not start because at least one {@code MetaData.Custom}
-     *                               is unsupported
-     */
-    public UnaryOperator<Map<String, MetaData.Custom>> getCustomMetaDataUpgrader() {
-        return UnaryOperator.identity();
-    }
-
-    /**
      * Provides a function to modify index template meta data on startup.
      * <p>
      * Plugins should return the input template map via {@link UnaryOperator#identity()} if no upgrade is required.
      * <p>
      * The order of the template upgrader calls is undefined and can change between runs so, it is expected that
      * plugins will modify only templates owned by them to avoid conflicts.
-     * <p>
-     * @return Never {@code null}. The same or upgraded {@code IndexTemplateMetaData} map.
-     * @throws IllegalStateException if the node should not start because at least one {@code IndexTemplateMetaData}
+     *
+     * @return Never {@code null}. The same or upgraded {@code IndexTemplateMetadata} map.
+     * @throws IllegalStateException if the node should not start because at least one {@code IndexTemplateMetadata}
      *                               cannot be upgraded
      */
-    public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
-        return UnaryOperator.identity();
-    }
-
-    /**
-     * Provides a function to modify index meta data when an index is introduced into the cluster state for the first time.
-     * <p>
-     * Plugins should return the input index metadata via {@link UnaryOperator#identity()} if no upgrade is required.
-     * <p>
-     * The order of the index upgrader calls for the same index is undefined and can change between runs so, it is expected that
-     * plugins will modify only indices owned by them to avoid conflicts.
-     * <p>
-     * @return Never {@code null}. The same or upgraded {@code IndexMetaData}.
-     * @throws IllegalStateException if the node should not start because the index is unsupported
-     */
-    public UnaryOperator<IndexMetaData> getIndexMetaDataUpgrader() {
+    public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
         return UnaryOperator.identity();
     }
 
@@ -234,7 +181,9 @@ public abstract class Plugin implements Closeable {
      * to provide a better out of the box experience by pre-configuring otherwise (in production) mandatory settings or to enforce certain
      * configurations like OS settings or 3rd party resources.
      */
-    public List<BootstrapCheck> getBootstrapChecks() { return Collections.emptyList(); }
+    public List<BootstrapCheck> getBootstrapChecks() {
+        return Collections.emptyList();
+    }
 
     /**
      * Close the resources opened by this plugin.
@@ -244,5 +193,15 @@ public abstract class Plugin implements Closeable {
     @Override
     public void close() throws IOException {
 
+    }
+
+    /**
+     * An {@link IndexSettingProvider} allows hooking in to parts of an index
+     * lifecycle to provide explicit default settings for newly created indices. Rather than changing
+     * the default values for an index-level setting, these act as though the setting has been set
+     * explicitly, but still allow the setting to be overridden by a template or creation request body.
+     */
+    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders() {
+        return Collections.emptyList();
     }
 }

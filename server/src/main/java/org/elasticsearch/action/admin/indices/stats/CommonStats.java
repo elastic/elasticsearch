@@ -1,33 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.stats;
 
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -41,11 +29,15 @@ import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexingStats;
+import org.elasticsearch.index.shard.ShardCountStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -101,6 +93,12 @@ public class CommonStats implements Writeable, ToXContentFragment {
 
     @Nullable
     public RecoveryStats recoveryStats;
+
+    @Nullable
+    public BulkStats bulk;
+
+    @Nullable
+    public ShardCountStats shards;
 
     public CommonStats() {
         this(CommonStatsFlags.NONE);
@@ -159,6 +157,12 @@ public class CommonStats implements Writeable, ToXContentFragment {
                 case Recovery:
                     recoveryStats = new RecoveryStats();
                     break;
+                case Bulk:
+                    bulk = new BulkStats();
+                    break;
+                case Shards:
+                    shards = new ShardCountStats();
+                    break;
                 default:
                     throw new IllegalStateException("Unknown Flag: " + flag);
             }
@@ -177,7 +181,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
                         store = indexShard.storeStats();
                         break;
                     case Indexing:
-                        indexing = indexShard.indexingStats(flags.types());
+                        indexing = indexShard.indexingStats();
                         break;
                     case Get:
                         get = indexShard.getStats();
@@ -218,6 +222,13 @@ public class CommonStats implements Writeable, ToXContentFragment {
                     case Recovery:
                         recoveryStats = indexShard.recoveryStats();
                         break;
+                    case Bulk:
+                        bulk = indexShard.bulkStats();
+                        break;
+                    case Shards:
+                        // Setting to 1 because the single IndexShard passed to this method implies 1 shard
+                        shards = new ShardCountStats(1);
+                        break;
                     default:
                         throw new IllegalStateException("Unknown Flag: " + flag);
                 }
@@ -244,26 +255,34 @@ public class CommonStats implements Writeable, ToXContentFragment {
         translog = in.readOptionalWriteable(TranslogStats::new);
         requestCache = in.readOptionalWriteable(RequestCacheStats::new);
         recoveryStats = in.readOptionalWriteable(RecoveryStats::new);
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            bulk = in.readOptionalWriteable(BulkStats::new);
+        }
+        shards = in.readOptionalWriteable(ShardCountStats::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalStreamable(docs);
-        out.writeOptionalStreamable(store);
-        out.writeOptionalStreamable(indexing);
-        out.writeOptionalStreamable(get);
+        out.writeOptionalWriteable(docs);
+        out.writeOptionalWriteable(store);
+        out.writeOptionalWriteable(indexing);
+        out.writeOptionalWriteable(get);
         out.writeOptionalWriteable(search);
-        out.writeOptionalStreamable(merge);
-        out.writeOptionalStreamable(refresh);
-        out.writeOptionalStreamable(flush);
-        out.writeOptionalStreamable(warmer);
-        out.writeOptionalStreamable(queryCache);
-        out.writeOptionalStreamable(fieldData);
-        out.writeOptionalStreamable(completion);
-        out.writeOptionalStreamable(segments);
-        out.writeOptionalStreamable(translog);
-        out.writeOptionalStreamable(requestCache);
-        out.writeOptionalStreamable(recoveryStats);
+        out.writeOptionalWriteable(merge);
+        out.writeOptionalWriteable(refresh);
+        out.writeOptionalWriteable(flush);
+        out.writeOptionalWriteable(warmer);
+        out.writeOptionalWriteable(queryCache);
+        out.writeOptionalWriteable(fieldData);
+        out.writeOptionalWriteable(completion);
+        out.writeOptionalWriteable(segments);
+        out.writeOptionalWriteable(translog);
+        out.writeOptionalWriteable(requestCache);
+        out.writeOptionalWriteable(recoveryStats);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeOptionalWriteable(bulk);
+        }
+        out.writeOptionalWriteable(shards);
     }
 
     public void add(CommonStats stats) {
@@ -396,6 +415,21 @@ public class CommonStats implements Writeable, ToXContentFragment {
         } else {
             recoveryStats.add(stats.getRecoveryStats());
         }
+        if (bulk == null) {
+            if (stats.getBulk() != null) {
+                bulk = new BulkStats();
+                bulk.add(stats.getBulk());
+            }
+        } else {
+            bulk.add(stats.getBulk());
+        }
+        if (stats.shards != null) {
+            if (shards == null) {
+                shards = stats.shards;
+            } else {
+                shards = shards.add(stats.shards);
+            }
+        }
     }
 
     @Nullable
@@ -478,9 +512,19 @@ public class CommonStats implements Writeable, ToXContentFragment {
         return recoveryStats;
     }
 
+    @Nullable
+    public BulkStats getBulk() {
+        return bulk;
+    }
+
+    @Nullable
+    public ShardCountStats getShards() {
+        return shards;
+    }
+
     /**
      * Utility method which computes total memory by adding
-     * FieldData, PercolatorCache, Segments (memory, index writer, version map)
+     * FieldData, PercolatorCache, Segments (index writer, version map)
      */
     public ByteSizeValue getTotalMemory() {
         long size = 0;
@@ -491,9 +535,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
             size += this.getQueryCache().getMemorySizeInBytes();
         }
         if (this.getSegments() != null) {
-            size += this.getSegments().getMemoryInBytes() +
-                    this.getSegments().getIndexWriterMemoryInBytes() +
-                    this.getSegments().getVersionMapMemoryInBytes();
+            size += this.getSegments().getIndexWriterMemoryInBytes() + this.getSegments().getVersionMapMemoryInBytes();
         }
 
         return new ByteSizeValue(size);
@@ -502,11 +544,28 @@ public class CommonStats implements Writeable, ToXContentFragment {
     // note, requires a wrapping object
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        final Stream<ToXContent> stream = Arrays.stream(new ToXContent[] {
-            docs, store, indexing, get, search, merge, refresh, flush, warmer, queryCache,
-            fieldData, completion, segments, translog, requestCache, recoveryStats})
-            .filter(Objects::nonNull);
-        for (ToXContent toXContent : ((Iterable<ToXContent>)stream::iterator)) {
+        final Stream<ToXContent> stream = Arrays.stream(
+            new ToXContent[] {
+                docs,
+                shards,
+                store,
+                indexing,
+                get,
+                search,
+                merge,
+                refresh,
+                flush,
+                warmer,
+                queryCache,
+                fieldData,
+                completion,
+                segments,
+                translog,
+                requestCache,
+                recoveryStats,
+                bulk }
+        ).filter(Objects::nonNull);
+        for (ToXContent toXContent : ((Iterable<ToXContent>) stream::iterator)) {
             toXContent.toXContent(builder, params);
         }
         return builder;

@@ -1,22 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Date;
 import java.util.Objects;
 
@@ -36,46 +38,50 @@ import java.util.Objects;
 public class DataCounts implements ToXContentObject, Writeable {
 
     private static final String DOCUMENT_SUFFIX = "_data_counts";
-    public static final String PROCESSED_RECORD_COUNT_STR = "processed_record_count";
-    public static final String PROCESSED_FIELD_COUNT_STR = "processed_field_count";
-    public static final String INPUT_BYTES_STR = "input_bytes";
-    public static final String INPUT_RECORD_COUNT_STR = "input_record_count";
-    public static final String INPUT_FIELD_COUNT_STR = "input_field_count";
-    public static final String INVALID_DATE_COUNT_STR = "invalid_date_count";
-    public static final String MISSING_FIELD_COUNT_STR = "missing_field_count";
-    public static final String OUT_OF_ORDER_TIME_COUNT_STR = "out_of_order_timestamp_count";
-    public static final String EMPTY_BUCKET_COUNT_STR = "empty_bucket_count";
-    public static final String SPARSE_BUCKET_COUNT_STR = "sparse_bucket_count";
-    public static final String BUCKET_COUNT_STR = "bucket_count";
-    public static final String EARLIEST_RECORD_TIME_STR = "earliest_record_timestamp";
-    public static final String LATEST_RECORD_TIME_STR = "latest_record_timestamp";
-    public static final String LAST_DATA_TIME_STR = "last_data_time";
-    public static final String LATEST_EMPTY_BUCKET_TIME_STR = "latest_empty_bucket_timestamp";
-    public static final String LATEST_SPARSE_BUCKET_TIME_STR = "latest_sparse_bucket_timestamp";
 
-    public static final ParseField PROCESSED_RECORD_COUNT = new ParseField(PROCESSED_RECORD_COUNT_STR);
-    public static final ParseField PROCESSED_FIELD_COUNT = new ParseField(PROCESSED_FIELD_COUNT_STR);
-    public static final ParseField INPUT_BYTES = new ParseField(INPUT_BYTES_STR);
-    public static final ParseField INPUT_RECORD_COUNT = new ParseField(INPUT_RECORD_COUNT_STR);
-    public static final ParseField INPUT_FIELD_COUNT = new ParseField(INPUT_FIELD_COUNT_STR);
-    public static final ParseField INVALID_DATE_COUNT = new ParseField(INVALID_DATE_COUNT_STR);
-    public static final ParseField MISSING_FIELD_COUNT = new ParseField(MISSING_FIELD_COUNT_STR);
-    public static final ParseField OUT_OF_ORDER_TIME_COUNT = new ParseField(OUT_OF_ORDER_TIME_COUNT_STR);
-    public static final ParseField EMPTY_BUCKET_COUNT = new ParseField(EMPTY_BUCKET_COUNT_STR);
-    public static final ParseField SPARSE_BUCKET_COUNT = new ParseField(SPARSE_BUCKET_COUNT_STR);
-    public static final ParseField BUCKET_COUNT = new ParseField(BUCKET_COUNT_STR);
-    public static final ParseField EARLIEST_RECORD_TIME = new ParseField(EARLIEST_RECORD_TIME_STR);
-    public static final ParseField LATEST_RECORD_TIME = new ParseField(LATEST_RECORD_TIME_STR);
-    public static final ParseField LAST_DATA_TIME = new ParseField(LAST_DATA_TIME_STR);
-    public static final ParseField LATEST_EMPTY_BUCKET_TIME = new ParseField(LATEST_EMPTY_BUCKET_TIME_STR);
-    public static final ParseField LATEST_SPARSE_BUCKET_TIME = new ParseField(LATEST_SPARSE_BUCKET_TIME_STR);
+    public static final ParseField PROCESSED_RECORD_COUNT = new ParseField("processed_record_count");
+    public static final ParseField PROCESSED_FIELD_COUNT = new ParseField("processed_field_count");
+    public static final ParseField INPUT_BYTES = new ParseField("input_bytes");
+    public static final ParseField INPUT_RECORD_COUNT = new ParseField("input_record_count");
+    public static final ParseField INPUT_FIELD_COUNT = new ParseField("input_field_count");
+    public static final ParseField INVALID_DATE_COUNT = new ParseField("invalid_date_count");
+    public static final ParseField MISSING_FIELD_COUNT = new ParseField("missing_field_count");
+    public static final ParseField OUT_OF_ORDER_TIME_COUNT = new ParseField("out_of_order_timestamp_count");
+    public static final ParseField EMPTY_BUCKET_COUNT = new ParseField("empty_bucket_count");
+    public static final ParseField SPARSE_BUCKET_COUNT = new ParseField("sparse_bucket_count");
+    public static final ParseField BUCKET_COUNT = new ParseField("bucket_count");
+    public static final ParseField EARLIEST_RECORD_TIME = new ParseField("earliest_record_timestamp");
+    public static final ParseField LATEST_RECORD_TIME = new ParseField("latest_record_timestamp");
+    public static final ParseField LAST_DATA_TIME = new ParseField("last_data_time");
+    public static final ParseField LATEST_EMPTY_BUCKET_TIME = new ParseField("latest_empty_bucket_timestamp");
+    public static final ParseField LATEST_SPARSE_BUCKET_TIME = new ParseField("latest_sparse_bucket_timestamp");
+    public static final ParseField LOG_TIME = new ParseField("log_time");
 
     public static final ParseField TYPE = new ParseField("data_counts");
 
-    public static final ConstructingObjectParser<DataCounts, Void> PARSER = new ConstructingObjectParser<>("data_counts", true,
-            a -> new DataCounts((String) a[0], (long) a[1], (long) a[2], (long) a[3], (long) a[4], (long) a[5], (long) a[6],
-                    (long) a[7], (long) a[8], (long) a[9], (long) a[10], (Date) a[11], (Date) a[12], (Date) a[13], (Date) a[14],
-                    (Date) a[15]));
+    public static final ConstructingObjectParser<DataCounts, Void> PARSER = new ConstructingObjectParser<>(
+        "data_counts",
+        true,
+        a -> new DataCounts(
+            (String) a[0],
+            (long) a[1],
+            (long) a[2],
+            (long) a[3],
+            (long) a[4],
+            (long) a[5],
+            (long) a[6],
+            (long) a[7],
+            (long) a[8],
+            (long) a[9],
+            (long) a[10],
+            (Date) a[11],
+            (Date) a[12],
+            (Date) a[13],
+            (Date) a[14],
+            (Date) a[15],
+            (Instant) a[16]
+        )
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
@@ -89,17 +95,43 @@ public class DataCounts implements ToXContentObject, Writeable {
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), EMPTY_BUCKET_COUNT);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), SPARSE_BUCKET_COUNT);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_COUNT);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-                p -> TimeUtils.parseTimeField(p, EARLIEST_RECORD_TIME.getPreferredName()), EARLIEST_RECORD_TIME, ValueType.VALUE);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-                p -> TimeUtils.parseTimeField(p, LATEST_RECORD_TIME.getPreferredName()), LATEST_RECORD_TIME, ValueType.VALUE);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-                p -> TimeUtils.parseTimeField(p, LAST_DATA_TIME.getPreferredName()), LAST_DATA_TIME, ValueType.VALUE);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-                p -> TimeUtils.parseTimeField(p, LATEST_EMPTY_BUCKET_TIME.getPreferredName()), LATEST_EMPTY_BUCKET_TIME, ValueType.VALUE);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-                p -> TimeUtils.parseTimeField(p, LATEST_SPARSE_BUCKET_TIME.getPreferredName()), LATEST_SPARSE_BUCKET_TIME, ValueType.VALUE);
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
+            p -> TimeUtils.parseTimeField(p, EARLIEST_RECORD_TIME.getPreferredName()),
+            EARLIEST_RECORD_TIME,
+            ValueType.VALUE
+        );
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
+            p -> TimeUtils.parseTimeField(p, LATEST_RECORD_TIME.getPreferredName()),
+            LATEST_RECORD_TIME,
+            ValueType.VALUE
+        );
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
+            p -> TimeUtils.parseTimeField(p, LAST_DATA_TIME.getPreferredName()),
+            LAST_DATA_TIME,
+            ValueType.VALUE
+        );
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
+            p -> TimeUtils.parseTimeField(p, LATEST_EMPTY_BUCKET_TIME.getPreferredName()),
+            LATEST_EMPTY_BUCKET_TIME,
+            ValueType.VALUE
+        );
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
+            p -> TimeUtils.parseTimeField(p, LATEST_SPARSE_BUCKET_TIME.getPreferredName()),
+            LATEST_SPARSE_BUCKET_TIME,
+            ValueType.VALUE
+        );
         PARSER.declareLong((t, u) -> {/* intentionally empty */}, INPUT_RECORD_COUNT);
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
+            p -> TimeUtils.parseTimeFieldToInstant(p, LOG_TIME.getPreferredName()),
+            LOG_TIME,
+            ValueType.VALUE
+        );
     }
 
     public static String documentId(String jobId) {
@@ -127,12 +159,27 @@ public class DataCounts implements ToXContentObject, Writeable {
     private Date lastDataTimeStamp;
     private Date latestEmptyBucketTimeStamp;
     private Date latestSparseBucketTimeStamp;
+    private Instant logTime;
 
-    public DataCounts(String jobId, long processedRecordCount, long processedFieldCount, long inputBytes,
-                      long inputFieldCount, long invalidDateCount, long missingFieldCount, long outOfOrderTimeStampCount,
-                      long emptyBucketCount, long sparseBucketCount, long bucketCount,
-                      Date earliestRecordTimeStamp, Date latestRecordTimeStamp, Date lastDataTimeStamp,
-                      Date latestEmptyBucketTimeStamp, Date latestSparseBucketTimeStamp) {
+    public DataCounts(
+        String jobId,
+        long processedRecordCount,
+        long processedFieldCount,
+        long inputBytes,
+        long inputFieldCount,
+        long invalidDateCount,
+        long missingFieldCount,
+        long outOfOrderTimeStampCount,
+        long emptyBucketCount,
+        long sparseBucketCount,
+        long bucketCount,
+        Date earliestRecordTimeStamp,
+        Date latestRecordTimeStamp,
+        Date lastDataTimeStamp,
+        Date latestEmptyBucketTimeStamp,
+        Date latestSparseBucketTimeStamp,
+        Instant logTime
+    ) {
         this.jobId = jobId;
         this.processedRecordCount = processedRecordCount;
         this.processedFieldCount = processedFieldCount;
@@ -149,6 +196,7 @@ public class DataCounts implements ToXContentObject, Writeable {
         this.lastDataTimeStamp = lastDataTimeStamp;
         this.latestEmptyBucketTimeStamp = latestEmptyBucketTimeStamp;
         this.latestSparseBucketTimeStamp = latestSparseBucketTimeStamp;
+        setLogTime(logTime);
     }
 
     public DataCounts(String jobId) {
@@ -172,6 +220,7 @@ public class DataCounts implements ToXContentObject, Writeable {
         lastDataTimeStamp = lhs.lastDataTimeStamp;
         latestEmptyBucketTimeStamp = lhs.latestEmptyBucketTimeStamp;
         latestSparseBucketTimeStamp = lhs.latestSparseBucketTimeStamp;
+        logTime = lhs.logTime;
     }
 
     public DataCounts(StreamInput in) throws IOException {
@@ -202,6 +251,7 @@ public class DataCounts implements ToXContentObject, Writeable {
             latestSparseBucketTimeStamp = new Date(in.readVLong());
         }
         in.readVLong(); // throw away inputRecordCount
+        logTime = in.readOptionalInstant();
     }
 
     public String getJobid() {
@@ -236,9 +286,7 @@ public class DataCounts implements ToXContentObject, Writeable {
     }
 
     public void calcProcessedFieldCount(long analysisFieldsPerRecord) {
-        processedFieldCount =
-                (processedRecordCount * analysisFieldsPerRecord)
-                - missingFieldCount;
+        processedFieldCount = (processedRecordCount * analysisFieldsPerRecord) - missingFieldCount;
 
         // processedFieldCount could be a -ve value if no
         // records have been written in which case it should be 0
@@ -255,8 +303,7 @@ public class DataCounts implements ToXContentObject, Writeable {
      * @return Total number of input records read {@code long}
      */
     public long getInputRecordCount() {
-        return processedRecordCount + outOfOrderTimeStampCount
-                + invalidDateCount;
+        return processedRecordCount + outOfOrderTimeStampCount + invalidDateCount;
     }
 
     /**
@@ -302,7 +349,6 @@ public class DataCounts implements ToXContentObject, Writeable {
     public void incrementInvalidDateCount(long additional) {
         invalidDateCount += additional;
     }
-
 
     /**
      * The number of missing fields that had been
@@ -373,6 +419,7 @@ public class DataCounts implements ToXContentObject, Writeable {
     public void incrementBucketCount(long additional) {
         bucketCount += additional;
     }
+
     /**
      * The time of the first record seen.
      *
@@ -396,7 +443,6 @@ public class DataCounts implements ToXContentObject, Writeable {
         earliestRecordTimeStamp = timeStamp;
     }
 
-
     /**
      * The time of the latest record seen.
      *
@@ -408,14 +454,6 @@ public class DataCounts implements ToXContentObject, Writeable {
 
     public void setLatestRecordTimeStamp(Date latestRecordTimeStamp) {
         this.latestRecordTimeStamp = latestRecordTimeStamp;
-    }
-
-    public void updateLatestRecordTimeStamp(Date latestRecordTimeStamp) {
-        if (latestRecordTimeStamp != null &&
-                (this.latestRecordTimeStamp == null ||
-                latestRecordTimeStamp.after(this.latestRecordTimeStamp))) {
-            this.latestRecordTimeStamp = latestRecordTimeStamp;
-        }
     }
 
     /**
@@ -445,9 +483,8 @@ public class DataCounts implements ToXContentObject, Writeable {
     }
 
     public void updateLatestEmptyBucketTimeStamp(Date latestEmptyBucketTimeStamp) {
-        if (latestEmptyBucketTimeStamp != null &&
-                (this.latestEmptyBucketTimeStamp == null ||
-                latestEmptyBucketTimeStamp.after(this.latestEmptyBucketTimeStamp))) {
+        if (latestEmptyBucketTimeStamp != null
+            && (this.latestEmptyBucketTimeStamp == null || latestEmptyBucketTimeStamp.after(this.latestEmptyBucketTimeStamp))) {
             this.latestEmptyBucketTimeStamp = latestEmptyBucketTimeStamp;
         }
     }
@@ -466,11 +503,18 @@ public class DataCounts implements ToXContentObject, Writeable {
     }
 
     public void updateLatestSparseBucketTimeStamp(Date latestSparseBucketTimeStamp) {
-        if (latestSparseBucketTimeStamp != null &&
-                (this.latestSparseBucketTimeStamp == null ||
-                latestSparseBucketTimeStamp.after(this.latestSparseBucketTimeStamp))) {
+        if (latestSparseBucketTimeStamp != null
+            && (this.latestSparseBucketTimeStamp == null || latestSparseBucketTimeStamp.after(this.latestSparseBucketTimeStamp))) {
             this.latestSparseBucketTimeStamp = latestSparseBucketTimeStamp;
         }
+    }
+
+    public void setLogTime(Instant logTime) {
+        this.logTime = logTime == null ? null : Instant.ofEpochMilli(logTime.toEpochMilli());
+    }
+
+    public Instant getLogTime() {
+        return logTime;
     }
 
     @Override
@@ -517,6 +561,7 @@ public class DataCounts implements ToXContentObject, Writeable {
             out.writeBoolean(false);
         }
         out.writeVLong(getInputRecordCount());
+        out.writeOptionalInstant(logTime);
     }
 
     @Override
@@ -540,26 +585,44 @@ public class DataCounts implements ToXContentObject, Writeable {
         builder.field(SPARSE_BUCKET_COUNT.getPreferredName(), sparseBucketCount);
         builder.field(BUCKET_COUNT.getPreferredName(), bucketCount);
         if (earliestRecordTimeStamp != null) {
-            builder.timeField(EARLIEST_RECORD_TIME.getPreferredName(), EARLIEST_RECORD_TIME.getPreferredName() + "_string",
-                    earliestRecordTimeStamp.getTime());
+            builder.timeField(
+                EARLIEST_RECORD_TIME.getPreferredName(),
+                EARLIEST_RECORD_TIME.getPreferredName() + "_string",
+                earliestRecordTimeStamp.getTime()
+            );
         }
         if (latestRecordTimeStamp != null) {
-            builder.timeField(LATEST_RECORD_TIME.getPreferredName(), LATEST_RECORD_TIME.getPreferredName() + "_string",
-                    latestRecordTimeStamp.getTime());
+            builder.timeField(
+                LATEST_RECORD_TIME.getPreferredName(),
+                LATEST_RECORD_TIME.getPreferredName() + "_string",
+                latestRecordTimeStamp.getTime()
+            );
         }
         if (lastDataTimeStamp != null) {
-            builder.timeField(LAST_DATA_TIME.getPreferredName(), LAST_DATA_TIME.getPreferredName() + "_string",
-                    lastDataTimeStamp.getTime());
+            builder.timeField(
+                LAST_DATA_TIME.getPreferredName(),
+                LAST_DATA_TIME.getPreferredName() + "_string",
+                lastDataTimeStamp.getTime()
+            );
         }
         if (latestEmptyBucketTimeStamp != null) {
-            builder.timeField(LATEST_EMPTY_BUCKET_TIME.getPreferredName(), LATEST_EMPTY_BUCKET_TIME.getPreferredName() + "_string",
-                    latestEmptyBucketTimeStamp.getTime());
+            builder.timeField(
+                LATEST_EMPTY_BUCKET_TIME.getPreferredName(),
+                LATEST_EMPTY_BUCKET_TIME.getPreferredName() + "_string",
+                latestEmptyBucketTimeStamp.getTime()
+            );
         }
         if (latestSparseBucketTimeStamp != null) {
-            builder.timeField(LATEST_SPARSE_BUCKET_TIME.getPreferredName(), LATEST_SPARSE_BUCKET_TIME.getPreferredName() + "_string",
-                    latestSparseBucketTimeStamp.getTime());
+            builder.timeField(
+                LATEST_SPARSE_BUCKET_TIME.getPreferredName(),
+                LATEST_SPARSE_BUCKET_TIME.getPreferredName() + "_string",
+                latestSparseBucketTimeStamp.getTime()
+            );
         }
         builder.field(INPUT_RECORD_COUNT.getPreferredName(), getInputRecordCount());
+        if (logTime != null) {
+            builder.timeField(LOG_TIME.getPreferredName(), LOG_TIME.getPreferredName() + "_string", logTime.toEpochMilli());
+        }
 
         return builder;
     }
@@ -579,29 +642,46 @@ public class DataCounts implements ToXContentObject, Writeable {
 
         DataCounts that = (DataCounts) other;
 
-        return Objects.equals(this.jobId, that.jobId) &&
-                this.processedRecordCount == that.processedRecordCount &&
-                this.processedFieldCount == that.processedFieldCount &&
-                this.inputBytes == that.inputBytes &&
-                this.inputFieldCount == that.inputFieldCount &&
-                this.invalidDateCount == that.invalidDateCount &&
-                this.missingFieldCount == that.missingFieldCount &&
-                this.outOfOrderTimeStampCount == that.outOfOrderTimeStampCount &&
-                this.emptyBucketCount == that.emptyBucketCount &&
-                this.sparseBucketCount == that.sparseBucketCount &&
-                this.bucketCount == that.bucketCount &&
-                Objects.equals(this.latestRecordTimeStamp, that.latestRecordTimeStamp) &&
-                Objects.equals(this.earliestRecordTimeStamp, that.earliestRecordTimeStamp) &&
-                Objects.equals(this.lastDataTimeStamp, that.lastDataTimeStamp) &&
-                Objects.equals(this.latestEmptyBucketTimeStamp, that.latestEmptyBucketTimeStamp) &&
-                Objects.equals(this.latestSparseBucketTimeStamp, that.latestSparseBucketTimeStamp);
+        return Objects.equals(this.jobId, that.jobId)
+            && this.processedRecordCount == that.processedRecordCount
+            && this.processedFieldCount == that.processedFieldCount
+            && this.inputBytes == that.inputBytes
+            && this.inputFieldCount == that.inputFieldCount
+            && this.invalidDateCount == that.invalidDateCount
+            && this.missingFieldCount == that.missingFieldCount
+            && this.outOfOrderTimeStampCount == that.outOfOrderTimeStampCount
+            && this.emptyBucketCount == that.emptyBucketCount
+            && this.sparseBucketCount == that.sparseBucketCount
+            && this.bucketCount == that.bucketCount
+            && Objects.equals(this.latestRecordTimeStamp, that.latestRecordTimeStamp)
+            && Objects.equals(this.earliestRecordTimeStamp, that.earliestRecordTimeStamp)
+            && Objects.equals(this.lastDataTimeStamp, that.lastDataTimeStamp)
+            && Objects.equals(this.latestEmptyBucketTimeStamp, that.latestEmptyBucketTimeStamp)
+            && Objects.equals(this.latestSparseBucketTimeStamp, that.latestSparseBucketTimeStamp)
+            && Objects.equals(this.logTime, that.logTime);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, processedRecordCount, processedFieldCount,
-                inputBytes, inputFieldCount, invalidDateCount, missingFieldCount,
-                outOfOrderTimeStampCount, lastDataTimeStamp, emptyBucketCount, sparseBucketCount, bucketCount,
-                latestRecordTimeStamp, earliestRecordTimeStamp, latestEmptyBucketTimeStamp, latestSparseBucketTimeStamp);
+        return Objects.hash(
+            jobId,
+            processedRecordCount,
+            processedFieldCount,
+            inputBytes,
+            inputFieldCount,
+            invalidDateCount,
+            missingFieldCount,
+            outOfOrderTimeStampCount,
+            lastDataTimeStamp,
+            emptyBucketCount,
+            sparseBucketCount,
+            bucketCount,
+            latestRecordTimeStamp,
+            earliestRecordTimeStamp,
+            latestEmptyBucketTimeStamp,
+            latestSparseBucketTimeStamp,
+            logTime
+        );
     }
+
 }

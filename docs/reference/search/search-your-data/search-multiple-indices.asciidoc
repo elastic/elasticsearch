@@ -1,0 +1,117 @@
+[[search-multiple-indices]]
+== Search multiple data streams and indices
+
+To search multiple data streams and indices, add them as comma-separated values
+in the <<search-search,search API>>'s request path.
+
+The following request searches the `my-index-000001` and `my-index-000002`
+indices.
+
+[source,console]
+----
+GET /my-index-000001,my-index-000002/_search
+{
+  "query": {
+    "match": {
+      "user.id": "kimchy"
+    }
+  }
+}
+----
+// TEST[setup:my_index]
+// TEST[s/^/PUT my-index-000002\n/]
+
+You can also search multiple data streams and indices using an index pattern.
+
+The following request targets the `my-index-*` index pattern. The request
+searches any data streams or indices in the cluster that start with `my-index-`.
+
+[source,console]
+----
+GET /my-index-*/_search
+{
+  "query": {
+    "match": {
+      "user.id": "kimchy"
+    }
+  }
+}
+----
+// TEST[setup:my_index]
+
+To search all data streams and indices in a cluster, omit the target from the
+request path. Alternatively, you can use `_all` or `*`.
+
+The following requests are equivalent and search all data streams and indices in
+the cluster.
+
+[source,console]
+----
+GET /_search
+{
+  "query": {
+    "match": {
+      "user.id": "kimchy"
+    }
+  }
+}
+
+GET /_all/_search
+{
+  "query": {
+    "match": {
+      "user.id": "kimchy"
+    }
+  }
+}
+
+GET /*/_search
+{
+  "query": {
+    "match": {
+      "user.id": "kimchy"
+    }
+  }
+}
+----
+// TEST[setup:my_index]
+
+[discrete]
+[[index-boost]]
+=== Index boost
+
+When searching multiple indices, you can use the `indices_boost` parameter to
+boost results from one or more specified indices. This is useful when hits
+coming from some indices matter more than hits from other.
+
+NOTE: You cannot use `indices_boost` with data streams.
+
+[source,console]
+--------------------------------------------------
+GET /_search
+{
+  "indices_boost": [
+    { "my-index-000001": 1.4 },
+    { "my-index-000002": 1.3 }
+  ]
+}
+--------------------------------------------------
+// TEST[s/^/PUT my-index-000001\nPUT my-index-000002\n/]
+
+Aliases and index patterns can also be used:
+
+[source,console]
+--------------------------------------------------
+GET /_search
+{
+  "indices_boost": [
+    { "my-alias":  1.4 },
+    { "my-index*": 1.3 }
+  ]
+}
+--------------------------------------------------
+// TEST[s/^/PUT my-index-000001\nPUT my-index-000001\/_alias\/my-alias\n/]
+
+If multiple matches are found, the first match will be used. For example, if an
+index is included in `alias1` and matches the `my-index*` pattern, a boost value
+of `1.4` is applied.

@@ -18,13 +18,11 @@ DATABASE()
 
 *Output*: string
 
-.Description:
-
-Returns the name of the database being queried. In the case of Elasticsearch SQL, this
+*Description*: Returns the name of the database being queried. In the case of Elasticsearch SQL, this
 is the name of the Elasticsearch cluster. This function should always return a non-null
 value.
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[database]
 --------------------------------------------------
@@ -41,12 +39,10 @@ USER()
 
 *Output*: string
 
-.Description:
+*Description*: Returns the username of the authenticated user executing the query. This function can
+return `null` in case <<configuring-stack-security,security>> is disabled.
 
-Returns the username of the authenticated user executing the query. This function can
-return `null` in case {stack-ov}/elasticsearch-security.html[Security] is disabled.
-
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[user]
 --------------------------------------------------

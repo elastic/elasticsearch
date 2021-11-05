@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.support.tasks;
@@ -25,7 +14,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
@@ -54,8 +44,7 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
 
     // NOTE: This constructor is only needed, because the setters in this class,
     // otherwise it can be removed and above fields can be made final.
-    public BaseTasksRequest() {
-    }
+    public BaseTasksRequest() {}
 
     protected BaseTasksRequest(StreamInput in) throws IOException {
         super(in);
@@ -80,8 +69,7 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (taskId.isSet() && nodes.length > 0) {
-            validationException = addValidationError("task id cannot be used together with node ids",
-                validationException);
+            validationException = addValidationError("task id cannot be used together with node ids", validationException);
         }
         return validationException;
     }
@@ -127,7 +115,6 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
         return (Request) this;
     }
 
-
     /**
      * Returns the parent task id that tasks should be filtered by
      */
@@ -140,7 +127,6 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
         this.parentTaskId = parentTaskId;
         return (Request) this;
     }
-
 
     public TimeValue getTimeout() {
         return this.timeout;
@@ -159,11 +145,11 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
     }
 
     public boolean match(Task task) {
-        if (getActions() != null && getActions().length > 0 && Regex.simpleMatch(getActions(), task.getAction()) == false) {
+        if (CollectionUtils.isEmpty(getActions()) == false && Regex.simpleMatch(getActions(), task.getAction()) == false) {
             return false;
         }
         if (getTaskId().isSet()) {
-            if(getTaskId().getId() != task.getId()) {
+            if (getTaskId().getId() != task.getId()) {
                 return false;
             }
         }

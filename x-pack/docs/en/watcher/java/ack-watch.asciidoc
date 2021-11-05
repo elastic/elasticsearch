@@ -1,13 +1,13 @@
-[float]
+[discrete]
 [[api-java-ack-watch]]
-=== Ack Watch API
+=== Ack watch API
 
-<<actions-ack-throttle, Acknowledging>> a watch enables you to manually throttle
+<<actions-ack-throttle,Acknowledging>> a watch enables you to manually throttle
 execution of the watch actions. The action's _acknowledgement state_ is stored in
 the `status.actions.<id>.ack.state` structure.
 
 The current status of the watch and the state of its actions are returned as part
-of the <<api-java-get-watch, Get Watch API>> response:
+of the <<api-java-get-watch,get watch API>> response:
 
 [source,java]
 --------------------------------------------------

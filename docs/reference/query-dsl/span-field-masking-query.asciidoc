@@ -1,5 +1,8 @@
 [[query-dsl-span-field-masking-query]]
-=== Span Field Masking Query
+=== Span field masking query
+++++
+<titleabbrev>Span field masking</titleabbrev>
+++++
 
 Wrapper to allow span queries to participate in composite single-field span queries by 'lying' about their search field. The span field masking query maps to Lucene's `SpanFieldMaskingQuery`
 
@@ -9,7 +12,7 @@ Span field masking query is invaluable in conjunction with *multi-fields* when s
 
 Example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -22,7 +25,7 @@ GET /_search
           }
         },
         {
-          "field_masking_span": {
+          "span_field_masking": {
             "query": {
               "span_term": {
                 "text.stems": "fox"
@@ -38,6 +41,5 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
 Note: as span field masking query returns the masked field, scoring will be done using the norms of the field name supplied. This may lead to unexpected scoring behaviour.

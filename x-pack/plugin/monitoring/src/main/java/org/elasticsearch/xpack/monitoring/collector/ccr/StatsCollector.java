@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.monitoring.collector.ccr;
@@ -11,13 +12,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ccr.CcrConstants;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
-import org.elasticsearch.xpack.core.ccr.client.CcrClient;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
 
@@ -37,25 +37,27 @@ public final class StatsCollector extends Collector {
 
     private final Settings settings;
     private final ThreadContext threadContext;
-    private final CcrClient ccrClient;
+    private final Client client;
 
     public StatsCollector(
-            final Settings settings,
-            final ClusterService clusterService,
-            final XPackLicenseState licenseState,
-            final Client client) {
-        this(settings, clusterService, licenseState, new XPackClient(client).ccr(), client.threadPool().getThreadContext());
+        final Settings settings,
+        final ClusterService clusterService,
+        final XPackLicenseState licenseState,
+        final Client client
+    ) {
+        this(settings, clusterService, licenseState, client, client.threadPool().getThreadContext());
     }
 
     StatsCollector(
-            final Settings settings,
-            final ClusterService clusterService,
-            final XPackLicenseState licenseState,
-            final CcrClient ccrClient,
-            final ThreadContext threadContext) {
+        final Settings settings,
+        final ClusterService clusterService,
+        final XPackLicenseState licenseState,
+        final Client client,
+        final ThreadContext threadContext
+    ) {
         super(TYPE, clusterService, CCR_STATS_TIMEOUT, licenseState);
         this.settings = settings;
-        this.ccrClient = ccrClient;
+        this.client = client;
         this.threadContext = threadContext;
     }
 
@@ -63,30 +65,31 @@ public final class StatsCollector extends Collector {
     protected boolean shouldCollect(final boolean isElectedMaster) {
         // this can only run when monitoring is allowed and CCR is enabled and allowed, but also only on the elected master node
         return isElectedMaster
-                && super.shouldCollect(isElectedMaster)
-                && XPackSettings.CCR_ENABLED_SETTING.get(settings)
-                && licenseState.isCcrAllowed();
+            && super.shouldCollect(isElectedMaster)
+            && XPackSettings.CCR_ENABLED_SETTING.get(settings)
+            && CcrConstants.CCR_FEATURE.checkWithoutTracking(licenseState);
     }
 
-
     @Override
-    protected Collection<MonitoringDoc> doCollect(
-            final MonitoringDoc.Node node,
-            final long interval,
-            final ClusterState clusterState) throws Exception {
+    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node, final long interval, final ClusterState clusterState)
+        throws Exception {
         try (ThreadContext.StoredContext ignore = threadContext.stashWithOrigin(MONITORING_ORIGIN)) {
             final long timestamp = timestamp();
             final String clusterUuid = clusterUuid(clusterState);
 
             final CcrStatsAction.Request request = new CcrStatsAction.Request();
-            final CcrStatsAction.Response response = ccrClient.stats(request).actionGet(getCollectionTimeout());
+            final CcrStatsAction.Response response = client.execute(CcrStatsAction.INSTANCE, request).actionGet(getCollectionTimeout());
 
-            final AutoFollowStatsMonitoringDoc autoFollowStatsDoc =
-                new AutoFollowStatsMonitoringDoc(clusterUuid, timestamp, interval, node, response.getAutoFollowStats());
+            final AutoFollowStatsMonitoringDoc autoFollowStatsDoc = new AutoFollowStatsMonitoringDoc(
+                clusterUuid,
+                timestamp,
+                interval,
+                node,
+                response.getAutoFollowStats()
+            );
 
             Set<String> collectionIndices = new HashSet<>(Arrays.asList(getCollectionIndices()));
-            List<MonitoringDoc> docs = response
-                .getFollowStats()
+            List<MonitoringDoc> docs = response.getFollowStats()
                 .getStatsResponses()
                 .stream()
                 .filter(statsResponse -> collectionIndices.isEmpty() || collectionIndices.contains(statsResponse.status().followerIndex()))

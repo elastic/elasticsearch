@@ -1,25 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.rollup.action;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 
@@ -28,7 +28,7 @@ import java.util.Collections;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
-public class StopRollupJobAction extends Action<StopRollupJobAction.Response> {
+public class StopRollupJobAction extends ActionType<StopRollupJobAction.Response> {
 
     public static final StopRollupJobAction INSTANCE = new StopRollupJobAction();
     public static final String NAME = "cluster:admin/xpack/rollup/stop";
@@ -37,17 +37,7 @@ public class StopRollupJobAction extends Action<StopRollupJobAction.Response> {
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
 
     private StopRollupJobAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, StopRollupJobAction.Response::new);
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
@@ -55,7 +45,7 @@ public class StopRollupJobAction extends Action<StopRollupJobAction.Response> {
         private boolean waitForCompletion = false;
         private TimeValue timeout = null;
 
-        public Request (String id) {
+        public Request(String id) {
             this(id, false, null);
         }
 
@@ -70,20 +60,16 @@ public class StopRollupJobAction extends Action<StopRollupJobAction.Response> {
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
-                waitForCompletion = in.readBoolean();
-                timeout = in.readTimeValue();
-            }
+            waitForCompletion = in.readBoolean();
+            timeout = in.readTimeValue();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
-            if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
-                out.writeBoolean(waitForCompletion);
-                out.writeTimeValue(timeout);
-            }
+            out.writeBoolean(waitForCompletion);
+            out.writeTimeValue(timeout);
         }
 
         public String getId() {

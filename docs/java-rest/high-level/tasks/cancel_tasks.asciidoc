@@ -22,7 +22,9 @@ include-tagged::{doc-tests}/TasksClientDocumentationIT.java[cancel-tasks-request
 --------------------------------------------------
 <1> Cancel a task
 <2> Cancel only cluster-related tasks
-<3> Cancel all tasks running on nodes nodeId1 and nodeId2
+<3> Should the request block until the cancellation of the task and its child tasks is completed.
+Otherwise, the request can return soon after the cancellation is started. Defaults to `false`.
+<4> Cancel all tasks running on nodes nodeId1 and nodeId2
 
 ==== Synchronous Execution
 

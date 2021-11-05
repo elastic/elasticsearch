@@ -1,20 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
-import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.Expressions.ParamOrdinal;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isNumeric;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
-abstract class NumericAggregate extends AggregateFunction {
+public abstract class NumericAggregate extends AggregateFunction {
 
     NumericAggregate(Source source, Expression field, List<Expression> parameters) {
         super(source, field, parameters);
@@ -26,11 +29,11 @@ abstract class NumericAggregate extends AggregateFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        return isNumeric(field(), sourceText(), ParamOrdinal.DEFAULT);
+        return isNumeric(field(), sourceText(), DEFAULT);
     }
 
     @Override
     public DataType dataType() {
-        return DataType.DOUBLE;
+        return DataTypes.DOUBLE;
     }
 }

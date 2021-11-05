@@ -1,0 +1,222 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_job:
+        job_id: jobs-get-result-categories
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "format":"xcontent",
+                "time_field":"time"
+            }
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      index:
+        index:  .ml-anomalies-jobs-get-result-categories
+        id:     jobs-get-result-categories-1
+        body:   { "job_id": "jobs-get-result-categories", "category_id": 1, "partition_field_name": "p", "partition_field_value": "v1" }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      index:
+        index:  .ml-anomalies-jobs-get-result-categories
+        id:     jobs-get-result-categories-2
+        body:   { "job_id": "jobs-get-result-categories", "category_id": 2, "partition_field_name": "p", "partition_field_value": "v2" }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      index:
+        index:  .ml-anomalies-jobs-get-result-categories
+        id:     jobs-get-result-categories-3
+        body:   { "job_id": "jobs-get-result-categories", "category_id": 3, "partition_field_name": "p", "partition_field_value": "v1" }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      index:
+        index:  .ml-anomalies-unrelated
+        id:     unrelated-1
+        body:   { "job_id": "unrelated", "category_id": 1 }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.refresh:
+        index: .ml-anomalies-jobs-get-result-categories
+
+---
+"Test result categories api":
+  - do:
+      ml.get_categories:
+        job_id: "jobs-get-result-categories"
+
+  - match: { count: 3 }
+  - match: { categories.0.job_id: jobs-get-result-categories }
+  - match: { categories.0.category_id: 1 }
+  - match: { categories.0.partition_field_name: p }
+  - match: { categories.0.partition_field_value: v1 }
+  - match: { categories.1.job_id: jobs-get-result-categories }
+  - match: { categories.1.category_id: 2 }
+  - match: { categories.1.partition_field_name: p }
+  - match: { categories.1.partition_field_value: v2 }
+  - match: { categories.2.job_id: jobs-get-result-categories }
+  - match: { categories.2.category_id: 3 }
+  - match: { categories.2.partition_field_name: p }
+  - match: { categories.2.partition_field_value: v1 }
+
+---
+"Test get categories with pagination":
+  - do:
+      ml.get_categories:
+        job_id: "jobs-get-result-categories"
+        size: 1
+
+  - length: { categories: 1 }
+  - match: { categories.0.job_id: jobs-get-result-categories }
+  - match: { categories.0.category_id: 1 }
+
+  - do:
+     ml.get_categories:
+        job_id: "jobs-get-result-categories"
+        from: 2
+        size: 2
+
+  - length: { categories: 1 }
+  - match: { categories.0.job_id: jobs-get-result-categories }
+  - match: { categories.0.category_id: 3 }
+
+---
+"Test post get categories with pagination":
+  - do:
+      ml.get_categories:
+        job_id: "jobs-get-result-categories"
+        body: >
+          {
+            "page": { "size": 1}
+          }
+
+  - length: { categories: 1 }
+  - match: { categories.0.job_id: jobs-get-result-categories }
+  - match: { categories.0.category_id: 1 }
+
+  - do:
+     ml.get_categories:
+        job_id: "jobs-get-result-categories"
+        body: >
+          {
+            "page": { "from":1, "size": 1}
+          }
+
+  - length: { categories: 1 }
+  - match: { categories.0.job_id: jobs-get-result-categories }
+  - match: { categories.0.category_id: 2 }
+
+---
+"Test get category by id":
+  - do:
+      ml.get_categories:
+        job_id: "jobs-get-result-categories"
+        category_id: "1"
+
+  - length: { categories: 1 }
+  - match: { categories.0.job_id: jobs-get-result-categories }
+  - match: { categories.0.category_id: 1 }
+
+---
+"Test get category by partition":
+  - do:
+      ml.get_categories:
+        job_id: "jobs-get-result-categories"
+        partition_field_value: "v1"
+
+  - length: { categories: 2 }
+  - match: { categories.0.job_id: jobs-get-result-categories }
+  - match: { categories.0.category_id: 1 }
+  - match: { categories.1.job_id: jobs-get-result-categories }
+  - match: { categories.1.category_id: 3 }
+
+  - do:
+      ml.get_categories:
+        job_id: "jobs-get-result-categories"
+        partition_field_value: "v2"
+
+  - length: { categories: 1 }
+  - match: { categories.0.job_id: jobs-get-result-categories }
+  - match: { categories.0.category_id: 2 }
+
+  - do:
+      ml.get_categories:
+        job_id: "jobs-get-result-categories"
+        partition_field_value: "v3"
+
+  - length: { categories: 0 }
+
+---
+"Test with invalid param combinations":
+  - do:
+      catch: bad_request
+      ml.get_categories:
+        job_id: "jobs-get-result-categories"
+        category_id: 1
+        from: 0
+
+  - do:
+      catch: bad_request
+      ml.get_categories:
+        job_id: "jobs-get-result-categories"
+        category_id: 1
+        size: 1
+
+  - do:
+      catch: bad_request
+      ml.get_categories:
+        job_id: "jobs-get-result-categories"
+        category_id: 1
+        from: 0
+        size: 1
+
+---
+"Test with invalid param combinations via body":
+  - do:
+      catch: bad_request
+      ml.get_categories:
+        job_id: "jobs-get-result-categories"
+        category_id: 1
+        body:
+          from: 0
+
+  - do:
+      catch: bad_request
+      ml.get_categories:
+        job_id: "jobs-get-result-categories"
+        category_id: 1
+        body:
+          size: 1
+
+  - do:
+      catch: bad_request
+      ml.get_categories:
+        job_id: "jobs-get-result-categories"
+        category_id: 1
+        body:
+          from: 0
+          size: 1
+
+---
+"Test with unknown job id":
+  - do:
+      catch: missing
+      ml.get_categories:
+        job_id: "non-existent-job"

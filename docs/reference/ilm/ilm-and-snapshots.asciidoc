@@ -1,33 +1,28 @@
 [role="xpack"]
 [testenv="basic"]
 [[index-lifecycle-and-snapshots]]
-== Restoring snapshots of managed indices
+== Restore a managed data stream or index
 
-When restoring a snapshot that contains indices managed by Index Lifecycle
-Management, the lifecycle will automatically continue to execute after the
-snapshot is restored. Notably, the `min_age` is relative to the original
-creation or rollover of the index, rather than when the index was restored. For
-example, a monthly index that is restored partway through its lifecycle after an
-accidental deletion will be continue through its lifecycle as expected: The
-index will be shrunk, reallocated to different nodes, or deleted on the same
-schedule whether or not it has been restored from a snapshot.
+When you restore a managed index or a data stream with managed backing indices, 
+{ilm-init} automatically resumes executing the restored indices' policies.
+A restored index's `min_age` is relative to when it was originally created or rolled over, 
+not its restoration time. 
+Policy actions are performed on the same schedule whether or not 
+an index has been restored from a snapshot.
+If you restore an index that was accidentally deleted half way through its month long lifecycle,
+it proceeds normally through the last two weeks of its lifecycle.
 
-However, there may be cases where you need to restore an index from a snapshot,
-but do not want it to automatically continue through its lifecycle, particularly
-if the index would rapidly progress through lifecycle phases due to its age. For
-example, you may wish to add or update documents in an index before it is marked
-read only or shrunk, or prevent an index from automatically being deleted.
+In some cases, you might want to prevent {ilm-init} from immediately executing
+its policy on a restored index.
+For example, if you are restoring an older snapshot you might want to 
+prevent it from rapidly progressing through all of its lifecycle phases. 
+You might want to add or update documents before it's marked read-only or shrunk, 
+or prevent the index from being immediately deleted.
 
-To stop lifecycle policy execution on an index restored from a snapshot, before
-restoring the snapshot, <<start-stop-ilm,lifecycle policy execution can be
-paused>> to allow the policy to be removed.
+To prevent {ilm-init} from executing a restored index's policy:
 
-For example, the following workflow can be used in the above situation to
-prevent the execution of the lifecycle policy for an index:
-
-1. Pause execution of all lifecycle policies using the <<ilm-stop,Stop ILM API>>
+1. Temporarily <<ilm-stop,stop {ilm-init}>>. This pauses execution of _all_ {ilm-init} policies.
 2. Restore the snapshot.
-3. Perform whatever operations you wish before resuming lifecycle execution, or
-    remove the lifecycle policy from the index using the
-    <<ilm-remove-policy,Remove Policy from Index API>>
-4. Resume execution of lifecycle policies using the <<ilm-start,Start ILM API>>
+3. <<ilm-remove-policy,Remove the policy>> from the index or perform whatever actions you need to 
+   before {ilm-init} resumes policy execution. 
+4. <<ilm-start,Restart {ilm-init}>> to resume policy execution.

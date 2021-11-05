@@ -1,22 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule;
-
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.watcher.trigger.schedule.support.DayOfWeek;
 import org.elasticsearch.xpack.watcher.trigger.schedule.support.DayTimes;
 import org.elasticsearch.xpack.watcher.trigger.schedule.support.WeekTimes;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.support.Strings.join;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -40,8 +40,17 @@ public class WeeklyScheduleTests extends ScheduleTestCase {
         String[] crons = expressions(schedule);
         assertThat(crons, arrayWithSize(time.times().length));
         for (DayTimes dayTimes : time.times()) {
-            assertThat(crons, hasItemInArray("0 " + join(",", dayTimes.minute()) + " " + join(",", dayTimes.hour()) + " ? * " +
-                    Strings.collectionToCommaDelimitedString(time.days())));
+            assertThat(
+                crons,
+                hasItemInArray(
+                    "0 "
+                        + join(",", dayTimes.minute())
+                        + " "
+                        + join(",", dayTimes.hour())
+                        + " ? * "
+                        + Strings.collectionToCommaDelimitedString(time.days())
+                )
+            );
         }
     }
 
@@ -56,8 +65,17 @@ public class WeeklyScheduleTests extends ScheduleTestCase {
         assertThat(crons, arrayWithSize(count));
         for (WeekTimes weekTimes : times) {
             for (DayTimes dayTimes : weekTimes.times()) {
-                assertThat(crons, hasItemInArray("0 " + join(",", dayTimes.minute()) + " " + join(",", dayTimes.hour()) + " ? * " +
-                        Strings.collectionToCommaDelimitedString(weekTimes.days())));
+                assertThat(
+                    crons,
+                    hasItemInArray(
+                        "0 "
+                            + join(",", dayTimes.minute())
+                            + " "
+                            + join(",", dayTimes.hour())
+                            + " ? * "
+                            + Strings.collectionToCommaDelimitedString(weekTimes.days())
+                    )
+                );
             }
         }
     }
@@ -75,14 +93,13 @@ public class WeeklyScheduleTests extends ScheduleTestCase {
 
     public void testParserSingleTime() throws Exception {
         DayTimes time = validDayTime();
-        XContentBuilder builder = jsonBuilder()
-                .startObject()
-                .field("on", "mon")
-                .startObject("at")
-                .array("hour", time.hour())
-                .array("minute", time.minute())
-                .endObject()
-                .endObject();
+        XContentBuilder builder = jsonBuilder().startObject()
+            .field("on", "mon")
+            .startObject("at")
+            .array("hour", time.hour())
+            .array("minute", time.minute())
+            .endObject()
+            .endObject();
         BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object
@@ -97,14 +114,13 @@ public class WeeklyScheduleTests extends ScheduleTestCase {
 
     public void testParserSingleTimeInvalid() throws Exception {
         HourAndMinute time = invalidDayTime();
-        XContentBuilder builder = jsonBuilder()
-                .startObject()
-                .field("on", "mon")
-                .startObject("at")
-                .field("hour", time.hour)
-                .field("minute", time.minute)
-                .endObject()
-                .endObject();
+        XContentBuilder builder = jsonBuilder().startObject()
+            .field("on", "mon")
+            .startObject("at")
+            .field("hour", time.hour)
+            .field("minute", time.minute)
+            .endObject()
+            .endObject();
         BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object
@@ -132,11 +148,7 @@ public class WeeklyScheduleTests extends ScheduleTestCase {
 
     public void testParserMultipleTimesObjectsInvalid() throws Exception {
         HourAndMinute[] times = invalidDayTimes();
-        XContentBuilder builder = jsonBuilder()
-                .startObject()
-                .field("on", randomDaysOfWeek())
-                .array("at", (Object[]) times)
-                .endObject();
+        XContentBuilder builder = jsonBuilder().startObject().field("on", randomDaysOfWeek()).array("at", (Object[]) times).endObject();
         BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object

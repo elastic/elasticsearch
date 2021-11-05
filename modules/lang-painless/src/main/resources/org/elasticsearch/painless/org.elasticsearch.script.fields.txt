@@ -1,0 +1,37 @@
+#
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License
+# 2.0 and the Server Side Public License, v 1; you may not use this file except
+# in compliance with, at your election, the Elastic License 2.0 or the Server
+# Side Public License, v 1.
+#
+
+# The whitelist for the fields api
+
+class org.elasticsearch.script.field.Field @dynamic_type {
+  String getName()
+  boolean isEmpty()
+  int size()
+}
+
+class org.elasticsearch.script.field.EmptyField @dynamic_type {
+  def get(def)
+  def get(int, def)
+}
+
+class org.elasticsearch.script.DocBasedScript {
+  org.elasticsearch.script.field.Field field(String)
+}
+
+class org.elasticsearch.script.field.DelegateDocValuesField @dynamic_type {
+}
+
+class org.elasticsearch.script.field.BinaryDocValuesField @dynamic_type {
+  ByteBuffer get(ByteBuffer)
+  ByteBuffer get(int, ByteBuffer)
+}
+
+class org.elasticsearch.script.field.BooleanDocValuesField @dynamic_type {
+  boolean get(boolean)
+  boolean get(int, boolean)
+}

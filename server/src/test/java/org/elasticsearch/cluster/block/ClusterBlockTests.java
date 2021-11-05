@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.block;
@@ -37,8 +26,8 @@ import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.oneOf;
 
 public class ClusterBlockTests extends ESTestCase {
 
@@ -75,17 +64,15 @@ public class ClusterBlockTests extends ESTestCase {
 
     public void testRemoveIndexBlockWithId() {
         final ClusterBlocks.Builder builder = ClusterBlocks.builder();
-        builder.addIndexBlock("index-1",
-            new ClusterBlock(1, "uuid", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL)));
-        builder.addIndexBlock("index-1",
-            new ClusterBlock(2, "uuid", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL)));
-        builder.addIndexBlock("index-1",
-            new ClusterBlock(3, "uuid", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL)));
-        builder.addIndexBlock("index-1",
-            new ClusterBlock(3, "other uuid", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL)));
+        builder.addIndexBlock("index-1", new ClusterBlock(1, "uuid", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL)));
+        builder.addIndexBlock("index-1", new ClusterBlock(2, "uuid", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL)));
+        builder.addIndexBlock("index-1", new ClusterBlock(3, "uuid", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL)));
+        builder.addIndexBlock(
+            "index-1",
+            new ClusterBlock(3, "other uuid", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL))
+        );
 
-        builder.addIndexBlock("index-2",
-            new ClusterBlock(3, "uuid3", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL)));
+        builder.addIndexBlock("index-2", new ClusterBlock(3, "uuid3", "", true, true, true, RestStatus.OK, copyOf(ClusterBlockLevel.ALL)));
 
         ClusterBlocks clusterBlocks = builder.build();
         assertThat(clusterBlocks.indices().get("index-1").size(), equalTo(4));
@@ -121,7 +108,7 @@ public class ClusterBlockTests extends ESTestCase {
         }
 
         assertThat(builder.build().indices().get("index").size(), equalTo(clusterBlocks.length));
-        assertThat(builder.build().getIndexBlockWithId("index", blockId), isOneOf(clusterBlocks));
+        assertThat(builder.build().getIndexBlockWithId("index", blockId), is(oneOf(clusterBlocks)));
         assertThat(builder.build().getIndexBlockWithId("index", randomValueOtherThan(blockId, ESTestCase::randomInt)), nullValue());
     }
 
@@ -130,10 +117,18 @@ public class ClusterBlockTests extends ESTestCase {
     }
 
     private ClusterBlock randomClusterBlock(final Version version) {
-        final String uuid = (version.onOrAfter(Version.V_6_7_0) && randomBoolean()) ? UUIDs.randomBase64UUID() : null;
+        final String uuid = randomBoolean() ? UUIDs.randomBase64UUID() : null;
         final List<ClusterBlockLevel> levels = Arrays.asList(ClusterBlockLevel.values());
-        return new ClusterBlock(randomInt(), uuid, "cluster block #" + randomInt(), randomBoolean(), randomBoolean(), randomBoolean(),
-            randomFrom(RestStatus.values()), copyOf(randomSubsetOf(randomIntBetween(1, levels.size()), levels)));
+        return new ClusterBlock(
+            randomInt(),
+            uuid,
+            "cluster block #" + randomInt(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomFrom(RestStatus.values()),
+            copyOf(randomSubsetOf(randomIntBetween(1, levels.size()), levels))
+        );
     }
 
     private void assertClusterBlockEquals(final ClusterBlock expected, final ClusterBlock actual) {

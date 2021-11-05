@@ -1,19 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.pagerduty;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.watcher.actions.pagerduty.PagerDutyAction;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
@@ -28,9 +29,12 @@ import java.util.Objects;
 public class SentEvent implements ToXContentObject {
 
     final IncidentEvent event;
-    @Nullable final HttpRequest request;
-    @Nullable final HttpResponse response;
-    @Nullable final String failureReason;
+    @Nullable
+    final HttpRequest request;
+    @Nullable
+    final HttpResponse response;
+    @Nullable
+    final String failureReason;
 
     public static SentEvent responded(IncidentEvent event, HttpRequest request, HttpResponse response) {
         String failureReason = resolveFailureReason(response);
@@ -66,9 +70,9 @@ public class SentEvent implements ToXContentObject {
         if (o == null || getClass() != o.getClass()) return false;
 
         SentEvent sentEvent = (SentEvent) o;
-        return Objects.equals(event, sentEvent.event) &&
-                Objects.equals(request, sentEvent.request) &&
-                Objects.equals(failureReason, sentEvent.failureReason);
+        return Objects.equals(event, sentEvent.event)
+            && Objects.equals(request, sentEvent.request)
+            && Objects.equals(failureReason, sentEvent.failureReason);
     }
 
     @Override
@@ -87,8 +91,7 @@ public class SentEvent implements ToXContentObject {
                 // as this makes debugging pagerduty services much harder, this should be changed to only filter for
                 // body.service_key - however the body is currently just a string, making filtering much harder
                 if (WatcherParams.hideSecrets(params)) {
-                    try (InputStream is = HttpRequest.filterToXContent(request, builder.contentType().xContent(),
-                            params, "body")) {
+                    try (InputStream is = HttpRequest.filterToXContent(request, builder.contentType(), params, "body")) {
                         builder.rawField(XField.REQUEST.getPreferredName(), is, builder.contentType());
                     }
                 } else {
@@ -115,10 +118,12 @@ public class SentEvent implements ToXContentObject {
 
         // lets first try to parse the error response in the body
         // based on https://developer.pagerduty.com/documentation/rest/errors
-        try (InputStream stream = response.body().streamInput();
-             XContentParser parser = JsonXContent.jsonXContent
-                     // EMPTY is safe here because we never call namedObject
-                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+        try (
+            InputStream stream = response.body().streamInput();
+            XContentParser parser = JsonXContent.jsonXContent
+                // EMPTY is safe here because we never call namedObject
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+        ) {
             parser.nextToken();
 
             String message = null;
@@ -138,8 +143,10 @@ public class SentEvent implements ToXContentObject {
                         errors.add(parser.text());
                     }
                 } else {
-                    throw new ElasticsearchParseException("could not parse pagerduty event response. unexpected field [{}]",
-                            currentFieldName);
+                    throw new ElasticsearchParseException(
+                        "could not parse pagerduty event response. unexpected field [{}]",
+                        currentFieldName
+                    );
                 }
             }
 
@@ -147,7 +154,7 @@ public class SentEvent implements ToXContentObject {
             if (message != null) {
                 sb.append(message);
             }
-            if (!errors.isEmpty()) {
+            if (errors.isEmpty() == false) {
                 sb.append(":");
                 for (String error : errors) {
                     sb.append(" ").append(error).append(".");
@@ -161,12 +168,18 @@ public class SentEvent implements ToXContentObject {
         }
 
         switch (status) {
-            case 400:   return "Bad Request";
-            case 401:   return "Unauthorized. The account service api key is invalid.";
-            case 403:   return "Forbidden. The account doesn't have permission to send this trigger.";
-            case 404:   return "The account used invalid HipChat APIs";
-            case 408:   return "Request Timeout. The request took too long to process.";
-            case 500:   return "PagerDuty Server Error. Internal error occurred while processing request.";
+            case 400:
+                return "Bad Request";
+            case 401:
+                return "Unauthorized. The account service api key is invalid.";
+            case 403:
+                return "Forbidden. The account doesn't have permission to send this trigger.";
+            case 404:
+                return "The account used invalid HipChat APIs";
+            case 408:
+                return "Request Timeout. The request took too long to process.";
+            case 500:
+                return "PagerDuty Server Error. Internal error occurred while processing request.";
             default:
                 return "Unknown Error";
         }

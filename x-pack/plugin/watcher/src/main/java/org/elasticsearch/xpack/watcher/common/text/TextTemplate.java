@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.common.text;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -29,35 +30,34 @@ public class TextTemplate implements ToXContent {
 
     private final Script script;
     private final String inlineTemplate;
-    private final boolean isUsingMustache;
+    private final boolean mayRequireCompilation;
 
     public TextTemplate(String template) {
         this.script = null;
         this.inlineTemplate = template;
-        this.isUsingMustache = template.contains("{{");
+        this.mayRequireCompilation = template.contains("{{");
     }
 
-    public TextTemplate(String template, @Nullable XContentType contentType, ScriptType type,
-                        @Nullable Map<String, Object> params) {
+    public TextTemplate(String template, @Nullable XContentType contentType, ScriptType type, @Nullable Map<String, Object> params) {
         Map<String, String> options = null;
         if (type == ScriptType.INLINE) {
             options = new HashMap<>();
             if (contentType != null) {
-                options.put(Script.CONTENT_TYPE_OPTION, contentType.mediaType());
+                options.put(Script.CONTENT_TYPE_OPTION, contentType.canonical().mediaType());
             }
         }
         if (params == null) {
             params = new HashMap<>();
         }
         this.script = new Script(type, type == ScriptType.STORED ? null : Script.DEFAULT_TEMPLATE_LANG, template, options, params);
-        this.isUsingMustache = template.contains("{{");
         this.inlineTemplate = null;
+        this.mayRequireCompilation = script.getType() == ScriptType.STORED || script.getIdOrCode().contains("{{");
     }
 
     public TextTemplate(Script script) {
         this.script = script;
         this.inlineTemplate = null;
-        this.isUsingMustache = script.getIdOrCode().contains("{{");
+        this.mayRequireCompilation = script.getType() == ScriptType.STORED || script.getIdOrCode().contains("{{");
     }
 
     public Script getScript() {
@@ -68,8 +68,14 @@ public class TextTemplate implements ToXContent {
         return script != null ? script.getIdOrCode() : inlineTemplate;
     }
 
-    public boolean isUsingMustache() {
-        return isUsingMustache;
+    /**
+     * Check if compilation may be required.
+     * If a stored script is used, we cannot tell at this stage, so we always assume
+     * that stored scripts require compilation.
+     * If an inline script is used, we checked for the mustache opening brackets
+     */
+    public boolean mayRequireCompilation() {
+        return mayRequireCompilation;
     }
 
     public XContentType getContentType() {
@@ -83,15 +89,15 @@ public class TextTemplate implements ToXContent {
             return null;
         }
 
-        return XContentType.fromMediaTypeOrFormat(mediaType);
+        return XContentType.fromMediaType(mediaType);
     }
 
     public ScriptType getType() {
-        return script != null ? script.getType(): ScriptType.INLINE;
+        return script != null ? script.getType() : ScriptType.INLINE;
     }
 
     public Map<String, Object> getParams() {
-        return script != null ? script.getParams(): null;
+        return script != null ? script.getParams() : null;
     }
 
     @Override
@@ -100,8 +106,7 @@ public class TextTemplate implements ToXContent {
         if (o == null || getClass() != o.getClass()) return false;
 
         TextTemplate template1 = (TextTemplate) o;
-        return Objects.equals(script, template1.script) &&
-                Objects.equals(inlineTemplate, template1.inlineTemplate);
+        return Objects.equals(script, template1.script) && Objects.equals(inlineTemplate, template1.inlineTemplate);
     }
 
     @Override
@@ -128,4 +133,3 @@ public class TextTemplate implements ToXContent {
         }
     }
 }
-

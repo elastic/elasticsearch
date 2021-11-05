@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
 
 import java.time.ZoneId;
@@ -14,7 +15,7 @@ import java.time.ZoneId;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.time;
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 
-public class TimeProcessorTests extends AbstractWireSerializingTestCase<TimeProcessor> {
+public class TimeProcessorTests extends AbstractSqlWireSerializingTestCase<TimeProcessor> {
 
     public static TimeProcessor randomTimeProcessor() {
         return new TimeProcessor(randomFrom(DateTimeExtractor.values()), randomZone());
@@ -28,6 +29,11 @@ public class TimeProcessorTests extends AbstractWireSerializingTestCase<TimeProc
     @Override
     protected Reader<TimeProcessor> instanceReader() {
         return TimeProcessor::new;
+    }
+
+    @Override
+    protected ZoneId instanceZoneId(TimeProcessor instance) {
+        return instance.zoneId();
     }
 
     @Override
@@ -71,7 +77,8 @@ public class TimeProcessorTests extends AbstractWireSerializingTestCase<TimeProc
 
         proc = new TimeProcessor(DateTimeExtractor.HOUR_OF_DAY, zoneId);
         assertEquals(10, proc.process(time(0L)));
-        assertEquals(20, proc.process(time(10, 20, 30, 123456789)));;
+        assertEquals(20, proc.process(time(10, 20, 30, 123456789)));
+        ;
         assertEquals(4, proc.process(time(18, 20, 30, 123456789)));
     }
 }

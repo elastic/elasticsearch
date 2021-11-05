@@ -1,3 +1,4 @@
 grant {
-  permission java.lang.RuntimePermission "queuePrintJob";
+  // example security manager permission
+  permission java.util.PropertyPermission "foobar", "read";
 };

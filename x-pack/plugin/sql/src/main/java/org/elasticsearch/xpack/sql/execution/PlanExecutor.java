@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.execution;
 
@@ -9,11 +10,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.sql.analysis.analyzer.PreAnalyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
-import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
 import org.elasticsearch.xpack.sql.execution.search.SourceGenerator;
-import org.elasticsearch.xpack.sql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer;
 import org.elasticsearch.xpack.sql.plan.physical.CommandExec;
 import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
@@ -21,10 +23,9 @@ import org.elasticsearch.xpack.sql.plan.physical.LocalExec;
 import org.elasticsearch.xpack.sql.planner.Planner;
 import org.elasticsearch.xpack.sql.planner.PlanningException;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
-import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.Cursor;
-import org.elasticsearch.xpack.sql.session.RowSet;
-import org.elasticsearch.xpack.sql.session.SchemaRowSet;
+import org.elasticsearch.xpack.sql.session.Cursor.Page;
+import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.stats.QueryMetric;
@@ -44,7 +45,7 @@ public class PlanExecutor {
     private final Verifier verifier;
     private final Optimizer optimizer;
     private final Planner planner;
-    
+
     private final Metrics metrics;
 
     public PlanExecutor(Client client, IndexResolver indexResolver, NamedWriteableRegistry writeableRegistry) {
@@ -52,8 +53,8 @@ public class PlanExecutor {
         this.writableRegistry = writeableRegistry;
 
         this.indexResolver = indexResolver;
-        this.functionRegistry = new FunctionRegistry();
-        
+        this.functionRegistry = new SqlFunctionRegistry();
+
         this.metrics = new Metrics();
 
         this.preAnalyzer = new PreAnalyzer();
@@ -62,11 +63,16 @@ public class PlanExecutor {
         this.planner = new Planner();
     }
 
-    private SqlSession newSession(Configuration cfg) {
+    private SqlSession newSession(SqlConfiguration cfg) {
         return new SqlSession(cfg, client, functionRegistry, indexResolver, preAnalyzer, verifier, optimizer, planner, this);
     }
 
-    public void searchSource(Configuration cfg, String sql, List<SqlTypedParamValue> params, ActionListener<SearchSourceBuilder> listener) {
+    public void searchSource(
+        SqlConfiguration cfg,
+        String sql,
+        List<SqlTypedParamValue> params,
+        ActionListener<SearchSourceBuilder> listener
+    ) {
         metrics.translate();
 
         newSession(cfg).sqlExecutable(sql, params, wrap(exec -> {
@@ -78,11 +84,10 @@ public class PlanExecutor {
             else {
                 String message = null;
                 if (exec instanceof LocalExec) {
-                    message = "Cannot generate a query DSL for an SQL query that either " +
-                            "its WHERE clause evaluates to FALSE or doesn't operate on a table (missing a FROM clause)";
+                    message = "Cannot generate a query DSL for an SQL query that either "
+                        + "its WHERE clause evaluates to FALSE or doesn't operate on a table (missing a FROM clause)";
                 } else if (exec instanceof CommandExec) {
-                    message = "Cannot generate a query DSL for a special SQL command " +
-                            "(e.g.: DESCRIBE, SHOW)";
+                    message = "Cannot generate a query DSL for a special SQL command " + "(e.g.: DESCRIBE, SHOW)";
                 } else {
                     message = "Cannot generate a query DSL";
                 }
@@ -91,7 +96,7 @@ public class PlanExecutor {
         }, listener::onFailure));
     }
 
-    public void sql(Configuration cfg, String sql, List<SqlTypedParamValue> params, ActionListener<SchemaRowSet> listener) {
+    public void sql(SqlConfiguration cfg, String sql, List<SqlTypedParamValue> params, ActionListener<Page> listener) {
         QueryMetric metric = QueryMetric.from(cfg.mode(), cfg.clientId());
         metrics.total(metric);
 
@@ -101,7 +106,7 @@ public class PlanExecutor {
         }));
     }
 
-    public void nextPage(Configuration cfg, Cursor cursor, ActionListener<RowSet> listener) {
+    public void nextPage(SqlConfiguration cfg, Cursor cursor, ActionListener<Page> listener) {
         QueryMetric metric = QueryMetric.from(cfg.mode(), cfg.clientId());
         metrics.total(metric);
         metrics.paging(metric);
@@ -112,10 +117,18 @@ public class PlanExecutor {
         }));
     }
 
-    public void cleanCursor(Configuration cfg, Cursor cursor, ActionListener<Boolean> listener) {
-        cursor.clear(cfg, client, listener);
+    public void cleanCursor(Cursor cursor, ActionListener<Boolean> listener) {
+        cursor.clear(client, listener);
     }
-    
+
+    public Client client() {
+        return client;
+    }
+
+    public NamedWriteableRegistry writeableRegistry() {
+        return writableRegistry;
+    }
+
     public Metrics metrics() {
         return this.metrics;
     }

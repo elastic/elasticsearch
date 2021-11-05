@@ -1,20 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.common.time.TimeUtils;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
 
 import java.io.IOException;
 import java.util.Date;
@@ -45,13 +47,20 @@ public class Forecast implements ToXContentObject, Writeable {
     public static final ConstructingObjectParser<Forecast, Void> STRICT_PARSER = createParser(false);
 
     private static ConstructingObjectParser<Forecast, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<Forecast, Void> parser = new ConstructingObjectParser<>(RESULT_TYPE_VALUE, ignoreUnknownFields,
-                a -> new Forecast((String) a[0], (String) a[1], (Date) a[2], (long) a[3], (int) a[4]));
+        ConstructingObjectParser<Forecast, Void> parser = new ConstructingObjectParser<>(
+            RESULT_TYPE_VALUE,
+            ignoreUnknownFields,
+            a -> new Forecast((String) a[0], (String) a[1], (Date) a[2], (long) a[3], (int) a[4])
+        );
 
         parser.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
         parser.declareString(ConstructingObjectParser.constructorArg(), FORECAST_ID);
-        parser.declareField(ConstructingObjectParser.constructorArg(),
-                p -> TimeUtils.parseTimeField(p, Result.TIMESTAMP.getPreferredName()), Result.TIMESTAMP, ValueType.VALUE);
+        parser.declareField(
+            ConstructingObjectParser.constructorArg(),
+            p -> TimeUtils.parseTimeField(p, Result.TIMESTAMP.getPreferredName()),
+            Result.TIMESTAMP,
+            ValueType.VALUE
+        );
         parser.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
         parser.declareInt(ConstructingObjectParser.constructorArg(), DETECTOR_INDEX);
         parser.declareString((modelForecast, s) -> {}, Result.RESULT_TYPE);
@@ -131,8 +140,7 @@ public class Forecast implements ToXContentObject, Writeable {
         builder.field(BUCKET_SPAN.getPreferredName(), bucketSpan);
         builder.field(DETECTOR_INDEX.getPreferredName(), detectorIndex);
         if (timestamp != null) {
-            builder.timeField(Result.TIMESTAMP.getPreferredName(),
-                    Result.TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
+            builder.timeField(Result.TIMESTAMP.getPreferredName(), Result.TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
         }
         if (partitionFieldName != null) {
             builder.field(PARTITION_FIELD_NAME.getPreferredName(), partitionFieldName);
@@ -165,12 +173,17 @@ public class Forecast implements ToXContentObject, Writeable {
     }
 
     public String getId() {
-        int valuesHash = Objects.hash(byFieldValue, partitionFieldValue);
-        int length = (byFieldValue == null ? 0 : byFieldValue.length()) +
-                (partitionFieldValue == null ? 0 : partitionFieldValue.length());
-        return jobId + "_model_forecast_" + forecastId + "_" + timestamp.getTime()
-                + "_" + bucketSpan + "_" + detectorIndex + "_"
-                + valuesHash + "_" + length;
+        return jobId
+            + "_model_forecast_"
+            + forecastId
+            + "_"
+            + timestamp.getTime()
+            + "_"
+            + bucketSpan
+            + "_"
+            + detectorIndex
+            + "_"
+            + MachineLearningField.valuesToId(byFieldValue, partitionFieldValue);
     }
 
     public Date getTimestamp() {
@@ -258,25 +271,37 @@ public class Forecast implements ToXContentObject, Writeable {
             return false;
         }
         Forecast that = (Forecast) other;
-        return Objects.equals(this.jobId, that.jobId) &&
-                Objects.equals(this.forecastId, that.forecastId) &&
-                Objects.equals(this.timestamp, that.timestamp) &&
-                Objects.equals(this.partitionFieldValue, that.partitionFieldValue) &&
-                Objects.equals(this.partitionFieldName, that.partitionFieldName) &&
-                Objects.equals(this.byFieldValue, that.byFieldValue) &&
-                Objects.equals(this.byFieldName, that.byFieldName) &&
-                Objects.equals(this.modelFeature, that.modelFeature) &&
-                this.forecastLower == that.forecastLower &&
-                this.forecastUpper == that.forecastUpper &&
-                this.forecastPrediction == that.forecastPrediction &&
-                this.bucketSpan ==  that.bucketSpan &&
-                this.detectorIndex == that.detectorIndex;
+        return Objects.equals(this.jobId, that.jobId)
+            && Objects.equals(this.forecastId, that.forecastId)
+            && Objects.equals(this.timestamp, that.timestamp)
+            && Objects.equals(this.partitionFieldValue, that.partitionFieldValue)
+            && Objects.equals(this.partitionFieldName, that.partitionFieldName)
+            && Objects.equals(this.byFieldValue, that.byFieldValue)
+            && Objects.equals(this.byFieldName, that.byFieldName)
+            && Objects.equals(this.modelFeature, that.modelFeature)
+            && this.forecastLower == that.forecastLower
+            && this.forecastUpper == that.forecastUpper
+            && this.forecastPrediction == that.forecastPrediction
+            && this.bucketSpan == that.bucketSpan
+            && this.detectorIndex == that.detectorIndex;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, forecastId, timestamp, partitionFieldName, partitionFieldValue,
-                byFieldName, byFieldValue, modelFeature, forecastLower, forecastUpper,
-                forecastPrediction, bucketSpan, detectorIndex);
+        return Objects.hash(
+            jobId,
+            forecastId,
+            timestamp,
+            partitionFieldName,
+            partitionFieldValue,
+            byFieldName,
+            byFieldValue,
+            modelFeature,
+            forecastLower,
+            forecastUpper,
+            forecastPrediction,
+            bucketSpan,
+            detectorIndex
+        );
     }
 }

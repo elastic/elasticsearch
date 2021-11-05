@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -16,8 +17,8 @@ import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.BucketInfluencer;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
-import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobRenormalizedResultsPersister;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.MockBatchedDocumentsIterator;
 import org.junit.Before;
 import org.mockito.MockitoAnnotations;
@@ -32,12 +33,11 @@ import java.util.Date;
 import java.util.Deque;
 import java.util.List;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.anyList;
-import static org.mockito.Matchers.anyListOf;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -59,12 +59,12 @@ public class ScoresUpdaterTests extends ESTestCase {
     private Job job;
     private ScoresUpdater scoresUpdater;
 
-    private Bucket generateBucket(Date timestamp) throws IOException {
+    private Bucket generateBucket(Date timestamp) {
         return new Bucket(JOB_ID, timestamp, DEFAULT_BUCKET_SPAN);
     }
 
     @Before
-    public void setUpMocks() throws IOException {
+    public void setUpMocks() {
         MockitoAnnotations.initMocks(this);
 
         Job.Builder jobBuilder = new Job.Builder(JOB_ID);
@@ -190,7 +190,7 @@ public class ScoresUpdaterTests extends ESTestCase {
         bucket1.addBucketInfluencer(createTimeBucketInfluencer(bucket1.getTimestamp(), 0.04, 42.0));
         List<Result<AnomalyRecord>> records = new ArrayList<>();
         Date date = new Date();
-        for (int i=0; i<100000; i++) {
+        for (int i = 0; i < 100000; i++) {
             records.add(new Result<>("foo", new AnomalyRecord("foo", date, 1)));
         }
 
@@ -203,11 +203,12 @@ public class ScoresUpdaterTests extends ESTestCase {
         batch.add(bucket2);
         givenProviderReturnsBuckets(batch);
 
-
         List<Deque<Result<AnomalyRecord>>> recordBatches = new ArrayList<>();
         recordBatches.add(new ArrayDeque<>(records));
         MockBatchedDocumentsIterator<AnomalyRecord> recordIter = new MockBatchedDocumentsIterator<>(
-                recordBatches, AnomalyRecord.RESULT_TYPE_VALUE);
+            recordBatches,
+            AnomalyRecord.RESULT_TYPE_VALUE
+        );
         recordIter.requireIncludeInterim(false);
         when(jobResultsProvider.newBatchedRecordsIterator(JOB_ID)).thenReturn(recordIter);
 
@@ -329,6 +330,7 @@ public class ScoresUpdaterTests extends ESTestCase {
     private void givenNormalizerFactoryReturnsMock() {
         when(normalizerFactory.create(JOB_ID)).thenReturn(normalizer);
     }
+
     private void givenProviderReturnsNoBuckets() {
         givenBuckets(Collections.emptyList());
     }
@@ -391,7 +393,9 @@ public class ScoresUpdaterTests extends ESTestCase {
         batches.add(batch);
 
         MockBatchedDocumentsIterator<AnomalyRecord> recordIter = new MockBatchedDocumentsIterator<>(
-                batches, AnomalyRecord.RESULT_TYPE_VALUE);
+            batches,
+            AnomalyRecord.RESULT_TYPE_VALUE
+        );
         recordIter.requireIncludeInterim(false);
         when(jobResultsProvider.newBatchedRecordsIterator(JOB_ID)).thenReturn(recordIter);
     }
@@ -414,9 +418,7 @@ public class ScoresUpdaterTests extends ESTestCase {
 
     private void verifyNormalizerWasInvoked(int times) throws IOException {
         int bucketSpan = job.getAnalysisConfig() == null ? 0 : ((Long) job.getAnalysisConfig().getBucketSpan().seconds()).intValue();
-        verify(normalizer, times(times)).normalize(
-                eq(bucketSpan), anyListOf(Normalizable.class),
-                eq(QUANTILES_STATE));
+        verify(normalizer, times(times)).normalize(eq(bucketSpan), anyList(), eq(QUANTILES_STATE));
     }
 
     private void verifyNothingWasUpdated() {

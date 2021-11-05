@@ -1,13 +1,16 @@
 [[analysis-uaxurlemail-tokenizer]]
-=== UAX URL Email  Tokenizer
+=== UAX URL email tokenizer
+++++
+<titleabbrev>UAX URL email</titleabbrev>
+++++
 
 The `uax_url_email` tokenizer is like the <<analysis-standard-tokenizer,`standard` tokenizer>> except that it
 recognises URLs and email addresses as single tokens.
 
-[float]
+[discrete]
 === Example output
 
-[source,js]
+[source,console]
 ---------------------------
 POST _analyze
 {
@@ -15,11 +18,10 @@ POST _analyze
   "text": "Email me at john.smith@global-international.com"
 }
 ---------------------------
-// CONSOLE
 
 /////////////////////
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "tokens": [
@@ -54,7 +56,6 @@ POST _analyze
   ]
 }
 ----------------------------
-// TESTRESPONSE
 
 /////////////////////
 
@@ -73,7 +74,7 @@ while the `standard` tokenizer would produce:
 [ Email, me, at, john.smith, global, international.com ]
 ---------------------------
 
-[float]
+[discrete]
 === Configuration
 
 The `uax_url_email` tokenizer accepts the following parameters:
@@ -84,15 +85,15 @@ The `uax_url_email` tokenizer accepts the following parameters:
     The maximum token length. If a token is seen that exceeds this length then
     it is split at `max_token_length` intervals. Defaults to `255`.
 
-[float]
+[discrete]
 === Example configuration
 
 In this example, we configure the `uax_url_email` tokenizer to have a
 `max_token_length` of 5 (for demonstration purposes):
 
-[source,js]
+[source,console]
 ----------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "analysis": {
@@ -111,17 +112,16 @@ PUT my_index
   }
 }
 
-POST my_index/_analyze
+POST my-index-000001/_analyze
 {
   "analyzer": "my_analyzer",
   "text": "john.smith@global-international.com"
 }
 ----------------------------
-// CONSOLE
 
 /////////////////////
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "tokens": [
@@ -184,7 +184,6 @@ POST my_index/_analyze
   ]
 }
 ----------------------------
-// TESTRESPONSE
 
 /////////////////////
 

@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.common.http;
 
 import org.apache.http.conn.ConnectTimeoutException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
@@ -25,13 +26,9 @@ public class HttpConnectionTimeoutTests extends ESTestCase {
     @Network
     public void testDefaultTimeout() throws Exception {
         Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
-        HttpClient httpClient = new HttpClient(Settings.EMPTY, new SSLService(environment.settings(), environment), null,
-            mockClusterService());
+        HttpClient httpClient = new HttpClient(Settings.EMPTY, new SSLService(environment), null, mockClusterService());
 
-        HttpRequest request = HttpRequest.builder(UNROUTABLE_IP, 12345)
-                .method(HttpMethod.POST)
-                .path("/" + randomAlphaOfLength(5))
-                .build();
+        HttpRequest request = HttpRequest.builder(UNROUTABLE_IP, 12345).method(HttpMethod.POST).path("/" + randomAlphaOfLength(5)).build();
 
         long start = System.nanoTime();
         try {
@@ -50,14 +47,14 @@ public class HttpConnectionTimeoutTests extends ESTestCase {
     @Network
     public void testDefaultTimeoutCustom() throws Exception {
         Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
-        HttpClient httpClient = new HttpClient(Settings.builder()
-                .put("xpack.http.default_connection_timeout", "5s").build(), new SSLService(environment.settings(), environment), null,
-            mockClusterService());
+        HttpClient httpClient = new HttpClient(
+            Settings.builder().put("xpack.http.default_connection_timeout", "5s").build(),
+            new SSLService(environment),
+            null,
+            mockClusterService()
+        );
 
-        HttpRequest request = HttpRequest.builder(UNROUTABLE_IP, 12345)
-                .method(HttpMethod.POST)
-                .path("/" + randomAlphaOfLength(5))
-                .build();
+        HttpRequest request = HttpRequest.builder(UNROUTABLE_IP, 12345).method(HttpMethod.POST).path("/" + randomAlphaOfLength(5)).build();
 
         long start = System.nanoTime();
         try {
@@ -76,15 +73,18 @@ public class HttpConnectionTimeoutTests extends ESTestCase {
     @Network
     public void testTimeoutCustomPerRequest() throws Exception {
         Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
-        HttpClient httpClient = new HttpClient(Settings.builder()
-                .put("xpack.http.default_connection_timeout", "10s").build(), new SSLService(environment.settings(), environment), null,
-            mockClusterService());
+        HttpClient httpClient = new HttpClient(
+            Settings.builder().put("xpack.http.default_connection_timeout", "10s").build(),
+            new SSLService(environment),
+            null,
+            mockClusterService()
+        );
 
         HttpRequest request = HttpRequest.builder(UNROUTABLE_IP, 12345)
-                .connectionTimeout(TimeValue.timeValueSeconds(5))
-                .method(HttpMethod.POST)
-                .path("/" + randomAlphaOfLength(5))
-                .build();
+            .connectionTimeout(TimeValue.timeValueSeconds(5))
+            .method(HttpMethod.POST)
+            .path("/" + randomAlphaOfLength(5))
+            .build();
 
         long start = System.nanoTime();
         try {

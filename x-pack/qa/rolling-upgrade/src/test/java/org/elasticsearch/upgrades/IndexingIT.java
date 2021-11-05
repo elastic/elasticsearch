@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.rest.action.document.RestBulkAction;
+import org.elasticsearch.core.Booleans;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -26,25 +26,25 @@ import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_A
 public class IndexingIT extends AbstractUpgradeTestCase {
     public void testIndexing() throws IOException {
         switch (CLUSTER_TYPE) {
-        case OLD:
-            break;
-        case MIXED:
-            Request waitForYellow = new Request("GET", "/_cluster/health");
-            waitForYellow.addParameter("wait_for_nodes", "3");
-            waitForYellow.addParameter("wait_for_status", "yellow");
-            client().performRequest(waitForYellow);
-            break;
-        case UPGRADED:
-            Request waitForGreen = new Request("GET", "/_cluster/health/test_index,index_with_replicas,empty_index");
-            waitForGreen.addParameter("wait_for_nodes", "3");
-            waitForGreen.addParameter("wait_for_status", "green");
-            // wait for long enough that we give delayed unassigned shards to stop being delayed
-            waitForGreen.addParameter("timeout", "70s");
-            waitForGreen.addParameter("level", "shards");
-            client().performRequest(waitForGreen);
-            break;
-        default:
-            throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+            case OLD:
+                break;
+            case MIXED:
+                ensureHealth((request -> {
+                    request.addParameter("timeout", "70s");
+                    request.addParameter("wait_for_nodes", "3");
+                    request.addParameter("wait_for_status", "yellow");
+                }));
+                break;
+            case UPGRADED:
+                ensureHealth("test_index,index_with_replicas,empty_index", (request -> {
+                    request.addParameter("wait_for_nodes", "3");
+                    request.addParameter("wait_for_status", "green");
+                    request.addParameter("timeout", "70s");
+                    request.addParameter("level", "shards");
+                }));
+                break;
+            default:
+                throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
 
         if (CLUSTER_TYPE == ClusterType.OLD) {
@@ -69,21 +69,21 @@ public class IndexingIT extends AbstractUpgradeTestCase {
 
         int expectedCount;
         switch (CLUSTER_TYPE) {
-        case OLD:
-            expectedCount = 5;
-            break;
-        case MIXED:
-            if (Booleans.parseBoolean(System.getProperty("tests.first_round"))) {
+            case OLD:
                 expectedCount = 5;
-            } else {
-                expectedCount = 10;
-            }
-            break;
-        case UPGRADED:
-            expectedCount = 15;
-            break;
-        default:
-            throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+                break;
+            case MIXED:
+                if (Booleans.parseBoolean(System.getProperty("tests.first_round"))) {
+                    expectedCount = 5;
+                } else {
+                    expectedCount = 10;
+                }
+                break;
+            case UPGRADED:
+                expectedCount = 15;
+                break;
+            default:
+                throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
 
         assertCount("test_index", expectedCount);
@@ -109,22 +109,23 @@ public class IndexingIT extends AbstractUpgradeTestCase {
     private void bulk(String index, String valueSuffix, int count) throws IOException {
         StringBuilder b = new StringBuilder();
         for (int i = 0; i < count; i++) {
-            b.append("{\"index\": {\"_index\": \"").append(index).append("\", \"_type\": \"_doc\"}}\n");
+            b.append("{\"index\": {\"_index\": \"").append(index).append("\"}}\n");
             b.append("{\"f1\": \"v").append(i).append(valueSuffix).append("\", \"f2\": ").append(i).append("}\n");
         }
         Request bulk = new Request("POST", "/_bulk");
         bulk.addParameter("refresh", "true");
-        bulk.setOptions(expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
         bulk.setJsonEntity(b.toString());
         client().performRequest(bulk);
     }
 
-    private void assertCount(String index, int count) throws IOException {
+    static void assertCount(String index, int count) throws IOException {
         Request searchTestIndexRequest = new Request("POST", "/" + index + "/_search");
         searchTestIndexRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
         searchTestIndexRequest.addParameter("filter_path", "hits.total");
         Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
-        assertEquals("{\"hits\":{\"total\":" + count + "}}",
-                EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8));
+        assertEquals(
+            "{\"hits\":{\"total\":" + count + "}}",
+            EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8)
+        );
     }
 }

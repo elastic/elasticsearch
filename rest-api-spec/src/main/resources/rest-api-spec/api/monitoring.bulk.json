@@ -1,0 +1,62 @@
+{
+  "monitoring.bulk":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/monitor-elasticsearch-cluster.html",
+      "description":"Used by the monitoring features to send monitoring data."
+    },
+    "stability":"stable",
+    "visibility":"private",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/x-ndjson"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_monitoring/bulk",
+          "methods":[
+            "POST",
+            "PUT"
+          ]
+        },
+        {
+          "path":"/_monitoring/{type}/bulk",
+          "methods":[
+            "POST",
+            "PUT"
+          ],
+          "parts":{
+            "type":{
+              "type":"string",
+              "description":"Default document type for items which don't provide one",
+              "deprecated":true
+            }
+          },
+          "deprecated":{
+            "version":"7.0.0",
+            "description":"Specifying types in urls has been deprecated"
+          }
+        }
+      ]
+    },
+    "params":{
+      "system_id":{
+        "type":"string",
+        "description":"Identifier of the monitored system"
+      },
+      "system_api_version":{
+        "type":"string",
+        "description":"API Version of the monitored system"
+      },
+      "interval":{
+        "type":"string",
+        "description":"Collection interval (e.g., '10s' or '10000ms') of the payload"
+      }
+    },
+    "body":{
+      "description":"The operation definition and data (action-data pairs), separated by newlines",
+      "required":true,
+      "serialize":"bulk"
+    }
+  }
+}

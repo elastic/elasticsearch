@@ -1,57 +1,155 @@
 [[indices-shards-stores]]
-== Indices Shard Stores
+=== Index shard stores API
+++++
+<titleabbrev>Index shard stores</titleabbrev>
+++++
 
-Provides store information for shard copies of indices.
-Store information reports on which nodes shard copies exist, the shard
-copy allocation ID, a unique identifier for each shard copy, and any exceptions
-encountered while opening the shard index or from earlier engine failure.
+Retrieves store information
+about replica shards in one or more indices.
+For data streams, the API retrieves store
+information for the stream's backing indices.
 
-By default, only lists store information for shards that have at least one
-unallocated copy. When the cluster health status is yellow, this will list
-store information for shards that have at least one unassigned replica.
-When the cluster health status is red, this will list store information
-for shards, which has unassigned primaries.
+[source,console]
+----
+GET /my-index-000001/_shard_stores
+----
+// TEST[setup:my_index]
 
-Endpoints include shard stores information for a specific index, several
-indices, or all:
 
-[source,js]
---------------------------------------------------
-# return information of only index test
+[[index-shard-stores-api-request]]
+==== {api-request-title}
+
+`GET /<target>/_shard_stores`
+
+`GET /_shard_stores`
+
+[[index-shard-stores-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-indices,index privilege>> for the target data stream,
+index, or alias.
+
+[[index-shard-stores-api-desc]]
+==== {api-description-title}
+
+The index shard stores API returns the following information:
+
+* The node on which each replica shard exists
+* Allocation ID for each replica shard
+* Unique ID for each replica shard
+* Any errors encountered
+  while opening the shard index
+  or from an earlier failure
+
+By default, the API only returns store information
+for primary shards that are unassigned
+or have one or more unassigned replica shards.
+
+
+[[index-shard-stores-api-path-params]]
+==== {api-path-parms-title}
+
+`<target>`::
+(Optional, string) Comma-separated list of data streams, indices, and aliases
+used to limit the request. Supports wildcards (`*`). To target all data streams
+and indices, omit this parameter or use `*` or `_all`.
+
+[[index-shard-stores-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `true`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
++
+Defaults to `open`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+
+`status`::
++
+--
+(Optional, string)
+Comma-separated list of shard health statuses
+used to limit the request.
+
+Valid values include:
+
+`green`::
+The primary shard and all replica shards are assigned.
+
+`yellow`::
+One or more replica shards are unassigned.
+
+`red`::
+The primary shard is unassigned.
+
+`all`::
+Return all shards,
+regardless of health status.
+
+Defaults to `yellow,red`.
+--
+
+[[index-shard-stores-api-example]]
+==== {api-examples-title}
+
+
+[[index-shard-stores-api-single-ex]]
+===== Get shard store information for a specific data stream or index
+
+[source,console]
+----
 GET /test/_shard_stores
+----
+// TEST[s/^/PUT test\n/]
 
-# return information of only test1 and test2 indices
+
+[[index-shard-stores-api-multi-ex]]
+===== Get shard store information for several data streams and indices
+
+[source,console]
+----
 GET /test1,test2/_shard_stores
+----
+// TEST[s/^/PUT test1\nPUT test2\n/]
 
-# return information of all indices
+
+[[index-shard-stores-api-all-ex]]
+===== Get shard store information for all data streams and indices
+
+[source,console]
+----
 GET /_shard_stores
---------------------------------------------------
-// CONSOLE
-// TEST[s/^/PUT test\nPUT test1\nPUT test2\n/]
+----
+// TEST[continued]
 
-The scope of shards to list store information can be changed through
-`status` param. Defaults to 'yellow' and 'red'. 'yellow' lists store information of
-shards with at least one unassigned replica and 'red' for shards with unassigned
-primary shard.
-Use 'green' to list store information for shards with all assigned copies.
 
-[source,js]
+[[index-shard-stores-api-health-ex]]
+===== Get shard store information based on cluster health
+
+You can use the `status` query parameter
+to limit returned information based on shard health.
+
+The following request only returns information
+for assigned primary and replica shards.
+
+[source,console]
 --------------------------------------------------
 GET /_shard_stores?status=green
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:node]
-// TEST[s/^/PUT my-index\n{"settings":{"number_of_shards":1, "number_of_replicas": 0}}\nPOST my-index\/test\?refresh\n{"test": "test"}\n/]
+// TEST[s/^/PUT my-index-000001\n{"settings":{"number_of_shards":1, "number_of_replicas": 0}}\nPOST my-index-000001\/_doc\?refresh\n{"test": "test"}\n/]
 
-Response:
+The API returns the following response:
 
-The shard stores information is grouped by indices and shard ids.
-
-[source,js]
+[source,console-result]
 --------------------------------------------------
 {
    "indices": {
-       "my-index": {
+       "my-index-000001": {
            "shards": {
               "0": { <1>
                 "stores": [ <2>
@@ -60,7 +158,8 @@ The shard stores information is grouped by indices and shard ids.
                             "name": "node_t0",
                             "ephemeral_id" : "9NlXRFGCT1m8tkvYCMK-8A",
                             "transport_address": "local[1]",
-                            "attributes": {}
+                            "attributes": {},
+                            "roles": [...]
                         },
                         "allocation_id": "2iNySv_OQVePRX-yaRH_lQ", <4>
                         "allocation" : "primary|replica|unused" <5>
@@ -77,6 +176,7 @@ The shard stores information is grouped by indices and shard ids.
 // TESTRESPONSE[s/"sPa3OgxLSYGvQ4oPs-Tajw"/\$node_name/]
 // TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]
 // TESTRESPONSE[s/"attributes": \{[^}]*\}/"attributes": $body.$_path/]
+// TESTRESPONSE[s/"roles": \[[^]]*\]/"roles": $body.$_path/]
 
 
 

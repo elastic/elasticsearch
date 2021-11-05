@@ -1,37 +1,25 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.index;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -39,13 +27,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -61,12 +50,12 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * Index request to index a typed JSON document into a specific index and make it searchable. Best
  * created using {@link org.elasticsearch.client.Requests#indexRequest(String)}.
  *
- * The index requires the {@link #index()}, {@link #type(String)}, {@link #id(String)} and
+ * The index requires the {@link #index()}, {@link #id(String)} and
  * {@link #source(byte[], XContentType)} to be set.
  *
  * The source (content to index) can be set in its bytes form using ({@link #source(byte[], XContentType)}),
- * its string form ({@link #source(String, XContentType)}) or using a {@link org.elasticsearch.common.xcontent.XContentBuilder}
- * ({@link #source(org.elasticsearch.common.xcontent.XContentBuilder)}).
+ * its string form ({@link #source(String, XContentType)}) or using a {@link org.elasticsearch.xcontent.XContentBuilder}
+ * ({@link #source(org.elasticsearch.xcontent.XContentBuilder)}).
  *
  * If the {@link #id(String)} is not set, it will be automatically generated.
  *
@@ -75,6 +64,8 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * @see org.elasticsearch.client.Client#index(IndexRequest)
  */
 public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implements DocWriteRequest<IndexRequest>, CompositeIndicesRequest {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(IndexRequest.class);
 
     /**
      * Max length of the source document to include into string()
@@ -85,8 +76,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     private static final ShardId NO_SHARD_ID = null;
 
-    // Set to null initially so we can know to override in bulk requests that have a default type.
-    private String type;
     private String id;
     @Nullable
     private String routing;
@@ -101,12 +90,17 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private XContentType contentType;
 
     private String pipeline;
+    private String finalPipeline;
+
+    private boolean isPipelineResolved;
+
+    private boolean requireAlias;
 
     /**
      * Value for {@link #getAutoGeneratedTimestamp()} if the document has an external
      * provided ID.
      */
-    public static final int UNSET_AUTO_GENERATED_TIMESTAMP = -1;
+    public static final long UNSET_AUTO_GENERATED_TIMESTAMP = -1L;
 
     private long autoGeneratedTimestamp = UNSET_AUTO_GENERATED_TIMESTAMP;
 
@@ -114,9 +108,18 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private long ifSeqNo = UNASSIGNED_SEQ_NO;
     private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
+    private Map<String, String> dynamicTemplates = Map.of();
+
     public IndexRequest(StreamInput in) throws IOException {
-        super(in);
-        type = in.readOptionalString();
+        this(null, in);
+    }
+
+    public IndexRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
+        super(shardId, in);
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            String type = in.readOptionalString();
+            assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but received [" + type + "]";
+        }
         id = in.readOptionalString();
         routing = in.readOptionalString();
         source = in.readBytesReference();
@@ -124,6 +127,12 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
         pipeline = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
+            finalPipeline = in.readOptionalString();
+        }
+        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
+            isPipelineResolved = in.readBoolean();
+        }
         isRetry = in.readBoolean();
         autoGeneratedTimestamp = in.readLong();
         if (in.readBoolean()) {
@@ -133,6 +142,14 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         ifSeqNo = in.readZLong();
         ifPrimaryTerm = in.readVLong();
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+            requireAlias = in.readBoolean();
+        } else {
+            requireAlias = false;
+        }
+        if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
+            dynamicTemplates = in.readMap(StreamInput::readString, StreamInput::readString);
+        }
     }
 
     public IndexRequest() {
@@ -140,41 +157,12 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     /**
-     * Constructs a new index request against the specific index. The {@link #type(String)}
+     * Constructs a new index request against the specific index. The
      * {@link #source(byte[], XContentType)} must be set.
      */
     public IndexRequest(String index) {
         super(NO_SHARD_ID);
         this.index = index;
-    }
-
-    /**
-     * Constructs a new index request against the specific index and type. The
-     * {@link #source(byte[], XContentType)} must be set.
-     * @deprecated Types are in the process of being removed. Use {@link #IndexRequest(String)} instead.
-     */
-    @Deprecated
-    public IndexRequest(String index, String type) {
-        super(NO_SHARD_ID);
-        this.index = index;
-        this.type = type;
-    }
-
-    /**
-     * Constructs a new index request against the index, type, id and using the source.
-     *
-     * @param index The index to index into
-     * @param type  The type to index into
-     * @param id    The id of document
-     *
-     * @deprecated Types are in the process of being removed. Use {@link #IndexRequest(String)} with {@link #id(String)} instead.
-     */
-    @Deprecated
-    public IndexRequest(String index, String type, String id) {
-        super(NO_SHARD_ID);
-        this.index = index;
-        this.type = type;
-        this.id = id;
     }
 
     @Override
@@ -183,54 +171,67 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (source == null) {
             validationException = addValidationError("source is missing", validationException);
         }
-        if (Strings.isEmpty(type())) {
-            validationException = addValidationError("type is missing", validationException);
-        }
         if (contentType == null) {
             validationException = addValidationError("content type is missing", validationException);
         }
+        assert opType == OpType.INDEX || opType == OpType.CREATE : "unexpected op-type: " + opType;
         final long resolvedVersion = resolveVersionDefaults();
-        if (opType() == OpType.CREATE) {
+        if (opType == OpType.CREATE) {
             if (versionType != VersionType.INTERNAL) {
-                validationException = addValidationError("create operations only support internal versioning. use index instead",
-                    validationException);
+                validationException = addValidationError(
+                    "create operations only support internal versioning. use index instead",
+                    validationException
+                );
                 return validationException;
             }
 
             if (resolvedVersion != Versions.MATCH_DELETED) {
-                validationException = addValidationError("create operations do not support explicit versions. use index instead",
-                    validationException);
+                validationException = addValidationError(
+                    "create operations do not support explicit versions. use index instead",
+                    validationException
+                );
                 return validationException;
             }
 
             if (ifSeqNo != UNASSIGNED_SEQ_NO || ifPrimaryTerm != UNASSIGNED_PRIMARY_TERM) {
-                validationException = addValidationError("create operations do not support compare and set. use index instead",
-                    validationException);
+                validationException = addValidationError(
+                    "create operations do not support compare and set. use index instead",
+                    validationException
+                );
                 return validationException;
             }
         }
 
-        if (opType() != OpType.INDEX && id == null) {
-            addValidationError("an id is required for a " + opType() + " operation", validationException);
+        if (id == null) {
+            if (versionType != VersionType.INTERNAL
+                || (resolvedVersion != Versions.MATCH_DELETED && resolvedVersion != Versions.MATCH_ANY)) {
+                validationException = addValidationError("an id must be provided if version type or value are set", validationException);
+            }
         }
 
         validationException = DocWriteRequest.validateSeqNoBasedCASParams(this, validationException);
 
         if (id != null && id.getBytes(StandardCharsets.UTF_8).length > 512) {
-            validationException = addValidationError("id is too long, must be no longer than 512 bytes but was: " +
-                            id.getBytes(StandardCharsets.UTF_8).length, validationException);
-        }
-
-        if (id == null && (versionType == VersionType.INTERNAL && resolvedVersion == Versions.MATCH_ANY) == false) {
-            validationException = addValidationError("an id must be provided if version type or value are set", validationException);
+            validationException = addValidationError(
+                "id [" + id + "] is too long, must be no longer than 512 bytes but was: " + id.getBytes(StandardCharsets.UTF_8).length,
+                validationException
+            );
         }
 
         if (pipeline != null && pipeline.isEmpty()) {
             validationException = addValidationError("pipeline cannot be an empty string", validationException);
         }
 
+        if (finalPipeline != null && finalPipeline.isEmpty()) {
+            validationException = addValidationError("final pipeline cannot be an empty string", validationException);
+        }
 
         return validationException;
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
     }
 
     /**
@@ -241,44 +242,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return contentType;
     }
 
-    /**
-     * The type of the indexed document.
-     * @deprecated Types are in the process of being removed.
-     */
-    @Deprecated
-    @Override
-    public String type() {
-        if (type == null) {
-            return MapperService.SINGLE_MAPPING_NAME;                    
-        }
-        return type;
-    }
-
-    /**
-     * Sets the type of the indexed document.
-     * @deprecated Types are in the process of being removed.
-     */
-    @Deprecated
-    @Override
-    public IndexRequest type(String type) {
-        this.type = type;
-        return this;
-    }
-
-    /**
-     * Set the default type supplied to a bulk
-     * request if this individual request's type is null
-     * or empty
-     * @deprecated Types are in the process of being removed.
-     */
-    @Deprecated
-    @Override
-    public IndexRequest defaultTypeIfNull(String defaultType) {
-        if (Strings.isNullOrEmpty(type)) {
-            type = defaultType;
-        }
-        return this;
-    }      
     /**
      * The id of the indexed document. If not set, will be automatically generated.
      */
@@ -331,6 +294,46 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     public String getPipeline() {
         return this.pipeline;
+    }
+
+    /**
+     * Sets the final ingest pipeline to be executed before indexing the document.
+     *
+     * @param finalPipeline the name of the final pipeline
+     * @return this index request
+     */
+    public IndexRequest setFinalPipeline(final String finalPipeline) {
+        this.finalPipeline = finalPipeline;
+        return this;
+    }
+
+    /**
+     * Returns the final ingest pipeline to be executed before indexing the document.
+     *
+     * @return the name of the final pipeline
+     */
+    public String getFinalPipeline() {
+        return this.finalPipeline;
+    }
+
+    /**
+     * Sets if the pipeline for this request has been resolved by the coordinating node.
+     *
+     * @param isPipelineResolved true if the pipeline has been resolved
+     * @return the request
+     */
+    public IndexRequest isPipelineResolved(final boolean isPipelineResolved) {
+        this.isPipelineResolved = isPipelineResolved;
+        return this;
+    }
+
+    /**
+     * Returns whether or not the pipeline for this request has been resolved by the coordinating node.
+     *
+     * @return true if the pipeline has been resolved
+     */
+    public boolean isPipelineResolved() {
+        return this.isPipelineResolved;
     }
 
     /**
@@ -410,8 +413,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             throw new IllegalArgumentException("The number of object passed must be even but was [" + source.length + "]");
         }
         if (source.length == 2 && source[0] instanceof BytesReference && source[1] instanceof Boolean) {
-            throw new IllegalArgumentException("you are using the removed method for source with bytes and unsafe flag, the unsafe flag"
-                + " was removed, please just use source(BytesReference)");
+            throw new IllegalArgumentException(
+                "you are using the removed method for source with bytes and unsafe flag, the unsafe flag"
+                    + " was removed, please just use source(BytesReference)"
+            );
         }
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
@@ -481,7 +486,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return this;
     }
 
-
     /**
      * Set to {@code true} to force this index to use {@link OpType#CREATE}.
      */
@@ -539,7 +543,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     public IndexRequest setIfSeqNo(long seqNo) {
         if (seqNo < 0 && seqNo != UNASSIGNED_SEQ_NO) {
-            throw new IllegalArgumentException("sequence numbers must be non negative. got [" +  seqNo + "].");
+            throw new IllegalArgumentException("sequence numbers must be non negative. got [" + seqNo + "].");
         }
         ifSeqNo = seqNo;
         return this;
@@ -584,22 +588,14 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return this.versionType;
     }
 
-
-    public void process(Version indexCreatedVersion, @Nullable MappingMetaData mappingMd, String concreteIndex) {
-        if (mappingMd != null) {
-            // might as well check for routing here
-            if (mappingMd.routing().required() && routing == null) {
-                throw new RoutingMissingException(concreteIndex, type(), id);
-            }
-        }
-
+    public void process() {
         if ("".equals(id)) {
             throw new IllegalArgumentException("if _id is specified it must not be empty");
         }
 
         // generate id if not already provided
         if (id == null) {
-            assert autoGeneratedTimestamp == -1 : "timestamp has already been generated!";
+            assert autoGeneratedTimestamp == UNSET_AUTO_GENERATED_TIMESTAMP : "timestamp has already been generated!";
             assert ifSeqNo == UNASSIGNED_SEQ_NO;
             assert ifPrimaryTerm == UNASSIGNED_PRIMARY_TERM;
             autoGeneratedTimestamp = Math.max(0, System.currentTimeMillis()); // extra paranoia
@@ -609,21 +605,36 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     /* resolve the routing if needed */
-    public void resolveRouting(MetaData metaData) {
-        routing(metaData.resolveWriteIndexRouting(routing, index));
+    public void resolveRouting(Metadata metadata) {
+        routing(metadata.resolveWriteIndexRouting(routing, index));
     }
 
-    @Override
-    public void readFrom(StreamInput in) {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    public void checkAutoIdWithOpTypeCreateSupportedByVersion(Version version) {
+        if (id == null && opType == OpType.CREATE && version.before(Version.V_7_5_0)) {
+            throw new IllegalArgumentException(
+                "optype create not supported for indexing requests without explicit id until all nodes " + "are on version 7.5.0 or higher"
+            );
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        checkAutoIdWithOpTypeCreateSupportedByVersion(out.getVersion());
         super.writeTo(out);
-        // A 7.x request allows null types but if deserialized in a 6.x node will cause nullpointer exceptions. 
-        // So we use the type accessor method here to make the type non-null (will default it to "_doc"). 
-        out.writeOptionalString(type());
+        writeBody(out);
+    }
+
+    @Override
+    public void writeThin(StreamOutput out) throws IOException {
+        checkAutoIdWithOpTypeCreateSupportedByVersion(out.getVersion());
+        super.writeThin(out);
+        writeBody(out);
+    }
+
+    private void writeBody(StreamOutput out) throws IOException {
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
+        }
         out.writeOptionalString(id);
         out.writeOptionalString(routing);
         out.writeBytesReference(source);
@@ -631,16 +642,32 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         out.writeLong(version);
         out.writeByte(versionType.getValue());
         out.writeOptionalString(pipeline);
+        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
+            out.writeOptionalString(finalPipeline);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
+            out.writeBoolean(isPipelineResolved);
+        }
         out.writeBoolean(isRetry);
         out.writeLong(autoGeneratedTimestamp);
         if (contentType != null) {
             out.writeBoolean(true);
-            out.writeEnum(contentType);
+            XContentHelper.writeTo(out, contentType);
         } else {
             out.writeBoolean(false);
         }
         out.writeZLong(ifSeqNo);
         out.writeVLong(ifPrimaryTerm);
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+            out.writeBoolean(requireAlias);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
+            out.writeMap(dynamicTemplates, StreamOutput::writeString, StreamOutput::writeString);
+        } else {
+            if (dynamicTemplates.isEmpty() == false) {
+                throw new IllegalArgumentException("[dynamic_templates] parameter requires all nodes on " + Version.V_7_13_0 + " or later");
+            }
+        }
     }
 
     @Override
@@ -648,17 +675,23 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         String sSource = "_na_";
         try {
             if (source.length() > MAX_SOURCE_LENGTH_IN_TOSTRING) {
-                sSource = "n/a, actual length: [" + new ByteSizeValue(source.length()).toString() + "], max length: " +
-                    new ByteSizeValue(MAX_SOURCE_LENGTH_IN_TOSTRING).toString();
+                sSource = "n/a, actual length: ["
+                    + new ByteSizeValue(source.length()).toString()
+                    + "], max length: "
+                    + new ByteSizeValue(MAX_SOURCE_LENGTH_IN_TOSTRING).toString();
             } else {
                 sSource = XContentHelper.convertToJson(source, false);
             }
         } catch (Exception e) {
             // ignore
         }
-        return "index {[" + index + "][" + type() + "][" + id + "], source[" + sSource + "]}";
+        return "index {[" + index + "][" + id + "], source[" + sSource + "]}";
     }
 
+    @Override
+    public boolean includeDataStreams() {
+        return true;
+    }
 
     /**
      * Returns <code>true</code> if this request has been sent to a shard copy more than once.
@@ -678,5 +711,43 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     public long getAutoGeneratedTimestamp() {
         return autoGeneratedTimestamp;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(id) + (source == null ? 0 : source.length());
+    }
+
+    @Override
+    public boolean isRequireAlias() {
+        return requireAlias;
+    }
+
+    @Override
+    public int route(IndexRouting indexRouting) {
+        assert id != null : "route must be called after process";
+        return indexRouting.indexShard(id, routing, contentType, source);
+    }
+
+    public IndexRequest setRequireAlias(boolean requireAlias) {
+        this.requireAlias = requireAlias;
+        return this;
+    }
+
+    /**
+     * Specifies a map from the full path of field names to the name of dynamic mapping templates
+     */
+    public IndexRequest setDynamicTemplates(Map<String, String> dynamicTemplates) {
+        this.dynamicTemplates = Objects.requireNonNull(dynamicTemplates);
+        return this;
+    }
+
+    /**
+     * Returns a map from the full path of field names to the name of dynamic mapping templates.
+     *
+     * @see #setDynamicTemplates(Map)
+     */
+    public Map<String, String> getDynamicTemplates() {
+        return dynamicTemplates;
     }
 }

@@ -1,15 +1,18 @@
 [[analysis-letter-tokenizer]]
-=== Letter Tokenizer
+=== Letter tokenizer
+++++
+<titleabbrev>Letter</titleabbrev>
+++++
 
 The `letter` tokenizer breaks text into terms whenever it encounters a
 character which is not a letter. It does a reasonable job for most European
 languages, but does a terrible job for some Asian languages, where words are
 not separated by spaces.
 
-[float]
+[discrete]
 === Example output
 
-[source,js]
+[source,console]
 ---------------------------
 POST _analyze
 {
@@ -17,11 +20,10 @@ POST _analyze
   "text": "The 2 QUICK Brown-Foxes jumped over the lazy dog's bone."
 }
 ---------------------------
-// CONSOLE
 
 /////////////////////
 
-[source,js]
+[source,console-result]
 ----------------------------
 {
   "tokens": [
@@ -105,7 +107,6 @@ POST _analyze
   ]
 }
 ----------------------------
-// TESTRESPONSE
 
 /////////////////////
 
@@ -117,7 +118,7 @@ The above sentence would produce the following terms:
 [ The, QUICK, Brown, Foxes, jumped, over, the, lazy, dog, s, bone ]
 ---------------------------
 
-[float]
+[discrete]
 === Configuration
 
 The `letter` tokenizer is not configurable.

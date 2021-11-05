@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.jira;
 
 import org.apache.http.HttpStatus;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.common.http.HttpProxy;
@@ -29,13 +30,13 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.common.collect.Tuple.tuple;
+import static org.elasticsearch.core.Tuple.tuple;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -78,6 +79,16 @@ public class JiraAccountTests extends ESTestCase {
         Settings settings4 = Settings.builder().setSecureSettings(secureSettings).build();
         e = expectThrows(SettingsException.class, () -> new JiraAccount("test", settings4, null));
         assertThat(e.getMessage(), containsString("invalid jira [test] account settings. missing required [secure_password] setting"));
+    }
+
+    public void testInvalidSchemeUrl() throws Exception {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(JiraAccount.SECURE_URL_SETTING.getKey(), "test"); // Setting test as invalid scheme url
+        secureSettings.setString(JiraAccount.SECURE_USER_SETTING.getKey(), "foo");
+        secureSettings.setString(JiraAccount.SECURE_PASSWORD_SETTING.getKey(), "password");
+        Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
+        SettingsException e = expectThrows(SettingsException.class, () -> new JiraAccount("test", settings, null));
+        assertThat(e.getMessage(), containsString("invalid jira [test] account settings. invalid [secure_url] setting"));
     }
 
     public void testUnsecureAccountUrl() throws Exception {
@@ -166,14 +177,21 @@ public class JiraAccountTests extends ESTestCase {
         assertThat(request.path(), is(expectedPath));
     }
 
+    @SuppressWarnings("unchecked")
     private void addAccountSettings(String name, Settings.Builder builder) {
         final MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.notification.jira.account." + name + "." + JiraAccount.SECURE_URL_SETTING.getKey(),
-                "https://internal-jira.elastic.co:443");
-        secureSettings.setString("xpack.notification.jira.account." + name + "." + JiraAccount.SECURE_USER_SETTING.getKey(),
-                randomAlphaOfLength(10));
-        secureSettings.setString("xpack.notification.jira.account." + name + "." + JiraAccount.SECURE_PASSWORD_SETTING.getKey(),
-                randomAlphaOfLength(10));
+        secureSettings.setString(
+            "xpack.notification.jira.account." + name + "." + JiraAccount.SECURE_URL_SETTING.getKey(),
+            "https://internal-jira.elastic.co:443"
+        );
+        secureSettings.setString(
+            "xpack.notification.jira.account." + name + "." + JiraAccount.SECURE_USER_SETTING.getKey(),
+            randomAlphaOfLength(10)
+        );
+        secureSettings.setString(
+            "xpack.notification.jira.account." + name + "." + JiraAccount.SECURE_PASSWORD_SETTING.getKey(),
+            randomAlphaOfLength(10)
+        );
         builder.setSecureSettings(secureSettings);
 
         Map<String, Object> defaults = randomIssueDefaults();
@@ -216,13 +234,13 @@ public class JiraAccountTests extends ESTestCase {
 
     static Tuple<Integer, String> randomHttpError() {
         Tuple<Integer, String> error = randomFrom(
-                tuple(400, "Bad Request"),
-                tuple(401, "Unauthorized (authentication credentials are invalid)"),
-                tuple(403, "Forbidden (account doesn't have permission to create this issue)"),
-                tuple(404, "Not Found (account uses invalid JIRA REST APIs)"),
-                tuple(408, "Request Timeout (request took too long to process)"),
-                tuple(500, "JIRA Server Error (internal error occurred while processing request)"),
-                tuple(666, "Unknown Error")
+            tuple(400, "Bad Request"),
+            tuple(401, "Unauthorized (authentication credentials are invalid)"),
+            tuple(403, "Forbidden (account doesn't have permission to create this issue)"),
+            tuple(404, "Not Found (account uses invalid JIRA REST APIs)"),
+            tuple(408, "Request Timeout (request took too long to process)"),
+            tuple(500, "JIRA Server Error (internal error occurred while processing request)"),
+            tuple(666, "Unknown Error")
         );
         return error;
     }

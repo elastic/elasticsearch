@@ -1,32 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.adjacency;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,9 +24,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class InternalAdjacencyMatrix
-    extends InternalMultiBucketAggregation<InternalAdjacencyMatrix,InternalAdjacencyMatrix.InternalBucket>
-    implements AdjacencyMatrix {
+public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<InternalAdjacencyMatrix, InternalAdjacencyMatrix.InternalBucket>
+    implements
+        AdjacencyMatrix {
     public static class InternalBucket extends InternalMultiBucketAggregation.InternalBucket implements AdjacencyMatrix.Bucket {
 
         private final String key;
@@ -58,7 +45,7 @@ public class InternalAdjacencyMatrix
         public InternalBucket(StreamInput in) throws IOException {
             key = in.readOptionalString();
             docCount = in.readVLong();
-            aggregations = new InternalAggregations(in);
+            aggregations = InternalAggregations.readFrom(in);
         }
 
         @Override
@@ -84,23 +71,8 @@ public class InternalAdjacencyMatrix
         }
 
         @Override
-        public Aggregations getAggregations() {
+        public InternalAggregations getAggregations() {
             return aggregations;
-        }
-
-        InternalBucket reduce(List<InternalBucket> buckets, ReduceContext context) {
-            InternalBucket reduced = null;
-            List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
-            for (InternalBucket bucket : buckets) {
-                if (reduced == null) {
-                    reduced = new InternalBucket(bucket.key, bucket.docCount, bucket.aggregations);
-                } else {
-                    reduced.docCount += bucket.docCount;
-                }
-                aggregationsList.add(bucket.aggregations);
-            }
-            reduced.aggregations = InternalAggregations.reduce(aggregationsList, context);
-            return reduced;
         }
 
         @Override
@@ -123,8 +95,8 @@ public class InternalAdjacencyMatrix
             }
             InternalBucket that = (InternalBucket) other;
             return Objects.equals(key, that.key)
-                    && Objects.equals(docCount, that.docCount)
-                    && Objects.equals(aggregations, that.aggregations);
+                && Objects.equals(docCount, that.docCount)
+                && Objects.equals(aggregations, that.aggregations);
         }
 
         @Override
@@ -136,9 +108,8 @@ public class InternalAdjacencyMatrix
     private final List<InternalBucket> buckets;
     private Map<String, InternalBucket> bucketMap;
 
-    public InternalAdjacencyMatrix(String name, List<InternalBucket> buckets,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+    public InternalAdjacencyMatrix(String name, List<InternalBucket> buckets, Map<String, Object> metadata) {
+        super(name, metadata);
         this.buckets = buckets;
     }
 
@@ -171,7 +142,7 @@ public class InternalAdjacencyMatrix
 
     @Override
     public InternalAdjacencyMatrix create(List<InternalBucket> buckets) {
-        return new InternalAdjacencyMatrix(this.name, buckets, this.pipelineAggregators(), this.metaData);
+        return new InternalAdjacencyMatrix(this.name, buckets, this.metadata);
     }
 
     @Override
@@ -196,13 +167,13 @@ public class InternalAdjacencyMatrix
     }
 
     @Override
-    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         Map<String, List<InternalBucket>> bucketsMap = new HashMap<>();
         for (InternalAggregation aggregation : aggregations) {
             InternalAdjacencyMatrix filters = (InternalAdjacencyMatrix) aggregation;
             for (InternalBucket bucket : filters.buckets) {
                 List<InternalBucket> sameRangeList = bucketsMap.get(bucket.key);
-                if(sameRangeList == null){
+                if (sameRangeList == null) {
                     sameRangeList = new ArrayList<>(aggregations.size());
                     bucketsMap.put(bucket.key, sameRangeList);
                 }
@@ -212,19 +183,33 @@ public class InternalAdjacencyMatrix
 
         ArrayList<InternalBucket> reducedBuckets = new ArrayList<>(bucketsMap.size());
         for (List<InternalBucket> sameRangeList : bucketsMap.values()) {
-            InternalBucket reducedBucket = sameRangeList.get(0).reduce(sameRangeList, reduceContext);
-            if(reducedBucket.docCount >= 1){
-                reduceContext.consumeBucketsAndMaybeBreak(1);
+            InternalBucket reducedBucket = reduceBucket(sameRangeList, reduceContext);
+            if (reducedBucket.docCount >= 1) {
                 reducedBuckets.add(reducedBucket);
-            } else {
-                reduceContext.consumeBucketsAndMaybeBreak(-countInnerBucket(reducedBucket));
             }
         }
+        reduceContext.consumeBucketsAndMaybeBreak(reducedBuckets.size());
         Collections.sort(reducedBuckets, Comparator.comparing(InternalBucket::getKey));
 
-        InternalAdjacencyMatrix reduced = new InternalAdjacencyMatrix(name, reducedBuckets, pipelineAggregators(),
-                getMetaData());
+        InternalAdjacencyMatrix reduced = new InternalAdjacencyMatrix(name, reducedBuckets, getMetadata());
 
+        return reduced;
+    }
+
+    @Override
+    protected InternalBucket reduceBucket(List<InternalBucket> buckets, ReduceContext context) {
+        assert buckets.size() > 0;
+        InternalBucket reduced = null;
+        List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
+        for (InternalBucket bucket : buckets) {
+            if (reduced == null) {
+                reduced = new InternalBucket(bucket.key, bucket.docCount, bucket.aggregations);
+            } else {
+                reduced.docCount += bucket.docCount;
+            }
+            aggregationsList.add(bucket.aggregations);
+        }
+        reduced.aggregations = InternalAggregations.reduce(aggregationsList, context);
         return reduced;
     }
 
@@ -239,12 +224,16 @@ public class InternalAdjacencyMatrix
     }
 
     @Override
-    protected int doHashCode() {
-        return Objects.hash(buckets);
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), buckets);
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+
         InternalAdjacencyMatrix that = (InternalAdjacencyMatrix) obj;
         return Objects.equals(buckets, that.buckets);
     }

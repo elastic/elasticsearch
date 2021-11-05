@@ -1,20 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.action;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -22,7 +23,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Response for get API keys.<br>
@@ -52,26 +53,20 @@ public final class GetApiKeyResponse extends ActionResponse implements ToXConten
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject()
-            .array("api_keys", (Object[]) foundApiKeysInfo);
+        builder.startObject().array("api_keys", (Object[]) foundApiKeysInfo);
         return builder.endObject();
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
         out.writeArray(foundApiKeysInfo);
     }
 
     @SuppressWarnings("unchecked")
-    static ConstructingObjectParser<GetApiKeyResponse, Void> PARSER = new ConstructingObjectParser<>("get_api_key_response", args -> {
-        return (args[0] == null) ? GetApiKeyResponse.emptyResponse() : new GetApiKeyResponse((List<ApiKey>) args[0]);
-    });
+    static final ConstructingObjectParser<GetApiKeyResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "get_api_key_response",
+        args -> { return (args[0] == null) ? GetApiKeyResponse.emptyResponse() : new GetApiKeyResponse((List<ApiKey>) args[0]); }
+    );
     static {
         PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ApiKey.fromXContent(p), new ParseField("api_keys"));
     }

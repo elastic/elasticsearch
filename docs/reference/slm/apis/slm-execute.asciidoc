@@ -1,0 +1,65 @@
+[role="xpack"]
+[testenv="basic"]
+[[slm-api-execute-lifecycle]]
+=== Execute snapshot lifecycle policy API
+++++
+<titleabbrev>Execute snapshot lifecycle policy</titleabbrev>
+++++
+
+Immediately creates a snapshot according to the lifecycle policy, 
+without waiting for the scheduled time.
+
+[[slm-api-execute-lifecycle-request]]
+==== {api-request-title}
+
+`PUT /_slm/policy/<snapshot-lifecycle-policy-id>/_execute`
+
+[[slm-api-execute-lifecycle-prereqs]]
+==== {api-prereq-title}
+
+If the {es} {security-features} are enabled, you must have the `manage_slm`
+cluster privilege to use this API. For more information, see
+<<security-privileges>>.
+
+[[slm-api-execute-lifecycle-desc]]
+==== {api-description-title}
+
+Manually applies the snapshot policy to immediately create a snapshot. 
+The snapshot policy is normally applied according to its schedule,
+but you might want to manually execute a policy before performing an upgrade
+or other maintenance. 
+
+[[slm-api-execute-lifecycle-path-params]]
+==== {api-path-parms-title}
+
+`<policy-id>`::
+(Required, string)
+ID of the snapshot lifecycle policy to execute.
+
+[[slm-api-execute-lifecycle-example]]
+==== {api-examples-title}
+
+To take an immediate snapshot according to the `daily-snapshots` policy:
+
+[source,console]
+--------------------------------------------------
+POST /_slm/policy/daily-snapshots/_execute
+--------------------------------------------------
+// TEST[skip:we can't easily handle snapshots from docs tests]
+
+If successful, this request returns the generated snapshot name:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "snapshot_name": "daily-snap-2019.04.24-gwrqoo2xtea3q57vvg0uea"
+}
+--------------------------------------------------
+// TESTRESPONSE[skip:we can't handle snapshots from docs tests]
+
+The snapshot is taken in the background. You can use the 
+<<snapshot-lifecycle-management-api,snapshot APIs>> to 
+<<snapshots-monitor-snapshot-restore,monitor the status of the snapshot>>.
+
+To see the status of a policy's most recent snapshot, you can use the 
+<<slm-api-get-policy,get snapshot lifecycle policy API>>.

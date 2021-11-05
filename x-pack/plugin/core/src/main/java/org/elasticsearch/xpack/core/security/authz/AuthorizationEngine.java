@@ -1,13 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.authz;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
@@ -22,6 +25,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * <p>
@@ -127,25 +132,32 @@ public interface AuthorizationEngine {
      *                            alias or index
      * @param listener the listener to be notified of the authorization result
      */
-    void authorizeIndexAction(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                              AsyncSupplier<ResolvedIndices> indicesAsyncSupplier, Map<String, AliasOrIndex> aliasOrIndexLookup,
-                              ActionListener<IndexAuthorizationResult> listener);
+    void authorizeIndexAction(
+        RequestInfo requestInfo,
+        AuthorizationInfo authorizationInfo,
+        AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
+        Map<String, IndexAbstraction> aliasOrIndexLookup,
+        ActionListener<IndexAuthorizationResult> listener
+    );
 
     /**
-     * Asynchronously loads a list of alias and index names for which the user is authorized
+     * Asynchronously loads a set of alias and index names for which the user is authorized
      * to execute the requested action.
      *
      * @param requestInfo object contain the request and associated information such as the action
      *                    and associated user(s)
      * @param authorizationInfo information needed from authorization that was previously retrieved
      *                          from {@link #resolveAuthorizationInfo(RequestInfo, ActionListener)}
-     * @param aliasOrIndexLookup a map of a string name to the cluster metadata specific to that
+     * @param indicesLookup a map of a string name to the cluster metadata specific to that
      *                            alias or index
      * @param listener the listener to be notified of the authorization result
      */
-    void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                               Map<String, AliasOrIndex> aliasOrIndexLookup, ActionListener<List<String>> listener);
-
+    void loadAuthorizedIndices(
+        RequestInfo requestInfo,
+        AuthorizationInfo authorizationInfo,
+        Map<String, IndexAbstraction> indicesLookup,
+        ActionListener<Set<String>> listener
+    );
 
     /**
      * Asynchronously checks that the permissions a user would have for a given list of names do
@@ -164,8 +176,12 @@ public interface AuthorizationEngine {
      *                            the name in the key would have.
      * @param listener the listener to be notified of the authorization result
      */
-    void validateIndexPermissionsAreSubset(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                                           Map<String, List<String>> indexNameToNewNames, ActionListener<AuthorizationResult> listener);
+    void validateIndexPermissionsAreSubset(
+        RequestInfo requestInfo,
+        AuthorizationInfo authorizationInfo,
+        Map<String, List<String>> indexNameToNewNames,
+        ActionListener<AuthorizationResult> listener
+    );
 
     /**
      * Checks the current user's privileges against those that being requested to check in the
@@ -179,9 +195,13 @@ public interface AuthorizationEngine {
      * @param applicationPrivilegeDescriptors a collection of application privilege descriptors
      * @param listener the listener to be notified of the has privileges response
      */
-    void checkPrivileges(Authentication authentication, AuthorizationInfo authorizationInfo, HasPrivilegesRequest hasPrivilegesRequest,
-                         Collection<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors,
-                         ActionListener<HasPrivilegesResponse> listener);
+    void checkPrivileges(
+        Authentication authentication,
+        AuthorizationInfo authorizationInfo,
+        HasPrivilegesRequest hasPrivilegesRequest,
+        Collection<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors,
+        ActionListener<HasPrivilegesResponse> listener
+    );
 
     /**
      * Retrieve's the current user's privileges in a standard format that can be rendered via an
@@ -193,8 +213,12 @@ public interface AuthorizationEngine {
      * @param request the request for retrieving the user's privileges
      * @param listener the listener to be notified of the has privileges response
      */
-    void getUserPrivileges(Authentication authentication, AuthorizationInfo authorizationInfo, GetUserPrivilegesRequest request,
-                           ActionListener<GetUserPrivilegesResponse> listener);
+    void getUserPrivileges(
+        Authentication authentication,
+        AuthorizationInfo authorizationInfo,
+        GetUserPrivilegesRequest request,
+        ActionListener<GetUserPrivilegesResponse> listener
+    );
 
     /**
      * Interface for objects that contains the information needed to authorize a request
@@ -243,11 +267,19 @@ public interface AuthorizationEngine {
         private final Authentication authentication;
         private final TransportRequest request;
         private final String action;
+        @Nullable
+        private final AuthorizationContext originatingAuthorizationContext;
 
-        public RequestInfo(Authentication authentication, TransportRequest request, String action) {
-            this.authentication = authentication;
-            this.request = request;
-            this.action = action;
+        public RequestInfo(
+            Authentication authentication,
+            TransportRequest request,
+            String action,
+            AuthorizationContext originatingContext
+        ) {
+            this.authentication = Objects.requireNonNull(authentication);
+            this.request = Objects.requireNonNull(request);
+            this.action = Objects.requireNonNull(action);
+            this.originatingAuthorizationContext = originatingContext;
         }
 
         public String getAction() {
@@ -260,6 +292,27 @@ public interface AuthorizationEngine {
 
         public TransportRequest getRequest() {
             return request;
+        }
+
+        @Nullable
+        public AuthorizationContext getOriginatingAuthorizationContext() {
+            return originatingAuthorizationContext;
+        }
+
+        @Override
+        public String toString() {
+            return getClass().getSimpleName()
+                + '{'
+                + "authentication=["
+                + authentication
+                + "], request=["
+                + request
+                + "], action=["
+                + action
+                + ']'
+                + ", parent=["
+                + originatingAuthorizationContext
+                + "]}";
         }
     }
 
@@ -293,6 +346,14 @@ public interface AuthorizationEngine {
         }
 
         /**
+         * Returns additional context about an authorization failure, if {@link #isGranted()} is false.
+         */
+        @Nullable
+        public String getFailureContext() {
+            return null;
+        }
+
+        /**
          * Returns a new authorization result that is granted and auditable
          */
         public static AuthorizationResult granted() {
@@ -319,6 +380,46 @@ public interface AuthorizationEngine {
         public IndexAuthorizationResult(boolean auditable, IndicesAccessControl indicesAccessControl) {
             super(indicesAccessControl == null || indicesAccessControl.isGranted(), auditable);
             this.indicesAccessControl = indicesAccessControl;
+        }
+
+        @Override
+        public String getFailureContext() {
+            if (isGranted()) {
+                return null;
+            } else {
+                return getFailureDescription(indicesAccessControl.getDeniedIndices());
+            }
+        }
+
+        public static String getFailureDescription(Collection<?> deniedIndices) {
+            if (deniedIndices.isEmpty()) {
+                return null;
+            }
+            return "on indices [" + Strings.collectionToCommaDelimitedString(deniedIndices) + "]";
+        }
+
+        public IndicesAccessControl getIndicesAccessControl() {
+            return indicesAccessControl;
+        }
+    }
+
+    final class AuthorizationContext {
+        private final String action;
+        private final AuthorizationInfo authorizationInfo;
+        private final IndicesAccessControl indicesAccessControl;
+
+        public AuthorizationContext(String action, AuthorizationInfo authorizationInfo, IndicesAccessControl accessControl) {
+            this.action = action;
+            this.authorizationInfo = authorizationInfo;
+            this.indicesAccessControl = accessControl;
+        }
+
+        public String getAction() {
+            return action;
+        }
+
+        public AuthorizationInfo getAuthorizationInfo() {
+            return authorizationInfo;
         }
 
         public IndicesAccessControl getIndicesAccessControl() {

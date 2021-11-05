@@ -1,12 +1,26 @@
 [[query-dsl-simple-query-string-query]]
-=== Simple Query String Query
+=== Simple query string query
+++++
+<titleabbrev>Simple query string</titleabbrev>
+++++
 
-A query that uses the SimpleQueryParser to parse its context. Unlike the
-regular `query_string` query, the `simple_query_string` query will never
-throw an exception, and discards invalid parts of the query. Here is
-an example:
+Returns documents based on a provided query string, using a parser with a
+limited but fault-tolerant syntax.
 
-[source,js]
+This query uses a <<simple-query-string-syntax,simple syntax>> to parse and
+split the provided query string into terms based on special operators. The query
+then <<analysis,analyzes>> each term independently before returning matching
+documents.
+
+While its syntax is more limited than the
+<<query-dsl-query-string-query,`query_string` query>>, the `simple_query_string`
+query does not return errors for invalid syntax. Instead, it ignores any invalid
+parts of the query string.
+
+[[simple-query-string-query-ex-request]]
+==== Example request
+
+[source,console]
 --------------------------------------------------
 GET /_search
 {
@@ -19,74 +33,106 @@ GET /_search
   }
 }
 --------------------------------------------------
-// CONSOLE
 
-The `simple_query_string` top level parameters include:
 
-[cols="<,<",options="header",]
-|=======================================================================
-|Parameter |Description
-|`query` |The actual query to be parsed. See below for syntax.
+[[simple-query-string-top-level-params]]
+==== Top-level parameters for `simple_query_string`
 
-|`fields` |The fields to perform the parsed query against. Defaults to the
-`index.query.default_field` index settings, which in turn defaults to `*`. `*`
-extracts all fields in the mapping that are eligible to term queries and filters
-the metadata fields.
+`query`::
+(Required, string) Query string you wish to parse and use for search. See <<simple-query-string-syntax>>.
 
-WARNING: There is a limit on the number of fields that can be queried
-at once. It is defined by the `indices.query.bool.max_clause_count` <<search-settings>>
-which defaults to 1024.
+`fields`::
++
+--
+(Optional, array of strings) Array of fields you wish to search.
 
-|`default_operator` |The default operator used if no explicit operator
-is specified. For example, with a default operator of `OR`, the query
-`capital of Hungary` is translated to `capital OR of OR Hungary`, and
-with default operator of `AND`, the same query is translated to
-`capital AND of AND Hungary`. The default value is `OR`.
+This field accepts wildcard expressions. You also can boost relevance scores for
+matches to particular fields using a caret (`^`) notation. See
+<<simple-query-string-boost>> for examples.
 
-|`analyzer` |Force the analyzer to use to analyze each term of the query when
-creating composite queries.
+Defaults to the `index.query.default_field` index setting, which has a default
+value of `*`. The `*` value extracts all fields that are eligible to term
+queries and filters the metadata fields. All extracted fields are then combined
+to build a query if no `prefix` is specified.
 
-|`flags` |A set of <<supported-flags,flags>> specifying which features of the 
-`simple_query_string` to enable. Defaults to `ALL`.
+WARNING: There is a limit on the number of fields that can be queried at once.
+It is defined by the `indices.query.bool.max_clause_count`
+<<search-settings,search setting>>, which defaults to `1024`.
+--
 
-|`analyze_wildcard` | Whether terms of prefix queries should be automatically
-analyzed or not. If `true` a best effort will be made to analyze the prefix. However,
-some analyzers will be not able to provide a meaningful results
-based just on the prefix of a term. Defaults to `false`.
+`default_operator`::
++
+--
+(Optional, string) Default boolean logic used to interpret text in the query
+string if no operators are specified. Valid values are:
 
-|`lenient` | If set to `true` will cause format based failures
-(like providing text to a numeric field) to be ignored.
+`OR` (Default)::
+For example, a query string of `capital of Hungary` is interpreted as `capital
+OR of OR Hungary`.
 
-|`minimum_should_match` | The minimum number of clauses that must match for a
- document to be returned. See the
- <<query-dsl-minimum-should-match,`minimum_should_match`>> documentation for the
- full list of options.
+`AND`::
+For example, a query string of `capital of Hungary` is interpreted as `capital
+AND of AND Hungary`.
+--
 
-|`quote_field_suffix` | A suffix to append to fields for quoted parts of
-the query string. This allows to use a field that has a different analysis chain
-for exact matching. Look <<mixing-exact-search-with-stemming,here>> for a
-comprehensive example.
+`analyze_wildcard`::
+(Optional, Boolean) If `true`, the query attempts to analyze wildcard terms in
+the query string. Defaults to `false`.
 
-|`auto_generate_synonyms_phrase_query` |Whether phrase queries should be automatically generated for multi terms synonyms.
-Defaults to `true`.
+`analyzer`::
+(Optional, string) <<analysis,Analyzer>> used to convert text in the
+query string into tokens. Defaults to the
+<<specify-index-time-analyzer,index-time analyzer>> mapped for the
+`default_field`. If no analyzer is mapped, the index's default analyzer is used.
 
-|`all_fields` |  deprecated[6.0.0, set `fields` to `*` instead]
-Perform the query on all fields detected in the mapping that can
-be queried.
+`auto_generate_synonyms_phrase_query`::
+(Optional, Boolean) If `true`, the parser creates a
+<<query-dsl-match-query-phrase,`match_phrase`>> query for each
+<<token-graphs-multi-position-tokens,multi-position token>>. Defaults to `true`.
+For examples, see <<simple-query-string-synonyms>>.
 
-|`fuzzy_prefix_length` |Set the prefix length for fuzzy queries. Default
-is `0`.
+`flags`::
+(Optional, string) List of enabled operators for the
+<<simple-query-string-syntax,simple query string syntax>>. Defaults to `ALL`
+(all operators). See <<supported-flags>> for valid values.
 
-|`fuzzy_max_expansions` |Controls the number of terms fuzzy queries will
-expand to. Defaults to `50`
+`fuzzy_max_expansions`::
+(Optional, integer) Maximum number of terms to which the query expands for fuzzy
+matching. Defaults to `50`.
 
-|`fuzzy_transpositions` |Set to `false` to disable fuzzy transpositions (`ab` -> `ba`).
-Default is `true`.
-|=======================================================================
+`fuzzy_prefix_length`::
+(Optional, integer) Number of beginning characters left unchanged for fuzzy
+matching. Defaults to `0`.
 
-[float]
-===== Simple Query String Syntax
-The `simple_query_string` supports the following special characters:
+`fuzzy_transpositions`::
+(Optional, Boolean) If `true`, edits for fuzzy matching include
+transpositions of two adjacent characters (ab → ba). Defaults to `true`.
+
+`lenient`::
+(Optional, Boolean) If `true`, format-based errors, such as providing a text
+value for a <<number,numeric>> field, are ignored. Defaults to `false`.
+
+`minimum_should_match`::
+(Optional, string) Minimum number of clauses that must match for a document to
+be returned. See the <<query-dsl-minimum-should-match, `minimum_should_match`
+parameter>> for valid values and more information.
+
+`quote_field_suffix`::
++
+--
+(Optional, string) Suffix appended to quoted text in the query string.
+
+You can use this suffix to use a different analysis method for exact matches.
+See <<mixing-exact-search-with-stemming>>.
+--
+
+
+[[simple-query-string-query-notes]]
+==== Notes
+
+[[simple-query-string-syntax]]
+===== Simple query string syntax
+The `simple_query_string` query supports the following operators:
 
 * `+` signifies AND operation
 * `|` signifies OR operation
@@ -97,131 +143,167 @@ The `simple_query_string` supports the following special characters:
 * `~N` after a word signifies edit distance (fuzziness)
 * `~N` after a phrase signifies slop amount
 
-In order to search for any of these special characters, they will need to
-be escaped with `\`.
+To use one of these characters literally, escape it with a preceding backslash
+(`\`).
 
-Be aware that this syntax may have a different behavior depending on the
-`default_operator` value. For example, consider the following query:
+The behavior of these operators may differ depending on the `default_operator`
+value. For example:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "simple_query_string" : {
-            "fields" : ["content"],
-            "query" : "foo bar -baz"
-        }
+  "query": {
+    "simple_query_string": {
+      "fields": [ "content" ],
+      "query": "foo bar -baz"
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 
-You may expect that documents containing only "foo" or "bar" will be returned,
-as long as they do not contain "baz", however, due to the `default_operator`
-being OR, this really means "match documents that contain "foo" or documents
-that contain "bar", or documents that don't contain "baz". If this is unintended
-then the query can be switched to `"foo bar +-baz"` which will not return
-documents that contain "baz".
+This search is intended to only return documents containing `foo` or `bar` that
+also do **not** contain `baz`. However because of a `default_operator` of `OR`,
+this search actually returns documents that contain `foo` or `bar` and any
+documents that don't contain `baz`. To return documents as intended, change the
+query string to `foo bar +-baz`.
 
-[float]
-==== Default Field
-When not explicitly specifying the field to search on in the query
-string syntax, the `index.query.default_field` will be used to derive
-which fields to search on. It defaults to `*` and the query will automatically
-attempt to determine the existing fields in the index's mapping that are queryable,
-and perform the search on those fields.
-
-[float]
-==== Multi Field
-The fields parameter can also include pattern based field names,
-allowing to automatically expand to the relevant fields (dynamically
-introduced fields included). For example:
-
-[source,js]
---------------------------------------------------
-GET /_search
-{
-    "query": {
-        "simple_query_string" : {
-            "fields" : ["content", "name.*^5"],
-            "query" : "foo bar baz"
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-
-[float]
 [[supported-flags]]
-==== Flags
-`simple_query_string` support multiple flags to specify which parsing features
-should be enabled. It is specified as a `|`-delimited string with the
-`flags` parameter:
+===== Limit operators
+You can use the `flags` parameter to limit the supported operators for the
+simple query string syntax.
 
-[source,js]
+To explicitly enable only specific operators, use a `|` separator. For example,
+a `flags` value of `OR|AND|PREFIX` disables all operators except `OR`, `AND`,
+and `PREFIX`.
+
+[source,console]
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "simple_query_string" : {
-            "query" : "foo | bar + baz*",
-            "flags" : "OR|AND|PREFIX"
-        }
+  "query": {
+    "simple_query_string": {
+      "query": "foo | bar + baz*",
+      "flags": "OR|AND|PREFIX"
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 
+[[supported-flags-values]]
+====== Valid values
 The available flags are:
 
-[cols="<,<",options="header",]
-|=======================================================================
-|Flag |Description
-|`ALL` |Enables all parsing features. This is the default.
-|`NONE` |Switches off all parsing features.
-|`AND` |Enables the `+` AND operator.
-|`OR` |Enables the `\|` OR operator.
-|`NOT` |Enables the `-` NOT operator.
-|`PREFIX` |Enables the `*` Prefix operator.
-|`PHRASE` |Enables the `"` quotes operator used to search for phrases.
-|`PRECEDENCE` |Enables the `(` and `)` operators to control operator precedence.
-|`ESCAPE` |Enables `\` as the escape character.
-|`WHITESPACE` |Enables whitespaces as split characters.
-|`FUZZY` |Enables the `~N` operator after a word where N is an integer denoting the allowed edit distance for matching (see <<fuzziness>>).
-|`SLOP` |Enables the `~N` operator after a phrase where N is an integer denoting the slop amount.
-|`NEAR` |Synonymous to `SLOP`.
-|=======================================================================
+`ALL` (Default)::
+Enables all optional operators.
 
-[float]
-==== Synonyms
+`AND`::
+Enables the `+` AND operator.
 
-The `simple_query_string` query supports multi-terms synonym expansion with the <<analysis-synonym-graph-tokenfilter,
-synonym_graph>> token filter. When this filter is used, the parser creates a phrase query for each multi-terms synonyms.
-For example, the following synonym: `"ny, new york" would produce:`
+`ESCAPE`::
+Enables `\` as an escape character.
+
+`FUZZY`::
+Enables the `~N` operator after a word, where `N` is an integer denoting the
+allowed edit distance for matching. See <<fuzziness>>.
+
+`NEAR`::
+Enables the `~N` operator, after a phrase where `N` is the maximum number of
+positions allowed between matching tokens. Synonymous to `SLOP`. 
+
+`NONE`::
+Disables all operators.
+
+`NOT`::
+Enables the `-` NOT operator.
+
+`OR`::
+Enables the `\|` OR operator.
+
+`PHRASE`::
+Enables the `"` quotes operator used to search for phrases.
+
+`PRECEDENCE`::
+Enables the `(` and `)` operators to control operator precedence.
+
+`PREFIX`::
+Enables the `*` prefix operator.
+
+`SLOP`::
+Enables the `~N` operator, after a phrase where `N` is maximum number of
+positions allowed between matching tokens. Synonymous to `NEAR`.
+
+`WHITESPACE`::
+Enables whitespace as split characters.
+
+[[simple-query-string-boost]]
+===== Wildcards and per-field boosts in the `fields` parameter
+
+Fields can be specified with wildcards, eg:
+
+[source,console]
+--------------------------------------------------
+GET /_search
+{
+  "query": {
+    "simple_query_string" : {
+      "query":    "Will Smith",
+      "fields": [ "title", "*_name" ] <1>
+    }
+  }
+}
+--------------------------------------------------
+
+<1> Query the `title`, `first_name` and `last_name` fields.
+
+Individual fields can be boosted with the caret (`^`) notation:
+
+[source,console]
+--------------------------------------------------
+GET /_search
+{
+  "query": {
+    "simple_query_string" : {
+      "query" : "this is a test",
+      "fields" : [ "subject^3", "message" ] <1>
+    }
+  }
+}
+--------------------------------------------------
+
+<1> The `subject` field is three times as important as the `message` field.
+
+[[simple-query-string-synonyms]]
+===== Multi-position tokens
+
+By default, the `simple_query_string` query parser creates a
+<<query-dsl-match-query-phrase,`match_phrase`>> query for each
+<<token-graphs-multi-position-tokens,multi-position token>> in the query string.
+For example, the parser creates a `match_phrase` query for the multi-word
+synonym `ny, new york`:
 
 `(ny OR ("new york"))`
 
-It is also possible to match multi terms synonyms with conjunctions instead:
+To match multi-position tokens with an `AND` conjunction instead, set
+`auto_generate_synonyms_phrase_query` to `false`:
 
-[source,js]
---------------------------------------------------
+[source,console]
+----
 GET /_search
 {
-   "query": {
-       "simple_query_string" : {
-           "query" : "ny city",
-           "auto_generate_synonyms_phrase_query" : false
-       }
-   }
+  "query": {
+    "simple_query_string": {
+      "query": "ny city",
+      "auto_generate_synonyms_phrase_query": false
+    }
+  }
 }
---------------------------------------------------
-// CONSOLE
+----
 
-The example above creates a boolean query:
+For the above example, the parser creates the following
+<<query-dsl-bool-query,`bool`>> query:
 
 `(ny OR (new AND york)) city)`
 
-that matches documents with the term `ny` or the conjunction `new AND york`.
-By default the parameter `auto_generate_synonyms_phrase_query` is set to `true`.
-
+This `bool` query matches documents with the term `ny` or the conjunction
+`new AND york`.

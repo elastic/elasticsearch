@@ -1,0 +1,139 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "mixed_role"
+        body:  >
+            {
+              "indices": [
+                { "names": ["read-*" ], "privileges": ["read"] },
+                { "names": ["write-*" ], "privileges": ["all"] }
+              ]
+            }
+
+  - do:
+      security.put_user:
+        username: "test_user"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "mixed_role" ],
+            "full_name" : "user with mixed privileges to multiple indices"
+          }
+
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "test_user"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "mixed_role"
+        ignore: 404
+
+---
+"Test indexing documents with datemath, when permitted":
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      index:
+        id: 1
+        index: "<write-{now/M}>"
+        body: >
+          {
+            "name" : "doc1"
+          }
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      bulk:
+        body:
+            - '{"index": {"_index": "<write-{now/M{YYYY.MM}}>", "_id": "2"}}'
+            - '{"name": "doc2"}'
+            - '{"index": {"_index": "<write-{now/d}>", "_id": "3"}}'
+            - '{"name": "doc3"}'
+  - match: { errors: false }
+  - match: { items.0.index.status: 201 }
+  - match: { items.1.index.status: 201 }
+
+  - do: # superuser
+      indices.refresh:
+        index: "write-*"
+
+  - do: # superuser
+      search:
+        rest_total_hits_as_int: true
+        index: "write-*"
+  - match: { hits.total: 3 }
+
+---
+"Test indexing documents with datemath, when forbidden":
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      index:
+        id: 4
+        index: "<read-{now/M}>"
+        body: >
+          {
+            "name" : "doc4"
+          }
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      bulk:
+        body:
+            - '{"index": {"_index": "<read-{now/M{YYYY.MM}}>", "_id": "5"}}'
+            - '{"name": "doc5"}'
+            - '{"index": {"_index": "<read-{now/d}>", "_id": "6"}}'
+            - '{"name": "doc6"}'
+  - match: { errors: true }
+  - match: { items.0.index.status: 403 }
+  - match: { items.0.index.error.type: "security_exception" }
+  - match: { items.1.index.status: 403 }
+  - match: { items.1.index.error.type: "security_exception" }
+
+  - do: # superuser
+      indices.refresh:
+        index: "read-*"
+
+  - do: # superuser
+      search:
+        rest_total_hits_as_int: true
+        index: "read-*"
+  - match: { hits.total: 0 }
+
+---
+"Test bulk indexing with datemath when only some are allowed":
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      bulk:
+        body:
+            - '{"index": {"_index": "<read-{now/M{YYYY}}>", "_id": "7"}}'
+            - '{"name": "doc7"}'
+            - '{"index": {"_index": "<write-{now/M{YYYY}}>", "_id": "8"}}'
+            - '{"name": "doc8"}'
+  - match: { errors: true }
+  - match: { items.0.index.status: 403 }
+  - match: { items.0.index.error.type: "security_exception" }
+  - match: { items.1.index.status: 201 }
+
+  - do: # superuser
+      indices.refresh:
+        index: "write-*"
+
+  - do: # superuser
+      search:
+        rest_total_hits_as_int: true
+        index: write-*
+        body: { "query": { "term": { "_id": "8" } } }
+  - match: { hits.total: 1 }

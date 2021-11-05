@@ -1,81 +1,41 @@
 [[query-dsl-distance-feature-query]]
-=== Distance Feature Query
+=== Distance feature query
+++++
+<titleabbrev>Distance feature</titleabbrev>
+++++
 
-The `distance_feature` query is a specialized query that only works
-on <<date, `date`>>, <<date_nanos, `date_nanos`>> or <<geo-point,`geo_point`>>
-fields. Its goal is to boost documents' scores based on proximity
-to some given origin. For example, use this query if you want to
-give more weight to documents with dates closer to a certain date,
-or to documents with locations closer to a certain location.
+Boosts the <<relevance-scores,relevance score>> of documents closer to a
+provided `origin` date or point. For example, you can use this query to give
+more weight to documents closer to a certain date or location.
 
-This query is called `distance_feature` query, because it dynamically
-calculates distances between the given origin and documents' field values,
-and use these distances as features to boost the documents' scores.
-
-`distance_feature` query is typically used on its own to find the nearest
-neighbors to a given point, or put in a `should` clause of a
-<<query-dsl-bool-query,`bool`>> query so that its score is added to the score
-of the query.
-
-Compared to using <<query-dsl-function-score-query,`function_score`>> or other
-ways to modify the score, this query has the benefit of being able to
-efficiently skip non-competitive hits when
-<<search-uri-request,`track_total_hits`>> is not set to `true`.
-
-==== Syntax of distance_feature query
-
-`distance_feature` query has the following syntax:
-[source,js]
---------------------------------------------------
-"distance_feature": {
-  "field": <field>,
-  "origin": <origin>,
-  "pivot": <pivot>,
-  "boost" : <boost>
-}
---------------------------------------------------
-// NOTCONSOLE
-
-[horizontal]
-`field`::
-    Required parameter. Defines the name of the field on which to calculate
-    distances. Must be a field of the type `date`, `date_nanos` or `geo_point`,
-    and must be indexed (`"index": true`, which is the default) and has
-    <<doc-values, doc values>> (`"doc_values": true`, which is the default).
-
-`origin`::
-    Required parameter. Defines a point of origin used for calculating
-    distances. Must be a date for date and date_nanos fields,
-    and a geo-point for geo_point fields. Date math (for example `now-1h`) is
-    supported for a date origin.
-
-`pivot`::
-    Required parameter. Defines the distance from origin at which the computed
-    score will equal to a half of the `boost` parameter. Must be
-    a `number+date unit` ("1h", "10d",...) for date and date_nanos fields,
-    and a `number + geo unit` ("1km", "12m",...) for geo fields.
-
-`boost`::
-    Optional parameter with a default value of `1`. Defines the factor by which
-    to multiply the score. Must be a non-negative float number.
+You can use the `distance_feature` query to find the nearest neighbors to a
+location. You can also use the query in a <<query-dsl-bool-query,`bool`>>
+search's `should` filter to add boosted relevance scores to the `bool` query's
+scores.
 
 
-The `distance_feature` query computes a document's score as following:
+[[distance-feature-query-ex-request]]
+==== Example request
 
-`score = boost * pivot / (pivot + distance)`
+[[distance-feature-index-setup]]
+===== Index setup
+To use the `distance_feature` query, your index must include a <<date, `date`>>,
+<<date_nanos, `date_nanos`>> or <<geo-point,`geo_point`>> field.
 
-where `distance` is the absolute difference between the origin and
-a document's field value.
+To see how you can set up an index for the `distance_feature` query, try the
+following example.
 
-==== Example using distance_feature query
+. Create an `items` index with the following field mapping:
++
+--
 
-Let's look at an example. We index several documents containing
-information about sales items, such as name, production date,
-and location.
+* `name`, a <<keyword,`keyword`>> field
+* `production_date`, a <<date, `date`>> field
+* `location`, a <<geo-point,`geo_point`>> field
 
-[source,js]
---------------------------------------------------
-PUT items
+[source,console]
+----
+PUT /items
 {
   "mappings": {
     "properties": {
@@ -91,15 +51,23 @@ PUT items
     }
   }
 }
+----
+// TESTSETUP
+--
 
-PUT items/_doc/1
+. Index several documents to this index.
++
+--
+[source,console]
+----
+PUT /items/_doc/1?refresh
 {
   "name" : "chocolate",
   "production_date": "2018-02-01",
   "location": [-71.34, 41.12]
 }
 
-PUT items/_doc/2
+PUT /items/_doc/2?refresh
 {
   "name" : "chocolate",
   "production_date": "2018-01-01",
@@ -107,24 +75,28 @@ PUT items/_doc/2
 }
 
 
-PUT items/_doc/3
+PUT /items/_doc/3?refresh
 {
   "name" : "chocolate",
   "production_date": "2017-12-01",
   "location": [-71.3, 41.12]
 }
+----
+--
 
-POST items/_refresh
---------------------------------------------------
-// CONSOLE
 
-We look for all chocolate items, but we also want chocolates
-that are produced recently (closer to the date `now`)
-to be ranked higher.
+[[distance-feature-query-ex-query]]
+===== Example queries
 
-[source,js]
---------------------------------------------------
-GET items/_search
+[[distance-feature-query-date-ex]]
+====== Boost documents based on date
+The following `bool` search returns documents with a `name` value of
+`chocolate`. The search also uses the `distance_feature` query to increase the
+relevance score of documents with a `production_date` value closer to `now`.
+
+[source,console]
+----
+GET /items/_search
 {
   "query": {
     "bool": {
@@ -143,17 +115,17 @@ GET items/_search
     }
   }
 }
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
+----
 
-We can look for all chocolate items, but we also want chocolates
-that are produced locally (closer to our geo origin)
-come first in the result list.
+[[distance-feature-query-distance-ex]]
+====== Boost documents based on location
+The following `bool` search returns documents with a `name` value of
+`chocolate`. The search also uses the `distance_feature` query to increase the
+relevance score of documents with a `location` value closer to `[-71.3, 41.15]`.
 
-[source,js]
---------------------------------------------------
-GET items/_search
+[source,console]
+----
+GET /items/_search
 {
   "query": {
     "bool": {
@@ -172,6 +144,82 @@ GET items/_search
     }
   }
 }
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
+----
+
+
+[[distance-feature-top-level-params]]
+==== Top-level parameters for `distance_feature`
+`field`::
+(Required, string) Name of the field used to calculate distances. This field
+must meet the following criteria:
+
+* Be a <<date, `date`>>, <<date_nanos, `date_nanos`>> or
+<<geo-point,`geo_point`>> field
+* Have an <<mapping-index,`index`>> mapping parameter value of `true`, which is
+the default
+* Have an <<doc-values,`doc_values`>> mapping parameter value of `true`, which
+is the default
+
+`origin`::
++
+--
+(Required, string) Date or point of origin used to calculate distances.
+
+If the `field` value is a <<date, `date`>> or <<date_nanos, `date_nanos`>>
+field, the `origin` value must be a <<date-format-pattern,date>>.
+<<date-math,Date Math>>, such as `now-1h`, is supported.
+
+If the `field` value is a <<geo-point,`geo_point`>> field, the `origin` value
+must be a geopoint.
+--
+
+`pivot`::
++
+--
+(Required, <<time-units,time unit>> or <<distance-units,distance unit>>)
+Distance from the `origin` at which relevance scores receive half of the `boost`
+value.
+
+If the `field` value is a <<date, `date`>> or <<date_nanos, `date_nanos`>>
+field, the `pivot` value must be a <<time-units,time unit>>, such as `1h` or
+`10d`.
+
+If the `field` value is a <<geo-point,`geo_point`>> field, the `pivot` value
+must be a <<distance-units,distance unit>>, such as `1km` or `12m`.
+--
+
+`boost`::
++
+--
+(Optional, float) Floating point number used to multiply the
+<<relevance-scores,relevance score>> of matching documents. This value
+cannot be negative. Defaults to `1.0`.
+--
+
+
+[[distance-feature-notes]]
+==== Notes
+
+[[distance-feature-calculation]]
+===== How the `distance_feature` query calculates relevance scores
+The `distance_feature` query dynamically calculates the distance between the
+`origin` value and a document's field values. It then uses this distance as a
+feature to boost the <<relevance-scores,relevance score>> of closer
+documents.
+
+The `distance_feature` query calculates a document's
+<<relevance-scores,relevance score>> as follows:
+
+```
+relevance score = boost * pivot / (pivot + distance)
+```
+
+The `distance` is the absolute difference between the `origin` value and a
+document's field value.
+
+[[distance-feature-skip-hits]]
+===== Skip non-competitive hits
+Unlike the <<query-dsl-function-score-query,`function_score`>> query or other
+ways to change <<relevance-scores,relevance scores>>, the
+`distance_feature` query efficiently skips non-competitive hits when the
+<<search-uri-request,`track_total_hits`>> parameter is **not** `true`.

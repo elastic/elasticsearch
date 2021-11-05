@@ -1,29 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.core;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -32,7 +21,8 @@ import java.util.Map;
 public class TermVectorsRequest implements ToXContentObject, Validatable {
 
     private final String index;
-    @Nullable private final String type;
+    @Nullable
+    private final String type;
     private String id = null;
     private XContentBuilder docBuilder = null;
 
@@ -104,7 +94,6 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
         this.type = type;
         this.docBuilder = docBuilder;
     }
-
 
     /**
      * Constructs a new TermVectorRequest from a template
@@ -249,7 +238,6 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
         return realtime;
     }
 
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -258,6 +246,7 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
             builder.field("_type", type);
         }
         if (id != null) builder.field("_id", id);
+        if (fields != null) builder.field("fields", fields);
         // set values only when different from defaults
         if (requestPositions == false) builder.field("positions", false);
         if (requestPayloads == false) builder.field("payloads", false);
@@ -275,8 +264,14 @@ public class TermVectorsRequest implements ToXContentObject, Validatable {
 
         if (filterSettings != null) {
             builder.startObject("filter");
-            String[] filterSettingNames =
-                {"max_num_terms", "min_term_freq", "max_term_freq", "min_doc_freq", "max_doc_freq", "min_word_length", "max_word_length"};
+            String[] filterSettingNames = {
+                "max_num_terms",
+                "min_term_freq",
+                "max_term_freq",
+                "min_doc_freq",
+                "max_doc_freq",
+                "min_word_length",
+                "max_word_length" };
             for (String settingName : filterSettingNames) {
                 if (filterSettings.containsKey(settingName)) builder.field(settingName, filterSettings.get(settingName));
             }

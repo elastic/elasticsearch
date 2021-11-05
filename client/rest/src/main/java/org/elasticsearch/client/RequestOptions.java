@@ -1,13 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
+ * Licensed to Elasticsearch B.V. under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
+ * ownership. Elasticsearch B.V. licenses this file to you under
  * the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -20,13 +20,16 @@
 package org.elasticsearch.client;
 
 import org.apache.http.Header;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.elasticsearch.client.HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -38,23 +41,32 @@ public final class RequestOptions {
      * Default request options.
      */
     public static final RequestOptions DEFAULT = new Builder(
-            Collections.emptyList(), HeapBufferedResponseConsumerFactory.DEFAULT, null).build();
+        Collections.emptyList(),
+        Collections.emptyMap(),
+        HeapBufferedResponseConsumerFactory.DEFAULT,
+        null,
+        null
+    ).build();
 
     private final List<Header> headers;
+    private final Map<String, String> parameters;
     private final HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory;
     private final WarningsHandler warningsHandler;
+    private final RequestConfig requestConfig;
 
     private RequestOptions(Builder builder) {
         this.headers = Collections.unmodifiableList(new ArrayList<>(builder.headers));
+        this.parameters = Collections.unmodifiableMap(builder.parameters);
         this.httpAsyncResponseConsumerFactory = builder.httpAsyncResponseConsumerFactory;
         this.warningsHandler = builder.warningsHandler;
+        this.requestConfig = builder.requestConfig;
     }
 
     /**
      * Create a builder that contains these options but can be modified.
      */
     public Builder toBuilder() {
-        return new Builder(headers, httpAsyncResponseConsumerFactory, warningsHandler);
+        return new Builder(headers, parameters, httpAsyncResponseConsumerFactory, warningsHandler, requestConfig);
     }
 
     /**
@@ -62,6 +74,17 @@ public final class RequestOptions {
      */
     public List<Header> getHeaders() {
         return headers;
+    }
+
+    /**
+     * Return true if the options contain the given header
+     */
+    public boolean containsHeader(String name) {
+        return headers.stream().anyMatch(h -> name.equalsIgnoreCase(h.getName()));
+    }
+
+    public Map<String, String> getParameters() {
+        return parameters;
     }
 
     /**
@@ -93,6 +116,15 @@ public final class RequestOptions {
      */
     public WarningsHandler getWarningsHandler() {
         return warningsHandler;
+    }
+
+    /**
+     * get RequestConfig, which can set socketTimeout, connectTimeout
+     * and so on by request
+     * @return RequestConfig
+     */
+    public RequestConfig getRequestConfig() {
+        return requestConfig;
     }
 
     @Override
@@ -134,8 +166,8 @@ public final class RequestOptions {
 
         RequestOptions other = (RequestOptions) obj;
         return headers.equals(other.headers)
-                && httpAsyncResponseConsumerFactory.equals(other.httpAsyncResponseConsumerFactory)
-                && Objects.equals(warningsHandler, other.warningsHandler);
+            && httpAsyncResponseConsumerFactory.equals(other.httpAsyncResponseConsumerFactory)
+            && Objects.equals(warningsHandler, other.warningsHandler);
     }
 
     @Override
@@ -150,14 +182,23 @@ public final class RequestOptions {
      */
     public static class Builder {
         private final List<Header> headers;
+        private final Map<String, String> parameters;
         private HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory;
         private WarningsHandler warningsHandler;
+        private RequestConfig requestConfig;
 
-        private Builder(List<Header> headers, HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
-                WarningsHandler warningsHandler) {
+        private Builder(
+            List<Header> headers,
+            Map<String, String> parameters,
+            HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
+            WarningsHandler warningsHandler,
+            RequestConfig requestConfig
+        ) {
             this.headers = new ArrayList<>(headers);
+            this.parameters = new HashMap<>(parameters);
             this.httpAsyncResponseConsumerFactory = httpAsyncResponseConsumerFactory;
             this.warningsHandler = warningsHandler;
+            this.requestConfig = requestConfig;
         }
 
         /**
@@ -170,10 +211,37 @@ public final class RequestOptions {
         /**
          * Add the provided header to the request.
          */
-        public void addHeader(String name, String value) {
+        public Builder addHeader(String name, String value) {
             Objects.requireNonNull(name, "header name cannot be null");
             Objects.requireNonNull(value, "header value cannot be null");
             this.headers.add(new ReqHeader(name, value));
+            return this;
+        }
+
+        /**
+         * Remove all headers with the given name.
+         */
+        public Builder removeHeader(String name) {
+            Objects.requireNonNull(name, "header name cannot be null");
+            this.headers.removeIf(h -> name.equalsIgnoreCase(h.getName()));
+            return this;
+        }
+
+        /**
+         * Return all headers for the request
+         */
+        public List<Header> getHeaders() {
+            return this.headers;
+        }
+
+        /**
+         * Add the provided parameter to the request.
+         */
+        public Builder addParameter(String key, String value) {
+            Objects.requireNonNull(key, "parameter key cannot be null");
+            Objects.requireNonNull(value, "parameter value cannot be null");
+            this.parameters.merge(key, value, (existingValue, newValue) -> String.join(",", existingValue, newValue));
+            return this;
         }
 
         /**
@@ -182,9 +250,12 @@ public final class RequestOptions {
          * response body gets streamed from a non-blocking HTTP connection on the
          * client side.
          */
-        public void setHttpAsyncResponseConsumerFactory(HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory) {
-            this.httpAsyncResponseConsumerFactory =
-                    Objects.requireNonNull(httpAsyncResponseConsumerFactory, "httpAsyncResponseConsumerFactory cannot be null");
+        public Builder setHttpAsyncResponseConsumerFactory(HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory) {
+            this.httpAsyncResponseConsumerFactory = Objects.requireNonNull(
+                httpAsyncResponseConsumerFactory,
+                "httpAsyncResponseConsumerFactory cannot be null"
+            );
+            return this;
         }
 
         /**
@@ -204,8 +275,20 @@ public final class RequestOptions {
          * fail the request if the warnings returned don't
          * <strong>exactly</strong> match some set.
          */
-        public void setWarningsHandler(WarningsHandler warningsHandler) {
+        public Builder setWarningsHandler(WarningsHandler warningsHandler) {
             this.warningsHandler = warningsHandler;
+            return this;
+        }
+
+        /**
+         * set RequestConfig, which can set socketTimeout, connectTimeout
+         * and so on by request
+         * @param requestConfig http client RequestConfig
+         * @return Builder
+         */
+        public Builder setRequestConfig(RequestConfig requestConfig) {
+            this.requestConfig = requestConfig;
+            return this;
         }
     }
 
@@ -226,8 +309,7 @@ public final class RequestOptions {
             }
             if (other instanceof ReqHeader) {
                 Header otherHeader = (Header) other;
-                return Objects.equals(getName(), otherHeader.getName()) &&
-                        Objects.equals(getValue(), otherHeader.getValue());
+                return Objects.equals(getName(), otherHeader.getName()) && Objects.equals(getValue(), otherHeader.getValue());
             }
             return false;
         }

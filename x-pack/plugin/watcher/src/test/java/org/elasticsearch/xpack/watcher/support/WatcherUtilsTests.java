@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.support;
 
@@ -10,18 +11,18 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.support.WatcherUtils;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 
@@ -33,10 +34,11 @@ import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils.formatDate;
 import static org.elasticsearch.xpack.core.watcher.support.WatcherUtils.flattenModel;
 import static org.elasticsearch.xpack.watcher.input.search.ExecutableSearchInput.DEFAULT_SEARCH_TYPE;
+import static org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.getRandomSupportedSearchType;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -45,6 +47,10 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class WatcherUtilsTests extends ESTestCase {
+
+    private static final String IGNORE_THROTTLED_FIELD_WARNING = "Deprecated field [ignore_throttled] used, this field is unused and "
+        + "will be removed entirely";
+
     public void testFlattenModel() throws Exception {
         ZonedDateTime now = ZonedDateTime.now(Clock.systemUTC());
         Map<String, Object> map = new HashMap<>();
@@ -90,9 +96,17 @@ public class WatcherUtilsTests extends ESTestCase {
 
     public void testSerializeSearchRequest() throws Exception {
         String[] expectedIndices = generateRandomStringArray(5, 5, true);
-        String[] expectedTypes = generateRandomStringArray(2, 5, true, false);
-        IndicesOptions expectedIndicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(),
-                randomBoolean(), WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS);
+        IndicesOptions expectedIndicesOptions = IndicesOptions.fromOptions(
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            DEFAULT_INDICES_OPTIONS.allowAliasesToMultipleIndices(),
+            DEFAULT_INDICES_OPTIONS.forbidClosedIndices(),
+            DEFAULT_INDICES_OPTIONS.ignoreAliases(),
+            DEFAULT_INDICES_OPTIONS.ignoreThrottled()
+        );
         SearchType expectedSearchType = getRandomSupportedSearchType();
 
         BytesReference expectedSource = null;
@@ -111,15 +125,13 @@ public class WatcherUtilsTests extends ESTestCase {
             ScriptType scriptType = randomFrom(ScriptType.values());
             stored = scriptType == ScriptType.STORED;
             expectedTemplate = new Script(scriptType, stored ? null : "mustache", text, params);
-            request = new WatcherSearchTemplateRequest(expectedIndices, expectedTypes, expectedSearchType,
-                    expectedIndicesOptions, expectedTemplate);
+            request = new WatcherSearchTemplateRequest(expectedIndices, expectedSearchType, expectedIndicesOptions, expectedTemplate);
         } else {
             SearchSourceBuilder sourceBuilder = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()).size(11);
             XContentBuilder builder = jsonBuilder();
             builder.value(sourceBuilder);
             expectedSource = BytesReference.bytes(builder);
-            request = new WatcherSearchTemplateRequest(expectedIndices, expectedTypes, expectedSearchType,
-                    expectedIndicesOptions, expectedSource);
+            request = new WatcherSearchTemplateRequest(expectedIndices, expectedSearchType, expectedIndicesOptions, expectedSource);
         }
 
         XContentBuilder builder = jsonBuilder();
@@ -134,6 +146,9 @@ public class WatcherUtilsTests extends ESTestCase {
 
         assertNotNull(result.getTemplate());
         assertThat(result.getTemplate().getLang(), equalTo(stored ? null : "mustache"));
+        if (expectedIndicesOptions.equals(DEFAULT_INDICES_OPTIONS) == false) {
+            assertWarnings(IGNORE_THROTTLED_FIELD_WARNING);
+        }
         if (expectedSource == null) {
             assertThat(result.getTemplate().getIdOrCode(), equalTo(expectedTemplate.getIdOrCode()));
             assertThat(result.getTemplate().getType(), equalTo(expectedTemplate.getType()));
@@ -141,12 +156,6 @@ public class WatcherUtilsTests extends ESTestCase {
         } else {
             assertThat(result.getTemplate().getIdOrCode(), equalTo(expectedSource.utf8ToString()));
             assertThat(result.getTemplate().getType(), equalTo(ScriptType.INLINE));
-        }
-        if (expectedTypes == null) {
-            assertNull(result.getTypes());
-        } else {
-            assertThat(result.getTypes(), arrayContainingInAnyOrder(expectedTypes));
-            assertWarnings(WatcherSearchTemplateRequest.TYPES_DEPRECATION_MESSAGE);
         }
     }
 
@@ -164,28 +173,24 @@ public class WatcherUtilsTests extends ESTestCase {
             }
         }
 
-        String[] types = Strings.EMPTY_ARRAY;
+        IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
         if (randomBoolean()) {
-            types = generateRandomStringArray(2, 5, false, false);
-            if (randomBoolean()) {
-                builder.array("types", types);
-            } else {
-                builder.field("types", Strings.arrayToCommaDelimitedString(types));
+            indicesOptions = IndicesOptions.fromOptions(
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                indicesOptions.allowAliasesToMultipleIndices(),
+                indicesOptions.forbidClosedIndices(),
+                indicesOptions.ignoreAliases(),
+                indicesOptions.ignoreThrottled()
+            );
+            if (indicesOptions.equals(DEFAULT_INDICES_OPTIONS) == false) {
+                builder.startObject("indices_options");
+                indicesOptions.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                builder.endObject();
             }
-        }
-
-        IndicesOptions indicesOptions = WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS;
-        if (randomBoolean()) {
-            indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(),
-                    randomBoolean(), WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS);
-            builder.startObject("indices_options")
-                    .field("allow_no_indices", indicesOptions.allowNoIndices())
-                    .field("expand_wildcards", indicesOptions.expandWildcardsClosed() && indicesOptions.expandWildcardsOpen() ? "all" :
-                            indicesOptions.expandWildcardsClosed() ? "closed" :
-                                    indicesOptions.expandWildcardsOpen() ? "open" :
-                                            "none")
-                    .field("ignore_unavailable", indicesOptions.ignoreUnavailable())
-                    .endObject();
         }
 
         SearchType searchType = SearchType.DEFAULT;
@@ -224,6 +229,9 @@ public class WatcherUtilsTests extends ESTestCase {
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
         WatcherSearchTemplateRequest result = WatcherSearchTemplateRequest.fromXContent(parser, DEFAULT_SEARCH_TYPE);
 
+        if (indicesOptions.equals(DEFAULT_INDICES_OPTIONS) == false) {
+            assertWarnings(IGNORE_THROTTLED_FIELD_WARNING);
+        }
         assertThat(result.getIndices(), arrayContainingInAnyOrder(indices));
         assertThat(result.getIndicesOptions(), equalTo(indicesOptions));
         assertThat(result.getSearchType(), equalTo(searchType));
@@ -240,12 +248,5 @@ public class WatcherUtilsTests extends ESTestCase {
             assertThat(result.getTemplate().getParams(), equalTo(template.getParams()));
             assertThat(result.getTemplate().getLang(), equalTo(stored ? null : "mustache"));
         }
-        if (types == Strings.EMPTY_ARRAY) {
-            assertNull(result.getTypes());
-        } else {
-            assertThat(result.getTypes(), arrayContainingInAnyOrder(types));
-            assertWarnings(WatcherSearchTemplateRequest.TYPES_DEPRECATION_MESSAGE);
-        }
     }
-
 }

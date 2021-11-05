@@ -1,28 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.NodesResponse;
 import org.elasticsearch.client.NodesResponseHeader;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.util.List;
 
@@ -46,9 +35,11 @@ public abstract class SecurityNodesResponse extends NodesResponse {
 
     public static class Node {
 
-        private static final ConstructingObjectParser<ClearRolesCacheResponse.Node, String> PARSER =
-            new ConstructingObjectParser<>("clear_roles_cache_response_node", false,
-                (args, id) -> new ClearRolesCacheResponse.Node(id, (String) args[0]));
+        private static final ConstructingObjectParser<ClearRolesCacheResponse.Node, String> PARSER = new ConstructingObjectParser<>(
+            "clear_roles_cache_response_node",
+            false,
+            (args, id) -> new ClearRolesCacheResponse.Node(id, (String) args[0])
+        );
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("name"));
@@ -72,8 +63,11 @@ public abstract class SecurityNodesResponse extends NodesResponse {
     }
 
     public static <T extends NodesResponse> void declareCommonNodesResponseParsing(ConstructingObjectParser<T, Void> parser) {
-        parser.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> Node.PARSER.apply(p, n),
-            new ParseField("nodes"));
+        parser.declareNamedObjects(
+            ConstructingObjectParser.constructorArg(),
+            (p, c, n) -> Node.PARSER.apply(p, n),
+            new ParseField("nodes")
+        );
         NodesResponse.declareCommonNodesResponseParsing(parser);
     }
 }

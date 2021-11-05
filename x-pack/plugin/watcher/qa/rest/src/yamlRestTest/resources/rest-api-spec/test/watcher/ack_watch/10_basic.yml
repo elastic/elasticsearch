@@ -1,0 +1,69 @@
+---
+"Test ack watch api":
+  - skip:
+      features: warnings
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      watcher.put_watch:
+        id: "my_watch"
+        body:  >
+          {
+            "trigger" : {
+              "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+            },
+            "input": {
+              "simple": {
+                "payload": {
+                  "send": "yes"
+                }
+              }
+            },
+            "condition": {
+              "always": {}
+            },
+            "actions": {
+              "test_index": {
+                "index": {
+                  "index": "test"
+                }
+              }
+            }
+          }
+
+  - match: { _id: "my_watch" }
+
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      watcher.ack_watch:
+        watch_id: "my_watch"
+
+  - match: { "status.actions.test_index.ack.state" : "awaits_successful_execution" }
+
+  - do:
+      watcher.get_watch:
+        id: "my_watch"
+  - match: { found: true }
+  - match: { _id: "my_watch" }
+  - match: { status.actions.test_index.ack.state: "awaits_successful_execution" }
+
+  - do:
+      watcher.delete_watch:
+        id: "my_watch"
+
+  - match: { found: true }
+
+---
+"Non existent watch returns 404":
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+  - do:
+      watcher.ack_watch:
+        watch_id: "non-existent-watch"
+      catch: missing

@@ -3,7 +3,7 @@
 :request: RetryLifecyclePolicyRequest
 :response: AcknowledgedResponse
 --
-
+[role="xpack"]
 [id="{upid}-{api}"]
 === Retry Lifecycle Policy API
 

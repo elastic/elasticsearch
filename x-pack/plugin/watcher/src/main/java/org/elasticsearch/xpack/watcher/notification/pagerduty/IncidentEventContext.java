@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.pagerduty;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 
@@ -23,7 +24,8 @@ import java.util.Objects;
 public class IncidentEventContext implements ToXContentObject {
 
     enum Type {
-        LINK, IMAGE
+        LINK,
+        IMAGE
     }
 
     final Type type;
@@ -57,11 +59,11 @@ public class IncidentEventContext implements ToXContentObject {
 
         IncidentEventContext that = (IncidentEventContext) o;
 
-        return Objects.equals(type, that.type) &&
-                Objects.equals(href, that.href) &&
-                Objects.equals(text, that.text) &&
-                Objects.equals(src, that.src) &&
-                Objects.equals(alt, that.alt);
+        return Objects.equals(type, that.type)
+            && Objects.equals(href, that.href)
+            && Objects.equals(text, that.text)
+            && Objects.equals(src, that.src)
+            && Objects.equals(alt, that.alt);
     }
 
     @Override
@@ -132,44 +134,58 @@ public class IncidentEventContext implements ToXContentObject {
         return createAndValidateTemplate(type, href, src, alt, text);
     }
 
-    private static IncidentEventContext createAndValidateTemplate(Type type, String href, String src, String alt,
-                                                      String text) {
+    private static IncidentEventContext createAndValidateTemplate(Type type, String href, String src, String alt, String text) {
         if (type == null) {
-            throw new ElasticsearchParseException("could not parse trigger incident event context. missing required field [{}]",
-                XField.TYPE.getPreferredName());
+            throw new ElasticsearchParseException(
+                "could not parse trigger incident event context. missing required field [{}]",
+                XField.TYPE.getPreferredName()
+            );
         }
 
         switch (type) {
             case LINK:
                 if (href == null) {
-                    throw new ElasticsearchParseException("could not parse trigger incident event context. missing required field " +
-                        "[{}] for [{}] context", XField.HREF.getPreferredName(), Type.LINK.name().toLowerCase(Locale.ROOT));
+                    throw new ElasticsearchParseException(
+                        "could not parse trigger incident event context. missing required field " + "[{}] for [{}] context",
+                        XField.HREF.getPreferredName(),
+                        Type.LINK.name().toLowerCase(Locale.ROOT)
+                    );
                 }
                 if (src != null) {
-                    throw new ElasticsearchParseException("could not parse trigger incident event context. unexpected field [{}] for " +
-                        "[{}] context", XField.SRC.getPreferredName(), Type.LINK.name().toLowerCase(Locale.ROOT));
+                    throw new ElasticsearchParseException(
+                        "could not parse trigger incident event context. unexpected field [{}] for " + "[{}] context",
+                        XField.SRC.getPreferredName(),
+                        Type.LINK.name().toLowerCase(Locale.ROOT)
+                    );
                 }
                 if (alt != null) {
-                    throw new ElasticsearchParseException("could not parse trigger incident event context. unexpected field [{}] for " +
-                        "[{}] context", XField.ALT.getPreferredName(), Type.LINK.name().toLowerCase(Locale.ROOT));
+                    throw new ElasticsearchParseException(
+                        "could not parse trigger incident event context. unexpected field [{}] for " + "[{}] context",
+                        XField.ALT.getPreferredName(),
+                        Type.LINK.name().toLowerCase(Locale.ROOT)
+                    );
                 }
                 return link(href, text);
             case IMAGE:
                 if (src == null) {
-                    throw new ElasticsearchParseException("could not parse trigger incident event context. missing required field " +
-                        "[{}] for [{}] context", XField.SRC.getPreferredName(), Type.IMAGE.name().toLowerCase(Locale.ROOT));
+                    throw new ElasticsearchParseException(
+                        "could not parse trigger incident event context. missing required field " + "[{}] for [{}] context",
+                        XField.SRC.getPreferredName(),
+                        Type.IMAGE.name().toLowerCase(Locale.ROOT)
+                    );
                 }
                 if (text != null) {
-                    throw new ElasticsearchParseException("could not parse trigger incident event context. unexpected field [{}] for " +
-                        "[{}] context", XField.TEXT.getPreferredName(), Type.IMAGE.name().toLowerCase(Locale.ROOT));
+                    throw new ElasticsearchParseException(
+                        "could not parse trigger incident event context. unexpected field [{}] for " + "[{}] context",
+                        XField.TEXT.getPreferredName(),
+                        Type.IMAGE.name().toLowerCase(Locale.ROOT)
+                    );
                 }
                 return image(src, href, alt);
             default:
-                throw new ElasticsearchParseException("could not parse trigger incident event context. unknown context type [{}]",
-                    type);
+                throw new ElasticsearchParseException("could not parse trigger incident event context. unknown context type [{}]", type);
         }
     }
-
 
     public static class Template implements ToXContentObject {
 
@@ -181,16 +197,18 @@ public class IncidentEventContext implements ToXContentObject {
 
         public static Template link(TextTemplate href, @Nullable TextTemplate text) {
             if (href == null) {
-                throw new IllegalStateException("could not create link context for pager duty trigger incident event. missing required " +
-                        "[href] setting");
+                throw new IllegalStateException(
+                    "could not create link context for pager duty trigger incident event. missing required " + "[href] setting"
+                );
             }
             return new Template(Type.LINK, href, text, null, null);
         }
 
         public static Template image(TextTemplate src, @Nullable TextTemplate href, @Nullable TextTemplate alt) {
             if (src == null) {
-                throw new IllegalStateException("could not create link context for pager duty trigger incident event. missing required " +
-                        "[src] setting");
+                throw new IllegalStateException(
+                    "could not create link context for pager duty trigger incident event. missing required " + "[src] setting"
+                );
             }
             return new Template(Type.IMAGE, href, null, src, alt);
         }
@@ -209,11 +227,11 @@ public class IncidentEventContext implements ToXContentObject {
             if (o == null || getClass() != o.getClass()) return false;
 
             Template that = (Template) o;
-            return Objects.equals(type, that.type) &&
-                    Objects.equals(href, that.href) &&
-                    Objects.equals(text, that.text) &&
-                    Objects.equals(src, that.src) &&
-                    Objects.equals(alt, that.alt);
+            return Objects.equals(type, that.type)
+                && Objects.equals(href, that.href)
+                && Objects.equals(text, that.text)
+                && Objects.equals(src, that.src)
+                && Objects.equals(alt, that.alt);
         }
 
         @Override
@@ -308,41 +326,65 @@ public class IncidentEventContext implements ToXContentObject {
             return createAndValidateTemplate(type, href, src, alt, text);
         }
 
-        private static Template createAndValidateTemplate(Type type, TextTemplate href, TextTemplate src, TextTemplate alt,
-                                                          TextTemplate text) {
+        private static Template createAndValidateTemplate(
+            Type type,
+            TextTemplate href,
+            TextTemplate src,
+            TextTemplate alt,
+            TextTemplate text
+        ) {
             if (type == null) {
-                throw new ElasticsearchParseException("could not parse trigger incident event context. missing required field [{}]",
-                        XField.TYPE.getPreferredName());
+                throw new ElasticsearchParseException(
+                    "could not parse trigger incident event context. missing required field [{}]",
+                    XField.TYPE.getPreferredName()
+                );
             }
 
             switch (type) {
                 case LINK:
                     if (href == null) {
-                        throw new ElasticsearchParseException("could not parse trigger incident event context. missing required field " +
-                                "[{}] for [{}] context", XField.HREF.getPreferredName(), Type.LINK.name().toLowerCase(Locale.ROOT));
+                        throw new ElasticsearchParseException(
+                            "could not parse trigger incident event context. missing required field " + "[{}] for [{}] context",
+                            XField.HREF.getPreferredName(),
+                            Type.LINK.name().toLowerCase(Locale.ROOT)
+                        );
                     }
                     if (src != null) {
-                        throw new ElasticsearchParseException("could not parse trigger incident event context. unexpected field [{}] for " +
-                                "[{}] context", XField.SRC.getPreferredName(), Type.LINK.name().toLowerCase(Locale.ROOT));
+                        throw new ElasticsearchParseException(
+                            "could not parse trigger incident event context. unexpected field [{}] for " + "[{}] context",
+                            XField.SRC.getPreferredName(),
+                            Type.LINK.name().toLowerCase(Locale.ROOT)
+                        );
                     }
                     if (alt != null) {
-                        throw new ElasticsearchParseException("could not parse trigger incident event context. unexpected field [{}] for " +
-                                "[{}] context", XField.ALT.getPreferredName(), Type.LINK.name().toLowerCase(Locale.ROOT));
+                        throw new ElasticsearchParseException(
+                            "could not parse trigger incident event context. unexpected field [{}] for " + "[{}] context",
+                            XField.ALT.getPreferredName(),
+                            Type.LINK.name().toLowerCase(Locale.ROOT)
+                        );
                     }
                     return link(href, text);
                 case IMAGE:
                     if (src == null) {
-                        throw new ElasticsearchParseException("could not parse trigger incident event context. missing required field " +
-                                "[{}] for [{}] context", XField.SRC.getPreferredName(), Type.IMAGE.name().toLowerCase(Locale.ROOT));
+                        throw new ElasticsearchParseException(
+                            "could not parse trigger incident event context. missing required field " + "[{}] for [{}] context",
+                            XField.SRC.getPreferredName(),
+                            Type.IMAGE.name().toLowerCase(Locale.ROOT)
+                        );
                     }
                     if (text != null) {
-                        throw new ElasticsearchParseException("could not parse trigger incident event context. unexpected field [{}] for " +
-                                "[{}] context", XField.TEXT.getPreferredName(), Type.IMAGE.name().toLowerCase(Locale.ROOT));
+                        throw new ElasticsearchParseException(
+                            "could not parse trigger incident event context. unexpected field [{}] for " + "[{}] context",
+                            XField.TEXT.getPreferredName(),
+                            Type.IMAGE.name().toLowerCase(Locale.ROOT)
+                        );
                     }
                     return image(src, href, alt);
                 default:
-                    throw new ElasticsearchParseException("could not parse trigger incident event context. unknown context type [{}]",
-                            type);
+                    throw new ElasticsearchParseException(
+                        "could not parse trigger incident event context. unknown context type [{}]",
+                        type
+                    );
             }
         }
 

@@ -1,0 +1,131 @@
+// To mute tests follow example in file: example.csv-spec
+
+//
+// Tests testing field alias (introduced in ES 6.4)
+//
+
+// filtering
+
+filterEquals
+SELECT extra.info.gender gender FROM "test_emp_copy" WHERE gender = 'M' LIMIT 5;
+
+    gender     
+---------------
+M              
+M              
+M              
+M              
+M   
+
+;
+
+filterNotEquals
+SELECT extra.info.gender gender FROM "test_emp_copy" WHERE gender <> 'M' ORDER BY gender LIMIT 5;
+
+    gender     
+---------------
+F              
+F              
+F              
+F              
+F  
+;
+
+aggWithNullFilter
+SELECT COUNT(*) count FROM test_emp_copy WHERE extra.info.gender IS NULL;
+
+     count:l     
+---------------
+10   
+;
+
+functionOverAlias
+SELECT BIT_LENGTH(extra.info.gender) bit FROM test_emp_copy ORDER BY extra.info.gender LIMIT 1;
+
+      bit      
+---------------
+8
+;
+
+
+singlePercentileWithoutComma
+SELECT extra.info.gender AS gender, PERCENTILE(emp_no, 97) p1 FROM test_emp_copy GROUP BY extra.info.gender;
+
+gender:s             | p1:d
+null                 |10019.0           
+F                    |10099.51          
+M                    |10095.789999999999
+;
+
+singlePercentileWithComma
+SELECT extra.info.gender AS gender, PERCENTILE(emp_no, 97.76) p1 FROM test_emp_copy GROUP BY extra.info.gender;
+
+gender:s             | p1:d
+null                 |10019.0           
+F                    |10099.7608          
+M                    |10096.2232
+;
+
+multiplePercentilesOneWithCommaOneWithout
+SELECT extra.info.gender AS gender, PERCENTILE(emp_no, 92.45) p1, PERCENTILE(emp_no, 91) p2 FROM test_emp_copy GROUP BY extra.info.gender;
+
+gender:s             | p1:d                 | p2:d
+null                 |10018.745             |10018.599999999999
+F                    |10098.0085            |10096.119999999999
+M                    |10091.393             |10090.37       
+;
+
+multiplePercentilesWithoutComma
+SELECT extra.info.gender AS gender, PERCENTILE(emp_no, 91) p1, PERCENTILE(emp_no, 89) p2 FROM test_emp_copy GROUP BY extra.info.gender;
+
+gender:s             | p1:d                 | p2:d
+null                 |10018.599999999999    |10018.4        
+F                    |10096.119999999999    |10093.74       
+M                    |10090.37              |10086.92       
+;
+
+multiplePercentilesWithComma
+SELECT extra.info.gender AS gender, PERCENTILE(emp_no, 85.7) p1, PERCENTILE(emp_no, 94.3) p2 FROM test_emp_copy GROUP BY extra.info.gender;
+
+gender:s             | p1:d                 | p2:d
+null                 |10018.070000000002    |10018.929999999998
+F                    |10091.343             |10098.619         
+M                    |10084.349             |10093.502         
+;
+
+percentileRank
+SELECT extra.info.gender AS gender, PERCENTILE_RANK(emp_no, 10025) rank FROM test_emp_copy GROUP BY extra.info.gender;
+
+gender:s             | rank:d
+null                 |100.0             
+F                    |17.424242424242426
+M                    |15.350877192982457
+;
+
+multiplePercentileRanks
+SELECT extra.info.gender AS gender, PERCENTILE_RANK(emp_no, 10030.0) rank1, PERCENTILE_RANK(emp_no, 10025) rank2 FROM test_emp_copy GROUP BY extra.info.gender;
+
+gender:s             | rank1:d              | rank2:d
+null                 |100.0                 |100.0             
+F                    |21.445221445221442    |17.424242424242426
+M                    |21.929824561403507    |15.350877192982457
+;
+
+multiplePercentilesAndPercentileRank
+SELECT extra.info.gender AS gender, PERCENTILE(emp_no, 97.76) p1, PERCENTILE(emp_no, 93.3) p2, PERCENTILE_RANK(emp_no, 10025) rank FROM test_emp_copy GROUP BY extra.info.gender;
+
+gender:s             | p1:d                 | p2:d                 | rank:d
+null                 |10019.0               |10018.83              |100.0             
+F                    |10099.7608            |10098.289             |17.424242424242426
+M                    |10096.2232            |10092.362             |15.350877192982457
+;
+
+kurtosisAndSkewnessGroup
+SELECT extra.info.gender AS gender, KURTOSIS(salary) k, SKEWNESS(salary) s FROM test_emp_copy GROUP BY extra.info.gender;
+
+gender:s             | k:d                  | s:d
+
+null                 |2.2215791166941923    |-0.03373126000214023
+F                    |1.7873117044424276    |0.05504995122217512 
+M                    |2.280646181070106     |0.44302407229580243
+;

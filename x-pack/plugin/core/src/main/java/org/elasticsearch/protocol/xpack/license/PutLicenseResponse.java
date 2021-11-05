@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.protocol.xpack.license;
 
@@ -9,8 +10,8 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.protocol.xpack.common.ProtocolUtils;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -20,19 +21,38 @@ import java.util.Objects;
 
 public class PutLicenseResponse extends AcknowledgedResponse {
 
-    private LicensesStatus status;
-    private Map<String, String[]> acknowledgeMessages;
-    private String acknowledgeHeader;
+    private final LicensesStatus status;
+    private final Map<String, String[]> acknowledgeMessages;
+    private final String acknowledgeHeader;
 
-    public PutLicenseResponse() {
+    public PutLicenseResponse(StreamInput in) throws IOException {
+        super(in);
+        status = LicensesStatus.fromId(in.readVInt());
+        acknowledgeHeader = in.readOptionalString();
+        int size = in.readVInt();
+        Map<String, String[]> acknowledgeMessages = new HashMap<>(size);
+        for (int i = 0; i < size; i++) {
+            String feature = in.readString();
+            int nMessages = in.readVInt();
+            String[] messages = new String[nMessages];
+            for (int j = 0; j < nMessages; j++) {
+                messages[j] = in.readString();
+            }
+            acknowledgeMessages.put(feature, messages);
+        }
+        this.acknowledgeMessages = acknowledgeMessages;
     }
 
     public PutLicenseResponse(boolean acknowledged, LicensesStatus status) {
         this(acknowledged, status, null, Collections.<String, String[]>emptyMap());
     }
 
-    public PutLicenseResponse(boolean acknowledged, LicensesStatus status, String acknowledgeHeader,
-                              Map<String, String[]> acknowledgeMessages) {
+    public PutLicenseResponse(
+        boolean acknowledged,
+        LicensesStatus status,
+        String acknowledgeHeader,
+        Map<String, String[]> acknowledgeMessages
+    ) {
         super(acknowledged);
         this.status = status;
         this.acknowledgeHeader = acknowledgeHeader;
@@ -49,25 +69,6 @@ public class PutLicenseResponse extends AcknowledgedResponse {
 
     public String acknowledgeHeader() {
         return acknowledgeHeader;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        status = LicensesStatus.fromId(in.readVInt());
-        acknowledgeHeader = in.readOptionalString();
-        int size = in.readVInt();
-        Map<String, String[]> acknowledgeMessages = new HashMap<>(size);
-        for (int i = 0; i < size; i++) {
-            String feature = in.readString();
-            int nMessages = in.readVInt();
-            String[] messages = new String[nMessages];
-            for (int j = 0; j < nMessages; j++) {
-                messages[j] = in.readString();
-            }
-            acknowledgeMessages.put(feature, messages);
-        }
-        this.acknowledgeMessages = acknowledgeMessages;
     }
 
     @Override
@@ -88,7 +89,7 @@ public class PutLicenseResponse extends AcknowledgedResponse {
     @Override
     protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {
         builder.field("license_status", status.toString());
-        if (!acknowledgeMessages.isEmpty()) {
+        if (acknowledgeMessages.isEmpty() == false) {
             builder.startObject("acknowledge");
             builder.field("message", acknowledgeHeader);
             for (Map.Entry<String, String[]> entry : acknowledgeMessages.entrySet()) {
@@ -111,12 +112,12 @@ public class PutLicenseResponse extends AcknowledgedResponse {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (super.equals(o) == false) return false;
         PutLicenseResponse that = (PutLicenseResponse) o;
 
-        return status == that.status &&
-            ProtocolUtils.equals(acknowledgeMessages, that.acknowledgeMessages) &&
-            Objects.equals(acknowledgeHeader, that.acknowledgeHeader);
+        return status == that.status
+            && ProtocolUtils.equals(acknowledgeMessages, that.acknowledgeMessages)
+            && Objects.equals(acknowledgeHeader, that.acknowledgeHeader);
     }
 
     @Override

@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -32,5 +34,9 @@ public class LicenseUtilsTests extends ESTestCase {
 
         exception = new ElasticsearchSecurityException("msg");
         assertFalse(LicenseUtils.isLicenseExpiredException(exception));
+    }
+
+    public void testVersionsUpToDate() {
+        assertThat(LicenseUtils.compatibleLicenseVersion(DiscoveryNodes.EMPTY_NODES), equalTo(License.VERSION_CURRENT));
     }
 }

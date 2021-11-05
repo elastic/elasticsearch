@@ -36,7 +36,62 @@
   - match: { count: 1 }
 
 ---
+"Test get old cluster job's timing stats":
+  - do:
+      ml.get_job_stats:
+        job_id: old-cluster-job-with-ts
+  - match: { jobs.0.job_id: old-cluster-job-with-ts }
+  - match: { jobs.0.state: "closed" }
+  - match: { jobs.0.timing_stats.job_id: old-cluster-job-with-ts }
+  - match: { jobs.0.timing_stats.bucket_count: 1 }
+  - gte:   { jobs.0.timing_stats.minimum_bucket_processing_time_ms: 0.0 }
+  - gte:   { jobs.0.timing_stats.maximum_bucket_processing_time_ms: 0.0 }
+  - gte:   { jobs.0.timing_stats.average_bucket_processing_time_ms: 0.0 }
+  - gte:   { jobs.0.timing_stats.exponential_average_bucket_processing_time_ms: 0.0 }
+
+---
+"Test get old cluster categorization job":
+  - do:
+      ml.get_jobs:
+        job_id: old-cluster-categorization-job
+  - match: { count: 1 }
+
+  - do:
+      ml.get_job_stats:
+        job_id: old-cluster-categorization-job
+  - match: { jobs.0.state: "closed" }
+  - match: { jobs.0.data_counts.processed_record_count: 2 }
+  - is_true: jobs.0.model_size_stats
+  - is_false: node
+
+  - do:
+      ml.open_job:
+        job_id: old-cluster-categorization-job
+
+  - do:
+      ml.get_job_stats:
+        job_id: old-cluster-categorization-job
+  - match: { jobs.0.state: "opened" }
+  - match: { jobs.0.data_counts.processed_record_count: 2 }
+  - is_true: jobs.0.model_size_stats
+  - is_true: jobs.0.node
+  - is_true: jobs.0.open_time
+
+  - do:
+      ml.close_job:
+        job_id: old-cluster-categorization-job
+
+  - do:
+      ml.get_categories:
+        job_id: old-cluster-categorization-job
+  - match: { count: 1 }
+
+---
 "Create a job in the mixed cluster and write some data":
+
+  - skip:
+      features: allowed_warnings
+
   - do:
       ml.put_job:
         job_id: mixed-cluster-job
@@ -63,6 +118,8 @@
         job_id: mixed-cluster-job
 
   - do:
+      allowed_warnings:
+        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
       ml.post_data:
         job_id: mixed-cluster-job
         body:

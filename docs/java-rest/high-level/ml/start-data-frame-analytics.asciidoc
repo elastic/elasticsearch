@@ -1,0 +1,39 @@
+--
+:api: start-data-frame-analytics
+:request: StartDataFrameAnalyticsRequest
+:response: AcknowledgedResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Start {dfanalytics-jobs} API
+
+
+Starts an existing {dfanalytics-job}.
+It accepts a +{request}+ object and responds with a +{response}+ object.
+
+[id="{upid}-{api}-request"]
+==== Start {dfanalytics-jobs} request
+
+A +{request}+ object requires a {dfanalytics-job} ID.
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+---------------------------------------------------
+<1> Constructing a new start request referencing an existing {dfanalytics-job}
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Start {dfanalytics-jobs} response
+
+The returned +{response}+ object acknowledges the {dfanalytics-job} has started.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> `getNode()` returns the node that the job was assigned to. If the
+job is allowed to open lazily and has not yet been assigned to a node
+then an empty string is returned. If `getNode()` returns `null` then
+the server is an old version that does not return node information.

@@ -1,45 +1,127 @@
 [[search-explain]]
-== Explain API
+=== Explain API
+++++
+<titleabbrev>Explain</titleabbrev>
+++++
 
-The explain api computes a score explanation for a query and a specific
+Returns information about why a specific document matches (or doesn't match) a 
+query.
+
+[source,console]
+--------------------------------------------------
+GET /my-index-000001/_explain/0
+{
+  "query" : {
+    "match" : { "message" : "elasticsearch" }
+  }
+}
+--------------------------------------------------
+// TEST[setup:messages]
+
+
+[[search-explain-api-request]]
+==== {api-request-title}
+
+`GET /<index>/_explain/<id>`
+
+`POST /<index>/_explain/<id>`
+
+[[search-explain-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for the target index.
+
+[[search-explain-api-desc]]
+==== {api-description-title}
+
+The explain API computes a score explanation for a query and a specific
 document. This can give useful feedback whether a document matches or
 didn't match a specific query.
 
-Note that a single index must be provided to the `index` parameter.
 
-[float]
-=== Usage
+[[search-explain-api-path-params]]
+==== {api-path-parms-title}
 
-Full query example:
+`<id>`::
+  (Required, integer) Defines the document ID.
+  
+`<index>`::
++
+--
+(Required, string)
+Index names used to limit the request.
 
-[source,js]
+Only a single index name can be provided to this parameter.
+--
+
+
+[[search-explain-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=analyzer]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=analyze_wildcard]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=default_operator]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=df]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=lenient]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=preference]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search-q]
+
+`stored_fields`::
+  (Optional, string) A comma-separated list of stored fields to return in the 
+  response.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_excludes]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_includes]
+
+
+[[search-explain-api-request-body]]
+==== {api-request-body-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=query]
+
+
+[[search-explain-api-example]]
+==== {api-examples-title}
+
+[source,console]
 --------------------------------------------------
-GET /twitter/_explain/0
+GET /my-index-000001/_explain/0
 {
-      "query" : {
-        "match" : { "message" : "elasticsearch" }
-      }
+  "query" : {
+    "match" : { "message" : "elasticsearch" }
+  }
 }
 --------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
+// TEST[setup:messages]
 
-This will yield the following result:
 
-[source,js]
+The API returns the following response:
+
+[source,console-result]
 --------------------------------------------------
 {
-   "_index":"twitter",
-   "_type":"_doc",
+   "_index":"my-index-000001",
    "_id":"0",
    "matched":true,
    "explanation":{
-      "value":1.6943597,
+      "value":1.6943598,
       "description":"weight(message:elasticsearch in 0) [PerFieldSimilarity], result of:",
       "details":[
          {
-            "value":1.6943597,
-            "description":"score(freq=1.0), product of:",
+            "value":1.6943598,
+            "description":"score(freq=1.0), computed as boost * idf * tf from:",
             "details":[
                {
                   "value":2.2,
@@ -63,7 +145,7 @@ This will yield the following result:
                   ]
                },
                {
-                  "value":0.5555555,
+                  "value":0.5555556,
                   "description":"tf, computed as freq / (freq + k1 * (1 - b + b * dl / avgdl)) from:",
                   "details":[
                      {
@@ -99,68 +181,18 @@ This will yield the following result:
    }
 }
 --------------------------------------------------
-// TESTRESPONSE
 
-There is also a simpler way of specifying the query via the `q`
-parameter. The specified `q` parameter value is then parsed as if the
-`query_string` query was used. Example usage of the `q` parameter in the
-explain api:
 
-[source,js]
+There is also a simpler way of specifying the query via the `q` parameter. The 
+specified `q` parameter value is then parsed as if the `query_string` query was 
+used. Example usage of the `q` parameter in the
+explain API:
+
+[source,console]
 --------------------------------------------------
-GET /twitter/_explain/0?q=message:search
+GET /my-index-000001/_explain/0?q=message:search
 --------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
+// TEST[setup:messages]
 
-This will yield the same result as the previous request.
 
-[float]
-=== All parameters:
-
-[horizontal]
-`_source`::
-
-    Set to `true` to retrieve the `_source` of the document explained. You can also
-    retrieve part of the document by using `_source_includes` & `_source_excludes` (see <<get-source-filtering,Get API>> for more details)
-
-`stored_fields`::
-    Allows to control which stored fields to return as part of the
-    document explained.
-
-`routing`::
-    Controls the routing in the case the routing was used
-    during indexing.
-
-`parent`::
-    Same effect as setting the routing parameter.
-
-`preference`::
-    Controls on which shard the explain is executed.
-
-`source`::
-    Allows the data of the request to be put in the query
-    string of the url.
-
-`q`::
-    The query string (maps to the query_string query).
-
-`df`::
-    The default field to use when no field prefix is defined within
-    the query.
-
-`analyzer`::
-    The analyzer name to be used when analyzing the query
-    string. Defaults to the default search analyzer.
-
-`analyze_wildcard`::
-    Should wildcard and prefix queries be analyzed or
-    not. Defaults to false.
-
-`lenient`::
-    If set to true will cause format based failures (like
-    providing text to a numeric field) to be ignored. Defaults to false.
-
-`default_operator`::
-    The default operator to be used, can be AND or
-    OR. Defaults to OR.
+The API returns the same result as the previous request.

@@ -1,11 +1,17 @@
+[role="xpack"]
 [[xpack-alerting]]
-= Alerting on cluster and index events
+= Watcher
 
 [partintro]
 --
-{xpack} alerting is a set of administrative features that enable you to watch
-for changes or anomalies in your data and perform the necessary actions in
-response. For example, you might want to:
+TIP: {kib} Alerting provides a set of built-in actions and alerts 
+that are integrated with applications such as APM, Metrics, Security, and Uptime.
+You can use {kib} Alerting to detect complex conditions within different {kib} apps 
+and trigger actions when those conditions are met. 
+For more information, see {kibana-ref}/alerting-getting-started.html[Alerting and actions].
+
+You can use Watcher to watch for changes or anomalies in your data and perform
+the necessary actions in response. For example, you might want to:
 
 * Monitor social media as another way to detect failures in user-facing
   automated systems like ATMs or ticketing systems. When the number of tweets
@@ -37,11 +43,11 @@ All of these use-cases share a few key properties:
 * One or more actions are taken if the condition is true -- an email is sent, a
   3rd party system is notified, or the query results are stored.
 
-[float]
-=== How Watches Work
+[discrete]
+=== How watches work
 
-{xpack} provides an API for creating, managing and testing _watches_. A watch
-describes a single alert and can contain multiple notification actions.
+The {alert-features} provide an API for creating, managing and testing _watches_.
+A watch describes a single alert and can contain multiple notification actions.
 
 A watch is constructed from four simple building blocks:
 
@@ -65,35 +71,26 @@ from the query, whether the condition was met, and what actions were taken.
 
 --
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/getting-started.asciidoc
 include::getting-started.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/how-watcher-works.asciidoc
 include::how-watcher-works.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/encrypting-data.asciidoc
 include::encrypting-data.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/input.asciidoc
 include::input.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/trigger.asciidoc
 include::trigger.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/condition.asciidoc
 include::condition.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/actions.asciidoc
 include::actions.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/transform.asciidoc
 include::transform.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/java.asciidoc
-include::java.asciidoc[]
-
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/managing-watches.asciidoc
 include::managing-watches.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/example-watches.asciidoc
 include::example-watches.asciidoc[]
+
+include::troubleshooting.asciidoc[]
+
+include::limitations.asciidoc[]

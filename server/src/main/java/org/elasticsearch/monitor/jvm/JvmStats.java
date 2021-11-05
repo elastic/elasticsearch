@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.monitor.jvm;
@@ -23,9 +12,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.lang.management.BufferPoolMXBean;
@@ -76,12 +65,15 @@ public class JvmStats implements Writeable, ToXContentFragment {
                 if (name == null) { // if we can't resolve it, its not interesting.... (Per Gen, Code Cache)
                     continue;
                 }
-                pools.add(new MemoryPool(name,
+                pools.add(
+                    new MemoryPool(
+                        name,
                         usage.getUsed() < 0 ? 0 : usage.getUsed(),
                         usage.getMax() < 0 ? 0 : usage.getMax(),
                         peakUsage.getUsed() < 0 ? 0 : peakUsage.getUsed(),
                         peakUsage.getMax() < 0 ? 0 : peakUsage.getMax()
-                ));
+                    )
+                );
             } catch (final Exception ignored) {
 
             }
@@ -93,8 +85,11 @@ public class JvmStats implements Writeable, ToXContentFragment {
         GarbageCollector[] collectors = new GarbageCollector[gcMxBeans.size()];
         for (int i = 0; i < collectors.length; i++) {
             GarbageCollectorMXBean gcMxBean = gcMxBeans.get(i);
-            collectors[i] = new GarbageCollector(GcNames.getByGcName(gcMxBean.getName(), gcMxBean.getName()),
-                    gcMxBean.getCollectionCount(), gcMxBean.getCollectionTime());
+            collectors[i] = new GarbageCollector(
+                GcNames.getByGcName(gcMxBean.getName(), gcMxBean.getName()),
+                gcMxBean.getCollectionCount(),
+                gcMxBean.getCollectionTime()
+            );
         }
         GarbageCollectors garbageCollectors = new GarbageCollectors(collectors);
         List<BufferPool> bufferPoolsList = Collections.emptyList();
@@ -102,18 +97,29 @@ public class JvmStats implements Writeable, ToXContentFragment {
             List<BufferPoolMXBean> bufferPools = ManagementFactory.getPlatformMXBeans(BufferPoolMXBean.class);
             bufferPoolsList = new ArrayList<>(bufferPools.size());
             for (BufferPoolMXBean bufferPool : bufferPools) {
-                bufferPoolsList.add(new BufferPool(bufferPool.getName(), bufferPool.getCount(),
-                        bufferPool.getTotalCapacity(), bufferPool.getMemoryUsed()));
+                bufferPoolsList.add(
+                    new BufferPool(bufferPool.getName(), bufferPool.getCount(), bufferPool.getTotalCapacity(), bufferPool.getMemoryUsed())
+                );
             }
         } catch (Exception e) {
             // buffer pools are not available
         }
 
-        Classes classes = new Classes(classLoadingMXBean.getLoadedClassCount(), classLoadingMXBean.getTotalLoadedClassCount(),
-                classLoadingMXBean.getUnloadedClassCount());
+        Classes classes = new Classes(
+            classLoadingMXBean.getLoadedClassCount(),
+            classLoadingMXBean.getTotalLoadedClassCount(),
+            classLoadingMXBean.getUnloadedClassCount()
+        );
 
-        return new JvmStats(System.currentTimeMillis(), runtimeMXBean.getUptime(), mem, threads,
-                garbageCollectors, bufferPoolsList, classes);
+        return new JvmStats(
+            System.currentTimeMillis(),
+            runtimeMXBean.getUptime(),
+            mem,
+            threads,
+            garbageCollectors,
+            bufferPoolsList,
+            classes
+        );
     }
 
     private final long timestamp;
@@ -124,8 +130,15 @@ public class JvmStats implements Writeable, ToXContentFragment {
     private final List<BufferPool> bufferPools;
     private final Classes classes;
 
-    public JvmStats(long timestamp, long uptime, Mem mem, Threads threads, GarbageCollectors gc,
-                    List<BufferPool> bufferPools, Classes classes) {
+    public JvmStats(
+        long timestamp,
+        long uptime,
+        Mem mem,
+        Threads threads,
+        GarbageCollectors gc,
+        List<BufferPool> bufferPools,
+        Classes classes
+    ) {
         this.timestamp = timestamp;
         this.uptime = uptime;
         this.mem = mem;
@@ -240,8 +253,11 @@ public class JvmStats implements Writeable, ToXContentFragment {
                 builder.startObject(bufferPool.getName());
                 builder.field(Fields.COUNT, bufferPool.getCount());
                 builder.humanReadableField(Fields.USED_IN_BYTES, Fields.USED, new ByteSizeValue(bufferPool.used));
-                builder.humanReadableField(Fields.TOTAL_CAPACITY_IN_BYTES, Fields.TOTAL_CAPACITY,
-                    new ByteSizeValue(bufferPool.totalCapacity));
+                builder.humanReadableField(
+                    Fields.TOTAL_CAPACITY_IN_BYTES,
+                    Fields.TOTAL_CAPACITY,
+                    new ByteSizeValue(bufferPool.totalCapacity)
+                );
                 builder.endObject();
             }
             builder.endObject();

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.watcher.crypto;
 
@@ -12,10 +13,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.WatcherField;
 import org.junit.Before;
 
-import javax.crypto.KeyGenerator;
-
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
+
+import javax.crypto.KeyGenerator;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -27,9 +28,7 @@ public class CryptoServiceTests extends ESTestCase {
     public void init() throws Exception {
         MockSecureSettings mockSecureSettings = new MockSecureSettings();
         mockSecureSettings.setFile(WatcherField.ENCRYPTION_KEY_SETTING.getKey(), generateKey());
-        settings = Settings.builder()
-                .setSecureSettings(mockSecureSettings)
-                .build();
+        settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
     }
 
     public void testEncryptionAndDecryptionChars() throws Exception {
@@ -52,6 +51,11 @@ public class CryptoServiceTests extends ESTestCase {
         assertThat(service.isEncrypted(CryptoService.ENCRYPTED_TEXT_PREFIX.toCharArray()), is(true));
         assertThat(service.isEncrypted(randomAlphaOfLengthBetween(0, 100).toCharArray()), is(false));
         assertThat(service.isEncrypted(service.encrypt(randomAlphaOfLength(10).toCharArray())), is(true));
+    }
+
+    public void testErrorMessageWhenSecureEncryptionKeySettingDoesNotExist() throws Exception {
+        final ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> new CryptoService(Settings.EMPTY));
+        assertThat(e.getMessage(), is("setting [" + WatcherField.ENCRYPTION_KEY_SETTING.getKey() + "] must be set in keystore"));
     }
 
     public static byte[] generateKey() {

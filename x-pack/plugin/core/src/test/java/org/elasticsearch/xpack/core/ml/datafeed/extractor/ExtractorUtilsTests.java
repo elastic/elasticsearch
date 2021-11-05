@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.datafeed.extractor;
 
@@ -28,17 +29,21 @@ public class ExtractorUtilsTests extends ESTestCase {
         AvgAggregationBuilder avg = AggregationBuilders.avg("avg");
         DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("time");
 
-        ElasticsearchException e = expectThrows(ElasticsearchException.class,
-                () -> ExtractorUtils.getHistogramAggregation(
-                        new AggregatorFactories.Builder().addAggregator(avg).addAggregator(dateHistogram).getAggregatorFactories()));
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> ExtractorUtils.getHistogramAggregation(
+                new AggregatorFactories.Builder().addAggregator(avg).addAggregator(dateHistogram).getAggregatorFactories()
+            )
+        );
         assertEquals("The date_histogram (or histogram) aggregation cannot have sibling aggregations", e.getMessage());
 
         TermsAggregationBuilder terms = AggregationBuilders.terms("terms");
         terms.subAggregation(dateHistogram);
         terms.subAggregation(avg);
-        e = expectThrows(ElasticsearchException.class,
-                () -> ExtractorUtils.getHistogramAggregation(
-                        new AggregatorFactories.Builder().addAggregator(terms).getAggregatorFactories()));
+        e = expectThrows(
+            ElasticsearchException.class,
+            () -> ExtractorUtils.getHistogramAggregation(new AggregatorFactories.Builder().addAggregator(terms).getAggregatorFactories())
+        );
         assertEquals("The date_histogram (or histogram) aggregation cannot have sibling aggregations", e.getMessage());
     }
 
@@ -48,58 +53,68 @@ public class ExtractorUtilsTests extends ESTestCase {
 
         DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("time");
         AggregationBuilder histogramAggregationBuilder = ExtractorUtils.getHistogramAggregation(
-                new AggregatorFactories.Builder().addAggregator(dateHistogram).getAggregatorFactories());
+            new AggregatorFactories.Builder().addAggregator(dateHistogram).getAggregatorFactories()
+        );
         assertEquals(dateHistogram, histogramAggregationBuilder);
 
         dateHistogram.subAggregation(avg).subAggregation(nestedTerms);
         histogramAggregationBuilder = ExtractorUtils.getHistogramAggregation(
-                new AggregatorFactories.Builder().addAggregator(dateHistogram).getAggregatorFactories());
+            new AggregatorFactories.Builder().addAggregator(dateHistogram).getAggregatorFactories()
+        );
         assertEquals(dateHistogram, histogramAggregationBuilder);
 
         TermsAggregationBuilder toplevelTerms = AggregationBuilders.terms("top_level");
         toplevelTerms.subAggregation(dateHistogram);
         histogramAggregationBuilder = ExtractorUtils.getHistogramAggregation(
-                new AggregatorFactories.Builder().addAggregator(toplevelTerms).getAggregatorFactories());
+            new AggregatorFactories.Builder().addAggregator(toplevelTerms).getAggregatorFactories()
+        );
 
         assertEquals(dateHistogram, histogramAggregationBuilder);
     }
 
     public void testGetHistogramAggregation_MissingHistogramAgg() {
         TermsAggregationBuilder terms = AggregationBuilders.terms("top_level");
-        ElasticsearchException e = expectThrows(ElasticsearchException.class,
-                () -> ExtractorUtils.getHistogramAggregation(
-                        new AggregatorFactories.Builder().addAggregator(terms).getAggregatorFactories()));
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> ExtractorUtils.getHistogramAggregation(new AggregatorFactories.Builder().addAggregator(terms).getAggregatorFactories())
+        );
         assertEquals("A date_histogram (or histogram) aggregation is required", e.getMessage());
     }
 
     public void testGetHistogramIntervalMillis_GivenDateHistogramWithInvalidTimeZone() {
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
-        DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("bucket").field("time")
-                .interval(300000L).timeZone(ZoneId.of("CET")).subAggregation(maxTime);
-        ElasticsearchException e = expectThrows(ElasticsearchException.class,
-                () -> ExtractorUtils.getHistogramIntervalMillis(dateHistogram));
+        DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("bucket")
+            .field("time")
+            .fixedInterval(new DateHistogramInterval(300000 + "ms"))
+            .timeZone(ZoneId.of("CET"))
+            .subAggregation(maxTime);
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> ExtractorUtils.getHistogramIntervalMillis(dateHistogram)
+        );
 
         assertThat(e.getMessage(), equalTo("ML requires date_histogram.time_zone to be UTC"));
-        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] " +
-            "or [calendar_interval] in the future.");
     }
 
     public void testGetHistogramIntervalMillis_GivenUtcTimeZonesDeprecated() {
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
         ZoneId zone = randomFrom(ZoneOffset.UTC, ZoneId.of("UTC"));
-        DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("bucket").field("time")
-            .interval(300000L).timeZone(zone).subAggregation(maxTime);
+        DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("bucket")
+            .field("time")
+            .fixedInterval(new DateHistogramInterval(300000L + "ms"))
+            .timeZone(zone)
+            .subAggregation(maxTime);
         assertThat(ExtractorUtils.getHistogramIntervalMillis(dateHistogram), is(300_000L));
-
-        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] " +
-            "or [calendar_interval] in the future.");
     }
 
     public void testGetHistogramIntervalMillis_GivenUtcTimeZones() {
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
         ZoneId zone = randomFrom(ZoneOffset.UTC, ZoneId.of("UTC"));
-        DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("bucket").field("time")
-            .fixedInterval(new DateHistogramInterval("300000ms")).timeZone(zone).subAggregation(maxTime);
+        DateHistogramAggregationBuilder dateHistogram = AggregationBuilders.dateHistogram("bucket")
+            .field("time")
+            .fixedInterval(new DateHistogramInterval("300000ms"))
+            .timeZone(zone)
+            .subAggregation(maxTime);
         assertThat(ExtractorUtils.getHistogramIntervalMillis(dateHistogram), is(300_000L));
     }
 
@@ -116,7 +131,6 @@ public class ExtractorUtilsTests extends ESTestCase {
     }
 
     public void testValidateAndGetCalendarInterval_intervalIsLongerThanAWeek() {
-        expectThrows(ElasticsearchException.class,
-                () -> ExtractorUtils.validateAndGetCalendarInterval("8d"));
+        expectThrows(ElasticsearchException.class, () -> ExtractorUtils.validateAndGetCalendarInterval("8d"));
     }
 }

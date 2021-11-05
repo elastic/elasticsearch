@@ -1,0 +1,318 @@
+setup:
+  - do:
+      cluster.health:
+        wait_for_status: green
+        wait_for_nodes: 3
+        # wait for long enough that we give delayed unassigned shards to stop being delayed
+        timeout: 70s
+---
+"Get start, stop, upgrade and delete old cluster batch transform":
+  # Simple and complex OLD transforms
+  - do:
+      transform.get_transform:
+        transform_id: "old-simple-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-simple-transform" }
+  - match: { transforms.0.source.index.0: "transform-airline-data" }
+  - match: { transforms.0.dest.index: "old-simple-transform-idx" }
+  - match: { transforms.0.pivot.group_by.airline.terms.field: "airline" }
+  - match: { transforms.0.pivot.aggregations.avg_response.avg.field: "responsetime" }
+
+  - do:
+      transform.start_transform:
+        transform_id: "old-simple-transform"
+  - match: { acknowledged: true }
+  - do:
+      transform.get_transform_stats:
+        transform_id: "old-simple-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-simple-transform" }
+  - match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
+
+  - do:
+      transform.stop_transform:
+        transform_id: "old-simple-transform"
+        wait_for_completion: true
+  - match: { acknowledged: true }
+  - do:
+      transform.get_transform_stats:
+        transform_id: "old-simple-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-simple-transform" }
+  - match: { transforms.0.state: "stopped" }
+  - do:
+      transform.get_transform:
+        transform_id: "old-complex-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-complex-transform" }
+  - match: { transforms.0.source.index.0: "transform-airline-data" }
+  - match: { transforms.0.dest.index: "old-complex-transform-idx" }
+  - match: { transforms.0.dest.pipeline: "data_frame_simple_pipeline" }
+  - match: { transforms.0.pivot.group_by.airline.terms.field: "airline" }
+  - match: { transforms.0.pivot.group_by.day.date_histogram.field: "timestamp" }
+  - match: { transforms.0.pivot.group_by.every_50.histogram.field: "responsetime" }
+  - match: { transforms.0.pivot.aggregations.avg_response.avg.field: "responsetime" }
+
+  - do:
+      transform.start_transform:
+        transform_id: "old-complex-transform"
+  - match: { acknowledged: true }
+  - do:
+      transform.get_transform_stats:
+        transform_id: "old-complex-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-complex-transform" }
+  - match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
+
+  - do:
+      transform.stop_transform:
+        transform_id: "old-complex-transform"
+        wait_for_completion: true
+  - match: { acknowledged: true }
+  - do:
+      transform.get_transform_stats:
+        transform_id: "old-complex-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-complex-transform" }
+  - match: { transforms.0.state: "stopped" }
+
+  # upgrade transform
+  # note: upgrade is not always required, therefore the output can not be tested
+  - do:
+      transform.upgrade_transforms:
+        dry_run: false
+
+  # Delete old transform
+  - do:
+      transform.delete_transform:
+        transform_id: "old-simple-transform"
+  - do:
+      transform.get_transform_stats:
+        transform_id: "old-simple-transform"
+  - match: { count: 0 }
+
+---
+"Get start, stop mixed cluster batch transform":
+  # Simple and complex Mixed cluster transforms
+  - do:
+      transform.get_transform:
+        transform_id: "mixed-simple-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "mixed-simple-transform" }
+  - match: { transforms.0.source.index.0: "transform-airline-data" }
+  - match: { transforms.0.dest.index: "mixed-simple-transform-idx" }
+  - match: { transforms.0.pivot.group_by.airline.terms.field: "airline" }
+  - match: { transforms.0.pivot.aggregations.avg_response.avg.field: "responsetime" }
+
+  - do:
+      transform.start_transform:
+        transform_id: "mixed-simple-transform"
+  - match: { acknowledged: true }
+  - do:
+      transform.get_transform_stats:
+        transform_id: "mixed-simple-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "mixed-simple-transform" }
+  - match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
+
+  - do:
+      transform.stop_transform:
+        transform_id: "mixed-simple-transform"
+        wait_for_completion: true
+  - match: { acknowledged: true }
+  - do:
+      transform.get_transform_stats:
+        transform_id: "mixed-simple-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "mixed-simple-transform" }
+  - match: { transforms.0.state: "stopped" }
+
+  - do:
+      transform.get_transform:
+        transform_id: "mixed-complex-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "mixed-complex-transform" }
+  - match: { transforms.0.source.index.0: "transform-airline-data" }
+  - match: { transforms.0.dest.index: "mixed-complex-transform-idx" }
+  - match: { transforms.0.dest.pipeline: "data_frame_simple_pipeline" }
+  - match: { transforms.0.pivot.group_by.airline.terms.field: "airline" }
+  - match: { transforms.0.pivot.group_by.day.date_histogram.field: "timestamp" }
+  - match: { transforms.0.pivot.group_by.every_50.histogram.field: "responsetime" }
+  - match: { transforms.0.pivot.aggregations.avg_response.avg.field: "responsetime" }
+
+  - do:
+      transform.start_transform:
+        transform_id: "mixed-complex-transform"
+  - match: { acknowledged: true }
+  - do:
+      transform.get_transform_stats:
+        transform_id: "mixed-complex-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "mixed-complex-transform" }
+  - match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
+
+  - do:
+      transform.stop_transform:
+        transform_id: "mixed-complex-transform"
+        wait_for_completion: true
+  - match: { acknowledged: true }
+  - do:
+      transform.get_transform_stats:
+        transform_id: "mixed-complex-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "mixed-complex-transform" }
+  - match: { transforms.0.state: "stopped" }
+  # Delete mixed transform
+  - do:
+      transform.delete_transform:
+        transform_id: "mixed-simple-transform"
+  - do:
+      transform.delete_transform:
+        transform_id: "mixed-complex-transform"
+  - do:
+      transform.get_transform_stats:
+        transform_id: "mixed-simple-transform,mixed-complex-transform"
+  - match: { count: 0 }
+
+---
+"Test GET, stop, delete, old continuous transforms":
+  - do:
+      transform.get_transform:
+        transform_id: "old-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-simple-continuous-transform" }
+  - match: { transforms.0.sync.time.field: "time" }
+  - match: { transforms.0.sync.time.delay: "90m" }
+  - is_true: transforms.0.version
+  - is_true: transforms.0.create_time
+
+  - do:
+      transform.start_transform:
+        transform_id: "old-simple-continuous-transform"
+  - match: { acknowledged: true }
+  - do:
+      transform.get_transform_stats:
+        transform_id: "old-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-simple-continuous-transform" }
+  - match: { transforms.0.state: "/started|indexing/" }
+
+  - do:
+      transform.get_transform_stats:
+        transform_id: "old-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-simple-continuous-transform" }
+  - match: { transforms.0.state: "/started|indexing/" }
+
+  - do:
+      transform.stop_transform:
+        transform_id: "old-simple-continuous-transform"
+        wait_for_completion: true
+  - match: { acknowledged: true }
+
+  - do:
+      transform.get_transform_stats:
+        transform_id: "old-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "old-simple-continuous-transform" }
+  - match: { transforms.0.state: "stopped" }
+
+  - do:
+      transform.delete_transform:
+        transform_id: "old-simple-continuous-transform"
+---
+"Test GET, mixed continuous transforms":
+  - do:
+      transform.get_transform:
+        transform_id: "mixed-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "mixed-simple-continuous-transform" }
+  - match: { transforms.0.sync.time.field: "time" }
+  - match: { transforms.0.sync.time.delay: "90m" }
+  - is_true: transforms.0.version
+  - is_true: transforms.0.create_time
+
+  - do:
+      transform.start_transform:
+        transform_id: "mixed-simple-continuous-transform"
+  - match: { acknowledged: true }
+  - do:
+      transform.get_transform_stats:
+        transform_id: "mixed-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "mixed-simple-continuous-transform" }
+  - match: { transforms.0.state: "/started|indexing/" }
+
+  - do:
+      transform.get_transform_stats:
+        transform_id: "mixed-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "mixed-simple-continuous-transform" }
+  - match: { transforms.0.state: "/started|indexing/" }
+
+  - do:
+      transform.update_transform:
+        transform_id: "mixed-simple-continuous-transform"
+        body: >
+          {
+            "settings": {
+              "max_page_search_size": 1000
+            }
+          }
+
+  - do:
+      transform.stop_transform:
+        transform_id: "mixed-simple-continuous-transform"
+        wait_for_completion: true
+  - match: { acknowledged: true }
+
+  - do:
+      transform.get_transform_stats:
+        transform_id: "mixed-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "mixed-simple-continuous-transform" }
+  - match: { transforms.0.state: "stopped" }
+
+  - do:
+      transform.get_transform:
+        transform_id: "mixed-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "mixed-simple-continuous-transform" }
+  - match: { transforms.0.settings.max_page_search_size: 1000 }
+
+  - do:
+      transform.delete_transform:
+        transform_id: "mixed-simple-continuous-transform"
+
+---
+"Test index mappings for latest internal index and audit index":
+  - skip:
+      features: warnings
+  - do:
+      transform.put_transform:
+        transform_id: "upgraded-simple-transform"
+        defer_validation: true
+        body: >
+          {
+            "source": { "index": "transform-airline-data" },
+            "dest": { "index": "upgraded-simple-transform-idx" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      warnings:
+        - "this request accesses system indices: [.transform-internal-007], but in a future major version, direct access to system indices will be prevented by default"
+      indices.get_mapping:
+        index: .transform-internal-007
+  - match: { \.transform-internal-007.mappings.dynamic: "false" }
+  - match: { \.transform-internal-007.mappings.properties.id.type: "keyword" }
+  - do:
+      indices.get_mapping:
+        index: .transform-notifications-000002
+  - match: { \.transform-notifications-000002.mappings.dynamic: "false" }
+  - match: { \.transform-notifications-000002.mappings.properties.transform_id.type: "keyword" }
+  - match: { \.transform-notifications-000002.mappings.properties.timestamp.type: "date" }

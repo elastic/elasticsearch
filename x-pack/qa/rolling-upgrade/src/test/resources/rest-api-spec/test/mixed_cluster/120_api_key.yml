@@ -1,0 +1,42 @@
+---
+"Test API key authentication will work in a mixed cluster":
+
+  - skip:
+      features: headers
+
+  - do:
+      security.create_api_key:
+        body:  >
+          {
+            "name": "my-mixed-api-key-1"
+          }
+  - match: { name: "my-mixed-api-key-1" }
+  - is_true: id
+  - is_true: api_key
+  - transform_and_set: { login_creds: "#base64EncodeCredentials(id,api_key)" }
+
+  - do:
+      headers:
+        Authorization: ApiKey ${login_creds}
+      nodes.info: {}
+  - match: { _nodes.failed: 0 }
+
+
+---
+"Create API key with metadata in a mixed cluster":
+
+  - skip:
+      features: [headers, node_selector]
+
+  - do:
+      node_selector:
+        version: " 7.13.0 - "
+      security.create_api_key:
+        body:  >
+          {
+            "name": "my-mixed-api-key-2",
+            "metadata": {"foo": "bar"}
+          }
+  - match: { name: "my-mixed-api-key-2" }
+  - is_true: id
+  - is_true: api_key

@@ -1,9 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.oidc;
+
+import net.minidev.json.JSONArray;
 
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
@@ -22,6 +25,8 @@ import com.nimbusds.oauth2.sdk.AuthorizationCodeGrant;
 import com.nimbusds.oauth2.sdk.ErrorObject;
 import com.nimbusds.oauth2.sdk.ResponseType;
 import com.nimbusds.oauth2.sdk.TokenErrorResponse;
+import com.nimbusds.oauth2.sdk.auth.ClientAuthenticationMethod;
+import com.nimbusds.oauth2.sdk.auth.ClientSecretJWT;
 import com.nimbusds.oauth2.sdk.auth.Secret;
 import com.nimbusds.oauth2.sdk.id.State;
 import com.nimbusds.oauth2.sdk.token.AccessToken;
@@ -37,10 +42,11 @@ import com.nimbusds.openid.connect.sdk.claims.AccessTokenHash;
 import com.nimbusds.openid.connect.sdk.token.OIDCTokens;
 import com.nimbusds.openid.connect.sdk.validators.AccessTokenValidator;
 import com.nimbusds.openid.connect.sdk.validators.IDTokenValidator;
-import net.minidev.json.JSONObject;
+
 import org.apache.commons.codec.Charsets;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
 import org.apache.http.NameValuePair;
 import org.apache.http.auth.AuthenticationException;
@@ -52,11 +58,10 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.concurrent.FutureCallback;
 import org.apache.http.config.Registry;
 import org.apache.http.config.RegistryBuilder;
-import org.apache.http.conn.ssl.DefaultHostnameVerifier;
-import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.entity.ContentType;
 import org.apache.http.impl.auth.BasicScheme;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.impl.nio.client.HttpAsyncClients;
 import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
 import org.apache.http.impl.nio.reactor.DefaultConnectingIOReactor;
@@ -72,30 +77,29 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.CheckedRunnable;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
-import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
+import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
-import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -107,11 +111,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.SSLContext;
+
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.ALLOWED_CLOCK_SKEW;
-import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_CONNECT_TIMEOUT;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_CONNECTION_READ_TIMEOUT;
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_CONNECT_TIMEOUT;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_MAX_CONNECTIONS;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_MAX_ENDPOINT_CONNECTIONS;
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_PROXY_HOST;
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_PROXY_PORT;
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_PROXY_SCHEME;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_SOCKET_TIMEOUT;
 
 /**
@@ -131,20 +141,31 @@ public class OpenIdConnectAuthenticator {
 
     private static final Logger LOGGER = LogManager.getLogger(OpenIdConnectAuthenticator.class);
 
-    public OpenIdConnectAuthenticator(RealmConfig realmConfig, OpenIdConnectProviderConfiguration opConfig,
-                                      RelyingPartyConfiguration rpConfig, SSLService sslService, ResourceWatcherService watcherService) {
+    public OpenIdConnectAuthenticator(
+        RealmConfig realmConfig,
+        OpenIdConnectProviderConfiguration opConfig,
+        RelyingPartyConfiguration rpConfig,
+        SSLService sslService,
+        ResourceWatcherService watcherService
+    ) {
         this.realmConfig = realmConfig;
         this.opConfig = opConfig;
         this.rpConfig = rpConfig;
         this.sslService = sslService;
         this.httpClient = createHttpClient();
         this.watcherService = watcherService;
-        this.idTokenValidator.set(createIdTokenValidator());
+        this.idTokenValidator.set(createIdTokenValidator(true));
     }
 
     // For testing
-    OpenIdConnectAuthenticator(RealmConfig realmConfig, OpenIdConnectProviderConfiguration opConfig, RelyingPartyConfiguration rpConfig,
-                               SSLService sslService, IDTokenValidator idTokenValidator, ResourceWatcherService watcherService) {
+    OpenIdConnectAuthenticator(
+        RealmConfig realmConfig,
+        OpenIdConnectProviderConfiguration opConfig,
+        RelyingPartyConfiguration rpConfig,
+        SSLService sslService,
+        IDTokenValidator idTokenValidator,
+        ResourceWatcherService watcherService
+    ) {
         this.realmConfig = realmConfig;
         this.opConfig = opConfig;
         this.rpConfig = rpConfig;
@@ -169,13 +190,22 @@ public class OpenIdConnectAuthenticator {
             final Nonce expectedNonce = token.getNonce();
             State expectedState = token.getState();
             if (LOGGER.isTraceEnabled()) {
-                LOGGER.trace("OpenID Connect Provider redirected user to [{}]. Expected Nonce is [{}] and expected State is [{}]",
-                    token.getRedirectUrl(), expectedNonce, expectedState);
+                LOGGER.trace(
+                    "OpenID Connect Provider redirected user to [{}]. Expected Nonce is [{}] and expected State is [{}]",
+                    token.getRedirectUrl(),
+                    expectedNonce,
+                    expectedState
+                );
             }
             if (authenticationResponse instanceof AuthenticationErrorResponse) {
                 ErrorObject error = ((AuthenticationErrorResponse) authenticationResponse).getErrorObject();
-                listener.onFailure(new ElasticsearchSecurityException("OpenID Connect Provider response indicates authentication failure" +
-                    "Code=[{}], Description=[{}]", error.getCode(), error.getDescription()));
+                listener.onFailure(
+                    new ElasticsearchSecurityException(
+                        "OpenID Connect Provider response indicates authentication failure" + "Code=[{}], Description=[{}]",
+                        error.getCode(),
+                        error.getDescription()
+                    )
+                );
                 return;
             }
             final AuthenticationSuccessResponse response = authenticationResponse.toSuccessResponse();
@@ -217,17 +247,23 @@ public class OpenIdConnectAuthenticator {
      * @param expectedNonce  The nonce value we sent in the authentication request and should be contained in the Id Token
      * @param claimsListener The listener to notify with the resolved {@link JWTClaimsSet}
      */
-    private void getUserClaims(@Nullable AccessToken accessToken, JWT idToken, Nonce expectedNonce, boolean shouldRetry,
-                               ActionListener<JWTClaimsSet> claimsListener) {
+    @SuppressWarnings("unchecked")
+    private void getUserClaims(
+        @Nullable AccessToken accessToken,
+        JWT idToken,
+        Nonce expectedNonce,
+        boolean shouldRetry,
+        ActionListener<JWTClaimsSet> claimsListener
+    ) {
         try {
             JWTClaimsSet verifiedIdTokenClaims = idTokenValidator.get().validate(idToken, expectedNonce).toJWTClaimsSet();
             if (LOGGER.isTraceEnabled()) {
                 LOGGER.trace("Received and validated the Id Token for the user: [{}]", verifiedIdTokenClaims);
             }
             // Add the Id Token string as a synthetic claim
-            final JSONObject verifiedIdTokenClaimsObject = verifiedIdTokenClaims.toJSONObject();
+            final Map<String, Object> verifiedIdTokenClaimsObject = verifiedIdTokenClaims.toJSONObject();
             final JWTClaimsSet idTokenClaim = new JWTClaimsSet.Builder().claim("id_token_hint", idToken.serialize()).build();
-            verifiedIdTokenClaimsObject.merge(idTokenClaim.toJSONObject());
+            mergeObjects(verifiedIdTokenClaimsObject, idTokenClaim.toJSONObject());
             final JWTClaimsSet enrichedVerifiedIdTokenClaims = JWTClaimsSet.parse(verifiedIdTokenClaimsObject);
             if (accessToken != null && opConfig.getUserinfoEndpoint() != null) {
                 getAndCombineUserInfoClaims(accessToken, enrichedVerifiedIdTokenClaims, claimsListener);
@@ -246,12 +282,12 @@ public class OpenIdConnectAuthenticator {
                 && JWSAlgorithm.Family.HMAC_SHA.contains(rpConfig.getSignatureAlgorithm()) == false
                 && opConfig.getJwkSetPath().startsWith("https://")) {
                 ((ReloadableJWKSource) ((JWSVerificationKeySelector) idTokenValidator.get().getJWSKeySelector()).getJWKSource())
-                    .triggerReload(ActionListener.wrap(v -> {
-                        getUserClaims(accessToken, idToken, expectedNonce, false, claimsListener);
-                    }, ex -> {
-                        LOGGER.trace("Attempted and failed to refresh JWK cache upon token validation failure", e);
-                        claimsListener.onFailure(ex);
-                    }));
+                    .triggerReload(
+                        ActionListener.wrap(v -> { getUserClaims(accessToken, idToken, expectedNonce, false, claimsListener); }, ex -> {
+                            LOGGER.trace("Attempted and failed to refresh JWK cache upon token validation failure", e);
+                            claimsListener.onFailure(ex);
+                        })
+                    );
             } else {
                 claimsListener.onFailure(new ElasticsearchSecurityException("Failed to parse or validate the ID Token", e));
             }
@@ -275,14 +311,16 @@ public class OpenIdConnectAuthenticator {
      */
     private void validateAccessToken(AccessToken accessToken, JWT idToken) {
         try {
-            if (rpConfig.getResponseType().equals(ResponseType.parse("id_token token")) ||
-                rpConfig.getResponseType().equals(ResponseType.parse("code"))) {
+            if (rpConfig.getResponseType().equals(ResponseType.parse("id_token token"))
+                || rpConfig.getResponseType().equals(ResponseType.parse("code"))) {
                 assert (accessToken != null) : "Access Token cannot be null for Response Type " + rpConfig.getResponseType().toString();
                 final boolean isValidationOptional = rpConfig.getResponseType().equals(ResponseType.parse("code"));
                 // only "Bearer" is defined in the specification but check just in case
                 if (accessToken.getType().toString().equals("Bearer") == false) {
-                    throw new ElasticsearchSecurityException("Invalid access token type [{}], while [Bearer] was expected",
-                        accessToken.getType());
+                    throw new ElasticsearchSecurityException(
+                        "Invalid access token type [{}], while [Bearer] was expected",
+                        accessToken.getType()
+                    );
                 }
                 String atHashValue = idToken.getJWTClaimsSet().getStringClaim("at_hash");
                 if (Strings.hasText(atHashValue) == false) {
@@ -311,10 +349,11 @@ public class OpenIdConnectAuthenticator {
      * @throws ParseException if the file cannot be parsed
      * @throws IOException    if the file cannot be read
      */
-    @SuppressForbidden(reason = "uses toFile")
     private JWKSet readJwkSetFromFile(String jwkSetPath) throws IOException, ParseException {
         final Path path = realmConfig.env().configFile().resolve(jwkSetPath);
-        return JWKSet.load(path.toFile());
+        // avoid using JWKSet.loadFile() as it does not close FileInputStream internally
+        String jwkSet = Files.readString(path, StandardCharsets.UTF_8);
+        return JWKSet.parse(jwkSet);
     }
 
     /**
@@ -325,8 +364,11 @@ public class OpenIdConnectAuthenticator {
      */
     private void validateResponseType(AuthenticationSuccessResponse response) {
         if (rpConfig.getResponseType().equals(response.impliedResponseType()) == false) {
-            throw new ElasticsearchSecurityException("Unexpected response type [{}], while [{}] is configured",
-                response.impliedResponseType(), rpConfig.getResponseType());
+            throw new ElasticsearchSecurityException(
+                "Unexpected response type [{}], while [{}] is configured",
+                response.impliedResponseType(),
+                rpConfig.getResponseType()
+            );
         }
     }
 
@@ -341,8 +383,9 @@ public class OpenIdConnectAuthenticator {
         if (null == state) {
             throw new ElasticsearchSecurityException("Failed to validate the response, the response did not contain a state parameter");
         } else if (null == expectedState) {
-            throw new ElasticsearchSecurityException("Failed to validate the response, the user's session did not contain a state " +
-                "parameter");
+            throw new ElasticsearchSecurityException(
+                "Failed to validate the response, the user's session did not contain a state " + "parameter"
+            );
         } else if (state.equals(expectedState) == false) {
             throw new ElasticsearchSecurityException("Invalid state parameter [{}], while [{}] was expected", state, expectedState);
         }
@@ -351,8 +394,11 @@ public class OpenIdConnectAuthenticator {
     /**
      * Attempts to make a request to the UserInfo Endpoint of the OpenID Connect provider
      */
-    private void getAndCombineUserInfoClaims(AccessToken accessToken, JWTClaimsSet verifiedIdTokenClaims,
-                                             ActionListener<JWTClaimsSet> claimsListener) {
+    private void getAndCombineUserInfoClaims(
+        AccessToken accessToken,
+        JWTClaimsSet verifiedIdTokenClaims,
+        ActionListener<JWTClaimsSet> claimsListener
+    ) {
         try {
             final HttpGet httpGet = new HttpGet(opConfig.getUserinfoEndpoint());
             httpGet.setHeader("Authorization", "Bearer " + accessToken.getValue());
@@ -365,14 +411,16 @@ public class OpenIdConnectAuthenticator {
 
                     @Override
                     public void failed(Exception ex) {
-                        claimsListener.onFailure(new ElasticsearchSecurityException("Failed to get claims from the Userinfo Endpoint.",
-                            ex));
+                        claimsListener.onFailure(
+                            new ElasticsearchSecurityException("Failed to get claims from the Userinfo Endpoint.", ex)
+                        );
                     }
 
                     @Override
                     public void cancelled() {
                         claimsListener.onFailure(
-                            new ElasticsearchSecurityException("Failed to get claims from the Userinfo Endpoint. Request was cancelled"));
+                            new ElasticsearchSecurityException("Failed to get claims from the Userinfo Endpoint. Request was cancelled")
+                        );
                     }
                 });
                 return null;
@@ -386,8 +434,11 @@ public class OpenIdConnectAuthenticator {
      * Handle the UserInfo Response from the OpenID Connect Provider. If successful, merge the returned claims with the claims
      * of the Id Token and call the provided listener.
      */
-    private void handleUserinfoResponse(HttpResponse httpResponse, JWTClaimsSet verifiedIdTokenClaims,
-                                        ActionListener<JWTClaimsSet> claimsListener) {
+    private void handleUserinfoResponse(
+        HttpResponse httpResponse,
+        JWTClaimsSet verifiedIdTokenClaims,
+        ActionListener<JWTClaimsSet> claimsListener
+    ) {
         try {
             final HttpEntity entity = httpResponse.getEntity();
             final Header encodingHeader = entity.getContentEncoding();
@@ -395,43 +446,79 @@ public class OpenIdConnectAuthenticator {
             final Header contentHeader = entity.getContentType();
             final String contentAsString = EntityUtils.toString(entity, encoding);
             if (LOGGER.isTraceEnabled()) {
-                LOGGER.trace("Received UserInfo Response from OP with status [{}] and content [{}] ",
-                    httpResponse.getStatusLine().getStatusCode(), contentAsString);
+                LOGGER.trace(
+                    "Received UserInfo Response from OP with status [{}] and content [{}] ",
+                    httpResponse.getStatusLine().getStatusCode(),
+                    contentAsString
+                );
             }
             if (httpResponse.getStatusLine().getStatusCode() == 200) {
                 if (ContentType.parse(contentHeader.getValue()).getMimeType().equals("application/json")) {
                     final JWTClaimsSet userInfoClaims = JWTClaimsSet.parse(contentAsString);
+                    validateUserInfoResponse(userInfoClaims, verifiedIdTokenClaims.getSubject(), claimsListener);
                     if (LOGGER.isTraceEnabled()) {
-                        LOGGER.trace("Successfully retrieved user information: [{}]", userInfoClaims.toJSONObject().toJSONString());
+                        LOGGER.trace("Successfully retrieved user information: [{}]", userInfoClaims);
                     }
-                    final JSONObject combinedClaims = verifiedIdTokenClaims.toJSONObject();
-                    combinedClaims.merge(userInfoClaims.toJSONObject());
+                    final Map<String, Object> combinedClaims = verifiedIdTokenClaims.toJSONObject();
+                    mergeObjects(combinedClaims, userInfoClaims.toJSONObject());
                     claimsListener.onResponse(JWTClaimsSet.parse(combinedClaims));
                 } else if (ContentType.parse(contentHeader.getValue()).getMimeType().equals("application/jwt")) {
-                    //TODO Handle validating possibly signed responses
-                    claimsListener.onFailure(new IllegalStateException("Unable to parse Userinfo Response. Signed/encryopted JWTs are" +
-                        "not currently supported"));
+                    // TODO Handle validating possibly signed responses
+                    claimsListener.onFailure(
+                        new IllegalStateException(
+                            "Unable to parse Userinfo Response. Signed/encrypted JWTs are" + "not currently supported"
+                        )
+                    );
                 } else {
-                    claimsListener.onFailure(new IllegalStateException("Unable to parse Userinfo Response. Content type was expected to " +
-                        "be [application/json] or [appliation/jwt] but was [" + contentHeader.getValue() + "]"));
+                    claimsListener.onFailure(
+                        new IllegalStateException(
+                            "Unable to parse Userinfo Response. Content type was expected to "
+                                + "be [application/json] or [appliation/jwt] but was ["
+                                + contentHeader.getValue()
+                                + "]"
+                        )
+                    );
                 }
             } else {
                 final Header wwwAuthenticateHeader = httpResponse.getFirstHeader("WWW-Authenticate");
                 if (Strings.hasText(wwwAuthenticateHeader.getValue())) {
                     BearerTokenError error = BearerTokenError.parse(wwwAuthenticateHeader.getValue());
                     claimsListener.onFailure(
-                        new ElasticsearchSecurityException("Failed to get user information from the UserInfo endpoint. Code=[{}], " +
-                            "Description=[{}]", error.getCode(), error.getDescription()));
+                        new ElasticsearchSecurityException(
+                            "Failed to get user information from the UserInfo endpoint. Code=[{}], " + "Description=[{}]",
+                            error.getCode(),
+                            error.getDescription()
+                        )
+                    );
                 } else {
                     claimsListener.onFailure(
-                        new ElasticsearchSecurityException("Failed to get user information from the UserInfo endpoint. Code=[{}], " +
-                            "Description=[{}]", httpResponse.getStatusLine().getStatusCode(),
-                            httpResponse.getStatusLine().getReasonPhrase()));
+                        new ElasticsearchSecurityException(
+                            "Failed to get user information from the UserInfo endpoint. Code=[{}], " + "Description=[{}]",
+                            httpResponse.getStatusLine().getStatusCode(),
+                            httpResponse.getStatusLine().getReasonPhrase()
+                        )
+                    );
                 }
             }
-        } catch (IOException | com.nimbusds.oauth2.sdk.ParseException | ParseException e) {
-            claimsListener.onFailure(new ElasticsearchSecurityException("Failed to get user information from the UserInfo endpoint.",
-                e));
+        } catch (Exception e) {
+            claimsListener.onFailure(new ElasticsearchSecurityException("Failed to get user information from the UserInfo endpoint.", e));
+        }
+    }
+
+    /**
+     * Validates that the userinfo response contains a sub Claim and that this claim value is the same as the one returned in the ID Token
+     */
+    private void validateUserInfoResponse(JWTClaimsSet userInfoClaims, String expectedSub, ActionListener<JWTClaimsSet> claimsListener) {
+        if (userInfoClaims.getSubject().isEmpty()) {
+            claimsListener.onFailure(new ElasticsearchSecurityException("Userinfo Response did not contain a sub Claim"));
+        } else if (userInfoClaims.getSubject().equals(expectedSub) == false) {
+            claimsListener.onFailure(
+                new ElasticsearchSecurityException(
+                    "Userinfo Response is not valid as it is for " + "subject [{}] while the ID Token was for subject [{}]",
+                    userInfoClaims.getSubject(),
+                    expectedSub
+                )
+            );
         }
     }
 
@@ -443,18 +530,48 @@ public class OpenIdConnectAuthenticator {
         try {
             final AuthorizationCodeGrant codeGrant = new AuthorizationCodeGrant(code, rpConfig.getRedirectUri());
             final HttpPost httpPost = new HttpPost(opConfig.getTokenEndpoint());
+            httpPost.setHeader("Content-type", "application/x-www-form-urlencoded");
             final List<NameValuePair> params = new ArrayList<>();
             for (Map.Entry<String, List<String>> entry : codeGrant.toParameters().entrySet()) {
                 // All parameters of AuthorizationCodeGrant are singleton lists
                 params.add(new BasicNameValuePair(entry.getKey(), entry.getValue().get(0)));
             }
+            if (rpConfig.getClientAuthenticationMethod().equals(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)) {
+                UsernamePasswordCredentials creds = new UsernamePasswordCredentials(
+                    URLEncoder.encode(rpConfig.getClientId().getValue(), StandardCharsets.UTF_8),
+                    URLEncoder.encode(rpConfig.getClientSecret().toString(), StandardCharsets.UTF_8)
+                );
+                httpPost.addHeader(new BasicScheme().authenticate(creds, httpPost, null));
+            } else if (rpConfig.getClientAuthenticationMethod().equals(ClientAuthenticationMethod.CLIENT_SECRET_POST)) {
+                params.add(new BasicNameValuePair("client_id", rpConfig.getClientId().getValue()));
+                params.add(new BasicNameValuePair("client_secret", rpConfig.getClientSecret().toString()));
+            } else if (rpConfig.getClientAuthenticationMethod().equals(ClientAuthenticationMethod.CLIENT_SECRET_JWT)) {
+                ClientSecretJWT clientSecretJWT = new ClientSecretJWT(
+                    rpConfig.getClientId(),
+                    opConfig.getTokenEndpoint(),
+                    rpConfig.getClientAuthenticationJwtAlgorithm(),
+                    new Secret(rpConfig.getClientSecret().toString())
+                );
+                for (Map.Entry<String, List<String>> entry : clientSecretJWT.toParameters().entrySet()) {
+                    // Both client_assertion and client_assertion_type are singleton lists
+                    params.add(new BasicNameValuePair(entry.getKey(), entry.getValue().get(0)));
+                }
+            } else {
+                tokensListener.onFailure(
+                    new ElasticsearchSecurityException(
+                        "Failed to exchange code for Id Token using Token Endpoint."
+                            + "Expected client authentication method to be one of "
+                            + OpenIdConnectRealmSettings.CLIENT_AUTH_METHODS
+                            + " but was ["
+                            + rpConfig.getClientAuthenticationMethod()
+                            + "]"
+                    )
+                );
+            }
             httpPost.setEntity(new UrlEncodedFormEntity(params));
-            httpPost.setHeader("Content-type", "application/x-www-form-urlencoded");
-            UsernamePasswordCredentials creds = new UsernamePasswordCredentials(rpConfig.getClientId().getValue(),
-                rpConfig.getClientSecret().toString());
-            httpPost.addHeader(new BasicScheme().authenticate(creds, httpPost, null));
             SpecialPermission.check();
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+
                 httpClient.execute(httpPost, new FutureCallback<HttpResponse>() {
                     @Override
                     public void completed(HttpResponse result) {
@@ -464,7 +581,8 @@ public class OpenIdConnectAuthenticator {
                     @Override
                     public void failed(Exception ex) {
                         tokensListener.onFailure(
-                            new ElasticsearchSecurityException("Failed to exchange code for Id Token using the Token Endpoint.", ex));
+                            new ElasticsearchSecurityException("Failed to exchange code for Id Token using the Token Endpoint.", ex)
+                        );
                     }
 
                     @Override
@@ -475,9 +593,10 @@ public class OpenIdConnectAuthenticator {
                 });
                 return null;
             });
-        } catch (AuthenticationException | UnsupportedEncodingException e) {
+        } catch (AuthenticationException | UnsupportedEncodingException | JOSEException e) {
             tokensListener.onFailure(
-                new ElasticsearchSecurityException("Failed to exchange code for Id Token using the Token Endpoint.", e));
+                new ElasticsearchSecurityException("Failed to exchange code for Id Token using the Token Endpoint.", e)
+            );
         }
     }
 
@@ -491,43 +610,70 @@ public class OpenIdConnectAuthenticator {
             final Header encodingHeader = entity.getContentEncoding();
             final Header contentHeader = entity.getContentType();
             if (ContentType.parse(contentHeader.getValue()).getMimeType().equals("application/json") == false) {
-                tokensListener.onFailure(new IllegalStateException("Unable to parse Token Response. Content type was expected to be " +
-                    "[application/json] but was [" + contentHeader.getValue() + "]"));
+                tokensListener.onFailure(
+                    new IllegalStateException(
+                        "Unable to parse Token Response. Content type was expected to be "
+                            + "[application/json] but was ["
+                            + contentHeader.getValue()
+                            + "]"
+                    )
+                );
                 return;
             }
             final Charset encoding = encodingHeader == null ? StandardCharsets.UTF_8 : Charsets.toCharset(encodingHeader.getValue());
-            final String json = EntityUtils.toString(entity, encoding);
-            if (LOGGER.isTraceEnabled()) {
-                LOGGER.trace("Received Token Response from OP with status [{}] and content [{}] ",
-                    httpResponse.getStatusLine().getStatusCode(), json);
-            }
-            final OIDCTokenResponse oidcTokenResponse = OIDCTokenResponse.parse(JSONObjectUtils.parse(json));
-            if (oidcTokenResponse.indicatesSuccess() == false) {
-                TokenErrorResponse errorResponse = oidcTokenResponse.toErrorResponse();
-                tokensListener.onFailure(
-                    new ElasticsearchSecurityException("Failed to exchange code for Id Token. Code=[{}], Description=[{}]",
-                        errorResponse.getErrorObject().getCode(), errorResponse.getErrorObject().getDescription()));
+            final RestStatus responseStatus = RestStatus.fromCode(httpResponse.getStatusLine().getStatusCode());
+            if (RestStatus.OK != responseStatus) {
+                final String json = EntityUtils.toString(entity, encoding);
+                LOGGER.warn("Received Token Response from OP with status [{}] and content [{}]", responseStatus, json);
+                if (RestStatus.BAD_REQUEST == responseStatus) {
+                    final TokenErrorResponse tokenErrorResponse = TokenErrorResponse.parse(JSONObjectUtils.parse(json));
+                    tokensListener.onFailure(
+                        new ElasticsearchSecurityException(
+                            "Failed to exchange code for Id Token. Code=[{}], Description=[{}]",
+                            tokenErrorResponse.getErrorObject().getCode(),
+                            tokenErrorResponse.getErrorObject().getDescription()
+                        )
+                    );
+                } else {
+                    tokensListener.onFailure(new ElasticsearchSecurityException("Failed to exchange code for Id Token"));
+                }
             } else {
-                OIDCTokenResponse successResponse = oidcTokenResponse.toSuccessResponse();
-                final OIDCTokens oidcTokens = successResponse.getOIDCTokens();
+                final OIDCTokenResponse oidcTokenResponse = OIDCTokenResponse.parse(
+                    JSONObjectUtils.parse(EntityUtils.toString(entity, encoding))
+                );
+                final OIDCTokens oidcTokens = oidcTokenResponse.getOIDCTokens();
                 final AccessToken accessToken = oidcTokens.getAccessToken();
                 final JWT idToken = oidcTokens.getIDToken();
                 if (LOGGER.isTraceEnabled()) {
-                    LOGGER.trace("Successfully exchanged code for ID Token: [{}] and Access Token [{}]",
-                        idToken, accessToken);
+                    LOGGER.trace(
+                        "Successfully exchanged code for ID Token [{}] and Access Token [{}]",
+                        idToken,
+                        truncateToken(accessToken.toString())
+                    );
                 }
                 if (idToken == null) {
-                    tokensListener.onFailure(new ElasticsearchSecurityException("Token Response did not contain an ID Token or parsing of" +
-                        " the JWT failed."));
+                    tokensListener.onFailure(
+                        new ElasticsearchSecurityException("Token Response did not contain an ID Token or parsing of the JWT failed.")
+                    );
                     return;
                 }
                 tokensListener.onResponse(new Tuple<>(accessToken, idToken));
             }
-        } catch (IOException | com.nimbusds.oauth2.sdk.ParseException e) {
+        } catch (Exception e) {
             tokensListener.onFailure(
-                new ElasticsearchSecurityException("Failed to exchange code for Id Token using the Token Endpoint. " +
-                    "Unable to parse Token Response", e));
+                new ElasticsearchSecurityException(
+                    "Failed to exchange code for Id Token using the Token Endpoint. " + "Unable to parse Token Response",
+                    e
+                )
+            );
         }
+    }
+
+    private static String truncateToken(String input) {
+        if (Strings.hasText(input) == false || input.length() <= 4) {
+            return input;
+        }
+        return input.substring(0, 2) + "***" + input.substring(input.length() - 2);
     }
 
     /**
@@ -536,33 +682,40 @@ public class OpenIdConnectAuthenticator {
     private CloseableHttpAsyncClient createHttpClient() {
         try {
             SpecialPermission.check();
-            return AccessController.doPrivileged(
-                (PrivilegedExceptionAction<CloseableHttpAsyncClient>) () -> {
-                    ConnectingIOReactor ioReactor = new DefaultConnectingIOReactor();
-                    final String sslKey = RealmSettings.realmSslPrefix(realmConfig.identifier());
-                    final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(sslKey);
-                    final SSLContext clientContext = sslService.sslContext(sslConfiguration);
-                    boolean isHostnameVerificationEnabled = sslConfiguration.verificationMode().isHostnameVerificationEnabled();
-                    final HostnameVerifier verifier = isHostnameVerificationEnabled ?
-                        new DefaultHostnameVerifier() : NoopHostnameVerifier.INSTANCE;
-                    Registry<SchemeIOSessionStrategy> registry = RegistryBuilder.<SchemeIOSessionStrategy>create()
-                        .register("http", NoopIOSessionStrategy.INSTANCE)
-                        .register("https", new SSLIOSessionStrategy(clientContext, verifier))
-                        .build();
-                    PoolingNHttpClientConnectionManager connectionManager = new PoolingNHttpClientConnectionManager(ioReactor, registry);
-                    connectionManager.setDefaultMaxPerRoute(realmConfig.getSetting(HTTP_MAX_ENDPOINT_CONNECTIONS));
-                    connectionManager.setMaxTotal(realmConfig.getSetting(HTTP_MAX_CONNECTIONS));
-                    final RequestConfig requestConfig = RequestConfig.custom()
-                        .setConnectTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_CONNECT_TIMEOUT).getMillis()))
-                        .setConnectionRequestTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_CONNECTION_READ_TIMEOUT).getSeconds()))
-                        .setSocketTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_SOCKET_TIMEOUT).getMillis())).build();
-                    CloseableHttpAsyncClient httpAsyncClient = HttpAsyncClients.custom()
-                        .setConnectionManager(connectionManager)
-                        .setDefaultRequestConfig(requestConfig)
-                        .build();
-                    httpAsyncClient.start();
-                    return httpAsyncClient;
-                });
+            return AccessController.doPrivileged((PrivilegedExceptionAction<CloseableHttpAsyncClient>) () -> {
+                ConnectingIOReactor ioReactor = new DefaultConnectingIOReactor();
+                final String sslKey = RealmSettings.realmSslPrefix(realmConfig.identifier());
+                final SslConfiguration sslConfiguration = sslService.getSSLConfiguration(sslKey);
+                final SSLContext clientContext = sslService.sslContext(sslConfiguration);
+                final HostnameVerifier verifier = SSLService.getHostnameVerifier(sslConfiguration);
+                Registry<SchemeIOSessionStrategy> registry = RegistryBuilder.<SchemeIOSessionStrategy>create()
+                    .register("http", NoopIOSessionStrategy.INSTANCE)
+                    .register("https", new SSLIOSessionStrategy(clientContext, verifier))
+                    .build();
+                PoolingNHttpClientConnectionManager connectionManager = new PoolingNHttpClientConnectionManager(ioReactor, registry);
+                connectionManager.setDefaultMaxPerRoute(realmConfig.getSetting(HTTP_MAX_ENDPOINT_CONNECTIONS));
+                connectionManager.setMaxTotal(realmConfig.getSetting(HTTP_MAX_CONNECTIONS));
+                final RequestConfig requestConfig = RequestConfig.custom()
+                    .setConnectTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_CONNECT_TIMEOUT).getMillis()))
+                    .setConnectionRequestTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_CONNECTION_READ_TIMEOUT).getSeconds()))
+                    .setSocketTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_SOCKET_TIMEOUT).getMillis()))
+                    .build();
+                HttpAsyncClientBuilder httpAsyncClientBuilder = HttpAsyncClients.custom()
+                    .setConnectionManager(connectionManager)
+                    .setDefaultRequestConfig(requestConfig);
+                if (realmConfig.hasSetting(HTTP_PROXY_HOST)) {
+                    httpAsyncClientBuilder.setProxy(
+                        new HttpHost(
+                            realmConfig.getSetting(HTTP_PROXY_HOST),
+                            realmConfig.getSetting(HTTP_PROXY_PORT),
+                            realmConfig.getSetting(HTTP_PROXY_SCHEME)
+                        )
+                    );
+                }
+                CloseableHttpAsyncClient httpAsyncClient = httpAsyncClientBuilder.build();
+                httpAsyncClient.start();
+                return httpAsyncClient;
+            });
         } catch (PrivilegedActionException e) {
             throw new IllegalStateException("Unable to create a HttpAsyncClient instance", e);
         }
@@ -571,23 +724,28 @@ public class OpenIdConnectAuthenticator {
     /*
      * Creates an {@link IDTokenValidator} based on the current Relying Party configuration
      */
-    IDTokenValidator createIdTokenValidator() {
+    IDTokenValidator createIdTokenValidator(boolean addFileWatcherIfRequired) {
         try {
             final JWSAlgorithm requestedAlgorithm = rpConfig.getSignatureAlgorithm();
             final int allowedClockSkew = Math.toIntExact(realmConfig.getSetting(ALLOWED_CLOCK_SKEW).getMillis());
             final IDTokenValidator idTokenValidator;
             if (JWSAlgorithm.Family.HMAC_SHA.contains(requestedAlgorithm)) {
                 final Secret clientSecret = new Secret(rpConfig.getClientSecret().toString());
-                idTokenValidator =
-                    new IDTokenValidator(opConfig.getIssuer(), rpConfig.getClientId(), requestedAlgorithm, clientSecret);
+                idTokenValidator = new IDTokenValidator(opConfig.getIssuer(), rpConfig.getClientId(), requestedAlgorithm, clientSecret);
             } else {
                 String jwkSetPath = opConfig.getJwkSetPath();
-                if (jwkSetPath.startsWith("https://")) {
-                    final JWSVerificationKeySelector keySelector = new JWSVerificationKeySelector(requestedAlgorithm,
-                        new ReloadableJWKSource(new URL(jwkSetPath)));
+                if (jwkSetPath.startsWith("http://")) {
+                    throw new IllegalArgumentException("The [http] protocol is not supported as it is insecure. Use [https] instead");
+                } else if (jwkSetPath.startsWith("https://")) {
+                    final JWSVerificationKeySelector<SecurityContext> keySelector = new JWSVerificationKeySelector<>(
+                        requestedAlgorithm,
+                        new ReloadableJWKSource<>(new URL(jwkSetPath))
+                    );
                     idTokenValidator = new IDTokenValidator(opConfig.getIssuer(), rpConfig.getClientId(), keySelector, null);
                 } else {
-                    setMetadataFileWatcher(jwkSetPath);
+                    if (addFileWatcherIfRequired) {
+                        setMetadataFileWatcher(jwkSetPath);
+                    }
                     final JWKSet jwkSet = readJwkSetFromFile(jwkSetPath);
                     idTokenValidator = new IDTokenValidator(opConfig.getIssuer(), rpConfig.getClientId(), requestedAlgorithm, jwkSet);
                 }
@@ -602,8 +760,94 @@ public class OpenIdConnectAuthenticator {
     private void setMetadataFileWatcher(String jwkSetPath) throws IOException {
         final Path path = realmConfig.env().configFile().resolve(jwkSetPath);
         FileWatcher watcher = new FileWatcher(path);
-        watcher.addListener(new FileListener(LOGGER, () -> this.idTokenValidator.set(createIdTokenValidator())));
+        watcher.addListener(new FileListener(LOGGER, () -> this.idTokenValidator.set(createIdTokenValidator(false))));
         watcherService.add(watcher, ResourceWatcherService.Frequency.MEDIUM);
+    }
+
+    /**
+     * Merges the Map with the claims of the ID Token with the Map with the claims of the UserInfo response.
+     * The merging is performed based on the following rules:
+     * <ul>
+     * <li>If the values for a given claim are primitives (of the same type), the value from the ID Token is retained</li>
+     * <li>If the values for a given claim are Objects, the values are merged</li>
+     * <li>If the values for a given claim are Arrays, the values are merged without removing duplicates</li>
+     * <li>If the values for a given claim are of different types, an exception is thrown</li>
+     * </ul>
+     *
+     * @param userInfo The Map with the ID Token claims
+     * @param idToken  The Map with the UserInfo Response claims
+     * @return the merged Map
+     */
+    // pkg protected for testing
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> mergeObjects(Map<String, Object> idToken, Map<String, Object> userInfo) {
+        for (Map.Entry<String, Object> entry : idToken.entrySet()) {
+            Object value1 = entry.getValue();
+            Object value2 = userInfo.get(entry.getKey());
+            if (value2 == null) {
+                continue;
+            }
+            if (value1 instanceof JSONArray) {
+                idToken.put(entry.getKey(), mergeArrays((JSONArray) value1, value2));
+            } else if (value1 instanceof Map) {
+                idToken.put(entry.getKey(), mergeObjects((Map<String, Object>) value1, value2));
+            } else if (value1.getClass().equals(value2.getClass()) == false) {
+                // A special handling for certain OPs that mix the usage of true and "true"
+                if (value1 instanceof Boolean && value2 instanceof String && String.valueOf(value1).equals(value2)) {
+                    idToken.put(entry.getKey(), value1);
+                } else if (value2 instanceof Boolean && value1 instanceof String && String.valueOf(value2).equals(value1)) {
+                    idToken.put(entry.getKey(), value2);
+                } else {
+                    throw new IllegalStateException(
+                        "Error merging ID token and userinfo claim value for claim ["
+                            + entry.getKey()
+                            + "]. "
+                            + "Cannot merge ["
+                            + value1.getClass().getName()
+                            + "] with ["
+                            + value2.getClass().getName()
+                            + "]"
+                    );
+                }
+            }
+        }
+        for (Map.Entry<String, Object> entry : userInfo.entrySet()) {
+            if (idToken.containsKey(entry.getKey()) == false) {
+                idToken.put(entry.getKey(), entry.getValue());
+            }
+        }
+        return idToken;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> mergeObjects(Map<String, Object> jsonObject1, Object jsonObject2) {
+        if (jsonObject2 == null) {
+            return jsonObject1;
+        }
+        if (jsonObject2 instanceof Map) {
+            return mergeObjects(jsonObject1, (Map<String, Object>) jsonObject2);
+        }
+        throw new IllegalStateException(
+            "Error while merging ID token and userinfo claims. " + "Cannot merge a Map with a [" + jsonObject2.getClass().getName() + "]"
+        );
+    }
+
+    private static JSONArray mergeArrays(JSONArray jsonArray1, Object jsonArray2) {
+        if (jsonArray2 == null) {
+            return jsonArray1;
+        }
+        if (jsonArray2 instanceof JSONArray) {
+            return mergeArrays(jsonArray1, (JSONArray) jsonArray2);
+        }
+        if (jsonArray2 instanceof String) {
+            jsonArray1.add(jsonArray2);
+        }
+        return jsonArray1;
+    }
+
+    private static JSONArray mergeArrays(JSONArray jsonArray1, JSONArray jsonArray2) {
+        jsonArray1.addAll(jsonArray2);
+        return jsonArray1;
     }
 
     protected void close() {
@@ -647,7 +891,7 @@ public class OpenIdConnectAuthenticator {
     /**
      * Remote JSON Web Key source specified by a JWKSet URL. The retrieved JWK set is cached to
      * avoid unnecessary http requests. A single attempt to update the cached set is made
-     * (with {@ling ReloadableJWKSource#triggerReload}) when the {@link IDTokenValidator} fails
+     * (with {@link ReloadableJWKSource#triggerReload}) when the {@link IDTokenValidator} fails
      * to validate an ID Token (because of an unknown key) as this might mean that the OpenID
      * Connect Provider has rotated the signing keys.
      */
@@ -659,8 +903,12 @@ public class OpenIdConnectAuthenticator {
 
         private ReloadableJWKSource(URL jwkSetPath) {
             this.jwkSetPath = jwkSetPath;
-            triggerReload(ActionListener.wrap(success -> LOGGER.trace("Successfully loaded and cached remote JWKSet on startup"),
-                failure -> LOGGER.trace("Failed to load and cache remote JWKSet on startup", failure)));
+            triggerReload(
+                ActionListener.wrap(
+                    success -> LOGGER.trace("Successfully loaded and cached remote JWKSet on startup"),
+                    failure -> LOGGER.trace("Failed to load and cache remote JWKSet on startup", failure)
+                )
+            );
         }
 
         @Override
@@ -678,7 +926,7 @@ public class OpenIdConnectAuthenticator {
                     future = reloadFutureRef.get();
                 }
             }
-            future.addListener(toNotify, EsExecutors.newDirectExecutorService(), null);
+            future.addListener(toNotify);
         }
 
         void reloadAsync(final ListenableFuture<Void> future) {
@@ -689,11 +937,13 @@ public class OpenIdConnectAuthenticator {
                         @Override
                         public void completed(HttpResponse result) {
                             try {
-                                cachedJwkSet = JWKSet.parse(IOUtils.readInputStreamToString(result.getEntity().getContent(),
-                                    StandardCharsets.UTF_8));
+                                cachedJwkSet = JWKSet.parse(
+                                    IOUtils.readInputStreamToString(result.getEntity().getContent(), StandardCharsets.UTF_8)
+                                );
                                 reloadFutureRef.set(null);
                                 LOGGER.trace("Successfully refreshed and cached remote JWKSet");
-                            } catch (IOException | ParseException e) {
+                                future.onResponse(null);
+                            } catch (Exception e) {
                                 failed(e);
                             }
                         }
@@ -707,13 +957,14 @@ public class OpenIdConnectAuthenticator {
                         @Override
                         public void cancelled() {
                             future.onFailure(
-                                new ElasticsearchSecurityException("Failed to retrieve remote JWK set. Request was cancelled."));
+                                new ElasticsearchSecurityException("Failed to retrieve remote JWK set. Request was cancelled.")
+                            );
                             reloadFutureRef.set(null);
                         }
                     });
                     return null;
                 });
-            } catch (URISyntaxException e) {
+            } catch (Exception e) {
                 future.onFailure(e);
                 reloadFutureRef.set(null);
             }

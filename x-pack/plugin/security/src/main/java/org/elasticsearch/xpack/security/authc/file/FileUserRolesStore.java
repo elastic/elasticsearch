@@ -1,17 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.file;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -84,7 +86,7 @@ public class FileUserRolesStore {
 
     /**
      * Internally in this class, we try to load the file, but if for some reason we can't, we're being more lenient by
-     * logging the error and skipping all enries. This is aligned with how we handle other auto-loaded files in security.
+     * logging the error and skipping all entries. This is aligned with how we handle other auto-loaded files in security.
      */
     static Map<String, String[]> parseFileLenient(Path path, Logger logger) {
         try {
@@ -92,9 +94,12 @@ public class FileUserRolesStore {
             return map == null ? emptyMap() : map;
         } catch (Exception e) {
             logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage("failed to parse users_roles file [{}]. skipping/removing all entries...",
-                            path.toAbsolutePath()),
-                    e);
+                (Supplier<?>) () -> new ParameterizedMessage(
+                    "failed to parse users_roles file [{}]. skipping/removing all entries...",
+                    path.toAbsolutePath()
+                ),
+                e
+            );
             return emptyMap();
         }
     }
@@ -127,7 +132,7 @@ public class FileUserRolesStore {
         int lineNr = 0;
         for (String line : lines) {
             lineNr++;
-            if (line.startsWith("#")) {  //comment
+            if (line.startsWith("#")) {  // comment
                 continue;
             }
             int i = line.indexOf(":");
@@ -138,20 +143,32 @@ public class FileUserRolesStore {
             String role = line.substring(0, i).trim();
             Validation.Error validationError = Validation.Roles.validateRoleName(role, true);
             if (validationError != null) {
-                logger.error("invalid role entry in users_roles file [{}], line [{}] - {}. skipping...", path.toAbsolutePath(), lineNr,
-                        validationError);
+                logger.error(
+                    "invalid role entry in users_roles file [{}], line [{}] - {}. skipping...",
+                    path.toAbsolutePath(),
+                    lineNr,
+                    validationError
+                );
                 continue;
             }
             String usersStr = line.substring(i + 1).trim();
             if (Strings.isEmpty(usersStr)) {
-                logger.error("invalid entry for role [{}] in users_roles file [{}], line [{}]. no users found. skipping...", role,
-                        path.toAbsolutePath(), lineNr);
+                logger.error(
+                    "invalid entry for role [{}] in users_roles file [{}], line [{}]. no users found. skipping...",
+                    role,
+                    path.toAbsolutePath(),
+                    lineNr
+                );
                 continue;
             }
             String[] roleUsers = USERS_DELIM.split(usersStr);
             if (roleUsers.length == 0) {
-                logger.error("invalid entry for role [{}] in users_roles file [{}], line [{}]. no users found. skipping...", role,
-                        path.toAbsolutePath(), lineNr);
+                logger.error(
+                    "invalid entry for role [{}] in users_roles file [{}], line [{}]. no users found. skipping...",
+                    role,
+                    path.toAbsolutePath(),
+                    lineNr
+                );
                 continue;
             }
 
@@ -183,9 +200,10 @@ public class FileUserRolesStore {
         }
 
         SecurityFiles.writeFileAtomically(
-                path,
-                roleToUsers,
-                e -> String.format(Locale.ROOT, "%s:%s", e.getKey(), collectionToCommaDelimitedString(e.getValue())));
+            path,
+            roleToUsers,
+            e -> String.format(Locale.ROOT, "%s:%s", e.getKey(), collectionToCommaDelimitedString(e.getValue()))
+        );
     }
 
     void notifyRefresh() {
@@ -206,9 +224,13 @@ public class FileUserRolesStore {
         @Override
         public void onFileChanged(Path file) {
             if (file.equals(FileUserRolesStore.this.file)) {
-                logger.info("users roles file [{}] changed. updating users roles...", file.toAbsolutePath());
+                final Map<String, String[]> previousUserRoles = userRoles;
                 userRoles = parseFileLenient(file, logger);
-                notifyRefresh();
+
+                if (Maps.deepEquals(previousUserRoles, userRoles) == false) {
+                    logger.info("users roles file [{}] changed. updating users roles...", file.toAbsolutePath());
+                    notifyRefresh();
+                }
             }
         }
     }

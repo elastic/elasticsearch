@@ -1,0 +1,20 @@
+// This file is auto-generated. Do not edit.
+
+[[painless-api-reference-template]]
+=== Template API
+
+The following specialized API is available in the Template context.
+
+* See the <<painless-api-reference-shared, Shared API>> for further API available in all contexts.
+
+==== Classes By Package
+The following classes are available grouped by their respective packages. Click on a class to view details about the available methods and fields.
+
+
+==== java.lang
+<<painless-api-reference-template-java-lang, Expand details for java.lang>>
+
+* <<painless-api-reference-template-String, String>>
+
+include::packages.asciidoc[]
+

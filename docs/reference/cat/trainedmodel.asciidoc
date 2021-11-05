@@ -1,0 +1,125 @@
+[role="xpack"]
+[testenv="platinum"]
+[[cat-trained-model]]
+=== cat trained model API
+++++
+<titleabbrev>cat trained model</titleabbrev>
+++++
+
+Returns configuration and usage information about {infer} trained models.
+
+
+[[cat-trained-model-request]]
+==== {api-request-title}
+
+`GET /_cat/ml/trained_models`
+
+
+[[cat-trained-model-prereqs]]
+==== {api-prereq-title}
+
+If the {es} {security-features} are enabled, you must have the following 
+privileges:
+
+* cluster: `monitor_ml`
+
+For more information, see <<security-privileges>> and {ml-docs-setup-privileges}.
+
+
+////
+[[cat-trained-model-desc]]
+==== {api-description-title}
+////
+
+
+[[cat-trained-model-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bytes]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
++
+If you do not specify which columns to include, the API returns the default
+columns. If you explicitly specify one or more columns, it returns only the
+specified columns.
++
+Valid columns are:
+
+`create_time`, `ct`:::
+The time when the trained model was created.
+
+`created_by`, `c`, `createdBy`:::
+Information on the creator of the trained model.
+
+`data_frame_analytics_id`, `df`, `dataFrameAnalytics`:::
+Identifier for the {dfanalytics-job} that created the model. Only displayed if 
+it is still available.
+
+`description`, `d`:::
+The description of the trained model.
+
+`heap_size`, `hs`, `modelHeapSize`:::
+(Default)
+The estimated heap size to keep the trained model in memory.
+
+`id`:::
+(Default)
+Idetifier for the trained model.
+
+`ingest.count`, `ic`, `ingestCount`:::
+The total number of documents that are processed by the model.
+
+`ingest.current`, `icurr`, `ingestCurrent`:::
+The total number of document that are currently being handled by the trained 
+model.
+
+`ingest.failed`, `if`, `ingestFailed`:::
+The total number of failed ingest attempts with the trained model.
+
+`ingest.pipelines`, `ip`, `ingestPipelines`:::
+(Default)
+The total number of ingest pipelines that are referencing the trained model.
+
+`ingest.time`, `it`, `ingestTime`:::
+The total time that is spent processing documents with the trained model.
+
+`license`, `l`:::
+The license level of the trained model.
+
+`operations`, `o`, `modelOperations`:::
+(Default)
+The estimated number of operations to use the trained model. This number helps 
+measuring the computational complexity of the model.
+
+`version`, `v`:::
+The {es} version number in which the trained model was created.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=time]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
+
+
+[[cat-trained-model-example]]
+==== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+GET _cat/ml/trained_models?h=c,o,l,ct,v&v=ture
+--------------------------------------------------
+// TEST[skip:kibana sample data]
+
+
+[source,console-result]
+----
+id                           created_by operations license  create_time              version
+ddddd-1580216177138              _xpack 196        PLATINUM 2020-01-28T12:56:17.138Z 8.0.0
+flight-regress-1580215685537     _xpack 102        PLATINUM 2020-01-28T12:48:05.537Z 8.0.0
+lang_ident_model_1               _xpack 39629      BASIC    2019-12-05T12:28:34.594Z 7.6.0
+----
+// TESTRESPONSE[skip:kibana sample data]

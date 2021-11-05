@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.collector.shards;
 
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.FilteredMonitoringDoc;
@@ -26,12 +27,14 @@ public class ShardMonitoringDoc extends FilteredMonitoringDoc {
     private final ShardRouting shardRouting;
     private final String clusterStateUUID;
 
-    ShardMonitoringDoc(final String cluster,
-                       final long timestamp,
-                       final long interval,
-                       final MonitoringDoc.Node node,
-                       final ShardRouting shardRouting,
-                       final String clusterStateUUID) {
+    ShardMonitoringDoc(
+        final String cluster,
+        final long timestamp,
+        final long interval,
+        final MonitoringDoc.Node node,
+        final ShardRouting shardRouting,
+        final String clusterStateUUID
+    ) {
 
         super(cluster, timestamp, interval, node, MonitoredSystem.ES, TYPE, id(clusterStateUUID, shardRouting), XCONTENT_FILTERS);
         this.shardRouting = Objects.requireNonNull(shardRouting);
@@ -83,12 +86,13 @@ public class ShardMonitoringDoc extends FilteredMonitoringDoc {
         return builder.toString();
     }
 
-    public static final Set<String> XCONTENT_FILTERS =
-        Sets.newHashSet("state_uuid",
-                        "shard.state",
-                        "shard.primary",
-                        "shard.node",
-                        "shard.relocating_node",
-                        "shard.shard",
-                        "shard.index");
+    public static final Set<String> XCONTENT_FILTERS = Sets.newHashSet(
+        "state_uuid",
+        "shard.state",
+        "shard.primary",
+        "shard.node",
+        "shard.relocating_node",
+        "shard.shard",
+        "shard.index"
+    );
 }

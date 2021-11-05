@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -40,8 +41,13 @@ public class TransportDeleteCalendarEventAction extends HandledTransportAction<D
     private final JobManager jobManager;
 
     @Inject
-    public TransportDeleteCalendarEventAction(TransportService transportService, ActionFilters actionFilters,
-                                              Client client, JobResultsProvider jobResultsProvider, JobManager jobManager) {
+    public TransportDeleteCalendarEventAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Client client,
+        JobResultsProvider jobResultsProvider,
+        JobManager jobManager
+    ) {
         super(DeleteCalendarEventAction.NAME, transportService, actionFilters, DeleteCalendarEventAction.Request::new);
         this.client = client;
         this.jobResultsProvider = jobResultsProvider;
@@ -49,68 +55,77 @@ public class TransportDeleteCalendarEventAction extends HandledTransportAction<D
     }
 
     @Override
-    protected void doExecute(Task task, DeleteCalendarEventAction.Request request,
-                             ActionListener<AcknowledgedResponse> listener) {
+    protected void doExecute(Task task, DeleteCalendarEventAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         final String eventId = request.getEventId();
 
-        ActionListener<Calendar> calendarListener = ActionListener.wrap(
-                calendar -> {
-                    GetRequest getRequest = new GetRequest(MlMetaIndex.INDEX_NAME, eventId);
-                    executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, ActionListener.wrap(
-                            getResponse -> {
-                                if (getResponse.isExists() == false) {
-                                    listener.onFailure(new ResourceNotFoundException("No event with id [" + eventId + "]"));
-                                    return;
-                                }
+        ActionListener<Calendar> calendarListener = ActionListener.wrap(calendar -> {
+            GetRequest getRequest = new GetRequest(MlMetaIndex.indexName(), eventId);
+            executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, ActionListener.wrap(getResponse -> {
+                if (getResponse.isExists() == false) {
+                    listener.onFailure(new ResourceNotFoundException("No event with id [" + eventId + "]"));
+                    return;
+                }
 
-                                Map<String, Object> source = getResponse.getSourceAsMap();
-                                String calendarId = (String) source.get(Calendar.ID.getPreferredName());
-                                if (calendarId == null) {
-                                    listener.onFailure(ExceptionsHelper.badRequestException("Event [" + eventId + "] does not have a valid "
-                                            + Calendar.ID.getPreferredName()));
-                                    return;
-                                }
-
-                                if (calendarId.equals(request.getCalendarId()) == false) {
-                                    listener.onFailure(ExceptionsHelper.badRequestException(
-                                            "Event [" + eventId + "] has " + Calendar.ID.getPreferredName()
-                                                    + " [" + calendarId + "] which does not match the request "
-                                                    + Calendar.ID.getPreferredName() + " [" + request.getCalendarId() + "]"));
-                                    return;
-                                }
-
-                                deleteEvent(eventId, calendar, listener);
-                            }, listener::onFailure)
+                Map<String, Object> source = getResponse.getSourceAsMap();
+                String calendarId = (String) source.get(Calendar.ID.getPreferredName());
+                if (calendarId == null) {
+                    listener.onFailure(
+                        ExceptionsHelper.badRequestException(
+                            "Event [" + eventId + "] does not have a valid " + Calendar.ID.getPreferredName()
+                        )
                     );
-                }, listener::onFailure);
+                    return;
+                }
+
+                if (calendarId.equals(request.getCalendarId()) == false) {
+                    listener.onFailure(
+                        ExceptionsHelper.badRequestException(
+                            "Event ["
+                                + eventId
+                                + "] has "
+                                + Calendar.ID.getPreferredName()
+                                + " ["
+                                + calendarId
+                                + "] which does not match the request "
+                                + Calendar.ID.getPreferredName()
+                                + " ["
+                                + request.getCalendarId()
+                                + "]"
+                        )
+                    );
+                    return;
+                }
+
+                deleteEvent(eventId, calendar, listener);
+            }, listener::onFailure));
+        }, listener::onFailure);
 
         // Get the calendar first so we check the calendar exists before checking the event exists
         jobResultsProvider.calendar(request.getCalendarId(), calendarListener);
     }
 
     private void deleteEvent(String eventId, Calendar calendar, ActionListener<AcknowledgedResponse> listener) {
-        DeleteRequest deleteRequest = new DeleteRequest(MlMetaIndex.INDEX_NAME, eventId);
+        DeleteRequest deleteRequest = new DeleteRequest(MlMetaIndex.indexName(), eventId);
         deleteRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteAction.INSTANCE, deleteRequest,
-                new ActionListener<DeleteResponse>() {
-                    @Override
-                    public void onResponse(DeleteResponse response) {
+        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteAction.INSTANCE, deleteRequest, new ActionListener<DeleteResponse>() {
+            @Override
+            public void onResponse(DeleteResponse response) {
 
-                        if (response.status() == RestStatus.NOT_FOUND) {
-                            listener.onFailure(new ResourceNotFoundException("No event with id [" + eventId + "]"));
-                        } else {
-                            jobManager.updateProcessOnCalendarChanged(calendar.getJobIds(), ActionListener.wrap(
-                                    r -> listener.onResponse(new AcknowledgedResponse(true)),
-                                    listener::onFailure
-                            ));
-                        }
-                    }
+                if (response.status() == RestStatus.NOT_FOUND) {
+                    listener.onFailure(new ResourceNotFoundException("No event with id [" + eventId + "]"));
+                } else {
+                    jobManager.updateProcessOnCalendarChanged(
+                        calendar.getJobIds(),
+                        ActionListener.wrap(r -> listener.onResponse(AcknowledgedResponse.TRUE), listener::onFailure)
+                    );
+                }
+            }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(ExceptionsHelper.serverError("Could not delete event [" + eventId + "]", e));
-                    }
-                });
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(ExceptionsHelper.serverError("Could not delete event [" + eventId + "]", e));
+            }
+        });
     }
 }

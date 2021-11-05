@@ -1,14 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -17,6 +16,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
+import org.elasticsearch.xpack.ml.process.StateToProcessWriterHelper;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -74,10 +74,16 @@ public class StateStreamer {
             try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
                 SearchResponse stateResponse = client.prepareSearch(indexName)
                     .setSize(1)
-                    .setQuery(QueryBuilders.idsQuery().addIds(stateDocId)).get();
+                    .setQuery(QueryBuilders.idsQuery().addIds(stateDocId))
+                    .get();
                 if (stateResponse.getHits().getHits().length == 0) {
-                    LOGGER.error("Expected {} documents for model state for {} snapshot {} but failed to find {}",
-                            modelSnapshot.getSnapshotDocCount(), jobId, modelSnapshot.getSnapshotId(), stateDocId);
+                    LOGGER.error(
+                        "Expected {} documents for model state for {} snapshot {} but failed to find {}",
+                        modelSnapshot.getSnapshotDocCount(),
+                        jobId,
+                        modelSnapshot.getSnapshotId(),
+                        stateDocId
+                    );
                     break;
                 }
                 writeStateToStream(stateResponse.getHits().getAt(0).getSourceRef(), restoreStream);
@@ -85,8 +91,8 @@ public class StateStreamer {
         }
 
         // Secondly try to restore categorizer state. This must come after model state because that's
-        // the order the C++ process expects.  There are no snapshots for this, so the IDs simply
-        // count up until a document is not found.  It's NOT an error to have no categorizer state.
+        // the order the C++ process expects. There are no snapshots for this, so the IDs simply
+        // count up until a document is not found. It's NOT an error to have no categorizer state.
         int docNum = 0;
         while (true) {
             if (isCancelled) {
@@ -100,7 +106,8 @@ public class StateStreamer {
             try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
                 SearchResponse stateResponse = client.prepareSearch(indexName)
                     .setSize(1)
-                    .setQuery(QueryBuilders.idsQuery().addIds(docId)).get();
+                    .setQuery(QueryBuilders.idsQuery().addIds(docId))
+                    .get();
                 if (stateResponse.getHits().getHits().length == 0) {
                     break;
                 }
@@ -115,22 +122,6 @@ public class StateStreamer {
             return;
         }
 
-        // The source bytes are already UTF-8.  The C++ process wants UTF-8, so we
-        // can avoid converting to a Java String only to convert back again.
-        BytesRefIterator iterator = source.iterator();
-        for (BytesRef ref = iterator.next(); ref != null; ref = iterator.next()) {
-            // There's a complication that the source can already have trailing 0 bytes
-            int length = ref.bytes.length;
-            while (length > 0 && ref.bytes[length - 1] == 0) {
-                --length;
-            }
-            if (length > 0) {
-                stream.write(ref.bytes, 0, length);
-            }
-        }
-        // This is dictated by RapidJSON on the C++ side; it treats a '\0' as end-of-file
-        // even when it's not really end-of-file, and this is what we need because we're
-        // sending multiple JSON documents via the same named pipe.
-        stream.write(0);
+        StateToProcessWriterHelper.writeStateToStream(source, stream);
     }
 }

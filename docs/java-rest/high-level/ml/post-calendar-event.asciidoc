@@ -3,15 +3,17 @@
 :request: PostCalendarEventRequest
 :response: PostCalendarEventResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
-=== Post Calendar Event API
+=== Post calendar events API
+
 Adds new ScheduledEvents to an existing {ml} calendar.
 
 The API accepts a +{request}+ and responds
 with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Post Calendar Event Request
+==== Post calendar events request
 
 A +{request}+ is constructed with a calendar ID object
 and a non-empty list of scheduled events.
@@ -25,7 +27,7 @@ include-tagged::{doc-tests-file}[{api}-request]
 
 
 [id="{upid}-{api}-response"]
-==== Post Calendar Event Response
+==== Post calendar events response
 
 The returned +{response}+ contains the added `ScheduledEvent` objects:
 

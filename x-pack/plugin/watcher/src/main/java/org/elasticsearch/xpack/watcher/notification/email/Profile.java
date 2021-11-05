@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.email;
 
@@ -37,8 +38,10 @@ public enum Profile {
                 }
             }
             if (related == null) {
-                throw new IllegalStateException("could not extract body text from mime message using [standard] profile. could not find " +
-                        "part content type with [multipart/related]");
+                throw new IllegalStateException(
+                    "could not extract body text from mime message using [standard] profile. could not find "
+                        + "part content type with [multipart/related]"
+                );
             }
 
             MimeMultipart alternative = null;
@@ -50,8 +53,10 @@ public enum Profile {
                 }
             }
             if (alternative == null) {
-                throw new IllegalStateException("could not extract body text from mime message using [standard] profile. could not find " +
-                        "part content type with [multipart/alternative]");
+                throw new IllegalStateException(
+                    "could not extract body text from mime message using [standard] profile. could not find "
+                        + "part content type with [multipart/alternative]"
+                );
             }
 
             for (int i = 0; i < alternative.getCount(); i++) {
@@ -91,7 +96,7 @@ public enum Profile {
                 alternative.addBodyPart(html);
             }
 
-            if (!email.attachments.isEmpty()) {
+            if (email.attachments.isEmpty() == false) {
                 for (Attachment attachment : email.attachments.values()) {
                     if (attachment.isInline()) {
                         related.addBodyPart(attachment.bodyPart());
@@ -144,7 +149,7 @@ public enum Profile {
 
     static final String MESSAGE_ID_HEADER = "Message-ID";
 
-    public abstract MimeMessage toMimeMessage(Email email, Session session) throws MessagingException ;
+    public abstract MimeMessage toMimeMessage(Email email, Session session) throws MessagingException;
 
     public abstract String textBody(MimeMessage msg) throws IOException, MessagingException;
 
@@ -162,10 +167,14 @@ public enum Profile {
         }
         switch (name.toLowerCase(Locale.ROOT)) {
             case "std":
-            case "standard":    return STANDARD;
-            case "outlook":     return OUTLOOK;
-            case "gmail":       return GMAIL;
-            case "mac":         return MAC;
+            case "standard":
+                return STANDARD;
+            case "outlook":
+                return OUTLOOK;
+            case "gmail":
+                return GMAIL;
+            case "mac":
+                return MAC;
             default:
                 return defaultProfile;
         }

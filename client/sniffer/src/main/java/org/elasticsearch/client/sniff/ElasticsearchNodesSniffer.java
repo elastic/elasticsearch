@@ -1,13 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
+ * Licensed to Elasticsearch B.V. under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
+ * ownership. Elasticsearch B.V. licenses this file to you under
  * the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -22,15 +22,16 @@ package org.elasticsearch.client.sniff;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.Node;
+import org.elasticsearch.client.Node.Roles;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.Node.Roles;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -42,6 +43,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonList;
@@ -152,9 +154,7 @@ public final class ElasticsearchNodesSniffer implements NodesSniffer {
         final Map<String, String> protoAttributes = new HashMap<String, String>();
 
         boolean sawRoles = false;
-        boolean master = false;
-        boolean data = false;
-        boolean ingest = false;
+        final Set<String> roles = new TreeSet<>();
 
         String fieldName = null;
         while (parser.nextToken() != JsonToken.END_OBJECT) {
@@ -164,14 +164,26 @@ public final class ElasticsearchNodesSniffer implements NodesSniffer {
                 if ("http".equals(fieldName)) {
                     while (parser.nextToken() != JsonToken.END_OBJECT) {
                         if (parser.getCurrentToken() == JsonToken.VALUE_STRING && "publish_address".equals(parser.getCurrentName())) {
-                            URI publishAddressAsURI = URI.create(scheme + "://" + parser.getValueAsString());
-                            publishedHost = new HttpHost(publishAddressAsURI.getHost(), publishAddressAsURI.getPort(),
-                                    publishAddressAsURI.getScheme());
+                            String address = parser.getValueAsString();
+                            String host;
+                            URI publishAddressAsURI;
+
+                            // ES7 cname/ip:port format
+                            if (address.contains("/")) {
+                                String[] cnameAndURI = address.split("/", 2);
+                                publishAddressAsURI = URI.create(scheme + "://" + cnameAndURI[1]);
+                                host = cnameAndURI[0];
+                            } else {
+                                publishAddressAsURI = URI.create(scheme + "://" + address);
+                                host = publishAddressAsURI.getHost();
+                            }
+                            publishedHost = new HttpHost(host, publishAddressAsURI.getPort(), publishAddressAsURI.getScheme());
                         } else if (parser.currentToken() == JsonToken.START_ARRAY && "bound_address".equals(parser.getCurrentName())) {
                             while (parser.nextToken() != JsonToken.END_ARRAY) {
                                 URI boundAddressAsURI = URI.create(scheme + "://" + parser.getValueAsString());
-                                boundHosts.add(new HttpHost(boundAddressAsURI.getHost(), boundAddressAsURI.getPort(),
-                                        boundAddressAsURI.getScheme()));
+                                boundHosts.add(
+                                    new HttpHost(boundAddressAsURI.getHost(), boundAddressAsURI.getPort(), boundAddressAsURI.getScheme())
+                                );
                             }
                         } else if (parser.getCurrentToken() == JsonToken.START_OBJECT) {
                             parser.skipChildren();
@@ -195,19 +207,7 @@ public final class ElasticsearchNodesSniffer implements NodesSniffer {
                 if ("roles".equals(fieldName)) {
                     sawRoles = true;
                     while (parser.nextToken() != JsonToken.END_ARRAY) {
-                        switch (parser.getText()) {
-                        case "master":
-                            master = true;
-                            break;
-                        case "data":
-                            data = true;
-                            break;
-                        case "ingest":
-                            ingest = true;
-                            break;
-                        default:
-                            logger.warn("unknown role [" + parser.getText() + "] on node [" + nodeId + "]");
-                        }
+                        roles.add(parser.getText());
                     }
                 } else {
                     parser.skipChildren();
@@ -220,7 +220,7 @@ public final class ElasticsearchNodesSniffer implements NodesSniffer {
                 }
             }
         }
-        //http section is not present if http is not enabled on the node, ignore such nodes
+        // http section is not present if http is not enabled on the node, ignore such nodes
         if (publishedHost == null) {
             logger.debug("skipping node [" + nodeId + "] with http disabled");
             return null;
@@ -256,16 +256,18 @@ public final class ElasticsearchNodesSniffer implements NodesSniffer {
             boolean clientAttribute = v2RoleAttributeValue(realAttributes, "client", false);
             Boolean masterAttribute = v2RoleAttributeValue(realAttributes, "master", null);
             Boolean dataAttribute = v2RoleAttributeValue(realAttributes, "data", null);
-            master = masterAttribute == null ? false == clientAttribute : masterAttribute;
-            data = dataAttribute == null ? false == clientAttribute : dataAttribute;
+            if ((masterAttribute == null && false == clientAttribute) || masterAttribute) {
+                roles.add("master");
+            }
+            if ((dataAttribute == null && false == clientAttribute) || dataAttribute) {
+                roles.add("data");
+            }
         } else {
             assert sawRoles : "didn't see roles for [" + nodeId + "]";
         }
-        assert boundHosts.contains(publishedHost) :
-                "[" + nodeId + "] doesn't make sense! publishedHost should be in boundHosts";
+        assert boundHosts.contains(publishedHost) : "[" + nodeId + "] doesn't make sense! publishedHost should be in boundHosts";
         logger.trace("adding node [" + nodeId + "]");
-        return new Node(publishedHost, boundHosts, name, version, new Roles(master, data, ingest),
-                unmodifiableMap(realAttributes));
+        return new Node(publishedHost, boundHosts, name, version, new Roles(roles), unmodifiableMap(realAttributes));
     }
 
     /**
@@ -274,29 +276,28 @@ public final class ElasticsearchNodesSniffer implements NodesSniffer {
      * either of those, or throws an IOException if the attribute
      * came back in a strange way.
      */
-    private static Boolean v2RoleAttributeValue(Map<String, List<String>> attributes,
-            String name, Boolean defaultValue) throws IOException {
+    private static Boolean v2RoleAttributeValue(Map<String, List<String>> attributes, String name, Boolean defaultValue)
+        throws IOException {
         List<String> valueList = attributes.remove(name);
         if (valueList == null) {
             return defaultValue;
         }
         if (valueList.size() != 1) {
-            throw new IOException("expected only a single attribute value for [" + name + "] but got "
-                    + valueList);
+            throw new IOException("expected only a single attribute value for [" + name + "] but got " + valueList);
         }
         switch (valueList.get(0)) {
-        case "true":
-            return true;
-        case "false":
-            return false;
-        default:
-            throw new IOException("expected [" + name + "] to be either [true] or [false] but was ["
-                    + valueList.get(0) + "]");
+            case "true":
+                return true;
+            case "false":
+                return false;
+            default:
+                throw new IOException("expected [" + name + "] to be either [true] or [false] but was [" + valueList.get(0) + "]");
         }
     }
 
     public enum Scheme {
-        HTTP("http"), HTTPS("https");
+        HTTP("http"),
+        HTTPS("https");
 
         private final String name;
 

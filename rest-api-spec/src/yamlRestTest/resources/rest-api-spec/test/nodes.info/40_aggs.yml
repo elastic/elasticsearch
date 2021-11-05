@@ -1,0 +1,18 @@
+---
+"node_info test aggregations":
+  - skip:
+      version: " - 7.9.99"
+      reason: "aggregation info only supported in 7.9.10+"
+      features: [arbitrary_key]
+
+
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.info:
+        metric: [ aggregations ]
+
+  - match : { nodes.$node_id.aggregations.filter: { "types": ["other"] } }

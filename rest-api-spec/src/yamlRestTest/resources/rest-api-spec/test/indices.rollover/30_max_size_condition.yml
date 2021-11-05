@@ -1,0 +1,55 @@
+---
+"Rollover with max_size condition":
+
+  # create index with alias and replica
+  - do:
+      indices.create:
+        index: logs-1
+        wait_for_active_shards: 1
+        body:
+          aliases:
+            logs_search: {}
+
+  # index a document
+  - do:
+      index:
+        index: logs-1
+        id:    "1"
+        body:  { "foo": "hello world" }
+        refresh: true
+
+  # perform alias rollover with a large max_size, no action.
+  - do:
+      indices.rollover:
+        alias: "logs_search"
+        wait_for_active_shards: 1
+        body:
+          conditions:
+            max_size: 100mb
+
+  - match: { conditions: { "[max_size: 100mb]": false } }
+  - match: { rolled_over: false }
+
+  # perform alias rollover with a small max_size, got action.
+  - do:
+      indices.rollover:
+        alias: "logs_search"
+        wait_for_active_shards: 1
+        body:
+          conditions:
+            max_size: 10b
+
+  - match: { conditions: { "[max_size: 10b]": true } }
+  - match: { rolled_over: true }
+
+  # perform alias rollover on an empty index, no action.
+  - do:
+      indices.rollover:
+        alias: "logs_search"
+        wait_for_active_shards: 1
+        body:
+          conditions:
+            max_size: 1b
+
+  - match: { conditions: { "[max_size: 1b]": false } }
+  - match: { rolled_over: false }

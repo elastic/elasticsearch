@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.bootstrap;
@@ -91,21 +80,27 @@ class JNANatives {
         }
 
         // mlockall failed for some reason
-        logger.warn("Unable to lock JVM Memory: error={}, reason={}", errno , errMsg);
+        logger.warn("Unable to lock JVM Memory: error={}, reason={}", errno, errMsg);
         logger.warn("This can result in part of the JVM being swapped out.");
         if (errno == JNACLibrary.ENOMEM) {
             if (rlimitSuccess) {
-                logger.warn("Increase RLIMIT_MEMLOCK, soft limit: {}, hard limit: {}", rlimitToString(softLimit),
-                    rlimitToString(hardLimit));
+                logger.warn(
+                    "Increase RLIMIT_MEMLOCK, soft limit: {}, hard limit: {}",
+                    rlimitToString(softLimit),
+                    rlimitToString(hardLimit)
+                );
                 if (Constants.LINUX) {
                     // give specific instructions for the linux case to make it easy
                     String user = System.getProperty("user.name");
-                    logger.warn("These can be adjusted by modifying /etc/security/limits.conf, for example: \n" +
-                                "\t# allow user '{}' mlockall\n" +
-                                "\t{} soft memlock unlimited\n" +
-                                "\t{} hard memlock unlimited",
-                                user, user, user
-                                );
+                    logger.warn(
+                        "These can be adjusted by modifying /etc/security/limits.conf, for example: \n"
+                            + "\t# allow user '{}' mlockall\n"
+                            + "\t{} soft memlock unlimited\n"
+                            + "\t{} hard memlock unlimited",
+                        user,
+                        user,
+                        user
+                    );
                     logger.warn("If you are logged in interactively, you will have to re-login for the new limits to take effect.");
                 }
             } else {
@@ -184,15 +179,15 @@ class JNANatives {
             // Thus, we need to first increase the working set size of the JVM by
             // the amount of memory we wish to lock, plus a small overhead (1MB).
             SizeT size = new SizeT(JvmInfo.jvmInfo().getMem().getHeapInit().getBytes() + (1024 * 1024));
-            if (!kernel.SetProcessWorkingSetSize(process, size, size)) {
+            if (kernel.SetProcessWorkingSetSize(process, size, size) == false) {
                 logger.warn("Unable to lock JVM memory. Failed to set working set size. Error code {}", Native.getLastError());
             } else {
                 JNAKernel32Library.MemoryBasicInformation memInfo = new JNAKernel32Library.MemoryBasicInformation();
                 long address = 0;
                 while (kernel.VirtualQueryEx(process, new Pointer(address), memInfo, memInfo.size()) != 0) {
                     boolean lockable = memInfo.State.longValue() == JNAKernel32Library.MEM_COMMIT
-                            && (memInfo.Protect.longValue() & JNAKernel32Library.PAGE_NOACCESS) != JNAKernel32Library.PAGE_NOACCESS
-                            && (memInfo.Protect.longValue() & JNAKernel32Library.PAGE_GUARD) != JNAKernel32Library.PAGE_GUARD;
+                        && (memInfo.Protect.longValue() & JNAKernel32Library.PAGE_NOACCESS) != JNAKernel32Library.PAGE_NOACCESS
+                        && (memInfo.Protect.longValue() & JNAKernel32Library.PAGE_GUARD) != JNAKernel32Library.PAGE_GUARD;
                     if (lockable) {
                         kernel.VirtualLock(memInfo.BaseAddress, new SizeT(memInfo.RegionSize.longValue()));
                     }
@@ -271,4 +266,5 @@ class JNANatives {
             logger.warn("unable to install syscall filter: ", e);
         }
     }
+
 }

@@ -1,0 +1,93 @@
+---
+setup:
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+---
+teardown:
+  - do:
+      watcher.delete_watch:
+        id: "my_watch1"
+        ignore: 404
+  - do:
+      watcher.delete_watch:
+        id: "my_watch2"
+        ignore: 404
+
+---
+"Test query watches api":
+  - skip:
+      features: warnings
+  - do:
+      watcher.put_watch:
+        id: "my_watch1"
+        body:  >
+          {
+            "trigger": {
+              "schedule": {
+                "hourly": {
+                  "minute": [ 0, 5 ]
+                  }
+                }
+            },
+            "input": {
+              "simple": {
+                "payload": {
+                  "send": "yes"
+                }
+              }
+            },
+            "condition": {
+              "always": {}
+            },
+            "actions": {
+                "test_index": {
+                  "index": {
+                    "index": "test"
+                  }
+                }
+              }
+            }
+  - match: { _id: "my_watch1" }
+  - match: { created: true }
+
+  - do:
+      watcher.put_watch:
+        id: "my_watch2"
+        body:  >
+          {
+            "trigger": {
+              "schedule": {
+                "hourly": {
+                  "minute": [ 0, 5 ]
+                  }
+                }
+            },
+            "input": {
+              "simple": {
+                "payload": {
+                  "send": "yes"
+                }
+              }
+            },
+            "condition": {
+              "always": {}
+            },
+            "actions": {
+                "test_index": {
+                  "index": {
+                    "index": "test"
+                  }
+                }
+              }
+            }
+  - match: { _id: "my_watch2" }
+  - match: { created: true }
+
+  - do:
+      watcher.query_watches:
+        body: {}
+  - match: { count: 2}
+  - match: { watches.0._id: "my_watch1" }
+  - match: { watches.1._id: "my_watch2" }

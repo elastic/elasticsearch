@@ -1,18 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -34,7 +34,9 @@ public class NormalizerResult implements ToXContentObject, Writeable {
     static final ParseField NORMALIZED_SCORE_FIELD = new ParseField("normalized_score");
 
     public static final ObjectParser<NormalizerResult, Void> PARSER = new ObjectParser<>(
-            LEVEL_FIELD.getPreferredName(), NormalizerResult::new);
+        LEVEL_FIELD.getPreferredName(),
+        NormalizerResult::new
+    );
 
     static {
         PARSER.declareString(NormalizerResult::setLevel, LEVEL_FIELD);
@@ -58,17 +60,14 @@ public class NormalizerResult implements ToXContentObject, Writeable {
     private double probability;
     private double normalizedScore;
 
-    public NormalizerResult() {
-    }
+    public NormalizerResult() {}
 
     public NormalizerResult(StreamInput in) throws IOException {
         level = in.readOptionalString();
         partitionFieldName = in.readOptionalString();
         partitionFieldValue = in.readOptionalString();
         personFieldName = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
-            personFieldValue = in.readOptionalString();
-        }
+        personFieldValue = in.readOptionalString();
         functionName = in.readOptionalString();
         valueFieldName = in.readOptionalString();
         probability = in.readDouble();
@@ -81,9 +80,7 @@ public class NormalizerResult implements ToXContentObject, Writeable {
         out.writeOptionalString(partitionFieldName);
         out.writeOptionalString(partitionFieldValue);
         out.writeOptionalString(personFieldName);
-        if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
-            out.writeOptionalString(personFieldValue);
-        }
+        out.writeOptionalString(personFieldValue);
         out.writeOptionalString(functionName);
         out.writeOptionalString(valueFieldName);
         out.writeDouble(probability);
@@ -180,8 +177,17 @@ public class NormalizerResult implements ToXContentObject, Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(level, partitionFieldName, partitionFieldValue, personFieldName, personFieldValue,
-                functionName, valueFieldName, probability, normalizedScore);
+        return Objects.hash(
+            level,
+            partitionFieldName,
+            partitionFieldValue,
+            personFieldName,
+            personFieldValue,
+            functionName,
+            valueFieldName,
+            probability,
+            normalizedScore
+        );
     }
 
     /**
@@ -193,20 +199,20 @@ public class NormalizerResult implements ToXContentObject, Writeable {
             return true;
         }
 
-        if (!(other instanceof NormalizerResult)) {
+        if ((other instanceof NormalizerResult) == false) {
             return false;
         }
 
-        NormalizerResult that = (NormalizerResult)other;
+        NormalizerResult that = (NormalizerResult) other;
 
         return Objects.equals(this.level, that.level)
-                && Objects.equals(this.partitionFieldName, that.partitionFieldName)
-                && Objects.equals(this.partitionFieldValue, that.partitionFieldValue)
-                && Objects.equals(this.personFieldName, that.personFieldName)
-                && Objects.equals(this.personFieldValue, that.personFieldValue)
-                && Objects.equals(this.functionName, that.functionName)
-                && Objects.equals(this.valueFieldName, that.valueFieldName)
-                && this.probability == that.probability
-                && this.normalizedScore == that.normalizedScore;
+            && Objects.equals(this.partitionFieldName, that.partitionFieldName)
+            && Objects.equals(this.partitionFieldValue, that.partitionFieldValue)
+            && Objects.equals(this.personFieldName, that.personFieldName)
+            && Objects.equals(this.personFieldValue, that.personFieldValue)
+            && Objects.equals(this.functionName, that.functionName)
+            && Objects.equals(this.valueFieldName, that.valueFieldName)
+            && this.probability == that.probability
+            && this.normalizedScore == that.normalizedScore;
     }
 }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.discovery.gce;
@@ -35,7 +24,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.transport.TransportService;
 
@@ -49,14 +38,18 @@ import java.util.function.Function;
 import static java.util.Collections.emptyList;
 
 public class GceSeedHostsProvider implements SeedHostsProvider {
-    
+
     private static final Logger logger = LogManager.getLogger(GceSeedHostsProvider.class);
 
     /**
      * discovery.gce.tags: The gce discovery can filter machines to include in the cluster based on tags.
      */
-    public static final Setting<List<String>> TAGS_SETTING =
-            Setting.listSetting("discovery.gce.tags", emptyList(), Function.identity(), Property.NodeScope);
+    public static final Setting<List<String>> TAGS_SETTING = Setting.listSetting(
+        "discovery.gce.tags",
+        emptyList(),
+        Function.identity(),
+        Property.NodeScope
+    );
 
     static final class Status {
         private static final String TERMINATED = "TERMINATED";
@@ -75,9 +68,12 @@ public class GceSeedHostsProvider implements SeedHostsProvider {
     private long lastRefresh;
     private List<TransportAddress> cachedDynamicHosts;
 
-    public GceSeedHostsProvider(Settings settings, GceInstancesService gceInstancesService,
-                                TransportService transportService,
-                                NetworkService networkService) {
+    public GceSeedHostsProvider(
+        Settings settings,
+        GceInstancesService gceInstancesService,
+        TransportService transportService,
+        NetworkService networkService
+    ) {
         this.settings = settings;
         this.gceInstancesService = gceInstancesService;
         this.transportService = transportService;
@@ -101,14 +97,19 @@ public class GceSeedHostsProvider implements SeedHostsProvider {
     public List<TransportAddress> getSeedAddresses(HostsResolver hostsResolver) {
         // We check that needed properties have been set
         if (this.project == null || this.project.isEmpty() || this.zones == null || this.zones.isEmpty()) {
-            throw new IllegalArgumentException("one or more gce discovery settings are missing. " +
-                "Check elasticsearch.yml file. Should have [" + GceInstancesService.PROJECT_SETTING.getKey() +
-                "] and [" + GceInstancesService.ZONE_SETTING.getKey() + "].");
+            throw new IllegalArgumentException(
+                "one or more gce discovery settings are missing. "
+                    + "Check elasticsearch.yml file. Should have ["
+                    + GceInstancesService.PROJECT_SETTING.getKey()
+                    + "] and ["
+                    + GceInstancesService.ZONE_SETTING.getKey()
+                    + "]."
+            );
         }
 
         if (refreshInterval.millis() != 0) {
-            if (cachedDynamicHosts != null &&
-                    (refreshInterval.millis() < 0 || (System.currentTimeMillis() - lastRefresh) < refreshInterval.millis())) {
+            if (cachedDynamicHosts != null
+                && (refreshInterval.millis() < 0 || (System.currentTimeMillis() - lastRefresh) < refreshInterval.millis())) {
                 if (logger.isTraceEnabled()) logger.trace("using cache to retrieve node list");
                 return cachedDynamicHosts;
             }
@@ -120,7 +121,8 @@ public class GceSeedHostsProvider implements SeedHostsProvider {
         String ipAddress = null;
         try {
             InetAddress inetAddress = networkService.resolvePublishHostAddresses(
-                NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY));
+                NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY)
+            );
             if (inetAddress != null) {
                 ipAddress = NetworkAddress.format(inetAddress);
             }
@@ -155,8 +157,10 @@ public class GceSeedHostsProvider implements SeedHostsProvider {
                 boolean filterByTag = false;
                 if (tags.isEmpty() == false) {
                     logger.trace("start filtering instance {} with tags {}.", name, tags);
-                    if (instance.getTags() == null || instance.getTags().isEmpty()
-                            || instance.getTags().getItems() == null || instance.getTags().getItems().isEmpty()) {
+                    if (instance.getTags() == null
+                        || instance.getTags().isEmpty()
+                        || instance.getTags().getItems() == null
+                        || instance.getTags().getItems().isEmpty()) {
                         // If this instance have no tag, we filter it
                         logger.trace("no tags for this instance but we asked for tags. {} won't be part of the cluster.", name);
                         filterByTag = true;
@@ -171,7 +175,7 @@ public class GceSeedHostsProvider implements SeedHostsProvider {
                                     break;
                                 }
                             }
-                            if (!found) {
+                            if (found == false) {
                                 filterByTag = true;
                                 break;
                             }
@@ -179,8 +183,12 @@ public class GceSeedHostsProvider implements SeedHostsProvider {
                     }
                 }
                 if (filterByTag) {
-                    logger.trace("filtering out instance {} based tags {}, not part of {}", name, tags,
-                            instance.getTags() == null || instance.getTags().getItems() == null ? "" : instance.getTags());
+                    logger.trace(
+                        "filtering out instance {} based tags {}, not part of {}",
+                        name,
+                        tags,
+                        instance.getTags() == null || instance.getTags().getItems() == null ? "" : instance.getTags()
+                    );
                     continue;
                 } else {
                     logger.trace("instance {} with tags {} is added to discovery", name, tags);
@@ -236,8 +244,14 @@ public class GceSeedHostsProvider implements SeedHostsProvider {
                         TransportAddress[] addresses = transportService.addressesFromString(address);
 
                         for (TransportAddress transportAddress : addresses) {
-                            logger.trace("adding {}, type {}, address {}, transport_address {}, status {}", name, type,
-                                    ip_private, transportAddress, status);
+                            logger.trace(
+                                "adding {}, type {}, address {}, transport_address {}, status {}",
+                                name,
+                                type,
+                                ip_private,
+                                transportAddress,
+                                status
+                            );
                             cachedDynamicHosts.add(transportAddress);
                         }
                     }

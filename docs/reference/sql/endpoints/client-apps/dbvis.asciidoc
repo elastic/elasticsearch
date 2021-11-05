@@ -3,15 +3,13 @@
 [[sql-client-apps-dbvis]]
 === DbVisualizer
 
-[quote, http://www.dbvis.com/]
-____
-https://www.dbvis.com/[DbVisualizer] is a database management and analysis tool for all major databases.
-____
+You can use the {es} JDBC driver to access {es} data from DbVisualizer.
 
 IMPORTANT: Elastic does not endorse, promote or provide support for this application; for native Elasticsearch integration in this product, please reach out to its vendor.
 
 ==== Prerequisites
 
+* https://www.dbvis.com/[DbVisualizer] 10.0.21 or higher
 * {es-sql} <<sql-jdbc, JDBC driver>>
 
 ==== Add {es} JDBC driver
@@ -20,20 +18,23 @@ Add the {es} JDBC driver to DbVisualizer through *Tools* > *Driver Manager*:
 
 image:images/sql/client-apps/dbvis-1-driver-manager.png[]
 
-Create a new driver entry through *Driver* > *Create Driver* entry and add the JDBC driver in the files panel
-through the buttons on the right. Once specify, the driver class and its version should be automatically picked up - one can force the refresh through the *Find driver in listed locations* button, the second from the bottom on the right hand side:
- 
+Select *Elasticsearch* driver name from the left sidebar and add the JDBC driver in the files panel through the buttons on the right; if there is no such driver name check the DbVisualizer version or create a new driver entry through *Driver* > *Create Driver*.
+
 image:images/sql/client-apps/dbvis-2-driver.png[]
+
+Once specified, the driver class and its version should be automatically picked up - one can force the refresh through the *Find driver in listed locations* button, the second from the bottom on the right hand side:
+ 
+image:images/sql/client-apps/dbvis-3-add-driver.png[]
 
 ==== Create a new connection
 
 Once the {es} driver is in place, create a new connection:
 
-image:images/sql/client-apps/dbvis-3-new-conn.png[]
+image:images/sql/client-apps/dbvis-4-new-conn.png[]
 
 One can use the wizard or add the settings all at once:
 
-image:images/sql/client-apps/dbvis-4-conn-props.png[]
+image:images/sql/client-apps/dbvis-5-conn-props.png[]
 
 Press *Connect* and the driver version (as that of the cluster) should show up under *Connection Message*.
 
@@ -41,4 +42,4 @@ Press *Connect* and the driver version (as that of the cluster) should show up u
 
 The setup is done. DbVisualizer can be used to run queries against {es} and explore its content:
 
-image:images/sql/client-apps/dbvis-5-data.png[]
+image:images/sql/client-apps/dbvis-6-data.png[]

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless;
@@ -389,17 +378,23 @@ public final class AnalyzerCaster {
             }
         }
 
-        if (
-                actual == def.class                             ||
-                (actual != void.class && expected == def.class) ||
-                expected.isAssignableFrom(actual)               ||
-                (actual.isAssignableFrom(expected) && explicit)
-        ) {
+        if ((actual == def.class && expected != void.class)
+            || (actual != void.class && expected == def.class)
+            || expected.isAssignableFrom(actual)
+            || (actual.isAssignableFrom(expected) && explicit)) {
             return PainlessCast.originalTypetoTargetType(actual, expected, explicit);
         } else {
-            throw location.createError(new ClassCastException("Cannot cast from " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(actual) + "] to " +
-                    "[" + PainlessLookupUtility.typeToCanonicalTypeName(expected) + "]."));
+            throw location.createError(
+                new ClassCastException(
+                    "Cannot cast from "
+                        + "["
+                        + PainlessLookupUtility.typeToCanonicalTypeName(actual)
+                        + "] to "
+                        + "["
+                        + PainlessLookupUtility.typeToCanonicalTypeName(expected)
+                        + "]."
+                )
+            );
         }
     }
 
@@ -410,32 +405,43 @@ public final class AnalyzerCaster {
         if (fsort == tsort) {
             return constant;
         } else if (fsort == String.class && tsort == char.class) {
-            return Utility.StringTochar((String)constant);
+            return Utility.StringTochar((String) constant);
         } else if (fsort == char.class && tsort == String.class) {
-            return Utility.charToString((char)constant);
+            return Utility.charToString((char) constant);
         } else if (fsort.isPrimitive() && fsort != boolean.class && tsort.isPrimitive() && tsort != boolean.class) {
             Number number;
 
             if (fsort == char.class) {
-                number = (int)(char)constant;
+                number = (int) (char) constant;
             } else {
-                number = (Number)constant;
+                number = (Number) constant;
             }
 
-            if      (tsort == byte.class) return number.byteValue();
+            if (tsort == byte.class) return number.byteValue();
             else if (tsort == short.class) return number.shortValue();
-            else if (tsort == char.class) return (char)number.intValue();
+            else if (tsort == char.class) return (char) number.intValue();
             else if (tsort == int.class) return number.intValue();
             else if (tsort == long.class) return number.longValue();
             else if (tsort == float.class) return number.floatValue();
             else if (tsort == double.class) return number.doubleValue();
             else {
-                throw location.createError(new IllegalStateException("Cannot cast from " +
-                    "[" + cast.originalType.getCanonicalName() + "] to [" + cast.targetType.getCanonicalName() + "]."));
+                throw location.createError(
+                    new IllegalStateException(
+                        "Cannot cast from "
+                            + "["
+                            + cast.originalType.getCanonicalName()
+                            + "] to ["
+                            + cast.targetType.getCanonicalName()
+                            + "]."
+                    )
+                );
             }
         } else {
-            throw location.createError(new IllegalStateException("Cannot cast from " +
-                "[" + cast.originalType.getCanonicalName() + "] to [" + cast.targetType.getCanonicalName() + "]."));
+            throw location.createError(
+                new IllegalStateException(
+                    "Cannot cast from " + "[" + cast.originalType.getCanonicalName() + "] to [" + cast.targetType.getCanonicalName() + "]."
+                )
+            );
         }
     }
 
@@ -464,12 +470,16 @@ public final class AnalyzerCaster {
 
         if (from0 == long.class || from1 == long.class) {
             return long.class;
-        } else if (from0 == int.class   || from1 == int.class   ||
-                   from0 == char.class  || from1 == char.class  ||
-                   from0 == short.class || from1 == short.class ||
-                   from0 == byte.class  || from1 == byte.class) {
-            return int.class;
-        }
+        } else if (from0 == int.class
+            || from1 == int.class
+            || from0 == char.class
+            || from1 == char.class
+            || from0 == short.class
+            || from1 == short.class
+            || from0 == byte.class
+            || from1 == byte.class) {
+                return int.class;
+            }
 
         return null;
     }
@@ -495,6 +505,10 @@ public final class AnalyzerCaster {
     }
 
     public static Class<?> promoteEquality(Class<?> from0, Class<?> from1) {
+        if (from0 == String.class && from1 == String.class) {
+            return String.class;
+        }
+
         if (from0 == def.class || from1 == def.class) {
             return def.class;
         }
@@ -510,7 +524,7 @@ public final class AnalyzerCaster {
         return Object.class;
     }
 
-    public static Class<?> promoteConditional(Class<?> from0, Class<?> from1, Object const0, Object const1) {
+    public static Class<?> promoteConditional(Class<?> from0, Class<?> from1) {
         if (from0 == from1) {
             return from0;
         }
@@ -519,123 +533,29 @@ public final class AnalyzerCaster {
             return def.class;
         }
 
-        if (from0.isPrimitive() && from1.isPrimitive()) {
-            if (from0 == boolean.class && from1 == boolean.class) {
-                return boolean.class;
-            }
-
+        if (from0.isPrimitive() && from0 != boolean.class && from1.isPrimitive() && from1 != boolean.class) {
             if (from0 == double.class || from1 == double.class) {
                 return double.class;
             } else if (from0 == float.class || from1 == float.class) {
                 return float.class;
             } else if (from0 == long.class || from1 == long.class) {
                 return long.class;
-            } else {
-                if (from0 == byte.class) {
-                    if (from1 == byte.class) {
-                        return byte.class;
-                    } else if (from1 == short.class) {
-                        if (const1 != null) {
-                            final short constant = (short)const1;
-
-                            if (constant <= Byte.MAX_VALUE && constant >= Byte.MIN_VALUE) {
-                                return byte.class;
-                            }
-                        }
-
-                        return short.class;
-                    } else if (from1 == char.class) {
-                        return int.class;
-                    } else if (from1 == int.class) {
-                        if (const1 != null) {
-                            final int constant = (int)const1;
-
-                            if (constant <= Byte.MAX_VALUE && constant >= Byte.MIN_VALUE) {
-                                return byte.class;
-                            }
-                        }
-
-                        return int.class;
-                    }
-                } else if (from0 == short.class) {
-                    if (from1 == byte.class) {
-                        if (const0 != null) {
-                            final short constant = (short)const0;
-
-                            if (constant <= Byte.MAX_VALUE && constant >= Byte.MIN_VALUE) {
-                                return byte.class;
-                            }
-                        }
-
-                        return short.class;
-                    } else if (from1 == short.class) {
-                        return short.class;
-                    } else if (from1 == char.class) {
-                        return int.class;
-                    } else if (from1 == int.class) {
-                        if (const1 != null) {
-                            final int constant = (int)const1;
-
-                            if (constant <= Short.MAX_VALUE && constant >= Short.MIN_VALUE) {
-                                return short.class;
-                            }
-                        }
-
-                        return int.class;
-                    }
-                } else if (from0 == char.class) {
-                    if (from1 == byte.class) {
-                        return int.class;
-                    } else if (from1 == short.class) {
-                        return int.class;
-                    } else if (from1 == char.class) {
-                        return char.class;
-                    } else if (from1 == int.class) {
-                        if (const1 != null) {
-                            final int constant = (int)const1;
-
-                            if (constant <= Character.MAX_VALUE && constant >= Character.MIN_VALUE) {
-                                return byte.class;
-                            }
-                        }
-
-                        return int.class;
-                    }
-                } else if (from0 == int.class) {
-                    if (from1 == byte.class) {
-                        if (const0 != null) {
-                            final int constant = (int)const0;
-
-                            if (constant <= Byte.MAX_VALUE && constant >= Byte.MIN_VALUE) {
-                                return byte.class;
-                            }
-                        }
-
-                        return int.class;
-                    } else if (from1 == short.class) {
-                        if (const0 != null) {
-                            final int constant = (int)const0;
-
-                            if (constant <= Short.MAX_VALUE && constant >= Short.MIN_VALUE) {
-                                return byte.class;
-                            }
-                        }
-
-                        return int.class;
-                    } else if (from1 == char.class) {
-                        if (const0 != null) {
-                            final int constant = (int)const0;
-
-                            if (constant <= Character.MAX_VALUE && constant >= Character.MIN_VALUE) {
-                                return byte.class;
-                            }
-                        }
-
-                        return int.class;
-                    } else if (from1 == int.class) {
-                        return int.class;
-                    }
+            } else if (from0 == int.class || from1 == int.class) {
+                return int.class;
+            } else if (from0 == char.class) {
+                if (from1 == short.class || from1 == byte.class) {
+                    return int.class;
+                } else {
+                    return null;
                 }
+            } else if (from1 == char.class) {
+                if (from0 == short.class || from0 == byte.class) {
+                    return int.class;
+                } else {
+                    return null;
+                }
+            } else {
+                return null;
             }
         }
 

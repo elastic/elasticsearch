@@ -1,13 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
+ * Licensed to Elasticsearch B.V. under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
+ * ownership. Elasticsearch B.V. licenses this file to you under
  * the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -52,27 +52,27 @@ import org.apache.http.util.EntityUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
-import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
-import javax.net.ssl.SSLHandshakeException;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
+
+import javax.net.ssl.SSLHandshakeException;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.client.RestClientTestUtil.getAllErrorStatusCodes;
@@ -88,7 +88,8 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -117,45 +118,52 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         node = new Node(new HttpHost("localhost", 9200));
         failureListener = new HostsTrackingFailureListener();
         strictDeprecationMode = randomBoolean();
-        restClient = new RestClient(this.httpClient, defaultHeaders,
-                singletonList(node), null, failureListener, NodeSelector.ANY, strictDeprecationMode);
+        restClient = new RestClient(
+            this.httpClient,
+            defaultHeaders,
+            singletonList(node),
+            null,
+            failureListener,
+            NodeSelector.ANY,
+            strictDeprecationMode,
+            false
+        );
     }
 
     @SuppressWarnings("unchecked")
     static CloseableHttpAsyncClient mockHttpClient(final ExecutorService exec) {
         CloseableHttpAsyncClient httpClient = mock(CloseableHttpAsyncClient.class);
-        when(httpClient.<HttpResponse>execute(any(HttpAsyncRequestProducer.class), any(HttpAsyncResponseConsumer.class),
-            any(HttpClientContext.class), any(FutureCallback.class))).thenAnswer(new Answer<Future<HttpResponse>>() {
-            @Override
-            public Future<HttpResponse> answer(InvocationOnMock invocationOnMock) throws Throwable {
-                final HttpAsyncRequestProducer requestProducer = (HttpAsyncRequestProducer) invocationOnMock.getArguments()[0];
-                final FutureCallback<HttpResponse> futureCallback =
-                    (FutureCallback<HttpResponse>) invocationOnMock.getArguments()[3];
-                // Call the callback asynchronous to better simulate how async http client works
-                return exec.submit(new Callable<HttpResponse>() {
-                    @Override
-                    public HttpResponse call() throws Exception {
-                        if (futureCallback != null) {
-                            try {
-                                HttpResponse httpResponse = responseOrException(requestProducer);
-                                futureCallback.completed(httpResponse);
-                            } catch(Exception e) {
-                                futureCallback.failed(e);
-                            }
-                            return null;
-                        }
-                        return responseOrException(requestProducer);
+        when(
+            httpClient.<HttpResponse>execute(
+                any(HttpAsyncRequestProducer.class),
+                any(HttpAsyncResponseConsumer.class),
+                any(HttpClientContext.class),
+                nullable(FutureCallback.class)
+            )
+        ).thenAnswer((Answer<Future<HttpResponse>>) invocationOnMock -> {
+            final HttpAsyncRequestProducer requestProducer = (HttpAsyncRequestProducer) invocationOnMock.getArguments()[0];
+            final FutureCallback<HttpResponse> futureCallback = (FutureCallback<HttpResponse>) invocationOnMock.getArguments()[3];
+            // Call the callback asynchronous to better simulate how async http client works
+            return exec.submit(() -> {
+                if (futureCallback != null) {
+                    try {
+                        HttpResponse httpResponse = responseOrException(requestProducer);
+                        futureCallback.completed(httpResponse);
+                    } catch (Exception e) {
+                        futureCallback.failed(e);
                     }
-                });
-            }
+                    return null;
+                }
+                return responseOrException(requestProducer);
+            });
         });
         return httpClient;
     }
 
     private static HttpResponse responseOrException(HttpAsyncRequestProducer requestProducer) throws Exception {
-        final HttpUriRequest request = (HttpUriRequest)requestProducer.generateRequest();
+        final HttpUriRequest request = (HttpUriRequest) requestProducer.generateRequest();
         final HttpHost httpHost = requestProducer.getTarget();
-        //return the desired status code or exception depending on the path
+        // return the desired status code or exception depending on the path
         switch (request.getURI().getPath()) {
             case "/soe":
                 throw new SocketTimeoutException(httpHost.toString());
@@ -176,16 +184,15 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                 StatusLine statusLine = new BasicStatusLine(new ProtocolVersion("http", 1, 1), statusCode, "");
 
                 final HttpResponse httpResponse = new BasicHttpResponse(statusLine);
-                //return the same body that was sent
+                // return the same body that was sent
                 if (request instanceof HttpEntityEnclosingRequest) {
                     HttpEntity entity = ((HttpEntityEnclosingRequest) request).getEntity();
                     if (entity != null) {
-                        assertTrue("the entity is not repeatable, cannot set it to the response directly",
-                            entity.isRepeatable());
+                        assertTrue("the entity is not repeatable, cannot set it to the response directly", entity.isRepeatable());
                         httpResponse.setEntity(entity);
                     }
                 }
-                //return the same headers that were sent
+                // return the same headers that were sent
                 httpResponse.setHeaders(request.getAllHeaders());
                 return httpResponse;
         }
@@ -208,9 +215,13 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         int times = 0;
         for (String httpMethod : getHttpMethods()) {
             HttpUriRequest expectedRequest = performRandomRequest(httpMethod);
-            verify(httpClient, times(++times)).<HttpResponse>execute(requestArgumentCaptor.capture(),
-                    any(HttpAsyncResponseConsumer.class), any(HttpClientContext.class), any(FutureCallback.class));
-            HttpUriRequest actualRequest = (HttpUriRequest)requestArgumentCaptor.getValue().generateRequest();
+            verify(httpClient, times(++times)).<HttpResponse>execute(
+                requestArgumentCaptor.capture(),
+                any(HttpAsyncResponseConsumer.class),
+                any(HttpClientContext.class),
+                nullable(FutureCallback.class)
+            );
+            HttpUriRequest actualRequest = (HttpUriRequest) requestArgumentCaptor.getValue().generateRequest();
             assertEquals(expectedRequest.getURI(), actualRequest.getURI());
             assertEquals(expectedRequest.getClass(), actualRequest.getClass());
             assertArrayEquals(expectedRequest.getAllHeaders(), actualRequest.getAllHeaders());
@@ -258,7 +269,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                     }
                 }
             }
-            //error status codes should cause an exception to be thrown
+            // error status codes should cause an exception to be thrown
             for (int errorStatusCode : getAllErrorStatusCodes()) {
                 try {
                     Request request = new Request(method, "/" + errorStatusCode);
@@ -267,12 +278,12 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                     }
                     Response response = restClient.performRequest(request);
                     if (expectedIgnores.contains(errorStatusCode)) {
-                        //no exception gets thrown although we got an error status code, as it was configured to be ignored
+                        // no exception gets thrown although we got an error status code, as it was configured to be ignored
                         assertEquals(errorStatusCode, response.getStatusLine().getStatusCode());
                     } else {
                         fail("request should have failed");
                     }
-                } catch(ResponseException e) {
+                } catch (ResponseException e) {
                     if (expectedIgnores.contains(errorStatusCode)) {
                         throw e;
                     }
@@ -290,11 +301,11 @@ public class RestClientSingleHostTests extends RestClientTestCase {
 
     public void testPerformRequestIOExceptions() throws Exception {
         for (String method : getHttpMethods()) {
-            //IOExceptions should be let bubble up
+            // IOExceptions should be let bubble up
             try {
                 restClient.performRequest(new Request(method, "/ioe"));
                 fail("request should have failed");
-            } catch(IOException e) {
+            } catch (IOException e) {
                 // And we do all that so the thrown exception has our method in the stacktrace
                 assertExceptionStackContainsCallingMethod(e);
             }
@@ -302,7 +313,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             try {
                 restClient.performRequest(new Request(method, "/coe"));
                 fail("request should have failed");
-            } catch(ConnectTimeoutException e) {
+            } catch (ConnectTimeoutException e) {
                 // And we do all that so the thrown exception has our method in the stacktrace
                 assertExceptionStackContainsCallingMethod(e);
             }
@@ -310,7 +321,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             try {
                 restClient.performRequest(new Request(method, "/soe"));
                 fail("request should have failed");
-            } catch(SocketTimeoutException e) {
+            } catch (SocketTimeoutException e) {
                 // And we do all that so the thrown exception has our method in the stacktrace
                 assertExceptionStackContainsCallingMethod(e);
             }
@@ -318,7 +329,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             try {
                 restClient.performRequest(new Request(method, "/closed"));
                 fail("request should have failed");
-            } catch(ConnectionClosedException e) {
+            } catch (ConnectionClosedException e) {
                 // And we do all that so the thrown exception has our method in the stacktrace
                 assertExceptionStackContainsCallingMethod(e);
             }
@@ -326,7 +337,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             try {
                 restClient.performRequest(new Request(method, "/handshake"));
                 fail("request should have failed");
-            } catch(SSLHandshakeException e) {
+            } catch (SSLHandshakeException e) {
                 // And we do all that so the thrown exception has our method in the stacktrace
                 assertExceptionStackContainsCallingMethod(e);
             }
@@ -382,7 +393,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                 try {
                     restClient.performRequest(request);
                     fail("request should have failed");
-                } catch(ResponseException e) {
+                } catch (ResponseException e) {
                     Response response = e.getResponse();
                     assertThat(response.getStatusLine().getStatusCode(), equalTo(errorStatusCode));
                     assertThat(EntityUtils.toString(response.getEntity()), equalTo(body));
@@ -396,7 +407,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             try {
                 performRequestSyncOrAsync(restClient, request);
                 fail("request should have failed");
-            } catch(UnsupportedOperationException e) {
+            } catch (UnsupportedOperationException e) {
                 assertThat(e.getMessage(), equalTo(method + " with body is not supported"));
             }
         }
@@ -419,7 +430,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             Response esResponse;
             try {
                 esResponse = performRequestSyncOrAsync(restClient, request);
-            } catch(ResponseException e) {
+            } catch (ResponseException e) {
                 esResponse = e.getResponse();
             }
             assertThat(esResponse.getStatusLine().getStatusCode(), equalTo(statusCode));
@@ -431,15 +442,18 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     public void testDeprecationWarnings() throws Exception {
         String chars = randomAsciiAlphanumOfLength(5);
         assertDeprecationWarnings(singletonList("poorly formatted " + chars), singletonList("poorly formatted " + chars));
+        assertDeprecationWarnings(singletonList(formatWarningWithoutDate(chars)), singletonList(chars));
         assertDeprecationWarnings(singletonList(formatWarning(chars)), singletonList(chars));
         assertDeprecationWarnings(
-                Arrays.asList(formatWarning(chars), "another one", "and another"),
-                Arrays.asList(chars,                "another one", "and another"));
-        assertDeprecationWarnings(
-                Arrays.asList("ignorable one", "and another"),
-                Arrays.asList("ignorable one", "and another"));
+            Arrays.asList(formatWarning(chars), "another one", "and another"),
+            Arrays.asList(chars, "another one", "and another")
+        );
+        assertDeprecationWarnings(Arrays.asList("ignorable one", "and another"), Arrays.asList("ignorable one", "and another"));
         assertDeprecationWarnings(singletonList("exact"), singletonList("exact"));
         assertDeprecationWarnings(Collections.<String>emptyList(), Collections.<String>emptyList());
+
+        String proxyWarning = "112 - \"network down\" \"Sat, 25 Aug 2012 23:34:45 GMT\"";
+        assertDeprecationWarnings(singletonList(proxyWarning), singletonList(proxyWarning));
     }
 
     private enum DeprecationWarningOption {
@@ -522,11 +536,16 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     }
 
     /**
-     * Emulates Elasticsearch's DeprecationLogger.formatWarning in simple
+     * Emulates Elasticsearch's HeaderWarningLogger.formatWarning in simple
      * cases. We don't have that available because we're testing against 1.7.
      */
+    private static String formatWarningWithoutDate(String warningBody) {
+        final String hash = new String(new byte[40], StandardCharsets.UTF_8).replace('\0', 'e');
+        return "299 Elasticsearch-1.2.2-SNAPSHOT-" + hash + " \"" + warningBody + "\"";
+    }
+
     private static String formatWarning(String warningBody) {
-        return "299 Elasticsearch-1.2.2-SNAPSHOT-eeeeeee \"" + warningBody + "\" \"Mon, 01 Jan 2001 00:00:00 GMT\"";
+        return formatWarningWithoutDate(warningBody) + " \"Mon, 01 Jan 2001 00:00:00 GMT\"";
     }
 
     private HttpUriRequest performRandomRequest(String method) throws Exception {
@@ -543,7 +562,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             }
         }
         if (randomBoolean()) {
-            //randomly add some ignore parameter, which doesn't get sent as part of the request
+            // randomly add some ignore parameter, which doesn't get sent as part of the request
             String ignore = Integer.toString(randomFrom(RestClientTestUtil.getAllErrorStatusCodes()));
             if (randomBoolean()) {
                 ignore += "," + randomFrom(RestClientTestUtil.getAllErrorStatusCodes());
@@ -553,7 +572,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         URI uri = uriBuilder.build();
 
         HttpUriRequest expectedRequest;
-        switch(method) {
+        switch (method) {
             case "DELETE":
                 expectedRequest = new HttpDeleteWithEntity(uri);
                 break;
@@ -607,14 +626,14 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         }
         try {
             performRequestSyncOrAsync(restClient, request);
-        } catch(Exception e) {
-            //all good
+        } catch (Exception e) {
+            // all good
         }
         return expectedRequest;
     }
 
     static Response performRequestSyncOrAsync(RestClient restClient, Request request) throws Exception {
-        //randomize between sync and async methods
+        // randomize between sync and async methods
         if (randomBoolean()) {
             return restClient.performRequest(request);
         } else {
@@ -658,8 +677,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         // 2 is the caller, what we want
         StackTraceElement myMethod = Thread.currentThread().getStackTrace()[2];
         for (StackTraceElement se : t.getStackTrace()) {
-            if (se.getClassName().equals(myMethod.getClassName())
-                && se.getMethodName().equals(myMethod.getMethodName())) {
+            if (se.getClassName().equals(myMethod.getClassName()) && se.getMethodName().equals(myMethod.getMethodName())) {
                 return;
             }
         }

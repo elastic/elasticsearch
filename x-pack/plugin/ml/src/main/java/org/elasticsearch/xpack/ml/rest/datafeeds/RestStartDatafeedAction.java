@@ -1,46 +1,44 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.rest.datafeeds;
 
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
+import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 
 public class RestStartDatafeedAction extends BaseRestHandler {
 
     private static final String DEFAULT_START = "0";
 
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(RestStartDatafeedAction.class));
-
-    public RestStartDatafeedAction(Settings settings, RestController controller) {
-        super(settings);
-        // TODO: remove deprecated endpoint in 8.0.0
-        controller.registerWithDeprecatedHandler(
-            POST, MachineLearning.BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}/_start", this,
-            POST, MachineLearning.PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID.getPreferredName() + "}/_start", deprecationLogger);
+    @Override
+    public List<Route> routes() {
+        return List.of(
+            Route.builder(POST, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_start")
+                .replaces(POST, PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_start", RestApiVersion.V_7)
+                .build()
+        );
     }
 
     @Override
@@ -63,23 +61,26 @@ public class RestStartDatafeedAction extends BaseRestHandler {
             }
             if (restRequest.hasParam(StartDatafeedAction.TIMEOUT.getPreferredName())) {
                 TimeValue openTimeout = restRequest.paramAsTime(
-                        StartDatafeedAction.TIMEOUT.getPreferredName(), TimeValue.timeValueSeconds(20));
+                    StartDatafeedAction.TIMEOUT.getPreferredName(),
+                    TimeValue.timeValueSeconds(20)
+                );
                 datafeedParams.setTimeout(openTimeout);
             }
             jobDatafeedRequest = new StartDatafeedAction.Request(datafeedParams);
         }
         return channel -> {
-            client.execute(StartDatafeedAction.INSTANCE, jobDatafeedRequest,
-                    new RestBuilderListener<AcknowledgedResponse>(channel) {
+            client.execute(StartDatafeedAction.INSTANCE, jobDatafeedRequest, new RestBuilderListener<NodeAcknowledgedResponse>(channel) {
 
-                        @Override
-                        public RestResponse buildResponse(AcknowledgedResponse r, XContentBuilder builder) throws Exception {
-                            builder.startObject();
-                            builder.field("started", r.isAcknowledged());
-                            builder.endObject();
-                            return new BytesRestResponse(RestStatus.OK, builder);
-                        }
-                    });
+                @Override
+                public RestResponse buildResponse(NodeAcknowledgedResponse r, XContentBuilder builder) throws Exception {
+                    // This doesn't use the toXContent of the response object because we rename "acknowledged" to "started"
+                    builder.startObject();
+                    builder.field("started", r.isAcknowledged());
+                    builder.field(NodeAcknowledgedResponse.NODE_FIELD, r.getNode());
+                    builder.endObject();
+                    return new BytesRestResponse(RestStatus.OK, builder);
+                }
+            });
         };
     }
 }

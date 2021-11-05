@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.license;
@@ -13,23 +14,26 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.ClusterNameExpressionResolver;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.license.XPackLicenseState.isAllowedByOperationMode;
+
 /**
- * Checks remote clusters for license compatibility with a specified license predicate.
+ * Checks remote clusters for license compatibility with a specified licensed feature.
  */
 public final class RemoteClusterLicenseChecker {
 
@@ -123,23 +127,19 @@ public final class RemoteClusterLicenseChecker {
 
     private static final ClusterNameExpressionResolver clusterNameExpressionResolver = new ClusterNameExpressionResolver();
     private final Client client;
-    private final Predicate<License.OperationMode> predicate;
+    private final LicensedFeature feature;
 
     /**
-     * Constructs a remote cluster license checker with the specified license predicate for checking license compatibility. The predicate
-     * does not need to check for the active license state as this is handled by the remote cluster license checker.
+     * Constructs a remote cluster license checker with the specified licensed feature for checking license compatibility. The feature
+     * does not need to check for the active license state as this is handled by the remote cluster license checker. If the feature
+     * is {@code null} a check is only performed on whether the license is active.
      *
      * @param client    the client
-     * @param predicate the license predicate
+     * @param feature   the licensed feature
      */
-    public RemoteClusterLicenseChecker(final Client client, final Predicate<License.OperationMode> predicate) {
+    public RemoteClusterLicenseChecker(final Client client, @Nullable final LicensedFeature feature) {
         this.client = client;
-        this.predicate = predicate;
-    }
-
-    public static boolean isLicensePlatinumOrTrial(final XPackInfoResponse.LicenseInfo licenseInfo) {
-        final License.OperationMode mode = License.OperationMode.resolve(licenseInfo.getMode());
-        return mode == License.OperationMode.PLATINUM || mode == License.OperationMode.TRIAL;
+        this.feature = feature;
     }
 
     /**
@@ -167,8 +167,8 @@ public final class RemoteClusterLicenseChecker {
                     listener.onFailure(new ResourceNotFoundException("license info is missing for cluster [" + clusterAlias.get() + "]"));
                     return;
                 }
-                if ((licenseInfo.getStatus() == LicenseStatus.ACTIVE) == false
-                        || predicate.test(License.OperationMode.resolve(licenseInfo.getMode())) == false) {
+
+                if (isActive(feature, licenseInfo) == false || isAllowed(feature, licenseInfo) == false) {
                     listener.onResponse(LicenseCheck.failure(new RemoteClusterLicenseInfo(clusterAlias.get(), licenseInfo)));
                     return;
                 }
@@ -195,10 +195,21 @@ public final class RemoteClusterLicenseChecker {
         remoteClusterLicense(clusterAlias.get(), infoListener);
     }
 
+    private static boolean isActive(LicensedFeature feature, XPackInfoResponse.LicenseInfo licenseInfo) {
+        return feature != null && feature.isNeedsActive() == false || licenseInfo.getStatus() == LicenseStatus.ACTIVE;
+    }
+
+    private static boolean isAllowed(LicensedFeature feature, XPackInfoResponse.LicenseInfo licenseInfo) {
+        License.OperationMode mode = License.OperationMode.parse(licenseInfo.getMode());
+        return feature == null || isAllowedByOperationMode(mode, feature.getMinimumOperationMode());
+    }
+
     private void remoteClusterLicense(final String clusterAlias, final ActionListener<XPackInfoResponse> listener) {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
-        final ContextPreservingActionListener<XPackInfoResponse> contextPreservingActionListener =
-                new ContextPreservingActionListener<>(threadContext.newRestorableContext(false), listener);
+        final ContextPreservingActionListener<XPackInfoResponse> contextPreservingActionListener = new ContextPreservingActionListener<>(
+            threadContext.newRestorableContext(false),
+            listener
+        );
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             // we stash any context here since this is an internal execution and should not leak any existing context information
             threadContext.markAsSystemContext();
@@ -229,7 +240,7 @@ public final class RemoteClusterLicenseChecker {
      * @param indices the collection of index names
      * @return true if the collection of index names contains a name that represents a remote index, otherwise false
      */
-    public static boolean containsRemoteIndex(final List<String> indices) {
+    public static boolean containsRemoteIndex(final Collection<String> indices) {
         return indices.stream().anyMatch(RemoteClusterLicenseChecker::isRemoteIndex);
     }
 
@@ -240,7 +251,7 @@ public final class RemoteClusterLicenseChecker {
      * @param indices the collection of index names
      * @return list of index names that represent remote index names
      */
-    public static List<String> remoteIndices(final List<String> indices) {
+    public static List<String> remoteIndices(final Collection<String> indices) {
         return indices.stream().filter(RemoteClusterLicenseChecker::isRemoteIndex).collect(Collectors.toList());
     }
 
@@ -255,12 +266,12 @@ public final class RemoteClusterLicenseChecker {
      */
     public static List<String> remoteClusterAliases(final Set<String> remoteClusters, final List<String> indices) {
         return indices.stream()
-                .filter(RemoteClusterLicenseChecker::isRemoteIndex)
-                .map(index -> index.substring(0, index.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR)))
-                .distinct()
-                .flatMap(clusterExpression -> clusterNameExpressionResolver.resolveClusterNames(remoteClusters, clusterExpression).stream())
-                .distinct()
-                .collect(Collectors.toList());
+            .filter(RemoteClusterLicenseChecker::isRemoteIndex)
+            .map(index -> index.substring(0, index.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR)))
+            .distinct()
+            .flatMap(clusterExpression -> clusterNameExpressionResolver.resolveClusterNames(remoteClusters, clusterExpression).stream())
+            .distinct()
+            .collect(Collectors.toList());
     }
 
     /**
@@ -270,21 +281,20 @@ public final class RemoteClusterLicenseChecker {
      * @param remoteClusterLicenseInfo the remote cluster license info of the cluster that failed the license check
      * @return an error message representing license incompatibility
      */
-    public static String buildErrorMessage(
-            final String feature,
-            final RemoteClusterLicenseInfo remoteClusterLicenseInfo,
-            final Predicate<XPackInfoResponse.LicenseInfo> predicate) {
+    public static String buildErrorMessage(final LicensedFeature feature, final RemoteClusterLicenseInfo remoteClusterLicenseInfo) {
         final StringBuilder error = new StringBuilder();
-        if (remoteClusterLicenseInfo.licenseInfo().getStatus() != LicenseStatus.ACTIVE) {
+        if (isActive(feature, remoteClusterLicenseInfo.licenseInfo()) == false) {
             error.append(String.format(Locale.ROOT, "the license on cluster [%s] is not active", remoteClusterLicenseInfo.clusterAlias()));
         } else {
-            assert predicate.test(remoteClusterLicenseInfo.licenseInfo()) == false : "license must be incompatible to build error message";
+            assert isAllowed(feature, remoteClusterLicenseInfo.licenseInfo()) == false
+                : "license must be incompatible to build error message";
             final String message = String.format(
-                    Locale.ROOT,
-                    "the license mode [%s] on cluster [%s] does not enable [%s]",
-                    License.OperationMode.resolve(remoteClusterLicenseInfo.licenseInfo().getMode()),
-                    remoteClusterLicenseInfo.clusterAlias(),
-                    feature);
+                Locale.ROOT,
+                "the license mode [%s] on cluster [%s] does not enable [%s]",
+                License.OperationMode.parse(remoteClusterLicenseInfo.licenseInfo().getMode()),
+                remoteClusterLicenseInfo.clusterAlias(),
+                feature.getName()
+            );
             error.append(message);
         }
 

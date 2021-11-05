@@ -1,26 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -28,40 +28,38 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-public class StopDatafeedAction extends Action<StopDatafeedAction.Response> {
+import static org.elasticsearch.core.RestApiVersion.equalTo;
+import static org.elasticsearch.core.RestApiVersion.onOrAfter;
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.DEPRECATED_ALLOW_NO_DATAFEEDS_PARAM;
+
+public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> {
 
     public static final StopDatafeedAction INSTANCE = new StopDatafeedAction();
     public static final String NAME = "cluster:admin/xpack/ml/datafeed/stop";
     public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueMinutes(5);
 
     private StopDatafeedAction() {
-        super(NAME);
-    }
-
-    @Override
-    public Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    public Writeable.Reader<Response> getResponseReader() {
-        return Response::new;
+        super(NAME, StopDatafeedAction.Response::new);
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
 
         public static final ParseField TIMEOUT = new ParseField("timeout");
         public static final ParseField FORCE = new ParseField("force");
-        public static final ParseField ALLOW_NO_DATAFEEDS = new ParseField("allow_no_datafeeds");
+        public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match").forRestApiVersion(onOrAfter(RestApiVersion.V_8));
+        public static final ParseField ALLOW_NO_MATCH_V7 = new ParseField("allow_no_match", DEPRECATED_ALLOW_NO_DATAFEEDS_PARAM)
+            .forRestApiVersion(equalTo(RestApiVersion.V_7));
 
-        public static ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
-
+        public static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
         static {
             PARSER.declareString((request, datafeedId) -> request.datafeedId = datafeedId, DatafeedConfig.ID);
-            PARSER.declareString((request, val) ->
-                    request.setStopTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
+            PARSER.declareString(
+                (request, val) -> request.setStopTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())),
+                TIMEOUT
+            );
             PARSER.declareBoolean(Request::setForce, FORCE);
-            PARSER.declareBoolean(Request::setAllowNoDatafeeds, ALLOW_NO_DATAFEEDS);
+            PARSER.declareBoolean(Request::setAllowNoMatch, ALLOW_NO_MATCH);
+            PARSER.declareBoolean(Request::setAllowNoMatch, ALLOW_NO_MATCH_V7);
         }
 
         public static Request fromXContent(XContentParser parser) {
@@ -80,14 +78,13 @@ public class StopDatafeedAction extends Action<StopDatafeedAction.Response> {
         private String[] resolvedStartedDatafeedIds = new String[] {};
         private TimeValue stopTimeout = DEFAULT_TIMEOUT;
         private boolean force = false;
-        private boolean allowNoDatafeeds = true;
+        private boolean allowNoMatch = true;
 
         public Request(String datafeedId) {
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
         }
 
-        public Request() {
-        }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -95,7 +92,7 @@ public class StopDatafeedAction extends Action<StopDatafeedAction.Response> {
             resolvedStartedDatafeedIds = in.readStringArray();
             stopTimeout = in.readTimeValue();
             force = in.readBoolean();
-            allowNoDatafeeds = in.readBoolean();
+            allowNoMatch = in.readBoolean();
         }
 
         public String getDatafeedId() {
@@ -106,7 +103,9 @@ public class StopDatafeedAction extends Action<StopDatafeedAction.Response> {
             return resolvedStartedDatafeedIds;
         }
 
+        // This is used internally - the transport action sets it, not the user
         public void setResolvedStartedDatafeedIds(String[] resolvedStartedDatafeedIds) {
+            assert resolvedStartedDatafeedIds != null;
             this.resolvedStartedDatafeedIds = resolvedStartedDatafeedIds;
         }
 
@@ -114,31 +113,34 @@ public class StopDatafeedAction extends Action<StopDatafeedAction.Response> {
             return stopTimeout;
         }
 
-        public void setStopTimeout(TimeValue stopTimeout) {
+        public Request setStopTimeout(TimeValue stopTimeout) {
             this.stopTimeout = ExceptionsHelper.requireNonNull(stopTimeout, TIMEOUT.getPreferredName());
+            return this;
         }
 
         public boolean isForce() {
             return force;
         }
 
-        public void setForce(boolean force) {
+        public Request setForce(boolean force) {
             this.force = force;
+            return this;
         }
 
-        public boolean allowNoDatafeeds() {
-            return allowNoDatafeeds;
+        public boolean allowNoMatch() {
+            return allowNoMatch;
         }
 
-        public void setAllowNoDatafeeds(boolean allowNoDatafeeds) {
-            this.allowNoDatafeeds = allowNoDatafeeds;
+        public Request setAllowNoMatch(boolean allowNoMatch) {
+            this.allowNoMatch = allowNoMatch;
+            return this;
         }
 
         @Override
         public boolean match(Task task) {
             for (String id : resolvedStartedDatafeedIds) {
                 String expectedDescription = MlTasks.datafeedTaskId(id);
-                if (task instanceof StartDatafeedAction.DatafeedTaskMatcher && expectedDescription.equals(task.getDescription())){
+                if (task instanceof StartDatafeedAction.DatafeedTaskMatcher && expectedDescription.equals(task.getDescription())) {
                     return true;
                 }
             }
@@ -157,12 +159,12 @@ public class StopDatafeedAction extends Action<StopDatafeedAction.Response> {
             out.writeStringArray(resolvedStartedDatafeedIds);
             out.writeTimeValue(stopTimeout);
             out.writeBoolean(force);
-            out.writeBoolean(allowNoDatafeeds);
+            out.writeBoolean(allowNoMatch);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(datafeedId, stopTimeout, force, allowNoDatafeeds);
+            return Objects.hash(datafeedId, stopTimeout, force, allowNoMatch);
         }
 
         @Override
@@ -171,7 +173,11 @@ public class StopDatafeedAction extends Action<StopDatafeedAction.Response> {
             builder.field(DatafeedConfig.ID.getPreferredName(), datafeedId);
             builder.field(TIMEOUT.getPreferredName(), stopTimeout.getStringRep());
             builder.field(FORCE.getPreferredName(), force);
-            builder.field(ALLOW_NO_DATAFEEDS.getPreferredName(), allowNoDatafeeds);
+            if (builder.getRestApiVersion() == RestApiVersion.V_7) {
+                builder.field(DEPRECATED_ALLOW_NO_DATAFEEDS_PARAM, allowNoMatch);
+            } else {
+                builder.field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch);
+            }
             builder.endObject();
             return builder;
         }
@@ -185,10 +191,10 @@ public class StopDatafeedAction extends Action<StopDatafeedAction.Response> {
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(datafeedId, other.datafeedId) &&
-                    Objects.equals(stopTimeout, other.stopTimeout) &&
-                    Objects.equals(force, other.force) &&
-                    Objects.equals(allowNoDatafeeds, other.allowNoDatafeeds);
+            return Objects.equals(datafeedId, other.datafeedId)
+                && Objects.equals(stopTimeout, other.stopTimeout)
+                && Objects.equals(force, other.force)
+                && Objects.equals(allowNoMatch, other.allowNoMatch);
         }
     }
 
@@ -217,12 +223,4 @@ public class StopDatafeedAction extends Action<StopDatafeedAction.Response> {
         }
 
     }
-
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        RequestBuilder(ElasticsearchClient client, StopDatafeedAction action) {
-            super(client, action, new Request());
-        }
-    }
-
 }

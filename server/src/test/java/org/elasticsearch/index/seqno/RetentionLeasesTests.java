@@ -1,26 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.seqno;
 
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -41,16 +30,18 @@ public class RetentionLeasesTests extends ESTestCase {
     public void testPrimaryTermOutOfRange() {
         final long primaryTerm = randomLongBetween(Long.MIN_VALUE, 0);
         final IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> new RetentionLeases(primaryTerm, randomNonNegativeLong(), Collections.emptyList()));
+            IllegalArgumentException.class,
+            () -> new RetentionLeases(primaryTerm, randomNonNegativeLong(), Collections.emptyList())
+        );
         assertThat(e, hasToString(containsString("primary term must be positive but was [" + primaryTerm + "]")));
     }
 
     public void testVersionOutOfRange() {
         final long version = randomLongBetween(Long.MIN_VALUE, -1);
         final IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> new RetentionLeases(randomLongBetween(1, Long.MAX_VALUE), version, Collections.emptyList()));
+            IllegalArgumentException.class,
+            () -> new RetentionLeases(randomLongBetween(1, Long.MAX_VALUE), version, Collections.emptyList())
+        );
         assertThat(e, hasToString(containsString("version must be non-negative but was [" + version + "]")));
     }
 
@@ -60,7 +51,9 @@ public class RetentionLeasesTests extends ESTestCase {
         final long higherPrimaryTerm = randomLongBetween(lowerPrimaryTerm + 1, Long.MAX_VALUE);
         final RetentionLeases right = new RetentionLeases(higherPrimaryTerm, randomLongBetween(1, Long.MAX_VALUE), Collections.emptyList());
         assertTrue(right.supersedes(left));
+        assertTrue(right.supersedes(left.primaryTerm(), left.version()));
         assertFalse(left.supersedes(right));
+        assertFalse(left.supersedes(right.primaryTerm(), right.version()));
     }
 
     public void testSupersedesByVersion() {
@@ -70,18 +63,22 @@ public class RetentionLeasesTests extends ESTestCase {
         final RetentionLeases left = new RetentionLeases(primaryTerm, lowerVersion, Collections.emptyList());
         final RetentionLeases right = new RetentionLeases(primaryTerm, higherVersion, Collections.emptyList());
         assertTrue(right.supersedes(left));
+        assertTrue(right.supersedes(left.primaryTerm(), left.version()));
         assertFalse(left.supersedes(right));
+        assertFalse(left.supersedes(right.primaryTerm(), right.version()));
     }
 
     public void testRetentionLeasesRejectsDuplicates() {
         final RetentionLeases retentionLeases = randomRetentionLeases(false);
         final RetentionLease retentionLease = randomFrom(retentionLeases.leases());
         final IllegalStateException e = expectThrows(
-                IllegalStateException.class,
-                () -> new RetentionLeases(
-                        retentionLeases.primaryTerm(),
-                        retentionLeases.version(),
-                        Stream.concat(retentionLeases.leases().stream(), Stream.of(retentionLease)).collect(Collectors.toList())));
+            IllegalStateException.class,
+            () -> new RetentionLeases(
+                retentionLeases.primaryTerm(),
+                retentionLeases.version(),
+                Stream.concat(retentionLeases.leases().stream(), Stream.of(retentionLease)).collect(Collectors.toList())
+            )
+        );
         assertThat(e, hasToString(containsString("duplicate retention lease ID [" + retentionLease.id() + "]")));
     }
 
@@ -94,7 +91,7 @@ public class RetentionLeasesTests extends ESTestCase {
         }
     }
 
-    public void testRetentionLeasesMetaDataStateFormat() throws IOException {
+    public void testRetentionLeasesMetadataStateFormat() throws IOException {
         final Path path = createTempDir();
         final RetentionLeases retentionLeases = randomRetentionLeases(true);
         RetentionLeases.FORMAT.writeAndCleanup(retentionLeases, path);

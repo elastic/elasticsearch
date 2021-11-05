@@ -1,28 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.node.hotthreads;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.monitor.jvm.HotThreads;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -30,14 +22,23 @@ import java.util.concurrent.TimeUnit;
 public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequest> {
 
     int threads = 3;
-    String type = "cpu";
+    HotThreads.ReportType type = HotThreads.ReportType.CPU;
+    HotThreads.SortOrder sortOrder = HotThreads.SortOrder.TOTAL;
     TimeValue interval = new TimeValue(500, TimeUnit.MILLISECONDS);
     int snapshots = 10;
     boolean ignoreIdleThreads = true;
 
     // for serialization
-    public NodesHotThreadsRequest() {
-
+    public NodesHotThreadsRequest(StreamInput in) throws IOException {
+        super(in);
+        threads = in.readInt();
+        ignoreIdleThreads = in.readBoolean();
+        type = HotThreads.ReportType.of(in.readString());
+        interval = in.readTimeValue();
+        snapshots = in.readInt();
+        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
+            sortOrder = HotThreads.SortOrder.of(in.readString());
+        }
     }
 
     /**
@@ -46,6 +47,13 @@ public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequ
      */
     public NodesHotThreadsRequest(String... nodesIds) {
         super(nodesIds);
+    }
+
+    /**
+     * Get hot threads from the given node, for use if the node isn't a stable member of the cluster.
+     */
+    public NodesHotThreadsRequest(DiscoveryNode node) {
+        super(node);
     }
 
     public int threads() {
@@ -66,13 +74,22 @@ public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequ
         return this;
     }
 
-    public NodesHotThreadsRequest type(String type) {
+    public NodesHotThreadsRequest type(HotThreads.ReportType type) {
         this.type = type;
         return this;
     }
 
-    public String type() {
+    public HotThreads.ReportType type() {
         return this.type;
+    }
+
+    public NodesHotThreadsRequest sortOrder(HotThreads.SortOrder sortOrder) {
+        this.sortOrder = sortOrder;
+        return this;
+    }
+
+    public HotThreads.SortOrder sortOrder() {
+        return this.sortOrder;
     }
 
     public NodesHotThreadsRequest interval(TimeValue interval) {
@@ -94,22 +111,15 @@ public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequ
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        threads = in.readInt();
-        ignoreIdleThreads = in.readBoolean();
-        type = in.readString();
-        interval = in.readTimeValue();
-        snapshots = in.readInt();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeInt(threads);
         out.writeBoolean(ignoreIdleThreads);
-        out.writeString(type);
+        out.writeString(type.getTypeValue());
         out.writeTimeValue(interval);
         out.writeInt(snapshots);
+        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
+            out.writeString(sortOrder.getOrderValue());
+        }
     }
 }

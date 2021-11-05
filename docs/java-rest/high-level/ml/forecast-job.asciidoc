@@ -3,16 +3,15 @@
 :request: ForecastJobRequest
 :response: ForecastJobResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
-=== Forecast Job API
+=== Forecast jobs API
 
-The Forecast Job API provides the ability to forecast a {ml} job's behavior based
-on historical data.
-It accepts a +{request}+ object and responds
-with a +{response}+ object.
+Forecasts a {ml} job's behavior based on historical data. It accepts a
++{request}+ object and responds with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Forecast Job Request
+==== Forecast jobs request
 
 A +{request}+ object gets created with an existing non-null `jobId`.
 All other fields are optional for the request.
@@ -23,7 +22,7 @@ include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> Constructing a new request referencing an existing `jobId`
 
-==== Optional Arguments
+==== Optional arguments
 
 The following arguments are optional.
 
@@ -33,9 +32,13 @@ include-tagged::{doc-tests-file}[{api}-request-options]
 --------------------------------------------------
 <1> Set when the forecast for the job should expire
 <2> Set how far into the future should the forecast predict
+<3> Set the maximum amount of memory the forecast is allowed to use.
+    Defaults to 20mb. Maximum is 500mb, minimum is 1mb. If set to
+    40% or more of the job's configured memory limit, it is
+    automatically reduced to below that number.
 
 [id="{upid}-{api}-response"]
-==== Forecast Job Response
+==== Forecast jobs response
 
 A +{response}+ contains an acknowledgement and the forecast ID
 

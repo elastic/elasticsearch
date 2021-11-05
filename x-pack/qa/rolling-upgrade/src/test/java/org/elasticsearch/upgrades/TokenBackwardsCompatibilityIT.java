@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.upgrades;
 
@@ -36,8 +37,8 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             // usual case, clients have different versions
             twoClients = clientsByVersion.values();
         } else {
-            assert clientsByVersion.size() == 1 : "A rolling upgrade has a maximum of two distinct node versions, found: "
-                    + clientsByVersion.keySet();
+            assert clientsByVersion.size() == 1
+                : "A rolling upgrade has a maximum of two distinct node versions, found: " + clientsByVersion.keySet();
             // tests assumes exactly two clients to simplify some logic
             twoClients = new ArrayList<>();
             twoClients.add(clientsByVersion.values().iterator().next());
@@ -166,7 +167,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     }
 
     public void testRefreshingTokensInMixedCluster() throws Exception {
-        // verify new nodes can refresh tokens created by old nodes and vice versa 
+        // verify new nodes can refresh tokens created by old nodes and vice versa
         assumeTrue("this test should only run against the mixed cluster", CLUSTER_TYPE == ClusterType.MIXED);
         for (RestClient client1 : twoClients) {
             Map<String, Object> responseMap = createTokens(client1, "test_user", "x-pack-test-password");
@@ -277,8 +278,10 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             ResponseException e = expectThrows(ResponseException.class, () -> client.performRequest(request));
             assertEquals(401, e.getResponse().getStatusLine().getStatusCode());
             Response response = e.getResponse();
-            assertEquals("Bearer realm=\"security\", error=\"invalid_token\", error_description=\"The access token expired\"",
-                    response.getHeader("WWW-Authenticate"));
+            assertEquals(
+                "Bearer realm=\"security\", error=\"invalid_token\", error_description=\"The access token expired\"",
+                response.getHeader("WWW-Authenticate")
+            );
         }
     }
 
@@ -286,10 +289,8 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         for (RestClient client : twoClients) {
             Request refreshTokenRequest = new Request("POST", "/_security/oauth2/token");
             refreshTokenRequest.setJsonEntity(
-                    "{\n" +
-                            "    \"refresh_token\": \"" + refreshToken + "\",\n" +
-                            "    \"grant_type\": \"refresh_token\"\n" +
-                    "}");
+                "{\n" + "    \"refresh_token\": \"" + refreshToken + "\",\n" + "    \"grant_type\": \"refresh_token\"\n" + "}"
+            );
             ResponseException e = expectThrows(ResponseException.class, () -> client.performRequest(refreshTokenRequest));
             assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
             Response response = e.getResponse();
@@ -299,6 +300,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private Map<Version, RestClient> getRestClientByVersion() throws IOException {
         Response response = client().performRequest(new Request("GET", "_nodes"));
         assertOK(response);
@@ -321,11 +323,16 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     private Map<String, Object> createTokens(RestClient client, String username, String password) throws IOException {
         final Request createTokenRequest = new Request("POST", "/_security/oauth2/token");
         createTokenRequest.setJsonEntity(
-                "{\n" +
-                "    \"username\": \"" + username + "\",\n" +
-                "    \"password\": \"" + password + "\",\n" +
-                "    \"grant_type\": \"password\"\n" +
-                "}");
+            "{\n"
+                + "    \"username\": \""
+                + username
+                + "\",\n"
+                + "    \"password\": \""
+                + password
+                + "\",\n"
+                + "    \"grant_type\": \"password\"\n"
+                + "}"
+        );
         Response response = client().performRequest(createTokenRequest);
         assertOK(response);
         return entityAsMap(response);
@@ -334,14 +341,13 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     private void storeTokens(RestClient client, int idx, String accessToken, String refreshToken) throws IOException {
         final Request indexRequest = new Request("PUT", "token_backwards_compatibility_it/_doc/old_cluster_token" + idx);
         indexRequest.setJsonEntity(
-                "{\n" +
-                "    \"token\": \"" + accessToken + "\",\n" +
-                "    \"refresh_token\": \"" + refreshToken + "\"\n" +
-                "}");
+            "{\n" + "    \"token\": \"" + accessToken + "\",\n" + "    \"refresh_token\": \"" + refreshToken + "\"\n" + "}"
+        );
         Response indexResponse1 = client.performRequest(indexRequest);
         assertOK(indexResponse1);
     }
 
+    @SuppressWarnings("unchecked")
     private Map<String, Object> retrieveStoredTokens(RestClient client, int tokenIdx) throws IOException {
         Request getRequest = new Request("GET", "token_backwards_compatibility_it/_doc/old_cluster_token" + tokenIdx);
         Response getResponse = client().performRequest(getRequest);
@@ -352,10 +358,8 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     private Map<String, Object> refreshToken(RestClient client, String refreshToken) throws IOException {
         final Request refreshTokenRequest = new Request("POST", "/_security/oauth2/token");
         refreshTokenRequest.setJsonEntity(
-                "{\n" +
-                "    \"refresh_token\": \"" + refreshToken + "\",\n" +
-                "    \"grant_type\": \"refresh_token\"\n" +
-                "}");
+            "{\n" + "    \"refresh_token\": \"" + refreshToken + "\",\n" + "    \"grant_type\": \"refresh_token\"\n" + "}"
+        );
         Response refreshResponse = client.performRequest(refreshTokenRequest);
         assertOK(refreshResponse);
         return entityAsMap(refreshResponse);

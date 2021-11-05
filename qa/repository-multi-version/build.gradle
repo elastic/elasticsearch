@@ -1,0 +1,76 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
+apply plugin: 'elasticsearch.internal-testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
+
+apply plugin: 'elasticsearch.bwc-test'
+
+dependencies {
+  testImplementation project(':client:rest-high-level')
+}
+
+BuildParams.bwcVersions.withIndexCompatiple { bwcVersion, baseName ->
+  String oldClusterName = "${baseName}-old"
+  String newClusterName = "${baseName}-new"
+
+  def clusterSettings = { v ->
+    return {
+      version = v
+      numberOfNodes = 2
+      setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
+      setting 'xpack.security.enabled', 'false'
+    }
+  }
+
+  testClusters.register(oldClusterName, clusterSettings(bwcVersion.toString()))
+  testClusters.register(newClusterName, clusterSettings(project.version))
+
+  tasks.register("${baseName}#Step1OldClusterTest", StandaloneRestIntegTestTask) {
+    useCluster testClusters.named(oldClusterName)
+    mustRunAfter("precommit")
+    doFirst {
+      delete("${buildDir}/cluster/shared/repo/${baseName}")
+    }
+    systemProperty 'tests.rest.suite', 'step1'
+  }
+
+  tasks.register("${baseName}#Step2NewClusterTest", StandaloneRestIntegTestTask) {
+    useCluster testClusters.named(newClusterName)
+    dependsOn "${baseName}#Step1OldClusterTest"
+    systemProperty 'tests.rest.suite', 'step2'
+  }
+
+  tasks.register("${baseName}#Step3OldClusterTest", StandaloneRestIntegTestTask) {
+    useCluster testClusters.named(oldClusterName)
+    dependsOn "${baseName}#Step2NewClusterTest"
+    systemProperty 'tests.rest.suite', 'step3'
+  }
+
+  tasks.register("${baseName}#Step4NewClusterTest", StandaloneRestIntegTestTask) {
+    useCluster testClusters.named(newClusterName)
+    dependsOn "${baseName}#Step3OldClusterTest"
+    systemProperty 'tests.rest.suite', 'step4'
+  }
+
+  tasks.matching { it.name.startsWith(baseName) && it.name.endsWith("ClusterTest") }.configureEach {
+    it.systemProperty 'tests.old_cluster_version', bwcVersion.toString().minus("-SNAPSHOT")
+    it.systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
+    def clusterName = it.name.contains("Step2") || it.name.contains("Step4") ? "${newClusterName}" : "${oldClusterName}"
+    it.nonInputProperties.systemProperty('tests.rest.cluster', testClusters.named(clusterName).map(c -> c.allHttpSocketURI.join(",")))
+    it.nonInputProperties.systemProperty('tests.clustername', clusterName)
+  }
+
+  tasks.register(bwcTaskName(bwcVersion)) {
+    dependsOn tasks.named("${baseName}#Step4NewClusterTest")
+  }
+}

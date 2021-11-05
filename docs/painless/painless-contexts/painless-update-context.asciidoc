@@ -9,7 +9,7 @@ add, modify, or delete fields within a single document.
 `params` (`Map`, read-only)::
         User-defined parameters passed in as part of the query.
 
-`ctx['_op']` (`String`)::
+`ctx['op']` (`String`)::
         The name of the operation.
 
 {ref}/mapping-routing-field.html[`ctx['_routing']`] (`String`, read-only)::
@@ -17,9 +17,6 @@ add, modify, or delete fields within a single document.
 
 {ref}/mapping-index-field.html[`ctx['_index']`] (`String`, read-only)::
         The name of the index.
-
-{ref}/mapping-type-field.html[`ctx['_type']`] (`String`, read-only)::
-        The type of document within an index.
 
 {ref}/mapping-id-field.html[`ctx['_id']`] (`int`, read-only)::
         The unique document id.
@@ -36,7 +33,7 @@ add, modify, or delete fields within a single document.
 
 *Side Effects*
 
-`ctx['_op']`::
+`ctx['op']`::
         Use the default of `index` to update a document. Set to `none` to
         specify no operation or `delete` to delete the current document from
         the index.
@@ -62,18 +59,17 @@ To run this example, first follow the steps in
 The following query updates a document to be sold, and sets the cost
 to the actual price paid after discounts:
 
-[source,js]
+[source,console]
 --------------------------------------------------
 POST /seats/_update/3
 {
-    "script": {
-        "source": "ctx._source.sold = true; ctx._source.cost = params.sold_cost",
-        "lang": "painless",
-        "params": {
-            "sold_cost": 26
-        }
+  "script": {
+    "source": "ctx._source.sold = true; ctx._source.cost = params.sold_cost",
+    "lang": "painless",
+    "params": {
+      "sold_cost": 26
     }
+  }
 }
 --------------------------------------------------
-// CONSOLE
 // TEST[setup:seats]

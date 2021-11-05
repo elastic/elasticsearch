@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.node;
@@ -36,10 +25,7 @@ import java.util.function.Supplier;
 
 public class InternalSettingsPreparer {
 
-    /**
-     * Prepares settings for the transport client by gathering all
-     * elasticsearch system properties and setting defaults.
-     */
+    // TODO: refactor this method out, it used to exist for the transport client
     public static Settings prepareSettings(Settings input) {
         Settings.Builder output = Settings.builder();
         initializeSettings(output, input, Collections.emptyMap());
@@ -56,8 +42,12 @@ public class InternalSettingsPreparer {
      * @param defaultNodeName supplier for the default node.name if the setting isn't defined
      * @return the {@link Environment}
      */
-    public static Environment prepareEnvironment(Settings input, Map<String, String> properties,
-            Path configPath, Supplier<String> defaultNodeName) {
+    public static Environment prepareEnvironment(
+        Settings input,
+        Map<String, String> properties,
+        Path configPath,
+        Supplier<String> defaultNodeName
+    ) {
         // just create enough settings to build the environment, to get the config dir
         Settings.Builder output = Settings.builder();
         initializeSettings(output, input, properties);
@@ -85,10 +75,6 @@ public class InternalSettingsPreparer {
         initializeSettings(output, input, properties);
         finalizeSettings(output, defaultNodeName);
 
-        environment = new Environment(output.build(), configPath);
-
-        // we put back the path.logs so we can use it in the logging configuration file
-        output.put(Environment.PATH_LOGS_SETTING.getKey(), environment.logsFile().toAbsolutePath().normalize().toString());
         return new Environment(output.build(), configPath);
     }
 

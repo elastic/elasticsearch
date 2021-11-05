@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test.transport;
@@ -24,32 +13,37 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportStats;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public final class StubbableTransport implements Transport {
+import static junit.framework.TestCase.assertTrue;
+
+public class StubbableTransport implements Transport {
 
     private final ConcurrentHashMap<TransportAddress, SendRequestBehavior> sendBehaviors = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<TransportAddress, OpenConnectionBehavior> connectBehaviors = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, RequestHandlerRegistry<?>> replacedRequestRegistries = new ConcurrentHashMap<>();
     private volatile SendRequestBehavior defaultSendRequest = null;
     private volatile OpenConnectionBehavior defaultConnectBehavior = null;
     private final Transport delegate;
-
 
     public StubbableTransport(Transport transport) {
         this.delegate = transport;
@@ -75,14 +69,54 @@ public final class StubbableTransport implements Transport {
         return connectBehaviors.put(transportAddress, connectBehavior) == null;
     }
 
-    void clearBehaviors() {
-        this.defaultSendRequest = null;
-        sendBehaviors.clear();
-        this.defaultConnectBehavior = null;
-        connectBehaviors.clear();
+    <Request extends TransportRequest> void addRequestHandlingBehavior(String actionName, RequestHandlingBehavior<Request> behavior) {
+        final RequestHandlers requestHandlers = delegate.getRequestHandlers();
+        final RequestHandlerRegistry<Request> realRegistry = requestHandlers.getHandler(actionName);
+        if (realRegistry == null) {
+            throw new IllegalStateException("Cannot find registered action for: " + actionName);
+        }
+        replacedRequestRegistries.put(actionName, realRegistry);
+        final TransportRequestHandler<Request> realHandler = realRegistry.getHandler();
+        final RequestHandlerRegistry<Request> newRegistry = RequestHandlerRegistry.replaceHandler(
+            realRegistry,
+            (request, channel, task) -> behavior.messageReceived(realHandler, request, channel, task)
+        );
+        requestHandlers.forceRegister(newRegistry);
     }
 
-    void clearBehavior(TransportAddress transportAddress) {
+    void clearBehaviors() {
+        clearOutboundBehaviors();
+        clearInboundBehaviors();
+    }
+
+    void clearInboundBehaviors() {
+        for (Map.Entry<String, RequestHandlerRegistry<?>> entry : replacedRequestRegistries.entrySet()) {
+            getRequestHandlers().forceRegister(entry.getValue());
+        }
+        replacedRequestRegistries.clear();
+    }
+
+    void clearOutboundBehaviors() {
+        this.defaultSendRequest = null;
+        final Iterator<SendRequestBehavior> sendBehaviorIterator = sendBehaviors.values().iterator();
+        while (sendBehaviorIterator.hasNext()) {
+            final SendRequestBehavior behavior = sendBehaviorIterator.next();
+            sendBehaviorIterator.remove();
+            behavior.clearCallback();
+        }
+        assertTrue(sendBehaviors.isEmpty());
+
+        this.defaultConnectBehavior = null;
+        final Iterator<OpenConnectionBehavior> connectBehaviorIterator = connectBehaviors.values().iterator();
+        while (connectBehaviorIterator.hasNext()) {
+            final OpenConnectionBehavior behavior = connectBehaviorIterator.next();
+            connectBehaviorIterator.remove();
+            behavior.clearCallback();
+        }
+        assertTrue(connectBehaviors.isEmpty());
+    }
+
+    void clearOutboundBehaviors(TransportAddress transportAddress) {
         SendRequestBehavior behavior = sendBehaviors.remove(transportAddress);
         if (behavior != null) {
             behavior.clearCallback();
@@ -103,16 +137,6 @@ public final class StubbableTransport implements Transport {
     }
 
     @Override
-    public <Request extends TransportRequest> void registerRequestHandler(RequestHandlerRegistry<Request> reg) {
-        delegate.registerRequestHandler(reg);
-    }
-
-    @Override
-    public RequestHandlerRegistry getRequestHandler(String action) {
-        return delegate.getRequestHandler(action);
-    }
-
-    @Override
     public BoundTransportAddress boundAddress() {
         return delegate.boundAddress();
     }
@@ -128,18 +152,18 @@ public final class StubbableTransport implements Transport {
     }
 
     @Override
-    public Releasable openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
+    public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
         TransportAddress address = node.getAddress();
         OpenConnectionBehavior behavior = connectBehaviors.getOrDefault(address, defaultConnectBehavior);
 
-        ActionListener<Connection> wrappedListener =
-            ActionListener.delegateFailure(listener,
-                (delegatedListener, connection) -> delegatedListener.onResponse(new WrappedConnection(connection)));
+        ActionListener<Connection> wrappedListener = listener.delegateFailure(
+            (delegatedListener, connection) -> delegatedListener.onResponse(new WrappedConnection(connection))
+        );
 
         if (behavior == null) {
-            return delegate.openConnection(node, profile, wrappedListener);
+            delegate.openConnection(node, profile, wrappedListener);
         } else {
-            return behavior.openConnection(delegate, node, profile, wrappedListener);
+            behavior.openConnection(delegate, node, profile, wrappedListener);
         }
     }
 
@@ -151,6 +175,11 @@ public final class StubbableTransport implements Transport {
     @Override
     public Transport.ResponseHandlers getResponseHandlers() {
         return delegate.getResponseHandlers();
+    }
+
+    @Override
+    public RequestHandlers getRequestHandlers() {
+        return delegate.getRequestHandlers();
     }
 
     @Override
@@ -218,6 +247,10 @@ public final class StubbableTransport implements Transport {
             connection.addCloseListener(listener);
         }
 
+        @Override
+        public void addRemovedListener(ActionListener<Void> listener) {
+            connection.addRemovedListener(listener);
+        }
 
         @Override
         public boolean isClosed() {
@@ -239,26 +272,68 @@ public final class StubbableTransport implements Transport {
             connection.close();
         }
 
+        @Override
+        public void onRemoved() {
+            connection.onRemoved();
+        }
+
         public Transport.Connection getConnection() {
             return connection;
+        }
+
+        @Override
+        public String toString() {
+            return "WrappedConnection[" + connection + "]";
+        }
+
+        @Override
+        public void incRef() {
+            connection.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return connection.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return connection.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return connection.hasReferences();
         }
     }
 
     @FunctionalInterface
     public interface OpenConnectionBehavior {
 
-        Releasable openConnection(Transport transport, DiscoveryNode discoveryNode, ConnectionProfile profile,
-                                  ActionListener<Connection> listener);
+        void openConnection(
+            Transport transport,
+            DiscoveryNode discoveryNode,
+            ConnectionProfile profile,
+            ActionListener<Connection> listener
+        );
 
         default void clearCallback() {}
     }
 
     @FunctionalInterface
     public interface SendRequestBehavior {
-        void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
-                         TransportRequestOptions options) throws IOException;
+        void sendRequest(Connection connection, long requestId, String action, TransportRequest request, TransportRequestOptions options)
+            throws IOException;
 
-        default void clearCallback() {
-        }
+        default void clearCallback() {}
+    }
+
+    @FunctionalInterface
+    public interface RequestHandlingBehavior<Request extends TransportRequest> {
+
+        void messageReceived(TransportRequestHandler<Request> handler, Request request, TransportChannel channel, Task task)
+            throws Exception;
+
+        default void clearCallback() {}
     }
 }

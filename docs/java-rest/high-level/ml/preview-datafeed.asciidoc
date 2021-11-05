@@ -3,15 +3,15 @@
 :request: PreviewDatafeedRequest
 :response: PreviewDatafeedResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
-=== Preview Datafeed API
+=== Preview datafeeds API
 
-The Preview Datafeed API provides the ability to preview a {ml} datafeed's data
-in the cluster. It accepts a +{request}+ object and responds
-with a +{response}+ object.
+Previews a {ml} datafeed's data in the cluster. It accepts a +{request}+ object
+and responds with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Preview Datafeed Request
+==== Preview datafeeds request
 
 A +{request}+ object is created referencing a non-null `datafeedId`.
 
@@ -22,7 +22,7 @@ include-tagged::{doc-tests-file}[{api}-request]
 <1> Constructing a new request referencing an existing `datafeedId`
 
 [id="{upid}-{api}-response"]
-==== Preview Datafeed Response
+==== Preview datafeeds response
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

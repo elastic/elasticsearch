@@ -13,15 +13,17 @@ following: `arabic_normalization`, `asciifolding`, `bengali_normalization`,
 `persian_normalization`, `scandinavian_folding`, `serbian_normalization`,
 `sorani_normalization`, `uppercase`.
 
-[float]
+Elasticsearch ships with a `lowercase` built-in normalizer. For other forms of
+normalization a custom configuration is required.
+
+[discrete]
 === Custom normalizers
 
-Elasticsearch does not ship with built-in normalizers so far, so the only way
-to get one is by building a custom one. Custom normalizers take a list of char
+Custom normalizers take a list of
 <<analysis-charfilters, character filters>> and a list of
 <<analysis-tokenfilters,token filters>>.
 
-[source,js]
+[source,console]
 --------------------------------
 PUT index
 {
@@ -55,4 +57,3 @@ PUT index
   }
 }
 --------------------------------
-// CONSOLE

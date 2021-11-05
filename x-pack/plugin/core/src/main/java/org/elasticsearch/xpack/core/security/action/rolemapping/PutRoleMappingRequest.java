@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.rolemapping;
 
@@ -31,8 +32,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  *
  * see org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore
  */
-public class PutRoleMappingRequest extends ActionRequest
-        implements WriteRequest<PutRoleMappingRequest> {
+public class PutRoleMappingRequest extends ActionRequest implements WriteRequest<PutRoleMappingRequest> {
 
     private String name = null;
     private boolean enabled = true;
@@ -42,8 +42,20 @@ public class PutRoleMappingRequest extends ActionRequest
     private Map<String, Object> metadata = Collections.emptyMap();
     private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
 
-    public PutRoleMappingRequest() {
+    public PutRoleMappingRequest(StreamInput in) throws IOException {
+        super(in);
+        this.name = in.readString();
+        this.enabled = in.readBoolean();
+        this.roles = in.readStringList();
+        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+            this.roleTemplates = in.readList(TemplateRoleName::new);
+        }
+        this.rules = ExpressionParser.readExpression(in);
+        this.metadata = in.readMap();
+        this.refreshPolicy = RefreshPolicy.readFrom(in);
     }
+
+    public PutRoleMappingRequest() {}
 
     @Override
     public ActionRequestValidationException validate() {
@@ -61,8 +73,10 @@ public class PutRoleMappingRequest extends ActionRequest
             validationException = addValidationError("role-mapping rules are missing", validationException);
         }
         if (MetadataUtils.containsReservedMetadata(metadata)) {
-            validationException = addValidationError("metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX + "]",
-                validationException);
+            validationException = addValidationError(
+                "metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX + "]",
+                validationException
+            );
         }
         return validationException;
     }
@@ -132,20 +146,6 @@ public class PutRoleMappingRequest extends ActionRequest
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.name = in.readString();
-        this.enabled = in.readBoolean();
-        this.roles = in.readStringList();
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
-            this.roleTemplates = in.readList(TemplateRoleName::new);
-        }
-        this.rules = ExpressionParser.readExpression(in);
-        this.metadata = in.readMap();
-        this.refreshPolicy = RefreshPolicy.readFrom(in);
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(name);
@@ -160,13 +160,6 @@ public class PutRoleMappingRequest extends ActionRequest
     }
 
     public ExpressionRoleMapping getMapping() {
-        return new ExpressionRoleMapping(
-                name,
-                rules,
-                roles,
-                roleTemplates,
-                metadata,
-                enabled
-        );
+        return new ExpressionRoleMapping(name, rules, roles, roleTemplates, metadata, enabled);
     }
 }

@@ -1,142 +1,389 @@
 [[analysis-keyword-marker-tokenfilter]]
-=== Keyword Marker Token Filter
+=== Keyword marker token filter
+++++
+<titleabbrev>Keyword marker</titleabbrev>
+++++
 
-Protects words from being modified by stemmers. Must be placed before
-any stemming filters.
+Marks specified tokens as keywords, which are not stemmed.
 
-[cols="<,<",options="header",]
-|=======================================================================
-|Setting |Description
-|`keywords` |A list of words to use.
+The `keyword_marker` filter assigns specified tokens a `keyword` attribute of
+`true`. Stemmer token filters, such as
+<<analysis-stemmer-tokenfilter,`stemmer`>> or
+<<analysis-porterstem-tokenfilter,`porter_stem`>>, skip tokens with a `keyword`
+attribute of `true`.
 
-|`keywords_path` |A path (either relative to `config` location, or
-absolute) to a list of words.
+[IMPORTANT]
+====
+To work properly, the `keyword_marker` filter must be listed before any stemmer
+token filters in the <<analysis-custom-analyzer,analyzer configuration>>.
+====
 
-|`keywords_pattern` |A regular expression pattern to match against words
-in the text.
+The `keyword_marker` filter uses Lucene's
+{lucene-analysis-docs}/miscellaneous/KeywordMarkerFilter.html[KeywordMarkerFilter].
 
-|`ignore_case` |Set to `true` to lower case all words first. Defaults to
-`false`.
-|=======================================================================
+[[analysis-keyword-marker-tokenfilter-analyze-ex]]
+==== Example
 
-You can configure it like:
+To see how the `keyword_marker` filter works, you first need to produce a token
+stream containing stemmed tokens.
 
-[source,js]
---------------------------------------------------
-PUT /keyword_marker_example
+The following <<indices-analyze,analyze API>> request uses the
+<<analysis-stemmer-tokenfilter,`stemmer`>> filter to create stemmed tokens for
+`fox running and jumping`.
+
+[source,console]
+----
+GET /_analyze
+{
+  "tokenizer": "whitespace",
+  "filter": [ "stemmer" ],
+  "text": "fox running and jumping"
+}
+----
+
+The request produces the following tokens. Note that `running` was stemmed to
+`run` and `jumping` was stemmed to `jump`.
+
+[source,text]
+----
+[ fox, run, and, jump ]
+----
+
+////
+[source,console-result]
+----
+{
+  "tokens": [
+    {
+      "token": "fox",
+      "start_offset": 0,
+      "end_offset": 3,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "run",
+      "start_offset": 4,
+      "end_offset": 11,
+      "type": "word",
+      "position": 1
+    },
+    {
+      "token": "and",
+      "start_offset": 12,
+      "end_offset": 15,
+      "type": "word",
+      "position": 2
+    },
+    {
+      "token": "jump",
+      "start_offset": 16,
+      "end_offset": 23,
+      "type": "word",
+      "position": 3
+    }
+  ]
+}
+----
+////
+
+To prevent `jumping` from being stemmed, add the `keyword_marker` filter before
+the `stemmer` filter in the previous analyze API request. Specify `jumping` in
+the `keywords` parameter of the `keyword_marker` filter.
+
+[source,console]
+----
+GET /_analyze
+{
+  "tokenizer": "whitespace",
+  "filter": [
+    {
+      "type": "keyword_marker",
+      "keywords": [ "jumping" ]
+    },
+    "stemmer"
+  ],
+  "text": "fox running and jumping"
+}
+----
+
+The request produces the following tokens. `running` is still stemmed to `run`,
+but `jumping` is not stemmed.
+
+[source,text]
+----
+[ fox, run, and, jumping ]
+----
+
+////
+[source,console-result]
+----
+{
+  "tokens": [
+    {
+      "token": "fox",
+      "start_offset": 0,
+      "end_offset": 3,
+      "type": "word",
+      "position": 0
+    },
+    {
+      "token": "run",
+      "start_offset": 4,
+      "end_offset": 11,
+      "type": "word",
+      "position": 1
+    },
+    {
+      "token": "and",
+      "start_offset": 12,
+      "end_offset": 15,
+      "type": "word",
+      "position": 2
+    },
+    {
+      "token": "jumping",
+      "start_offset": 16,
+      "end_offset": 23,
+      "type": "word",
+      "position": 3
+    }
+  ]
+}
+----
+////
+
+To see the `keyword` attribute for these tokens, add the following arguments to
+the analyze API request:
+
+* `explain`: `true`
+* `attributes`: `keyword`
+
+[source,console]
+----
+GET /_analyze
+{
+  "tokenizer": "whitespace",
+  "filter": [
+    {
+      "type": "keyword_marker",
+      "keywords": [ "jumping" ]
+    },
+    "stemmer"
+  ],
+  "text": "fox running and jumping",
+  "explain": true,
+  "attributes": "keyword"
+}
+----
+
+The API returns the following response. Note the `jumping` token has a
+`keyword` attribute of `true`.
+
+[source,console-result]
+----
+{
+  "detail": {
+    "custom_analyzer": true,
+    "charfilters": [],
+    "tokenizer": {
+      "name": "whitespace",
+      "tokens": [
+        {
+          "token": "fox",
+          "start_offset": 0,
+          "end_offset": 3,
+          "type": "word",
+          "position": 0
+        },
+        {
+          "token": "running",
+          "start_offset": 4,
+          "end_offset": 11,
+          "type": "word",
+          "position": 1
+        },
+        {
+          "token": "and",
+          "start_offset": 12,
+          "end_offset": 15,
+          "type": "word",
+          "position": 2
+        },
+        {
+          "token": "jumping",
+          "start_offset": 16,
+          "end_offset": 23,
+          "type": "word",
+          "position": 3
+        }
+      ]
+    },
+    "tokenfilters": [
+      {
+        "name": "__anonymous__keyword_marker",
+        "tokens": [
+          {
+            "token": "fox",
+            "start_offset": 0,
+            "end_offset": 3,
+            "type": "word",
+            "position": 0,
+            "keyword": false
+          },
+          {
+            "token": "running",
+            "start_offset": 4,
+            "end_offset": 11,
+            "type": "word",
+            "position": 1,
+            "keyword": false
+          },
+          {
+            "token": "and",
+            "start_offset": 12,
+            "end_offset": 15,
+            "type": "word",
+            "position": 2,
+            "keyword": false
+          },
+          {
+            "token": "jumping",
+            "start_offset": 16,
+            "end_offset": 23,
+            "type": "word",
+            "position": 3,
+            "keyword": true
+          }
+        ]
+      },
+      {
+        "name": "stemmer",
+        "tokens": [
+          {
+            "token": "fox",
+            "start_offset": 0,
+            "end_offset": 3,
+            "type": "word",
+            "position": 0,
+            "keyword": false
+          },
+          {
+            "token": "run",
+            "start_offset": 4,
+            "end_offset": 11,
+            "type": "word",
+            "position": 1,
+            "keyword": false
+          },
+          {
+            "token": "and",
+            "start_offset": 12,
+            "end_offset": 15,
+            "type": "word",
+            "position": 2,
+            "keyword": false
+          },
+          {
+            "token": "jumping",
+            "start_offset": 16,
+            "end_offset": 23,
+            "type": "word",
+            "position": 3,
+            "keyword": true
+          }
+        ]
+      }
+    ]
+  }
+}
+----
+
+[[analysis-keyword-marker-tokenfilter-configure-parms]]
+==== Configurable parameters
+
+`ignore_case`::
+(Optional, Boolean)
+If `true`, matching for the `keywords` and `keywords_path` parameters ignores
+letter case. Defaults to `false`.
+
+`keywords`::
+(Required*, array of strings)
+Array of keywords. Tokens that match these keywords are not stemmed.
++
+This parameter, `keywords_path`, or `keywords_pattern` must be specified.
+You cannot specify this parameter and `keywords_pattern`.
+
+`keywords_path`::
++
+--
+(Required*, string)
+Path to a file that contains a list of keywords. Tokens that match these
+keywords are not stemmed.
+
+This path must be absolute or relative to the `config` location, and the file
+must be UTF-8 encoded. Each word in the file must be separated by a line break.
+
+This parameter, `keywords`, or `keywords_pattern` must be specified.
+You cannot specify this parameter and `keywords_pattern`.
+--
+
+`keywords_pattern`::
++
+--
+(Required*, string)
+https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html[Java
+regular expression] used to match tokens. Tokens that match this expression are
+marked as keywords and not stemmed.
+
+This parameter, `keywords`, or `keywords_path` must be specified. You
+cannot specify this parameter and `keywords` or `keywords_pattern`.
+
+[WARNING]
+====
+Poorly written regular expressions can cause {es} to run slowly or result
+in stack overflow errors, causing the running node to suddenly exit.
+====
+--
+
+[[analysis-keyword-marker-tokenfilter-customize]]
+==== Customize and add to an analyzer
+
+To customize the `keyword_marker` filter, duplicate it to create the basis for a
+new custom token filter. You can modify the filter using its configurable
+parameters.
+
+For example, the following <<indices-create-index,create index API>> request
+uses a custom `keyword_marker` filter and the `porter_stem`
+filter to configure a new <<analysis-custom-analyzer,custom analyzer>>.
+
+The custom `keyword_marker` filter marks tokens specified in the
+`analysis/example_word_list.txt` file as keywords. The `porter_stem` filter does
+not stem these tokens.
+
+[source,console]
+----
+PUT /my-index-000001
 {
   "settings": {
     "analysis": {
       "analyzer": {
-        "protect_cats": {
+        "my_custom_analyzer": {
           "type": "custom",
           "tokenizer": "standard",
-          "filter": ["lowercase", "protect_cats", "porter_stem"]
-        },
-        "normal": {
-          "type": "custom",
-          "tokenizer": "standard",
-          "filter": ["lowercase", "porter_stem"]
+          "filter": [
+            "my_custom_keyword_marker_filter",
+            "porter_stem"
+          ]
         }
       },
       "filter": {
-        "protect_cats": {
+        "my_custom_keyword_marker_filter": {
           "type": "keyword_marker",
-          "keywords": ["cats"]
+          "keywords_path": "analysis/example_word_list.txt"
         }
       }
     }
   }
 }
---------------------------------------------------
-// CONSOLE
-
-And test it with:
-
-[source,js]
---------------------------------------------------
-POST /keyword_marker_example/_analyze
-{
-  "analyzer" : "protect_cats",
-  "text" : "I like cats"
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-And it'd respond:
-
-[source,js]
---------------------------------------------------
-{
-  "tokens": [
-    {
-      "token": "i",
-      "start_offset": 0,
-      "end_offset": 1,
-      "type": "<ALPHANUM>",
-      "position": 0
-    },
-    {
-      "token": "like",
-      "start_offset": 2,
-      "end_offset": 6,
-      "type": "<ALPHANUM>",
-      "position": 1
-    },
-    {
-      "token": "cats",
-      "start_offset": 7,
-      "end_offset": 11,
-      "type": "<ALPHANUM>",
-      "position": 2
-    }
-  ]
-}
---------------------------------------------------
-// TESTRESPONSE
-
-As compared to the `normal` analyzer which has `cats` stemmed to `cat`:
-
-[source,js]
---------------------------------------------------
-POST /keyword_marker_example/_analyze
-{
-  "analyzer" : "normal",
-  "text" : "I like cats"
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-Response:
-
-[source,js]
---------------------------------------------------
-{
-  "tokens": [
-    {
-      "token": "i",
-      "start_offset": 0,
-      "end_offset": 1,
-      "type": "<ALPHANUM>",
-      "position": 0
-    },
-    {
-      "token": "like",
-      "start_offset": 2,
-      "end_offset": 6,
-      "type": "<ALPHANUM>",
-      "position": 1
-    },
-    {
-      "token": "cat",
-      "start_offset": 7,
-      "end_offset": 11,
-      "type": "<ALPHANUM>",
-      "position": 2
-    }
-  ]
-}
---------------------------------------------------
-// TESTRESPONSE
+----

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.collector.shards;
 
@@ -31,7 +32,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -39,24 +40,9 @@ import static org.mockito.Mockito.when;
 public class ShardsCollectorTests extends BaseCollectorTestCase {
 
     /** Used to match no indices when collecting shards information **/
-    private static final String[] NONE = new String[]{"_none"};
-
-    public void testShouldCollectReturnsFalseIfMonitoringNotAllowed() {
-        // this controls the blockage
-        when(licenseState.isMonitoringAllowed()).thenReturn(false);
-        final boolean isElectedMaster = randomBoolean();
-        whenLocalNodeElectedMaster(isElectedMaster);
-
-        final ShardsCollector collector = new ShardsCollector(clusterService, licenseState);
-
-        assertThat(collector.shouldCollect(isElectedMaster), is(false));
-        if (isElectedMaster) {
-            verify(licenseState).isMonitoringAllowed();
-        }
-    }
+    private static final String[] NONE = new String[] { "_none" };
 
     public void testShouldCollectReturnsFalseIfNotMaster() {
-        when(licenseState.isMonitoringAllowed()).thenReturn(true);
         // this controls the blockage
         whenLocalNodeElectedMaster(false);
 
@@ -66,13 +52,11 @@ public class ShardsCollectorTests extends BaseCollectorTestCase {
     }
 
     public void testShouldCollectReturnsTrue() {
-        when(licenseState.isMonitoringAllowed()).thenReturn(true);
         whenLocalNodeElectedMaster(true);
 
         final ShardsCollector collector = new ShardsCollector(clusterService, licenseState);
 
         assertThat(collector.shouldCollect(true), is(true));
-        verify(licenseState).isMonitoringAllowed();
     }
 
     public void testDoCollectWhenNoClusterState() throws Exception {
@@ -93,7 +77,7 @@ public class ShardsCollectorTests extends BaseCollectorTestCase {
         final String stateUUID = UUID.randomUUID().toString();
         when(clusterState.stateUUID()).thenReturn(stateUUID);
 
-        final String[] indices = randomFrom(NONE, Strings.EMPTY_ARRAY, new String[]{"_all"}, new String[]{"_index*"});
+        final String[] indices = randomFrom(NONE, Strings.EMPTY_ARRAY, new String[] { "_all" }, new String[] { "_index*" });
         withCollectionIndices(indices);
 
         final RoutingTable routingTable = mockRoutingTable();
@@ -111,8 +95,8 @@ public class ShardsCollectorTests extends BaseCollectorTestCase {
         final long interval = randomNonNegativeLong();
 
         final Collection<MonitoringDoc> results = collector.doCollect(node, interval, clusterState);
-        verify(clusterState).metaData();
-        verify(metaData).clusterUUID();
+        verify(clusterState).metadata();
+        verify(metadata).clusterUUID();
 
         assertThat(results, notNullValue());
         assertThat(results.size(), equalTo((indices != NONE) ? routingTable.allShards().size() : 0));
@@ -137,6 +121,11 @@ public class ShardsCollectorTests extends BaseCollectorTestCase {
             }
 
         }
+
+        assertWarnings(
+            "[xpack.monitoring.collection.indices] setting was deprecated in Elasticsearch and will be removed in a"
+                + " future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     private static RoutingTable mockRoutingTable() {

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.shard;
 
@@ -30,11 +19,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
@@ -42,11 +29,13 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -56,7 +45,7 @@ public class PrimaryReplicaSyncer {
 
     private static final Logger logger = LogManager.getLogger(PrimaryReplicaSyncer.class);
 
-    private final TaskManager taskManager;
+    private final TransportService transportService;
     private final SyncAction syncAction;
 
     public static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(512, ByteSizeUnit.KB);
@@ -65,12 +54,12 @@ public class PrimaryReplicaSyncer {
 
     @Inject
     public PrimaryReplicaSyncer(TransportService transportService, TransportResyncReplicationAction syncAction) {
-        this(transportService.getTaskManager(), syncAction);
+        this(transportService, (SyncAction) syncAction);
     }
 
     // for tests
-    public PrimaryReplicaSyncer(TaskManager taskManager, SyncAction syncAction) {
-        this.taskManager = taskManager;
+    public PrimaryReplicaSyncer(TransportService transportService, SyncAction syncAction) {
+        this.transportService = transportService;
         this.syncAction = syncAction;
     }
 
@@ -84,13 +73,14 @@ public class PrimaryReplicaSyncer {
     public void resync(final IndexShard indexShard, final ActionListener<ResyncTask> listener) {
         Translog.Snapshot snapshot = null;
         try {
-            final long startingSeqNo = indexShard.getGlobalCheckpoint() + 1;
+            final long startingSeqNo = indexShard.getLastKnownGlobalCheckpoint() + 1;
+            assert startingSeqNo >= 0 : "startingSeqNo must be non-negative; got [" + startingSeqNo + "]";
             final long maxSeqNo = indexShard.seqNoStats().getMaxSeqNo();
             final ShardId shardId = indexShard.shardId();
             // Wrap translog snapshot to make it synchronized as it is accessed by different threads through SnapshotSender.
             // Even though those calls are not concurrent, snapshot.next() uses non-synchronized state and is not multi-thread-compatible
             // Also fail the resync early if the shard is shutting down
-            snapshot = indexShard.getHistoryOperations("resync", startingSeqNo);
+            snapshot = indexShard.newChangesSnapshot("resync", startingSeqNo, Long.MAX_VALUE, false, false, true);
             final Translog.Snapshot originalSnapshot = snapshot;
             final Translog.Snapshot wrappedSnapshot = new Translog.Snapshot() {
                 @Override
@@ -139,8 +129,16 @@ public class PrimaryReplicaSyncer {
             // We must capture the timestamp after snapshotting a snapshot of operations to make sure
             // that the auto_id_timestamp of every operation in the snapshot is at most this value.
             final long maxSeenAutoIdTimestamp = indexShard.getMaxSeenAutoIdTimestamp();
-            resync(shardId, indexShard.routingEntry().allocationId().getId(), indexShard.getPendingPrimaryTerm(), wrappedSnapshot,
-                startingSeqNo, maxSeqNo, maxSeenAutoIdTimestamp, resyncListener);
+            resync(
+                shardId,
+                indexShard.routingEntry().allocationId().getId(),
+                indexShard.getPendingPrimaryTerm(),
+                wrappedSnapshot,
+                startingSeqNo,
+                maxSeqNo,
+                maxSeenAutoIdTimestamp,
+                resyncListener
+            );
         } catch (Exception e) {
             try {
                 IOUtils.close(snapshot);
@@ -152,9 +150,18 @@ public class PrimaryReplicaSyncer {
         }
     }
 
-    private void resync(final ShardId shardId, final String primaryAllocationId, final long primaryTerm, final Translog.Snapshot snapshot,
-                        long startingSeqNo, long maxSeqNo, long maxSeenAutoIdTimestamp, ActionListener<ResyncTask> listener) {
+    private void resync(
+        final ShardId shardId,
+        final String primaryAllocationId,
+        final long primaryTerm,
+        final Translog.Snapshot snapshot,
+        long startingSeqNo,
+        long maxSeqNo,
+        long maxSeenAutoIdTimestamp,
+        ActionListener<ResyncTask> listener
+    ) {
         ResyncRequest request = new ResyncRequest(shardId, primaryAllocationId);
+        final TaskManager taskManager = transportService.getTaskManager();
         ResyncTask resyncTask = (ResyncTask) taskManager.register("transport", "resync", request); // it's not transport :-)
         ActionListener<Void> wrappedListener = new ActionListener<Void>() {
             @Override
@@ -172,16 +179,33 @@ public class PrimaryReplicaSyncer {
             }
         };
         try {
-            new SnapshotSender(logger, syncAction, resyncTask, shardId, primaryAllocationId, primaryTerm, snapshot, chunkSize.bytesAsInt(),
-                startingSeqNo, maxSeqNo, maxSeenAutoIdTimestamp, wrappedListener).run();
+            new SnapshotSender(
+                syncAction,
+                resyncTask,
+                shardId,
+                primaryAllocationId,
+                primaryTerm,
+                snapshot,
+                chunkSize.bytesAsInt(),
+                startingSeqNo,
+                maxSeqNo,
+                maxSeenAutoIdTimestamp,
+                transportService.getThreadPool().generic(),
+                wrappedListener
+            ).run();
         } catch (Exception e) {
             wrappedListener.onFailure(e);
         }
     }
 
     public interface SyncAction {
-        void sync(ResyncReplicationRequest request, Task parentTask, String primaryAllocationId, long primaryTerm,
-                  ActionListener<ResyncReplicationResponse> listener);
+        void sync(
+            ResyncReplicationRequest request,
+            Task parentTask,
+            String primaryAllocationId,
+            long primaryTerm,
+            ActionListener<ResyncReplicationResponse> listener
+        );
     }
 
     static class SnapshotSender extends AbstractRunnable implements ActionListener<ResyncReplicationResponse> {
@@ -192,6 +216,7 @@ public class PrimaryReplicaSyncer {
         private final long primaryTerm;
         private final ShardId shardId;
         private final Translog.Snapshot snapshot;
+        private final Executor executor; // executor to fork to for reading and then sending ops from the snapshot
         private final long startingSeqNo;
         private final long maxSeqNo;
         private final long maxSeenAutoIdTimestamp;
@@ -200,12 +225,23 @@ public class PrimaryReplicaSyncer {
         private final AtomicBoolean firstMessage = new AtomicBoolean(true);
         private final AtomicInteger totalSentOps = new AtomicInteger();
         private final AtomicInteger totalSkippedOps = new AtomicInteger();
-        private AtomicBoolean closed = new AtomicBoolean();
+        private final AtomicBoolean closed = new AtomicBoolean();
 
-        SnapshotSender(Logger logger, SyncAction syncAction, ResyncTask task, ShardId shardId, String primaryAllocationId, long primaryTerm,
-                       Translog.Snapshot snapshot, int chunkSizeInBytes, long startingSeqNo, long maxSeqNo,
-                       long maxSeenAutoIdTimestamp, ActionListener<Void> listener) {
-            this.logger = logger;
+        SnapshotSender(
+            SyncAction syncAction,
+            ResyncTask task,
+            ShardId shardId,
+            String primaryAllocationId,
+            long primaryTerm,
+            Translog.Snapshot snapshot,
+            int chunkSizeInBytes,
+            long startingSeqNo,
+            long maxSeqNo,
+            long maxSeenAutoIdTimestamp,
+            Executor executor,
+            ActionListener<Void> listener
+        ) {
+            this.logger = PrimaryReplicaSyncer.logger;
             this.syncAction = syncAction;
             this.task = task;
             this.shardId = shardId;
@@ -216,23 +252,41 @@ public class PrimaryReplicaSyncer {
             this.startingSeqNo = startingSeqNo;
             this.maxSeqNo = maxSeqNo;
             this.maxSeenAutoIdTimestamp = maxSeenAutoIdTimestamp;
+            this.executor = executor;
             this.listener = listener;
             task.setTotalOperations(snapshot.totalOperations());
         }
 
         @Override
         public void onResponse(ResyncReplicationResponse response) {
-            run();
+            executor.execute(this);
         }
 
         @Override
         public void onFailure(Exception e) {
             if (closed.compareAndSet(false, true)) {
-                listener.onFailure(e);
+                executor.execute(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Exception ex) {
+                        e.addSuppressed(ex);
+
+                        // We are on the generic threadpool so shouldn't be rejected, and listener#onFailure shouldn't throw anything,
+                        // so getting here should be impossible.
+                        assert false : e;
+
+                        // Notify the listener on the current thread anyway, just in case.
+                        listener.onFailure(e);
+                    }
+
+                    @Override
+                    protected void doRun() {
+                        listener.onFailure(e);
+                    }
+                });
             }
         }
 
-        private static Translog.Operation[] EMPTY_ARRAY = new Translog.Operation[0];
+        private static final Translog.Operation[] EMPTY_ARRAY = new Translog.Operation[0];
 
         @Override
         protected void doRun() throws Exception {
@@ -262,12 +316,22 @@ public class PrimaryReplicaSyncer {
             }
             final long trimmedAboveSeqNo = firstMessage.get() ? maxSeqNo : SequenceNumbers.UNASSIGNED_SEQ_NO;
             // have to send sync request even in case of there are no operations to sync - have to sync trimmedAboveSeqNo at least
-            if (!operations.isEmpty() || trimmedAboveSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            if (operations.isEmpty() == false || trimmedAboveSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
                 task.setPhase("sending_ops");
-                ResyncReplicationRequest request =
-                    new ResyncReplicationRequest(shardId, trimmedAboveSeqNo, maxSeenAutoIdTimestamp, operations.toArray(EMPTY_ARRAY));
-                logger.trace("{} sending batch of [{}][{}] (total sent: [{}], skipped: [{}])", shardId, operations.size(),
-                    new ByteSizeValue(size), totalSentOps.get(), totalSkippedOps.get());
+                ResyncReplicationRequest request = new ResyncReplicationRequest(
+                    shardId,
+                    trimmedAboveSeqNo,
+                    maxSeenAutoIdTimestamp,
+                    operations.toArray(EMPTY_ARRAY)
+                );
+                logger.trace(
+                    "{} sending batch of [{}][{}] (total sent: [{}], skipped: [{}])",
+                    shardId,
+                    operations.size(),
+                    new ByteSizeValue(size),
+                    totalSentOps.get(),
+                    totalSkippedOps.get()
+                );
                 firstMessage.set(false);
                 syncAction.sync(request, task, primaryAllocationId, primaryTerm, this);
             } else if (closed.compareAndSet(false, true)) {
@@ -420,7 +484,6 @@ public class PrimaryReplicaSyncer {
             public String toString() {
                 return Strings.toString(this);
             }
-
 
             @Override
             public boolean equals(Object o) {

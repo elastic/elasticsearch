@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.rollup.action;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -16,27 +17,22 @@ import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class PutRollupJobAction extends Action<AcknowledgedResponse> {
+public class PutRollupJobAction extends ActionType<AcknowledgedResponse> {
 
     public static final PutRollupJobAction INSTANCE = new PutRollupJobAction();
     public static final String NAME = "cluster:admin/xpack/rollup/put";
 
     private PutRollupJobAction() {
-        super(NAME);
-    }
-
-    @Override
-    public AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest, ToXContentObject {
@@ -46,6 +42,11 @@ public class PutRollupJobAction extends Action<AcknowledgedResponse> {
 
         public Request(RollupJobConfig config) {
             this.config = config;
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            this.config = new RollupJobConfig(in);
         }
 
         public Request() {
@@ -62,12 +63,6 @@ public class PutRollupJobAction extends Action<AcknowledgedResponse> {
 
         public void setConfig(RollupJobConfig config) {
             this.config = config;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            this.config = new RollupJobConfig(in);
         }
 
         @Override
@@ -101,7 +96,7 @@ public class PutRollupJobAction extends Action<AcknowledgedResponse> {
 
         @Override
         public String[] indices() {
-            return new String[]{this.config.getIndexPattern()};
+            return new String[] { this.config.getIndexPattern() };
         }
 
         @Override

@@ -1,0 +1,24 @@
+{
+  "security.authenticate":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-authenticate.html",
+      "description":"Enables authentication as a user and retrieve information about the authenticated user."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_security/_authenticate",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params":{}
+  }
+}

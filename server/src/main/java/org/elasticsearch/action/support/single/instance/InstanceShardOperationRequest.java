@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.support.single.instance;
@@ -26,14 +15,18 @@ import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
+// TODO: This request and its associated transport action can be folded into UpdateRequest which is its only concrete production code
+//       implementation
 public abstract class InstanceShardOperationRequest<Request extends InstanceShardOperationRequest<Request>> extends ActionRequest
-        implements IndicesRequest {
+    implements
+        IndicesRequest {
 
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
 
@@ -45,7 +38,26 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
 
     private String concreteIndex;
 
-    protected InstanceShardOperationRequest() {
+    protected InstanceShardOperationRequest() {}
+
+    protected InstanceShardOperationRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
+        super(in);
+        // Do a full read if no shard id is given (indicating that this instance isn't read as part of a BulkShardRequest or that `in` is of
+        // an older version) and is in the format used by #writeTo.
+        if (shardId == null) {
+            index = in.readString();
+            this.shardId = in.readOptionalWriteable(ShardId::new);
+        } else {
+            // We know a shard id so we read the format given by #writeThin
+            this.shardId = shardId;
+            if (in.readBoolean()) {
+                index = in.readString();
+            } else {
+                index = shardId.getIndexName();
+            }
+        }
+        timeout = in.readTimeValue();
+        concreteIndex = in.readOptionalString();
     }
 
     public InstanceShardOperationRequest(String index) {
@@ -67,7 +79,7 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
 
     @Override
     public String[] indices() {
-        return new String[]{index};
+        return new String[] { index };
     }
 
     @Override
@@ -110,19 +122,6 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        index = in.readString();
-        if (in.readBoolean()) {
-            shardId = new ShardId(in);
-        } else {
-            shardId = null;
-        }
-        timeout = in.readTimeValue();
-        concreteIndex = in.readOptionalString();
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(index);
@@ -131,5 +130,15 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
         out.writeOptionalString(concreteIndex);
     }
 
+    public void writeThin(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        if (shardId != null && index.equals(shardId.getIndexName())) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            out.writeString(index);
+        }
+        out.writeTimeValue(timeout);
+        out.writeOptionalString(concreteIndex);
+    }
 }
-

@@ -3,12 +3,13 @@
 :request: ExecuteWatchRequest
 :response: ExecuteWatchResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
-=== Execute Watch API
+=== Execute watch API
 
-The execute watch API allows clients to immediately execute a watch, either
-one that has been previously added via the
-{ref}/watcher-api-put-watch.html[Put Watch API] or inline as part of the request.
+The execute watch API allows clients to immediately execute a watch, either one
+that has been previously added via the {ref}/watcher-api-put-watch.html[create
+or update watch API] or inline as part of the request.
 
 [id="{upid}-{api}-request-by-id"]
 ==== Execute by id
@@ -27,7 +28,7 @@ include-tagged::{doc-tests-file}[x-pack-execute-watch-by-id]
 <6> Enable debug mode
 
 [id="{upid}-{api}-response-by-id"]
-==== Execute by id Response
+==== Execute by id response
 
 The returned `Response` contains details of the execution:
 

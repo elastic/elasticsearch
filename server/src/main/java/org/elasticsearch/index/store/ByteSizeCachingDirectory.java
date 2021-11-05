@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.store;
@@ -24,8 +13,8 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.common.lucene.store.FilterIndexOutput;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.SingleObjectCache;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -79,7 +68,7 @@ final class ByteSizeCachingDirectory extends FilterDirectory {
                 // numOpenOutputs BEFORE computing the size of the directory.
                 final long modCount;
                 final boolean pendingWrite;
-                synchronized(ByteSizeCachingDirectory.this) {
+                synchronized (ByteSizeCachingDirectory.this) {
                     modCount = ByteSizeCachingDirectory.this.modCount;
                     pendingWrite = ByteSizeCachingDirectory.this.numOpenOutputs != 0;
                 }
@@ -105,7 +94,7 @@ final class ByteSizeCachingDirectory extends FilterDirectory {
                     // writes, so the size might be stale: recompute.
                     return true;
                 }
-                synchronized(ByteSizeCachingDirectory.this) {
+                synchronized (ByteSizeCachingDirectory.this) {
                     // If there are pending writes or if new files have been
                     // written/deleted since last time: recompute
                     return numOpenOutputs != 0 || cached.modCount != modCount;
@@ -154,13 +143,31 @@ final class ByteSizeCachingDirectory extends FilterDirectory {
             }
 
             @Override
+            public void writeInt(int i) throws IOException {
+                // Delegate primitive for possible performance enhancement
+                out.writeInt(i);
+            }
+
+            @Override
+            public void writeShort(short s) throws IOException {
+                // Delegate primitive for possible performance enhancement
+                out.writeShort(s);
+            }
+
+            @Override
+            public void writeLong(long l) throws IOException {
+                // Delegate primitive for possible performance enhancement
+                out.writeLong(l);
+            }
+
+            @Override
             public void close() throws IOException {
                 // Close might cause some data to be flushed from in-memory buffers, so
                 // increment the modification counter too.
                 try {
                     super.close();
                 } finally {
-                    synchronized (this) {
+                    synchronized (ByteSizeCachingDirectory.this) {
                         numOpenOutputs--;
                         modCount++;
                     }

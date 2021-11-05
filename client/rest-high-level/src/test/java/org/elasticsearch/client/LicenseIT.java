@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.license.DeleteLicenseRequest;
 import org.elasticsearch.client.license.GetBasicStatusResponse;
@@ -34,8 +24,9 @@ import org.elasticsearch.client.license.StartBasicResponse;
 import org.elasticsearch.client.license.StartTrialRequest;
 import org.elasticsearch.client.license.StartTrialResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.After;
 import org.junit.BeforeClass;
 
@@ -43,14 +34,15 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.isEmptyOrNullString;
+import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.stringContainsInOrder;
 
 public class LicenseIT extends ESRestHighLevelClientTestCase {
 
@@ -62,8 +54,7 @@ public class LicenseIT extends ESRestHighLevelClientTestCase {
 
     @BeforeClass
     public static void checkForSnapshot() {
-        assumeTrue("Trial license used to rollback is only valid when tested against snapshot/test builds",
-            Build.CURRENT.isSnapshot());
+        assumeTrue("Trial license used to rollback is only valid when tested against snapshot/test builds", Build.CURRENT.isSnapshot());
     }
 
     @After
@@ -102,32 +93,94 @@ public class LicenseIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testPutInvalidTrialLicense() throws Exception {
+        assumeTrue("Trial license is only valid when tested against snapshot/test builds", Build.CURRENT.isSnapshot());
+
+        // use a hard-coded trial license for 20 yrs to be able to roll back from another licenses
+        final String signature = "xx"; // Truncated, so it is expected to fail validation
+        final String licenseDefinition = Strings.toString(
+            jsonBuilder().startObject()
+                .field(
+                    "licenses",
+                    List.of(
+                        Map.of(
+                            "uid",
+                            "96fc37c6-6fc9-43e2-a40d-73143850cd72",
+                            "type",
+                            "trial",
+                            // 2018-10-16 07:02:48 UTC
+                            "issue_date_in_millis",
+                            "1539673368158",
+                            // 2038-10-11 07:02:48 UTC, 20 yrs later
+                            "expiry_date_in_millis",
+                            "2170393368158",
+                            "max_nodes",
+                            "5",
+                            "issued_to",
+                            "client_rest-high-level_integTestCluster",
+                            "issuer",
+                            "elasticsearch",
+                            "start_date_in_millis",
+                            "-1",
+                            "signature",
+                            signature
+                        )
+                    )
+                )
+                .endObject()
+        );
+
+        final PutLicenseRequest request = new PutLicenseRequest();
+        request.setAcknowledge(true);
+        request.setLicenseDefinition(licenseDefinition);
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> highLevelClient().license().putLicense(request, RequestOptions.DEFAULT)
+        );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), stringContainsInOrder("malformed signature for license"));
+    }
+
     public static void putTrialLicense() throws IOException {
-        assumeTrue("Trial license is only valid when tested against snapshot/test builds",
-            Build.CURRENT.isSnapshot());
+        assumeTrue("Trial license is only valid when tested against snapshot/test builds", Build.CURRENT.isSnapshot());
 
         // use a hard-coded trial license for 20 yrs to be able to roll back from another licenses
         final String signature =
-                "AAAABAAAAA3FXON9kGmNqmH+ASDWAAAAIAo5/x6hrsGh1GqqrJmy4qgmEC7gK0U4zQ6q5ZEMhm4jAAABAAcdKHL0BfM2uqTgT7BDuFxX5lb"
-                        + "t/bHDVJ421Wwgm5p3IMbw/W13iiAHz0hhDziF7acJbc/y65L+BKGtVC1gSSHeLDHaAD66VrjKxfc7VbGyJIAYBOdujf0rheurmaD3IcNo"
-                        + "/tWDjCdtTwrNziFkorsGcPadBP5Yc6csk3/Q74DlfiYweMBxLUfkBERwxwd5OQS6ujGvl/4bb8p5zXvOw8vMSaAXSXXnExP6lam+0934W"
-                        + "0kHvU7IGk+fCUjOaiSWKSoE4TEcAtVNYj/oRoRtfQ1KQGpdCHxTHs1BimdZaG0nBHDsvhYlVVLSvHN6QzqsHWgFDG6JJxhtU872oTRSUHA=";
-        final String licenseDefinition = Strings.toString(jsonBuilder()
-            .startObject()
-            .field("licenses", List.of(
-                Map.of(
-                    "uid", "96fc37c6-6fc9-43e2-a40d-73143850cd72",
-                    "type", "trial",
-                    // 2018-10-16 07:02:48 UTC
-                    "issue_date_in_millis", "1539673368158",
-                    // 2038-10-11 07:02:48 UTC, 20 yrs later
-                    "expiry_date_in_millis", "2170393368158",
-                    "max_nodes", "5",
-                    "issued_to", "client_rest-high-level_integTestCluster",
-                    "issuer", "elasticsearch",
-                    "start_date_in_millis", "-1",
-                    "signature", signature)))
-            .endObject());
+            "AAAABAAAAA3FXON9kGmNqmH+ASDWAAAAIAo5/x6hrsGh1GqqrJmy4qgmEC7gK0U4zQ6q5ZEMhm4jAAABAAcdKHL0BfM2uqTgT7BDuFxX5lb"
+                + "t/bHDVJ421Wwgm5p3IMbw/W13iiAHz0hhDziF7acJbc/y65L+BKGtVC1gSSHeLDHaAD66VrjKxfc7VbGyJIAYBOdujf0rheurmaD3IcNo"
+                + "/tWDjCdtTwrNziFkorsGcPadBP5Yc6csk3/Q74DlfiYweMBxLUfkBERwxwd5OQS6ujGvl/4bb8p5zXvOw8vMSaAXSXXnExP6lam+0934W"
+                + "0kHvU7IGk+fCUjOaiSWKSoE4TEcAtVNYj/oRoRtfQ1KQGpdCHxTHs1BimdZaG0nBHDsvhYlVVLSvHN6QzqsHWgFDG6JJxhtU872oTRSUHA=";
+        final String licenseDefinition = Strings.toString(
+            jsonBuilder().startObject()
+                .field(
+                    "licenses",
+                    List.of(
+                        Map.of(
+                            "uid",
+                            "96fc37c6-6fc9-43e2-a40d-73143850cd72",
+                            "type",
+                            "trial",
+                            // 2018-10-16 07:02:48 UTC
+                            "issue_date_in_millis",
+                            "1539673368158",
+                            // 2038-10-11 07:02:48 UTC, 20 yrs later
+                            "expiry_date_in_millis",
+                            "2170393368158",
+                            "max_nodes",
+                            "5",
+                            "issued_to",
+                            "client_rest-high-level_integTestCluster",
+                            "issuer",
+                            "elasticsearch",
+                            "start_date_in_millis",
+                            "-1",
+                            "signature",
+                            signature
+                        )
+                    )
+                )
+                .endObject()
+        );
 
         final PutLicenseRequest request = new PutLicenseRequest();
         request.setAcknowledge(true);
@@ -147,9 +200,13 @@ public class LicenseIT extends ESRestHighLevelClientTestCase {
             assertThat(response.isAcknowledged(), equalTo(false));
             assertThat(response.isBasicStarted(), equalTo(false));
             assertThat(response.getErrorMessage(), equalTo("Operation failed: Needs acknowledgement."));
-            assertThat(response.getAcknowledgeMessage(),
-                containsString("This license update requires acknowledgement. " +
-                    "To acknowledge the license, please read the following messages and call /start_basic again"));
+            assertThat(
+                response.getAcknowledgeMessage(),
+                containsString(
+                    "This license update requires acknowledgement. "
+                        + "To acknowledge the license, please read the following messages and call /start_basic again"
+                )
+            );
             assertNotEmptyAcknowledgeMessages(response.getAcknowledgeMessages());
         }
         // case where we acknowledge and the basic is started successfully
@@ -167,9 +224,9 @@ public class LicenseIT extends ESRestHighLevelClientTestCase {
     private static void assertNotEmptyAcknowledgeMessages(Map<String, String[]> acknowledgeMessages) {
         assertThat(acknowledgeMessages.entrySet(), not(empty()));
         for (Map.Entry<String, String[]> entry : acknowledgeMessages.entrySet()) {
-            assertThat(entry.getKey(), not(isEmptyOrNullString()));
+            assertThat(entry.getKey(), not(emptyOrNullString()));
             for (String message : entry.getValue()) {
-                assertThat(message, not(isEmptyOrNullString()));
+                assertThat(message, not(emptyOrNullString()));
             }
         }
     }

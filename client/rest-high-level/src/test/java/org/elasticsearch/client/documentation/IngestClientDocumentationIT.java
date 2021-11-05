@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.documentation;
@@ -36,9 +25,9 @@ import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.PipelineConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -65,6 +54,7 @@ import java.util.concurrent.TimeUnit;
  * than 84, the line will be cut and a horizontal scroll bar will be displayed.
  * (the code indentation of the tag is not included in the width)
  */
+@SuppressWarnings("removal")
 public class IngestClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testPutPipeline() throws IOException {
@@ -107,9 +97,8 @@ public class IngestClientDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         {
-            String source =
-                "{\"description\":\"my set of processors\"," +
-                    "\"processors\":[{\"set\":{\"field\":\"foo\",\"value\":\"bar\"}}]}";
+            String source = "{\"description\":\"my set of processors\","
+                + "\"processors\":[{\"set\":{\"field\":\"foo\",\"value\":\"bar\"}}]}";
             PutPipelineRequest request = new PutPipelineRequest(
                 "my-pipeline-id",
                 new BytesArray(source.getBytes(StandardCharsets.UTF_8)),
@@ -338,7 +327,7 @@ public class IngestClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 }
             }
             // end::simulate-pipeline-response
-            assert(response.getResults().size() > 0);
+            assert (response.getResults().size() > 0);
         }
     }
 
@@ -346,17 +335,16 @@ public class IngestClientDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         {
-            String source =
-                "{\"" +
-                    "pipeline\":{" +
-                    "\"description\":\"_description\"," +
-                    "\"processors\":[{\"set\":{\"field\":\"field2\",\"value\":\"_value\"}}]" +
-                    "}," +
-                    "\"docs\":[" +
-                    "{\"_index\":\"index\",\"_id\":\"id\",\"_source\":{\"foo\":\"bar\"}}," +
-                    "{\"_index\":\"index\",\"_id\":\"id\",\"_source\":{\"foo\":\"rab\"}}" +
-                    "]" +
-                    "}";
+            String source = "{\""
+                + "pipeline\":{"
+                + "\"description\":\"_description\","
+                + "\"processors\":[{\"set\":{\"field\":\"field2\",\"value\":\"_value\"}}]"
+                + "},"
+                + "\"docs\":["
+                + "{\"_index\":\"index\",\"_id\":\"id\",\"_source\":{\"foo\":\"bar\"}},"
+                + "{\"_index\":\"index\",\"_id\":\"id\",\"_source\":{\"foo\":\"rab\"}}"
+                + "]"
+                + "}";
             SimulatePipelineRequest request = new SimulatePipelineRequest(
                 new BytesArray(source.getBytes(StandardCharsets.UTF_8)),
                 XContentType.JSON

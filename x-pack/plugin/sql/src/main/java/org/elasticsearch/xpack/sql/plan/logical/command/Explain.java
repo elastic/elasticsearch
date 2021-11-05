@@ -1,25 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.plan.QueryPlan;
-import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.plan.QueryPlan;
+import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.KeywordEsField;
+import org.elasticsearch.xpack.ql.util.Graphviz;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.planner.Planner;
+import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.Rows;
-import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.tree.NodeInfo;
-import org.elasticsearch.xpack.sql.type.KeywordEsField;
-import org.elasticsearch.xpack.sql.util.Graphviz;
 
 import java.util.HashMap;
 import java.util.List;
@@ -34,7 +35,12 @@ import static org.elasticsearch.action.ActionListener.wrap;
 public class Explain extends Command {
 
     public enum Type {
-        PARSED, ANALYZED, OPTIMIZED, MAPPED, EXECUTABLE, ALL;
+        PARSED,
+        ANALYZED,
+        OPTIMIZED,
+        MAPPED,
+        EXECUTABLE,
+        ALL;
 
         public String printableName() {
             return Strings.capitalize(name().toLowerCase(Locale.ROOT));
@@ -42,7 +48,8 @@ public class Explain extends Command {
     }
 
     public enum Format {
-        TEXT, GRAPHVIZ
+        TEXT,
+        GRAPHVIZ
     }
 
     private final LogicalPlan plan;
@@ -85,10 +92,10 @@ public class Explain extends Command {
     }
 
     @Override
-    public void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
+    public void execute(SqlSession session, ActionListener<Page> listener) {
 
         if (type == Type.PARSED) {
-            listener.onResponse(Rows.singleton(output(), formatPlan(format, plan)));
+            listener.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, plan))));
             return;
         }
 
@@ -96,7 +103,7 @@ public class Explain extends Command {
         session.analyzedPlan(plan, verify, wrap(analyzedPlan -> {
 
             if (type == Type.ANALYZED) {
-                listener.onResponse(Rows.singleton(output(), formatPlan(format, analyzedPlan)));
+                listener.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, analyzedPlan))));
                 return;
             }
 
@@ -105,25 +112,28 @@ public class Explain extends Command {
             if (verify) {
                 session.optimizedPlan(analyzedPlan, wrap(optimizedPlan -> {
                     if (type == Type.OPTIMIZED) {
-                        listener.onResponse(Rows.singleton(output(), formatPlan(format, optimizedPlan)));
+                        listener.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, optimizedPlan))));
                         return;
                     }
 
                     PhysicalPlan mappedPlan = planner.mapPlan(optimizedPlan, verify);
                     if (type == Type.MAPPED) {
-                        listener.onResponse(Rows.singleton(output(), formatPlan(format, mappedPlan)));
+                        listener.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, mappedPlan))));
                         return;
                     }
 
                     PhysicalPlan executablePlan = planner.foldPlan(mappedPlan, verify);
                     if (type == Type.EXECUTABLE) {
-                        listener.onResponse(Rows.singleton(output(), formatPlan(format, executablePlan)));
+                        listener.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, executablePlan))));
                         return;
                     }
 
                     // Type.All
-                    listener.onResponse(Rows.singleton(output(), printPlans(format, plan, analyzedPlan, optimizedPlan,
-                            mappedPlan, executablePlan)));
+                    listener.onResponse(
+                        Page.last(
+                            Rows.singleton(output(), printPlans(format, plan, analyzedPlan, optimizedPlan, mappedPlan, executablePlan))
+                        )
+                    );
                 }, listener::onFailure));
             }
 
@@ -133,14 +143,14 @@ public class Explain extends Command {
                 if (session.verifier().verifyFailures(analyzedPlan).isEmpty()) {
                     session.optimizedPlan(analyzedPlan, wrap(optimizedPlan -> {
                         if (type == Type.OPTIMIZED) {
-                            listener.onResponse(Rows.singleton(output(), formatPlan(format, optimizedPlan)));
+                            listener.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, optimizedPlan))));
                             return;
                         }
 
                         PhysicalPlan mappedPlan = planner.mapPlan(optimizedPlan, verify);
 
                         if (type == Type.MAPPED) {
-                            listener.onResponse(Rows.singleton(output(), formatPlan(format, mappedPlan)));
+                            listener.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, mappedPlan))));
                             return;
                         }
 
@@ -148,38 +158,50 @@ public class Explain extends Command {
                             PhysicalPlan executablePlan = planner.foldPlan(mappedPlan, verify);
 
                             if (type == Type.EXECUTABLE) {
-                                listener.onResponse(Rows.singleton(output(), formatPlan(format, executablePlan)));
+                                listener.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, executablePlan))));
                                 return;
                             }
 
-                            listener.onResponse(Rows.singleton(output(), printPlans(format, plan, analyzedPlan, optimizedPlan,
-                                    mappedPlan, executablePlan)));
+                            listener.onResponse(
+                                Page.last(
+                                    Rows.singleton(
+                                        output(),
+                                        printPlans(format, plan, analyzedPlan, optimizedPlan, mappedPlan, executablePlan)
+                                    )
+                                )
+                            );
                             return;
                         }
                         // mapped failed
                         if (type != Type.ALL) {
-                            listener.onResponse(Rows.singleton(output(), formatPlan(format, mappedPlan)));
+                            listener.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, mappedPlan))));
                             return;
                         }
 
-                        listener.onResponse(Rows.singleton(output(), printPlans(format, plan, analyzedPlan, optimizedPlan,
-                                mappedPlan, null)));
+                        listener.onResponse(
+                            Page.last(Rows.singleton(output(), printPlans(format, plan, analyzedPlan, optimizedPlan, mappedPlan, null)))
+                        );
                     }, listener::onFailure));
                     // cannot continue
                 } else {
                     if (type != Type.ALL) {
-                        listener.onResponse(Rows.singleton(output(), formatPlan(format, analyzedPlan)));
-                    }
-                    else {
-                        listener.onResponse(Rows.singleton(output(), printPlans(format, plan, analyzedPlan, null, null, null)));
+                        listener.onResponse(Page.last(Rows.singleton(output(), formatPlan(format, analyzedPlan))));
+                    } else {
+                        listener.onResponse(Page.last(Rows.singleton(output(), printPlans(format, plan, analyzedPlan, null, null, null))));
                     }
                 }
             }
         }, listener::onFailure));
     }
 
-    private static String printPlans(Format format, LogicalPlan parsed, LogicalPlan analyzedPlan, LogicalPlan optimizedPlan,
-            PhysicalPlan mappedPlan, PhysicalPlan executionPlan) {
+    private static String printPlans(
+        Format format,
+        LogicalPlan parsed,
+        LogicalPlan analyzedPlan,
+        LogicalPlan optimizedPlan,
+        PhysicalPlan mappedPlan,
+        PhysicalPlan executionPlan
+    ) {
         if (format == Format.TEXT) {
             StringBuilder sb = new StringBuilder();
             sb.append("Parsed\n");
@@ -236,8 +258,8 @@ public class Explain extends Command {
         }
         Explain o = (Explain) obj;
         return Objects.equals(verify, o.verify)
-                && Objects.equals(format, o.format)
-                && Objects.equals(type, o.type)
-                && Objects.equals(plan, o.plan);
+            && Objects.equals(format, o.format)
+            && Objects.equals(type, o.type)
+            && Objects.equals(plan, o.plan);
     }
 }

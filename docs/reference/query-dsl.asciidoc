@@ -12,7 +12,7 @@ Leaf query clauses::
 
 Leaf query clauses look for a particular value in a particular field, such as the
 <<query-dsl-match-query,`match`>>, <<query-dsl-term-query,`term`>> or
-<<query-dsl-range-query,`range`>> queries.  These queries can be used
+<<query-dsl-range-query,`range`>> queries. These queries can be used
 by themselves.
 
 Compound query clauses::
@@ -25,26 +25,60 @@ or to alter their behaviour (such as the
 
 Query clauses behave differently depending on whether they are used in
 <<query-filter-context,query context or filter context>>.
+
+[[query-dsl-allow-expensive-queries]]
+Allow expensive queries::
+Certain types of queries will generally execute slowly due to the way they are implemented, which can affect
+the stability of the cluster. Those queries can be categorised as follows:
+
+* Queries that need to do linear scans to identify matches:
+** <<query-dsl-script-query,`script` queries>>
+
+* Queries that have a high up-front cost:
+** <<query-dsl-fuzzy-query,`fuzzy` queries>> (except on
+   <<wildcard-field-type,`wildcard`>> fields)
+** <<query-dsl-regexp-query,`regexp` queries>> (except on
+   <<wildcard-field-type,`wildcard`>> fields)
+** <<query-dsl-prefix-query,`prefix` queries>>  (except on
+   <<wildcard-field-type,`wildcard`>> fields or those without
+   <<index-prefixes,`index_prefixes`>>)
+** <<query-dsl-wildcard-query,`wildcard` queries>> (except on
+   <<wildcard-field-type,`wildcard`>> fields)
+** <<query-dsl-range-query,`range` queries>> on <<text,`text`>> and
+   <<keyword,`keyword`>> fields
+
+* <<joining-queries,Joining queries>>
+
+* Queries that may have a high per-document cost:
+** <<query-dsl-script-score-query,`script_score` queries>>
+** <<query-dsl-percolate-query,`percolate` queries>>
+
+The execution of such queries can be prevented by setting the value of the `search.allow_expensive_queries`
+setting to `false` (defaults to `true`).
 --
 
 include::query-dsl/query_filter_context.asciidoc[]
 
-include::query-dsl/match-all-query.asciidoc[]
+include::query-dsl/compound-queries.asciidoc[]
 
 include::query-dsl/full-text-queries.asciidoc[]
 
-include::query-dsl/term-level-queries.asciidoc[]
+include::query-dsl/geo-queries.asciidoc[]
 
-include::query-dsl/compound-queries.asciidoc[]
+include::query-dsl/shape-queries.asciidoc[]
 
 include::query-dsl/joining-queries.asciidoc[]
 
-include::query-dsl/geo-queries.asciidoc[]
+include::query-dsl/match-all-query.asciidoc[]
+
+include::query-dsl/span-queries.asciidoc[]
 
 include::query-dsl/special-queries.asciidoc[]
 
-include::query-dsl/span-queries.asciidoc[]
+include::query-dsl/term-level-queries.asciidoc[]
 
 include::query-dsl/minimum-should-match.asciidoc[]
 
 include::query-dsl/multi-term-rewrite.asciidoc[]
+
+include::query-dsl/regexp-syntax.asciidoc[]

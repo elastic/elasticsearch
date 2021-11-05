@@ -1,0 +1,254 @@
+setup:
+
+  - skip:
+      version: " - 7.13.99"
+      reason: "match_only_text was added in 7.14"
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              foo:
+                type: match_only_text
+
+  - do:
+      index:
+        index: test
+        id:    1
+        body:  {}
+
+  - do:
+      index:
+        index: test
+        id:    2
+        body:  { "foo": "Apache Lucene powers Elasticsearch" }
+
+  - do:
+      index:
+        index: test
+        id:    3
+        body:  { "foo": "Elasticsearch is based on Apache Lucene" }
+
+  - do:
+      index:
+        index: test
+        id:    4
+        body:  { "foo": "The Apache Software Foundation manages many projects including Lucene" }
+
+  - do:
+      indices.refresh: {}
+
+---
+"Field caps":
+
+  - do:
+      field_caps:
+        index: test
+        fields: [ foo ]
+
+  - match: { fields.foo.text.searchable: true }
+  - match: { fields.foo.text.aggregatable: false }
+
+---
+"Exist query":
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            exists:
+              field: foo
+
+  - match: { "hits.total.value": 3 }
+  - match: { "hits.hits.0._score": 1.0 }
+
+---
+"Match query":
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match:
+              foo: powers
+
+  - match: { "hits.total.value": 1 }
+  - match: { "hits.hits.0._score": 1.0 }
+
+---
+"Match Phrase query":
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match_phrase:
+              foo: "lucene powers"
+
+  - match: { "hits.total.value": 1 }
+  - match: { "hits.hits.0._score": 1.0 }
+
+---
+"Match Phrase Prefix query":
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match_phrase_prefix:
+              foo: "lucene pow"
+
+  - match: { "hits.total.value": 1 }
+  - match: { "hits.hits.0._score": 1.0 }
+
+---
+"Query String query with phrase":
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            query_string:
+              query: '"lucene powers"'
+              default_field: "foo"
+
+  - match: { "hits.total.value": 1 }
+  - match: { "hits.hits.0._score": 1.0 }
+
+
+
+---
+"Regexp query":
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            regexp:
+              foo: "lu.*ne"
+
+  - match: { "hits.total.value": 3 }
+  - match: { "hits.hits.0._score": 1.0 }
+
+---
+"Wildcard query":
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            wildcard:
+              foo: "lu*ne"
+
+  - match: { "hits.total.value": 3 }
+  - match: { "hits.hits.0._score": 1.0 }
+
+---
+"Prefix query":
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            prefix:
+              foo: "luc"
+
+  - match: { "hits.total.value": 3 }
+  - match: { "hits.hits.0._score": 1.0 }
+
+---
+"Fuzzy query":
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            fuzzy:
+              foo: "lucane"
+
+  - match: { "hits.total.value": 3 }
+  - match: { "hits.hits.0._score": 1.0 }
+
+---
+"Span query":
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          query:
+            span_term:
+              foo: lucene
+
+---
+"Term intervals query":
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              foo:
+                match:
+                  query: "apache lucene"
+                  max_gaps: 1
+
+  - match: { "hits.total.value": 2 }
+
+---
+"Prefix intervals query":
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              foo:
+                prefix:
+                  prefix: "luc"
+
+  - match: { "hits.total.value": 3 }
+
+---
+"Wildcard intervals query":
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              foo:
+                wildcard:
+                  pattern: "*ase*"
+
+  - match: { "hits.total.value": 1 }
+
+---
+"Fuzzy intervals query":
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              foo:
+                fuzzy:
+                  term: "lucane"
+
+  - match: { "hits.total.value": 3 }

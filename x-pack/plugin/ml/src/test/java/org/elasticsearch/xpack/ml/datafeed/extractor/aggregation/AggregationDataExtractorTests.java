@@ -1,14 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
@@ -17,6 +21,9 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter.DatafeedTimingStatsPersister;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.Term;
 import org.junit.Before;
 
@@ -30,6 +37,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -54,23 +62,33 @@ public class AggregationDataExtractorTests extends ESTestCase {
     private List<String> indices;
     private QueryBuilder query;
     private AggregatorFactories.Builder aggs;
+    private DatafeedTimingStatsReporter timingStatsReporter;
+    private Map<String, Object> runtimeMappings;
 
     private class TestDataExtractor extends AggregationDataExtractor {
 
         private SearchResponse nextResponse;
+        private SearchPhaseExecutionException ex;
 
         TestDataExtractor(long start, long end) {
-            super(testClient, createContext(start, end));
+            super(testClient, createContext(start, end), timingStatsReporter);
         }
 
         @Override
         protected SearchResponse executeSearchRequest(SearchRequestBuilder searchRequestBuilder) {
             capturedSearchRequests.add(searchRequestBuilder);
+            if (ex != null) {
+                throw ex;
+            }
             return nextResponse;
         }
 
         void setNextResponse(SearchResponse searchResponse) {
             nextResponse = searchResponse;
+        }
+
+        void setNextResponseToError(SearchPhaseExecutionException ex) {
+            this.ex = ex;
         }
     }
 
@@ -84,21 +102,39 @@ public class AggregationDataExtractorTests extends ESTestCase {
         fields.addAll(Arrays.asList("time", "airline", "responsetime"));
         indices = Arrays.asList("index-1", "index-2");
         query = QueryBuilders.matchAllQuery();
-        aggs = new AggregatorFactories.Builder()
-                .addAggregator(AggregationBuilders.histogram("time").field("time").interval(1000).subAggregation(
-                        AggregationBuilders.terms("airline").field("airline").subAggregation(
-                                AggregationBuilders.avg("responsetime").field("responsetime"))));
+        aggs = new AggregatorFactories.Builder().addAggregator(
+            AggregationBuilders.histogram("time")
+                .field("time")
+                .interval(1000)
+                .subAggregation(
+                    AggregationBuilders.terms("airline")
+                        .field("airline")
+                        .subAggregation(AggregationBuilders.avg("responsetime").field("responsetime"))
+                )
+        );
+        runtimeMappings = Collections.emptyMap();
+        timingStatsReporter = new DatafeedTimingStatsReporter(new DatafeedTimingStats(jobId), mock(DatafeedTimingStatsPersister.class));
     }
 
     public void testExtraction() throws IOException {
         List<Histogram.Bucket> histogramBuckets = Arrays.asList(
-            createHistogramBucket(1000L, 3, Arrays.asList(
+            createHistogramBucket(
+                1000L,
+                3,
+                Arrays.asList(
                     createMax("time", 1999),
-                    createTerms("airline", new Term("a", 1, "responsetime", 11.0), new Term("b", 2, "responsetime", 12.0)))),
+                    createTerms("airline", new Term("a", 1, "responsetime", 11.0), new Term("b", 2, "responsetime", 12.0))
+                )
+            ),
             createHistogramBucket(2000L, 0, Collections.emptyList()),
-            createHistogramBucket(3000L, 7, Arrays.asList(
+            createHistogramBucket(
+                3000L,
+                7,
+                Arrays.asList(
                     createMax("time", 3999),
-                    createTerms("airline", new Term("c", 4, "responsetime", 31.0), new Term("b", 3, "responsetime", 32.0))))
+                    createTerms("airline", new Term("c", 4, "responsetime", 31.0), new Term("b", 3, "responsetime", 32.0))
+                )
+            )
         );
 
         TestDataExtractor extractor = new TestDataExtractor(1000L, 4000L);
@@ -110,52 +146,27 @@ public class AggregationDataExtractorTests extends ESTestCase {
         Optional<InputStream> stream = extractor.next();
         assertThat(stream.isPresent(), is(true));
         String expectedStream = "{\"time\":1999,\"airline\":\"a\",\"responsetime\":11.0,\"doc_count\":1} "
-                + "{\"time\":1999,\"airline\":\"b\",\"responsetime\":12.0,\"doc_count\":2} "
-                + "{\"time\":3999,\"airline\":\"c\",\"responsetime\":31.0,\"doc_count\":4} "
-                + "{\"time\":3999,\"airline\":\"b\",\"responsetime\":32.0,\"doc_count\":3}";
+            + "{\"time\":1999,\"airline\":\"b\",\"responsetime\":12.0,\"doc_count\":2} "
+            + "{\"time\":3999,\"airline\":\"c\",\"responsetime\":31.0,\"doc_count\":4} "
+            + "{\"time\":3999,\"airline\":\"b\",\"responsetime\":32.0,\"doc_count\":3}";
         assertThat(asString(stream.get()), equalTo(expectedStream));
         assertThat(extractor.hasNext(), is(false));
         assertThat(capturedSearchRequests.size(), equalTo(1));
 
         String searchRequest = capturedSearchRequests.get(0).toString().replaceAll("\\s", "");
         assertThat(searchRequest, containsString("\"size\":0"));
-        assertThat(searchRequest, containsString("\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}}," +
-                "{\"range\":{\"time\":{\"from\":0,\"to\":4000,\"include_lower\":true,\"include_upper\":false," +
-                "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"));
-        assertThat(searchRequest,
-                stringContainsInOrder(Arrays.asList("aggregations", "histogram", "time", "terms", "airline", "avg", "responsetime")));
-    }
-
-    public void testExtractionGivenMultipleBatches() throws IOException {
-        // Each bucket is 4 key-value pairs and there are 2 terms, thus 600 buckets will be 600 * 4 * 2 = 4800
-        // key-value pairs. They should be processed in 5 batches.
-        int buckets = 600;
-        List<Histogram.Bucket> histogramBuckets = new ArrayList<>(buckets);
-        long timestamp = 1000;
-        for (int i = 0; i < buckets; i++) {
-            histogramBuckets.add(createHistogramBucket(timestamp, 3, Arrays.asList(createMax("time", timestamp),
-                    createTerms("airline", new Term("c", 4, "responsetime", 31.0), new Term("b", 3, "responsetime", 32.0)))));
-            timestamp += 1000L;
-        }
-
-        TestDataExtractor extractor = new TestDataExtractor(1000L, timestamp + 1);
-
-        SearchResponse response = createSearchResponse("time", histogramBuckets);
-        extractor.setNextResponse(response);
-
-        assertThat(extractor.hasNext(), is(true));
-        assertThat(countMatches('{', asString(extractor.next().get())), equalTo(250L));
-        assertThat(extractor.hasNext(), is(true));
-        assertThat(countMatches('{', asString(extractor.next().get())), equalTo(250L));
-        assertThat(extractor.hasNext(), is(true));
-        assertThat(countMatches('{', asString(extractor.next().get())), equalTo(250L));
-        assertThat(extractor.hasNext(), is(true));
-        assertThat(countMatches('{', asString(extractor.next().get())), equalTo(250L));
-        assertThat(extractor.hasNext(), is(true));
-        assertThat(countMatches('{', asString(extractor.next().get())), equalTo(200L));
-        assertThat(extractor.hasNext(), is(false));
-
-        assertThat(capturedSearchRequests.size(), equalTo(1));
+        assertThat(
+            searchRequest,
+            containsString(
+                "\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}},"
+                    + "{\"range\":{\"time\":{\"from\":0,\"to\":4000,\"include_lower\":true,\"include_upper\":false,"
+                    + "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"
+            )
+        );
+        assertThat(
+            searchRequest,
+            stringContainsInOrder(Arrays.asList("aggregations", "histogram", "time", "terms", "airline", "avg", "responsetime"))
+        );
     }
 
     public void testExtractionGivenResponseHasNullAggs() throws IOException {
@@ -215,8 +226,16 @@ public class AggregationDataExtractorTests extends ESTestCase {
         List<Histogram.Bucket> histogramBuckets = new ArrayList<>(buckets);
         long timestamp = 1000;
         for (int i = 0; i < buckets; i++) {
-            histogramBuckets.add(createHistogramBucket(timestamp, 3, Arrays.asList(createMax("time", timestamp),
-                    createTerms("airline", new Term("c", 4, "responsetime", 31.0), new Term("b", 3, "responsetime", 32.0)))));
+            histogramBuckets.add(
+                createHistogramBucket(
+                    timestamp,
+                    3,
+                    Arrays.asList(
+                        createMax("time", timestamp),
+                        createTerms("airline", new Term("c", 4, "responsetime", 31.0), new Term("b", 3, "responsetime", 32.0))
+                    )
+                )
+            );
             timestamp += 1000L;
         }
 
@@ -226,54 +245,60 @@ public class AggregationDataExtractorTests extends ESTestCase {
         extractor.setNextResponse(response);
 
         assertThat(extractor.hasNext(), is(true));
-        assertThat(countMatches('{', asString(extractor.next().get())), equalTo(250L));
-        assertThat(extractor.hasNext(), is(true));
-        assertThat(countMatches('{', asString(extractor.next().get())), equalTo(250L));
-        assertThat(extractor.hasNext(), is(true));
-
+        assertThat(countMatches('{', asString(extractor.next().get())), equalTo(2400L));
+        histogramBuckets = new ArrayList<>(buckets);
+        for (int i = 0; i < buckets; i++) {
+            histogramBuckets.add(
+                createHistogramBucket(
+                    timestamp,
+                    3,
+                    Arrays.asList(
+                        createMax("time", timestamp),
+                        createTerms("airline", new Term("c", 4, "responsetime", 31.0), new Term("b", 3, "responsetime", 32.0))
+                    )
+                )
+            );
+            timestamp += 1000L;
+        }
+        response = createSearchResponse("time", histogramBuckets);
+        extractor.setNextResponse(response);
         extractor.cancel();
-
         assertThat(extractor.hasNext(), is(false));
         assertThat(extractor.isCancelled(), is(true));
 
         assertThat(capturedSearchRequests.size(), equalTo(1));
     }
 
-    public void testExtractionGivenSearchResponseHasError() throws IOException {
+    public void testExtractionGivenSearchResponseHasError() {
         TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
-        extractor.setNextResponse(createErrorResponse());
+        extractor.setNextResponseToError(new SearchPhaseExecutionException("phase 1", "boom", ShardSearchFailure.EMPTY_ARRAY));
 
         assertThat(extractor.hasNext(), is(true));
-        expectThrows(IOException.class, extractor::next);
-    }
-
-    public void testExtractionGivenSearchResponseHasShardFailures() {
-        TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
-        extractor.setNextResponse(createResponseWithShardFailures());
-
-        assertThat(extractor.hasNext(), is(true));
-        expectThrows(IOException.class, extractor::next);
-    }
-
-    public void testExtractionGivenInitSearchResponseEncounteredUnavailableShards() {
-        TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
-        extractor.setNextResponse(createResponseWithUnavailableShards(2));
-
-        assertThat(extractor.hasNext(), is(true));
-        IOException e = expectThrows(IOException.class, extractor::next);
-        assertThat(e.getMessage(), equalTo("[" + jobId + "] Search request encountered [2] unavailable shards"));
+        expectThrows(SearchPhaseExecutionException.class, extractor::next);
     }
 
     private AggregationDataExtractorContext createContext(long start, long end) {
-        return new AggregationDataExtractorContext(jobId, timeField, fields, indices, query, aggs, start, end, true,
-                Collections.emptyMap());
+        return new AggregationDataExtractorContext(
+            jobId,
+            timeField,
+            fields,
+            indices,
+            query,
+            aggs,
+            start,
+            end,
+            true,
+            Collections.emptyMap(),
+            SearchRequest.DEFAULT_INDICES_OPTIONS,
+            runtimeMappings
+        );
     }
 
     @SuppressWarnings("unchecked")
     private SearchResponse createSearchResponse(String histogramName, List<Histogram.Bucket> histogramBuckets) {
         Histogram histogram = mock(Histogram.class);
         when(histogram.getName()).thenReturn(histogramName);
-        when((List<Histogram.Bucket>)histogram.getBuckets()).thenReturn(histogramBuckets);
+        when((List<Histogram.Bucket>) histogram.getBuckets()).thenReturn(histogramBuckets);
 
         Aggregations searchAggs = AggregationTestUtils.createAggs(Collections.singletonList(histogram));
         return createSearchResponse(searchAggs);
@@ -284,28 +309,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
         when(searchResponse.status()).thenReturn(RestStatus.OK);
         when(searchResponse.getScrollId()).thenReturn(randomAlphaOfLength(1000));
         when(searchResponse.getAggregations()).thenReturn(aggregations);
-        return searchResponse;
-    }
-
-    private SearchResponse createErrorResponse() {
-        SearchResponse searchResponse = mock(SearchResponse.class);
-        when(searchResponse.status()).thenReturn(RestStatus.INTERNAL_SERVER_ERROR);
-        return searchResponse;
-    }
-
-    private SearchResponse createResponseWithShardFailures() {
-        SearchResponse searchResponse = mock(SearchResponse.class);
-        when(searchResponse.status()).thenReturn(RestStatus.OK);
-        when(searchResponse.getShardFailures()).thenReturn(
-                new ShardSearchFailure[] { new ShardSearchFailure(new RuntimeException("shard failed"))});
-        return searchResponse;
-    }
-
-    private SearchResponse createResponseWithUnavailableShards(int unavailableShards) {
-        SearchResponse searchResponse = mock(SearchResponse.class);
-        when(searchResponse.status()).thenReturn(RestStatus.OK);
-        when(searchResponse.getSuccessfulShards()).thenReturn(3);
-        when(searchResponse.getTotalShards()).thenReturn(3 + unavailableShards);
+        when(searchResponse.getTook()).thenReturn(TimeValue.timeValueMillis(randomNonNegativeLong()));
         return searchResponse;
     }
 

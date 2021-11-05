@@ -1,0 +1,45 @@
+[[indices-delete-alias]]
+=== Delete alias API
+++++
+<titleabbrev>Delete alias</titleabbrev>
+++++
+
+Removes a data stream or index from an <<aliases,alias>>.
+
+[source,console]
+----
+DELETE my-data-stream/_alias/my-alias
+----
+// TEST[setup:my_data_stream]
+// TEST[s/^/PUT my-data-stream\/_alias\/my-alias\n/]
+// TEST[teardown:data_stream_cleanup]
+
+[[delete-alias-api-request]]
+==== {api-request-title}
+
+`DELETE <target>/_alias/<alias>`
+
+`DELETE <target>/_aliases/<alias>`
+
+[[delete-alias-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the alias and it data streams or
+indices.
+
+[[delete-alias-api-path-params]]
+==== {api-path-parms-title}
+
+`<alias>`::
+(Required, string) Comma-separated list of aliases to remove. Supports wildcards
+(`*`). To remove all aliases, use `*` or `_all`.
+
+`<target>`::
+(Required, string) Comma-separated list of data streams or indices used to limit
+the request. Supports wildcards (`*`).
+
+[[delete-alias-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]

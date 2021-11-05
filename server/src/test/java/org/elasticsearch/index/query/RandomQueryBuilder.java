@@ -1,32 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-import org.elasticsearch.common.Strings;
 
 import java.util.Random;
 
-import static org.elasticsearch.test.AbstractBuilderTestCase.STRING_ALIAS_FIELD_NAME;
-import static org.elasticsearch.test.AbstractBuilderTestCase.STRING_FIELD_NAME;
+import static org.elasticsearch.test.AbstractBuilderTestCase.TEXT_ALIAS_FIELD_NAME;
+import static org.elasticsearch.test.AbstractBuilderTestCase.TEXT_FIELD_NAME;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 
 /**
@@ -50,7 +38,7 @@ public class RandomQueryBuilder {
             case 2:
                 // We make sure this query has no types to avoid deprecation warnings in the
                 // tests that use this method.
-                return new IdsQueryBuilderTests().createTestQueryBuilder().types(Strings.EMPTY_ARRAY);
+                return new IdsQueryBuilderTests().createTestQueryBuilder();
             case 3:
                 return createMultiTermQuery(r);
             default:
@@ -67,8 +55,8 @@ public class RandomQueryBuilder {
         // for now, only use String Rangequeries for MultiTerm test, numeric and date makes little sense
         // see issue #12123 for discussion
         MultiTermQueryBuilder multiTermQueryBuilder;
-        String fieldName = randomFrom(STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME);
-        switch(RandomNumbers.randomIntBetween(r, 0, 3)) {
+        String fieldName = randomFrom(TEXT_FIELD_NAME, TEXT_ALIAS_FIELD_NAME);
+        switch (RandomNumbers.randomIntBetween(r, 0, 3)) {
             case 0:
                 RangeQueryBuilder stringRangeQuery = new RangeQueryBuilder(fieldName);
                 stringRangeQuery.from("a" + RandomStrings.randomAsciiOfLengthBetween(r, 1, 10));
@@ -82,8 +70,7 @@ public class RandomQueryBuilder {
                 multiTermQueryBuilder = new WildcardQueryBuilderTests().createTestQueryBuilder();
                 break;
             case 3:
-                multiTermQueryBuilder = new FuzzyQueryBuilder(fieldName,
-                        RandomStrings.randomAsciiOfLengthBetween(r, 1, 10));
+                multiTermQueryBuilder = new FuzzyQueryBuilder(fieldName, RandomStrings.randomAsciiOfLengthBetween(r, 1, 10));
                 break;
             default:
                 throw new UnsupportedOperationException();

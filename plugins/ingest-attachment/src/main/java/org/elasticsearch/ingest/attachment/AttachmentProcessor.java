@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest.attachment;
@@ -55,21 +44,40 @@ public final class AttachmentProcessor extends AbstractProcessor {
     private final Set<Property> properties;
     private final int indexedChars;
     private final boolean ignoreMissing;
+    private final boolean removeBinary;
     private final String indexedCharsField;
+    private final String resourceName;
 
-    AttachmentProcessor(String tag, String field, String targetField, Set<Property> properties,
-                        int indexedChars, boolean ignoreMissing, String indexedCharsField) {
-        super(tag);
+    AttachmentProcessor(
+        String tag,
+        String description,
+        String field,
+        String targetField,
+        Set<Property> properties,
+        int indexedChars,
+        boolean ignoreMissing,
+        String indexedCharsField,
+        String resourceName,
+        boolean removeBinary
+    ) {
+        super(tag, description);
         this.field = field;
         this.targetField = targetField;
         this.properties = properties;
         this.indexedChars = indexedChars;
         this.ignoreMissing = ignoreMissing;
         this.indexedCharsField = indexedCharsField;
+        this.resourceName = resourceName;
+        this.removeBinary = removeBinary;
     }
 
     boolean isIgnoreMissing() {
         return ignoreMissing;
+    }
+
+    // For tests only
+    boolean isRemoveBinary() {
+        return removeBinary;
     }
 
     @Override
@@ -77,7 +85,10 @@ public final class AttachmentProcessor extends AbstractProcessor {
         Map<String, Object> additionalFields = new HashMap<>();
 
         byte[] input = ingestDocument.getFieldValueAsBytes(field, ignoreMissing);
-
+        String resourceNameInput = null;
+        if (resourceName != null) {
+            resourceNameInput = ingestDocument.getFieldValue(resourceName, String.class, true);
+        }
         if (input == null && ignoreMissing) {
             return ingestDocument;
         } else if (input == null) {
@@ -96,6 +107,9 @@ public final class AttachmentProcessor extends AbstractProcessor {
         }
 
         Metadata metadata = new Metadata();
+        if (resourceNameInput != null) {
+            metadata.set(Metadata.RESOURCE_NAME_KEY, resourceNameInput);
+        }
         String parsedContent = "";
         try {
             parsedContent = TikaImpl.parse(input, metadata, indexedChars);
@@ -165,6 +179,10 @@ public final class AttachmentProcessor extends AbstractProcessor {
         }
 
         ingestDocument.setFieldValue(targetField, additionalFields);
+
+        if (removeBinary) {
+            ingestDocument.removeField(field);
+        }
         return ingestDocument;
     }
 
@@ -194,14 +212,20 @@ public final class AttachmentProcessor extends AbstractProcessor {
         static final Set<Property> DEFAULT_PROPERTIES = EnumSet.allOf(Property.class);
 
         @Override
-        public AttachmentProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                          Map<String, Object> config) throws Exception {
+        public AttachmentProcessor create(
+            Map<String, Processor.Factory> registry,
+            String processorTag,
+            String description,
+            Map<String, Object> config
+        ) throws Exception {
             String field = readStringProperty(TYPE, processorTag, config, "field");
+            String resourceName = readOptionalStringProperty(TYPE, processorTag, config, "resource_name");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "attachment");
             List<String> propertyNames = readOptionalList(TYPE, processorTag, config, "properties");
             int indexedChars = readIntProperty(TYPE, processorTag, config, "indexed_chars", NUMBER_OF_CHARS_INDEXED);
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             String indexedCharsField = readOptionalStringProperty(TYPE, processorTag, config, "indexed_chars_field");
+            boolean removeBinary = readBooleanProperty(TYPE, processorTag, config, "remove_binary", false);
 
             final Set<Property> properties;
             if (propertyNames != null) {
@@ -210,15 +234,30 @@ public final class AttachmentProcessor extends AbstractProcessor {
                     try {
                         properties.add(Property.parse(fieldName));
                     } catch (Exception e) {
-                        throw newConfigurationException(TYPE, processorTag, "properties", "illegal field option [" +
-                            fieldName + "]. valid values are " + Arrays.toString(Property.values()));
+                        throw newConfigurationException(
+                            TYPE,
+                            processorTag,
+                            "properties",
+                            "illegal field option [" + fieldName + "]. valid values are " + Arrays.toString(Property.values())
+                        );
                     }
                 }
             } else {
                 properties = DEFAULT_PROPERTIES;
             }
 
-            return new AttachmentProcessor(processorTag, field, targetField, properties, indexedChars, ignoreMissing, indexedCharsField);
+            return new AttachmentProcessor(
+                processorTag,
+                description,
+                field,
+                targetField,
+                properties,
+                indexedChars,
+                ignoreMissing,
+                indexedCharsField,
+                resourceName,
+                removeBinary
+            );
         }
     }
 

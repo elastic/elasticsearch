@@ -1,8 +1,9 @@
+Some commercial features automatically create indices within {es}.
 By default, {es} is configured to allow automatic index creation, and no
 additional steps are required. However, if you have disabled automatic index
 creation in {es}, you must configure
 <<index-creation,`action.auto_create_index`>> in `elasticsearch.yml` to allow
-{xpack} to create the following indices:
+the commercial features to create the following indices:
 
 [source,yaml]
 -----------------------------------------------------------

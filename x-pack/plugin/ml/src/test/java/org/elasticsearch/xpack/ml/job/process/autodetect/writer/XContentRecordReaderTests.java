@@ -1,19 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.ml.job.process.CountingInputStream;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 
@@ -34,8 +36,7 @@ public class XContentRecordReaderTests extends ESTestCase {
         XContentParser parser = createParser(data);
         Map<String, Integer> fieldMap = createFieldMap();
 
-        XContentRecordReader reader = new XContentRecordReader(parser, fieldMap,
-                mock(Logger.class));
+        XContentRecordReader reader = new XContentRecordReader(parser, fieldMap, mock(Logger.class));
 
         String record[] = new String[3];
         boolean gotFields[] = new boolean[3];
@@ -53,7 +54,6 @@ public class XContentRecordReaderTests extends ESTestCase {
         assertEquals(-1, reader.read(record, gotFields));
     }
 
-
     public void testRead_GivenNestedField() throws JsonParseException, IOException {
         String data = "{\"a\":10, \"b\":20, \"c\":{\"d\":30, \"e\":40}}";
         XContentParser parser = createParser(data);
@@ -62,8 +62,7 @@ public class XContentRecordReaderTests extends ESTestCase {
         fieldMap.put("b", 1);
         fieldMap.put("c.e", 2);
 
-        XContentRecordReader reader = new XContentRecordReader(parser, fieldMap,
-                mock(Logger.class));
+        XContentRecordReader reader = new XContentRecordReader(parser, fieldMap, mock(Logger.class));
 
         String record[] = new String[3];
         boolean gotFields[] = new boolean[3];
@@ -75,7 +74,6 @@ public class XContentRecordReaderTests extends ESTestCase {
 
         assertEquals(-1, reader.read(record, gotFields));
     }
-
 
     public void testRead_GivenSingleValueArrays() throws JsonParseException, IOException {
         String data = "{\"a\":[10], \"b\":20, \"c\":{\"d\":30, \"e\":[40]}}";
@@ -85,8 +83,7 @@ public class XContentRecordReaderTests extends ESTestCase {
         fieldMap.put("b", 1);
         fieldMap.put("c.e", 2);
 
-        XContentRecordReader reader = new XContentRecordReader(parser, fieldMap,
-                mock(Logger.class));
+        XContentRecordReader reader = new XContentRecordReader(parser, fieldMap, mock(Logger.class));
 
         String record[] = new String[3];
         boolean gotFields[] = new boolean[3];
@@ -99,18 +96,15 @@ public class XContentRecordReaderTests extends ESTestCase {
         assertEquals(-1, reader.read(record, gotFields));
     }
 
-
     public void testRead_GivenMultiValueArrays() throws JsonParseException, IOException {
-        String data = "{\"a\":[10, 11], \"b\":20, \"c\":{\"d\":30, \"e\":[40, 50]}, "
-                + "\"f\":[\"a\", \"a\", \"a\", \"a\"], \"g\":20}";
+        String data = "{\"a\":[10, 11], \"b\":20, \"c\":{\"d\":30, \"e\":[40, 50]}, " + "\"f\":[\"a\", \"a\", \"a\", \"a\"], \"g\":20}";
         XContentParser parser = createParser(data);
         Map<String, Integer> fieldMap = new HashMap<>();
         fieldMap.put("a", 0);
         fieldMap.put("g", 1);
         fieldMap.put("c.e", 2);
 
-        XContentRecordReader reader = new XContentRecordReader(parser, fieldMap,
-                mock(Logger.class));
+        XContentRecordReader reader = new XContentRecordReader(parser, fieldMap, mock(Logger.class));
 
         String record[] = new String[3];
         boolean gotFields[] = new boolean[3];
@@ -131,13 +125,11 @@ public class XContentRecordReaderTests extends ESTestCase {
 
     public void testRead_RecoverFromBadJson() throws JsonParseException, IOException {
         // no opening '{'
-        String data = "\"a\":10, \"b\":20, \"c\":30}\n{\"b\":21, \"a\":11, \"c\":31}\n"
-                + "{\"c\":32, \"b\":22, \"a\":12}";
+        String data = "\"a\":10, \"b\":20, \"c\":30}\n{\"b\":21, \"a\":11, \"c\":31}\n" + "{\"c\":32, \"b\":22, \"a\":12}";
         XContentParser parser = createParser(data);
         Map<String, Integer> fieldMap = createFieldMap();
 
-        XContentRecordReader reader = new XContentRecordReader(parser, fieldMap,
-                mock(Logger.class));
+        XContentRecordReader reader = new XContentRecordReader(parser, fieldMap, mock(Logger.class));
 
         String record[] = new String[3];
         boolean gotFields[] = new boolean[3];
@@ -151,16 +143,13 @@ public class XContentRecordReaderTests extends ESTestCase {
         assertEquals(-1, reader.read(record, gotFields));
     }
 
-
     public void testRead_RecoverFromBadNestedJson() throws JsonParseException, IOException {
         // nested object 'd' is missing a ','
-        String data = "{\"a\":10, \"b\":20, \"c\":30}\n"
-                + "{\"b\":21, \"d\" : {\"ee\": 1 \"ff\":0}, \"a\":11, \"c\":31}";
+        String data = "{\"a\":10, \"b\":20, \"c\":30}\n" + "{\"b\":21, \"d\" : {\"ee\": 1 \"ff\":0}, \"a\":11, \"c\":31}";
         XContentParser parser = createParser(data);
         Map<String, Integer> fieldMap = createFieldMap();
 
-        XContentRecordReader reader = new XContentRecordReader(parser, fieldMap,
-                mock(Logger.class));
+        XContentRecordReader reader = new XContentRecordReader(parser, fieldMap, mock(Logger.class));
 
         String record[] = new String[3];
         boolean gotFields[] = new boolean[3];
@@ -176,7 +165,6 @@ public class XContentRecordReaderTests extends ESTestCase {
         assertEquals(-1, reader.read(record, gotFields));
     }
 
-
     public void testRead_HitParseErrorsLimit() throws JsonParseException, IOException {
         // missing a ':'
         String format = "{\"a\":1%1$d, \"b\"2%1$d, \"c\":3%1$d}\n";
@@ -188,8 +176,7 @@ public class XContentRecordReaderTests extends ESTestCase {
         XContentParser parser = createParser(builder.toString());
         Map<String, Integer> fieldMap = createFieldMap();
 
-        XContentRecordReader reader = new XContentRecordReader(parser, fieldMap,
-                mock(Logger.class));
+        XContentRecordReader reader = new XContentRecordReader(parser, fieldMap, mock(Logger.class));
         ESTestCase.expectThrows(ElasticsearchParseException.class, () -> readUntilError(reader));
     }
 
@@ -206,14 +193,16 @@ public class XContentRecordReaderTests extends ESTestCase {
     public void testRead_givenControlCharacterInData() throws Exception {
         char controlChar = '\u0002';
 
-        String data = "{\"a\":10, \"" + controlChar + "\" : 5, \"b\":20, \"c\":30}"
-                + "\n{\"b\":21, \"a\":11, \"c\":31}" + "\n{\"c\":32, \"b\":22, \"a\":12}\n";
+        String data = "{\"a\":10, \""
+            + controlChar
+            + "\" : 5, \"b\":20, \"c\":30}"
+            + "\n{\"b\":21, \"a\":11, \"c\":31}"
+            + "\n{\"c\":32, \"b\":22, \"a\":12}\n";
 
         XContentParser parser = createParser(data);
         Map<String, Integer> fieldMap = createFieldMap();
 
-        XContentRecordReader reader = new XContentRecordReader(parser, fieldMap,
-                mock(Logger.class));
+        XContentRecordReader reader = new XContentRecordReader(parser, fieldMap, mock(Logger.class));
 
         String record[] = new String[3];
         boolean gotFields[] = new boolean[3];
@@ -224,13 +213,10 @@ public class XContentRecordReaderTests extends ESTestCase {
     }
 
     private XContentParser createParser(String input) throws JsonParseException, IOException {
-        ByteArrayInputStream inputStream = new ByteArrayInputStream(
-                input.getBytes(StandardCharsets.UTF_8));
-        InputStream inputStream2 = new CountingInputStream(inputStream,
-                mock(DataCountsReporter.class));
+        ByteArrayInputStream inputStream = new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8));
+        InputStream inputStream2 = new CountingInputStream(inputStream, mock(DataCountsReporter.class));
         return XContentFactory.xContent(XContentType.JSON)
-                .createParser(new NamedXContentRegistry(Collections.emptyList()),
-                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION, inputStream2);
+            .createParser(new NamedXContentRegistry(Collections.emptyList()), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, inputStream2);
     }
 
     private Map<String, Integer> createFieldMap() {

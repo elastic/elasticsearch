@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.collector.indices;
 
@@ -9,7 +10,7 @@ import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.FilteredMonitoringDoc;
@@ -28,11 +29,13 @@ public class IndicesStatsMonitoringDoc extends FilteredMonitoringDoc {
 
     private final List<IndexStats> indicesStats;
 
-    IndicesStatsMonitoringDoc(final String cluster,
-                              final long timestamp,
-                              final long intervalMillis,
-                              final MonitoringDoc.Node node,
-                              final List<IndexStats> indicesStats) {
+    IndicesStatsMonitoringDoc(
+        final String cluster,
+        final long timestamp,
+        final long intervalMillis,
+        final MonitoringDoc.Node node,
+        final List<IndexStats> indicesStats
+    ) {
         super(cluster, timestamp, intervalMillis, node, MonitoredSystem.ES, TYPE, null, XCONTENT_FILTERS);
         this.indicesStats = Objects.requireNonNull(indicesStats);
     }
@@ -91,21 +94,32 @@ public class IndicesStatsMonitoringDoc extends FilteredMonitoringDoc {
         builder.endObject();
     }
 
-    public static final Set<String> XCONTENT_FILTERS =
-        Sets.newHashSet("indices_stats._all.primaries.docs.count",
-                        "indices_stats._all.primaries.indexing.index_time_in_millis",
-                        "indices_stats._all.primaries.indexing.index_total",
-                        "indices_stats._all.primaries.indexing.is_throttled",
-                        "indices_stats._all.primaries.indexing.throttle_time_in_millis",
-                        "indices_stats._all.primaries.search.query_time_in_millis",
-                        "indices_stats._all.primaries.search.query_total",
-                        "indices_stats._all.primaries.store.size_in_bytes",
-                        "indices_stats._all.total.docs.count",
-                        "indices_stats._all.total.indexing.index_time_in_millis",
-                        "indices_stats._all.total.indexing.index_total",
-                        "indices_stats._all.total.indexing.is_throttled",
-                        "indices_stats._all.total.indexing.throttle_time_in_millis",
-                        "indices_stats._all.total.search.query_time_in_millis",
-                        "indices_stats._all.total.search.query_total",
-                        "indices_stats._all.total.store.size_in_bytes");
+    public static final Set<String> XCONTENT_FILTERS = Sets.newHashSet(
+        "indices_stats._all.primaries.docs.count",
+        "indices_stats._all.primaries.indexing.index_time_in_millis",
+        "indices_stats._all.primaries.indexing.index_total",
+        "indices_stats._all.primaries.indexing.is_throttled",
+        "indices_stats._all.primaries.indexing.throttle_time_in_millis",
+        "indices_stats._all.primaries.search.query_time_in_millis",
+        "indices_stats._all.primaries.search.query_total",
+        "indices_stats._all.primaries.store.size_in_bytes",
+        "indices_stats._all.primaries.bulk.total_operations",
+        "indices_stats._all.primaries.bulk.total_time_in_millis",
+        "indices_stats._all.primaries.bulk.total_size_in_bytes",
+        "indices_stats._all.primaries.bulk.avg_time_in_millis",
+        "indices_stats._all.primaries.bulk.avg_size_in_bytes",
+        "indices_stats._all.total.docs.count",
+        "indices_stats._all.total.indexing.index_time_in_millis",
+        "indices_stats._all.total.indexing.index_total",
+        "indices_stats._all.total.indexing.is_throttled",
+        "indices_stats._all.total.indexing.throttle_time_in_millis",
+        "indices_stats._all.total.search.query_time_in_millis",
+        "indices_stats._all.total.search.query_total",
+        "indices_stats._all.total.store.size_in_bytes",
+        "indices_stats._all.total.bulk.total_operations",
+        "indices_stats._all.total.bulk.total_time_in_millis",
+        "indices_stats._all.total.bulk.total_size_in_bytes",
+        "indices_stats._all.total.bulk.avg_time_in_millis",
+        "indices_stats._all.total.bulk.avg_size_in_bytes"
+    );
 }

@@ -11,7 +11,7 @@ The latest stable version of Elasticsearch can be found on the
 link:/downloads/elasticsearch[Download Elasticsearch] page. Other versions can
 be found on the link:/downloads/past-releases[Past Releases page].
 
-NOTE: Elasticsearch includes a bundled version of http://openjdk.java.net[OpenJDK]
+NOTE: Elasticsearch includes a bundled version of https://openjdk.java.net[OpenJDK]
 from the JDK maintainers (GPLv2+CE). To use your own version of Java,
 see the <<jvm-version, JVM version requirements>>
 
@@ -49,7 +49,7 @@ ifeval::["{release-state}"=="released"]
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-echo "deb https://artifacts.elastic.co/packages/{major-version}/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-{major-version}.list
+echo "deb https://artifacts.elastic.co/packages/{major-version}/apt stable main" | sudo tee /etc/apt/sources.list.d/elastic-{major-version}.list
 --------------------------------------------------
 
 endif::[]
@@ -58,7 +58,7 @@ ifeval::["{release-state}"=="prerelease"]
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-echo "deb https://artifacts.elastic.co/packages/{major-version}-prerelease/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-{major-version}.list
+echo "deb https://artifacts.elastic.co/packages/{major-version}-prerelease/apt stable main" | sudo tee /etc/apt/sources.list.d/elastic-{major-version}.list
 --------------------------------------------------
 
 endif::[]
@@ -105,36 +105,6 @@ endif::[]
 
 include::skip-set-kernel-parameters.asciidoc[]
 
-ifeval::["{release-state}"!="unreleased"]
-
-[NOTE]
-==================================================
-
-An alternative package which contains only features that are available under the
-Apache 2.0 license is also available. To install it, use the following sources list:
-
-ifeval::["{release-state}"=="prerelease"]
-
-["source","sh",subs="attributes,callouts"]
---------------------------------------------------
-echo "deb https://artifacts.elastic.co/packages/oss-{major-version}-prerelease/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-{major-version}.list
---------------------------------------------------
-
-endif::[]
-
-ifeval::["{release-state}"!="prerelease"]
-
-["source","sh",subs="attributes,callouts"]
---------------------------------------------------
-echo "deb https://artifacts.elastic.co/packages/oss-{major-version}/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-{major-version}.list
---------------------------------------------------
-
-endif::[]
-
-==================================================
-
-endif::[]
-
 [[install-deb]]
 ==== Download and install the Debian package manually
 
@@ -157,29 +127,20 @@ sudo dpkg -i elasticsearch-{version}-amd64.deb
 --------------------------------------------
 <1> Compares the SHA of the downloaded Debian package and the published checksum, which should output
     `elasticsearch-{version}-amd64.deb: OK`.
-    
-Alternatively, you can download the following package, which contains only 
-features that are available under the Apache 2.0 license: 
-https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}-amd64.deb    
 
 endif::[]
 
-ifdef::include-xpack[]
-[[deb-enable-indices]]
-==== Enable automatic creation of {xpack} indices
+[[deb-security-configuration]]
+include::package-security.asciidoc[]
 
-{xpack} will try to automatically create a number of indices within Elasticsearch.
+ifdef::include-xpack[]
+[role="xpack"]
+[[deb-enable-indices]]
+==== Enable automatic creation of system indices
+
 include::xpack-indices.asciidoc[]
 
 endif::include-xpack[]
-
-[[deb-sysv-init-vs-systemd]]
-==== SysV `init` vs `systemd`
-
-include::init-systemd.asciidoc[]
-
-[[deb-running-init]]
-include::deb-init.asciidoc[]
 
 [[deb-running-systemd]]
 include::systemd.asciidoc[]
@@ -199,7 +160,7 @@ include::sysconfig-file.asciidoc[]
 
 NOTE: Distributions that use `systemd` require that system resource limits be
 configured via `systemd` rather than via the `/etc/sysconfig/elasticsearch`
-file.  See <<systemd>> for more information.
+file. See <<systemd>> for more information.
 
 [[deb-layout]]
 ==== Directory layout of Debian package
@@ -232,11 +193,23 @@ locations for a Debian-based system:
   | /etc/default/elasticsearch
  d|
 
+| conf
+| Generated TLS keys and certificates for the transport and http layer.
+| /etc/elasticsearch/auto_config_tls_<timestamp>
+d|
+
 | data
   | The location of the data files of each index / shard allocated
-    on the node. Can hold multiple locations.
+    on the node.
   | /var/lib/elasticsearch
   | path.data
+
+| jdk
+  | The bundled Java Development Kit used to run Elasticsearch. Can
+    be overridden by setting the `ES_JAVA_HOME` environment variable
+    in `/etc/default/elasticsearch`.
+  | /usr/share/elasticsearch/jdk
+ d|
 
 | logs
   | Log files location.
@@ -255,4 +228,5 @@ locations for a Debian-based system:
 
 |=======================================================================
 
+include::security-files-reference.asciidoc[]
 include::next-steps.asciidoc[]

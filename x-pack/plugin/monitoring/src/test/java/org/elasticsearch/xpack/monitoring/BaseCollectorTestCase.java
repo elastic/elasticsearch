@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring;
 
@@ -9,7 +10,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -17,9 +18,10 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -36,8 +38,8 @@ public abstract class BaseCollectorTestCase extends ESTestCase {
     protected ClusterService clusterService;
     protected ClusterState clusterState;
     protected DiscoveryNodes nodes;
-    protected MetaData metaData;
-    protected XPackLicenseState licenseState;
+    protected Metadata metadata;
+    protected MockLicenseState licenseState;
     protected Client client;
     protected Settings settings;
 
@@ -48,15 +50,13 @@ public abstract class BaseCollectorTestCase extends ESTestCase {
         clusterService = mock(ClusterService.class);
         clusterState = mock(ClusterState.class);
         nodes = mock(DiscoveryNodes.class);
-        metaData = mock(MetaData.class);
-        licenseState = mock(XPackLicenseState.class);
+        metadata = mock(Metadata.class);
+        licenseState = mock(MockLicenseState.class);
         client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-        settings = Settings.builder()
-                .put("path.home", createTempDir())
-                .build();
+        settings = Settings.builder().put("path.home", createTempDir()).build();
     }
 
     protected void whenLocalNodeElectedMaster(final boolean electedMaster) {
@@ -73,8 +73,8 @@ public abstract class BaseCollectorTestCase extends ESTestCase {
 
     protected void whenClusterStateWithUUID(final String clusterUUID) {
         when(clusterService.state()).thenReturn(clusterState);
-        when(clusterState.metaData()).thenReturn(metaData);
-        when(metaData.clusterUUID()).thenReturn(clusterUUID);
+        when(clusterState.metadata()).thenReturn(metadata);
+        when(metadata.clusterUUID()).thenReturn(clusterUUID);
     }
 
     protected void withCollectionTimeout(final Setting<TimeValue> collectionTimeout, final TimeValue timeout) throws Exception {
@@ -91,17 +91,13 @@ public abstract class BaseCollectorTestCase extends ESTestCase {
     }
 
     protected void withCollectionSetting(final Function<Settings.Builder, Settings.Builder> builder) throws Exception {
-        settings = Settings.builder()
-                           .put(settings)
-                           .put(builder.apply(Settings.builder()).build())
-                           .build();
-        when(clusterService.getClusterSettings())
-                .thenReturn(new ClusterSettings(settings, Sets.newHashSet(new Monitoring(settings) {
-                    @Override
-                    protected XPackLicenseState getLicenseState() {
-                        return licenseState;
-                    }
-                }.getSettings())));
+        settings = Settings.builder().put(settings).put(builder.apply(Settings.builder()).build()).build();
+        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, Sets.newHashSet(new Monitoring(settings) {
+            @Override
+            protected XPackLicenseState getLicenseState() {
+                return licenseState;
+            }
+        }.getSettings())));
     }
 
     protected static DiscoveryNode localNode(final String uuid) {

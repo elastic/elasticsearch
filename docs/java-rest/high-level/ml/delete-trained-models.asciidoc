@@ -1,0 +1,35 @@
+--
+:api: delete-trained-models
+:request: DeleteTrainedModelRequest
+:response: AcknowledgedResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Delete trained models API
+
+
+Deletes a previously saved trained model.
+The API accepts a +{request}+ object and returns a +{response}+.
+
+[id="{upid}-{api}-request"]
+==== Delete trained models request
+
+A +{request}+ requires a valid trained model ID.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Constructing a new DELETE request referencing an existing trained model
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ object acknowledges the trained model deletion.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------

@@ -1,0 +1,191 @@
+// To mute tests follow example in file: example.sql-spec
+
+//
+// Basic SELECT
+//
+
+wildcardWithOrder
+SELECT * FROM test_emp ORDER BY emp_no;
+column
+SELECT last_name FROM "test_emp" ORDER BY emp_no;
+columnWithAlias
+SELECT last_name AS l FROM "test_emp" ORDER BY emp_no;
+columnWithAliasNoAs
+SELECT last_name l FROM "test_emp" ORDER BY emp_no;
+multipleColumnsNoAlias
+SELECT first_name, last_name FROM "test_emp" ORDER BY emp_no;
+multipleColumnWithAliasWithAndWithoutAs
+SELECT first_name f, last_name AS l FROM "test_emp" ORDER BY emp_no;
+
+//
+// SELECT with LIMIT
+//
+
+wildcardWithLimit
+SELECT * FROM "test_emp" ORDER BY emp_no LIMIT 5;
+wildcardWithOrderWithLimit
+SELECT * FROM "test_emp" ORDER BY emp_no LIMIT 5;
+columnWithLimit
+SELECT last_name FROM "test_emp" ORDER BY emp_no LIMIT 5;
+columnWithAliasWithLimit
+SELECT last_name AS l FROM "test_emp" ORDER BY emp_no LIMIT 5;
+columnWithAliasNoAsWithLimit
+SELECT last_name l FROM "test_emp" ORDER BY emp_no LIMIT 5;
+multipleColumnsNoAliasWithLimit
+SELECT first_name, last_name FROM "test_emp" ORDER BY emp_no LIMIT 5;
+multipleColumnWithAliasWithAndWithoutAsWithLimit
+SELECT first_name f, last_name AS l FROM "test_emp" ORDER BY emp_no LIMIT 5;
+multipleColumnNoAliasWithColumnRepeatedWithLimit
+SELECT salary, first_name, salary FROM test_emp ORDER BY salary LIMIT 3;
+multipleColumnWithAliasWithAsWithColumnRepeatedWithLimit
+SELECT salary, first_name, salary AS x FROM test_emp ORDER BY x LIMIT 3;
+multipleColumnWithAliasWithAndWithoutAsWithColumnRepeatedWithLimit
+SELECT salary, first_name, salary AS x, salary y FROM test_emp ORDER BY y LIMIT 3;
+
+//
+// SELECT constant literals with FROM
+//
+
+constantWithLimit
+SELECT 3 FROM "test_emp" LIMIT 5;
+sameConstantsWithLimit
+SELECT 3, 3, 5 FROM "test_emp" LIMIT 5;
+sameConstantsWithLimitV2
+SELECT 5, 3, 3 FROM "test_emp" LIMIT 5;
+sameConstantsWithLimitV3
+SELECT 3, 5, 3, 3 FROM "test_emp" LIMIT 5;
+constantWithWhere
+SELECT 1 FROM "test_emp" WHERE gender = 'F';
+constantsWithWhere
+SELECT 1, 1, SUBSTRING('test', 1, 1) AS c FROM "test_emp" WHERE gender = 'F';
+constantWithWhereConjunction
+SELECT 1 FROM "test_emp" WHERE gender = 'F' AND SUBSTRING(first_name, 1, 1) = 'A';
+constantWithWhereOrderAndLimit
+SELECT 1 FROM "test_emp" WHERE gender = 'F' ORDER BY emp_no LIMIT 5;
+constantsWithWhereOrderAndLimit
+SELECT 1, SUBSTRING('test', 1, 1) AS c FROM "test_emp" WHERE gender = 'F' AND SUBSTRING(first_name, 1, 1) = 'A' ORDER BY emp_no;
+constantAndColumnWithLimit
+SELECT 3, first_name, last_name FROM "test_emp" ORDER BY emp_no LIMIT 5;
+constantComparisonWithLimit
+SELECT 1=1 AS bool FROM "test_emp" LIMIT 5;
+constantComparisonAndColumnWithLimit
+SELECT 1=1 AS bool, first_name, last_name FROM "test_emp" ORDER BY emp_no LIMIT 5;
+castWithLiteralWithFrom
+SELECT CAST(1 AS INT) AS constant FROM "test_emp" LIMIT 5;
+castWithLiteralAndColumnWithFrom
+SELECT CAST((CAST(languages AS BIT) OR CAST(1 AS BIT)) AS INT) AS bool FROM test_emp LIMIT 5;
+castWithColumnAndLiteralCombinedAndSelectColumnWithFrom
+SELECT CAST((CAST(languages AS BIT) OR CAST(1 AS BIT)) AS INT) AS bool, languages FROM test_emp ORDER BY languages ASC NULLS FIRST LIMIT 5;
+
+//
+// SELECT with CAST
+//
+//castWithLiteralToInt
+//SELECT CAST(1 AS INT);
+castOnColumnNumberToVarchar
+SELECT CAST(emp_no AS VARCHAR) AS emp_no_cast FROM "test_emp" ORDER BY emp_no LIMIT 5;
+castOnColumnNumberToLong
+SELECT CAST(emp_no AS BIGINT) AS emp_no_cast FROM "test_emp" ORDER BY emp_no LIMIT 5;
+castOnColumnNumberToSmallint
+SELECT CAST(emp_no AS SMALLINT) AS emp_no_cast FROM "test_emp" ORDER BY emp_no LIMIT 5;
+castOnColumnNumberWithAliasToInt
+SELECT CAST(emp_no AS INT) AS emp_no_cast FROM "test_emp" ORDER BY emp_no LIMIT 5;
+castOnColumnNumberToReal
+SELECT CAST(emp_no AS REAL) AS emp_no_cast FROM "test_emp" ORDER BY emp_no LIMIT 5;
+castOnColumnNumberToDouble
+SELECT CAST(emp_no AS DOUBLE) AS emp_no_cast FROM "test_emp" ORDER BY emp_no LIMIT 5;
+castOnColumnNumberToBoolean
+SELECT CAST(emp_no AS BOOL) AS emp_no_cast FROM "test_emp" ORDER BY emp_no LIMIT 5;
+
+//
+// SELECT with IS NULL and IS NOT NULL
+//
+isNullAndIsNotNull
+SELECT null IS NULL AS col1, null IS NOT NULL AS col2;
+isNullAndIsNotNullAndNegation
+SELECT NOT(null IS NULL) AS col1, NOT(null IS NOT NULL) AS col2;
+isNullAndIsNotNullOverComparison
+SELECT (null = 1) IS NULL AS col1, (null = 1) IS NOT NULL AS col2;
+isNullAndIsNotNullOverComparisonWithNegation
+SELECT NOT((null = 1) IS NULL) AS col1, NOT((null = 1) IS NOT NULL) AS col2;
+
+//
+// SELECT with IS NULL and IS NOT NULL with table columns
+//
+isNullAndIsNotNull_onTableColumns
+SELECT languages IS NULL AS col1, languages IS NOT NULL AS col2 FROM "test_emp" WHERE emp_no IN (10018, 10019, 10020) ORDER BY emp_no;
+isNullAndIsNotNullAndNegation_onTableColumns
+SELECT NOT languages IS NULL AS col1, NOT(languages IS NOT NULL) AS col2 FROM test_emp WHERE emp_no IN (10018, 10019, 10020) ORDER BY emp_no;
+isNullAndIsNotNullOverComparison_onTableColumns
+SELECT (languages = 2) IS NULL AS col1, (languages = 2) IS NOT NULL AS col2 FROM test_emp WHERE emp_no IN (10018, 10019, 10020) ORDER BY emp_no;
+isNullAndIsNotNullOverComparisonWithNegation_onTableColumns
+SELECT NOT((languages = 2) IS NULL) AS col1, NOT((languages = 2) IS NOT NULL) AS col2 FROM test_emp WHERE emp_no IN (10018, 10019, 10020) ORDER BY emp_no;
+
+//
+// SELECT with functions locally evaluated
+//
+selectMathPI
+SELECT PI() AS pi;
+selectMathPIFromIndex
+SELECT PI() AS pi FROM test_emp LIMIT 3;
+selectMathPIFromIndexWithWhereEvaluatingToTrue
+SELECT PI() AS pi FROM test_emp WHERE ROUND(PI(),2)=3.14;
+selectMathPIFromIndexWithWhereEvaluatingToTrueAndWithLimit
+SELECT PI() AS pi FROM test_emp WHERE ROUND(PI(),2)=3.14 LIMIT 3;
+selectMathPIFromIndexWithWhereEvaluatingToFalse
+SELECT PI() AS pi FROM test_emp WHERE PI()=5;
+selectMathPIFromIndexWithWhereEvaluatingToFalseAndWithLimit
+SELECT PI() AS pi FROM test_emp WHERE PI()=5 LIMIT 3;
+
+
+//
+// SELECT with collapsable subqueries
+//
+selectOrderByLimit1
+SELECT * FROM (SELECT * FROM test_emp ORDER BY emp_no DESC) LIMIT 5;
+selectOrderByLimit2
+SELECT * FROM (SELECT * FROM (SELECT * FROM test_emp ORDER BY emp_no DESC)) LIMIT 10;
+selectOrderByOrderByLimit1
+SELECT * FROM (SELECT * FROM test_emp ORDER BY emp_no DESC) ORDER BY emp_no ASC LIMIT 5;
+selectOrderByOrderByLimit2
+SELECT * FROM (SELECT * FROM (SELECT * FROM test_emp ORDER BY emp_no DESC) ORDER BY emp_no ASC) LIMIT 5;
+selectOrderByOrderByOrderByLimit
+SELECT * FROM (SELECT * FROM (SELECT * FROM test_emp ORDER BY emp_no DESC) ORDER BY emp_no ASC) ORDER BY emp_no DESC LIMIT 5;
+selectOrderByOrderByOrderByLimitLimit
+SELECT * FROM (SELECT * FROM (SELECT * FROM (SELECT * FROM test_emp ORDER BY emp_no DESC) ORDER BY emp_no ASC) ORDER BY emp_no DESC LIMIT 12) LIMIT 6;
+selectGroupByOrderByLimit
+SELECT * FROM (SELECT max(salary) AS max, languages FROM test_emp GROUP BY languages) ORDER BY max DESC LIMIT 3;
+selectGroupByOrderByLimitNulls
+SELECT * FROM (SELECT max(salary) AS max, languages FROM test_emp GROUP BY languages) ORDER BY max DESC NULLS FIRST LIMIT 3;
+selectGroupByOrderByOrderByLimit
+SELECT * FROM (SELECT max(salary) AS max, languages FROM test_emp GROUP BY languages ORDER BY max ASC) ORDER BY max DESC NULLS FIRST LIMIT 4;
+selectGroupByOrderByOrderByLimitNulls
+SELECT * FROM (SELECT max(salary) AS max, languages FROM test_emp GROUP BY languages ORDER BY max ASC NULLS LAST) ORDER BY max DESC NULLS FIRST LIMIT 4;
+selectGroupByWithAliasedSubQuery
+SELECT max, languages FROM (SELECT max(salary) AS max, languages FROM test_emp GROUP BY languages ORDER BY max ASC NULLS LAST) AS subquery;
+selectConstantFromSubQuery
+SELECT * FROM (SELECT * FROM (SELECT 1));
+
+//
+// SELECT with multiple ORDER BY
+//
+selectTwoDistinctOrderBy
+SELECT emp_no FROM (SELECT * FROM test_emp ORDER BY gender NULLS FIRST) ORDER BY languages NULLS FIRST;
+selectThreeDistinctOrderBy
+SELECT emp_no FROM (SELECT * FROM (SELECT * FROM test_emp ORDER BY salary) ORDER BY languages NULLS FIRST) ORDER BY gender NULLS FIRST;
+selectThreeDistinctOrderBy2
+SELECT emp_no FROM (SELECT * FROM test_emp ORDER BY salary) ORDER BY languages NULLS FIRST, gender NULLS FIRST;
+selectThreeDistinctOrderBy3
+SELECT emp_no FROM (SELECT * FROM test_emp ORDER BY salary, languages NULLS FIRST) ORDER BY gender NULLS FIRST;
+selectTwoDistinctOrderByWithDuplicate1
+SELECT emp_no FROM (SELECT * FROM (SELECT * FROM test_emp ORDER BY salary) ORDER BY languages NULLS FIRST) ORDER BY salary;
+selectTwoDistinctOrderByWithDuplicate2
+SELECT emp_no FROM (SELECT * FROM (SELECT * FROM test_emp ORDER BY salary) ORDER BY salary) ORDER BY languages NULLS FIRST;
+selectTwoOrderByWithDistinctOrder
+SELECT emp_no FROM (SELECT * FROM test_emp ORDER BY gender ASC NULLS FIRST) ORDER BY gender DESC NULLS LAST;
+selectTwoOrderByWithShadowedOrder
+SELECT emp_no FROM (SELECT * FROM test_emp ORDER BY salary, gender ASC, languages NULLS LAST) ORDER BY languages NULLS FIRST, gender DESC NULLS LAST;
+selectTwoOrderByWithWhere
+SELECT emp_no FROM (SELECT * FROM test_emp ORDER BY gender NULLS FIRST) WHERE salary > 10000 ORDER BY languages NULLS FIRST;
+selectThreeDerivedOrderBy
+SELECT emp_no FROM (SELECT * FROM (SELECT * FROM test_emp ORDER BY DAY(hire_date)) ORDER BY emp_no + 100) ORDER BY salary / 10;

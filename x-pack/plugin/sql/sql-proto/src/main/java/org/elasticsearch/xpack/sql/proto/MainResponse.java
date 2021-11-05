@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.proto;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.Objects;
 
@@ -21,8 +22,7 @@ public class MainResponse {
     private String clusterName;
     private String clusterUuid;
 
-    private MainResponse() {
-    }
+    private MainResponse() {}
 
     public MainResponse(String nodeName, String version, String clusterName, String clusterUuid) {
         this.nodeName = nodeName;
@@ -48,18 +48,22 @@ public class MainResponse {
         return clusterUuid;
     }
 
-    private static final ObjectParser<MainResponse, Void> PARSER = new ObjectParser<>(MainResponse.class.getName(), true,
-        MainResponse::new);
+    private static final ObjectParser<MainResponse, Void> PARSER = new ObjectParser<>(
+        MainResponse.class.getName(),
+        true,
+        MainResponse::new
+    );
 
     static {
         PARSER.declareString((response, value) -> response.nodeName = value, new ParseField("name"));
         PARSER.declareString((response, value) -> response.clusterName = value, new ParseField("cluster_name"));
         PARSER.declareString((response, value) -> response.clusterUuid = value, new ParseField("cluster_uuid"));
-        PARSER.declareString((response, value) -> {
-        }, new ParseField("tagline"));
-        PARSER.declareObject((response, value) -> {
-            response.version = (String) value.get("number");
-        }, (parser, context) -> parser.map(), new ParseField("version"));
+        PARSER.declareString((response, value) -> {}, new ParseField("tagline"));
+        PARSER.declareObject(
+            (response, value) -> { response.version = (String) value.get("number"); },
+            (parser, context) -> parser.map(),
+            new ParseField("version")
+        );
     }
 
     public static MainResponse fromXContent(XContentParser parser) {
@@ -75,10 +79,10 @@ public class MainResponse {
             return false;
         }
         MainResponse other = (MainResponse) o;
-        return Objects.equals(nodeName, other.nodeName) &&
-            Objects.equals(version, other.version) &&
-            Objects.equals(clusterUuid, other.clusterUuid) &&
-            Objects.equals(clusterName, other.clusterName);
+        return Objects.equals(nodeName, other.nodeName)
+            && Objects.equals(version, other.version)
+            && Objects.equals(clusterUuid, other.clusterUuid)
+            && Objects.equals(clusterName, other.clusterName);
     }
 
     @Override

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.script;
 
@@ -46,12 +47,11 @@ public class MockMustacheScriptEngine extends MockScriptEngine {
         if (context.instanceClazz.equals(TemplateScript.class) == false) {
             throw new IllegalArgumentException("mock mustache only understands template scripts, not [" + context.name + "]");
         }
-        return context.factoryClazz.cast((TemplateScript.Factory) vars ->
-            new TemplateScript(vars) {
-                @Override
-                public String execute() {
-                    return script;
-                }
-            });
+        return context.factoryClazz.cast((TemplateScript.Factory) vars -> new TemplateScript(vars) {
+            @Override
+            public String execute() {
+                return script;
+            }
+        });
     }
 }

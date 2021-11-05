@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.collector.cluster;
 
@@ -15,10 +16,10 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.License;
@@ -37,6 +38,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.XPackSettings.SECURITY_ENABLED;
 import static org.elasticsearch.xpack.core.XPackSettings.TRANSPORT_SSL_ENABLED;
+import static org.elasticsearch.xpack.monitoring.collector.TimeoutUtils.ensureNoTimeouts;
 
 /**
  * Collector for cluster stats.
@@ -60,20 +62,14 @@ public class ClusterStatsCollector extends Collector {
     private final LicenseService licenseService;
     private final Client client;
 
-    public ClusterStatsCollector(final Settings settings,
-                                 final ClusterService clusterService,
-                                 final XPackLicenseState licenseState,
-                                 final Client client,
-                                 final LicenseService licenseService) {
-        this(settings, clusterService, licenseState, client, licenseService, new IndexNameExpressionResolver());
-    }
-
-    ClusterStatsCollector(final Settings settings,
-                          final ClusterService clusterService,
-                          final XPackLicenseState licenseState,
-                          final Client client,
-                          final LicenseService licenseService,
-                          final IndexNameExpressionResolver indexNameExpressionResolver) {
+    public ClusterStatsCollector(
+        final Settings settings,
+        final ClusterService clusterService,
+        final XPackLicenseState licenseState,
+        final Client client,
+        final LicenseService licenseService,
+        final IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
         super(ClusterStatsMonitoringDoc.TYPE, clusterService, CLUSTER_STATS_TIMEOUT, licenseState);
         this.settings = settings;
         this.client = client;
@@ -88,15 +84,11 @@ public class ClusterStatsCollector extends Collector {
     }
 
     @Override
-    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node,
-                                                  final long interval,
-                                                  final ClusterState clusterState) throws Exception {
-        final Supplier<ClusterStatsResponse> clusterStatsSupplier =
-                () -> client.admin().cluster().prepareClusterStats().get(getCollectionTimeout());
-        final Supplier<List<XPackFeatureSet.Usage>> usageSupplier =
-                () -> new XPackUsageRequestBuilder(client).get().getUsages();
+    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node, final long interval, final ClusterState clusterState) {
+        final Supplier<List<XPackFeatureSet.Usage>> usageSupplier = () -> new XPackUsageRequestBuilder(client).get().getUsages();
 
-        final ClusterStatsResponse clusterStats = clusterStatsSupplier.get();
+        final ClusterStatsResponse clusterStats = client.admin().cluster().prepareClusterStats().setTimeout(getCollectionTimeout()).get();
+        ensureNoTimeouts(getCollectionTimeout(), clusterStats);
 
         final String clusterName = clusterService.getClusterName().value();
         final String clusterUuid = clusterUuid(clusterState);
@@ -105,22 +97,35 @@ public class ClusterStatsCollector extends Collector {
         final List<XPackFeatureSet.Usage> xpackUsage = collect(usageSupplier);
         final boolean apmIndicesExist = doAPMIndicesExist(clusterState);
         // if they have any other type of license, then they are either okay or already know
-        final boolean clusterNeedsTLSEnabled = license.operationMode() == License.OperationMode.TRIAL &&
-                                               settings.hasValue(SECURITY_ENABLED.getKey()) &&
-                                               SECURITY_ENABLED.get(settings) &&
-                                               TRANSPORT_SSL_ENABLED.get(settings) == false;
+        final boolean clusterNeedsTLSEnabled = license != null
+            && license.operationMode() == License.OperationMode.TRIAL
+            && settings.hasValue(SECURITY_ENABLED.getKey())
+            && SECURITY_ENABLED.get(settings)
+            && TRANSPORT_SSL_ENABLED.get(settings) == false;
 
         // Adds a cluster stats document
         return Collections.singleton(
-                new ClusterStatsMonitoringDoc(clusterUuid, timestamp(), interval, node, clusterName, version,  clusterStats.getStatus(),
-                                              license, apmIndicesExist, xpackUsage, clusterStats, clusterState,
-                                              clusterNeedsTLSEnabled));
+            new ClusterStatsMonitoringDoc(
+                clusterUuid,
+                timestamp(),
+                interval,
+                node,
+                clusterName,
+                version,
+                clusterStats.getStatus(),
+                license,
+                apmIndicesExist,
+                xpackUsage,
+                clusterStats,
+                clusterState,
+                clusterNeedsTLSEnabled
+            )
+        );
     }
 
     boolean doAPMIndicesExist(final ClusterState clusterState) {
         try {
-            final Index[] indices =
-                indexNameExpressionResolver.concreteIndices(clusterState, IndicesOptions.lenientExpandOpen(), "apm-*");
+            final Index[] indices = indexNameExpressionResolver.concreteIndices(clusterState, IndicesOptions.lenientExpandOpen(), "apm-*");
 
             return indices.length > 0;
         } catch (IndexNotFoundException | IllegalArgumentException e) {
@@ -134,8 +139,13 @@ public class ClusterStatsCollector extends Collector {
             return supplier.get();
         } catch (ElasticsearchSecurityException e) {
             if (LicenseUtils.isLicenseExpiredException(e)) {
-                logger.trace((Supplier<?>) () -> new ParameterizedMessage("collector [{}] - " +
-                        "unable to collect data because of expired license", name()), e);
+                logger.trace(
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                        "collector [{}] - " + "unable to collect data because of expired license",
+                        name()
+                    ),
+                    e
+                );
             } else {
                 throw e;
             }

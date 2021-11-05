@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.rest.action.oauth2;
@@ -12,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 /**
@@ -30,7 +32,7 @@ abstract class TokenBaseRestHandler extends SecurityBaseRestHandler {
         Exception failedFeature = super.checkFeatureAvailable(request);
         if (failedFeature != null) {
             return failedFeature;
-        } else if (licenseState.isTokenServiceAllowed()) {
+        } else if (Security.TOKEN_SERVICE_FEATURE.check(licenseState)) {
             return null;
         } else {
             logger.info("Security tokens are not available under the current [{}] license", licenseState.getOperationMode().description());

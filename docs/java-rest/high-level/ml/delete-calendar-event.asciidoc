@@ -3,14 +3,16 @@
 :request: DeleteCalendarEventRequest
 :response: AcknowledgedResponse
 --
+[role="xpack"]
 [id="{upid}-{api}"]
-=== Delete Calendar Event API
+=== Delete calendar events API
+
 Removes a scheduled event from an existing {ml} calendar.
 The API accepts a +{request}+ and responds
 with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Delete Calendar Event Request
+==== Delete calendar events request
 
 A +{request}+ is constructed referencing a non-null
 calendar ID, and eventId which to remove from the calendar
@@ -23,7 +25,7 @@ include-tagged::{doc-tests-file}[{api}-request]
 <2> The eventId to remove from the calendar
 
 [id="{upid}-{api}-response"]
-====  Delete Calendar Event Response
+====  Delete calendar events response
 
 The returned +{response}+ acknowledges the success of the request:
 

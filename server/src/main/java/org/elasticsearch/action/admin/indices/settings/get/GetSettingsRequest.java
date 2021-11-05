@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.settings.get;
@@ -34,8 +23,10 @@ import java.util.Objects;
 
 public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest> implements IndicesRequest.Replaceable {
 
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.fromOptions(false, true, true, true);
+
     private String[] indices = Strings.EMPTY_ARRAY;
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true);
+    private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
     private String[] names = Strings.EMPTY_ARRAY;
     private boolean humanReadable = false;
     private boolean includeDefaults = false;
@@ -60,9 +51,7 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
         return this;
     }
 
-
-    public GetSettingsRequest() {
-    }
+    public GetSettingsRequest() {}
 
     public GetSettingsRequest(StreamInput in) throws IOException {
         super(in);
@@ -91,6 +80,11 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
     @Override
     public IndicesOptions indicesOptions() {
         return indicesOptions;
+    }
+
+    @Override
+    public boolean includeDataStreams() {
+        return true;
     }
 
     public String[] names() {
@@ -125,20 +119,15 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GetSettingsRequest that = (GetSettingsRequest) o;
-        return humanReadable == that.humanReadable &&
-            includeDefaults == that.includeDefaults &&
-            Arrays.equals(indices, that.indices) &&
-            Objects.equals(indicesOptions, that.indicesOptions) &&
-            Arrays.equals(names, that.names);
+        return humanReadable == that.humanReadable
+            && includeDefaults == that.includeDefaults
+            && Arrays.equals(indices, that.indices)
+            && Objects.equals(indicesOptions, that.indicesOptions)
+            && Arrays.equals(names, that.names);
     }
 
     @Override

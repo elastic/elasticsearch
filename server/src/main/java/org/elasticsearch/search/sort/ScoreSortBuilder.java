@@ -1,33 +1,25 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.sort;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -39,9 +31,13 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
 
     public static final String NAME = "_score";
     private static final SortFieldAndFormat SORT_SCORE = new SortFieldAndFormat(
-            new SortField(null, SortField.Type.SCORE), DocValueFormat.RAW);
+        new SortField(null, SortField.Type.SCORE),
+        DocValueFormat.RAW
+    );
     private static final SortFieldAndFormat SORT_SCORE_REVERSE = new SortFieldAndFormat(
-            new SortField(null, SortField.Type.SCORE, true), DocValueFormat.RAW);
+        new SortField(null, SortField.Type.SCORE, true),
+        DocValueFormat.RAW
+    );
 
     /**
      * Build a ScoreSortBuilder default to descending sort order.
@@ -75,7 +71,7 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
 
     /**
      * Creates a new {@link ScoreSortBuilder} from the query held by the {@link XContentParser} in
-     * {@link org.elasticsearch.common.xcontent.XContent} format.
+     * {@link org.elasticsearch.xcontent.XContent} format.
      *
      * @param parser the input parser. The state on the parser contained in this context will be changed as a side effect of this
      *        method call
@@ -86,19 +82,57 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
         return PARSER.apply(parser, null);
     }
 
-    private static ObjectParser<ScoreSortBuilder, Void> PARSER = new ObjectParser<>(NAME, ScoreSortBuilder::new);
+    private static final ObjectParser<ScoreSortBuilder, Void> PARSER = new ObjectParser<>(NAME, ScoreSortBuilder::new);
 
     static {
         PARSER.declareString((builder, order) -> builder.order(SortOrder.fromString(order)), ORDER_FIELD);
     }
 
     @Override
-    public SortFieldAndFormat build(QueryShardContext context) {
+    public SortFieldAndFormat build(SearchExecutionContext context) {
         if (order == SortOrder.DESC) {
             return SORT_SCORE;
         } else {
             return SORT_SCORE_REVERSE;
         }
+    }
+
+    @Override
+    public BucketedSort buildBucketedSort(SearchExecutionContext context, BigArrays bigArrays, int bucketSize, BucketedSort.ExtraData extra)
+        throws IOException {
+        return new BucketedSort.ForFloats(bigArrays, order, DocValueFormat.RAW, bucketSize, extra) {
+            @Override
+            public boolean needsScores() {
+                return true;
+            }
+
+            @Override
+            public Leaf forLeaf(LeafReaderContext ctx) throws IOException {
+                return new BucketedSort.ForFloats.Leaf(ctx) {
+                    private Scorable scorer;
+                    private float score;
+
+                    @Override
+                    public void setScorer(Scorable scorer) {
+                        this.scorer = scorer;
+                    }
+
+                    @Override
+                    protected boolean advanceExact(int doc) throws IOException {
+                        assert doc == scorer.docID() : "expected scorer to be on [" + doc + "] but was on [" + scorer.docID() + "]";
+                        /* We will never be called by documents that don't match the
+                         * query and they'll all have a score, thus `true`. */
+                        score = scorer.score();
+                        return true;
+                    }
+
+                    @Override
+                    protected float docValue() {
+                        return score;
+                    }
+                };
+            }
+        };
     }
 
     @Override

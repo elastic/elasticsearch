@@ -25,6 +25,8 @@ import org.elasticsearch.index.SearchSlowLog;
 import org.elasticsearch.index.SlowLogLevel;
 import org.elasticsearch.index.engine.frozen.FrozenEngine;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -537,7 +539,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             issues,
             contains(
                 new DeprecationIssue(
-                    DeprecationIssue.Level.CRITICAL,
+                    DeprecationIssue.Level.WARNING,
                     "Setting [index.data_path] is deprecated",
                     expectedUrl,
                     "Remove the [index.data_path] setting. This setting has had no effect since 6.0.",
@@ -803,9 +805,10 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             contains(
                 new DeprecationIssue(
                     DeprecationIssue.Level.WARNING,
-                    "index [test] is a frozen index. The frozen indices feature is deprecated and will be removed in a future version",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/frozen-indices.html",
-                    "Frozen indices no longer offer any advantages. Consider cold or frozen tiers in place of frozen indices.",
+                    "Freezing indices is deprecated",
+                    "https://ela.st/es-deprecation-7-frozen-indices",
+                    "Index [test] is frozen. Frozen indices no longer offer any advantages. Instead, unfreeze the index, make it read-only,"
+                        + " and move it to the cold or frozen tier.",
                     false,
                     null
                 )
@@ -841,9 +844,9 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 contains(
                     new DeprecationIssue(
                         DeprecationIssue.Level.CRITICAL,
-                        "index [test] does not have a [index.routing.allocation.include._tier_preference] setting, "
+                        "Index [test] does not have a [index.routing.allocation.include._tier_preference] setting, "
                             + "in 8.0 this setting will be required for all indices and may not be empty or null.",
-                        "https://www.elastic.co/guide/en/elasticsearch/reference/current/data-tiers.html",
+                        "https://ela.st/es-deprecation-7-empty-tier-preference",
                         "Update the settings for this index to specify an appropriate tier preference.",
                         false,
                         null
@@ -872,5 +875,51 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         discoBuilder.masterNodeId(randomFrom(nodesList).getId());
 
         return ClusterState.builder(ClusterState.EMPTY_STATE).nodes(discoBuilder.build()).build();
+    }
+
+    public void testForceMemoryTermDictionary() {
+        Settings settings = Settings.builder()
+            .put(Store.FORCE_RAM_TERM_DICT.getKey(), randomBoolean())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_7_0_0)
+            .build();
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
+            INDEX_SETTINGS_CHECKS,
+            c -> c.apply(ClusterState.EMPTY_STATE, indexMetadata)
+        );
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "Setting [index.force_memory_term_dictionary] is deprecated",
+            "https://ela.st/es-deprecation-7-force-memory-term-dictionary-setting",
+            "Remove the [index.force_memory_term_dictionary] setting. This setting no longer has any effect.",
+            false,
+            null
+        );
+        assertThat(issues, hasItem(expected));
+        assertWarnings(
+            "[index.force_memory_term_dictionary] setting was deprecated in Elasticsearch and will be removed in a future "
+                + "release! See the breaking changes documentation for the next major version."
+        );
+    }
+
+    public void testMapperDynamicSetting() {
+        Settings settings = Settings.builder()
+            .put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey(), randomBoolean())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_7_0_0)
+            .build();
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
+            INDEX_SETTINGS_CHECKS,
+            c -> c.apply(ClusterState.EMPTY_STATE, indexMetadata)
+        );
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "Setting [index.mapper.dynamic] is deprecated",
+            "https://ela.st/es-deprecation-7-mapper-dynamic-setting",
+            "Remove the [index.mapper.dynamic] setting.",
+            false,
+            null
+        );
+        assertThat(issues, hasItem(expected));
     }
 }

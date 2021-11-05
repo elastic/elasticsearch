@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
@@ -90,6 +91,18 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         createSystemIndexForDescriptor(INTERNAL_UNMANAGED);
         createSystemIndexForDescriptor(EXTERNAL_MANAGED);
         createSystemIndexForDescriptor(EXTERNAL_UNMANAGED);
+
+        CreateIndexRequestBuilder createRequest = prepareCreate(ASSOCIATED_INDEX_NAME);
+        createRequest.setWaitForActiveShards(ActiveShardCount.ALL);
+        createRequest.setSettings(
+            Settings.builder()
+                .put("index.version.created", NEEDS_UPGRADE_VERSION)
+                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                .put("index.hidden", true) // So we don't get a warning
+                .build()
+        );
+        CreateIndexResponse response = createRequest.get();
+        assertTrue(response.isShardsAcknowledged());
 
         ensureGreen();
 
@@ -227,17 +240,22 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         CreateIndexRequestBuilder createRequest = prepareCreate(indexName);
         createRequest.setWaitForActiveShards(ActiveShardCount.ALL);
         if (descriptor.getSettings() != null) {
-            createRequest.setSettings(Settings.builder().put("index.version.created", Version.CURRENT).build());
+            createRequest.setSettings(
+                Settings.builder()
+                    .put("index.version.created", Version.CURRENT)
+                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                    .build()
+            );
         } else {
             createRequest.setSettings(
                 createSimpleSettings(
-                    Version.V_6_0_0,
+                    NEEDS_UPGRADE_VERSION,
                     descriptor.isInternal() ? INTERNAL_UNMANAGED_FLAG_VALUE : EXTERNAL_UNMANAGED_FLAG_VALUE
                 )
             );
         }
         if (descriptor.getMappings() == null) {
-            createRequest.addMapping("_doc", createSimpleMapping(false, descriptor.isInternal(), false), XContentType.JSON);
+            createRequest.addMapping("doc", createSimpleMapping(false, descriptor.isInternal(), false), XContentType.JSON);
         }
         CreateIndexResponse response = createRequest.get();
         assertTrue(response.isShardsAcknowledged());
@@ -259,6 +277,7 @@ public class FeatureMigrationIT extends ESIntegTestCase {
     static final String ORIGIN = FeatureMigrationIT.class.getSimpleName();
     static final String FlAG_SETTING_KEY = IndexMetadata.INDEX_PRIORITY_SETTING.getKey();
     static final int INDEX_DOC_COUNT = 100; // arbitrarily chosen
+    public static final Version NEEDS_UPGRADE_VERSION = Version.V_6_0_0;
 
     static final int INTERNAL_MANAGED_FLAG_VALUE = 1;
     static final int INTERNAL_UNMANAGED_FLAG_VALUE = 2;
@@ -269,12 +288,12 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         .setAliasName(".internal-managed-alias")
         .setPrimaryIndex(".int-man-old")
         .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
-        .setSettings(createSimpleSettings(Version.V_6_0_0, INTERNAL_MANAGED_FLAG_VALUE))
+        .setSettings(createSimpleSettings(NEEDS_UPGRADE_VERSION, INTERNAL_MANAGED_FLAG_VALUE))
         .setMappings(createSimpleMapping(true, true, true))
         .setOrigin(ORIGIN)
         .setVersionMetaKey(VERSION_META_KEY)
         .setAllowedElasticProductOrigins(Collections.emptyList())
-        .setMinimumNodeVersion(Version.V_6_0_0)
+        .setMinimumNodeVersion(NEEDS_UPGRADE_VERSION)
         .setPriorSystemIndexDescriptors(Collections.emptyList())
         .build();
     static final SystemIndexDescriptor INTERNAL_UNMANAGED = SystemIndexDescriptor.builder()
@@ -283,7 +302,7 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         .setOrigin(ORIGIN)
         .setVersionMetaKey(VERSION_META_KEY)
         .setAllowedElasticProductOrigins(Collections.emptyList())
-        .setMinimumNodeVersion(Version.V_6_0_0)
+        .setMinimumNodeVersion(NEEDS_UPGRADE_VERSION)
         .setPriorSystemIndexDescriptors(Collections.emptyList())
         .build();
     static final SystemIndexDescriptor EXTERNAL_MANAGED = SystemIndexDescriptor.builder()
@@ -291,12 +310,12 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         .setAliasName(".external-managed-alias")
         .setPrimaryIndex(".ext-man-old")
         .setType(SystemIndexDescriptor.Type.EXTERNAL_MANAGED)
-        .setSettings(createSimpleSettings(Version.V_6_0_0, EXTERNAL_MANAGED_FLAG_VALUE))
+        .setSettings(createSimpleSettings(NEEDS_UPGRADE_VERSION, EXTERNAL_MANAGED_FLAG_VALUE))
         .setMappings(createSimpleMapping(true, false, true))
         .setOrigin(ORIGIN)
         .setVersionMetaKey(VERSION_META_KEY)
         .setAllowedElasticProductOrigins(Collections.singletonList(ORIGIN))
-        .setMinimumNodeVersion(Version.V_6_0_0)
+        .setMinimumNodeVersion(NEEDS_UPGRADE_VERSION)
         .setPriorSystemIndexDescriptors(Collections.emptyList())
         .build();
     static final SystemIndexDescriptor EXTERNAL_UNMANAGED = SystemIndexDescriptor.builder()
@@ -305,9 +324,10 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         .setOrigin(ORIGIN)
         .setVersionMetaKey(VERSION_META_KEY)
         .setAllowedElasticProductOrigins(Collections.singletonList(ORIGIN))
-        .setMinimumNodeVersion(Version.V_6_0_0)
+        .setMinimumNodeVersion(NEEDS_UPGRADE_VERSION)
         .setPriorSystemIndexDescriptors(Collections.emptyList())
         .build();
+    static final String ASSOCIATED_INDEX_NAME = ".my-associated-idx";
 
     static Settings createSimpleSettings(Version creationVersion, int flagSettingValue) {
         return Settings.builder()
@@ -318,11 +338,13 @@ public class FeatureMigrationIT extends ESIntegTestCase {
             .build();
     }
 
-    static String createSimpleMapping(boolean descriptorManaged, boolean descriptorInternal, boolean includeType) {
+    static String createSimpleMapping(boolean descriptorManaged, boolean descriptorInternal, boolean useStandardType) {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
-            if (includeType) {
+            if (useStandardType) {
                 builder.startObject("_doc");
+            } else {
+                builder.startObject("doc");
             }
             {
                 builder.startObject("_meta");
@@ -341,9 +363,7 @@ public class FeatureMigrationIT extends ESIntegTestCase {
                 builder.endObject();
             }
             builder.endObject();
-            if (includeType) {
-                builder.endObject();
-            }
+            builder.endObject();
             return Strings.toString(builder);
         } catch (IOException e) {
             // Just rethrow, it should be impossible for this to throw here
@@ -372,6 +392,12 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
             return Arrays.asList(INTERNAL_MANAGED, INTERNAL_UNMANAGED, EXTERNAL_MANAGED, EXTERNAL_UNMANAGED);
+        }
+
+        @Override
+        public Collection<AssociatedIndexDescriptor> getAssociatedIndexDescriptors() {
+
+            return Collections.singletonList(new AssociatedIndexDescriptor(ASSOCIATED_INDEX_NAME, TestPlugin.class.getCanonicalName()));
         }
 
         @Override

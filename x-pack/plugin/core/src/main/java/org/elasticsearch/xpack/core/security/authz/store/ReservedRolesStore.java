@@ -301,7 +301,13 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             .indices(".ml-annotations*")
                             .privileges("view_index_metadata", "read", "write")
                             .build() },
-                    // TODO: remove Kibana privileges from ML backend roles in 8.0.0
+                    // This role also grants Kibana privileges related to ML.
+                    // This makes it completely clear to UI administrators that
+                    // if they grant the Elasticsearch backend role to a user then
+                    // they cannot expect Kibana privileges to stop that user from
+                    // accessing ML functionality - the user could switch to curl
+                    // or even Kibana dev console and call the ES endpoints directly
+                    // bypassing the Kibana privileges layer entirely.
                     new RoleDescriptor.ApplicationResourcePrivileges[] {
                         RoleDescriptor.ApplicationResourcePrivileges.builder()
                             .application("kibana-*")
@@ -328,7 +334,13 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             .indices(".ml-annotations*")
                             .privileges("view_index_metadata", "read", "write")
                             .build() },
-                    // TODO: remove Kibana privileges from ML backend roles in 8.0.0
+                    // This role also grants Kibana privileges related to ML.
+                    // This makes it completely clear to UI administrators that
+                    // if they grant the Elasticsearch backend role to a user then
+                    // they cannot expect Kibana privileges to stop that user from
+                    // accessing ML functionality - the user could switch to curl
+                    // or even Kibana dev console and call the ES endpoints directly
+                    // bypassing the Kibana privileges layer entirely.
                     new RoleDescriptor.ApplicationResourcePrivileges[] {
                         RoleDescriptor.ApplicationResourcePrivileges.builder()
                             .application("kibana-*")
@@ -672,9 +684,17 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 RoleDescriptor.IndicesPrivileges.builder().indices("metrics-endpoint.policy-*").privileges("read").build(),
                 // Endpoint metrics. Kibana requires read access to send telemetry
                 RoleDescriptor.IndicesPrivileges.builder().indices("metrics-endpoint.metrics-*").privileges("read").build(),
-                // Fleet package upgrade
+                // Fleet package install and upgrade
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("logs-*", "synthetics-*", "traces-*", "/metrics-.*&~(metrics-endpoint\\.metadata_current_default)/")
+                    .indices(
+                        "logs-*",
+                        "synthetics-*",
+                        "traces-*",
+                        "/metrics-.*&~(metrics-endpoint\\.metadata_current_default)/",
+                        ".logs-endpoint.action.responses-*",
+                        ".logs-endpoint.diagnostic.collection-*",
+                        ".logs-endpoint.actions-*"
+                    )
                     .privileges(UpdateSettingsAction.NAME, PutMappingAction.NAME, RolloverAction.NAME)
                     .build(),
                 // For src/dest indices of the Endpoint package that ships a transform

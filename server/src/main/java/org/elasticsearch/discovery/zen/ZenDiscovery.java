@@ -84,7 +84,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     public static final Setting<TimeValue> PING_TIMEOUT_SETTING = Setting.positiveTimeSetting(
         "discovery.zen.ping_timeout",
         timeValueSeconds(3),
-        Property.NodeScope
+        Property.NodeScope,
+        Property.Deprecated
     );
     public static final Setting<TimeValue> JOIN_TIMEOUT_SETTING = Setting.timeSetting(
         "discovery.zen.join_timeout",

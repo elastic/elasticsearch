@@ -121,6 +121,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
      * The purpose of this test is to ensure that when a job is open through a rolling upgrade we upgrade the results
      * index mappings when it is assigned to an upgraded node even if no other ML endpoint is called after the upgrade
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/80073")
     public void testTransformRollingUpgrade() throws Exception {
         assumeTrue("Continuous transform time sync not fixed until 7.4", UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_4_0));
         Request adjustLoggingLevels = new Request("PUT", "/_cluster/settings");
@@ -151,6 +152,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
             case UPGRADED:
                 client().performRequest(waitForYellow);
                 verifyContinuousTransformHandlesData(3);
+                verifyUpgrade();
                 cleanUpTransforms();
                 break;
             default:
@@ -253,6 +255,12 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
                 greaterThan(Long.valueOf(previousStateAndStats.getIndexerStats().getDocumentsProcessed()).intValue())
             );
         });
+    }
+
+    private void verifyUpgrade() throws IOException {
+        final Request upgradeTransformRequest = new Request("POST", TRANSFORM_ENDPOINT + "_upgrade");
+        Response response = client().performRequest(upgradeTransformRequest);
+        assertEquals(200, response.getStatusLine().getStatusCode());
     }
 
     private void awaitWrittenIndexerState(String id, Consumer<Map<?, ?>> responseAssertion) throws Exception {

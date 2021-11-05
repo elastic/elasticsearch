@@ -1899,6 +1899,30 @@ Size of TX packets sent by the node during internal cluster communication.
 (integer)
 Size, in bytes, of TX packets sent by the node during internal cluster
 communication.
+
+`handling_time_histogram`::
+(array)
+The distribution of the time spent handling a message on a transport thread,
+represented as a histogram.
++
+.Properties of `handling_time_histogram`
+[%collapsible]
+=======
+`ge_millis`::
+(integer)
+The inclusive lower bound of the bucket in milliseconds. Omitted on the first
+bucket since this bucket has no lower bound.
+
+`lt_millis`::
+(integer)
+The exclusive upper bound of the bucket in milliseconds. Omitted on the last
+bucket since this bucket has no upper bound.
+
+`count`::
+(integer)
+The number of times a transport thread took a period of time within the bounds
+of this bucket to handle a message.
+=======
 ======
 
 [[cluster-nodes-stats-api-response-body-http]]

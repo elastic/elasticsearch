@@ -360,6 +360,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             handleIncomingRequest(httpRequest, httpChannel, httpRequest.getInboundException());
         } finally {
             final long took = threadPool.relativeTimeInMillis() - startTime;
+            networkService.getHandlingTimeTracker().addHandlingTime(took);
             final long logThreshold = slowLogThresholdMs;
             if (logThreshold > 0 && took > logThreshold) {
                 logger.warn(

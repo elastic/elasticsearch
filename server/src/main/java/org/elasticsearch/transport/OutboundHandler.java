@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.network.CloseableChannel;
+import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -38,17 +39,26 @@ final class OutboundHandler {
     private final StatsTracker statsTracker;
     private final ThreadPool threadPool;
     private final Recycler<BytesRef> recycler;
+    private final HandlingTimeTracker handlingTimeTracker;
 
     private volatile long slowLogThresholdMs = Long.MAX_VALUE;
 
     private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
 
-    OutboundHandler(String nodeName, Version version, StatsTracker statsTracker, ThreadPool threadPool, Recycler<BytesRef> recycler) {
+    OutboundHandler(
+        String nodeName,
+        Version version,
+        StatsTracker statsTracker,
+        ThreadPool threadPool,
+        Recycler<BytesRef> recycler,
+        HandlingTimeTracker handlingTimeTracker
+    ) {
         this.nodeName = nodeName;
         this.version = version;
         this.statsTracker = statsTracker;
         this.threadPool = threadPool;
         this.recycler = recycler;
+        this.handlingTimeTracker = handlingTimeTracker;
     }
 
     void setSlowLogThreshold(TimeValue slowLogThreshold) {
@@ -199,6 +209,7 @@ final class OutboundHandler {
                     final long logThreshold = slowLogThresholdMs;
                     if (logThreshold > 0) {
                         final long took = threadPool.relativeTimeInMillis() - startTime;
+                        handlingTimeTracker.addHandlingTime(took);
                         if (took > logThreshold) {
                             logger.warn(
                                 "sending transport message [{}] of size [{}] on [{}] took [{}ms] which is above the warn "

@@ -882,7 +882,7 @@ public class AuthorizationService {
             }
         }
 
-        String userText = (authentication.isServiceAccount() ? "service account" : "user") + " [" + authUser.principal() + "]";
+        String userText = "user [" + authUser.principal() + "]";
         // check for run as
         if (authentication.getUser().isRunAs()) {
             userText = userText + " run as [" + authentication.getUser().principal() + "]";

@@ -71,8 +71,10 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
         try (XContentBuilder builtSample = sample.apply(createBuilder())) {
             BytesReference sampleBytes = BytesReference.bytes(builtSample);
             try (
-                XContentParser parser = getXContentType().xContent()
-                    .createParser(XContentParserConfiguration.EMPTY.withFiltering(includes, excludes), sampleBytes.streamInput())
+                XContentParser parser = sampleBytes.xContentParser(
+                    getXContentType().xContent(),
+                    XContentParserConfiguration.EMPTY.withFiltering(includes, excludes)
+                )
             ) {
                 XContentBuilder result = createBuilder();
                 if (sampleBytes.get(sampleBytes.length() - 1) == '\n') {
@@ -107,11 +109,8 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
     static void assertXContentBuilderAsBytes(final XContentBuilder expected, final XContentBuilder actual) {
         XContent xContent = XContentFactory.xContent(actual.contentType());
         try (
-            XContentParser jsonParser = xContent.createParser(
-                XContentParserConfiguration.EMPTY,
-                BytesReference.bytes(expected).streamInput()
-            );
-            XContentParser testParser = xContent.createParser(XContentParserConfiguration.EMPTY, BytesReference.bytes(actual).streamInput())
+            XContentParser jsonParser = BytesReference.bytes(expected).xContentParser(xContent, XContentParserConfiguration.EMPTY);
+            XContentParser testParser = BytesReference.bytes(actual).xContentParser(xContent, XContentParserConfiguration.EMPTY);
         ) {
             while (true) {
                 XContentParser.Token token1 = jsonParser.nextToken();

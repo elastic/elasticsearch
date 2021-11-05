@@ -10,6 +10,9 @@ package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -100,6 +103,11 @@ public final class BytesArray extends AbstractBytesReference {
     @Override
     public int arrayOffset() {
         return offset;
+    }
+
+    @Override
+    public XContentParser xContentParser(XContent xContent, XContentParserConfiguration parserConfig) throws IOException {
+        return xContent.createParser(parserConfig, bytes, offset, length);
     }
 
     @Override

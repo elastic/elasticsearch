@@ -15,7 +15,10 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -215,6 +218,12 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
     public int arrayOffset() {
         assert refCount() > 0;
         return delegate.arrayOffset();
+    }
+
+    @Override
+    public XContentParser xContentParser(XContent xContent, XContentParserConfiguration parserConfig) throws IOException {
+        assert refCount() > 0;
+        return delegate.xContentParser(xContent, parserConfig);
     }
 
     private static final class RefCountedReleasable extends AbstractRefCounted {

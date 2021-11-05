@@ -66,7 +66,7 @@ public class ElasticsearchNodeCommandTests extends ESTestCase {
             ? parserConfig().withRegistry(ElasticsearchNodeCommand.namedXContentRegistry)
             : parserConfig();
         Metadata loadedMetadata;
-        try (XContentParser parser = createParser(parserConfig, JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+        try (XContentParser parser = BytesReference.bytes(builder).xContentParser(JsonXContent.jsonXContent, parserConfig)) {
             loadedMetadata = Metadata.fromXContent(parser);
         }
         assertThat(loadedMetadata.clusterUUID(), not(equalTo("_na_")));

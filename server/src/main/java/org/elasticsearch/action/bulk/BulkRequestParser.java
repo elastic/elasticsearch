@@ -145,7 +145,7 @@ public final class BulkRequestParser {
             line++;
 
             // now parse the action
-            try (XContentParser parser = createParser(xContent, data, from, nextMarker)) {
+            try (XContentParser parser = data.slice(from, nextMarker - from).xContentParser(xContent, config)) {
                 // move pointers
                 from = nextMarker + 1;
 
@@ -382,9 +382,9 @@ public final class BulkRequestParser {
                             .setRequireAlias(requireAlias)
                             .routing(routing);
                         try (
-                            XContentParser sliceParser = createParser(
+                            XContentParser sliceParser = sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType).xContentParser(
                                 xContent,
-                                sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType)
+                                config
                             )
                         ) {
                             updateRequest.fromXContent(sliceParser);
@@ -404,35 +404,5 @@ public final class BulkRequestParser {
                 }
             }
         }
-    }
-
-    private XContentParser createParser(XContent xContent, BytesReference data) throws IOException {
-        if (data.hasArray()) {
-            return parseBytesArray(xContent, data, 0, data.length());
-        } else {
-            return xContent.createParser(config, data.streamInput());
-        }
-    }
-
-    // Create an efficient parser of the given bytes, trying to directly parse a byte array if possible and falling back to stream wrapping
-    // otherwise.
-    private XContentParser createParser(XContent xContent, BytesReference data, int from, int nextMarker) throws IOException {
-        if (data.hasArray()) {
-            return parseBytesArray(xContent, data, from, nextMarker);
-        } else {
-            final int length = nextMarker - from;
-            final BytesReference slice = data.slice(from, length);
-            if (slice.hasArray()) {
-                return parseBytesArray(xContent, slice, 0, length);
-            } else {
-                return xContent.createParser(config, slice.streamInput());
-            }
-        }
-    }
-
-    private XContentParser parseBytesArray(XContent xContent, BytesReference array, int from, int nextMarker) throws IOException {
-        assert array.hasArray();
-        final int offset = array.arrayOffset();
-        return xContent.createParser(config, array.array(), offset + from, nextMarker - from);
     }
 }

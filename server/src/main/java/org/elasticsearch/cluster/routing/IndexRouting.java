@@ -219,7 +219,7 @@ public abstract class IndexRouting {
             assert Transports.assertNotTransportThread("parsing the _source can get slow");
 
             try {
-                try (XContentParser parser = sourceType.xContent().createParser(parserConfig, source.streamInput())) {
+                try (XContentParser parser = source.xContentParser(sourceType.xContent(), parserConfig)) {
                     parser.nextToken(); // Move to first token
                     if (parser.currentToken() == null) {
                         throw new IllegalArgumentException("Error extracting routing: source didn't contain any routing fields");

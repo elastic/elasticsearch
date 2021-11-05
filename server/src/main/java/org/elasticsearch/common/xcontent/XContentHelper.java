@@ -153,34 +153,28 @@ public class XContentHelper {
         @Nullable Set<String> exclude
     ) throws ElasticsearchParseException {
         try {
-            final XContentType contentType;
-            InputStream input;
             Compressor compressor = CompressorFactory.compressor(bytes);
             if (compressor != null) {
-                InputStream compressedStreamInput = compressor.threadLocalInputStream(bytes.streamInput());
-                if (compressedStreamInput.markSupported() == false) {
-                    compressedStreamInput = new BufferedInputStream(compressedStreamInput);
+                InputStream input = compressor.threadLocalInputStream(bytes.streamInput());
+                if (input.markSupported() == false) {
+                    input = new BufferedInputStream(input);
                 }
-                input = compressedStreamInput;
-                contentType = xContentType != null ? xContentType : XContentFactory.xContentType(input);
-            } else if (bytes.hasArray()) {
-                final byte[] raw = bytes.array();
-                final int offset = bytes.arrayOffset();
-                final int length = bytes.length();
-                contentType = xContentType != null ? xContentType : XContentFactory.xContentType(raw, offset, length);
-                return new Tuple<>(
-                    Objects.requireNonNull(contentType),
-                    convertToMap(XContentFactory.xContent(contentType), raw, offset, length, ordered, include, exclude)
-                );
-            } else {
-                input = bytes.streamInput();
-                contentType = xContentType != null ? xContentType : XContentFactory.xContentType(input);
+                XContentType contentType = xContentType != null ? xContentType : XContentFactory.xContentType(input);
+                try (InputStream stream = input) {
+                    return new Tuple<>(
+                        Objects.requireNonNull(contentType),
+                        convertToMap(XContentFactory.xContent(contentType), stream, ordered, include, exclude)
+                    );
+                }
             }
-            try (InputStream stream = input) {
-                return new Tuple<>(
-                    Objects.requireNonNull(contentType),
-                    convertToMap(XContentFactory.xContent(contentType), stream, ordered, include, exclude)
-                );
+            XContentType contentType = xContentType != null ? xContentType : xContentType(bytes);
+            try (
+                XContentParser parser = bytes.xContentParser(
+                    xContentType.xContent(),
+                    XContentParserConfiguration.EMPTY.withFiltering(include, exclude)
+                )
+            ) {
+                return Tuple.tuple(contentType, ordered ? parser.mapOrdered() : parser.map());
             }
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to map", e);
@@ -308,20 +302,8 @@ public class XContentHelper {
             return bytes.utf8ToString();
         }
 
-        if (bytes.hasArray()) {
-            try (
-                XContentParser parser = XContentFactory.xContent(xContentType)
-                    .createParser(XContentParserConfiguration.EMPTY, bytes.array(), bytes.arrayOffset(), bytes.length())
-            ) {
-                return toJsonString(prettyPrint, parser);
-            }
-        } else {
-            try (
-                InputStream stream = bytes.streamInput();
-                XContentParser parser = XContentFactory.xContent(xContentType).createParser(XContentParserConfiguration.EMPTY, stream)
-            ) {
-                return toJsonString(prettyPrint, parser);
-            }
+        try (XContentParser parser = bytes.xContentParser(xContentType.xContent(), XContentParserConfiguration.EMPTY)) {
+            return toJsonString(prettyPrint, parser);
         }
     }
 

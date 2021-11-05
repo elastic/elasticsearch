@@ -8,12 +8,11 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourcePhase;
 import org.elasticsearch.search.lookup.SourceLookup;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -99,8 +98,8 @@ public class FetchSourcePhaseBenchmark {
     @Benchmark
     public BytesReference filterXContentOnParser() throws IOException {
         BytesStreamOutput streamOutput = new BytesStreamOutput(Math.min(1024, sourceBytes.length()));
-        XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), streamOutput);
-        try (XContentParser parser = XContentType.JSON.xContent().createParser(parserConfig, sourceBytes.streamInput())) {
+        XContentBuilder builder = new XContentBuilder(JsonXContent.jsonXContent, streamOutput);
+        try (XContentParser parser = sourceBytes.xContentParser(JsonXContent.jsonXContent, parserConfig)) {
             builder.copyCurrentStructure(parser);
             return BytesReference.bytes(builder);
         }
@@ -110,16 +109,13 @@ public class FetchSourcePhaseBenchmark {
     public BytesReference filterXContentOnBuilder() throws IOException {
         BytesStreamOutput streamOutput = new BytesStreamOutput(Math.min(1024, sourceBytes.length()));
         XContentBuilder builder = new XContentBuilder(
-            XContentType.JSON.xContent(),
+            JsonXContent.jsonXContent,
             streamOutput,
             includesSet,
             excludesSet,
             XContentType.JSON.toParsedMediaType()
         );
-        try (
-            XContentParser parser = XContentType.JSON.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, sourceBytes.streamInput())
-        ) {
+        try (XContentParser parser = sourceBytes.xContentParser(JsonXContent.jsonXContent, XContentParserConfiguration.EMPTY)) {
             builder.copyCurrentStructure(parser);
             return BytesReference.bytes(builder);
         }

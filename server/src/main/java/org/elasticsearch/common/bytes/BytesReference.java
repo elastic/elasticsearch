@@ -15,7 +15,10 @@ import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -194,4 +197,15 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
     default int arrayOffset() {
         throw new UnsupportedOperationException();
     }
+
+    /**
+     * Build an {@link XContentParser} that parses from these bytes.
+     * This is the same as {@code xContent.createParser(parserConfig, bytes.streamInput())}
+     * but more efficient when the bytes {@code #hasArray()}.
+     */
+    default XContentParser xContentParser(XContent xContent, XContentParserConfiguration parserConfig) throws IOException {
+        assert hasArray() == false : "override xContentParser if overriding hasArray";
+        return xContent.createParser(parserConfig, streamInput());
+    }
+
 }

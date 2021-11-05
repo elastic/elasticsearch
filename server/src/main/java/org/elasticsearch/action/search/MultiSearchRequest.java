@@ -242,10 +242,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             IndicesOptions defaultOptions = searchRequest.indicesOptions();
             // now parse the action
             if (nextMarker - from > 0) {
-                try (
-                    InputStream stream = data.slice(from, nextMarker - from).streamInput();
-                    XContentParser parser = xContent.createParser(parserConfig, stream)
-                ) {
+                try (XContentParser parser = data.slice(from, nextMarker - from).xContentParser(xContent, parserConfig)) {
                     Map<String, Object> source = parser.map();
                     Object expandWildcards = null;
                     Object ignoreUnavailable = null;

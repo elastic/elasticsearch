@@ -12,7 +12,7 @@ import org.elasticsearch.script.field.Field;
 import java.math.BigInteger;
 import java.util.List;
 
-public interface UnsignedLongField extends Field {
+public interface UnsignedLongField extends Field<Long> {
 
     /** Return all the values as a {@code List}. */
     List<Long> getValues();

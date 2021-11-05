@@ -39,6 +39,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.ml.integration.InferenceIngestIT.putPipeline;
+import static org.elasticsearch.xpack.ml.integration.InferenceIngestIT.simulateRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -46,6 +48,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -137,7 +140,7 @@ public class PyTorchModelIT extends ESRestTestCase {
             ""
                 + "{"
                 + "\"persistent\" : {\n"
-                + "        \"logger.org.elasticsearch.xpack.ml.inference.allocation\" :null,\n"
+                + "        \"logger.org.elasticsearch.xpack.ml.inference.allocation\": null,\n"
                 + "        \"logger.org.elasticsearch.xpack.ml.inference.deployment\" : null,\n"
                 + "        \"logger.org.elasticsearch.xpack.ml.process.logging\" : null\n"
                 + "    }"
@@ -276,6 +279,10 @@ public class PyTorchModelIT extends ESRestTestCase {
         // 2 of the 3 nodes in the cluster are ML nodes
         assertThat(nodes, hasSize(2));
         int inferenceCount = sumInferenceCountOnNodes(nodes);
+        for (var node : nodes) {
+            assertThat(node.get("number_of_pending_requests"), notNullValue());
+            // last_access and average_inference_time_ms may be null if inference wasn't performed on this node
+        }
         assertThat(inferenceCount, equalTo(2));
     }
 
@@ -403,6 +410,128 @@ public class PyTorchModelIT extends ESRestTestCase {
         map = entityAsMap(response);
         stats = (List<Map<String, Object>>) map.get("deployment_stats");
         assertThat(stats, empty());
+    }
+
+    public void testInferWithMissingModel() {
+        Exception ex = expectThrows(Exception.class, () -> infer("foo", "missing_model"));
+        assertThat(ex.getMessage(), containsString("Could not find trained model [missing_model]"));
+    }
+
+    public void testGetPytorchModelWithDefinition() throws IOException {
+        String model = "should-fail-get";
+        createTrainedModel(model);
+        putVocabulary(List.of("once", "twice"), model);
+        putModelDefinition(model);
+        Exception ex = expectThrows(
+            Exception.class,
+            () -> client().performRequest(new Request("GET", "_ml/trained_models/" + model + "?include=definition"))
+        );
+        assertThat(ex.getMessage(), containsString("[should-fail-get] is type [pytorch] and does not support retrieving the definition"));
+    }
+
+    public void testInferencePipelineAgainstUnallocatedModel() throws IOException {
+        String model = "not-deployed";
+        createTrainedModel(model);
+        putVocabulary(List.of("once", "twice"), model);
+        putModelDefinition(model);
+
+        String source = "{\n"
+            + "  \"pipeline\": {\n"
+            + "    \"processors\": [\n"
+            + "      {\n"
+            + "        \"inference\": {\n"
+            + "          \"model_id\": \"not-deployed\"\n"
+            + "        }\n"
+            + "      }\n"
+            + "    ]\n"
+            + "  },\n"
+            + "  \"docs\": [\n"
+            + "    {\n"
+            + "      \"_source\": {\n"
+            + "        \"input\": \"my words\"\n"
+            + "      }\n"
+            + "    }\n"
+            + "  ]\n"
+            + "}";
+
+        String response = EntityUtils.toString(client().performRequest(simulateRequest(source)).getEntity());
+        assertThat(
+            response,
+            containsString("model [not-deployed] must be deployed to use. Please deploy with the start trained model deployment API.")
+        );
+
+        client().performRequest(
+            putPipeline(
+                "my_pipeline",
+                "{"
+                    + "\"processors\": [\n"
+                    + "      {\n"
+                    + "        \"inference\": {\n"
+                    + "          \"model_id\": \"not-deployed\"\n"
+                    + "        }\n"
+                    + "      }\n"
+                    + "    ]\n"
+                    + "}"
+            )
+        );
+
+        Request request = new Request("PUT", "undeployed_model_index/_doc/1?pipeline=my_pipeline&refresh=true");
+        request.setJsonEntity("{\n" + "        \"input\": \"my words\"\n" + "      }\n");
+        Exception ex = expectThrows(Exception.class, () -> client().performRequest(request));
+        assertThat(
+            ex.getMessage(),
+            containsString("model [not-deployed] must be deployed to use. Please deploy with the start trained model deployment API.")
+        );
+    }
+
+    public void testTruncation() throws IOException {
+        String modelId = "no-truncation";
+
+        Request request = new Request("PUT", "/_ml/trained_models/" + modelId);
+        request.setJsonEntity(
+            "{  "
+                + "    \"description\": \"simple model for testing\",\n"
+                + "    \"model_type\": \"pytorch\",\n"
+                + "    \"inference_config\": {\n"
+                + "        \"pass_through\": {\n"
+                + "            \"tokenization\": {"
+                + "              \"bert\": {"
+                + "                \"with_special_tokens\": false,"
+                + "                \"truncate\": \"none\","
+                + "                \"max_sequence_length\": 2"
+                + "              }\n"
+                + "            }\n"
+                + "        }\n"
+                + "    }\n"
+                + "}"
+        );
+        client().performRequest(request);
+
+        putVocabulary(List.of("once", "twice", "thrice"), modelId);
+        putModelDefinition(modelId);
+        startDeployment(modelId, AllocationStatus.State.FULLY_ALLOCATED.toString());
+
+        String input = "once twice thrice";
+        ResponseException ex = expectThrows(ResponseException.class, () -> infer("once twice thrice", modelId));
+        assertThat(
+            ex.getMessage(),
+            containsString("Input too large. The tokenized input length [3] exceeds the maximum sequence length [2]")
+        );
+
+        request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
+        request.setJsonEntity(
+            "{"
+                + "\"docs\": [{\"input\":\""
+                + input
+                + "\"}],"
+                + "\"inference_config\": { "
+                + "  \"pass_through\": {"
+                + "    \"tokenization\": {\"bert\": {\"truncate\": \"first\"}}"
+                + "    }"
+                + "  }"
+                + "}"
+        );
+        client().performRequest(request);
     }
 
     private int sumInferenceCountOnNodes(List<Map<String, Object>> nodes) {

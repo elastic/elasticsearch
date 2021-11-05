@@ -108,6 +108,10 @@ public class PyTorchResultProcessor {
         return lastUsed;
     }
 
+    public int numberOfPendingResults() {
+        return pendingResults.size();
+    }
+
     public void stop() {
         isStopping = true;
     }

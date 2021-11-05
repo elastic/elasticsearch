@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.ml.job.process.ProcessWorkerExecutorService;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -102,8 +103,10 @@ public class DeploymentManager {
         return Optional.ofNullable(processContextByAllocation.get(task.getId()))
             .map(
                 processContext -> new ModelStats(
+                    processContext.startTime,
                     processContext.getResultProcessor().getTimingStats(),
-                    processContext.getResultProcessor().getLastUsed()
+                    processContext.getResultProcessor().getLastUsed(),
+                    processContext.executorService.queueSize() + processContext.getResultProcessor().numberOfPendingResults()
                 )
             );
     }
@@ -343,7 +346,9 @@ public class DeploymentManager {
                 NlpTask.Processor processor = processContext.nlpTaskProcessor.get();
                 processor.validateInputs(text);
                 assert config instanceof NlpConfig;
-                NlpTask.Request request = processor.getRequestBuilder((NlpConfig) config).buildRequest(text, requestIdStr);
+                NlpConfig nlpConfig = (NlpConfig) config;
+                NlpTask.Request request = processor.getRequestBuilder(nlpConfig)
+                    .buildRequest(text, requestIdStr, nlpConfig.getTokenization().getTruncate());
                 logger.debug(() -> "Inference Request " + request.processInput.utf8ToString());
                 if (request.tokenization.anyTruncated()) {
                     logger.debug("[{}] [{}] input truncated", modelId, requestId);
@@ -414,6 +419,7 @@ public class DeploymentManager {
         private final PyTorchResultProcessor resultProcessor;
         private final PyTorchStateStreamer stateStreamer;
         private final ProcessWorkerExecutorService executorService;
+        private volatile Instant startTime;
 
         ProcessContext(TrainedModelDeploymentTask task, ExecutorService executorService) {
             this.task = Objects.requireNonNull(task);
@@ -432,6 +438,7 @@ public class DeploymentManager {
 
         synchronized void startProcess() {
             process.set(pyTorchProcessFactory.createProcess(task, executorServiceForProcess, onProcessCrash()));
+            startTime = Instant.now();
             executorServiceForProcess.submit(executorService::start);
         }
 

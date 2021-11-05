@@ -19,10 +19,12 @@ import org.apache.logging.log4j.message.StringMapMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Setting;
@@ -133,6 +135,8 @@ import static org.elasticsearch.xpack.security.audit.AuditUtil.restRequestConten
 
 public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
 
+    private static final Logger LOGGER = LogManager.getLogger(LoggingAuditTrail.class);
+
     public static final String REST_ORIGIN_FIELD_VALUE = "rest";
     public static final String LOCAL_ORIGIN_FIELD_VALUE = "local_node";
     public static final String TRANSPORT_ORIGIN_FIELD_VALUE = "transport";
@@ -148,6 +152,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String NODE_ID_FIELD_NAME = "node.id";
     public static final String HOST_ADDRESS_FIELD_NAME = "host.ip";
     public static final String HOST_NAME_FIELD_NAME = "host.name";
+    public static final String CLUSTER_NAME_FIELD_NAME = "cluster.name";
+    public static final String CLUSTER_UUID_FIELD_NAME = "cluster.uuid";
     public static final String EVENT_TYPE_FIELD_NAME = "event.type";
     public static final String EVENT_ACTION_FIELD_NAME = "event.action";
     public static final String PRINCIPAL_FIELD_NAME = "user.name";
@@ -206,6 +212,18 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     );
     public static final Setting<Boolean> EMIT_NODE_ID_SETTING = Setting.boolSetting(
         setting("audit.logfile.emit_node_id"),
+        true,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+    public static final Setting<Boolean> EMIT_CLUSTER_NAME_SETTING = Setting.boolSetting(
+        setting("audit.logfile.emit_cluster_name"),
+        false,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+    public static final Setting<Boolean> EMIT_CLUSTER_UUID_SETTING = Setting.boolSetting(
+        setting("audit.logfile.emit_cluster_uuid"),
         true,
         Property.NodeScope,
         Property.Dynamic
@@ -351,7 +369,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         this.events = parse(INCLUDE_EVENT_SETTINGS.get(settings), EXCLUDE_EVENT_SETTINGS.get(settings));
         this.includeRequestBody = INCLUDE_REQUEST_BODY.get(settings);
         this.threadContext = threadContext;
-        this.entryCommonFields = new EntryCommonFields(settings, null);
+        this.entryCommonFields = new EntryCommonFields(settings, null, clusterService);
         this.eventFilterPolicyRegistry = new EventFilterPolicyRegistry(settings);
         clusterService.addListener(this);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(newSettings -> {
@@ -367,6 +385,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 EMIT_HOST_NAME_SETTING,
                 EMIT_NODE_NAME_SETTING,
                 EMIT_NODE_ID_SETTING,
+                EMIT_CLUSTER_NAME_SETTING,
+                EMIT_CLUSTER_UUID_SETTING,
                 INCLUDE_EVENT_SETTINGS,
                 EXCLUDE_EVENT_SETTINGS,
                 INCLUDE_REQUEST_BODY
@@ -1492,7 +1512,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     logEntry.with(PRINCIPAL_REALM_FIELD_NAME, authentication.getAuthenticatedBy().getName());
                 }
             }
-            if (authentication.isServiceAccount()) {
+            if (authentication.isAuthenticatedWithServiceAccount()) {
                 logEntry.with(SERVICE_TOKEN_NAME_FIELD_NAME, (String) authentication.getMetadata().get(TOKEN_NAME_FIELD))
                     .with(
                         SERVICE_TOKEN_TYPE_FIELD_NAME,
@@ -1567,6 +1587,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         settings.add(EMIT_HOST_NAME_SETTING);
         settings.add(EMIT_NODE_NAME_SETTING);
         settings.add(EMIT_NODE_ID_SETTING);
+        settings.add(EMIT_CLUSTER_NAME_SETTING);
+        settings.add(EMIT_CLUSTER_UUID_SETTING);
         settings.add(INCLUDE_EVENT_SETTINGS);
         settings.add(EXCLUDE_EVENT_SETTINGS);
         settings.add(INCLUDE_REQUEST_BODY);
@@ -1864,11 +1886,13 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     static class EntryCommonFields {
         private final Settings settings;
         private final DiscoveryNode localNode;
+        private final ClusterService clusterService;
         final Map<String, String> commonFields;
 
-        EntryCommonFields(Settings settings, @Nullable DiscoveryNode newLocalNode) {
+        EntryCommonFields(Settings settings, @Nullable DiscoveryNode newLocalNode, ClusterService clusterService) {
             this.settings = settings;
             this.localNode = newLocalNode;
+            this.clusterService = clusterService;
             final Map<String, String> commonFields = new HashMap<>();
             if (EMIT_NODE_NAME_SETTING.get(settings)) {
                 final String nodeName = Node.NODE_NAME_SETTING.get(settings);
@@ -1891,16 +1915,42 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             }
             // the default origin is local
             commonFields.put(ORIGIN_TYPE_FIELD_NAME, LOCAL_ORIGIN_FIELD_VALUE);
+            if (Lifecycle.State.STARTED.equals(clusterService.lifecycleState())) {
+                final ClusterState clusterState = this.clusterService.state();
+                if (clusterState == null) {
+                    LOGGER.trace("Cluster state not available");
+                } else {
+                    if (EMIT_CLUSTER_NAME_SETTING.get(settings)) {
+                        final String clusterName = clusterState.getClusterName().value();
+                        if (Strings.hasLength(clusterName)) {
+                            commonFields.put(CLUSTER_NAME_FIELD_NAME, clusterName);
+                        }
+                    }
+                    if (EMIT_CLUSTER_UUID_SETTING.get(settings)) {
+                        final String clusterUuId = clusterState.metadata().clusterUUID();
+                        if (Strings.hasLength(clusterUuId)) {
+                            commonFields.put(CLUSTER_UUID_FIELD_NAME, clusterUuId);
+                        }
+                    }
+                }
+            }
+            // Null value triggers LoggingAuditTrailTests.assertMsg to verify a key is absent in an audit log message.
+            commonFields.putIfAbsent(NODE_NAME_FIELD_NAME, null);
+            commonFields.putIfAbsent(NODE_ID_FIELD_NAME, null);
+            commonFields.putIfAbsent(HOST_ADDRESS_FIELD_NAME, null);
+            commonFields.putIfAbsent(HOST_NAME_FIELD_NAME, null);
+            commonFields.putIfAbsent(CLUSTER_NAME_FIELD_NAME, null);
+            commonFields.putIfAbsent(CLUSTER_UUID_FIELD_NAME, null);
             this.commonFields = Collections.unmodifiableMap(commonFields);
         }
 
         EntryCommonFields withNewSettings(Settings newSettings) {
             final Settings mergedSettings = Settings.builder().put(this.settings).put(newSettings, false).build();
-            return new EntryCommonFields(mergedSettings, this.localNode);
+            return new EntryCommonFields(mergedSettings, this.localNode, this.clusterService);
         }
 
         EntryCommonFields withNewLocalNode(DiscoveryNode newLocalNode) {
-            return new EntryCommonFields(this.settings, newLocalNode);
+            return new EntryCommonFields(this.settings, newLocalNode, this.clusterService);
         }
     }
 }

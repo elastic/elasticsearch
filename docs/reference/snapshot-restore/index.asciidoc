@@ -32,13 +32,14 @@ to recover or transfer its data.
 == Snapshot contents
 
 By default, a snapshot of a cluster contains the cluster state, all data
-streams, and all indices, including system indices. The cluster state
-includes:
+streams, and all indices, including system indices. The cluster state includes:
 
 include::apis/restore-snapshot-api.asciidoc[tag=cluster-state-contents]
 
 You can also take snapshots of only specific data streams or indices in the
-cluster.
+cluster. A snapshot that includes a data stream or index automatically includes
+its aliases. When you restore a snapshot, you can choose whether to restore
+these aliases.
 
 Snapshots don't contain or back up:
 

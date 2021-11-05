@@ -274,7 +274,6 @@ POST _text_structure/find_structure
 {"name": "The Left Hand of Darkness", "author": "Ursula K. Le Guin", "release_date": "1969-06-01", "page_count": 304}
 {"name": "The Moon is a Harsh Mistress", "author": "Robert A. Heinlein", "release_date": "1966-04-01", "page_count": 288}
 ----
-// TEST
 
 If the request does not encounter errors, you receive the following result:
 
@@ -283,7 +282,9 @@ If the request does not encounter errors, you receive the following result:
 {
   "num_lines_analyzed" : 24, <1>
   "num_messages_analyzed" : 24, <2>
-  "sample_start" : "{\"name\": \"Leviathan Wakes\", \"author\": \"James S.A. Corey\", \"release_date\": \"2011-06-02\", \"page_count\": 561}\n{\"name\": \"Hyperion\", \"author\": \"Dan Simmons\", \"release_date\": \"1989-05-26\", \"page_count\": 482}\n", <3>
+  "sample_start" : """{"name": "Leviathan Wakes", "author": "James S.A. Corey", "release_date": "2011-06-02", "page_count": 561}
+{"name": "Hyperion", "author": "Dan Simmons", "release_date": "1989-05-26", "page_count": 482}
+""", <3>
   "charset" : "UTF-8", <4>
   "has_byte_order_marker" : false, <5>
   "format" : "ndjson", <6>
@@ -523,7 +524,7 @@ If the request does not encounter errors, you receive the following result:
   }
 }
 ----
-// TESTRESPONSE[s/"sample_start" : ".*",/"sample_start" : "$body.sample_start",/]
+// TESTRESPONSE[s/"sample_start" : "\"\".*\"\"",/"sample_start" : "$body.sample_start",/]
 // The substitution is because the text is pre-processed by the test harness,
 // so the fields may get reordered in the JSON the endpoint sees
 

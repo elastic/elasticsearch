@@ -49,6 +49,7 @@ specified partition.
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
+
 [[ml-get-category-query-parms]]
 == {api-query-parms-title}
 

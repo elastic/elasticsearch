@@ -1021,23 +1021,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             builder.transientSettings(transientSettings);
             builder.persistentSettings(persistentSettings);
             builder.hashesOfConsistentSettings(hashesOfConsistentSettings.apply(part.hashesOfConsistentSettings));
-
-            // TODO: reuse from Diff?
-            var tempIndices = indices.apply(part.indices);
-            ImmutableOpenMap.Builder<String, IndexMetadata> newIndices = ImmutableOpenMap.builder(tempIndices.size());
-            for (var cursor : tempIndices) {
-                if (cursor.value.mapping() != null) {
-                    MappingMetadata mm = builder.reuseMappings(cursor.value.mapping());
-                    if (mm != cursor.value.mapping()) {
-                        newIndices.put(cursor.key, IndexMetadata.builder(cursor.value).putMapping(mm).build());
-                    } else {
-                        newIndices.put(cursor.key, cursor.value);
-                    }
-                } else {
-                    newIndices.put(cursor.key, cursor.value);
-                }
-            }
-            builder.indices(newIndices.build());
+            builder.indices(indices.apply(part.indices));
             builder.templates(templates.apply(part.templates));
             builder.customs(customs.apply(part.customs));
             return builder.build();
@@ -1057,7 +1041,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            builder.put(IndexMetadata.readFrom(in, builder::reuseMappings), false);
+            builder.put(IndexMetadata.readFrom(in), false);
         }
         size = in.readVInt();
         for (int i = 0; i < size; i++) {
@@ -1907,7 +1891,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                         builder.persistentSettings(Settings.fromXContent(parser));
                     } else if ("indices".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            builder.put(IndexMetadata.Builder.fromXContent(parser, builder::reuseMappings), false);
+                            builder.put(IndexMetadata.Builder.fromXContent(parser), false);
                         }
                     } else if ("hashes_of_consistent_settings".equals(currentFieldName)) {
                         builder.hashesOfConsistentSettings(parser.mapStrings());

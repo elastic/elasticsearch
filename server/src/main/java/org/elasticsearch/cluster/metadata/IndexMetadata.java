@@ -67,7 +67,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_PARAM;
@@ -839,7 +838,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     public static IndexMetadata fromXContent(XContentParser parser) throws IOException {
-        return Builder.fromXContent(parser, MappingMetadata::new);
+        return Builder.fromXContent(parser);
     }
 
     @Override
@@ -982,10 +981,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     public static IndexMetadata readFrom(StreamInput in) throws IOException {
-        return readFrom(in, m -> m);
-    }
-
-    public static IndexMetadata readFrom(StreamInput in, Function<MappingMetadata, MappingMetadata> reuseFunction) throws IOException {
         Builder builder = new Builder(in.readString());
         builder.version(in.readLong());
         builder.mappingVersion(in.readVLong());
@@ -1000,7 +995,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         int mappingsSize = in.readVInt();
         for (int i = 0; i < mappingsSize; i++) {
             MappingMetadata mappingMd = new MappingMetadata(in);
-            builder.putMapping(reuseFunction.apply(mappingMd));
+            builder.putMapping(mappingMd);
         }
         int aliasesSize = in.readVInt();
         for (int i = 0; i < aliasesSize; i++) {
@@ -1612,8 +1607,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.endObject();
         }
 
-        public static IndexMetadata fromXContent(XContentParser parser, BiFunction<String, Map<String, Object>, MappingMetadata> lookup)
-            throws IOException {
+        public static IndexMetadata fromXContent(XContentParser parser) throws IOException {
             if (parser.currentToken() == null) { // fresh parser? move to the first token
                 parser.nextToken();
             }
@@ -1644,7 +1638,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                                 Map<String, Object> mappingSource = MapBuilder.<String, Object>newMapBuilder()
                                     .put(mappingType, parser.mapOrdered())
                                     .map();
-                                builder.putMapping(lookup.apply(mappingType, mappingSource));
+                                builder.putMapping(new MappingMetadata(mappingType, mappingSource));
                             } else {
                                 throw new IllegalArgumentException("Unexpected token: " + token);
                             }
@@ -1887,7 +1881,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
         @Override
         public IndexMetadata fromXContent(XContentParser parser) throws IOException {
-            return Builder.fromXContent(parser, MappingMetadata::new);
+            return Builder.fromXContent(parser);
         }
     };
 

@@ -45,9 +45,25 @@ information about all categories. If you specify only the
 `partition_field_value`, it returns information about all categories for the
 specified partition.
 
+<<<<<<< HEAD
 `<job_id>`::
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+=======
+[[ml-get-category-query-parms]]
+== {api-query-parms-title}
+
+`from`::
+(Optional, integer) Skips the specified number of categories. Defaults to `0`.
+
+`partition_field_value`::
+(Optional, string) Only return categories for the specified partition.
+
+`size`::
+(Optional, integer) Specifies the maximum number of categories to obtain. 
+Defaults to `100`.
+
+>>>>>>> f72e2da221e ([DOCS] Adds missing query params to GET category and GET influencer APIs (#79448))
 
 [[ml-get-category-request-body]]
 == {api-request-body-title}

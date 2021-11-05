@@ -139,6 +139,9 @@ endif::include-xpack[]
 include::systemd.asciidoc[]
 
 [[rpm-check-running]]
+
+:os-dir:       /etc/elasticsearch
+
 include::check-running.asciidoc[]
 
 [[rpm-configuring]]

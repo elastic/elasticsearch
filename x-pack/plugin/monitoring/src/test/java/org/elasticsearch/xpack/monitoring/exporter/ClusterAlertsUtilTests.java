@@ -6,23 +6,22 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
-
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
-
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
+
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -101,16 +100,25 @@ public class ClusterAlertsUtilTests extends ESTestCase {
         final Set<String> unknownIds = blacklist.stream().filter(id -> watchIds.contains(id) == false).collect(Collectors.toSet());
         final String unknownIdsString = String.join(", ", unknownIds);
 
-        final SettingsException exception =
-                expectThrows(SettingsException.class,
-                             () -> ClusterAlertsUtil.getClusterAlertsBlacklist(createConfigWithBlacklist("_random", blacklist)));
+        final SettingsException exception = expectThrows(
+            SettingsException.class,
+            () -> ClusterAlertsUtil.getClusterAlertsBlacklist(createConfigWithBlacklist("_random", blacklist))
+        );
 
-        assertThat(exception.getMessage(),
-                   equalTo("[xpack.monitoring.exporters._random.cluster_alerts.management.blacklist] contains unrecognized Cluster " +
-                           "Alert IDs [" + unknownIdsString + "]"));
+        assertThat(
+            exception.getMessage(),
+            equalTo(
+                "[xpack.monitoring.exporters._random.cluster_alerts.management.blacklist] contains unrecognized Cluster "
+                    + "Alert IDs ["
+                    + unknownIdsString
+                    + "]"
+            )
+        );
 
-        assertWarnings("[xpack.monitoring.exporters._random.cluster_alerts.management.blacklist] setting was deprecated in " +
-            "Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(
+            "[xpack.monitoring.exporters._random.cluster_alerts.management.blacklist] setting was deprecated in Elasticsearch "
+                + "and will be removed in a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testGetClusterAlertsBlacklist() {
@@ -118,14 +126,16 @@ public class ClusterAlertsUtilTests extends ESTestCase {
 
         assertThat(blacklist, equalTo(ClusterAlertsUtil.getClusterAlertsBlacklist(createConfigWithBlacklist("any", blacklist))));
 
-        assertWarnings("[xpack.monitoring.exporters.any.cluster_alerts.management.blacklist] setting was deprecated in Elasticsearch " +
-            "and will be removed in a future release! See the breaking changes documentation for the next major version.");
+        assertWarnings(
+            "[xpack.monitoring.exporters.any.cluster_alerts.management.blacklist] setting was deprecated in Elasticsearch "
+                + "and will be removed in a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     private Exporter.Config createConfigWithBlacklist(final String name, final List<String> blacklist) {
         final Settings settings = Settings.builder()
-                .putList("xpack.monitoring.exporters." + name + ".cluster_alerts.management.blacklist", blacklist)
-                .build();
+            .putList("xpack.monitoring.exporters." + name + ".cluster_alerts.management.blacklist", blacklist)
+            .build();
         final ClusterService clusterService = mock(ClusterService.class);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
 

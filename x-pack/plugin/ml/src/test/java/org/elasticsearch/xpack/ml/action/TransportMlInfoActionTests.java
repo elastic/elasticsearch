@@ -43,7 +43,8 @@ public class TransportMlInfoActionTests extends ESTestCase {
         int numNonMlNodes = randomIntBetween(0, 10);
         ClusterSettings clusterSettings = new ClusterSettings(
             Settings.builder().put(MAX_MACHINE_MEMORY_PERCENT.getKey(), mlMemoryPercent).build(),
-            Sets.newHashSet(MAX_LAZY_ML_NODES, MAX_MACHINE_MEMORY_PERCENT, MAX_ML_NODE_SIZE, USE_AUTO_MACHINE_MEMORY_PERCENT));
+            Sets.newHashSet(MAX_LAZY_ML_NODES, MAX_MACHINE_MEMORY_PERCENT, MAX_ML_NODE_SIZE, USE_AUTO_MACHINE_MEMORY_PERCENT)
+        );
         long totalMlMemoryBytes = numMlNodes * mlMachineMemory * mlMemoryPercent / 100;
 
         DiscoveryNodes nodes = randomNodes(numMlNodes, numNonMlNodes, mlMachineMemory);
@@ -56,10 +57,13 @@ public class TransportMlInfoActionTests extends ESTestCase {
         } else {
             // Expect configured percentage of current node size (allowing for small rounding errors)
             assertThat(effectiveMaxModelMemoryLimit, notNullValue());
-            assertThat(effectiveMaxModelMemoryLimit.getBytes()
-                    + Math.max(Job.PROCESS_MEMORY_OVERHEAD.getBytes(), DataFrameAnalyticsConfig.PROCESS_MEMORY_OVERHEAD.getBytes())
-                    + MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(),
-                lessThanOrEqualTo(mlMachineMemory * mlMemoryPercent / 100));
+            assertThat(
+                effectiveMaxModelMemoryLimit.getBytes() + Math.max(
+                    Job.PROCESS_MEMORY_OVERHEAD.getBytes(),
+                    DataFrameAnalyticsConfig.PROCESS_MEMORY_OVERHEAD.getBytes()
+                ) + MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(),
+                lessThanOrEqualTo(mlMachineMemory * mlMemoryPercent / 100)
+            );
         }
 
         ByteSizeValue totalMlMemory = TransportMlInfoAction.calculateTotalMlMemory(clusterSettings, nodes);
@@ -74,10 +78,13 @@ public class TransportMlInfoActionTests extends ESTestCase {
         long mlMaxNodeSize = randomLongBetween(2000000000L, 100000000000L);
         int numNonMlNodes = randomIntBetween(0, 10);
         ClusterSettings clusterSettings = new ClusterSettings(
-            Settings.builder().put(MAX_ML_NODE_SIZE.getKey(), mlMaxNodeSize + "b")
+            Settings.builder()
+                .put(MAX_ML_NODE_SIZE.getKey(), mlMaxNodeSize + "b")
                 .put(MAX_LAZY_ML_NODES.getKey(), randomIntBetween(1, 100))
-                .put(MAX_MACHINE_MEMORY_PERCENT.getKey(), mlMemoryPercent).build(),
-            Sets.newHashSet(MAX_LAZY_ML_NODES, MAX_MACHINE_MEMORY_PERCENT, MAX_ML_NODE_SIZE, USE_AUTO_MACHINE_MEMORY_PERCENT));
+                .put(MAX_MACHINE_MEMORY_PERCENT.getKey(), mlMemoryPercent)
+                .build(),
+            Sets.newHashSet(MAX_LAZY_ML_NODES, MAX_MACHINE_MEMORY_PERCENT, MAX_ML_NODE_SIZE, USE_AUTO_MACHINE_MEMORY_PERCENT)
+        );
 
         DiscoveryNodes nodes = randomNodes(0, numNonMlNodes, 0);
 
@@ -85,10 +92,13 @@ public class TransportMlInfoActionTests extends ESTestCase {
 
         // Expect configured percentage of maximum declared node size (allowing for small rounding errors)
         assertThat(effectiveMaxModelMemoryLimit, notNullValue());
-        assertThat(effectiveMaxModelMemoryLimit.getBytes()
-                + Math.max(Job.PROCESS_MEMORY_OVERHEAD.getBytes(), DataFrameAnalyticsConfig.PROCESS_MEMORY_OVERHEAD.getBytes())
-                + MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(),
-            lessThanOrEqualTo(mlMaxNodeSize * mlMemoryPercent / 100));
+        assertThat(
+            effectiveMaxModelMemoryLimit.getBytes() + Math.max(
+                Job.PROCESS_MEMORY_OVERHEAD.getBytes(),
+                DataFrameAnalyticsConfig.PROCESS_MEMORY_OVERHEAD.getBytes()
+            ) + MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(),
+            lessThanOrEqualTo(mlMaxNodeSize * mlMemoryPercent / 100)
+        );
 
         ByteSizeValue totalMlMemory = TransportMlInfoAction.calculateTotalMlMemory(clusterSettings, nodes);
 
@@ -104,10 +114,13 @@ public class TransportMlInfoActionTests extends ESTestCase {
         int numMlNodes = randomIntBetween(1, 10);
         int numNonMlNodes = randomIntBetween(0, 10);
         ClusterSettings clusterSettings = new ClusterSettings(
-            Settings.builder().put(MAX_ML_NODE_SIZE.getKey(), mlMaxNodeSize + "b")
+            Settings.builder()
+                .put(MAX_ML_NODE_SIZE.getKey(), mlMaxNodeSize + "b")
                 .put(MAX_LAZY_ML_NODES.getKey(), randomIntBetween(numMlNodes + 1, 100))
-                .put(MAX_MACHINE_MEMORY_PERCENT.getKey(), mlMemoryPercent).build(),
-            Sets.newHashSet(MAX_LAZY_ML_NODES, MAX_MACHINE_MEMORY_PERCENT, MAX_ML_NODE_SIZE, USE_AUTO_MACHINE_MEMORY_PERCENT));
+                .put(MAX_MACHINE_MEMORY_PERCENT.getKey(), mlMemoryPercent)
+                .build(),
+            Sets.newHashSet(MAX_LAZY_ML_NODES, MAX_MACHINE_MEMORY_PERCENT, MAX_ML_NODE_SIZE, USE_AUTO_MACHINE_MEMORY_PERCENT)
+        );
         long totalMlMemoryBytes = numMlNodes * mlMachineMemory * mlMemoryPercent / 100;
 
         DiscoveryNodes nodes = randomNodes(numMlNodes, numNonMlNodes, mlMachineMemory);
@@ -116,14 +129,20 @@ public class TransportMlInfoActionTests extends ESTestCase {
 
         // Expect configured percentage of maximum declared node size (allowing for small rounding errors) - bigger than current node size
         assertThat(effectiveMaxModelMemoryLimit, notNullValue());
-        assertThat(effectiveMaxModelMemoryLimit.getBytes()
-                + Math.max(Job.PROCESS_MEMORY_OVERHEAD.getBytes(), DataFrameAnalyticsConfig.PROCESS_MEMORY_OVERHEAD.getBytes())
-                + MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(),
-            lessThanOrEqualTo(mlMaxNodeSize * mlMemoryPercent / 100));
-        assertThat(effectiveMaxModelMemoryLimit.getBytes()
-                + Math.max(Job.PROCESS_MEMORY_OVERHEAD.getBytes(), DataFrameAnalyticsConfig.PROCESS_MEMORY_OVERHEAD.getBytes())
-                + MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(),
-            greaterThan(2 * mlMachineMemory * mlMemoryPercent / 100));
+        assertThat(
+            effectiveMaxModelMemoryLimit.getBytes() + Math.max(
+                Job.PROCESS_MEMORY_OVERHEAD.getBytes(),
+                DataFrameAnalyticsConfig.PROCESS_MEMORY_OVERHEAD.getBytes()
+            ) + MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(),
+            lessThanOrEqualTo(mlMaxNodeSize * mlMemoryPercent / 100)
+        );
+        assertThat(
+            effectiveMaxModelMemoryLimit.getBytes() + Math.max(
+                Job.PROCESS_MEMORY_OVERHEAD.getBytes(),
+                DataFrameAnalyticsConfig.PROCESS_MEMORY_OVERHEAD.getBytes()
+            ) + MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(),
+            greaterThan(2 * mlMachineMemory * mlMemoryPercent / 100)
+        );
 
         ByteSizeValue totalMlMemory = TransportMlInfoAction.calculateTotalMlMemory(clusterSettings, nodes);
 
@@ -139,10 +158,13 @@ public class TransportMlInfoActionTests extends ESTestCase {
         int numMlNodes = randomIntBetween(2, 10);
         int numNonMlNodes = randomIntBetween(0, 10);
         ClusterSettings clusterSettings = new ClusterSettings(
-            Settings.builder().put(MAX_ML_NODE_SIZE.getKey(), mlMaxNodeSize + "b")
+            Settings.builder()
+                .put(MAX_ML_NODE_SIZE.getKey(), mlMaxNodeSize + "b")
                 .put(MAX_LAZY_ML_NODES.getKey(), randomIntBetween(1, numMlNodes - 1))
-                .put(MAX_MACHINE_MEMORY_PERCENT.getKey(), mlMemoryPercent).build(),
-            Sets.newHashSet(MAX_LAZY_ML_NODES, MAX_MACHINE_MEMORY_PERCENT, MAX_ML_NODE_SIZE, USE_AUTO_MACHINE_MEMORY_PERCENT));
+                .put(MAX_MACHINE_MEMORY_PERCENT.getKey(), mlMemoryPercent)
+                .build(),
+            Sets.newHashSet(MAX_LAZY_ML_NODES, MAX_MACHINE_MEMORY_PERCENT, MAX_ML_NODE_SIZE, USE_AUTO_MACHINE_MEMORY_PERCENT)
+        );
         long totalMlMemoryBytes = numMlNodes * mlMachineMemory * mlMemoryPercent / 100;
 
         DiscoveryNodes nodes = randomNodes(numMlNodes, numNonMlNodes, mlMachineMemory);
@@ -151,10 +173,13 @@ public class TransportMlInfoActionTests extends ESTestCase {
 
         // Expect configured percentage of current node size (allowing for small rounding errors) - max is bigger but can't be added
         assertThat(effectiveMaxModelMemoryLimit, notNullValue());
-        assertThat(effectiveMaxModelMemoryLimit.getBytes()
-                + Math.max(Job.PROCESS_MEMORY_OVERHEAD.getBytes(), DataFrameAnalyticsConfig.PROCESS_MEMORY_OVERHEAD.getBytes())
-                + MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(),
-            lessThanOrEqualTo(mlMachineMemory * mlMemoryPercent / 100));
+        assertThat(
+            effectiveMaxModelMemoryLimit.getBytes() + Math.max(
+                Job.PROCESS_MEMORY_OVERHEAD.getBytes(),
+                DataFrameAnalyticsConfig.PROCESS_MEMORY_OVERHEAD.getBytes()
+            ) + MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(),
+            lessThanOrEqualTo(mlMachineMemory * mlMemoryPercent / 100)
+        );
 
         ByteSizeValue totalMlMemory = TransportMlInfoAction.calculateTotalMlMemory(clusterSettings, nodes);
 
@@ -172,9 +197,16 @@ public class TransportMlInfoActionTests extends ESTestCase {
             TransportAddress ta = new TransportAddress(InetAddress.getLoopbackAddress(), 9300 + i);
             if (i < numMlNodes) {
                 // ML node
-                builder.add(new DiscoveryNode(nodeName, nodeId, ta,
-                    Collections.singletonMap(MachineLearning.MACHINE_MEMORY_NODE_ATTR, String.valueOf(mlMachineMemory)),
-                    Collections.emptySet(), Version.CURRENT));
+                builder.add(
+                    new DiscoveryNode(
+                        nodeName,
+                        nodeId,
+                        ta,
+                        Collections.singletonMap(MachineLearning.MACHINE_MEMORY_NODE_ATTR, String.valueOf(mlMachineMemory)),
+                        Collections.emptySet(),
+                        Version.CURRENT
+                    )
+                );
             } else {
                 // Not an ML node
                 builder.add(new DiscoveryNode(nodeName, nodeId, ta, Collections.emptyMap(), Collections.emptySet(), Version.CURRENT));

@@ -65,8 +65,7 @@ final class LatLonPointDVLeafFieldData extends AbstractLeafGeoPointFieldData {
                 @Override
                 public GeoPoint nextValue() throws IOException {
                     final long encoded = numericValues.nextValue();
-                    point.reset(GeoEncodingUtils.decodeLatitude((int) (encoded >>> 32)),
-                            GeoEncodingUtils.decodeLongitude((int) encoded));
+                    point.reset(GeoEncodingUtils.decodeLatitude((int) (encoded >>> 32)), GeoEncodingUtils.decodeLongitude((int) encoded));
                     return point;
                 }
             };

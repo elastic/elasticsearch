@@ -11,7 +11,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -19,11 +18,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.DateTimeException;
@@ -88,16 +88,13 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         if (relationString != null) {
             relation = ShapeRelation.getRelationByName(relationString);
             if (relation != null && isRelationAllowed(relation) == false) {
-                throw new IllegalArgumentException(
-                    "[range] query does not support relation [" + relationString + "]");
+                throw new IllegalArgumentException("[range] query does not support relation [" + relationString + "]");
             }
         }
     }
 
     private boolean isRelationAllowed(ShapeRelation relation) {
-        return relation == ShapeRelation.INTERSECTS
-            || relation == ShapeRelation.CONTAINS
-            || relation == ShapeRelation.WITHIN;
+        return relation == ShapeRelation.INTERSECTS || relation == ShapeRelation.CONTAINS || relation == ShapeRelation.WITHIN;
     }
 
     @Override
@@ -382,13 +379,15 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                         } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             queryName = parser.text();
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(),
-                                    "[range] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(
+                                parser.getTokenLocation(),
+                                "[range] query does not support [" + currentFieldName + "]"
+                            );
                         }
                     }
                 }
             } else if (token.isValue()) {
-                    throw new ParsingException(parser.getTokenLocation(), "[range] query does not support [" + currentFieldName + "]");
+                throw new ParsingException(parser.getTokenLocation(), "[range] query does not support [" + currentFieldName + "]");
             }
         }
 
@@ -429,8 +428,17 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
                 long minTimestamp = coordinatorRewriteContext.getMinTimestamp();
                 long maxTimestamp = coordinatorRewriteContext.getMaxTimestamp();
                 DateMathParser dateMathParser = getForceDateParser();
-                return dateFieldType.isFieldWithinQuery(minTimestamp, maxTimestamp, from, to, includeLower,
-                    includeUpper, timeZone, dateMathParser, queryRewriteContext);
+                return dateFieldType.isFieldWithinQuery(
+                    minTimestamp,
+                    maxTimestamp,
+                    from,
+                    to,
+                    includeLower,
+                    includeUpper,
+                    timeZone,
+                    dateMathParser,
+                    queryRewriteContext
+                );
             }
         }
 
@@ -446,8 +454,16 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             }
 
             DateMathParser dateMathParser = getForceDateParser();
-            return fieldType.isFieldWithinQuery(searchExecutionContext.getIndexReader(), from, to, includeLower,
-                    includeUpper, timeZone, dateMathParser, queryRewriteContext);
+            return fieldType.isFieldWithinQuery(
+                searchExecutionContext.getIndexReader(),
+                from,
+                to,
+                includeLower,
+                includeUpper,
+                timeZone,
+                dateMathParser,
+                queryRewriteContext
+            );
         }
 
         // Not on the shard, we have no way to know what the relation is.
@@ -458,23 +474,23 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         final MappedFieldType.Relation relation = getRelation(queryRewriteContext);
         switch (relation) {
-        case DISJOINT:
-            return new MatchNoneQueryBuilder();
-        case WITHIN:
-            if (from != null || to != null || format != null || timeZone != null) {
-                RangeQueryBuilder newRangeQuery = new RangeQueryBuilder(fieldName);
-                newRangeQuery.from(null);
-                newRangeQuery.to(null);
-                newRangeQuery.format = null;
-                newRangeQuery.timeZone = null;
-                return newRangeQuery;
-            } else {
+            case DISJOINT:
+                return new MatchNoneQueryBuilder();
+            case WITHIN:
+                if (from != null || to != null || format != null || timeZone != null) {
+                    RangeQueryBuilder newRangeQuery = new RangeQueryBuilder(fieldName);
+                    newRangeQuery.from(null);
+                    newRangeQuery.to(null);
+                    newRangeQuery.format = null;
+                    newRangeQuery.timeZone = null;
+                    return newRangeQuery;
+                } else {
+                    return this;
+                }
+            case INTERSECTS:
                 return this;
-            }
-        case INTERSECTS:
-            return this;
-        default:
-            throw new AssertionError();
+            default:
+                throw new AssertionError();
         }
     }
 
@@ -488,8 +504,8 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             if (context.isFieldMapped(FieldNamesFieldMapper.NAME) == false) {
                 return new MatchNoDocsQuery("No mappings yet");
             }
-            final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType =
-                (FieldNamesFieldMapper.FieldNamesFieldType) context.getFieldType(FieldNamesFieldMapper.NAME);
+            final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context
+                .getFieldType(FieldNamesFieldMapper.NAME);
             // Exists query would fail if the fieldNames field is disabled.
             if (fieldNamesFieldType.isEnabled()) {
                 return ExistsQueryBuilder.newFilter(context, fieldName, false);
@@ -500,9 +516,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             throw new IllegalStateException("Rewrite first");
         }
         DateMathParser forcedDateParser = getForceDateParser();
-        return mapper.rangeQuery(
-                from, to, includeLower, includeUpper,
-                relation, timeZone, forcedDateParser, context);
+        return mapper.rangeQuery(from, to, includeLower, includeUpper, relation, timeZone, forcedDateParser, context);
     }
 
     @Override
@@ -512,12 +526,12 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
     @Override
     protected boolean doEquals(RangeQueryBuilder other) {
-        return Objects.equals(fieldName, other.fieldName) &&
-               Objects.equals(from, other.from) &&
-               Objects.equals(to, other.to) &&
-               Objects.equals(timeZone, other.timeZone) &&
-               Objects.equals(includeLower, other.includeLower) &&
-               Objects.equals(includeUpper, other.includeUpper) &&
-               Objects.equals(format, other.format);
+        return Objects.equals(fieldName, other.fieldName)
+            && Objects.equals(from, other.from)
+            && Objects.equals(to, other.to)
+            && Objects.equals(timeZone, other.timeZone)
+            && Objects.equals(includeLower, other.includeLower)
+            && Objects.equals(includeUpper, other.includeUpper)
+            && Objects.equals(format, other.format);
     }
 }

@@ -25,16 +25,19 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
@@ -44,6 +47,7 @@ import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -54,7 +58,10 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfigTests;
+import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationState;
+import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -68,6 +75,7 @@ import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.JobManagerHolder;
+import org.junit.After;
 import org.junit.Before;
 
 import java.time.Instant;
@@ -82,13 +90,14 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Matchers.same;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -104,12 +113,14 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
 
     @Before
     public void init() {
+        ThreadPool threadpool = new TestThreadPool("test");
         commonSettings = Settings.builder()
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
-                .put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false)
-                .build();
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
+            .put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false)
+            .build();
         clusterService = mock(ClusterService.class);
         client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadpool);
         jobManager = mock(JobManager.class);
         jobManagerHolder = new JobManagerHolder(jobManager);
         licenseState = mock(MockLicenseState.class);
@@ -120,17 +131,35 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         givenDataFrameAnalytics(Collections.emptyList(), Collections.emptyList());
         givenProcessorStats(Collections.emptyList());
         givenTrainedModels(Collections.emptyList());
+        givenDeploymentStats(new GetDeploymentStatsAction.Response(List.of(), List.of(), List.of(), 0L));
+    }
+
+    @After
+    public void close() {
+        client.threadPool().shutdown();
     }
 
     private MachineLearningUsageTransportAction newUsageAction(Settings settings) {
-        return new MachineLearningUsageTransportAction(mock(TransportService.class), clusterService,
-            null, mock(ActionFilters.class), mock(IndexNameExpressionResolver.class),
-            TestEnvironment.newEnvironment(settings), client, licenseState, jobManagerHolder);
+        return new MachineLearningUsageTransportAction(
+            mock(TransportService.class),
+            clusterService,
+            null,
+            mock(ActionFilters.class),
+            mock(IndexNameExpressionResolver.class),
+            TestEnvironment.newEnvironment(settings),
+            client,
+            licenseState,
+            jobManagerHolder
+        );
     }
 
     public void testAvailable() throws Exception {
         MachineLearningInfoTransportAction featureSet = new MachineLearningInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), commonSettings, licenseState);
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            commonSettings,
+            licenseState
+        );
         boolean available = randomBoolean();
         when(licenseState.isAllowed(MachineLearningField.ML_API_FEATURE)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
@@ -156,7 +185,11 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         }
         boolean expected = enabled || useDefault;
         MachineLearningInfoTransportAction featureSet = new MachineLearningInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            settings.build(),
+            licenseState
+        );
         assertThat(featureSet.enabled(), is(expected));
         var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
@@ -175,32 +208,39 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         Settings.Builder settings = Settings.builder().put(commonSettings);
         settings.put("xpack.ml.enabled", true);
 
-        Job opened1 = buildJob("opened1", Collections.singletonList(buildMinDetector("foo")),
-                Collections.singletonMap("created_by", randomFrom("a-cool-module", "a_cool_module", "a cool module")));
+        Job opened1 = buildJob(
+            "opened1",
+            Collections.singletonList(buildMinDetector("foo")),
+            Collections.singletonMap("created_by", randomFrom("a-cool-module", "a_cool_module", "a cool module"))
+        );
         GetJobsStatsAction.Response.JobStats opened1JobStats = buildJobStats("opened1", JobState.OPENED, 100L, 3L);
         Job opened2 = buildJob("opened2", Arrays.asList(buildMinDetector("foo"), buildMinDetector("bar")));
         GetJobsStatsAction.Response.JobStats opened2JobStats = buildJobStats("opened2", JobState.OPENED, 200L, 8L);
         Job closed1 = buildJob("closed1", Arrays.asList(buildMinDetector("foo"), buildMinDetector("bar"), buildMinDetector("foobar")));
         GetJobsStatsAction.Response.JobStats closed1JobStats = buildJobStats("closed1", JobState.CLOSED, 300L, 0);
-        givenJobs(Arrays.asList(opened1, opened2, closed1),
-                Arrays.asList(opened1JobStats, opened2JobStats, closed1JobStats));
+        givenJobs(Arrays.asList(opened1, opened2, closed1), Arrays.asList(opened1JobStats, opened2JobStats, closed1JobStats));
 
-        givenDatafeeds(Arrays.asList(
+        givenDatafeeds(
+            Arrays.asList(
                 buildDatafeedStats(DatafeedState.STARTED),
                 buildDatafeedStats(DatafeedState.STARTED),
                 buildDatafeedStats(DatafeedState.STOPPED)
-        ));
+            )
+        );
 
         DataFrameAnalyticsConfig dfa1 = DataFrameAnalyticsConfigTests.createRandom("dfa_1");
         DataFrameAnalyticsConfig dfa2 = DataFrameAnalyticsConfigTests.createRandom("dfa_2");
         DataFrameAnalyticsConfig dfa3 = DataFrameAnalyticsConfigTests.createRandom("dfa_3");
 
         List<DataFrameAnalyticsConfig> dataFrameAnalytics = Arrays.asList(dfa1, dfa2, dfa3);
-        givenDataFrameAnalytics(dataFrameAnalytics, Arrays.asList(
-            buildDataFrameAnalyticsStats(dfa1.getId(), DataFrameAnalyticsState.STOPPED, null),
-            buildDataFrameAnalyticsStats(dfa2.getId(), DataFrameAnalyticsState.STOPPED, 100L),
-            buildDataFrameAnalyticsStats(dfa3.getId(), DataFrameAnalyticsState.STARTED, 200L)
-        ));
+        givenDataFrameAnalytics(
+            dataFrameAnalytics,
+            Arrays.asList(
+                buildDataFrameAnalyticsStats(dfa1.getId(), DataFrameAnalyticsState.STOPPED, null),
+                buildDataFrameAnalyticsStats(dfa2.getId(), DataFrameAnalyticsState.STOPPED, 100L),
+                buildDataFrameAnalyticsStats(dfa3.getId(), DataFrameAnalyticsState.STARTED, 200L)
+            )
+        );
 
         Map<String, Integer> expectedDfaCountByAnalysis = new HashMap<>();
         dataFrameAnalytics.forEach(dfa -> {
@@ -209,57 +249,81 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             expectedDfaCountByAnalysis.put(analysisName, ++analysisCount);
         });
 
-        givenProcessorStats(Arrays.asList(
-            buildNodeStats(
-                Arrays.asList("pipeline1", "pipeline2", "pipeline3"),
-                Arrays.asList(
+        givenProcessorStats(
+            Arrays.asList(
+                buildNodeStats(
+                    Arrays.asList("pipeline1", "pipeline2", "pipeline3"),
                     Arrays.asList(
-                        new IngestStats.ProcessorStat(InferenceProcessor.TYPE, InferenceProcessor.TYPE, new IngestStats.Stats(10, 1, 0, 0)),
-                        new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(10, 1, 0, 0)),
-                        new IngestStats.ProcessorStat(
-                            InferenceProcessor.TYPE,
-                            InferenceProcessor.TYPE,
-                            new IngestStats.Stats(100, 10, 0, 1))
-                    ),
-                    Arrays.asList(
-                        new IngestStats.ProcessorStat(InferenceProcessor.TYPE, InferenceProcessor.TYPE, new IngestStats.Stats(5, 1, 0, 0)),
-                        new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(10, 1, 0, 0))
-                    ),
-                    Arrays.asList(
-                        new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(10, 1, 0, 0))
+                        Arrays.asList(
+                            new IngestStats.ProcessorStat(
+                                InferenceProcessor.TYPE,
+                                InferenceProcessor.TYPE,
+                                new IngestStats.Stats(10, 1, 0, 0)
+                            ),
+                            new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(10, 1, 0, 0)),
+                            new IngestStats.ProcessorStat(
+                                InferenceProcessor.TYPE,
+                                InferenceProcessor.TYPE,
+                                new IngestStats.Stats(100, 10, 0, 1)
+                            )
+                        ),
+                        Arrays.asList(
+                            new IngestStats.ProcessorStat(
+                                InferenceProcessor.TYPE,
+                                InferenceProcessor.TYPE,
+                                new IngestStats.Stats(5, 1, 0, 0)
+                            ),
+                            new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(10, 1, 0, 0))
+                        ),
+                        Arrays.asList(new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(10, 1, 0, 0)))
                     )
-                )),
-            buildNodeStats(
-                Arrays.asList("pipeline1", "pipeline2", "pipeline3"),
-                Arrays.asList(
+                ),
+                buildNodeStats(
+                    Arrays.asList("pipeline1", "pipeline2", "pipeline3"),
                     Arrays.asList(
-                        new IngestStats.ProcessorStat(InferenceProcessor.TYPE, InferenceProcessor.TYPE, new IngestStats.Stats(0, 0, 0, 0)),
-                        new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(0, 0, 0, 0)),
-                        new IngestStats.ProcessorStat(InferenceProcessor.TYPE, InferenceProcessor.TYPE, new IngestStats.Stats(10, 1, 0, 0))
-                    ),
-                    Arrays.asList(
-                        new IngestStats.ProcessorStat(InferenceProcessor.TYPE, InferenceProcessor.TYPE, new IngestStats.Stats(5, 1, 0, 0)),
-                        new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(10, 1, 0, 0))
-                    ),
-                    Arrays.asList(
-                        new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(10, 1, 0, 0))
+                        Arrays.asList(
+                            new IngestStats.ProcessorStat(
+                                InferenceProcessor.TYPE,
+                                InferenceProcessor.TYPE,
+                                new IngestStats.Stats(0, 0, 0, 0)
+                            ),
+                            new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(0, 0, 0, 0)),
+                            new IngestStats.ProcessorStat(
+                                InferenceProcessor.TYPE,
+                                InferenceProcessor.TYPE,
+                                new IngestStats.Stats(10, 1, 0, 0)
+                            )
+                        ),
+                        Arrays.asList(
+                            new IngestStats.ProcessorStat(
+                                InferenceProcessor.TYPE,
+                                InferenceProcessor.TYPE,
+                                new IngestStats.Stats(5, 1, 0, 0)
+                            ),
+                            new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(10, 1, 0, 0))
+                        ),
+                        Arrays.asList(new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(10, 1, 0, 0)))
                     )
-                ))
-        ));
+                )
+            )
+        );
 
         TrainedModelConfig trainedModel1 = TrainedModelConfigTests.createTestInstance("model_1")
             .setEstimatedHeapMemory(100)
             .setEstimatedOperations(200)
             .setMetadata(Collections.singletonMap("analytics_config", "anything"))
+            .setInferenceConfig(ClassificationConfig.EMPTY_PARAMS)
             .build();
         TrainedModelConfig trainedModel2 = TrainedModelConfigTests.createTestInstance("model_2")
             .setEstimatedHeapMemory(200)
             .setEstimatedOperations(400)
             .setMetadata(Collections.singletonMap("analytics_config", "anything"))
+            .setInferenceConfig(RegressionConfig.EMPTY_PARAMS)
             .build();
         TrainedModelConfig trainedModel3 = TrainedModelConfigTests.createTestInstance("model_3")
             .setEstimatedHeapMemory(300)
             .setEstimatedOperations(600)
+            .setInferenceConfig(new NerConfig(null, null, null, null))
             .build();
         TrainedModelConfig trainedModel4 = TrainedModelConfigTests.createTestInstance("model_4")
             .setTags(Collections.singletonList("prepackaged"))
@@ -268,16 +332,52 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             .build();
         givenTrainedModels(Arrays.asList(trainedModel1, trainedModel2, trainedModel3, trainedModel4));
 
-        Map<String, Integer> trainedModelsCountByAnalysis = new HashMap<>();
-        trainedModelsCountByAnalysis.put("classification", 0);
-        trainedModelsCountByAnalysis.put("regression", 0);
-        for (TrainedModelConfig trainedModel : Arrays.asList(trainedModel1, trainedModel2, trainedModel3)) {
-            if (trainedModel.getInferenceConfig() instanceof ClassificationConfig) {
-                trainedModelsCountByAnalysis.put("classification", trainedModelsCountByAnalysis.get("classification") + 1);
-            } else if (trainedModel.getInferenceConfig() instanceof RegressionConfig) {
-                trainedModelsCountByAnalysis.put("regression", trainedModelsCountByAnalysis.get("regression") + 1);
-            }
-        }
+        Map<String, Integer> trainedModelsCountByAnalysis = Map.of("classification", 1, "regression", 1, "ner", 1);
+
+        givenDeploymentStats(
+            new GetDeploymentStatsAction.Response(
+                List.of(),
+                List.of(),
+                List.of(
+                    new GetDeploymentStatsAction.Response.AllocationStats(
+                        "model_3",
+                        ByteSizeValue.ofMb(100),
+                        null,
+                        null,
+                        null,
+                        Instant.now(),
+                        List.of()
+                    ).setState(AllocationState.STOPPING),
+                    new GetDeploymentStatsAction.Response.AllocationStats(
+                        "model_4",
+                        ByteSizeValue.ofMb(200),
+                        2,
+                        2,
+                        1000,
+                        Instant.now(),
+                        List.of(
+                            GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forStartedState(
+                                new DiscoveryNode("foo", new TransportAddress(TransportAddress.META_ADDRESS, 2), Version.CURRENT),
+                                5,
+                                42.0,
+                                0,
+                                Instant.now(),
+                                Instant.now()
+                            ),
+                            GetDeploymentStatsAction.Response.AllocationStats.NodeStats.forStartedState(
+                                new DiscoveryNode("bar", new TransportAddress(TransportAddress.META_ADDRESS, 3), Version.CURRENT),
+                                4,
+                                50.0,
+                                0,
+                                Instant.now(),
+                                Instant.now()
+                            )
+                        )
+                    ).setState(AllocationState.STARTED).setAllocationStatus(new AllocationStatus(2, 2))
+                ),
+                2
+            )
+        );
 
         var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
@@ -371,10 +471,9 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             assertThat(source.getValue("inference.trained_models.estimated_operations.total"), equalTo(1200.0));
             assertThat(source.getValue("inference.trained_models.estimated_operations.avg"), equalTo(400.0));
             assertThat(source.getValue("inference.trained_models.count.total"), equalTo(4));
-            assertThat(source.getValue("inference.trained_models.count.classification"),
-                equalTo(trainedModelsCountByAnalysis.get("classification")));
-            assertThat(source.getValue("inference.trained_models.count.regression"),
-                equalTo(trainedModelsCountByAnalysis.get("regression")));
+            trainedModelsCountByAnalysis.forEach(
+                (name, count) -> assertThat(source.getValue("inference.trained_models.count." + name), equalTo(count))
+            );
             assertThat(source.getValue("inference.trained_models.count.prepackaged"), equalTo(1));
             assertThat(source.getValue("inference.trained_models.count.other"), equalTo(1));
 
@@ -388,6 +487,17 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             assertThat(source.getValue("inference.ingest_processors._all.num_failures.sum"), equalTo(1));
             assertThat(source.getValue("inference.ingest_processors._all.num_failures.min"), equalTo(0));
             assertThat(source.getValue("inference.ingest_processors._all.num_failures.max"), equalTo(1));
+            assertThat(source.getValue("inference.deployments.count"), equalTo(2));
+            assertThat(source.getValue("inference.deployments.inference_counts.total"), equalTo(9.0));
+            assertThat(source.getValue("inference.deployments.inference_counts.min"), equalTo(4.0));
+            assertThat(source.getValue("inference.deployments.inference_counts.total"), equalTo(9.0));
+            assertThat(source.getValue("inference.deployments.inference_counts.max"), equalTo(5.0));
+            assertThat(source.getValue("inference.deployments.inference_counts.avg"), equalTo(4.5));
+            assertThat(source.getValue("inference.deployments.model_sizes_bytes.total"), equalTo(3.145728E8));
+            assertThat(source.getValue("inference.deployments.model_sizes_bytes.min"), equalTo(1.048576E8));
+            assertThat(source.getValue("inference.deployments.model_sizes_bytes.max"), equalTo(2.097152E8));
+            assertThat(source.getValue("inference.deployments.model_sizes_bytes.avg"), equalTo(1.572864E8));
+            assertThat(source.getValue("inference.deployments.time_ms.avg"), closeTo(45.55555555555556, 1e-10));
         }
     }
 
@@ -396,8 +506,11 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         Settings.Builder settings = Settings.builder().put(commonSettings);
         settings.put("xpack.ml.enabled", true);
 
-        Job opened1 = buildJob("opened1", Collections.singletonList(buildMinDetector("foo")),
-            Collections.singletonMap("created_by", randomFrom("a-cool-module", "a_cool_module", "a cool module")));
+        Job opened1 = buildJob(
+            "opened1",
+            Collections.singletonList(buildMinDetector("foo")),
+            Collections.singletonMap("created_by", randomFrom("a-cool-module", "a_cool_module", "a cool module"))
+        );
         GetJobsStatsAction.Response.JobStats opened1JobStats = buildJobStats("opened1", JobState.OPENED, 100L, 3L);
         // NB: we have JobStats but no Job for "opened2"
         GetJobsStatsAction.Response.JobStats opened2JobStats = buildJobStats("opened2", JobState.OPENED, 200L, 8L);
@@ -522,19 +635,16 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
     private void givenJobs(List<Job> jobs, List<GetJobsStatsAction.Response.JobStats> jobsStats) {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            ActionListener<QueryPage<Job>> jobListener =
-                    (ActionListener<QueryPage<Job>>) invocationOnMock.getArguments()[2];
-            jobListener.onResponse(
-                    new QueryPage<>(jobs, jobs.size(), Job.RESULTS_FIELD));
+            ActionListener<QueryPage<Job>> jobListener = (ActionListener<QueryPage<Job>>) invocationOnMock.getArguments()[2];
+            jobListener.onResponse(new QueryPage<>(jobs, jobs.size(), Job.RESULTS_FIELD));
             return Void.TYPE;
         }).when(jobManager).expandJobs(eq(Metadata.ALL), eq(true), any());
 
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            ActionListener<GetJobsStatsAction.Response> listener =
-                    (ActionListener<GetJobsStatsAction.Response>) invocationOnMock.getArguments()[2];
-            listener.onResponse(new GetJobsStatsAction.Response(
-                    new QueryPage<>(jobsStats, jobsStats.size(), Job.RESULTS_FIELD)));
+            ActionListener<GetJobsStatsAction.Response> listener = (ActionListener<GetJobsStatsAction.Response>) invocationOnMock
+                .getArguments()[2];
+            listener.onResponse(new GetJobsStatsAction.Response(new QueryPage<>(jobsStats, jobsStats.size(), Job.RESULTS_FIELD)));
             return Void.TYPE;
         }).when(client).execute(same(GetJobsStatsAction.INSTANCE), any(), any());
     }
@@ -543,15 +653,21 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
         for (int i = 0; i < nodeCount; i++) {
             Map<String, String> attrs = Map.of(MachineLearning.MACHINE_MEMORY_NODE_ATTR, "1000000000");
-            Set<DiscoveryNodeRole> roles = new HashSet<>();
-            roles.add(DiscoveryNodeRole.DATA_ROLE);
-            roles.add(DiscoveryNodeRole.MASTER_ROLE);
-            roles.add(DiscoveryNodeRole.INGEST_ROLE);
-            nodesBuilder.add(new DiscoveryNode("ml-feature-set-given-ml-node-" + i,
-                new TransportAddress(TransportAddress.META_ADDRESS, 9100 + i),
-                attrs,
-                roles,
-                Version.CURRENT));
+            Set<DiscoveryNodeRole> roles = Set.of(
+                DiscoveryNodeRole.DATA_ROLE,
+                DiscoveryNodeRole.MASTER_ROLE,
+                DiscoveryNodeRole.INGEST_ROLE,
+                DiscoveryNodeRole.ML_ROLE
+            );
+            nodesBuilder.add(
+                new DiscoveryNode(
+                    "ml-feature-set-given-ml-node-" + i,
+                    new TransportAddress(TransportAddress.META_ADDRESS, 9100 + i),
+                    attrs,
+                    roles,
+                    Version.CURRENT
+                )
+            );
         }
         for (int i = 0; i < randomIntBetween(1, 3); i++) {
             Map<String, String> attrs = new HashMap<>();
@@ -559,11 +675,15 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             roles.add(DiscoveryNodeRole.DATA_ROLE);
             roles.add(DiscoveryNodeRole.MASTER_ROLE);
             roles.add(DiscoveryNodeRole.INGEST_ROLE);
-            nodesBuilder.add(new DiscoveryNode("ml-feature-set-given-non-ml-node-" + i,
-                new TransportAddress(TransportAddress.META_ADDRESS, 9300 + i),
-                attrs,
-                roles,
-                Version.CURRENT));
+            nodesBuilder.add(
+                new DiscoveryNode(
+                    "ml-feature-set-given-non-ml-node-" + i,
+                    new TransportAddress(TransportAddress.META_ADDRESS, 9300 + i),
+                    attrs,
+                    roles,
+                    Version.CURRENT
+                )
+            );
         }
         return new ClusterState.Builder(ClusterState.EMPTY_STATE).nodes(nodesBuilder.build()).build();
     }
@@ -571,37 +691,42 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
     private void givenDatafeeds(List<GetDatafeedsStatsAction.Response.DatafeedStats> datafeedStats) {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            ActionListener<GetDatafeedsStatsAction.Response> listener =
-                    (ActionListener<GetDatafeedsStatsAction.Response>) invocationOnMock.getArguments()[2];
-            listener.onResponse(new GetDatafeedsStatsAction.Response(
-                    new QueryPage<>(datafeedStats, datafeedStats.size(), DatafeedConfig.RESULTS_FIELD)));
+            ActionListener<GetDatafeedsStatsAction.Response> listener = (ActionListener<GetDatafeedsStatsAction.Response>) invocationOnMock
+                .getArguments()[2];
+            listener.onResponse(
+                new GetDatafeedsStatsAction.Response(new QueryPage<>(datafeedStats, datafeedStats.size(), DatafeedConfig.RESULTS_FIELD))
+            );
             return Void.TYPE;
         }).when(client).execute(same(GetDatafeedsStatsAction.INSTANCE), any(), any());
     }
 
-    private void givenDataFrameAnalytics(List<DataFrameAnalyticsConfig> configs,
-                                         List<GetDataFrameAnalyticsStatsAction.Response.Stats> stats) {
+    private void givenDataFrameAnalytics(
+        List<DataFrameAnalyticsConfig> configs,
+        List<GetDataFrameAnalyticsStatsAction.Response.Stats> stats
+    ) {
         assert configs.size() == stats.size();
 
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            ActionListener<GetDataFrameAnalyticsAction.Response> listener =
-                (ActionListener<GetDataFrameAnalyticsAction.Response>) invocationOnMock.getArguments()[2];
-            listener.onResponse(new GetDataFrameAnalyticsAction.Response(
-                new QueryPage<>(configs,
-                    configs.size(),
-                    GetDataFrameAnalyticsAction.Response.RESULTS_FIELD)));
+            ActionListener<GetDataFrameAnalyticsAction.Response> listener = (ActionListener<
+                GetDataFrameAnalyticsAction.Response>) invocationOnMock.getArguments()[2];
+            listener.onResponse(
+                new GetDataFrameAnalyticsAction.Response(
+                    new QueryPage<>(configs, configs.size(), GetDataFrameAnalyticsAction.Response.RESULTS_FIELD)
+                )
+            );
             return Void.TYPE;
         }).when(client).execute(same(GetDataFrameAnalyticsAction.INSTANCE), any(), any());
 
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            ActionListener<GetDataFrameAnalyticsStatsAction.Response> listener =
-                (ActionListener<GetDataFrameAnalyticsStatsAction.Response>) invocationOnMock.getArguments()[2];
-            listener.onResponse(new GetDataFrameAnalyticsStatsAction.Response(
-                new QueryPage<>(stats,
-                    stats.size(),
-                    GetDataFrameAnalyticsAction.Response.RESULTS_FIELD)));
+            ActionListener<GetDataFrameAnalyticsStatsAction.Response> listener = (ActionListener<
+                GetDataFrameAnalyticsStatsAction.Response>) invocationOnMock.getArguments()[2];
+            listener.onResponse(
+                new GetDataFrameAnalyticsStatsAction.Response(
+                    new QueryPage<>(stats, stats.size(), GetDataFrameAnalyticsAction.Response.RESULTS_FIELD)
+                )
+            );
             return Void.TYPE;
         }).when(client).execute(same(GetDataFrameAnalyticsStatsAction.INSTANCE), any(), any());
     }
@@ -609,8 +734,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
     private void givenProcessorStats(List<NodeStats> stats) {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            ActionListener<NodesStatsResponse> listener =
-                (ActionListener<NodesStatsResponse>) invocationOnMock.getArguments()[2];
+            ActionListener<NodesStatsResponse> listener = (ActionListener<NodesStatsResponse>) invocationOnMock.getArguments()[2];
             listener.onResponse(new NodesStatsResponse(new ClusterName("_name"), stats, Collections.emptyList()));
             return Void.TYPE;
         }).when(client).execute(same(NodesStatsAction.INSTANCE), any(), any());
@@ -619,14 +743,25 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
     private void givenTrainedModels(List<TrainedModelConfig> trainedModels) {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            ActionListener<GetTrainedModelsAction.Response> listener =
-                (ActionListener<GetTrainedModelsAction.Response>) invocationOnMock.getArguments()[2];
-            listener.onResponse(new GetTrainedModelsAction.Response(
-                new QueryPage<>(trainedModels,
-                    trainedModels.size(),
-                    GetDataFrameAnalyticsAction.Response.RESULTS_FIELD)));
+            ActionListener<GetTrainedModelsAction.Response> listener = (ActionListener<GetTrainedModelsAction.Response>) invocationOnMock
+                .getArguments()[2];
+            listener.onResponse(
+                new GetTrainedModelsAction.Response(
+                    new QueryPage<>(trainedModels, trainedModels.size(), GetDataFrameAnalyticsAction.Response.RESULTS_FIELD)
+                )
+            );
             return Void.TYPE;
         }).when(client).execute(same(GetTrainedModelsAction.INSTANCE), any(), any());
+    }
+
+    private void givenDeploymentStats(GetDeploymentStatsAction.Response deploymentStats) {
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<GetDeploymentStatsAction.Response> listener = (ActionListener<
+                GetDeploymentStatsAction.Response>) invocationOnMock.getArguments()[2];
+            listener.onResponse(deploymentStats);
+            return Void.TYPE;
+        }).when(client).execute(same(GetDeploymentStatsAction.INSTANCE), any(), any());
     }
 
     private static Detector buildMinDetector(String fieldName) {
@@ -642,15 +777,18 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
 
     private static Job buildJob(String jobId, List<Detector> detectors, Map<String, Object> customSettings) {
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(detectors);
-        return new Job.Builder(jobId)
-                .setAnalysisConfig(analysisConfig)
-                .setDataDescription(new DataDescription.Builder())
-                .setCustomSettings(customSettings)
-                .build(new Date(randomNonNegativeLong()));
+        return new Job.Builder(jobId).setAnalysisConfig(analysisConfig)
+            .setDataDescription(new DataDescription.Builder())
+            .setCustomSettings(customSettings)
+            .build(new Date(randomNonNegativeLong()));
     }
 
-    private static GetJobsStatsAction.Response.JobStats buildJobStats(String jobId, JobState state, long modelBytes,
-            long numberOfForecasts) {
+    private static GetJobsStatsAction.Response.JobStats buildJobStats(
+        String jobId,
+        JobState state,
+        long modelBytes,
+        long numberOfForecasts
+    ) {
         ModelSizeStats.Builder modelSizeStats = new ModelSizeStats.Builder(jobId);
         modelSizeStats.setModelBytes(modelBytes);
         GetJobsStatsAction.Response.JobStats jobStats = mock(GetJobsStatsAction.Response.JobStats.class);
@@ -669,8 +807,11 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         return stats;
     }
 
-    private static GetDataFrameAnalyticsStatsAction.Response.Stats buildDataFrameAnalyticsStats(String jobId,
-            DataFrameAnalyticsState state, @Nullable Long peakUsageBytes) {
+    private static GetDataFrameAnalyticsStatsAction.Response.Stats buildDataFrameAnalyticsStats(
+        String jobId,
+        DataFrameAnalyticsState state,
+        @Nullable Long peakUsageBytes
+    ) {
         GetDataFrameAnalyticsStatsAction.Response.Stats stats = mock(GetDataFrameAnalyticsStatsAction.Response.Stats.class);
         when(stats.getState()).thenReturn(state);
         if (peakUsageBytes != null) {
@@ -681,12 +822,29 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
 
     private static NodeStats buildNodeStats(List<String> pipelineNames, List<List<IngestStats.ProcessorStat>> processorStats) {
         IngestStats ingestStats = new IngestStats(
-            new IngestStats.Stats(0,0,0,0),
+            new IngestStats.Stats(0, 0, 0, 0),
             Collections.emptyList(),
-            IntStream.range(0, pipelineNames.size()).boxed().collect(Collectors.toMap(pipelineNames::get, processorStats::get)));
-        return new NodeStats(mock(DiscoveryNode.class),
-            Instant.now().toEpochMilli(), null, null, null, null, null, null, null, null,
-            null, null, null, ingestStats, null, null);
+            IntStream.range(0, pipelineNames.size()).boxed().collect(Collectors.toMap(pipelineNames::get, processorStats::get))
+        );
+        return new NodeStats(
+            mock(DiscoveryNode.class),
+            Instant.now().toEpochMilli(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            ingestStats,
+            null,
+            null,
+            null
+        );
 
     }
 

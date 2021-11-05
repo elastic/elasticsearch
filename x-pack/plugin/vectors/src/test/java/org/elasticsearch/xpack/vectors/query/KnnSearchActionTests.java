@@ -31,29 +31,24 @@ public class KnnSearchActionTests extends ESSingleNodeTestCase {
     }
 
     public void testTotalHits() throws IOException {
-        Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
-        XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("properties")
-                .startObject("vector")
-                    .field("type", "dense_vector")
-                    .field("dims", VECTOR_DIMENSION)
-                    .field("index", true)
-                    .field("similarity", "l2_norm")
-                .endObject()
-            .endObject().endObject();
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build();
+        XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("vector")
+            .field("type", "dense_vector")
+            .field("dims", VECTOR_DIMENSION)
+            .field("index", true)
+            .field("similarity", "l2_norm")
+            .endObject()
+            .endObject()
+            .endObject();
         createIndex("index1", indexSettings, builder);
         createIndex("index2", indexSettings, builder);
 
         for (int doc = 0; doc < 10; doc++) {
-            client().prepareIndex("index1")
-                .setId(String.valueOf(doc))
-                .setSource("vector", randomVector())
-                .get();
-            client().prepareIndex("index2")
-                .setId(String.valueOf(doc))
-                .setSource("vector", randomVector())
-                .get();
+            client().prepareIndex("index1").setId(String.valueOf(doc)).setSource("vector", randomVector()).get();
+            client().prepareIndex("index2").setId(String.valueOf(doc)).setSource("vector", randomVector()).get();
         }
 
         client().admin().indices().prepareForceMerge("index1", "index2").setMaxNumSegments(1).get();

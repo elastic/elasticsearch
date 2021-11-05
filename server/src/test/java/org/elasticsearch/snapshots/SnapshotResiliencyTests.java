@@ -1628,7 +1628,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     new ClusterApplierService(node.getName(), settings, clusterSettings, threadPool) {
                         @Override
                         protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
-                            return new MockSinglePrioritizingExecutor(node.getName(), deterministicTaskQueue, threadPool);
+                            return new MockSinglePrioritizingExecutor(node.getName(), node.getId(), deterministicTaskQueue, threadPool);
                         }
 
                         @Override
@@ -1720,7 +1720,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 );
                 nodeEnv = new NodeEnvironment(settings, environment);
                 final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(Collections.emptyList());
-                final ScriptService scriptService = new ScriptService(settings, emptyMap(), emptyMap());
+                final ScriptService scriptService = new ScriptService(settings, emptyMap(), emptyMap(), () -> 1L);
                 client = new NodeClient(settings, threadPool);
                 final SetOnce<RerouteService> rerouteServiceSetOnce = new SetOnce<>();
                 final SnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(

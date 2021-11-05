@@ -32,20 +32,40 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
-public class TransportShardFlushAction
-        extends TransportReplicationAction<ShardFlushRequest, ShardFlushRequest, ReplicationResponse> {
+public class TransportShardFlushAction extends TransportReplicationAction<ShardFlushRequest, ShardFlushRequest, ReplicationResponse> {
 
     public static final String NAME = FlushAction.NAME + "[s]";
     public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(NAME, ReplicationResponse::new);
 
     @Inject
-    public TransportShardFlushAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                     IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
-                                     ActionFilters actionFilters) {
-        super(settings, NAME, transportService, clusterService, indicesService, threadPool, shardStateAction,
-            actionFilters, ShardFlushRequest::new, ShardFlushRequest::new, ThreadPool.Names.FLUSH);
-        transportService.registerRequestHandler(PRE_SYNCED_FLUSH_ACTION_NAME,
-            ThreadPool.Names.FLUSH, PreShardSyncedFlushRequest::new, new PreSyncedFlushTransportHandler(indicesService));
+    public TransportShardFlushAction(
+        Settings settings,
+        TransportService transportService,
+        ClusterService clusterService,
+        IndicesService indicesService,
+        ThreadPool threadPool,
+        ShardStateAction shardStateAction,
+        ActionFilters actionFilters
+    ) {
+        super(
+            settings,
+            NAME,
+            transportService,
+            clusterService,
+            indicesService,
+            threadPool,
+            shardStateAction,
+            actionFilters,
+            ShardFlushRequest::new,
+            ShardFlushRequest::new,
+            ThreadPool.Names.FLUSH
+        );
+        transportService.registerRequestHandler(
+            PRE_SYNCED_FLUSH_ACTION_NAME,
+            ThreadPool.Names.FLUSH,
+            PreShardSyncedFlushRequest::new,
+            new PreSyncedFlushTransportHandler(indicesService)
+        );
     }
 
     @Override
@@ -54,8 +74,11 @@ public class TransportShardFlushAction
     }
 
     @Override
-    protected void shardOperationOnPrimary(ShardFlushRequest shardRequest, IndexShard primary,
-            ActionListener<PrimaryResult<ShardFlushRequest, ReplicationResponse>> listener) {
+    protected void shardOperationOnPrimary(
+        ShardFlushRequest shardRequest,
+        IndexShard primary,
+        ActionListener<PrimaryResult<ShardFlushRequest, ReplicationResponse>> listener
+    ) {
         ActionListener.completeWith(listener, () -> {
             primary.flush(shardRequest.getRequest());
             logger.trace("{} flush request executed on primary", primary.shardId());

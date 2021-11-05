@@ -102,23 +102,39 @@ public class AggregationDataExtractorTests extends ESTestCase {
         fields.addAll(Arrays.asList("time", "airline", "responsetime"));
         indices = Arrays.asList("index-1", "index-2");
         query = QueryBuilders.matchAllQuery();
-        aggs = new AggregatorFactories.Builder()
-                .addAggregator(AggregationBuilders.histogram("time").field("time").interval(1000).subAggregation(
-                        AggregationBuilders.terms("airline").field("airline").subAggregation(
-                                AggregationBuilders.avg("responsetime").field("responsetime"))));
+        aggs = new AggregatorFactories.Builder().addAggregator(
+            AggregationBuilders.histogram("time")
+                .field("time")
+                .interval(1000)
+                .subAggregation(
+                    AggregationBuilders.terms("airline")
+                        .field("airline")
+                        .subAggregation(AggregationBuilders.avg("responsetime").field("responsetime"))
+                )
+        );
         runtimeMappings = Collections.emptyMap();
         timingStatsReporter = new DatafeedTimingStatsReporter(new DatafeedTimingStats(jobId), mock(DatafeedTimingStatsPersister.class));
     }
 
     public void testExtraction() throws IOException {
         List<Histogram.Bucket> histogramBuckets = Arrays.asList(
-            createHistogramBucket(1000L, 3, Arrays.asList(
+            createHistogramBucket(
+                1000L,
+                3,
+                Arrays.asList(
                     createMax("time", 1999),
-                    createTerms("airline", new Term("a", 1, "responsetime", 11.0), new Term("b", 2, "responsetime", 12.0)))),
+                    createTerms("airline", new Term("a", 1, "responsetime", 11.0), new Term("b", 2, "responsetime", 12.0))
+                )
+            ),
             createHistogramBucket(2000L, 0, Collections.emptyList()),
-            createHistogramBucket(3000L, 7, Arrays.asList(
+            createHistogramBucket(
+                3000L,
+                7,
+                Arrays.asList(
                     createMax("time", 3999),
-                    createTerms("airline", new Term("c", 4, "responsetime", 31.0), new Term("b", 3, "responsetime", 32.0))))
+                    createTerms("airline", new Term("c", 4, "responsetime", 31.0), new Term("b", 3, "responsetime", 32.0))
+                )
+            )
         );
 
         TestDataExtractor extractor = new TestDataExtractor(1000L, 4000L);
@@ -130,20 +146,27 @@ public class AggregationDataExtractorTests extends ESTestCase {
         Optional<InputStream> stream = extractor.next();
         assertThat(stream.isPresent(), is(true));
         String expectedStream = "{\"time\":1999,\"airline\":\"a\",\"responsetime\":11.0,\"doc_count\":1} "
-                + "{\"time\":1999,\"airline\":\"b\",\"responsetime\":12.0,\"doc_count\":2} "
-                + "{\"time\":3999,\"airline\":\"c\",\"responsetime\":31.0,\"doc_count\":4} "
-                + "{\"time\":3999,\"airline\":\"b\",\"responsetime\":32.0,\"doc_count\":3}";
+            + "{\"time\":1999,\"airline\":\"b\",\"responsetime\":12.0,\"doc_count\":2} "
+            + "{\"time\":3999,\"airline\":\"c\",\"responsetime\":31.0,\"doc_count\":4} "
+            + "{\"time\":3999,\"airline\":\"b\",\"responsetime\":32.0,\"doc_count\":3}";
         assertThat(asString(stream.get()), equalTo(expectedStream));
         assertThat(extractor.hasNext(), is(false));
         assertThat(capturedSearchRequests.size(), equalTo(1));
 
         String searchRequest = capturedSearchRequests.get(0).toString().replaceAll("\\s", "");
         assertThat(searchRequest, containsString("\"size\":0"));
-        assertThat(searchRequest, containsString("\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}}," +
-                "{\"range\":{\"time\":{\"from\":0,\"to\":4000,\"include_lower\":true,\"include_upper\":false," +
-                "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"));
-        assertThat(searchRequest,
-                stringContainsInOrder(Arrays.asList("aggregations", "histogram", "time", "terms", "airline", "avg", "responsetime")));
+        assertThat(
+            searchRequest,
+            containsString(
+                "\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}},"
+                    + "{\"range\":{\"time\":{\"from\":0,\"to\":4000,\"include_lower\":true,\"include_upper\":false,"
+                    + "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"
+            )
+        );
+        assertThat(
+            searchRequest,
+            stringContainsInOrder(Arrays.asList("aggregations", "histogram", "time", "terms", "airline", "avg", "responsetime"))
+        );
     }
 
     public void testExtractionGivenResponseHasNullAggs() throws IOException {
@@ -203,8 +226,16 @@ public class AggregationDataExtractorTests extends ESTestCase {
         List<Histogram.Bucket> histogramBuckets = new ArrayList<>(buckets);
         long timestamp = 1000;
         for (int i = 0; i < buckets; i++) {
-            histogramBuckets.add(createHistogramBucket(timestamp, 3, Arrays.asList(createMax("time", timestamp),
-                    createTerms("airline", new Term("c", 4, "responsetime", 31.0), new Term("b", 3, "responsetime", 32.0)))));
+            histogramBuckets.add(
+                createHistogramBucket(
+                    timestamp,
+                    3,
+                    Arrays.asList(
+                        createMax("time", timestamp),
+                        createTerms("airline", new Term("c", 4, "responsetime", 31.0), new Term("b", 3, "responsetime", 32.0))
+                    )
+                )
+            );
             timestamp += 1000L;
         }
 
@@ -217,8 +248,16 @@ public class AggregationDataExtractorTests extends ESTestCase {
         assertThat(countMatches('{', asString(extractor.next().get())), equalTo(2400L));
         histogramBuckets = new ArrayList<>(buckets);
         for (int i = 0; i < buckets; i++) {
-            histogramBuckets.add(createHistogramBucket(timestamp, 3, Arrays.asList(createMax("time", timestamp),
-                createTerms("airline", new Term("c", 4, "responsetime", 31.0), new Term("b", 3, "responsetime", 32.0)))));
+            histogramBuckets.add(
+                createHistogramBucket(
+                    timestamp,
+                    3,
+                    Arrays.asList(
+                        createMax("time", timestamp),
+                        createTerms("airline", new Term("c", 4, "responsetime", 31.0), new Term("b", 3, "responsetime", 32.0))
+                    )
+                )
+            );
             timestamp += 1000L;
         }
         response = createSearchResponse("time", histogramBuckets);
@@ -239,15 +278,27 @@ public class AggregationDataExtractorTests extends ESTestCase {
     }
 
     private AggregationDataExtractorContext createContext(long start, long end) {
-        return new AggregationDataExtractorContext(jobId, timeField, fields, indices, query, aggs, start, end, true,
-            Collections.emptyMap(), SearchRequest.DEFAULT_INDICES_OPTIONS, runtimeMappings);
+        return new AggregationDataExtractorContext(
+            jobId,
+            timeField,
+            fields,
+            indices,
+            query,
+            aggs,
+            start,
+            end,
+            true,
+            Collections.emptyMap(),
+            SearchRequest.DEFAULT_INDICES_OPTIONS,
+            runtimeMappings
+        );
     }
 
     @SuppressWarnings("unchecked")
     private SearchResponse createSearchResponse(String histogramName, List<Histogram.Bucket> histogramBuckets) {
         Histogram histogram = mock(Histogram.class);
         when(histogram.getName()).thenReturn(histogramName);
-        when((List<Histogram.Bucket>)histogram.getBuckets()).thenReturn(histogramBuckets);
+        when((List<Histogram.Bucket>) histogram.getBuckets()).thenReturn(histogramBuckets);
 
         Aggregations searchAggs = AggregationTestUtils.createAggs(Collections.singletonList(histogram));
         return createSearchResponse(searchAggs);

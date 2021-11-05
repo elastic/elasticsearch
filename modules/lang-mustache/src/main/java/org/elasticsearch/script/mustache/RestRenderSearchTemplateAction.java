@@ -9,11 +9,11 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -29,7 +29,8 @@ public class RestRenderSearchTemplateAction extends BaseRestHandler {
             new Route(GET, "/_render/template"),
             new Route(POST, "/_render/template"),
             new Route(GET, "/_render/template/{id}"),
-            new Route(POST, "/_render/template/{id}"));
+            new Route(POST, "/_render/template/{id}")
+        );
     }
 
     @Override

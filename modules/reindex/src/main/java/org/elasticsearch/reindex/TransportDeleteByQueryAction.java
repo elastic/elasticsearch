@@ -25,7 +25,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-
 public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteByQueryRequest, BulkByScrollResponse> {
 
     private final ThreadPool threadPool;
@@ -34,10 +33,20 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
     private final ClusterService clusterService;
 
     @Inject
-    public TransportDeleteByQueryAction(ThreadPool threadPool, ActionFilters actionFilters, Client client,
-                                        TransportService transportService, ScriptService scriptService, ClusterService clusterService) {
-        super(DeleteByQueryAction.NAME, transportService, actionFilters,
-            (Writeable.Reader<DeleteByQueryRequest>) DeleteByQueryRequest::new);
+    public TransportDeleteByQueryAction(
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        Client client,
+        TransportService transportService,
+        ScriptService scriptService,
+        ClusterService clusterService
+    ) {
+        super(
+            DeleteByQueryAction.NAME,
+            transportService,
+            actionFilters,
+            (Writeable.Reader<DeleteByQueryRequest>) DeleteByQueryRequest::new
+        );
         this.threadPool = threadPool;
         this.client = client;
         this.scriptService = scriptService;
@@ -47,13 +56,21 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
     @Override
     public void doExecute(Task task, DeleteByQueryRequest request, ActionListener<BulkByScrollResponse> listener) {
         BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
-        BulkByScrollParallelizationHelper.startSlicedAction(request, bulkByScrollTask, DeleteByQueryAction.INSTANCE, listener, client,
+        BulkByScrollParallelizationHelper.startSlicedAction(
+            request,
+            bulkByScrollTask,
+            DeleteByQueryAction.INSTANCE,
+            listener,
+            client,
             clusterService.localNode(),
             () -> {
-                ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(),
-                    bulkByScrollTask);
-                new AsyncDeleteByQueryAction(bulkByScrollTask, logger, assigningClient, threadPool, request, scriptService,
-                    listener).start();
+                ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(
+                    client,
+                    clusterService.localNode(),
+                    bulkByScrollTask
+                );
+                new AsyncDeleteByQueryAction(bulkByScrollTask, logger, assigningClient, threadPool, request, scriptService, listener)
+                    .start();
             }
         );
     }

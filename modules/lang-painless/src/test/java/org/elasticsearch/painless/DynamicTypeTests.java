@@ -34,14 +34,11 @@ public class DynamicTypeTests extends ScriptTestCase {
 
     }
 
-    public static class DynA {
-    }
+    public static class DynA {}
 
-    public static class DynB extends DynA implements DynI {
-    }
+    public static class DynB extends DynA implements DynI {}
 
-    public static class DynC extends DynB {
-    }
+    public static class DynC extends DynB {}
 
     public static class DynD extends DynB {
         public char letter() {
@@ -55,8 +52,7 @@ public class DynamicTypeTests extends ScriptTestCase {
         }
     }
 
-    public static class DynF extends DynE {
-    }
+    public static class DynF extends DynE {}
 
     public static class DynG extends DynF {
         public char letter() {
@@ -73,96 +69,144 @@ public class DynamicTypeTests extends ScriptTestCase {
         assertEquals('E', exec("DynamicTypeTests.DynI i = new DynamicTypeTests.DynE(); return i.letter()"));
         assertEquals('E', exec("DynamicTypeTests.DynI i = new DynamicTypeTests.DynF(); return i.letter()"));
         assertEquals('G', exec("DynamicTypeTests.DynI i = new DynamicTypeTests.DynG(); return i.letter()"));
-        IllegalArgumentException iae = expectScriptThrows(IllegalArgumentException.class,
-                () -> exec("DynamicTypeTests.DynI i = new DynamicTypeTests.DynD(); return i.value()"));
+        IllegalArgumentException iae = expectScriptThrows(
+            IllegalArgumentException.class,
+            () -> exec("DynamicTypeTests.DynI i = new DynamicTypeTests.DynD(); return i.value()")
+        );
         assertTrue(iae.getMessage().contains("dynamic method") && iae.getMessage().contains("not found"));
-        iae = expectScriptThrows(IllegalArgumentException.class,
-                () -> exec("DynamicTypeTests.DynI i = new DynamicTypeTests.DynE(); return i.value()"));
+        iae = expectScriptThrows(
+            IllegalArgumentException.class,
+            () -> exec("DynamicTypeTests.DynI i = new DynamicTypeTests.DynE(); return i.value()")
+        );
         assertTrue(iae.getMessage().contains("dynamic method") && iae.getMessage().contains("not found"));
-        iae = expectScriptThrows(IllegalArgumentException.class,
-                () -> exec("DynamicTypeTests.DynI i = new DynamicTypeTests.DynF(); return i.value()"));
+        iae = expectScriptThrows(
+            IllegalArgumentException.class,
+            () -> exec("DynamicTypeTests.DynI i = new DynamicTypeTests.DynF(); return i.value()")
+        );
         assertTrue(iae.getMessage().contains("dynamic method") && iae.getMessage().contains("not found"));
         assertEquals(1, exec("DynamicTypeTests.DynI i = new DynamicTypeTests.DynG(); return i.value()"));
 
-        iae = expectScriptThrows(IllegalArgumentException.class,
-                () -> exec("DynamicTypeTests.DynA a = new DynamicTypeTests.DynD(); return a.letter()"));
+        iae = expectScriptThrows(
+            IllegalArgumentException.class,
+            () -> exec("DynamicTypeTests.DynA a = new DynamicTypeTests.DynD(); return a.letter()")
+        );
         assertTrue(iae.getMessage().contains("member method") && iae.getMessage().contains("not found"));
-        iae = expectScriptThrows(IllegalArgumentException.class,
-                () -> exec("DynamicTypeTests.DynA a = new DynamicTypeTests.DynE(); return a.letter()"));
+        iae = expectScriptThrows(
+            IllegalArgumentException.class,
+            () -> exec("DynamicTypeTests.DynA a = new DynamicTypeTests.DynE(); return a.letter()")
+        );
         assertTrue(iae.getMessage().contains("member method") && iae.getMessage().contains("not found"));
-        iae = expectScriptThrows(IllegalArgumentException.class,
-                () -> exec("DynamicTypeTests.DynA a = new DynamicTypeTests.DynF(); return a.letter()"));
+        iae = expectScriptThrows(
+            IllegalArgumentException.class,
+            () -> exec("DynamicTypeTests.DynA a = new DynamicTypeTests.DynF(); return a.letter()")
+        );
         assertTrue(iae.getMessage().contains("member method") && iae.getMessage().contains("not found"));
-        iae = expectScriptThrows(IllegalArgumentException.class,
-                () -> exec("DynamicTypeTests.DynA a = new DynamicTypeTests.DynG(); return a.letter()"));
+        iae = expectScriptThrows(
+            IllegalArgumentException.class,
+            () -> exec("DynamicTypeTests.DynA a = new DynamicTypeTests.DynG(); return a.letter()")
+        );
         assertTrue(iae.getMessage().contains("member method") && iae.getMessage().contains("not found"));
-        iae = expectScriptThrows(IllegalArgumentException.class,
-                () -> exec("DynamicTypeTests.DynA a = new DynamicTypeTests.DynD(); return a.value()"));
+        iae = expectScriptThrows(
+            IllegalArgumentException.class,
+            () -> exec("DynamicTypeTests.DynA a = new DynamicTypeTests.DynD(); return a.value()")
+        );
         assertTrue(iae.getMessage().contains("member method") && iae.getMessage().contains("not found"));
-        iae = expectScriptThrows(IllegalArgumentException.class,
-                () -> exec("DynamicTypeTests.DynA a = new DynamicTypeTests.DynE(); return a.value()"));
+        iae = expectScriptThrows(
+            IllegalArgumentException.class,
+            () -> exec("DynamicTypeTests.DynA a = new DynamicTypeTests.DynE(); return a.value()")
+        );
         assertTrue(iae.getMessage().contains("member method") && iae.getMessage().contains("not found"));
-        iae = expectScriptThrows(IllegalArgumentException.class,
-                () -> exec("DynamicTypeTests.DynA a = new DynamicTypeTests.DynF(); return a.value()"));
+        iae = expectScriptThrows(
+            IllegalArgumentException.class,
+            () -> exec("DynamicTypeTests.DynA a = new DynamicTypeTests.DynF(); return a.value()")
+        );
         assertTrue(iae.getMessage().contains("member method") && iae.getMessage().contains("not found"));
-        iae = expectScriptThrows(IllegalArgumentException.class,
-                () -> exec("DynamicTypeTests.DynA a = new DynamicTypeTests.DynG(); return a.value()"));
+        iae = expectScriptThrows(
+            IllegalArgumentException.class,
+            () -> exec("DynamicTypeTests.DynA a = new DynamicTypeTests.DynG(); return a.value()")
+        );
         assertTrue(iae.getMessage().contains("member method") && iae.getMessage().contains("not found"));
 
         assertEquals('D', exec("DynamicTypeTests.DynB b = new DynamicTypeTests.DynD(); return b.letter()"));
         assertEquals('E', exec("DynamicTypeTests.DynB b = new DynamicTypeTests.DynE(); return b.letter()"));
         assertEquals('E', exec("DynamicTypeTests.DynB b = new DynamicTypeTests.DynF(); return b.letter()"));
         assertEquals('G', exec("DynamicTypeTests.DynB b = new DynamicTypeTests.DynG(); return b.letter()"));
-        iae = expectScriptThrows(IllegalArgumentException.class,
-                () -> exec("DynamicTypeTests.DynB b = new DynamicTypeTests.DynD(); return b.value()"));
+        iae = expectScriptThrows(
+            IllegalArgumentException.class,
+            () -> exec("DynamicTypeTests.DynB b = new DynamicTypeTests.DynD(); return b.value()")
+        );
         assertTrue(iae.getMessage().contains("dynamic method") && iae.getMessage().contains("not found"));
-        iae = expectScriptThrows(IllegalArgumentException.class,
-                () -> exec("DynamicTypeTests.DynB b = new DynamicTypeTests.DynE(); return b.value()"));
+        iae = expectScriptThrows(
+            IllegalArgumentException.class,
+            () -> exec("DynamicTypeTests.DynB b = new DynamicTypeTests.DynE(); return b.value()")
+        );
         assertTrue(iae.getMessage().contains("dynamic method") && iae.getMessage().contains("not found"));
-        iae = expectScriptThrows(IllegalArgumentException.class,
-                () -> exec("DynamicTypeTests.DynB b = new DynamicTypeTests.DynF(); return b.value()"));
+        iae = expectScriptThrows(
+            IllegalArgumentException.class,
+            () -> exec("DynamicTypeTests.DynB b = new DynamicTypeTests.DynF(); return b.value()")
+        );
         assertTrue(iae.getMessage().contains("dynamic method") && iae.getMessage().contains("not found"));
         assertEquals(1, exec("DynamicTypeTests.DynB b = new DynamicTypeTests.DynG(); return b.value()"));
 
-        iae = expectScriptThrows(IllegalArgumentException.class,
-                () -> exec("DynamicTypeTests.DynC c = new DynamicTypeTests.DynE(); return c.letter()"));
+        iae = expectScriptThrows(
+            IllegalArgumentException.class,
+            () -> exec("DynamicTypeTests.DynC c = new DynamicTypeTests.DynE(); return c.letter()")
+        );
         assertTrue(iae.getMessage().contains("member method") && iae.getMessage().contains("not found"));
-        iae = expectScriptThrows(IllegalArgumentException.class,
-                () -> exec("DynamicTypeTests.DynC c = new DynamicTypeTests.DynF(); return c.letter()"));
+        iae = expectScriptThrows(
+            IllegalArgumentException.class,
+            () -> exec("DynamicTypeTests.DynC c = new DynamicTypeTests.DynF(); return c.letter()")
+        );
         assertTrue(iae.getMessage().contains("member method") && iae.getMessage().contains("not found"));
-        iae = expectScriptThrows(IllegalArgumentException.class,
-                () -> exec("DynamicTypeTests.DynC c = new DynamicTypeTests.DynG(); return c.letter()"));
+        iae = expectScriptThrows(
+            IllegalArgumentException.class,
+            () -> exec("DynamicTypeTests.DynC c = new DynamicTypeTests.DynG(); return c.letter()")
+        );
         assertTrue(iae.getMessage().contains("member method") && iae.getMessage().contains("not found"));
-        iae = expectScriptThrows(IllegalArgumentException.class,
-                () -> exec("DynamicTypeTests.DynC c = new DynamicTypeTests.DynE(); return c.value()"));
+        iae = expectScriptThrows(
+            IllegalArgumentException.class,
+            () -> exec("DynamicTypeTests.DynC c = new DynamicTypeTests.DynE(); return c.value()")
+        );
         assertTrue(iae.getMessage().contains("member method") && iae.getMessage().contains("not found"));
-        iae = expectScriptThrows(IllegalArgumentException.class,
-                () -> exec("DynamicTypeTests.DynC c = new DynamicTypeTests.DynF(); return c.value()"));
+        iae = expectScriptThrows(
+            IllegalArgumentException.class,
+            () -> exec("DynamicTypeTests.DynC c = new DynamicTypeTests.DynF(); return c.value()")
+        );
         assertTrue(iae.getMessage().contains("member method") && iae.getMessage().contains("not found"));
-        iae = expectScriptThrows(IllegalArgumentException.class,
-                () -> exec("DynamicTypeTests.DynC c = new DynamicTypeTests.DynG(); return c.value()"));
+        iae = expectScriptThrows(
+            IllegalArgumentException.class,
+            () -> exec("DynamicTypeTests.DynC c = new DynamicTypeTests.DynG(); return c.value()")
+        );
         assertTrue(iae.getMessage().contains("member method") && iae.getMessage().contains("not found"));
 
         assertEquals('D', exec("DynamicTypeTests.DynD d = new DynamicTypeTests.DynD(); return d.letter()"));
-        iae = expectScriptThrows(IllegalArgumentException.class,
-                () -> exec("DynamicTypeTests.DynD d = new DynamicTypeTests.DynD(); return d.value()"));
+        iae = expectScriptThrows(
+            IllegalArgumentException.class,
+            () -> exec("DynamicTypeTests.DynD d = new DynamicTypeTests.DynD(); return d.value()")
+        );
         assertTrue(iae.getMessage().contains("member method") && iae.getMessage().contains("not found"));
 
         assertEquals('E', exec("DynamicTypeTests.DynE e = new DynamicTypeTests.DynE(); return e.letter()"));
         assertEquals('E', exec("DynamicTypeTests.DynE e = new DynamicTypeTests.DynF(); return e.letter()"));
         assertEquals('G', exec("DynamicTypeTests.DynE e = new DynamicTypeTests.DynG(); return e.letter()"));
-        iae = expectScriptThrows(IllegalArgumentException.class,
-                () -> exec("DynamicTypeTests.DynE e = new DynamicTypeTests.DynE(); return e.value()"));
+        iae = expectScriptThrows(
+            IllegalArgumentException.class,
+            () -> exec("DynamicTypeTests.DynE e = new DynamicTypeTests.DynE(); return e.value()")
+        );
         assertTrue(iae.getMessage().contains("dynamic method") && iae.getMessage().contains("not found"));
-        iae = expectScriptThrows(IllegalArgumentException.class,
-                () -> exec("DynamicTypeTests.DynE e = new DynamicTypeTests.DynF(); return e.value()"));
+        iae = expectScriptThrows(
+            IllegalArgumentException.class,
+            () -> exec("DynamicTypeTests.DynE e = new DynamicTypeTests.DynF(); return e.value()")
+        );
         assertTrue(iae.getMessage().contains("dynamic method") && iae.getMessage().contains("not found"));
         assertEquals(1, exec("DynamicTypeTests.DynE e = new DynamicTypeTests.DynG(); return e.value()"));
 
         assertEquals('E', exec("DynamicTypeTests.DynF f = new DynamicTypeTests.DynF(); return f.letter()"));
         assertEquals('G', exec("DynamicTypeTests.DynF f = new DynamicTypeTests.DynG(); return f.letter()"));
-        iae = expectScriptThrows(IllegalArgumentException.class,
-                () -> exec("DynamicTypeTests.DynF f = new DynamicTypeTests.DynF(); return f.value()"));
+        iae = expectScriptThrows(
+            IllegalArgumentException.class,
+            () -> exec("DynamicTypeTests.DynF f = new DynamicTypeTests.DynF(); return f.value()")
+        );
         assertTrue(iae.getMessage().contains("dynamic method") && iae.getMessage().contains("not found"));
         assertEquals(1, exec("DynamicTypeTests.DynF f = new DynamicTypeTests.DynG(); return f.value()"));
 

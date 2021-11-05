@@ -40,8 +40,7 @@ public class AckWatchRequest implements Validatable {
                 if (actionId == null) {
                     exception.addValidationError(String.format(Locale.ROOT, "action id may not be null"));
                 } else if (PutWatchRequest.isValidId(actionId) == false) {
-                    exception.addValidationError(
-                        String.format(Locale.ROOT, "action id [%s] contains whitespace", actionId));
+                    exception.addValidationError(String.format(Locale.ROOT, "action id [%s] contains whitespace", actionId));
                 }
             }
         }

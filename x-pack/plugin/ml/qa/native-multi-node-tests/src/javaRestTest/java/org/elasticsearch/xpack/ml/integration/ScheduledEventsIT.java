@@ -56,23 +56,32 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
         List<ScheduledEvent> events = new ArrayList<>();
         long firstEventStartTime = 1514937600000L;
         long firstEventEndTime = firstEventStartTime + 2 * 60 * 60 * 1000;
-        events.add(new ScheduledEvent.Builder().description("1st event (2hr)")
+        events.add(
+            new ScheduledEvent.Builder().description("1st event (2hr)")
                 .startTime(Instant.ofEpochMilli(firstEventStartTime))
                 .endTime(Instant.ofEpochMilli(firstEventEndTime))
-                .calendarId(calendarId).build());
+                .calendarId(calendarId)
+                .build()
+        );
         // add 10 min event smaller than the bucket
         long secondEventStartTime = 1515067200000L;
         long secondEventEndTime = secondEventStartTime + 10 * 60 * 1000;
-        events.add(new ScheduledEvent.Builder().description("2nd event with period smaller than bucketspan")
+        events.add(
+            new ScheduledEvent.Builder().description("2nd event with period smaller than bucketspan")
                 .startTime(Instant.ofEpochMilli(secondEventStartTime))
                 .endTime(Instant.ofEpochMilli(secondEventEndTime))
-                .calendarId(calendarId).build());
+                .calendarId(calendarId)
+                .build()
+        );
         long thirdEventStartTime = 1515088800000L;
         long thirdEventEndTime = thirdEventStartTime + 3 * 60 * 60 * 1000;
-        events.add(new ScheduledEvent.Builder().description("3rd event 3hr")
+        events.add(
+            new ScheduledEvent.Builder().description("3rd event 3hr")
                 .startTime(Instant.ofEpochMilli(thirdEventStartTime))
                 .endTime(Instant.ofEpochMilli(thirdEventEndTime))
-                .calendarId(calendarId).build());
+                .calendarId(calendarId)
+                .build()
+        );
 
         postScheduledEvents(calendarId, events);
 
@@ -168,17 +177,22 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
         int bucketCount = 10;
         long firstEventStartTime = startTime + bucketSpan.millis() * bucketCount;
         long firstEventEndTime = firstEventStartTime + bucketSpan.millis() * 2;
-        events.add(new ScheduledEvent.Builder().description("1st event 2hr")
+        events.add(
+            new ScheduledEvent.Builder().description("1st event 2hr")
                 .startTime(Instant.ofEpochMilli(firstEventStartTime))
                 .endTime((Instant.ofEpochMilli(firstEventEndTime)))
-                .calendarId(calendarId).build());
+                .calendarId(calendarId)
+                .build()
+        );
         postScheduledEvents(calendarId, events);
-
 
         openJob(job.getId());
         // write data up to and including the event
-        postData(job.getId(), generateData(startTime, bucketSpan, bucketCount + 1, bucketIndex -> randomIntBetween(100, 200))
-                .stream().collect(Collectors.joining()));
+        postData(
+            job.getId(),
+            generateData(startTime, bucketSpan, bucketCount + 1, bucketIndex -> randomIntBetween(100, 200)).stream()
+                .collect(Collectors.joining())
+        );
 
         // flush the job and get the interim result during the event
         flushJob(job.getId(), true);
@@ -207,8 +221,11 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
         openJob(job.getId());
 
         // write some buckets of data
-        postData(job.getId(), generateData(startTime, bucketSpan, bucketCount, bucketIndex -> randomIntBetween(100, 200))
-                .stream().collect(Collectors.joining()));
+        postData(
+            job.getId(),
+            generateData(startTime, bucketSpan, bucketCount, bucketIndex -> randomIntBetween(100, 200)).stream()
+                .collect(Collectors.joining())
+        );
 
         // Now create a calendar and events for the job while it is open
         String calendarId = "test-calendar-online-update";
@@ -216,33 +233,39 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
 
         List<ScheduledEvent> events = new ArrayList<>();
         long eventStartTime = startTime + (bucketCount + 1) * bucketSpan.millis();
-        long eventEndTime = eventStartTime + (long)(1.5 * bucketSpan.millis());
-        events.add(new ScheduledEvent.Builder().description("Some Event")
+        long eventEndTime = eventStartTime + (long) (1.5 * bucketSpan.millis());
+        events.add(
+            new ScheduledEvent.Builder().description("Some Event")
                 .startTime((Instant.ofEpochMilli(eventStartTime)))
                 .endTime((Instant.ofEpochMilli(eventEndTime)))
-                .calendarId(calendarId).build());
+                .calendarId(calendarId)
+                .build()
+        );
 
         postScheduledEvents(calendarId, events);
 
         // Wait until the notification that the process was updated is indexed
         assertBusy(() -> {
-            SearchResponse searchResponse =
-                client().prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX)
-                    .setSize(1)
-                    .addSort("timestamp", SortOrder.DESC)
-                    .setQuery(QueryBuilders.boolQuery()
-                            .filter(QueryBuilders.termQuery("job_id", job.getId()))
-                            .filter(QueryBuilders.termQuery("level", "info"))
-                    ).get();
+            SearchResponse searchResponse = client().prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX)
+                .setSize(1)
+                .addSort("timestamp", SortOrder.DESC)
+                .setQuery(
+                    QueryBuilders.boolQuery()
+                        .filter(QueryBuilders.termQuery("job_id", job.getId()))
+                        .filter(QueryBuilders.termQuery("level", "info"))
+                )
+                .get();
             SearchHit[] hits = searchResponse.getHits().getHits();
             assertThat(hits.length, equalTo(1));
             assertThat(hits[0].getSourceAsMap().get("message"), equalTo("Updated calendars in running process"));
         });
 
         // write some more buckets of data that cover the scheduled event period
-        postData(job.getId(), generateData(startTime + bucketCount * bucketSpan.millis(), bucketSpan, 5,
-                bucketIndex -> randomIntBetween(100, 200))
-                .stream().collect(Collectors.joining()));
+        postData(
+            job.getId(),
+            generateData(startTime + bucketCount * bucketSpan.millis(), bucketSpan, 5, bucketIndex -> randomIntBetween(100, 200)).stream()
+                .collect(Collectors.joining())
+        );
         // and close
         closeJob(job.getId());
 
@@ -250,7 +273,7 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
         List<Bucket> buckets = getBuckets(getBucketsRequest);
 
         // the first buckets have no events
-        for (int i=0; i<=bucketCount; i++) {
+        for (int i = 0; i <= bucketCount; i++) {
             assertEquals(0, buckets.get(i).getScheduledEvents().size());
         }
         // 7th and 8th buckets have the event
@@ -276,8 +299,11 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
         openJob(job.getId());
 
         // write some buckets of data
-        postData(job.getId(), generateData(startTime, bucketSpan, bucketCount, bucketIndex -> randomIntBetween(100, 200))
-                .stream().collect(Collectors.joining()));
+        postData(
+            job.getId(),
+            generateData(startTime, bucketSpan, bucketCount, bucketIndex -> randomIntBetween(100, 200)).stream()
+                .collect(Collectors.joining())
+        );
 
         String calendarId = "test-calendar-open-job-update";
 
@@ -287,38 +313,46 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
         // Put events in the calendar
         List<ScheduledEvent> events = new ArrayList<>();
         long eventStartTime = startTime + (bucketCount + 1) * bucketSpan.millis();
-        long eventEndTime = eventStartTime + (long)(1.5 * bucketSpan.millis());
-        events.add(new ScheduledEvent.Builder().description("Some Event")
+        long eventEndTime = eventStartTime + (long) (1.5 * bucketSpan.millis());
+        events.add(
+            new ScheduledEvent.Builder().description("Some Event")
                 .startTime((Instant.ofEpochMilli(eventStartTime)))
                 .endTime((Instant.ofEpochMilli(eventEndTime)))
-                .calendarId(calendarId).build());
+                .calendarId(calendarId)
+                .build()
+        );
 
         postScheduledEvents(calendarId, events);
 
         // Update the job to be a member of the group
-        UpdateJobAction.Request jobUpdateRequest = new UpdateJobAction.Request(job.getId(),
-            new JobUpdate.Builder(job.getId()).setGroups(Collections.singletonList(groupName)).build());
+        UpdateJobAction.Request jobUpdateRequest = new UpdateJobAction.Request(
+            job.getId(),
+            new JobUpdate.Builder(job.getId()).setGroups(Collections.singletonList(groupName)).build()
+        );
         client().execute(UpdateJobAction.INSTANCE, jobUpdateRequest).actionGet();
 
         // Wait until the notification that the job was updated is indexed
         assertBusy(() -> {
-            SearchResponse searchResponse =
-                client().prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX)
-                    .setSize(1)
-                    .addSort("timestamp", SortOrder.DESC)
-                    .setQuery(QueryBuilders.boolQuery()
-                            .filter(QueryBuilders.termQuery("job_id", job.getId()))
-                            .filter(QueryBuilders.termQuery("level", "info"))
-                    ).get();
+            SearchResponse searchResponse = client().prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX)
+                .setSize(1)
+                .addSort("timestamp", SortOrder.DESC)
+                .setQuery(
+                    QueryBuilders.boolQuery()
+                        .filter(QueryBuilders.termQuery("job_id", job.getId()))
+                        .filter(QueryBuilders.termQuery("level", "info"))
+                )
+                .get();
             SearchHit[] hits = searchResponse.getHits().getHits();
             assertThat(hits.length, equalTo(1));
             assertThat(hits[0].getSourceAsMap().get("message"), equalTo("Job updated: [groups]"));
         });
 
         // write some more buckets of data that cover the scheduled event period
-        postData(job.getId(), generateData(startTime + bucketCount * bucketSpan.millis(), bucketSpan, 5,
-                bucketIndex -> randomIntBetween(100, 200))
-                .stream().collect(Collectors.joining()));
+        postData(
+            job.getId(),
+            generateData(startTime + bucketCount * bucketSpan.millis(), bucketSpan, 5, bucketIndex -> randomIntBetween(100, 200)).stream()
+                .collect(Collectors.joining())
+        );
         // and close
         closeJob(job.getId());
 
@@ -326,7 +360,7 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
         List<Bucket> buckets = getBuckets(getBucketsRequest);
 
         // the first 6 buckets have no events
-        for (int i=0; i<=bucketCount; i++) {
+        for (int i = 0; i <= bucketCount; i++) {
             assertEquals(0, buckets.get(i).getScheduledEvents().size());
         }
         // 7th and 8th buckets have the event but the last one does not
@@ -354,10 +388,13 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
         List<ScheduledEvent> events = new ArrayList<>();
         long eventStartTime = startTime;
         long eventEndTime = eventStartTime + (long) (1.5 * bucketSpan.millis());
-        events.add(new ScheduledEvent.Builder().description("Some Event")
-            .startTime((Instant.ofEpochMilli(eventStartTime)))
-            .endTime((Instant.ofEpochMilli(eventEndTime)))
-            .calendarId(calendarId).build());
+        events.add(
+            new ScheduledEvent.Builder().description("Some Event")
+                .startTime((Instant.ofEpochMilli(eventStartTime)))
+                .endTime((Instant.ofEpochMilli(eventEndTime)))
+                .calendarId(calendarId)
+                .build()
+        );
 
         postScheduledEvents(calendarId, events);
 
@@ -367,8 +404,11 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
         openJob(job.getId());
 
         // write some buckets of data
-        postData(job.getId(), generateData(startTime, bucketSpan, bucketCount + 1, bucketIndex -> randomIntBetween(100, 200))
-            .stream().collect(Collectors.joining()));
+        postData(
+            job.getId(),
+            generateData(startTime, bucketSpan, bucketCount + 1, bucketIndex -> randomIntBetween(100, 200)).stream()
+                .collect(Collectors.joining())
+        );
 
         // and close
         closeJob(job.getId());
@@ -399,8 +439,11 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
 
     private void runJob(Job.Builder job, long startTime, TimeValue bucketSpan, int bucketCount) throws IOException {
         openJob(job.getId());
-        postData(job.getId(), generateData(startTime, bucketSpan, bucketCount, bucketIndex -> randomIntBetween(100, 200))
-                .stream().collect(Collectors.joining()));
+        postData(
+            job.getId(),
+            generateData(startTime, bucketSpan, bucketCount, bucketIndex -> randomIntBetween(100, 200)).stream()
+                .collect(Collectors.joining())
+        );
         closeJob(job.getId());
     }
 }

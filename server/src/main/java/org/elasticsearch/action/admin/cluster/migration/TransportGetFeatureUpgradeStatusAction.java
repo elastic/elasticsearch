@@ -27,17 +27,15 @@ import org.elasticsearch.upgrades.FeatureMigrationResults;
 import org.elasticsearch.upgrades.SingleFeatureMigrationResult;
 import org.elasticsearch.upgrades.SystemIndexMigrationTaskState;
 
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.ERROR;
 import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.IN_PROGRESS;
-import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED;
 import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.MIGRATION_NEEDED;
+import static org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED;
 import static org.elasticsearch.upgrades.SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME;
 
 /**
@@ -103,10 +101,7 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
         listener.onResponse(new GetFeatureUpgradeStatusResponse(features, status));
     }
 
-    static GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus getFeatureUpgradeStatus(
-        ClusterState state,
-        SystemIndices.Feature feature
-    ) {
+    static GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus getFeatureUpgradeStatus(ClusterState state, SystemIndices.Feature feature) {
         String featureName = feature.getName();
 
         final String currentFeature = Optional.ofNullable(
@@ -151,8 +146,8 @@ public class TransportGetFeatureUpgradeStatusAction extends TransportMasterNodeA
         final String failedFeatureName = featureStatus == null ? null : featureStatus.getFailedIndexName();
         final Exception exception = featureStatus == null ? null : featureStatus.getException();
 
-        return Stream.of(feature.getIndexDescriptors(), feature.getAssociatedIndexDescriptors())
-            .flatMap(Collection::stream)
+        return feature.getIndexDescriptors()
+            .stream()
             .flatMap(descriptor -> descriptor.getMatchingIndices(state.metadata()).stream())
             .sorted(String::compareTo)
             .map(index -> state.metadata().index(index))

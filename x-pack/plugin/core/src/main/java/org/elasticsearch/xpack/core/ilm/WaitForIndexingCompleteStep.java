@@ -10,10 +10,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 import java.util.Map;
@@ -64,8 +64,9 @@ final class WaitForIndexingCompleteStep extends ClusterStateWaitStep {
         private final String message;
 
         IndexingNotCompleteInfo() {
-            this.message = "waiting for the [" + LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE +
-                "] setting to be set to true on the leader index, it is currently [false]";
+            this.message = "waiting for the ["
+                + LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE
+                + "] setting to be set to true on the leader index, it is currently [false]";
         }
 
         String getMessage() {

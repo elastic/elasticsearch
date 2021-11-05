@@ -60,10 +60,7 @@ public abstract class MapperScriptTestCase<FactoryType> extends MapperServiceTes
             b.field("script", "serializer_test");
             b.endObject();
         }));
-        assertThat(
-            Strings.toString(mapper.mapping()),
-            containsString("\"script\":{\"source\":\"serializer_test\",\"lang\":\"painless\"}")
-        );
+        assertThat(Strings.toString(mapper.mapping()), containsString("\"script\":{\"source\":\"serializer_test\",\"lang\":\"painless\"}"));
     }
 
     public void testCannotIndexDirectlyIntoScriptMapper() throws IOException {
@@ -74,9 +71,7 @@ public abstract class MapperScriptTestCase<FactoryType> extends MapperServiceTes
             b.endObject();
         }));
 
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
-            b.field("scripted", "foo");
-        })));
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> { b.field("scripted", "foo"); })));
         assertThat(e.getMessage(), containsString("failed to parse field [scripted]"));
         assertEquals("Cannot index data directly into a field with a [script] parameter", e.getCause().getMessage());
     }
@@ -124,8 +119,7 @@ public abstract class MapperScriptTestCase<FactoryType> extends MapperServiceTes
             b.field("type", type());
             b.field("on_script_error", "continue");
         })));
-        assertThat(e.getMessage(),
-            equalTo("Failed to parse mapping: Field [on_script_error] requires field [script] to be configured"));
+        assertThat(e.getMessage(), equalTo("Failed to parse mapping: Field [on_script_error] requires field [script] to be configured"));
     }
 
     public final void testOnScriptErrorContinue() throws IOException {

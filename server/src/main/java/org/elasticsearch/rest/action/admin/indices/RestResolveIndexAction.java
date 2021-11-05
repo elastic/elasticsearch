@@ -30,17 +30,16 @@ public class RestResolveIndexAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, "/_resolve/index/{name}")
-        );
+        return List.of(new Route(GET, "/_resolve/index/{name}"));
     }
 
     @Override
     protected BaseRestHandler.RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String[] indices = Strings.splitStringByCommaToArray(request.param("name"));
-        ResolveIndexAction.Request resolveRequest = new ResolveIndexAction.Request(indices,
-            IndicesOptions.fromRequest(request, ResolveIndexAction.Request.DEFAULT_INDICES_OPTIONS));
+        ResolveIndexAction.Request resolveRequest = new ResolveIndexAction.Request(
+            indices,
+            IndicesOptions.fromRequest(request, ResolveIndexAction.Request.DEFAULT_INDICES_OPTIONS)
+        );
         return channel -> client.admin().indices().resolveIndex(resolveRequest, new RestToXContentListener<>(channel));
     }
 }
-

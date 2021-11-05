@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -27,7 +26,7 @@ import org.mockito.Mockito;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 
 public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
 
@@ -65,13 +64,15 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
 
     @Override
     public ForceMergeStep copyInstance(ForceMergeStep instance) {
-        return new ForceMergeStep(instance.getKey(), instance.getNextStepKey(),
-            instance.getClient(), instance.getMaxNumSegments());
+        return new ForceMergeStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(), instance.getMaxNumSegments());
     }
 
     public void testPerformActionComplete() throws Exception {
-        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
         Step.StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
         int maxNumSegments = randomIntBetween(1, 10);
@@ -91,8 +92,11 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
     }
 
     public void testPerformActionThrowsException() {
-        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
         Exception exception = new RuntimeException("error");
         Step.StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
@@ -111,24 +115,34 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
         }).when(indicesClient).forceMerge(any(), any());
 
         ForceMergeStep step = new ForceMergeStep(stepKey, nextStepKey, client, maxNumSegments);
-        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Void, Exception>get(
-            f -> step.performAction(indexMetadata, null, null, f))));
+        assertSame(
+            exception,
+            expectThrows(
+                Exception.class,
+                () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, null, null, f))
+            )
+        );
     }
 
     public void testForcemergeFailsOnSomeShards() {
         int numberOfShards = randomIntBetween(2, 5);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, "ilmPolicy"))
-            .numberOfShards(numberOfShards).numberOfReplicas(randomIntBetween(0, 5)).build();
+            .numberOfShards(numberOfShards)
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
         Index index = indexMetadata.getIndex();
         ForceMergeResponse forceMergeResponse = Mockito.mock(ForceMergeResponse.class);
         Mockito.when(forceMergeResponse.getTotalShards()).thenReturn(numberOfShards);
         Mockito.when(forceMergeResponse.getFailedShards()).thenReturn(numberOfShards - 1);
         Mockito.when(forceMergeResponse.getStatus()).thenReturn(RestStatus.BAD_REQUEST);
         Mockito.when(forceMergeResponse.getSuccessfulShards()).thenReturn(1);
-        DefaultShardOperationFailedException cause =
-            new DefaultShardOperationFailedException(index.getName(), 0, new IllegalArgumentException("couldn't merge"));
-        Mockito.when(forceMergeResponse.getShardFailures()).thenReturn(new DefaultShardOperationFailedException[]{cause});
+        DefaultShardOperationFailedException cause = new DefaultShardOperationFailedException(
+            index.getName(),
+            0,
+            new IllegalArgumentException("couldn't merge")
+        );
+        Mockito.when(forceMergeResponse.getShardFailures()).thenReturn(new DefaultShardOperationFailedException[] { cause });
 
         Step.StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
@@ -142,8 +156,9 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
 
         SetOnce<ElasticsearchException> failedStep = new SetOnce<>();
 
-        ClusterState state =
-            ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(indexMetadata, true).build())
+            .build();
         ForceMergeStep step = new ForceMergeStep(stepKey, nextStepKey, client, 1);
         step.performAction(indexMetadata, state, null, new ActionListener<>() {
             @Override
@@ -153,19 +168,23 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
 
             @Override
             public void onFailure(Exception e) {
-                assert e instanceof ElasticsearchException : "step must report " + ElasticsearchException.class.getSimpleName() +
-                    " but was " + e;
+                assert e instanceof ElasticsearchException
+                    : "step must report " + ElasticsearchException.class.getSimpleName() + " but was " + e;
                 failedStep.set((ElasticsearchException) e);
             }
         });
 
         ElasticsearchException stepException = failedStep.get();
         assertThat(stepException, notNullValue());
-        assertThat(stepException.getMessage(),
+        assertThat(
+            stepException.getMessage(),
             is(
-                "index [" + index.getName() + "] in policy [ilmPolicy] encountered failures [{\"shard\":0,\"index\":\"" +
-                    index.getName() + "\",\"status\":\"BAD_REQUEST\",\"reason\":{\"type\":\"illegal_argument_exception\"," +
-                    "\"reason\":\"couldn't merge\"}}] on step [forcemerge]"
+                "index ["
+                    + index.getName()
+                    + "] in policy [ilmPolicy] encountered failures [{\"shard\":0,\"index\":\""
+                    + index.getName()
+                    + "\",\"status\":\"BAD_REQUEST\",\"reason\":{\"type\":\"illegal_argument_exception\","
+                    + "\"reason\":\"couldn't merge\"}}] on step [forcemerge]"
             )
         );
     }

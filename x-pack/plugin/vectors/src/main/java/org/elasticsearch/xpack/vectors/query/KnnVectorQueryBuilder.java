@@ -5,17 +5,8 @@
  * 2.0.
  */
 
-/*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
- */
-
 package org.elasticsearch.xpack.vectors.query;
 
-import org.apache.lucene.search.KnnVectorQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -54,6 +45,14 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         return fieldName;
     }
 
+    public float[] queryVector() {
+        return queryVector;
+    }
+
+    public int numCands() {
+        return numCands;
+    }
+
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
@@ -63,10 +62,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(NAME)
-            .field("field", fieldName)
-            .field("vector", queryVector)
-            .field("num_candidates", numCands);
+        builder.startObject(NAME).field("field", fieldName).field("vector", queryVector).field("num_candidates", numCands);
         builder.endObject();
     }
 
@@ -83,8 +79,9 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         }
 
         if (fieldType instanceof DenseVectorFieldType == false) {
-            throw new IllegalArgumentException("[" + NAME + "] queries are only supported on ["
-                + DenseVectorFieldMapper.CONTENT_TYPE + "] fields");
+            throw new IllegalArgumentException(
+                "[" + NAME + "] queries are only supported on [" + DenseVectorFieldMapper.CONTENT_TYPE + "] fields"
+            );
         }
 
         if (context.getNestedParent(fieldType.name()) != null) {
@@ -92,14 +89,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         }
 
         DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) fieldType;
-        if (queryVector.length != vectorFieldType.dims()) {
-            throw new IllegalArgumentException("the query vector has a different dimension [" + queryVector.length + "] "
-                + "than the index vectors [" + vectorFieldType.dims() + "]");
-        }
-        if (vectorFieldType.isSearchable() == false) {
-            throw new IllegalArgumentException("[" + NAME + "] queries are not supported if [index] is disabled");
-        }
-        return new KnnVectorQuery(fieldType.name(), queryVector, numCands);
+        return vectorFieldType.createKnnQuery(queryVector, numCands);
     }
 
     @Override
@@ -109,8 +99,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
 
     @Override
     protected boolean doEquals(KnnVectorQueryBuilder other) {
-        return Objects.equals(fieldName, other.fieldName) &&
-            Arrays.equals(queryVector, other.queryVector) &&
-            numCands == other.numCands;
+        return Objects.equals(fieldName, other.fieldName) && Arrays.equals(queryVector, other.queryVector) && numCands == other.numCands;
     }
 }

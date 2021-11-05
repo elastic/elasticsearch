@@ -16,6 +16,9 @@ import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.script.field.BooleanDocValuesField;
+import org.elasticsearch.script.field.DelegateDocValuesField;
+import org.elasticsearch.script.field.DocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
@@ -27,7 +30,7 @@ public abstract class LeafLongFieldData implements LeafNumericFieldData {
 
     private final long ramBytesUsed;
     /**
-     * Type of this field. Used to expose appropriate types in {@link #getScriptValues()}.
+     * Type of this field. Used to expose appropriate types in {@link #getScriptField(String)}}.
      */
     private final NumericType numericType;
 
@@ -42,18 +45,21 @@ public abstract class LeafLongFieldData implements LeafNumericFieldData {
     }
 
     @Override
-    public final ScriptDocValues<?> getScriptValues() {
+    public final DocValuesField<?> getScriptField(String name) {
         switch (numericType) {
-        // for now, dates and nanoseconds are treated the same, which also means, that the precision is only on millisecond level
-        case DATE:
-            return new ScriptDocValues.Dates(getLongValues(), false);
-        case DATE_NANOSECONDS:
-            assert this instanceof SortedNumericIndexFieldData.NanoSecondFieldData;
-            return new ScriptDocValues.Dates(((SortedNumericIndexFieldData.NanoSecondFieldData) this).getLongValuesAsNanos(), true);
-        case BOOLEAN:
-            return new ScriptDocValues.Booleans(getLongValues());
-        default:
-            return new ScriptDocValues.Longs(getLongValues());
+            // for now, dates and nanoseconds are treated the same, which also means, that the precision is only on millisecond level
+            case DATE:
+                return new DelegateDocValuesField(new ScriptDocValues.Dates(getLongValues(), false), name);
+            case DATE_NANOSECONDS:
+                assert this instanceof SortedNumericIndexFieldData.NanoSecondFieldData;
+                return new DelegateDocValuesField(
+                    new ScriptDocValues.Dates(((SortedNumericIndexFieldData.NanoSecondFieldData) this).getLongValuesAsNanos(), true),
+                    name
+                );
+            case BOOLEAN:
+                return new BooleanDocValuesField(getLongValues(), name);
+            default:
+                return new DelegateDocValuesField(new ScriptDocValues.Longs(getLongValues()), name);
         }
     }
 

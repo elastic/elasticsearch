@@ -10,9 +10,9 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xpack.core.watcher.transform.TransformFactory;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
 
@@ -43,6 +43,6 @@ public class SearchTransformFactory extends TransformFactory<SearchTransform, Se
 
     @Override
     public ExecutableSearchTransform createExecutable(SearchTransform transform) {
-        return new ExecutableSearchTransform(transform, transformLogger, client,  searchTemplateService, defaultTimeout);
+        return new ExecutableSearchTransform(transform, transformLogger, client, searchTemplateService, defaultTimeout);
     }
 }

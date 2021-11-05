@@ -30,7 +30,7 @@ public class RankEvalRequest extends ActionRequest implements IndicesRequest.Rep
 
     private RankEvalSpec rankingEvaluationSpec;
 
-    private IndicesOptions indicesOptions  = SearchRequest.DEFAULT_INDICES_OPTIONS;
+    private IndicesOptions indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
     private String[] indices = Strings.EMPTY_ARRAY;
 
     private SearchType searchType = SearchType.DEFAULT;
@@ -50,8 +50,7 @@ public class RankEvalRequest extends ActionRequest implements IndicesRequest.Rep
         }
     }
 
-    RankEvalRequest() {
-    }
+    RankEvalRequest() {}
 
     @Override
     public ActionRequestValidationException validate() {
@@ -141,10 +140,10 @@ public class RankEvalRequest extends ActionRequest implements IndicesRequest.Rep
             return false;
         }
         RankEvalRequest that = (RankEvalRequest) o;
-        return Objects.equals(indicesOptions, that.indicesOptions) &&
-                Arrays.equals(indices, that.indices) &&
-                Objects.equals(rankingEvaluationSpec, that.rankingEvaluationSpec) &&
-                Objects.equals(searchType, that.searchType);
+        return Objects.equals(indicesOptions, that.indicesOptions)
+            && Arrays.equals(indices, that.indices)
+            && Objects.equals(rankingEvaluationSpec, that.rankingEvaluationSpec)
+            && Objects.equals(searchType, that.searchType);
     }
 
     @Override

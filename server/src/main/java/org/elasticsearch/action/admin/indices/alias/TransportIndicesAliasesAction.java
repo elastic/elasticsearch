@@ -120,10 +120,10 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
                     action.indices()
                 );
                 List<Index> nonBackingIndices = Arrays.stream(unprocessedConcreteIndices).filter(index -> {
-                    var ia = state.metadata().getIndicesLookup().get(index.getName());
+                    IndexAbstraction ia = state.metadata().getIndicesLookup().get(index.getName());
                     return ia.getParentDataStream() == null;
                 }).collect(Collectors.toList());
-                concreteIndices = nonBackingIndices.toArray(Index[]::new);
+                concreteIndices = nonBackingIndices.toArray(Index.EMPTY_ARRAY);
                 switch (action.actionType()) {
                     case ADD:
                         // Fail if parameters are used that data stream aliases don't support:

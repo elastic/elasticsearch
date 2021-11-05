@@ -754,12 +754,18 @@ public class RolloverIT extends ESIntegTestCase {
         putTemplateRequest.indexTemplate(new ComposableIndexTemplate(List.of("test-*"), template, null, 100L, null, null));
         assertAcked(client().execute(PutComposableIndexTemplateAction.INSTANCE, putTemplateRequest).actionGet());
 
-        Thread[] threads = new Thread[numOfThreads];
+        final CyclicBarrier barrier = new CyclicBarrier(numOfThreads);
+        final Thread[] threads = new Thread[numOfThreads];
         for (int i = 0; i < numOfThreads; i++) {
             var aliasName = "test-" + i;
             threads[i] = new Thread(() -> {
                 assertAcked(prepareCreate(aliasName + "-000001").addAlias(new Alias(aliasName).writeIndex(true)).get());
                 for (int j = 1; j <= numberOfRolloversPerThread; j++) {
+                    try {
+                        barrier.await();
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
                     var response = client().admin()
                         .indices()
                         .prepareRolloverIndex(aliasName)

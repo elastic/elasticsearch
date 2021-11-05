@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[setup-xpack-client]]
 == Configuring {xpack} Java Clients
 

@@ -1103,10 +1103,7 @@ public class MetadataCreateIndexService {
         BiFunction<ClusterState, String, ClusterState> rerouteRoutingTable,
         BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer
     ) {
-        Metadata.Builder builder = Metadata.builder(currentState.metadata());
-        indexMetadata = builder.reuseMappings(indexMetadata);
-        builder.put(indexMetadata, false);
-
+        Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(indexMetadata, false);
         if (metadataTransformer != null) {
             metadataTransformer.accept(builder, indexMetadata);
         }

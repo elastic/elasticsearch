@@ -1146,6 +1146,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             // we know its a new one, increment the version and store
             indexMetadataBuilder.version(indexMetadataBuilder.version() + 1);
             IndexMetadata indexMetadata = indexMetadataBuilder.build();
+            indexMetadata = reuseMappings(indexMetadata);
             IndexMetadata previous = indices.put(indexMetadata.getIndex().getName(), indexMetadata);
             if (unsetPreviousIndicesLookup(previous, indexMetadata)) {
                 previousIndicesLookup = null;
@@ -1157,6 +1158,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             if (indices.get(indexMetadata.getIndex().getName()) == indexMetadata) {
                 return this;
             }
+            indexMetadata = reuseMappings(indexMetadata);
             // if we put a new index metadata, increment its version
             if (incrementVersion) {
                 indexMetadata = IndexMetadata.builder(indexMetadata).version(indexMetadata.getVersion() + 1).build();
@@ -1232,7 +1234,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         public Builder indices(ImmutableOpenMap<String, IndexMetadata> indices) {
             previousIndicesLookup = null;
 
-            this.indices.putAll(indices);
+            for (var cursor : indices) {
+                put(cursor.value, false);
+            }
             return this;
         }
 

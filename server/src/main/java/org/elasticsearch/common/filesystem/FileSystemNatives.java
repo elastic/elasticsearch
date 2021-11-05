@@ -37,6 +37,8 @@ public final class FileSystemNatives {
             Class.forName("com.sun.jna.Native");
             if (Constants.WINDOWS) {
                 return WindowsFileSystemNatives.getInstance();
+            } else if (Constants.LINUX && Constants.JRE_IS_64BIT) {
+                return LinuxFileSystemNatives.getInstance();
             }
         } catch (ClassNotFoundException e) {
             logger.warn("JNA not found. FileSystemNatives methods will be disabled.", e);

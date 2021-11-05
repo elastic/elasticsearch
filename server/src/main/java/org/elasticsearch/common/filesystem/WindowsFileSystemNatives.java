@@ -77,7 +77,8 @@ final class WindowsFileSystemNatives implements FileSystemNatives.Provider {
             return OptionalLong.empty();
         }
 
-        final long allocatedSize = (((long) lpFileSizeHigh.getValue()) << 32) | (lpFileSizeLow & 0xffffffffL);
+        // convert lpFileSizeLow to unsigned long and combine with signed/shifted lpFileSizeHigh
+        final long allocatedSize = (((long) lpFileSizeHigh.getValue()) << Integer.SIZE) | Integer.toUnsignedLong(lpFileSizeLow);
         if (logger.isTraceEnabled()) {
             logger.trace(
                 "executing native method GetCompressedFileSizeW returned [high={}, low={}, allocated={}] for file [{}]",

@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[ml-delete-expired-data]]
 = Delete expired data API
 ++++

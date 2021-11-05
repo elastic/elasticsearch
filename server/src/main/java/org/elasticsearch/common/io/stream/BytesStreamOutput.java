@@ -219,6 +219,10 @@ public class BytesStreamOutput extends BytesStream {
     private void ensureCapacity(int bytesNeeded) {
         if (bytesNeeded > pageSize - currentPageOffset) {
             ensureCapacityFromPosition(position() + bytesNeeded);
+            if (currentPageOffset == pageSize) {
+                pageIndex++;
+                currentPageOffset = 0;
+            }
         }
     }
 

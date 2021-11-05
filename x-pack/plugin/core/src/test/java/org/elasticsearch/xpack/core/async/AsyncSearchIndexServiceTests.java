@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.async;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -37,6 +38,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.hamcrest.Matchers.equalTo;
 
 // TODO: test CRUD operations
+@LuceneTestCase.AwaitsFix(bugUrl = "")
 public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
     private AsyncTaskIndexService<TestAsyncResponse> indexService;
 

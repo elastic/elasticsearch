@@ -88,7 +88,7 @@ public class BulkProcessor implements Closeable {
         private String globalIndex;
         private String globalRouting;
         private String globalPipeline;
-        private Supplier<Boolean> flushCondition;
+        private Supplier<Boolean> flushCondition = () -> true;
 
         private Builder(
             BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer,

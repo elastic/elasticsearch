@@ -85,10 +85,20 @@ POST /_snapshot/my_repository/my_snapshot/_restore
 there aren't any <<cluster-read-only,cluster blocks>> that prevent writes. The
 restore operation ignores <<index-modules-blocks,index blocks>>.
 
-* If you restore a data stream, ensure the cluster contains a
-<<create-index-template,matching index template>> with data stream enabled.
-Without a matching index template, a data stream can't roll over or create
-backing indices.
+* Before you restore a data stream, ensure the cluster contains a
+<<create-index-template,matching index template>> with data stream enabled. To
+check, use {kib}'s <<manage-index-templates,**Index Management**>> feature or
+the <<indices-get-template,get index template API>>:
++
+[source,console]
+----
+GET /_index_template/*?filter_path=index_templates.name,index_templates.index_template.index_patterns,index_templates.index_template.data_stream
+----
++
+If no such template exists, you can <<create-index-template,create one>> or
+<<restore-entire-cluster,restore a cluster state>> that
+contains one. Without a matching index template, a data stream can't roll over
+or create backing indices.
 
 * If your snapshot contains data from App Search or Workplace Search, ensure
 you've restored the {enterprise-search-ref}/encryption-keys.html[Enterprise

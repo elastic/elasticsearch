@@ -67,7 +67,7 @@ GET _snapshot
 // TEST[setup:setup-snapshots]
 
 Then use the get snapshot API to get a list of snapshots in a specific
-repository.
+repository. This also returns each snapshot's contents.
 
 [source,console]
 ----

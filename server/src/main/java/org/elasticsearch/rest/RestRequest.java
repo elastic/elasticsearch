@@ -617,16 +617,10 @@ public class RestRequest implements ToXContent.Params {
         private Set<String> failedHeaderNames;
         private Object[] params;
 
-        MediaTypeHeaderException(Set<String> failedHeaderNames, String message, Object... params) {
-            this.params = params;
-            this.message = message;
-            this.failedHeaderNames = failedHeaderNames;
-        }
-
         MediaTypeHeaderException(final RuntimeException cause, String... failedHeaderNames) {
             super(cause);
             this.failedHeaderNames = Set.of(failedHeaderNames);
-            this.message = "Invalid media-type value on header " + this.failedHeaderNames;
+            this.message = "Invalid media-type value on headers " + this.failedHeaderNames;
         }
 
         public Set<String> getFailedHeaderNames() {

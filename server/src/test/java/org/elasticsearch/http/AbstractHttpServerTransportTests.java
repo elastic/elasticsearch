@@ -272,7 +272,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     assertThat(cause, instanceOf(RestRequest.MediaTypeHeaderException.class));
                     RestRequest.MediaTypeHeaderException mediaTypeHeaderException = (RestRequest.MediaTypeHeaderException) cause;
                     assertThat(mediaTypeHeaderException.getFailedHeaderNames(), equalTo(failedHeaderNames));
-                    assertThat(mediaTypeHeaderException.getMessage(), equalTo("Invalid media-type value on header " + failedHeaderNames));
+                    assertThat(mediaTypeHeaderException.getMessage(), equalTo("Invalid media-type value on headers " + failedHeaderNames));
                 }
             },
             clusterSettings

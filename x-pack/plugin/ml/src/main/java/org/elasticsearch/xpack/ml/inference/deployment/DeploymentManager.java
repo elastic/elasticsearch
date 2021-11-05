@@ -346,7 +346,9 @@ public class DeploymentManager {
                 NlpTask.Processor processor = processContext.nlpTaskProcessor.get();
                 processor.validateInputs(text);
                 assert config instanceof NlpConfig;
-                NlpTask.Request request = processor.getRequestBuilder((NlpConfig) config).buildRequest(text, requestIdStr);
+                NlpConfig nlpConfig = (NlpConfig) config;
+                NlpTask.Request request = processor.getRequestBuilder(nlpConfig)
+                    .buildRequest(text, requestIdStr, nlpConfig.getTokenization().getTruncate());
                 logger.debug(() -> "Inference Request " + request.processInput.utf8ToString());
                 if (request.tokenization.anyTruncated()) {
                     logger.debug("[{}] [{}] input truncated", modelId, requestId);

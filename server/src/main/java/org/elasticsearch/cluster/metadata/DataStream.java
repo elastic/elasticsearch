@@ -269,7 +269,17 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         List<Index> backingIndices = new ArrayList<>(indices);
         backingIndices.remove(index);
         assert backingIndices.size() == indices.size() - 1;
-        return new DataStream(name, timeStampField, backingIndices, generation, metadata, hidden, replicated, system, allowCustomRouting);
+        return new DataStream(
+            name,
+            timeStampField,
+            backingIndices,
+            generation + 1,
+            metadata,
+            hidden,
+            replicated,
+            system,
+            allowCustomRouting
+        );
     }
 
     /**
@@ -290,18 +300,28 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
                 String.format(Locale.ROOT, "index [%s] is not part of data stream [%s]", existingBackingIndex.getName(), name)
             );
         }
-        if (generation == (backingIndexPosition + 1)) {
+        if (indices.size() == (backingIndexPosition + 1)) {
             throw new IllegalArgumentException(
                 String.format(
                     Locale.ROOT,
-                    "cannot replace backing index [%s] of data stream [%s] because " + "it is the write index",
+                    "cannot replace backing index [%s] of data stream [%s] because it is the write index",
                     existingBackingIndex.getName(),
                     name
                 )
             );
         }
         backingIndices.set(backingIndexPosition, newBackingIndex);
-        return new DataStream(name, timeStampField, backingIndices, generation, metadata, hidden, replicated, system, allowCustomRouting);
+        return new DataStream(
+            name,
+            timeStampField,
+            backingIndices,
+            generation + 1,
+            metadata,
+            hidden,
+            replicated,
+            system,
+            allowCustomRouting
+        );
     }
 
     /**

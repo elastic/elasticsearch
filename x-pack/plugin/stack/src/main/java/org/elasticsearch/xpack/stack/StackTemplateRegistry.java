@@ -10,20 +10,28 @@ package org.elasticsearch.xpack.stack;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 
-import java.util.Arrays;
+import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class StackTemplateRegistry extends IndexTemplateRegistry {
     private static final Logger logger = LogManager.getLogger(StackTemplateRegistry.class);
@@ -46,13 +54,6 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     // General mappings conventions for any data that ends up in a data stream
     public static final String DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "data-streams-mappings";
 
-    public static final IndexTemplateConfig DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE = new IndexTemplateConfig(
-        DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
-        "/data-streams-mappings.json",
-        REGISTRY_VERSION,
-        TEMPLATE_VERSION_VARIABLE
-    );
-
     //////////////////////////////////////////////////////////
     // Built in ILM policies for users to use
     //////////////////////////////////////////////////////////
@@ -62,27 +63,6 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     public static final String ILM_180_DAYS_POLICY_NAME = "180-days-default";
     public static final String ILM_365_DAYS_POLICY_NAME = "365-days-default";
 
-    public static final LifecyclePolicyConfig ILM_7_DAYS_POLICY = new LifecyclePolicyConfig(
-        ILM_7_DAYS_POLICY_NAME,
-        "/" + ILM_7_DAYS_POLICY_NAME + ".json"
-    );
-    public static final LifecyclePolicyConfig ILM_30_DAYS_POLICY = new LifecyclePolicyConfig(
-        ILM_30_DAYS_POLICY_NAME,
-        "/" + ILM_30_DAYS_POLICY_NAME + ".json"
-    );
-    public static final LifecyclePolicyConfig ILM_90_DAYS_POLICY = new LifecyclePolicyConfig(
-        ILM_90_DAYS_POLICY_NAME,
-        "/" + ILM_90_DAYS_POLICY_NAME + ".json"
-    );
-    public static final LifecyclePolicyConfig ILM_180_DAYS_POLICY = new LifecyclePolicyConfig(
-        ILM_180_DAYS_POLICY_NAME,
-        "/" + ILM_180_DAYS_POLICY_NAME + ".json"
-    );
-    public static final LifecyclePolicyConfig ILM_365_DAYS_POLICY = new LifecyclePolicyConfig(
-        ILM_365_DAYS_POLICY_NAME,
-        "/" + ILM_365_DAYS_POLICY_NAME + ".json"
-    );
-
     //////////////////////////////////////////////////////////
     // Logs components (for matching logs-*-* indices)
     //////////////////////////////////////////////////////////
@@ -90,26 +70,6 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     public static final String LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME = "logs-settings";
     public static final String LOGS_ILM_POLICY_NAME = "logs";
     public static final String LOGS_INDEX_TEMPLATE_NAME = "logs";
-
-    public static final IndexTemplateConfig LOGS_MAPPINGS_COMPONENT_TEMPLATE = new IndexTemplateConfig(
-        LOGS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
-        "/logs-mappings.json",
-        REGISTRY_VERSION,
-        TEMPLATE_VERSION_VARIABLE
-    );
-    public static final IndexTemplateConfig LOGS_SETTINGS_COMPONENT_TEMPLATE = new IndexTemplateConfig(
-        LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME,
-        "/logs-settings.json",
-        REGISTRY_VERSION,
-        TEMPLATE_VERSION_VARIABLE
-    );
-    public static final LifecyclePolicyConfig LOGS_ILM_POLICY = new LifecyclePolicyConfig(LOGS_ILM_POLICY_NAME, "/logs-policy.json");
-    public static final IndexTemplateConfig LOGS_INDEX_TEMPLATE = new IndexTemplateConfig(
-        LOGS_INDEX_TEMPLATE_NAME,
-        "/logs-template.json",
-        REGISTRY_VERSION,
-        TEMPLATE_VERSION_VARIABLE
-    );
 
     //////////////////////////////////////////////////////////
     // Metrics components (for matching metric-*-* indices)
@@ -119,29 +79,6 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     public static final String METRICS_ILM_POLICY_NAME = "metrics";
     public static final String METRICS_INDEX_TEMPLATE_NAME = "metrics";
 
-    public static final IndexTemplateConfig METRICS_MAPPINGS_COMPONENT_TEMPLATE = new IndexTemplateConfig(
-        METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
-        "/metrics-mappings.json",
-        REGISTRY_VERSION,
-        TEMPLATE_VERSION_VARIABLE
-    );
-    public static final IndexTemplateConfig METRICS_SETTINGS_COMPONENT_TEMPLATE = new IndexTemplateConfig(
-        METRICS_SETTINGS_COMPONENT_TEMPLATE_NAME,
-        "/metrics-settings.json",
-        REGISTRY_VERSION,
-        TEMPLATE_VERSION_VARIABLE
-    );
-    public static final LifecyclePolicyConfig METRICS_ILM_POLICY = new LifecyclePolicyConfig(
-        METRICS_ILM_POLICY_NAME,
-        "/metrics-policy.json"
-    );
-    public static final IndexTemplateConfig METRICS_INDEX_TEMPLATE = new IndexTemplateConfig(
-        METRICS_INDEX_TEMPLATE_NAME,
-        "/metrics-template.json",
-        REGISTRY_VERSION,
-        TEMPLATE_VERSION_VARIABLE
-    );
-
     //////////////////////////////////////////////////////////
     // Synthetics components (for matching synthetics-*-* indices)
     //////////////////////////////////////////////////////////
@@ -149,29 +86,6 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     public static final String SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE_NAME = "synthetics-settings";
     public static final String SYNTHETICS_ILM_POLICY_NAME = "synthetics";
     public static final String SYNTHETICS_INDEX_TEMPLATE_NAME = "synthetics";
-
-    public static final IndexTemplateConfig SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE = new IndexTemplateConfig(
-        SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
-        "/synthetics-mappings.json",
-        REGISTRY_VERSION,
-        TEMPLATE_VERSION_VARIABLE
-    );
-    public static final IndexTemplateConfig SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE = new IndexTemplateConfig(
-        SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE_NAME,
-        "/synthetics-settings.json",
-        REGISTRY_VERSION,
-        TEMPLATE_VERSION_VARIABLE
-    );
-    public static final LifecyclePolicyConfig SYNTHETICS_ILM_POLICY = new LifecyclePolicyConfig(
-        SYNTHETICS_ILM_POLICY_NAME,
-        "/synthetics-policy.json"
-    );
-    public static final IndexTemplateConfig SYNTHETICS_INDEX_TEMPLATE = new IndexTemplateConfig(
-        SYNTHETICS_INDEX_TEMPLATE_NAME,
-        "/synthetics-template.json",
-        REGISTRY_VERSION,
-        TEMPLATE_VERSION_VARIABLE
-    );
 
     public StackTemplateRegistry(
         Settings nodeSettings,
@@ -197,54 +111,114 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         } else {
             logger.info(
                 "stack composable templates [{}] and component templates [{}] will not be installed or reinstalled",
-                getComposableTemplateConfigs().stream().map(IndexTemplateConfig::getTemplateName).collect(Collectors.joining(",")),
-                getComponentTemplateConfigs().stream().map(IndexTemplateConfig::getTemplateName).collect(Collectors.joining(","))
+                String.join(",", getComposableTemplateConfigs().keySet()),
+                String.join(",", getComponentTemplateConfigs().keySet())
             );
             this.stackTemplateEnabled = false;
         }
     }
 
+    private static final List<LifecyclePolicy> LIFECYCLE_POLICY_CONFIGS = Stream.of(
+        new LifecyclePolicyConfig(LOGS_ILM_POLICY_NAME, "/logs-policy.json"),
+        new LifecyclePolicyConfig(METRICS_ILM_POLICY_NAME, "/metrics-policy.json"),
+        new LifecyclePolicyConfig(SYNTHETICS_ILM_POLICY_NAME, "/synthetics-policy.json"),
+        new LifecyclePolicyConfig(ILM_7_DAYS_POLICY_NAME, "/" + ILM_7_DAYS_POLICY_NAME + ".json"),
+        new LifecyclePolicyConfig(ILM_30_DAYS_POLICY_NAME, "/" + ILM_30_DAYS_POLICY_NAME + ".json"),
+        new LifecyclePolicyConfig(ILM_90_DAYS_POLICY_NAME, "/" + ILM_90_DAYS_POLICY_NAME + ".json"),
+        new LifecyclePolicyConfig(ILM_180_DAYS_POLICY_NAME, "/" + ILM_180_DAYS_POLICY_NAME + ".json"),
+        new LifecyclePolicyConfig(ILM_365_DAYS_POLICY_NAME, "/" + ILM_365_DAYS_POLICY_NAME + ".json")
+    ).map(config -> config.load(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY)).collect(Collectors.toUnmodifiableList());
+
     @Override
-    protected List<LifecyclePolicyConfig> getPolicyConfigs() {
+    protected List<LifecyclePolicy> getPolicyConfigs() {
         if (stackTemplateEnabled) {
-            return Arrays.asList(
-                LOGS_ILM_POLICY,
-                METRICS_ILM_POLICY,
-                SYNTHETICS_ILM_POLICY,
-                ILM_7_DAYS_POLICY,
-                ILM_30_DAYS_POLICY,
-                ILM_90_DAYS_POLICY,
-                ILM_180_DAYS_POLICY,
-                ILM_365_DAYS_POLICY
-            );
+            return LIFECYCLE_POLICY_CONFIGS;
         } else {
             return Collections.emptyList();
         }
     }
 
-    @Override
-    protected List<IndexTemplateConfig> getComponentTemplateConfigs() {
-        if (stackTemplateEnabled) {
-            return Arrays.asList(
-                DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE,
-                LOGS_MAPPINGS_COMPONENT_TEMPLATE,
-                LOGS_SETTINGS_COMPONENT_TEMPLATE,
-                METRICS_MAPPINGS_COMPONENT_TEMPLATE,
-                METRICS_SETTINGS_COMPONENT_TEMPLATE,
-                SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE,
-                SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE
-            );
-        } else {
-            return Collections.emptyList();
+    private static final Map<String, ComponentTemplate> COMPONENT_TEMPLATE_CONFIGS;
+
+    static {
+        final Map<String, ComponentTemplate> componentTemplates = new HashMap<>();
+        for (IndexTemplateConfig config : List.of(
+            new IndexTemplateConfig(
+                DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+                "/data-streams-mappings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE
+            ),
+            new IndexTemplateConfig(
+                LOGS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+                "/logs-mappings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE
+            ),
+            new IndexTemplateConfig(
+                LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME,
+                "/logs-settings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE
+            ),
+            new IndexTemplateConfig(
+                METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+                "/metrics-mappings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE
+            ),
+            new IndexTemplateConfig(
+                METRICS_SETTINGS_COMPONENT_TEMPLATE_NAME,
+                "/metrics-settings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE
+            ),
+            new IndexTemplateConfig(
+                SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+                "/synthetics-mappings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE
+            ),
+            new IndexTemplateConfig(
+                SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE_NAME,
+                "/synthetics-settings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE
+            )
+        )) {
+            try {
+                componentTemplates.put(
+                    config.getTemplateName(),
+                    ComponentTemplate.parse(JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, config.loadBytes()))
+                );
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
         }
+        COMPONENT_TEMPLATE_CONFIGS = Map.copyOf(componentTemplates);
     }
 
     @Override
-    protected List<IndexTemplateConfig> getComposableTemplateConfigs() {
+    protected Map<String, ComponentTemplate> getComponentTemplateConfigs() {
         if (stackTemplateEnabled) {
-            return Arrays.asList(LOGS_INDEX_TEMPLATE, METRICS_INDEX_TEMPLATE, SYNTHETICS_INDEX_TEMPLATE);
+            return COMPONENT_TEMPLATE_CONFIGS;
         } else {
-            return Collections.emptyList();
+            return Map.of();
+        }
+    }
+
+    private static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(
+        new IndexTemplateConfig(LOGS_INDEX_TEMPLATE_NAME, "/logs-template.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE),
+        new IndexTemplateConfig(METRICS_INDEX_TEMPLATE_NAME, "/metrics-template.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE),
+        new IndexTemplateConfig(SYNTHETICS_INDEX_TEMPLATE_NAME, "/synthetics-template.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE)
+    );
+
+    @Override
+    protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
+        if (stackTemplateEnabled) {
+            return COMPOSABLE_INDEX_TEMPLATE_CONFIGS;
+        } else {
+            return Map.of();
         }
     }
 

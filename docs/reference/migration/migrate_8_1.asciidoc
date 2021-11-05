@@ -53,17 +53,17 @@ enable <<deprecation-logging, deprecation logging>>.
 [[breaking_8.1_settings_deprecation]]
 ==== Settings deprecations
 
-[[deprecate-zen-discovery-setting]]
-.Setting `discovery.type` to `zen` is deprecated.
+[[deprecate-legacy-discovery-type-setting]]
+.Legacy values for the `discovery.type` setting are deprecated.
 [%collapsible]
 ====
 *Details* +
-Support for setting `discovery.type` to `zen` is deprecated and will be 
-removed in a future version.
+Legacy values for the `discovery.type` setting are deprecated and will be
+forbidden in a future version.
 
 *Impact* +
-If `discovery.type` is set to `zen`, {es} will change the value to `multi-node`
-instead. `multi-node` replaces `zen` as the default setting, and {es} will
-continue to discover other nodes when forming a cluster and allow other nodes to 
-join the cluster later.
+Do not set `discovery.type` to any value except `single-node` or `multi-node`.
+All other values are equivalent to the default discovery type which is
+`multi-node`. Where possible, omit this setting so that {es} uses the default
+discovery type.
 ====

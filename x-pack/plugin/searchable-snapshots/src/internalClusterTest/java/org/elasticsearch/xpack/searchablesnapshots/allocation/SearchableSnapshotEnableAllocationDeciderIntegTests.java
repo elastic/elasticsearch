@@ -12,16 +12,12 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.BaseSearchableSnapshotsIntegTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.allocation.decider.SearchableSnapshotEnableAllocationDecider;
 import org.hamcrest.Matchers;
 
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -30,13 +26,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class SearchableSnapshotEnableAllocationDeciderIntegTests extends BaseSearchableSnapshotsIntegTestCase {
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(MockRepository.Plugin.class);
-        return plugins;
-    }
 
     public void testAllocationDisabled() throws Exception {
         final String restoredIndexName = setupMountedIndex();

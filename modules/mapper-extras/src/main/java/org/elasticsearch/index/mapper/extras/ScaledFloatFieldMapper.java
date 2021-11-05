@@ -28,6 +28,7 @@ import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -259,10 +260,10 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
             return (cache, breakerService) -> {
-                final IndexNumericFieldData scaledValues = new SortedDoublesIndexFieldData.Builder(
+                final IndexNumericFieldData scaledValues = new SortedNumericIndexFieldData.Builder(
                     name(),
                     IndexNumericFieldData.NumericType.LONG,
-                    ToScriptField.SCALED_FLOAT
+                    null
                 ).build(cache, breakerService);
                 return new ScaledFloatIndexFieldData(scaledValues, scalingFactor, ToScriptField.SCALED_FLOAT);
             };

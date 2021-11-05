@@ -9,6 +9,7 @@
 package org.elasticsearch.script.field;
 
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.elasticsearch.index.fielddata.ScriptDocValues.Dates;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Doubles;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Longs;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
@@ -28,6 +29,6 @@ public interface ToScriptField<T> {
     ToScriptField<SortedNumericDoubleValues> FLOAT = (dv, n) -> new DelegateDocValuesField(new Doubles(dv), n);
     ToScriptField<SortedNumericDoubleValues> SCALED_FLOAT = (dv, n) -> new DelegateDocValuesField(new Doubles(dv), n);
     ToScriptField<SortedNumericDoubleValues> DOUBLE = (dv, n) -> new DelegateDocValuesField(new Doubles(dv), n);
-    ToScriptField<SortedNumericDocValues> DATE_MILLIS = (dv, n) -> new DelegateDocValuesField(new Longs(dv), n);
-    ToScriptField<SortedNumericDocValues> DATE_NANOS = (dv, n) -> new DelegateDocValuesField(new Longs(dv), n);
+    ToScriptField<SortedNumericDocValues> DATE_MILLIS = (dv, n) -> new DelegateDocValuesField(new Dates(dv, false), n);
+    ToScriptField<SortedNumericDocValues> DATE_NANOS = (dv, n) -> new DelegateDocValuesField(new Dates(dv, true), n);
 }

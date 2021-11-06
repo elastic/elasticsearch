@@ -556,7 +556,8 @@ public class RestoreService implements ClusterStateApplier {
             for (String requestedDataStream : requestedDataStreams) {
                 final DataStream dataStreamInSnapshot = dataStreamsInSnapshot.get(requestedDataStream);
                 assert dataStreamInSnapshot != null : "DataStream [" + requestedDataStream + "] not found in snapshot";
-                if (dataStreamInSnapshot.isSystem() == false || featureStateDataStreams.contains(requestedDataStream)) {
+
+                if (dataStreamInSnapshot.isSystem() == false) {
                     dataStreams.put(requestedDataStream, dataStreamInSnapshot);
                 } else if (requestIndices.contains(requestedDataStream)) {
                     throw new IllegalArgumentException(
@@ -565,6 +566,8 @@ public class RestoreService implements ClusterStateApplier {
                             requestedDataStream
                         ).getFormattedMessage()
                     );
+                } else if (featureStateDataStreams.contains(requestedDataStream)) {
+                    dataStreams.put(requestedDataStream, dataStreamInSnapshot);
                 } else {
                     logger.debug(
                         "omitting system data stream [{}] from snapshot restoration because its feature state was not requested",

@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.plugins.Plugin;
@@ -106,6 +107,7 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
         {
             GetIndexResponse indicesRemaining = client().admin().indices().prepareGetIndex().addIndices("_all").get();
             assertThat(indicesRemaining.indices(), arrayWithSize(0));
+            assertSystemDataStreamDoesNotExist();
         }
 
         // Make sure requesting the data stream by name throws.
@@ -123,11 +125,13 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
             assertThat(
                 e.getMessage(),
                 equalTo(
-                    "requested system data streams [.test-data-stream], but system data streams can only be restored as part of a feature "
+                    "requested system data stream [.test-data-stream], but system data streams can only be restored as part of a feature "
                         + "state"
                 )
             );
         }
+
+        assertSystemDataStreamDoesNotExist();
 
         // Now actually restore the data stream
         RestoreSnapshotResponse restoreSnapshotResponse = client().admin()
@@ -143,6 +147,30 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
             GetDataStreamAction.Response response = client().execute(GetDataStreamAction.INSTANCE, request).get();
             assertThat(response.getDataStreams(), hasSize(1));
             assertTrue(response.getDataStreams().get(0).getDataStream().isSystem());
+        }
+
+        // Attempting to restore again without specifying indices or global/feature states should work, as the wildcard should not be
+        // resolved to system indices/data streams.
+        client().admin()
+            .cluster()
+            .prepareRestoreSnapshot(REPO, SNAPSHOT)
+            .setWaitForCompletion(true)
+            .setRestoreGlobalState(false)
+            .get();
+        assertEquals(restoreSnapshotResponse.getRestoreInfo().totalShards(), restoreSnapshotResponse.getRestoreInfo().successfulShards());
+    }
+
+    private void assertSystemDataStreamDoesNotExist() {
+        try {
+            GetDataStreamAction.Request request = new GetDataStreamAction.Request(new String[] { SYSTEM_DATA_STREAM_NAME });
+            GetDataStreamAction.Response response = client().execute(GetDataStreamAction.INSTANCE, request).get();
+            assertThat(response.getDataStreams(), hasSize(0));
+        } catch (Exception e) {
+            Throwable ex = e;
+            while (ex instanceof IndexNotFoundException == false) {
+                ex = ex.getCause();
+                assertNotNull("expected to find an IndexNotFoundException somewhere in the causes, did not", e);
+            }
         }
     }
 

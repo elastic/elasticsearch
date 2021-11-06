@@ -528,11 +528,6 @@ public class MachineLearning extends Plugin
      * This calculation takes into account total node size and the size of the JVM on that node.
      *
      * If the calculation fails, we fall back to `max_machine_memory_percent`.
-     *
-     * This setting is NOT dynamic. This allows the cluster administrator to set it on startup without worry of it
-     * being edited accidentally later.
-     * Consequently, it could be that this setting differs between nodes. But, we only ever pay attention to the value
-     * that is set on the current master. As master nodes are responsible for persistent task assignments.
      */
     public static final Setting<Boolean> USE_AUTO_MACHINE_MEMORY_PERCENT = Setting.boolSetting(
         "xpack.ml.use_auto_machine_memory_percent",

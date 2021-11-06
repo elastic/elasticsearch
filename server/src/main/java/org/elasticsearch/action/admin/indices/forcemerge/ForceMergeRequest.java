@@ -43,6 +43,10 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
     private int maxNumSegments = Defaults.MAX_NUM_SEGMENTS;
     private boolean onlyExpungeDeletes = Defaults.ONLY_EXPUNGE_DELETES;
     private boolean flush = Defaults.FLUSH;
+    /**
+     * Should this task store its result?
+     */
+    private boolean shouldStoreResult;
 
     private static final Version FORCE_MERGE_UUID_SIMPLE_VERSION = Version.V_8_0_0;
 
@@ -129,6 +133,19 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
     public ForceMergeRequest flush(boolean flush) {
         this.flush = flush;
         return this;
+    }
+
+    /**
+     * Should this task store its result after it has finished?
+     */
+    public ForceMergeRequest setShouldStoreResult(boolean shouldStoreResult) {
+        this.shouldStoreResult = shouldStoreResult;
+        return this;
+    }
+
+    @Override
+    public boolean getShouldStoreResult() {
+        return shouldStoreResult;
     }
 
     @Override

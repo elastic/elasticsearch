@@ -2,7 +2,7 @@
 "cluster health request timeout on waiting for nodes":
   - skip:
       version: " - 8.0.99"
-      reason: "HTTP status code changed from 408 to 200 in 8.1.0"
+      reason: "Set for 7.99.99 when back-ported to 8.0"
   - do:
       cluster.health:
         wait_for_nodes: 10
@@ -23,7 +23,7 @@
 "cluster health request timeout waiting for active shards":
   - skip:
       version: " - 8.0.99"
-      reason: "HTTP status code changed from 408 to 200 in 8.1.0"
+      reason: "Set for 7.99.99 when back-ported to 8.0"
   - do:
       cluster.health:
         timeout: 1ms

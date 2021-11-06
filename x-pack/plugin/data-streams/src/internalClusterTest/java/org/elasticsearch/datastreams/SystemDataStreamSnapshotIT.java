@@ -151,12 +151,7 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // Attempting to restore again without specifying indices or global/feature states should work, as the wildcard should not be
         // resolved to system indices/data streams.
-        client().admin()
-            .cluster()
-            .prepareRestoreSnapshot(REPO, SNAPSHOT)
-            .setWaitForCompletion(true)
-            .setRestoreGlobalState(false)
-            .get();
+        client().admin().cluster().prepareRestoreSnapshot(REPO, SNAPSHOT).setWaitForCompletion(true).setRestoreGlobalState(false).get();
         assertEquals(restoreSnapshotResponse.getRestoreInfo().totalShards(), restoreSnapshotResponse.getRestoreInfo().successfulShards());
     }
 

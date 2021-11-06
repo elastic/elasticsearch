@@ -20,6 +20,10 @@ import org.elasticsearch.secure_sm.SecureSM;
 import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
+import java.lang.reflect.Field;
 import java.net.SocketPermission;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -38,6 +42,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import static java.lang.invoke.MethodType.methodType;
 import static org.elasticsearch.bootstrap.FilePermissionUtils.addDirectoryPath;
 import static org.elasticsearch.bootstrap.FilePermissionUtils.addSingleFilePath;
 
@@ -92,6 +97,10 @@ final class Security {
     /** no instantiation */
     private Security() {}
 
+    static void setSecurityManager(@SuppressWarnings("removal") SecurityManager sm) {
+        System.setSecurityManager(sm);
+    }
+
     /**
      * Initializes SecurityManager for the environment
      * Can only happen once!
@@ -117,7 +126,7 @@ final class Security {
             // SecureSM matches class names as regular expressions so we escape the $ that arises from the nested class name
             ElasticsearchUncaughtExceptionHandler.PrivilegedHaltAction.class.getName().replace("$", "\\$"),
             Command.class.getName() };
-        System.setSecurityManager(new SecureSM(classesThatCanExit));
+        setSecurityManager(new SecureSM(classesThatCanExit));
 
         // do some basic tests
         selfTest();
@@ -332,5 +341,37 @@ final class Security {
         } catch (SecurityException problem) {
             throw new SecurityException("Security misconfiguration: cannot access java.io.tmpdir", problem);
         }
+    }
+
+    /**
+     * Prepopulates the system's security manager setters map with this class as a caller.
+     * This is loathsome, but avoids the annoying warning message at run time.
+     */
+    static void prepopulateSecurityCaller() {
+        try {
+            Class<?> c = Class.forName("sun.misc.Unsafe");
+            MethodHandles.Lookup lookup = MethodHandles.privateLookupIn(c, MethodHandles.lookup());
+            VarHandle handle = lookup.findStaticVarHandle(c, "theUnsafe", c);
+            Object theUnsafe = handle.get();
+            Field f = getDeclaredField(Class.forName("java.lang.System$CallersHolder", true, null), "callers");
+            MethodHandle mh = lookup.findVirtual(c, "staticFieldBase", methodType(Object.class, Field.class));
+            mh = mh.asType(mh.type().changeParameterType(0, Object.class));
+            Object base = mh.invokeExact(theUnsafe, f);
+            mh = lookup.findVirtual(c, "staticFieldOffset", methodType(long.class, Field.class));
+            mh = mh.asType(mh.type().changeParameterType(0, Object.class));
+            long offset = (long) mh.invokeExact(theUnsafe, f);
+            mh = lookup.findVirtual(c, "getObject", methodType(Object.class, Object.class, long.class));
+            mh = mh.asType(mh.type().changeParameterType(0, Object.class));
+            @SuppressWarnings("unchecked")
+            Map<Class<?>, Boolean> callers = (Map<Class<?>, Boolean>) (Object) mh.invokeExact(theUnsafe, base, offset);
+            callers.put(org.elasticsearch.bootstrap.Security.class, true);
+        } catch (NoSuchFieldException ignore) {} catch (Throwable t) {
+            throw new AssertionError(t);
+        }
+    }
+
+    @SuppressForbidden(reason = "access violation required")
+    private static Field getDeclaredField(Class<?> c, String name) throws NoSuchFieldException {
+        return c.getDeclaredField(name);
     }
 }

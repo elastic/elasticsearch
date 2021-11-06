@@ -362,23 +362,6 @@ public class RestoreService implements ClusterStateApplier {
         Map<String, DataStream> dataStreamsToRestore = result.v1();
         Map<String, DataStreamAlias> dataStreamAliasesToRestore = result.v2();
 
-        {
-            Set<String> explicitlyRequestedSystemDataStreams = dataStreamsToRestore.values()
-                .stream()
-                .filter(DataStream::isSystem)
-                .map(DataStream::getName)
-                .filter(requestIndices::contains)
-                .collect(Collectors.toSet());
-            if (explicitlyRequestedSystemDataStreams.size() > 0) {
-                throw new IllegalArgumentException(
-                    new ParameterizedMessage(
-                        "requested system data streams {}, but system data streams can only be restored as part of a feature state",
-                        explicitlyRequestedSystemDataStreams
-                    ).getFormattedMessage()
-                );
-            }
-        }
-
         // Remove the data streams from the list of requested indices
         requestIndices.removeAll(dataStreamsToRestore.keySet());
 
@@ -573,7 +556,21 @@ public class RestoreService implements ClusterStateApplier {
             for (String requestedDataStream : requestedDataStreams) {
                 final DataStream dataStreamInSnapshot = dataStreamsInSnapshot.get(requestedDataStream);
                 assert dataStreamInSnapshot != null : "DataStream [" + requestedDataStream + "] not found in snapshot";
-                dataStreams.put(requestedDataStream, dataStreamInSnapshot);
+                if (dataStreamInSnapshot.isSystem() == false || featureStateDataStreams.contains(requestedDataStream)) {
+                    dataStreams.put(requestedDataStream, dataStreamInSnapshot);
+                } else if (requestIndices.contains(requestedDataStream)) {
+                    throw new IllegalArgumentException(
+                        new ParameterizedMessage(
+                            "requested system data stream [{}], but system data streams can only be restored as part of a feature state",
+                            requestedDataStream
+                        ).getFormattedMessage()
+                    );
+                } else {
+                    logger.debug(
+                        "omitting system data stream [{}] from snapshot restoration because its feature state was not requested",
+                        requestedDataStream
+                    );
+                }
             }
             if (includeAliases) {
                 dataStreamAliases = new HashMap<>();

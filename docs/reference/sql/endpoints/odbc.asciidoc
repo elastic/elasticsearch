@@ -1,6 +1,5 @@
 :odbc: {es-sql} ODBC Driver
 
-[testenv="platinum"]
 [[sql-odbc]]
 == SQL ODBC
 

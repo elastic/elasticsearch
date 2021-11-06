@@ -186,11 +186,11 @@ Unlike other repository types, a source-only repository doesn't directly store
 snapshots. It delegates storage to another registered snapshot repository.
 
 When you take a snapshot using a source-only repository, {es} creates a
-source-only snapshot in the delegated storage repository. This source-only
-snapshot only contains stored fields and index metadata. It doesn't include
-index or doc values structures and isn't immediately searchable when restored.
-After you restore data from a source-only snapshot, you must
-<<docs-reindex,reindex>> it into a new data stream or index.
+source-only snapshot in the delegated storage repository. This snapshot only
+contains stored fields and metadata. It doesn't include index or doc values
+structures and isn't immediately searchable when restored. To search the
+restored data, you first have to <<docs-reindex,reindex>> it into a new data
+stream or index.
 
 [IMPORTANT]
 ==================================================

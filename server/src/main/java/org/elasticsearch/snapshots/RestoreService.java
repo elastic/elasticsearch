@@ -399,13 +399,29 @@ public class RestoreService implements ClusterStateApplier {
             .collect(Collectors.toSet());
 
         // Strip system indices out of the list of "available" indices - these should only come from feature states.
-        List<String> availableNonSystemIndices = new ArrayList<>(snapshotInfo.indices());
+        List<String> availableNonSystemIndices;
         {
-            Set<String> systemIndicesInSnapshot = snapshotInfo.featureStates()
+            Set<String> systemIndicesInSnapshot = new HashSet<>();
+            snapshotInfo.featureStates().stream().flatMap(state -> state.getIndices().stream()).forEach(systemIndicesInSnapshot::add);
+            // And the system data stream backing indices too
+            snapshotInfo.indices().stream().filter(systemIndices::isSystemIndexBackingDataStream).forEach(systemIndicesInSnapshot::add);
+
+            Set<String> explicitlyRequestedSystemIndices = new HashSet<>(requestIndices);
+            explicitlyRequestedSystemIndices.retainAll(systemIndicesInSnapshot);
+
+            if (explicitlyRequestedSystemIndices.size() > 0) {
+                throw new IllegalArgumentException(
+                    new ParameterizedMessage(
+                        "requested system indices {}, but system indices can only be restored as part of a feature state",
+                        explicitlyRequestedSystemIndices
+                    ).getFormattedMessage()
+                );
+            }
+
+            availableNonSystemIndices = snapshotInfo.indices()
                 .stream()
-                .flatMap(state -> state.getIndices().stream())
-                .collect(Collectors.toSet());
-            availableNonSystemIndices.removeAll(systemIndicesInSnapshot);
+                .filter(idxName -> systemIndicesInSnapshot.contains(idxName) == false)
+                .collect(Collectors.toList());
         }
 
         // Resolve the indices that were directly requested
@@ -426,7 +442,7 @@ public class RestoreService implements ClusterStateApplier {
         for (IndexId indexId : repositoryData.resolveIndices(requestedIndicesIncludingSystem).values()) {
             IndexMetadata snapshotIndexMetaData = repository.getSnapshotIndexMetaData(repositoryData, snapshotId, indexId);
             if (snapshotIndexMetaData.isSystem()) {
-                if (requestedIndicesInSnapshot.contains(indexId.getName())) {
+                if (requestIndices.contains(indexId.getName())) {
                     explicitlyRequestedSystemIndices.add(indexId.getName());
                 }
             }

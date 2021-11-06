@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[find-structure]]
 = Find structure API
 

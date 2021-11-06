@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[index-lifecycle-management]]
 = {ilm-init}: Manage the index lifecycle
 

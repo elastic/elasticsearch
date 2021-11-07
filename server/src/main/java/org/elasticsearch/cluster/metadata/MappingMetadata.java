@@ -173,7 +173,7 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         source().writeTo(out);
         // routing
         out.writeBoolean(routingRequired);
-        if (digest != null && out.getVersion().onOrAfter(Version.V_8_1_0)) {
+        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
             out.writeString(digest);
         }
     }
@@ -201,7 +201,7 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         type = in.readString();
         source = CompressedXContent.readCompressedString(in);
         routingRequired = in.readBoolean();
-        digest = in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readString() : null;
+        digest = in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readString() : computeDigest(source);
     }
 
     public static Diff<MappingMetadata> readDiffFrom(StreamInput in) throws IOException {

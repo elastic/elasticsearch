@@ -8,10 +8,13 @@
 
 package org.elasticsearch.rest;
 
+import com.fasterxml.jackson.dataformat.smile.SmileConstants;
+
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -446,11 +449,11 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testDispatchWithContentStream() {
-        final String mediaType = randomFrom("application/json", "application/smile");
-        String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
+        boolean json = randomBoolean();
+        final String mediaType = json ? "application/json" : "application/smile";
         final List<String> contentTypeHeader = Collections.singletonList(mediaType);
         FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
-            new BytesArray(content),
+            randomContent(json),
             RestRequest.parseContentType(contentTypeHeader)
         ).withPath("/foo").withHeaders(Collections.singletonMap("Content-Type", contentTypeHeader)).build();
         AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
@@ -471,6 +474,28 @@ public class RestControllerTests extends ESTestCase {
         assertFalse(channel.getSendResponseCalled());
         restController.dispatchRequest(fakeRestRequest, channel, client.threadPool().getThreadContext());
         assertTrue(channel.getSendResponseCalled());
+    }
+
+    private static final BytesReference SMILE_HEADER = new BytesArray(
+        new byte[] {
+            SmileConstants.HEADER_BYTE_1,
+            SmileConstants.HEADER_BYTE_2,
+            SmileConstants.HEADER_BYTE_3,
+            SmileConstants.HEADER_BYTE_4 }
+    );
+
+    private BytesReference randomContent(boolean json) {
+        if (json) {
+            return new BytesArray(randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead())));
+        }
+        BytesReference bytes = CompositeBytesReference.of(
+            SMILE_HEADER,
+            new BytesArray(randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead() - 4)))
+        );
+        if (randomBoolean()) {
+            return bytes;
+        }
+        return new BytesArray(bytes.toBytesRef());
     }
 
     public void testDispatchWithContentStreamNoContentType() {
@@ -737,10 +762,9 @@ public class RestControllerTests extends ESTestCase {
     }
 
     private FakeRestRequest requestWithContent(String mediaType) {
-        String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
         final List<String> mediaTypeList = Collections.singletonList(mediaType);
         return new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
-            new BytesArray(content),
+            randomContent(mediaType.equals("application/json")),
             RestRequest.parseContentType(mediaTypeList)
         ).withPath("/foo").withHeaders(Map.of("Content-Type", mediaTypeList, "Accept", mediaTypeList)).build();
     }

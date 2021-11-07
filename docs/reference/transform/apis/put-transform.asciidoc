@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[put-transform]]
 = Create {transform} API
 

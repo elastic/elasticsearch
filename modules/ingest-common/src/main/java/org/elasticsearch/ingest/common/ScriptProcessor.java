@@ -10,6 +10,7 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
@@ -110,7 +111,10 @@ public final class ScriptProcessor extends AbstractProcessor {
             try (
                 XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent).map(config);
                 XContentParser parser = BytesReference.bytes(builder)
-                    .xContentParser(JsonXContent.jsonXContent, XContentParserConfiguration.EMPTY);
+                    .xContentParser(
+                        JsonXContent.jsonXContent,
+                        XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE)
+                    );
             ) {
                 Script script = Script.parse(parser);
 

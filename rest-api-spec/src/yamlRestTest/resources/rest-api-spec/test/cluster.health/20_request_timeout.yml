@@ -1,7 +1,9 @@
 ---
 "cluster health request timeout on waiting for nodes":
+  - skip:
+      version: " - 8.0.99"
+      reason: "Set for 7.99.99 when back-ported to 8.0"
   - do:
-      catch: request_timeout
       cluster.health:
         wait_for_nodes: 10
         timeout: 1ms
@@ -19,8 +21,10 @@
 
 ---
 "cluster health request timeout waiting for active shards":
+  - skip:
+      version: " - 8.0.99"
+      reason: "Set for 7.99.99 when back-ported to 8.0"
   - do:
-      catch: request_timeout
       cluster.health:
         timeout: 1ms
         wait_for_active_shards: 5

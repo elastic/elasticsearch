@@ -344,7 +344,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         "",
         Function.identity(),
         Property.IndexScope,
-        Property.Deprecated
+        Property.DeprecatedWarning
     );
     public static final String INDEX_UUID_NA_VALUE = "_na_";
 

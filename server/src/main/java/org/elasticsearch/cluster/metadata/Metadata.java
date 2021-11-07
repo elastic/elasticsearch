@@ -1716,7 +1716,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 allClosedIndicesArray,
                 visibleClosedIndicesArray,
                 indicesLookup,
-                cache
+                Collections.unmodifiableMap(cache)
             );
         }
 
@@ -1937,7 +1937,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
 
         private IndexMetadata reuseMappings(IndexMetadata indexMetadata) {
-            if (indexMetadata.mapping() == null || indexMetadata.mapping().getDigest() == null) {
+            if (indexMetadata.mapping() == null) {
                 return indexMetadata;
             }
 
@@ -1956,7 +1956,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
 
         private void reuseMappings(IndexMetadata.Builder indexMetadataBuilder) {
-            if (indexMetadataBuilder.mapping() == null || indexMetadataBuilder.mapping().getDigest() == null) {
+            if (indexMetadataBuilder.mapping() == null) {
                 return;
             }
 
@@ -1973,7 +1973,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
         private void cleanupUnusedEntry(IndexMetadata previous) {
             MappingMetadata mappingMetadata = previous.mapping();
-            if (mappingMetadata == null || mappingMetadata.getDigest() == null) {
+            if (mappingMetadata == null) {
                 return;
             }
 
@@ -1991,16 +1991,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
         private boolean shouldCleanup(IndexMetadata previous, IndexMetadata current) {
             if (previous == null) {
+                // There was nothing before, so no need to cleanup.
                 return false;
-            } else if (previous.mapping() == null && current.mapping() == null) {
-                return false;
-            } else if (previous.mapping() == null && current.mapping() != null) {
-                return false;
-            } else if (previous.mapping() != null && current.mapping() == null) {
-                return true;
-            } else {
-                return Objects.equals(previous.mapping().getDigest(), current.mapping().getDigest()) == false;
             }
+            String previousDigest = previous.mapping() != null ? previous.mapping().getDigest() : null;
+            String currentDigest = current.mapping() != null ? current.mapping().getDigest() : null;
+            return Objects.equals(previousDigest, currentDigest) == false;
         }
 
     }

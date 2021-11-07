@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.collect;
 
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -108,6 +109,37 @@ public class IteratorsTests extends ESTestCase {
         } catch (NullPointerException e) {
 
         }
+    }
+
+    public void testArrayIterator() {
+        Integer[] array = randomIntegerArray();
+        Iterator<Integer> iterator = Iterators.forArray(array);
+
+        int i = 0;
+        while (iterator.hasNext()) {
+            assertEquals(array[i++], iterator.next());
+        }
+    }
+
+    public void testArrayIteratorIsUnmodifiable() {
+        Integer[] array = randomIntegerArray();
+        Iterator<Integer> iterator = Iterators.forArray(array);
+
+        expectThrows(UnsupportedOperationException.class, iterator::remove);
+    }
+
+    public void testArrayIteratorThrowsNoSuchElementExceptionWhenDepleted() {
+        Integer[] array = randomIntegerArray();
+        Iterator<Integer> iterator = Iterators.forArray(array);
+        for (int i = 0; i < array.length; i++) {
+            iterator.next();
+        }
+
+        expectThrows(NoSuchElementException.class, iterator::next);
+    }
+
+    private static Integer[] randomIntegerArray() {
+        return Randomness.get().ints(randomIntBetween(1, 1000)).boxed().toArray(Integer[]::new);
     }
 
     private <T> Iterator<T> singletonIterator(T value) {

@@ -38,6 +38,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 import org.junit.After;
@@ -484,10 +485,16 @@ public class RestControllerTests extends ESTestCase {
             SmileConstants.HEADER_BYTE_4 }
     );
 
+    /**
+     * Builds some random that will produce an {@link XContentParser}.
+     * We don't use the parser so the content need not be valid, but
+     * constructing the parser must work.
+     */
     private BytesReference randomContent(boolean json) {
         if (json) {
             return new BytesArray(randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead())));
         }
+        // Constructing a SMILE parser sometimes validates the head. So we include it.
         BytesReference bytes = CompositeBytesReference.of(
             SMILE_HEADER,
             new BytesArray(randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead() - 4)))

@@ -1937,7 +1937,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
 
         private IndexMetadata reuseMappings(IndexMetadata indexMetadata) {
-            if (indexMetadata.mapping() == null) {
+            if (indexMetadata.mapping() == null || indexMetadata.mapping().getDigest() == null) {
                 return indexMetadata;
             }
 
@@ -1956,7 +1956,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
 
         private void reuseMappings(IndexMetadata.Builder indexMetadataBuilder) {
-            if (indexMetadataBuilder.mapping() == null) {
+            if (indexMetadataBuilder.mapping() == null || indexMetadataBuilder.mapping().getDigest() == null) {
                 return;
             }
 
@@ -1973,7 +1973,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
         private void cleanupUnusedEntry(IndexMetadata previous) {
             MappingMetadata mappingMetadata = previous.mapping();
-            if (mappingMetadata == null) {
+            if (mappingMetadata == null || mappingMetadata.getDigest() == null) {
                 return;
             }
 

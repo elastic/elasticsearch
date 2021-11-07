@@ -1770,11 +1770,12 @@ public class MetadataTests extends ESTestCase {
         Metadata metadata;
         int numIndices = randomIntBetween(16, 32);
         {
+            String[] definitions = randomMappingDefinitions.toArray(String[]::new);
             Metadata.Builder mb = new Metadata.Builder();
             for (int i = 0; i < numIndices; i++) {
                 IndexMetadata.Builder indexBuilder = IndexMetadata.builder("index-" + i)
                     .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
-                    .putMapping(randomFrom(randomMappingDefinitions))
+                    .putMapping(definitions[i % randomMappingDefinitions.size()])
                     .numberOfShards(1)
                     .numberOfReplicas(0);
                 if (randomBoolean()) {
@@ -1792,7 +1793,7 @@ public class MetadataTests extends ESTestCase {
         );
 
         // Add a new index with a new index with known mapping:
-        MappingMetadata mapping = metadata.indices().get("index-" + randomInt(numIndices)).mapping();
+        MappingMetadata mapping = metadata.indices().get("index-" + randomInt(numIndices - 1)).mapping();
         Metadata.Entry entry = metadata.getCache().get(mapping.getDigest());
         {
             Metadata.Builder mb = new Metadata.Builder(metadata);
@@ -1820,7 +1821,10 @@ public class MetadataTests extends ESTestCase {
         assertThat(metadata.getCache().get(mapping.getDigest()).refCounter, equalTo(entry.refCounter));
 
         // Update a mapping of an index:
-        IndexMetadata luckyIndex = metadata.index("index-" + randomInt(numIndices));
+        IndexMetadata luckyIndex;
+        do {
+            luckyIndex = metadata.index("index-" + randomInt(numIndices - 1));
+        } while (metadata.getCache().get(luckyIndex.mapping().getDigest()).refCounter <= 1);
         entry = metadata.getCache().get(luckyIndex.mapping().getDigest());
         MappingMetadata updatedMapping = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, Map.of("mapping", "updated"));
         {

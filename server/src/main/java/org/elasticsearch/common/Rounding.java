@@ -651,6 +651,9 @@ public abstract class Rounding implements Writeable {
                     }
                 }
             }
+
+            @Override
+            public abstract String toString();
         }
 
         private class FixedToMidnightRounding extends TimeUnitPreparedRounding {
@@ -669,6 +672,11 @@ public abstract class Rounding implements Writeable {
             public long nextRoundingValue(long utcMillis) {
                 // TODO this is used in date range's collect so we should optimize it too
                 return new JavaTimeToMidnightRounding().nextRoundingValue(utcMillis);
+            }
+
+            @Override
+            public String toString() {
+                return TimeUnitRounding.this + "[fixed to midnight]";
             }
         }
 
@@ -689,6 +697,11 @@ public abstract class Rounding implements Writeable {
             @Override
             public final long nextRoundingValue(long utcMillis) {
                 return round(utcMillis + unitMillis);
+            }
+
+            @Override
+            public String toString() {
+                return TimeUnitRounding.this + "[fixed to " + unitMillis + "]";
             }
         }
 
@@ -738,6 +751,11 @@ public abstract class Rounding implements Writeable {
                 }
                 return super.maybeUseArray(minUtcMillis, maxUtcMillis, max);
             }
+
+            @Override
+            public String toString() {
+                return TimeUnitRounding.this + "[across DST to midnight]";
+            }
         }
 
         private class NotToMidnightRounding extends AbstractNotToMidnightRounding implements LocalTimeOffset.Strategy {
@@ -778,6 +796,11 @@ public abstract class Rounding implements Writeable {
                     return overlap.localToUtcInThisOffset(localMillis);
                 }
                 return overlap.previous().localToUtc(localMillis, this); // This is mostly for Asia/Lord_Howe
+            }
+
+            @Override
+            public String toString() {
+                return TimeUnitRounding.this + "[across DST to " + unitMillis + "]";
             }
         }
 
@@ -839,6 +862,11 @@ public abstract class Rounding implements Writeable {
                         throw new IllegalArgumentException("Unknown round-to-midnight unit: " + unit);
                 }
             }
+
+            @Override
+            public String toString() {
+                return TimeUnitRounding.this + "[java.time to midnight]";
+            }
         }
 
         private class JavaTimeNotToMidnightRounding extends AbstractNotToMidnightRounding {
@@ -893,6 +921,11 @@ public abstract class Rounding implements Writeable {
                     // is missing due to an offset transition, so the time cannot be truncated.
                     return null;
                 }
+            }
+
+            @Override
+            public String toString() {
+                return TimeUnitRounding.this + "[java.time to " + unitMillis + "]";
             }
         }
 
@@ -1040,6 +1073,9 @@ public abstract class Rounding implements Writeable {
                     );
                 }
             }
+
+            @Override
+            public abstract String toString();
         }
 
         /**
@@ -1067,6 +1103,11 @@ public abstract class Rounding implements Writeable {
             public long nextRoundingValue(long utcMillis) {
                 // TODO this is used in date range's collect so we should optimize it too
                 return new JavaTimeRounding().nextRoundingValue(utcMillis);
+            }
+
+            @Override
+            public String toString() {
+                return TimeIntervalRounding.this + "[fixed]";
             }
         }
 
@@ -1114,6 +1155,11 @@ public abstract class Rounding implements Writeable {
             public long beforeOverlap(long localMillis, Overlap overlap) {
                 return overlap.previous().localToUtc(roundKey(overlap.firstNonOverlappingLocalTime() - 1, interval) * interval, this);
             }
+
+            @Override
+            public String toString() {
+                return TimeIntervalRounding.this + "[lookup]";
+            }
         }
 
         /**
@@ -1130,18 +1176,22 @@ public abstract class Rounding implements Writeable {
          * of dates with the same {@link Prepared} instance.</li>
          * </ul>
          */
-        private class JavaTimeRounding extends TimeIntervalPreparedRounding {
+        class JavaTimeRounding extends TimeIntervalPreparedRounding {
             @Override
             public long round(long originalUtcMillis) {
-                long utcMillis = originalUtcMillis;
-                int attempts = 0;
-                /* 
+                /*
                  * We give up after 5000 attempts and throw an exception. The
                  * most attempts I could get running locally are 500 - for
                  * Asia/Tehran with an 80,000 day range. You just can't declare
-                 * ranges much larger than that in ES right now.   
+                 * ranges much larger than that in ES right now.
                  */
-                attempt: while (attempts < 5000) {
+                return round(originalUtcMillis, 5000);
+            }
+
+            long round(long originalUtcMillis, int maxAttempts) {
+                long utcMillis = originalUtcMillis;
+                int attempts = 0;
+                attempt: while (attempts < maxAttempts) {
                     final Instant utcInstant = Instant.ofEpochMilli(utcMillis);
                     final LocalDateTime rawLocalDateTime = LocalDateTime.ofInstant(utcInstant, timeZone);
 
@@ -1180,9 +1230,8 @@ public abstract class Rounding implements Writeable {
 
                         final OffsetDateTime offsetTime = roundedLocalDateTime.atOffset(currentOffsets.get(0));
                         final Instant offsetInstant = offsetTime.toInstant();
-                        throw new IllegalArgumentException(
-                            this + " failed to round " + utcMillis + " down: " + offsetInstant + " is the earliest possible"
-                        );
+                        assert false : this + " failed to round " + utcMillis + " down: " + offsetInstant + " is the earliest possible";
+                        return offsetInstant.toEpochMilli(); // TODO or throw something?
                     } else {
                         // The desired time isn't valid because within a gap, so just return the start of the gap
                         ZoneOffsetTransition zoneOffsetTransition = timeZone.getRules().getTransition(roundedLocalDateTime);
@@ -1258,6 +1307,11 @@ public abstract class Rounding implements Writeable {
                     TimeIntervalRounding.this.toString()
                 );
                 return round(from);
+            }
+
+            @Override
+            public String toString() {
+                return TimeIntervalRounding.this + "[java.time]";
             }
         }
     }

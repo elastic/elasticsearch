@@ -1872,7 +1872,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     /**
      * State format for {@link IndexMetadata} to write to and load from disk
      */
-    public static final MetadataStateFormat<IndexMetadata> FORMAT = new MetadataStateFormat<>(INDEX_STATE_FILE_PREFIX) {
+    public static final MetadataStateFormat<IndexMetadata> FORMAT = new MetadataStateFormat<IndexMetadata>(INDEX_STATE_FILE_PREFIX) {
 
         @Override
         public void toXContent(XContentBuilder builder, IndexMetadata state) throws IOException {

@@ -173,7 +173,7 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         source().writeTo(out);
         // routing
         out.writeBoolean(routingRequired);
-        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+        if (digest != null && out.getVersion().onOrAfter(Version.V_8_1_0)) {
             out.writeString(digest);
         }
     }

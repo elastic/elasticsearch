@@ -1100,6 +1100,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         private final ImmutableOpenMap.Builder<String, Custom> customs;
 
         private SortedMap<String, IndexAbstraction> previousIndicesLookup;
+        private final Map<String, Entry> cache;
 
         public Builder() {
             clusterUUID = UNKNOWN_CLUSTER_UUID;
@@ -1108,6 +1109,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             customs = ImmutableOpenMap.builder();
             indexGraveyard(IndexGraveyard.builder().build()); // create new empty index graveyard to initialize
             previousIndicesLookup = null;
+            cache = new HashMap<>();
         }
 
         Builder(Metadata metadata) {
@@ -1134,8 +1136,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             if (unsetPreviousIndicesLookup(previous, indexMetadata)) {
                 previousIndicesLookup = null;
             }
-            if (previous != null && previous.mapping() != null) {
-                cleanupUnusedEntry(previous.mapping().getDigest());
+            if (shouldCleanup(previous, indexMetadata)) {
+                cleanupUnusedEntry(previous);
             }
             return this;
         }
@@ -1153,8 +1155,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             if (unsetPreviousIndicesLookup(previous, indexMetadata)) {
                 previousIndicesLookup = null;
             }
-            if (previous != null && previous.mapping() != null) {
-                cleanupUnusedEntry(previous.mapping().getDigest());
+            if (shouldCleanup(previous, indexMetadata)) {
+                cleanupUnusedEntry(previous);
             }
             return this;
         }
@@ -1207,9 +1209,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             previousIndicesLookup = null;
 
             var indexMetadata = indices.remove(index);
-            if (indexMetadata.mapping() != null) {
-                cleanupUnusedEntry(indexMetadata.mapping().getDigest());
-            }
+            cleanupUnusedEntry(indexMetadata);
             return this;
         }
 
@@ -1217,6 +1217,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             previousIndicesLookup = null;
 
             indices.clear();
+            cache.clear();
             return this;
         }
 
@@ -1931,8 +1932,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return builder.build();
         }
 
-        private Map<String, Entry> cache = new HashMap<>();
-
         private IndexMetadata reuseMappings(IndexMetadata indexMetadata) {
             if (indexMetadata.mapping() == null) {
                 return indexMetadata;
@@ -1968,8 +1967,14 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             }
         }
 
-        private void cleanupUnusedEntry(String digest) {
-            Entry entry = cache.get(digest);
+        private void cleanupUnusedEntry(IndexMetadata previous) {
+            MappingMetadata mappingMetadata = previous.mapping();
+            if (mappingMetadata == null) {
+                return;
+            }
+
+            String digest = mappingMetadata.getDigest();
+            Entry entry = cache.get(mappingMetadata.getDigest());
             if (entry == null) {
                 return;
             }
@@ -1977,6 +1982,20 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 cache.remove(digest);
             } else {
                 cache.put(digest, new Entry(entry.refCounter - 1, entry.mapping));
+            }
+        }
+
+        private boolean shouldCleanup(IndexMetadata previous, IndexMetadata current) {
+            if (previous == null) {
+                return false;
+            } else if (previous.mapping() == null && current.mapping() == null) {
+                return false;
+            } else if (previous.mapping() == null && current.mapping() != null) {
+                return false;
+            } else if (previous.mapping() != null && current.mapping() == null) {
+                return true;
+            } else {
+                return Objects.equals(previous.mapping().getDigest(), current.mapping().getDigest()) == false;
             }
         }
 

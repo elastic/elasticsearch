@@ -946,6 +946,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return builder;
     }
 
+    Map<String, Entry> getCache() {
+        return cache;
+    }
+
     private static class MetadataDiff implements Diff<Metadata> {
 
         private final long version;
@@ -2003,8 +2007,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
     static class Entry {
 
-        private final int refCounter;
-        private final MappingMetadata mapping;
+        final int refCounter;
+        final MappingMetadata mapping;
 
         Entry(int refCounter, MappingMetadata mapping) {
             this.refCounter = refCounter;

@@ -27,6 +27,8 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.alias.RandomAliasActionsGenerator;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -57,6 +59,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -1750,6 +1753,117 @@ public class MetadataTests extends ESTestCase {
             assertThat(previous.getIndicesLookup(), sameInstance(metadata.getIndicesLookup()));
             previous = metadata;
         }
+    }
+
+    public void testMappingDuplication() {
+        final Set<String> randomMappingDefinitions;
+        {
+            int numEntries = randomIntBetween(4, 8);
+            randomMappingDefinitions = new HashSet<>(numEntries);
+            for (int i = 0; i < numEntries; i++) {
+                Map<String, Object> mapping = RandomAliasActionsGenerator.randomMap(2);
+                String mappingAsString = Strings.toString((builder, params) -> builder.mapContents(mapping));
+                randomMappingDefinitions.add(mappingAsString);
+            }
+        }
+
+        Metadata metadata;
+        int numIndices = randomIntBetween(16, 32);
+        {
+            Metadata.Builder mb = new Metadata.Builder();
+            for (int i = 0; i < numIndices; i++) {
+                IndexMetadata.Builder indexBuilder = IndexMetadata.builder("index-" + i)
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                    .putMapping(randomFrom(randomMappingDefinitions))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0);
+                if (randomBoolean()) {
+                    mb.put(indexBuilder);
+                } else {
+                    mb.put(indexBuilder.build(), true);
+                }
+            }
+            metadata = mb.build();
+        }
+        assertThat(metadata.getCache().size(), equalTo(randomMappingDefinitions.size()));
+        assertThat(
+            metadata.indices().stream().map(entry -> entry.getValue().mapping()).collect(Collectors.toSet()),
+            hasSize(metadata.getCache().size())
+        );
+
+        // Add a new index with a new index with known mapping:
+        MappingMetadata mapping = metadata.indices().get("index-" + randomInt(numIndices)).mapping();
+        Metadata.Entry entry = metadata.getCache().get(mapping.getDigest());
+        {
+            Metadata.Builder mb = new Metadata.Builder(metadata);
+            mb.put(
+                IndexMetadata.builder("index-" + numIndices)
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                    .putMapping(mapping)
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+            );
+            metadata = mb.build();
+        }
+        assertThat(metadata.getCache().size(), equalTo(randomMappingDefinitions.size()));
+        assertThat(metadata.getCache().get(mapping.getDigest()).mapping, equalTo(entry.mapping));
+        assertThat(metadata.getCache().get(mapping.getDigest()).refCounter, equalTo(entry.refCounter + 1));
+
+        // Remove index and ensure mapping cache is updated accordingly
+        {
+            Metadata.Builder mb = new Metadata.Builder(metadata);
+            mb.remove("index-" + numIndices);
+            metadata = mb.build();
+        }
+        assertThat(metadata.getCache().size(), equalTo(randomMappingDefinitions.size()));
+        assertThat(metadata.getCache().get(mapping.getDigest()).mapping, equalTo(entry.mapping));
+        assertThat(metadata.getCache().get(mapping.getDigest()).refCounter, equalTo(entry.refCounter));
+
+        // Update a mapping of an index:
+        IndexMetadata luckyIndex = metadata.index("index-" + randomInt(numIndices));
+        entry = metadata.getCache().get(luckyIndex.mapping().getDigest());
+        MappingMetadata updatedMapping = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, Map.of("mapping", "updated"));
+        {
+            Metadata.Builder mb = new Metadata.Builder(metadata);
+            mb.put(IndexMetadata.builder(luckyIndex).putMapping(updatedMapping));
+            metadata = mb.build();
+        }
+        assertThat(metadata.getCache().size(), equalTo(randomMappingDefinitions.size() + 1));
+        assertThat(metadata.getCache().get(luckyIndex.mapping().getDigest()).refCounter, equalTo(entry.refCounter - 1));
+        assertThat(metadata.getCache().get(updatedMapping.getDigest()).refCounter, equalTo(1));
+
+        // Remove the index with updated mapping
+        {
+            Metadata.Builder mb = new Metadata.Builder(metadata);
+            mb.remove(luckyIndex.getIndex().getName());
+            metadata = mb.build();
+        }
+        assertThat(metadata.getCache().size(), equalTo(randomMappingDefinitions.size()));
+        assertThat(metadata.getCache().get(updatedMapping.getDigest()), nullValue());
+
+        // Add an index with new mapping and then later remove it:
+        MappingMetadata newMapping = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, Map.of("new", "mapping"));
+        {
+            Metadata.Builder mb = new Metadata.Builder(metadata);
+            mb.put(
+                IndexMetadata.builder("index-" + numIndices)
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                    .putMapping(newMapping)
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+            );
+            metadata = mb.build();
+        }
+        assertThat(metadata.getCache().size(), equalTo(randomMappingDefinitions.size() + 1));
+        assertThat(metadata.getCache().get(newMapping.getDigest()).refCounter, equalTo(1));
+
+        {
+            Metadata.Builder mb = new Metadata.Builder(metadata);
+            mb.remove("index-" + numIndices);
+            metadata = mb.build();
+        }
+        assertThat(metadata.getCache().size(), equalTo(randomMappingDefinitions.size()));
+        assertThat(metadata.getCache().get(newMapping.getDigest()), nullValue());
     }
 
     public static Metadata randomMetadata() {

@@ -163,14 +163,14 @@ public class XContentHelper {
                 try (InputStream stream = input) {
                     return new Tuple<>(
                         Objects.requireNonNull(contentType),
-                        convertToMap(XContentFactory.xContent(contentType), stream, ordered, include, exclude)
+                        convertToMap(contentType.xContent(), stream, ordered, include, exclude)
                     );
                 }
             }
             XContentType contentType = xContentType != null ? xContentType : xContentType(bytes);
             try (
                 XContentParser parser = bytes.xContentParser(
-                    xContentType.xContent(),
+                    contentType.xContent(),
                     XContentParserConfiguration.EMPTY.withFiltering(include, exclude)
                 )
             ) {

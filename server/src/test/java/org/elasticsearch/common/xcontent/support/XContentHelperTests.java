@@ -50,8 +50,8 @@ public class XContentHelperTests extends ESTestCase {
     }
 
     public void testMergingListValuesAreMapsOfOne() {
-        Map<String, Object> defaults = getMap("test", getList(getNamedMap("name1", "t1", "1"), getNamedMap("name2", "t2", "2")));
-        Map<String, Object> content = getMap("test", getList(getNamedMap("name2", "t3", "3"), getNamedMap("name4", "t4", "4")));
+        Map<String, Object> defaults = getMap("test", List.of(getNamedMap("name1", "t1", "1"), getNamedMap("name2", "t2", "2")));
+        Map<String, Object> content = getMap("test", List.of(getNamedMap("name2", "t3", "3"), getNamedMap("name4", "t4", "4")));
         Map<String, Object> expected = getMap(
             "test",
             getList(getNamedMap("name2", "t2", "2", "t3", "3"), getNamedMap("name4", "t4", "4"), getNamedMap("name1", "t1", "1"))

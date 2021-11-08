@@ -37,6 +37,7 @@ License::
 
 Machine Learning::
 * Add `bucket_count_ks_test` results reader for internode communication {es-pull}79063[#79063]
+* Fix cancellation of named pipe connection on Linux if the remote end does not connect within the configured timeout period {ml-pull}2102[#2102]
 
 Mapping::
 * Fix execution of exists query within nested queries on field with `doc_values` disabled {es-pull}78841[#78841] (issue: {es-issue}76362[#76362])

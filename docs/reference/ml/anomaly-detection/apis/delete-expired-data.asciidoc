@@ -54,8 +54,8 @@ The default value is `8h` (8 hours).
 [[ml-delete-expired-data-request-body]]
 == {api-request-body-title}
 
-You can specify the same parameters (`requests_per_second` and `timeout`) in the
-request body.
+You can alternatively specify the query parameters (`requests_per_second` and
+`timeout`) in the request body.
 
 [[ml-delete-expired-data-example]]
 == {api-examples-title}

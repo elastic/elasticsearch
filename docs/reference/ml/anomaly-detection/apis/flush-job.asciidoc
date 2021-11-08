@@ -62,6 +62,11 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
   (string) Optional. When used in conjunction with `calc_interim`, specifies the
   range of buckets on which to calculate interim results.
 
+[[ml-flush-job-request-body]]
+== {api-request-body-title}
+
+You can alternatively specify the query parameters (such as `advance_time` and `calc_interim`) in the request body.
+
 [[ml-flush-job-example]]
 == {api-examples-title}
 

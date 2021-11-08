@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[infer-trained-model-deployment]]
 = Infer trained model deployment API
 [subs="attributes"]

@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[stop-transform]]
 = Stop {transforms} API
 

@@ -87,7 +87,9 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> new IdFieldMapper(c.isIdFieldDataEnabled()));
+    public static final IdFieldMapper DISABLED = new IdFieldMapper(() -> false);
+
+    public static final TypeParser PARSER = new FixedTypeParser(MappingParserContext::idFieldMapper);
 
     static final class IdFieldType extends TermBasedFieldType {
 
@@ -253,7 +255,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         };
     }
 
-    private IdFieldMapper(BooleanSupplier fieldDataEnabled) {
+    public IdFieldMapper(BooleanSupplier fieldDataEnabled) {
         super(new IdFieldType(fieldDataEnabled), Lucene.KEYWORD_ANALYZER);
     }
 

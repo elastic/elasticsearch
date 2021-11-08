@@ -238,6 +238,8 @@ public class IndicesService extends AbstractLifecycleComponent
     private volatile boolean idFieldDataEnabled;
     private volatile boolean allowExpensiveQueries;
 
+    private final IdFieldMapper idFieldMapper = new IdFieldMapper(this::isIdFieldDataEnabled);
+
     @Nullable
     private final EsThreadPoolExecutor danglingIndicesThreadPoolExecutor;
     private final Set<Index> danglingIndicesToWrite = Sets.newConcurrentHashSet();
@@ -732,7 +734,7 @@ public class IndicesService extends AbstractLifecycleComponent
             mapperRegistry,
             indicesFieldDataCache,
             namedWriteableRegistry,
-            this::isIdFieldDataEnabled,
+            idFieldMapper,
             valuesSourceRegistry,
             indexFoldersDeletionListeners,
             snapshotCommitSuppliers

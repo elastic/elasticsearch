@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[upgrade-transforms]]
 = Upgrade {transforms} API
 

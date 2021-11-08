@@ -704,8 +704,7 @@ public class MetadataCreateIndexService {
         List<CompressedXContent> templateMappings = MetadataIndexTemplateService.collectMappings(
             composableIndexTemplate,
             componentTemplates,
-            indexName,
-            xContentRegistry
+            indexName
         );
         return collectV2Mappings("{}", templateMappings, xContentRegistry);
     }
@@ -717,12 +716,7 @@ public class MetadataCreateIndexService {
         final NamedXContentRegistry xContentRegistry,
         final String indexName
     ) throws Exception {
-        List<CompressedXContent> templateMappings = MetadataIndexTemplateService.collectMappings(
-            currentState,
-            templateName,
-            indexName,
-            xContentRegistry
-        );
+        List<CompressedXContent> templateMappings = MetadataIndexTemplateService.collectMappings(currentState, templateName, indexName);
         return collectV2Mappings(requestMappings, templateMappings, xContentRegistry);
     }
 
@@ -734,7 +728,7 @@ public class MetadataCreateIndexService {
         List<Map<String, Object>> result = new ArrayList<>();
 
         for (CompressedXContent templateMapping : templateMappings) {
-            Map<String, Object> parsedTemplateMapping = MapperService.parseMapping(xContentRegistry, templateMapping.string());
+            Map<String, Object> parsedTemplateMapping = MapperService.parseMapping(xContentRegistry, templateMapping);
             result.add(parsedTemplateMapping);
         }
 
@@ -814,7 +808,7 @@ public class MetadataCreateIndexService {
         // apply templates, merging the mappings into the request mapping if exists
         for (CompressedXContent mapping : templateMappings) {
             if (mapping != null) {
-                Map<String, Object> templateMapping = MapperService.parseMapping(xContentRegistry, mapping.string());
+                Map<String, Object> templateMapping = MapperService.parseMapping(xContentRegistry, mapping);
                 if (templateMapping.isEmpty()) {
                     // Someone provided an empty '{}' for mappings, which is okay, but to avoid
                     // tripping the below assertion, we can safely ignore it

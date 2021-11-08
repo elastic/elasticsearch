@@ -14,7 +14,7 @@ Archived settings start with the `archived.` prefix and are ignored by {es}.
 === Archived cluster settings
 
 After an upgrade, you can view archived cluster settings using the
-<<cluster-get-settings,get cluster settings API>>.
+<<cluster-get-settings,cluster get settings API>>.
 
 [source,console]
 ----

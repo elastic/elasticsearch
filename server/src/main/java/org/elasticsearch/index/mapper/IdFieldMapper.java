@@ -66,7 +66,6 @@ public class IdFieldMapper extends MetadataFieldMapper {
     public static final String CONTENT_TYPE = "_id";
 
     public static class Defaults {
-        public static final String NAME = IdFieldMapper.NAME;
 
         public static final FieldType FIELD_TYPE = new FieldType();
         public static final FieldType NESTED_FIELD_TYPE;

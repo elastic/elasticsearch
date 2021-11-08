@@ -503,7 +503,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
 
         final List<ParsedDocument> docs = new ArrayList<>();
         for (BytesReference document : documents) {
-            docs.add(context.parseDocument(new SourceToParse(context.index().getName(), "_temp_id", document, documentXContentType)));
+            docs.add(context.parseDocument(new SourceToParse("_temp_id", document, documentXContentType)));
         }
 
         // We need this custom analyzer because the default index analyzer is strict and the percolator sometimes isn't when

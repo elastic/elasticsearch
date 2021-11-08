@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[start-trained-model-deployment]]
 = Start trained model deployment API
 [subs="attributes"]

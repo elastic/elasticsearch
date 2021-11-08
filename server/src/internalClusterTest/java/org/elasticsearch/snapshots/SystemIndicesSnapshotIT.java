@@ -14,7 +14,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
@@ -344,14 +343,17 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "2", "purpose", "post-snapshot doc");
         refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
 
-        IndexNotFoundException ex = expectThrows(
-            IndexNotFoundException.class,
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
             () -> clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
                 .setWaitForCompletion(true)
                 .setIndices(SystemIndexTestPlugin.SYSTEM_INDEX_NAME)
                 .get()
         );
-        assertThat(ex.getIndex().getName(), equalTo(SystemIndexTestPlugin.SYSTEM_INDEX_NAME));
+        assertThat(
+            ex.getMessage(),
+            equalTo("requested system indices [.test-system-idx], but system indices can only be restored as part of a feature state")
+        );
 
         // Make sure the original index exists unchanged
         assertThat(getDocCount(SystemIndexTestPlugin.SYSTEM_INDEX_NAME), equalTo(2L));

@@ -62,6 +62,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.cache.shared.SharedByt
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnapshotIntegTestCase {
     @Override
@@ -236,9 +237,17 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
             final ShardPath shardPath = ShardPath.loadShardPath(logger, service, shardId, customDataPath);
             if (shardPath != null && Files.exists(shardPath.getDataPath())) {
                 shardFolderFound = true;
-                assertEquals(snapshotDirectory, Files.notExists(shardPath.resolveIndex()));
-
-                assertTrue(Files.exists(shardPath.resolveTranslog()));
+                final boolean indexExists = Files.exists(shardPath.resolveIndex());
+                final boolean translogExists = Files.exists(shardPath.resolveTranslog());
+                logger.info(
+                    "--> [{}] verifying shard data path [{}] (index exists: {}, translog exists: {})",
+                    node,
+                    shardPath.getDataPath(),
+                    indexExists,
+                    translogExists
+                );
+                assertThat(snapshotDirectory, not(indexExists));
+                assertTrue(translogExists);
                 try (Stream<Path> dir = Files.list(shardPath.resolveTranslog())) {
                     final long translogFiles = dir.filter(path -> path.getFileName().toString().contains("translog")).count();
                     if (snapshotDirectory) {

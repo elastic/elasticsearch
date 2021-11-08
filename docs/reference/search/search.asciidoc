@@ -439,7 +439,7 @@ square with equal sides. Defaults to `4096`.
 `stored_fields`::
 (Optional, string) A comma-separated list of stored fields to return as part
 of a hit. If no fields are specified, no stored fields are included in the
-response. See <<stored-fields
+response. See <<stored-fields>>.
 +
 If this option is specified, the `_source` parameter defaults to `false`. You
 can pass `_source: true` to return both source fields and stored fields in the

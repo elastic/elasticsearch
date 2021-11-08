@@ -20,7 +20,7 @@ You add a `dense_vector` field as an array of floats:
 
 [source,console]
 --------------------------------------------------
-PUT my-vector-index
+PUT my-index
 {
   "mappings": {
     "properties": {
@@ -35,13 +35,13 @@ PUT my-vector-index
   }
 }
 
-PUT my-vector-index/_doc/1
+PUT my-index/_doc/1
 {
   "my_text" : "text1",
   "my_vector" : [0.5, 10, 6]
 }
 
-PUT my-vector-index/_doc/2
+PUT my-index/_doc/2
 {
   "my_text" : "text2",
   "my_vector" : [-0.5, 10, 10]
@@ -73,7 +73,7 @@ parameter:
 
 [source,console]
 --------------------------------------------------
-PUT my-vector-index-2
+PUT my-index-2
 {
   "mappings": {
     "properties": {

@@ -6,11 +6,12 @@
 
 experimental::[]
 
-Performs a k-nearest neighbor search and returns the matching documents.
+Performs a k-nearest neighbor (kNN) search and returns the matching documents.
 
+////
 [source,console]
 ----
-PUT my-vector-index
+PUT my-index
 {
   "mappings": {
     "properties": {
@@ -24,7 +25,16 @@ PUT my-vector-index
   }
 }
 
-GET /my-vector-index/_knn_search
+PUT my-index/_doc/1?refresh
+{
+  "image_vector" : [0.5, 10, 6]
+}
+----
+////
+
+[source,console]
+----
+GET my-index/_knn_search
 {
   "knn": {
     "field": "image_vector",
@@ -35,14 +45,14 @@ GET /my-vector-index/_knn_search
   "_source": ["name", "date"]
 }
 ----
-// TEST[setup:my_index]
+// TEST[continued]
 
 [[knn-search-api-request]]
 ==== {api-request-title}
 
-`GET /<target>/_knn_search`
+`GET <target>/_knn_search`
 
-`POST /<target>/_knn_search`
+`POST <target>/_knn_search`
 
 [[knn-search-api-prereqs]]
 ==== {api-prereq-title}
@@ -54,16 +64,14 @@ or alias.
 [[knn-search-api-desc]]
 ==== {api-description-title}
 
-The kNN search API performs a k-nearest neighbor search on a
+The kNN search API performs a k-nearest neighbor (kNN) search on a
 <<dense-vector,`dense_vector`>> field. Given a query vector, it finds the _k_
-closest vectors and returns those documents as search hits. To be used in the
-kNN search API, the `dense_vector` field must
-<<index-vectors-knn-search, enable indexing>>.
+closest vectors and returns those documents as search hits.
 
 {es} uses the https://arxiv.org/abs/1603.09320[HNSW algorithm] to support
 efficient kNN search. Like most kNN algorithms, HNSW is an approximate method
-that sacrifices result accuracy for improved speed. This means the documents
-returned are not always the true _k_ closest neighbors.
+that sacrifices result accuracy for improved search speed. This means the
+results returned are not always the true _k_ closest neighbors.
 
 [[knn-search-api-path-params]]
 ==== {api-path-parms-title}
@@ -73,8 +81,7 @@ returned are not always the true _k_ closest neighbors.
 to search. Supports wildcards (`*`). To search all data streams and indices,
 use `*` or `_all`.
 
-NOTE: The kNN search API does not support remote indices (as in cross-cluster
-search).
+NOTE: The kNN search API does not support {ccs}.
 
 [role="child_attributes"]
 [[knn-search-api-query-params]]
@@ -93,37 +100,40 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 [%collapsible%open]
 ====
 `field`::
-(Required, string) The name of the vector field to search against.
+(Required, string) The name of the vector field to search against. Must be a
+<<index-vectors-knn-search, `dense_vector` field with indexing enabled>>.
 
 `query_vector`::
-(Required, array of floats) The query vector.
+(Required, array of floats) Query vector. Must have the same number of
+dimensions as the vector field you are searching against.
 
 `k`::
-(Required, integer) The final number of nearest neighbors to return as top
-hits. This value must be less than `num_candidates`.
+(Required, integer) Number of nearest neighbors to return as top hits. This
+value must be less than `num_candidates`.
 
 `num_candidates`::
 (Required, integer) The number of nearest neighbor candidates to consider per
-shard. Increasing `num_candidates` tends to improve the accuracy of the final
-`k` results. This value cannot exceed 10,000.
+shard. Cannot exceed 10,000. {es} collects `num_candidates` results from each
+shard, then merges them to find the top `k` results. Increasing
+`num_candidates` tends to improve the accuracy of the final `k` results.
 ====
 
-include::{es-repo-dir}/search/search.asciidoc[tag=fields-param-def]
 include::{es-repo-dir}/search/search.asciidoc[tag=docvalue-fields-def]
-include::{es-repo-dir}/search/search.asciidoc[tag=stored-fields-def]
+include::{es-repo-dir}/search/search.asciidoc[tag=fields-param-def]
 include::{es-repo-dir}/search/search.asciidoc[tag=source-filtering-def]
+include::{es-repo-dir}/search/search.asciidoc[tag=stored-fields-def]
 
 [role="child_attributes"]
 [[knn-search-api-response-body]]
 ==== {api-response-body-title}
 
 A kNN search response has the exact same structure as a
-<<search-api-response-body, search response>>. However, certain sections take
-on a meaning specific to kNN search:
+<<search-api-response-body, search API response>>. However, certain sections
+have a meaning specific to kNN search:
 
 * The <<search-api-response-body-score,document `_score`>> is determined by
 the similarity between the query and document vector. See
-<<dense-vector-similarity, `similarity`>> for details.
+<<dense-vector-similarity, `similarity`>>.
 * The `hits.total` object contains the total number of nearest neighbor
-candidates considered, which is `num_candidates * num_shards`. The `relation`
-will always be `eq`, indicating an exact value.
+candidates considered, which is `num_candidates * num_shards`. The
+`hits.total.relation` will always be `eq`, indicating an exact value.

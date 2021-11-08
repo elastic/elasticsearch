@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -35,17 +36,18 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -138,7 +140,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         SimilarityService similarityService,
         MapperRegistry mapperRegistry,
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
-        BooleanSupplier idFieldDataEnabled,
+        IdFieldMapper idFieldMapper,
         ScriptCompiler scriptCompiler
     ) {
         super(indexSettings);
@@ -155,7 +157,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             scriptCompiler,
             indexAnalyzers,
             indexSettings,
-            idFieldDataEnabled
+            idFieldMapper
         );
         this.documentParser = new DocumentParser(
             xContentRegistry,
@@ -230,6 +232,24 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
+     * Parses the mappings (formatted as JSON) into a map
+     */
+    public static Map<String, Object> parseMapping(NamedXContentRegistry xContentRegistry, CompressedXContent mappingSource)
+        throws IOException {
+        try (
+            InputStream in = CompressorFactory.COMPRESSOR.threadLocalInputStream(mappingSource.compressedReference().streamInput());
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(
+                    XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
+                        .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
+                    in
+                )
+        ) {
+            return parser.map();
+        }
+    }
+
+    /**
      * Update local mapping by applying the incoming mapping that have already been merged with the current one on the master
      */
     public void updateMapping(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata) throws IOException {
@@ -269,13 +289,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(RootObjectMapper.TOXCONTENT_SKIP_RUNTIME, "true"));
         CompressedXContent mergedMappingSource;
         try {
-            mergedMappingSource = new CompressedXContent(mergedMapping, XContentType.JSON, params);
+            mergedMappingSource = new CompressedXContent(mergedMapping, params);
         } catch (Exception e) {
             throw new AssertionError("failed to serialize source for type [" + type + "]", e);
         }
         CompressedXContent incomingMappingSource;
         try {
-            incomingMappingSource = new CompressedXContent(incomingMapping, XContentType.JSON, params);
+            incomingMappingSource = new CompressedXContent(incomingMapping, params);
         } catch (Exception e) {
             throw new AssertionError("failed to serialize source for type [" + type + "]", e);
         }

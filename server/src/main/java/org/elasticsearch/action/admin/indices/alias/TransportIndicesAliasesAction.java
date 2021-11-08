@@ -113,18 +113,19 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
                 request.indicesOptions(),
                 action.indices()
             );
+            final Index[] concreteIndices;
             if (concreteDataStreams.size() != 0) {
-                String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(
+                Index[] unprocessedConcreteIndices = indexNameExpressionResolver.concreteIndices(
                     state,
                     request.indicesOptions(),
                     true,
                     action.indices()
                 );
-                List<String> nonBackingIndices = Arrays.stream(concreteIndices)
-                    .map(resolvedIndex -> state.metadata().getIndicesLookup().get(resolvedIndex))
-                    .filter(ia -> ia.getParentDataStream() == null)
-                    .map(IndexAbstraction::getName)
-                    .collect(Collectors.toList());
+                List<Index> nonBackingIndices = Arrays.stream(unprocessedConcreteIndices).filter(index -> {
+                    var ia = state.metadata().getIndicesLookup().get(index.getName());
+                    return ia.getParentDataStream() == null;
+                }).collect(Collectors.toList());
+                concreteIndices = nonBackingIndices.toArray(Index[]::new);
                 switch (action.actionType()) {
                     case ADD:
                         // Fail if parameters are used that data stream aliases don't support:
@@ -170,14 +171,10 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
                     default:
                         throw new IllegalArgumentException("Unsupported action [" + action.actionType() + "]");
                 }
+            } else {
+                concreteIndices = indexNameExpressionResolver.concreteIndices(state, request.indicesOptions(), false, action.indices());
             }
 
-            final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(
-                state,
-                request.indicesOptions(),
-                false,
-                action.indices()
-            );
             for (Index concreteIndex : concreteIndices) {
                 IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(concreteIndex.getName());
                 assert indexAbstraction != null : "invalid cluster metadata. index [" + concreteIndex.getName() + "] was not found";

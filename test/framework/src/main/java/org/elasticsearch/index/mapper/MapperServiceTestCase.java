@@ -195,7 +195,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             similarityService,
             mapperRegistry,
             () -> { throw new UnsupportedOperationException(); },
-            idFieldDataEnabled,
+            new IdFieldMapper(idFieldDataEnabled),
             this::compileScript
         );
     }

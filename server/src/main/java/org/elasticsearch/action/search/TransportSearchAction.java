@@ -888,7 +888,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
         }
         if (frozenIndices != null) {
-            DEPRECATION_LOGGER.critical(
+            DEPRECATION_LOGGER.warn(
                 DeprecationCategory.INDICES,
                 "search-frozen-indices",
                 FROZEN_INDICES_DEPRECATION_MESSAGE,

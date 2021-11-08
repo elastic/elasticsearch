@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[put-trained-model-vocabulary]]
 = Create trained model vocabulary API
 [subs="attributes"]

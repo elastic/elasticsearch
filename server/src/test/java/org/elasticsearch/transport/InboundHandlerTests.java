@@ -17,13 +17,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.TaskManager;
@@ -69,7 +69,7 @@ public class InboundHandlerTests extends ESTestCase {
             version,
             new StatsTracker(),
             threadPool,
-            BigArrays.NON_RECYCLING_INSTANCE
+            new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE)
         );
         requestHandlers = new Transport.RequestHandlers();
         responseHandlers = new Transport.ResponseHandlers();
@@ -160,7 +160,8 @@ public class InboundHandlerTests extends ESTestCase {
             null
         );
 
-        BytesReference fullRequestBytes = request.serialize(new BytesStreamOutput());
+        BytesRefRecycler recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
+        BytesReference fullRequestBytes = request.serialize(new RecyclerBytesStreamOutput(recycler));
         BytesReference requestContent = fullRequestBytes.slice(headerSize, fullRequestBytes.length() - headerSize);
         Header requestHeader = new Header(fullRequestBytes.length() - 6, requestId, TransportStatus.setRequest((byte) 0), version);
         InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(requestContent), () -> {});
@@ -270,20 +271,22 @@ public class InboundHandlerTests extends ESTestCase {
     public void testLogsSlowInboundProcessing() throws Exception {
         final MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "expected message",
-                InboundHandler.class.getCanonicalName(),
-                Level.WARN,
-                "handling inbound transport message "
-            )
-        );
         final Logger inboundHandlerLogger = LogManager.getLogger(InboundHandler.class);
         Loggers.addAppender(inboundHandlerLogger, mockAppender);
 
         handler.setSlowLogThreshold(TimeValue.timeValueMillis(5L));
         try {
             final Version remoteVersion = Version.CURRENT;
+
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "expected slow request",
+                    InboundHandler.class.getCanonicalName(),
+                    Level.WARN,
+                    "handling request "
+                )
+            );
+
             final long requestId = randomNonNegativeLong();
             final Header requestHeader = new Header(
                 between(0, 100),
@@ -291,7 +294,7 @@ public class InboundHandlerTests extends ESTestCase {
                 TransportStatus.setRequest(TransportStatus.setHandshake((byte) 0)),
                 remoteVersion
             );
-            final InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(BytesArray.EMPTY), () -> {
+            final InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.empty(), () -> {
                 try {
                     TimeUnit.SECONDS.sleep(1L);
                 } catch (InterruptedException e) {
@@ -302,6 +305,34 @@ public class InboundHandlerTests extends ESTestCase {
             requestHeader.headers = Tuple.tuple(Map.of(), Map.of());
             handler.inboundMessage(channel, requestMessage);
             assertNotNull(channel.getMessageCaptor().get());
+            mockAppender.assertAllExpectationsMatched();
+
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "expected slow response",
+                    InboundHandler.class.getCanonicalName(),
+                    Level.WARN,
+                    "handling response "
+                )
+            );
+
+            final long responseId = randomNonNegativeLong();
+            final Header responseHeader = new Header(between(0, 100), responseId, TransportStatus.setResponse((byte) 0), remoteVersion);
+            responseHeader.headers = Tuple.tuple(Map.of(), Map.of());
+            handler.setMessageListener(new TransportMessageListener() {
+                @Override
+                @SuppressWarnings("rawtypes")
+                public void onResponseReceived(long requestId, Transport.ResponseContext context) {
+                    assertEquals(responseId, requestId);
+                    try {
+                        TimeUnit.SECONDS.sleep(1L);
+                    } catch (InterruptedException e) {
+                        throw new AssertionError(e);
+                    }
+                }
+            });
+            handler.inboundMessage(channel, new InboundMessage(responseHeader, ReleasableBytesReference.empty(), () -> {}));
+
             mockAppender.assertAllExpectationsMatched();
         } finally {
             Loggers.removeAppender(inboundHandlerLogger, mockAppender);

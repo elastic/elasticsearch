@@ -108,10 +108,8 @@ public class GetAutoscalingCapacityRestCancellationIT extends AutoscalingIntegTe
             Map<String, Object> response2 = responseAsMap(successFuture2.get());
 
             assertThat(response1, equalTo(response2));
-            int actualCount = ((Number) XContentMapValues.extractValue(
-                "policies.test.deciders.count.reason_details.count",
-                response2
-            )).intValue();
+            int actualCount = ((Number) XContentMapValues.extractValue("policies.test.deciders.count.reason_details.count", response2))
+                .intValue();
 
             // validates that the cancelled op did not do the count AND that only one of the two successful invocations did actual work.
             assertThat(actualCount, equalTo(1));

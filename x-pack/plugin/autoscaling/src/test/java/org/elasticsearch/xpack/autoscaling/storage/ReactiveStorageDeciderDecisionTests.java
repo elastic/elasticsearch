@@ -552,6 +552,11 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         public SnapshotShardSizeInfo snapshotShardSizeInfo() {
             return null;
         }
+
+        @Override
+        public void ensureNotCancelled() {
+
+        }
     }
 
     private static ClusterInfo createClusterInfo(ClusterState state) {

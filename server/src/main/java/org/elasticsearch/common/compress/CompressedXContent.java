@@ -11,6 +11,7 @@ package org.elasticsearch.common.compress;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -24,6 +25,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.zip.CRC32;
 import java.util.zip.CheckedOutputStream;
@@ -158,6 +160,25 @@ public final class CompressedXContent {
 
     public String string() {
         return uncompressed().utf8ToString();
+    }
+
+    public String getSha256() {
+        MessageDigest messageDigest = MessageDigests.sha256();
+        try (InflaterAndBuffer inflaterAndBuffer = inflater1.get()) {
+            final Inflater inflater = inflaterAndBuffer.inflater;
+            final ByteBuffer buffer = inflaterAndBuffer.buffer;
+            assert assertBufferIsCleared(buffer);
+            setInflaterInput(compressed(), inflater);
+            do {
+                if (inflater.inflate(buffer) > 0) {
+                    messageDigest.update(buffer.flip());
+                }
+                buffer.clear();
+            } while (inflater.finished() == false);
+            return MessageDigests.toHexString(messageDigest.digest());
+        } catch (DataFormatException e) {
+            throw new ElasticsearchException(e);
+        }
     }
 
     public static CompressedXContent readCompressedString(StreamInput in) throws IOException {

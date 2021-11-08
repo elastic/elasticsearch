@@ -12,20 +12,16 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
@@ -51,7 +47,7 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         this.type = docMapper.type();
         this.source = docMapper.mappingSource();
         this.routingRequired = docMapper.routingFieldMapper().required();
-        this.digest = computeDigest(source);
+        this.digest = source.getSha256();
     }
 
     public MappingMetadata(CompressedXContent mapping) {
@@ -62,14 +58,13 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         }
         this.type = mappingMap.keySet().iterator().next();
         this.routingRequired = routingRequired((Map<?, ?>) mappingMap.get(this.type));
-        this.digest = computeDigest(mapping);
+        this.digest = source.getSha256();
     }
 
     public MappingMetadata(String type, Map<String, Object> mapping) {
         this.type = type;
-        String mappingAsString = Strings.toString((builder, params) -> builder.mapContents(mapping));
         try {
-            this.source = new CompressedXContent(mappingAsString);
+            this.source = new CompressedXContent((builder, params) -> builder.mapContents(mapping));
         } catch (IOException e) {
             throw new UncheckedIOException(e);  // XContent exception, should never happen
         }
@@ -78,20 +73,7 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
             withoutType = (Map<?, ?>) mapping.get(type);
         }
         this.routingRequired = routingRequired(withoutType);
-        this.digest = computeDigest(mappingAsString);
-    }
-
-    static String computeDigest(CompressedXContent source) {
-        try {
-            String mapping = XContentHelper.convertToJson(source.uncompressed(), false, XContentType.JSON);
-            return computeDigest(mapping);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
-
-    static String computeDigest(String mapping) {
-        return MessageDigests.toHexString(MessageDigests.sha256().digest(mapping.getBytes(StandardCharsets.UTF_8)));
+        this.digest = source.getSha256();
     }
 
     public static void writeMappingMetadata(StreamOutput out, ImmutableOpenMap<String, MappingMetadata> mappings) throws IOException {
@@ -201,7 +183,7 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         type = in.readString();
         source = CompressedXContent.readCompressedString(in);
         routingRequired = in.readBoolean();
-        digest = in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readString() : computeDigest(source);
+        digest = in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readString() : source.getSha256();
     }
 
     public static Diff<MappingMetadata> readDiffFrom(StreamInput in) throws IOException {

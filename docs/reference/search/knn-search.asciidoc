@@ -83,6 +83,10 @@ use `*` or `_all`.
 
 NOTE: The kNN search API does not support {ccs}.
 
+WARNING: kNN search does not yet work with <<filter-alias,filtered aliases>>.
+Running a kNN search against a filtered alias may incorrectly result in fewer
+than _k_ hits.
+
 [role="child_attributes"]
 [[knn-search-api-query-params]]
 ==== {api-query-parms-title}

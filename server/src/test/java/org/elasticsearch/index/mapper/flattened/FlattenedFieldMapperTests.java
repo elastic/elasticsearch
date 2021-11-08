@@ -310,7 +310,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
     public void testImmenseKeyedTermException() throws IOException {
         DocumentMapper newMapper = createDocumentMapper(fieldMapping(b -> { b.field("type", "flattened"); }));
 
-        String longKey = "x".repeat(32800);
+        String longKey = new String(new char[32800]).replace('\0', 'x');
         MapperParsingException ex = expectThrows(MapperParsingException.class, () -> newMapper.parse(source(b -> {
             b.startArray("field");
             {
@@ -326,7 +326,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
             ex.getCause().getMessage()
         );
 
-        String value = "x".repeat(32800);
+        String value = new String(new char[32800]).replace('\0', 'x');
         ex = expectThrows(MapperParsingException.class, () -> newMapper.parse(source(b -> {
             b.startArray("field");
             {

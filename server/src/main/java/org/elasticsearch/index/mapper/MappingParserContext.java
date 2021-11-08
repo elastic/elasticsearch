@@ -17,7 +17,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.script.ScriptCompiler;
 
-import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -36,7 +35,7 @@ public class MappingParserContext {
     private final ScriptCompiler scriptCompiler;
     private final IndexAnalyzers indexAnalyzers;
     private final IndexSettings indexSettings;
-    private final BooleanSupplier idFieldDataEnabled;
+    private final IdFieldMapper idFieldMapper;
 
     public MappingParserContext(
         Function<String, SimilarityProvider> similarityLookupService,
@@ -48,7 +47,7 @@ public class MappingParserContext {
         ScriptCompiler scriptCompiler,
         IndexAnalyzers indexAnalyzers,
         IndexSettings indexSettings,
-        BooleanSupplier idFieldDataEnabled
+        IdFieldMapper idFieldMapper
     ) {
         this.similarityLookupService = similarityLookupService;
         this.typeParsers = typeParsers;
@@ -59,7 +58,7 @@ public class MappingParserContext {
         this.scriptCompiler = scriptCompiler;
         this.indexAnalyzers = indexAnalyzers;
         this.indexSettings = indexSettings;
-        this.idFieldDataEnabled = idFieldDataEnabled;
+        this.idFieldMapper = idFieldMapper;
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
@@ -70,8 +69,8 @@ public class MappingParserContext {
         return indexSettings;
     }
 
-    public BooleanSupplier isIdFieldDataEnabled() {
-        return idFieldDataEnabled;
+    public IdFieldMapper idFieldMapper() {
+        return idFieldMapper;
     }
 
     public Settings getSettings() {
@@ -145,7 +144,7 @@ public class MappingParserContext {
                 in.scriptCompiler,
                 in.indexAnalyzers,
                 in.indexSettings,
-                in.idFieldDataEnabled
+                in.idFieldMapper
             );
         }
 
@@ -167,7 +166,7 @@ public class MappingParserContext {
                 in.scriptCompiler,
                 in.indexAnalyzers,
                 in.indexSettings,
-                in.idFieldDataEnabled
+                in.idFieldMapper
             );
         }
 

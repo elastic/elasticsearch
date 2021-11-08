@@ -161,7 +161,7 @@ public class BertTokenizerTests extends ESTestCase {
             Tokenization.createDefault()
         ).setWithSpecialTokens(true).setNeverSplit(Set.of("[MASK]")).build();
 
-        TokenizationResult.Tokenization tokenization = tokenizer.tokenize("This is [MASK]-tastic!", Tokenization.Truncate.NONE);
+        TokenizationResult.Tokenization tokenization = tokenizer.tokenize("This is [MASK]-tastic!");
         assertThat(tokenization.getTokens(), arrayContaining("[CLS]", "This", "is", "[MASK]", "-", "ta", "##stic", "!", "[SEP]"));
     }
 

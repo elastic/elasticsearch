@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[dense-vector]]
 === Dense vector field type
 ++++
@@ -123,7 +122,7 @@ positive and that a larger score corresponds to a higher ranking.
 `l2_norm`:::
 Computes similarity based on the L^2^ distance (also known as Euclidean
 distance) between the vectors. The document `_score` is computed as
-`1 / (1 + l2_norm(query, vector)^2)`.`
+`1 / (1 + l2_norm(query, vector)^2)`.
 
 `dot_product`:::
 Computes the dot product of two vectors. This option provides an optimized way

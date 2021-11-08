@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[ml-get-calendar-event]]
 = Get scheduled events API
 ++++

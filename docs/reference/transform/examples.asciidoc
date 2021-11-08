@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[transform-examples]]
 = {transform-cap} examples
 ++++

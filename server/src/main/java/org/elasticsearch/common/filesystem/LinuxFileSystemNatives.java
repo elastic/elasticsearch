@@ -35,7 +35,7 @@ final class LinuxFileSystemNatives implements FileSystemNatives.Provider {
     /** st_blocks field indicates the number of blocks allocated to the file, 512-byte units **/
     private static final long ST_BLOCKS_UNIT = 512L;
 
-    private LinuxFileSystemNatives(){
+    private LinuxFileSystemNatives() {
         assert Constants.LINUX : Constants.OS_NAME;
         assert Constants.JRE_IS_64BIT : Constants.OS_ARCH;
         try {

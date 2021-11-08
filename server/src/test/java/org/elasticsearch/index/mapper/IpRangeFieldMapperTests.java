@@ -10,13 +10,47 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class IpRangeFieldMapperTests extends MapperServiceTestCase {
+public class IpRangeFieldMapperTests extends RangeFieldMapperTests {
+
+    @Override
+    protected void minimalMapping(XContentBuilder b) throws IOException {
+        b.field("type", "ip_range");
+    }
+
+    @Override
+    protected XContentBuilder rangeSource(XContentBuilder in) throws IOException {
+        return in.startObject("field").field("gt", "::ffff:c0a8:107").field("lt", "2001:db8::").endObject();
+    }
+
+    @Override
+    protected String storedValue() {
+        return InetAddresses.toAddrString(InetAddresses.forString("192.168.1.7"))
+            + " : "
+            + InetAddresses.toAddrString(InetAddresses.forString("2001:db8:0:0:0:0:0:0"));
+    }
+
+    @Override
+    protected boolean supportsCoerce() {
+        return false;
+    }
+
+    @Override
+    protected Object rangeValue() {
+        return "192.168.1.7";
+    }
+
+    @Override
+    protected boolean supportsDecimalCoerce() {
+        return false;
+    }
 
     public void testStoreCidr() throws Exception {
 

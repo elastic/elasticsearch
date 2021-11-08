@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[slm-retention]]
 === Snapshot retention
 

@@ -219,28 +219,35 @@ public final class SourceConfirmedTextQuery extends Query {
             throw new IllegalStateException("Query " + in + " doesn't have any term");
         }
         final String field = terms.iterator().next().field();
-        final Map<Term, TermStates> termStates = new HashMap<>();
-        final List<TermStatistics> termStats = new ArrayList<>();
-        for (Term term : terms) {
-            TermStates ts = termStates.computeIfAbsent(term, t -> {
-                try {
-                    return TermStates.build(searcher.getTopReaderContext(), t, scoreMode.needsScores());
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
+        final CollectionStatistics collectionStatistics = searcher.collectionStatistics(field);
+        final SimScorer simScorer;
+        final Weight approximationWeight;
+        if (collectionStatistics == null) {
+            // field does not exist in the index
+            simScorer = null;
+            approximationWeight = null;
+        } else {
+            final Map<Term, TermStates> termStates = new HashMap<>();
+            final List<TermStatistics> termStats = new ArrayList<>();
+            for (Term term : terms) {
+                TermStates ts = termStates.computeIfAbsent(term, t -> {
+                    try {
+                        return TermStates.build(searcher.getTopReaderContext(), t, scoreMode.needsScores());
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                });
+                if (scoreMode.needsScores()) {
+                    if (ts.docFreq() > 0) {
+                        termStats.add(searcher.termStatistics(term, ts.docFreq(), ts.totalTermFreq()));
+                    }
+                } else {
+                    termStats.add(new TermStatistics(term.bytes(), 1, 1L));
                 }
-            });
-            if (scoreMode.needsScores()) {
-                if (ts.docFreq() > 0) {
-                    termStats.add(searcher.termStatistics(term, ts.docFreq(), ts.totalTermFreq()));
-                }
-            } else {
-                termStats.add(new TermStatistics(term.bytes(), 1, 1L));
             }
+            simScorer = searcher.getSimilarity().scorer(boost, collectionStatistics, termStats.toArray(TermStatistics[]::new));
+            approximationWeight = searcher.createWeight(approximate(in), ScoreMode.COMPLETE_NO_SCORES, 1f);
         }
-        final SimScorer simScorer = searcher.getSimilarity()
-            .scorer(boost, searcher.collectionStatistics(field), termStats.toArray(TermStatistics[]::new));
-        final Weight approximationWeight = searcher.createWeight(approximate(in), ScoreMode.COMPLETE_NO_SCORES, 1f);
-
         return new Weight(this) {
 
             @Override
@@ -272,7 +279,7 @@ public final class SourceConfirmedTextQuery extends Query {
 
             @Override
             public RuntimePhraseScorer scorer(LeafReaderContext context) throws IOException {
-                final Scorer approximationScorer = approximationWeight.scorer(context);
+                final Scorer approximationScorer = approximationWeight != null ? approximationWeight.scorer(context) : null;
                 if (approximationScorer == null) {
                     return null;
                 }

@@ -559,6 +559,42 @@ public class PyTorchModelIT extends ESRestTestCase {
         client().performRequest(request);
     }
 
+    public void testStopUsedDeploymentByIngestProcessor() throws IOException {
+        String modelId = "test_stop_used_deployment_by_ingest_processor";
+        createTrainedModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+
+        client().performRequest(
+            putPipeline(
+                "my_pipeline",
+                "{"
+                    + "\"processors\": [\n"
+                    + "      {\n"
+                    + "        \"inference\": {\n"
+                    + "          \"model_id\": \""
+                    + modelId
+                    + "\"\n"
+                    + "        }\n"
+                    + "      }\n"
+                    + "    ]\n"
+                    + "}"
+            )
+        );
+        ResponseException ex = expectThrows(ResponseException.class, () -> stopDeployment(modelId));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(409));
+        assertThat(
+            EntityUtils.toString(ex.getResponse().getEntity()),
+            containsString(
+                "Cannot stop deployment for model [test_stop_used_deployment_by_ingest_processor] as it is referenced by"
+                    + " ingest processors; use force to stop the deployment"
+            )
+        );
+
+        stopDeployment(modelId, true);
+    }
+
     private int sumInferenceCountOnNodes(List<Map<String, Object>> nodes) {
         int inferenceCount = 0;
         for (var node : nodes) {
@@ -629,7 +665,15 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     private void stopDeployment(String modelId) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_stop");
+        stopDeployment(modelId, false);
+    }
+
+    private void stopDeployment(String modelId, boolean force) throws IOException {
+        String endpoint = "/_ml/trained_models/" + modelId + "/deployment/_stop";
+        if (force) {
+            endpoint += "?force=true";
+        }
+        Request request = new Request("POST", endpoint);
         client().performRequest(request);
     }
 

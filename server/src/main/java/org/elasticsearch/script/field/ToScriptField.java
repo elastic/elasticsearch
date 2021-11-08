@@ -8,27 +8,22 @@
 
 package org.elasticsearch.script.field;
 
-import org.apache.lucene.index.SortedNumericDocValues;
-import org.elasticsearch.index.fielddata.ScriptDocValues.Dates;
-import org.elasticsearch.index.fielddata.ScriptDocValues.Doubles;
-import org.elasticsearch.index.fielddata.ScriptDocValues.Longs;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.LeafFieldData;
+import org.elasticsearch.index.mapper.MappedFieldType;
 
+import java.util.function.Supplier;
+
+/**
+ * The scripting fields API requires knowledge of the {@link MappedFieldType} when a user
+ * accesses a field in a script to return an appropriate {@link DocValuesField}. However,
+ * the {@link MappedFieldType} is not directly known to the {@link LeafFieldData}
+ * the values are loaded into. This functional interface is used to return a
+ * {@link DocValuesField} based on the {@link MappedFieldType} created by the
+ * {@link MappedFieldType#fielddataBuilder(String, Supplier)}.
+ *
+ * @param <T> The type of doc values data passed into the constructor for a {@link DocValuesField}.
+ */
 public interface ToScriptField<T> {
 
     DocValuesField<?> getScriptField(T docValues, String name);
-
-    ToScriptField<SortedNumericDocValues> _VERSION = (dv, n) -> new DelegateDocValuesField(new Longs(dv), n);
-    ToScriptField<SortedNumericDocValues> _SEQNO = (dv, n) -> new DelegateDocValuesField(new Longs(dv), n);
-    ToScriptField<SortedNumericDocValues> BOOLEAN = BooleanDocValuesField::new;
-    ToScriptField<SortedNumericDocValues> BYTE = (dv, n) -> new DelegateDocValuesField(new Longs(dv), n);
-    ToScriptField<SortedNumericDocValues> SHORT = (dv, n) -> new DelegateDocValuesField(new Longs(dv), n);
-    ToScriptField<SortedNumericDocValues> INT = (dv, n) -> new DelegateDocValuesField(new Longs(dv), n);
-    ToScriptField<SortedNumericDocValues> LONG = (dv, n) -> new DelegateDocValuesField(new Longs(dv), n);
-    ToScriptField<SortedNumericDoubleValues> HALF_FLOAT = (dv, n) -> new DelegateDocValuesField(new Doubles(dv), n);
-    ToScriptField<SortedNumericDoubleValues> FLOAT = (dv, n) -> new DelegateDocValuesField(new Doubles(dv), n);
-    ToScriptField<SortedNumericDoubleValues> SCALED_FLOAT = (dv, n) -> new DelegateDocValuesField(new Doubles(dv), n);
-    ToScriptField<SortedNumericDoubleValues> DOUBLE = (dv, n) -> new DelegateDocValuesField(new Doubles(dv), n);
-    ToScriptField<SortedNumericDocValues> DATE_MILLIS = (dv, n) -> new DelegateDocValuesField(new Dates(dv, false), n);
-    ToScriptField<SortedNumericDocValues> DATE_NANOS = (dv, n) -> new DelegateDocValuesField(new Dates(dv, true), n);
 }

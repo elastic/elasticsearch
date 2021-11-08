@@ -19,7 +19,6 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.sandbox.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
@@ -35,7 +34,8 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.ScriptDocValues.Doubles;
+import org.elasticsearch.index.fielddata.ScriptDocValues.Longs;
 import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
@@ -44,7 +44,7 @@ import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
-import org.elasticsearch.script.field.ToScriptField;
+import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -58,7 +58,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -330,6 +329,15 @@ public class NumberFieldMapper extends FieldMapper {
                 return fields;
             }
 
+            @Override
+            public IndexFieldData.Builder getBuilder(String name) {
+                return new SortedDoublesIndexFieldData.Builder(
+                    name(),
+                    numericType(),
+                    (dv, n) -> new DelegateDocValuesField(new Doubles(dv), n)
+                );
+            }
+
             private void validateParsed(float value) {
                 if (Float.isFinite(HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(value))) == false) {
                     throw new IllegalArgumentException("[half_float] supports only finite values, but got [" + value + "]");
@@ -432,6 +440,15 @@ public class NumberFieldMapper extends FieldMapper {
                 return fields;
             }
 
+            @Override
+            public IndexFieldData.Builder getBuilder(String name) {
+                return new SortedDoublesIndexFieldData.Builder(
+                    name(),
+                    numericType(),
+                    (dv, n) -> new DelegateDocValuesField(new Doubles(dv), n)
+                );
+            }
+
             private void validateParsed(float value) {
                 if (Float.isFinite(value) == false) {
                     throw new IllegalArgumentException("[float] supports only finite values, but got [" + value + "]");
@@ -517,6 +534,15 @@ public class NumberFieldMapper extends FieldMapper {
                 return fields;
             }
 
+            @Override
+            public IndexFieldData.Builder getBuilder(String name) {
+                return new SortedDoublesIndexFieldData.Builder(
+                    name(),
+                    numericType(),
+                    (dv, n) -> new DelegateDocValuesField(new Doubles(dv), n)
+                );
+            }
+
             private void validateParsed(double value) {
                 if (Double.isFinite(value) == false) {
                     throw new IllegalArgumentException("[double] supports only finite values, but got [" + value + "]");
@@ -588,6 +614,15 @@ public class NumberFieldMapper extends FieldMapper {
             Number valueForSearch(Number value) {
                 return value.byteValue();
             }
+
+            @Override
+            public IndexFieldData.Builder getBuilder(String name) {
+                return new SortedNumericIndexFieldData.Builder(
+                    name(),
+                    numericType(),
+                    (dv, n) -> new DelegateDocValuesField(new Longs(dv), n)
+                );
+            }
         },
         SHORT("short", NumericType.SHORT) {
             @Override
@@ -649,6 +684,15 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             Number valueForSearch(Number value) {
                 return value.shortValue();
+            }
+
+            @Override
+            public IndexFieldData.Builder getBuilder(String name) {
+                return new SortedNumericIndexFieldData.Builder(
+                    name(),
+                    numericType(),
+                    (dv, n) -> new DelegateDocValuesField(new Longs(dv), n)
+                );
             }
         },
         INTEGER("integer", NumericType.INT) {
@@ -771,6 +815,15 @@ public class NumberFieldMapper extends FieldMapper {
                 }
                 return fields;
             }
+
+            @Override
+            public IndexFieldData.Builder getBuilder(String name) {
+                return new SortedNumericIndexFieldData.Builder(
+                    name(),
+                    numericType(),
+                    (dv, n) -> new DelegateDocValuesField(new Longs(dv), n)
+                );
+            }
         },
         LONG("long", NumericType.LONG) {
             @Override
@@ -861,6 +914,15 @@ public class NumberFieldMapper extends FieldMapper {
                     fields.add(new StoredField(name, value.longValue()));
                 }
                 return fields;
+            }
+
+            @Override
+            public IndexFieldData.Builder getBuilder(String name) {
+                return new SortedNumericIndexFieldData.Builder(
+                    name(),
+                    numericType(),
+                    (dv, n) -> new DelegateDocValuesField(new Longs(dv), n)
+                );
             }
         };
 
@@ -1058,24 +1120,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
             return builder.apply(l, u);
         }
-    }
 
-    private static final Map<NumberType, ToScriptField<SortedNumericDocValues>> INTEGRAL_TYPE_TO_SCRIPT_FIELDS;
-    private static final Map<NumberType, ToScriptField<SortedNumericDoubleValues>> FLOATING_POINT_TYPE_TO_SCRIPT_FIELDS;
-
-    static {
-        Map<NumberType, ToScriptField<SortedNumericDocValues>> integralTypeToScriptFields = new HashMap<>(4);
-        integralTypeToScriptFields.put(NumberType.BYTE, ToScriptField.BYTE);
-        integralTypeToScriptFields.put(NumberType.SHORT, ToScriptField.SHORT);
-        integralTypeToScriptFields.put(NumberType.INTEGER, ToScriptField.INT);
-        integralTypeToScriptFields.put(NumberType.LONG, ToScriptField.LONG);
-        INTEGRAL_TYPE_TO_SCRIPT_FIELDS = Collections.unmodifiableMap(integralTypeToScriptFields);
-
-        Map<NumberType, ToScriptField<SortedNumericDoubleValues>> floatingPointTypeToScriptfields = new HashMap<>(3);
-        floatingPointTypeToScriptfields.put(NumberType.HALF_FLOAT, ToScriptField.HALF_FLOAT);
-        floatingPointTypeToScriptfields.put(NumberType.FLOAT, ToScriptField.FLOAT);
-        floatingPointTypeToScriptfields.put(NumberType.DOUBLE, ToScriptField.DOUBLE);
-        FLOATING_POINT_TYPE_TO_SCRIPT_FIELDS = Collections.unmodifiableMap(floatingPointTypeToScriptfields);
+        public abstract IndexFieldData.Builder getBuilder(String name);
     }
 
     public static class NumberFieldType extends SimpleMappedFieldType {
@@ -1188,11 +1234,7 @@ public class NumberFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            if (type.numericType().isFloatingPoint()) {
-                return new SortedDoublesIndexFieldData.Builder(name(), type.numericType(), FLOATING_POINT_TYPE_TO_SCRIPT_FIELDS.get(type));
-            } else {
-                return new SortedNumericIndexFieldData.Builder(name(), type.numericType(), INTEGRAL_TYPE_TO_SCRIPT_FIELDS.get(type));
-            }
+            return type.getBuilder(name());
         }
 
         @Override

@@ -96,7 +96,7 @@ public class TransportInfo implements ReportingService.Info {
         if (InetAddresses.isInetAddress(hostString) == false) {
             publishAddressString = hostString + '/' + publishAddress.toString();
             if (cnameInPublishAddressProperty) {
-                deprecationLogger.critical(
+                deprecationLogger.warn(
                     DeprecationCategory.SETTINGS,
                     "cname_in_publish_address",
                     "es.transport.cname_in_publish_address system property is deprecated and no longer affects "

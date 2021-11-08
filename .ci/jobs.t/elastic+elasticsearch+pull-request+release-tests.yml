@@ -3,7 +3,9 @@
     name: "elastic+elasticsearch+pull-request+release-tests"
     display-name: "elastic / elasticsearch - pull request release-tests"
     description: "Testing of Elasticsearch pull requests - release-tests"
-    workspace: "/dev/shm/elastic+elasticsearch+pull-request+release-tests"
+    # Don't use ramdisk since this build generates lots of large artifacts and results in oomkiller issues
+    # workspace: "/dev/shm/elastic+elasticsearch+pull-request+release-tests"
+    node: "general-purpose && docker"
     scm:
       - git:
           refspec: "+refs/pull/${ghprbPullId}/*:refs/remotes/origin/pr/${ghprbPullId}/*"

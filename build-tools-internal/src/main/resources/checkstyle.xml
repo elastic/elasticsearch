@@ -14,7 +14,7 @@
 
   <module name="RegexpMultiline">
     <property name="id" value="MultipleHeaderJavadoc" />
-    <property name="format" value="^\s*\/\*\n(\s\*[A-Za-z0-9 \.\/\;\,\.\-\(\)\\\x{22}\/\:\@\=\'\]\[\_\x{3E}\x{3C}]*\n)+(\s\*\/)\s+package" />
+    <property name="format" value="^\s*\/\*\r?\n(\s\*[A-Za-z0-9 \.\/\;\,\.\-\(\)\\\x{22}\/\:\@\=\'\]\[\_\x{3E}\x{3C}]*\r?\n)+(\s\*\/)\s+package" />
     <property name="fileExtensions" value="java" />
     <property name="minimum" value="1" />
     <property name="maximum" value="1" />

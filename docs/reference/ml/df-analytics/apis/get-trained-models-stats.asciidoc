@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[get-trained-models-stats]]
 = Get trained models statistics API
 [subs="attributes"]

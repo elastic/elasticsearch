@@ -352,7 +352,15 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                     return;
                 }
                 listener.onResponse(null);
-            }, listener::onFailure));
+            }, e -> {
+                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+                    Exception ex = new ResourceNotFoundException(Messages.getMessage(Messages.MODEL_DEFINITION_NOT_FOUND, modelId));
+                    ex.addSuppressed(e);
+                    listener.onFailure(ex);
+                    return;
+                }
+                listener.onFailure(e);
+            }));
     }
 
     @Override

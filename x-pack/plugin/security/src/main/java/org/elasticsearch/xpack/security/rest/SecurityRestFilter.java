@@ -14,7 +14,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -94,7 +93,6 @@ public class SecurityRestFilter implements RestHandler {
         } else {
             if (request.method() != Method.OPTIONS) {
                 HeaderWarning.addWarning(
-                    DeprecationLogger.CRITICAL,
                     "Elasticsearch built-in security features are not enabled. Without "
                         + "authentication, your cluster could be accessible to anyone. See "
                         + "https://www.elastic.co/guide/en/elasticsearch/reference/"

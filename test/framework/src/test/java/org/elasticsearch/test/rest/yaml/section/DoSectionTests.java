@@ -219,9 +219,8 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
     }
 
     public void testIgnoreTypesWarnings() {
-        String legitimateWarning = HeaderWarning.formatWarning(DeprecationLogger.CRITICAL, "warning");
+        String legitimateWarning = HeaderWarning.formatWarning("warning");
         String typesWarning = HeaderWarning.formatWarning(
-            DeprecationLogger.CRITICAL,
             "[types removal] " + "The endpoint /{index}/{type}/_count is deprecated, use /{index}/_count instead."
         );
 

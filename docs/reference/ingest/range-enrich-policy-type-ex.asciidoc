@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[range-enrich-policy-type]]
 === Example: Enrich your data by matching a value to a range
 

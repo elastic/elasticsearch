@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[delete-trained-models]]
 = Delete trained models API
 [subs="attributes"]

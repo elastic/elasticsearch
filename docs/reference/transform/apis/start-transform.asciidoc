@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[start-transform]]
 = Start {transform} API
 
